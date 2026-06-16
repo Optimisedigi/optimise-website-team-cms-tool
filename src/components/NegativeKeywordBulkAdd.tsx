@@ -50,6 +50,8 @@ export default function NegativeKeywordBulkAdd() {
         })),
       ]
 
+      const skipped = parsed.length - newKeywords.length
+
       const res = await fetch(`/api/negative-keyword-lists/${data.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -57,7 +59,6 @@ export default function NegativeKeywordBulkAdd() {
       })
 
       if (res.ok) {
-        const skipped = parsed.length - newKeywords.length
         setResult(
           `Added ${newKeywords.length} keyword${newKeywords.length !== 1 ? 's' : ''}` +
           (skipped > 0 ? ` (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped)` : '') +
@@ -168,11 +169,7 @@ competitor brand name`}
           >
             {saving ? 'Adding...' : `Add ${parsed.length} Keyword${parsed.length !== 1 ? 's' : ''}`}
           </button>
-          {!data?.id && (
-            <div style={{ fontSize: 12, color: '#b45309', marginTop: 6 }}>
-              Save the list first before bulk adding keywords.
-            </div>
-          )}
+
           {result && (
             <div
               style={{

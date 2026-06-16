@@ -4605,6 +4605,10 @@ export interface NegativeKeywordList {
    */
   campaignRegex?: string | null;
   /**
+   * Create-screen paste box: one keyword per line. Bare terms become exact match; quoted terms become phrase match. Saved into the hidden keywords list when you create the record.
+   */
+  createKeywordPaste?: string | null;
+  /**
    * Negative keywords in this list
    */
   keywords?:
@@ -10494,6 +10498,7 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
       };
   adGroupName?: T;
   campaignRegex?: T;
+  createKeywordPaste?: T;
   keywords?:
     | T
     | {

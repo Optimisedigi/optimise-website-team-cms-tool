@@ -15,7 +15,8 @@ export default function NegativeKeywordCampaignSelect() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Only show for campaign/ad_group scope
+  // Only show after the list is saved and for campaign/ad_group scope.
+  if (!data?.id) return null
   if (scope !== 'campaign' && scope !== 'ad_group') return null
   if (!clientId) return null
 

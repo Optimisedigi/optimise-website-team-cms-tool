@@ -129,6 +129,11 @@ export default function NegativeKeywordListInfo() {
   const [showSetup, setShowSetup] = useState(false)
   const [showScript, setShowScript] = useState(false)
   const [clientSlug, setClientSlug] = useState<string | null>(clientObj?.slug || null)
+  const [origin, setOrigin] = useState<string>('')
+
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
 
   // Fetch client slug if not populated
   useEffect(() => {
@@ -139,8 +144,8 @@ export default function NegativeKeywordListInfo() {
       .catch(() => {})
   }, [clientId, clientSlug])
 
-  const clientViewUrl = clientSlug && listName
-    ? `${window.location.origin}/${clientSlug}/negative-keywords/${slugify(listName)}`
+  const clientViewUrl = origin && clientSlug && listName
+    ? `${origin}/${clientSlug}/negative-keywords/${slugify(listName)}`
     : null
 
   const handleCopy = () => {

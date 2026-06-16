@@ -1,5 +1,6 @@
 import type { CollectionConfig } from "payload";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { parseNegativeKeywords } from "../lib/parse-negative-keywords";
 
 export const NegativeKeywordLists: CollectionConfig = {
   slug: "negative-keyword-lists",
@@ -27,6 +28,23 @@ export const NegativeKeywordLists: CollectionConfig = {
   hooks: {
     beforeChange: [
       ({ data }) => {
+        if (typeof data?.createKeywordPaste === "string" && data.createKeywordPaste.trim()) {
+          const existingKeywords = Array.isArray(data.keywords) ? data.keywords : [];
+          const existingSet = new Set(
+            existingKeywords.map((kw: any) => `${kw.keyword?.toLowerCase()}|${kw.matchType}`),
+          );
+          const pastedKeywords = parseNegativeKeywords(data.createKeywordPaste)
+            .filter((kw) => !existingSet.has(`${kw.keyword.toLowerCase()}|${kw.matchType}`))
+            .map((kw) => ({
+              keyword: kw.keyword,
+              matchType: kw.matchType,
+              flaggedForRemoval: false,
+            }));
+
+          data.keywords = [...existingKeywords, ...pastedKeywords];
+          delete data.createKeywordPaste;
+        }
+
         if (data?.keywords) {
           data.keywordCount = Array.isArray(data.keywords) ? data.keywords.length : 0;
           // Stamp negated_at on every new keyword that doesn't have one yet.
@@ -146,6 +164,17 @@ export const NegativeKeywordLists: CollectionConfig = {
   },
   fields: [
     {
+      name: "infoPanel",
+      type: "ui",
+      admin: {
+        // Hidden until save so Payload does not show a custom-field placeholder on create.
+        condition: (data) => Boolean(data?.id),
+        components: {
+          Field: "./components/NegativeKeywordListInfo",
+        },
+      },
+    },
+    {
       name: "client",
       type: "relationship",
       relationTo: "clients",
@@ -178,6 +207,16 @@ export const NegativeKeywordLists: CollectionConfig = {
       },
     },
     {
+      name: "campaignSelect",
+      type: "ui",
+      admin: {
+        condition: (data) => Boolean(data?.id),
+        components: {
+          Field: "./components/NegativeKeywordCampaignSelect",
+        },
+      },
+    },
+    {
       name: "campaignName",
       type: "text",
       admin: {
@@ -190,7 +229,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       type: "array",
       admin: {
         description: "Campaigns this negative keyword list is applied to",
-        condition: () => false, // Hidden — managed by negative keyword sync/API workflows
+        condition: () => false, // Hidden — managed via the campaign select UI above
       },
       fields: [
         {
@@ -217,11 +256,43 @@ export const NegativeKeywordLists: CollectionConfig = {
       },
     },
     {
+      name: "createKeywordPaste",
+      label: "Bulk Add Keywords",
+      type: "textarea",
+      virtual: true,
+      admin: {
+        description:
+          "Create-screen paste box: one keyword per line. Bare terms become exact match; quoted terms become phrase match. Saved into the hidden keywords list when you create the record.",
+        condition: (data) => !data?.id,
+        rows: 8,
+      },
+    },
+    {
+      name: "bulkAdd",
+      type: "ui",
+      admin: {
+        condition: (data) => Boolean(data?.id),
+        components: {
+          Field: "./components/NegativeKeywordBulkAdd",
+        },
+      },
+    },
+    {
+      name: "keywordTable",
+      type: "ui",
+      admin: {
+        condition: (data) => Boolean(data?.id),
+        components: {
+          Field: "./components/NegativeKeywordTable",
+        },
+      },
+    },
+    {
       name: "keywords",
       type: "array",
       admin: {
         description: "Negative keywords in this list",
-        condition: () => false, // Hidden — managed by negative keyword workflows/API
+        condition: () => false, // Hidden — managed via the table UI above
       },
       fields: [
         {
@@ -267,7 +338,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       admin: {
         readOnly: true,
         description: "Auto-calculated keyword count",
-        condition: () => false, // Hidden — used for collection list columns and API responses
+        condition: () => false, // Hidden — shown in the table header
       },
     },
     {
