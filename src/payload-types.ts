@@ -103,6 +103,7 @@ export interface Config {
     'site-health-reports': SiteHealthReport;
     'forecast-scenarios': ForecastScenario;
     'agency-kpi-snapshots': AgencyKpiSnapshot;
+    'client-metric-snapshots': ClientMetricSnapshot;
     'quarterly-organic-growth-snapshots': QuarterlyOrganicGrowthSnapshot;
     'ai-visibility-snapshots': AiVisibilitySnapshot;
     'serp-displacement-snapshots': SerpDisplacementSnapshot;
@@ -198,6 +199,7 @@ export interface Config {
     'site-health-reports': SiteHealthReportsSelect<false> | SiteHealthReportsSelect<true>;
     'forecast-scenarios': ForecastScenariosSelect<false> | ForecastScenariosSelect<true>;
     'agency-kpi-snapshots': AgencyKpiSnapshotsSelect<false> | AgencyKpiSnapshotsSelect<true>;
+    'client-metric-snapshots': ClientMetricSnapshotsSelect<false> | ClientMetricSnapshotsSelect<true>;
     'quarterly-organic-growth-snapshots': QuarterlyOrganicGrowthSnapshotsSelect<false> | QuarterlyOrganicGrowthSnapshotsSelect<true>;
     'ai-visibility-snapshots': AiVisibilitySnapshotsSelect<false> | AiVisibilitySnapshotsSelect<true>;
     'serp-displacement-snapshots': SerpDisplacementSnapshotsSelect<false> | SerpDisplacementSnapshotsSelect<true>;
@@ -426,6 +428,21 @@ export interface Client {
      */
     notes?: string | null;
   };
+  /**
+   * Inclusive start date for the 500 patient / prescription goals (YYYY-MM-DD).
+   */
+  wcqTrackingStartDate?: string | null;
+  wcqMetricsLastSyncedAt?: string | null;
+  wcqAssessmentTarget?: number | null;
+  wcqPrescriptionTarget?: number | null;
+  /**
+   * Aggregate count of paid, completed assessments only. No patient records are stored in this CMS.
+   */
+  wcqAssessmentsCompleted?: number | null;
+  /**
+   * Aggregate count of issued/sent/collected prescriptions only.
+   */
+  wcqPrescriptionCount?: number | null;
   /**
    * Primary contact name
    */
@@ -5628,15 +5645,6 @@ export interface TeamTaskComment {
   task: number | TeamTask;
   author: number | User;
   body: string;
-  mentions?: (number | User)[] | null;
-  attachments?:
-    | {
-        label: string;
-        url: string;
-        kind?: ('google_doc' | 'google_sheet' | 'loom' | 'page' | 'cms' | 'other') | null;
-        id?: string | null;
-      }[]
-    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -6705,6 +6713,38 @@ export interface AgencyKpiSnapshot {
   oneOffYTD: number;
   leadConversion: number;
   mtdCosts: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Daily aggregate client KPI snapshots from external systems. Stores counts only, never patient/person-level data.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-metric-snapshots".
+ */
+export interface ClientMetricSnapshot {
+  id: number;
+  client: number | Client;
+  /**
+   * External system that supplied the aggregate counts.
+   */
+  source: string;
+  /**
+   * Snapshot date in YYYY-MM-DD, derived from the source asOf timestamp.
+   */
+  date: string;
+  /**
+   * Inclusive tracking start date in YYYY-MM-DD.
+   */
+  trackingStartDate: string;
+  assessmentsCompleted: number;
+  prescriptions: number;
+  assessmentTarget: number;
+  prescriptionTarget: number;
+  /**
+   * When the source system computed these counts.
+   */
+  asOf: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -8546,6 +8586,10 @@ export interface PayloadLockedDocument {
         value: number | AgencyKpiSnapshot;
       } | null)
     | ({
+        relationTo: 'client-metric-snapshots';
+        value: number | ClientMetricSnapshot;
+      } | null)
+    | ({
         relationTo: 'quarterly-organic-growth-snapshots';
         value: number | QuarterlyOrganicGrowthSnapshot;
       } | null)
@@ -8784,6 +8828,12 @@ export interface ClientsSelect<T extends boolean = true> {
         neglectCriticalDays?: T;
         notes?: T;
       };
+  wcqTrackingStartDate?: T;
+  wcqMetricsLastSyncedAt?: T;
+  wcqAssessmentTarget?: T;
+  wcqPrescriptionTarget?: T;
+  wcqAssessmentsCompleted?: T;
+  wcqPrescriptionCount?: T;
   contactName?: T;
   contactEmail?: T;
   contactPhone?: T;
@@ -9698,15 +9748,6 @@ export interface TeamTaskCommentsSelect<T extends boolean = true> {
   task?: T;
   author?: T;
   body?: T;
-  mentions?: T;
-  attachments?:
-    | T
-    | {
-        label?: T;
-        url?: T;
-        kind?: T;
-        id?: T;
-      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -10630,6 +10671,23 @@ export interface AgencyKpiSnapshotsSelect<T extends boolean = true> {
   oneOffYTD?: T;
   leadConversion?: T;
   mtdCosts?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-metric-snapshots_select".
+ */
+export interface ClientMetricSnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  source?: T;
+  date?: T;
+  trackingStartDate?: T;
+  assessmentsCompleted?: T;
+  prescriptions?: T;
+  assessmentTarget?: T;
+  prescriptionTarget?: T;
+  asOf?: T;
   updatedAt?: T;
   createdAt?: T;
 }

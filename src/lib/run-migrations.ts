@@ -4351,9 +4351,9 @@ export async function runMigrations(
       \`source\` text DEFAULT 'website-we-can-quit' NOT NULL,
       \`date\` text NOT NULL,
       \`tracking_start_date\` text NOT NULL,
-      \`new_patients\` numeric DEFAULT 0 NOT NULL,
+      \`assessments_completed\` numeric DEFAULT 0 NOT NULL,
       \`prescriptions\` numeric DEFAULT 0 NOT NULL,
-      \`patient_target\` numeric DEFAULT 500 NOT NULL,
+      \`assessment_target\` numeric DEFAULT 500 NOT NULL,
       \`prescription_target\` numeric DEFAULT 500 NOT NULL,
       \`as_of\` text NOT NULL,
       \`updated_at\` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -4367,9 +4367,9 @@ export async function runMigrations(
     await run("client_metric_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `client_metric_snapshots_updated_at_idx` ON `client_metric_snapshots` (`updated_at`)");
     await run("client_metric_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `client_metric_snapshots_created_at_idx` ON `client_metric_snapshots` (`created_at`)");
     await run("clients.wcq_tracking_start_date", "ALTER TABLE `clients` ADD `wcq_tracking_start_date` text DEFAULT '2026-05-01'");
-    await run("clients.wcq_new_patients", "ALTER TABLE `clients` ADD `wcq_new_patients` numeric DEFAULT 0");
+    await run("clients.wcq_assessments_completed", "ALTER TABLE `clients` ADD `wcq_assessments_completed` numeric DEFAULT 0");
     await run("clients.wcq_prescription_count", "ALTER TABLE `clients` ADD `wcq_prescription_count` numeric DEFAULT 0");
-    await run("clients.wcq_patient_target", "ALTER TABLE `clients` ADD `wcq_patient_target` numeric DEFAULT 500");
+    await run("clients.wcq_assessment_target", "ALTER TABLE `clients` ADD `wcq_assessment_target` numeric DEFAULT 500");
     await run("clients.wcq_prescription_target", "ALTER TABLE `clients` ADD `wcq_prescription_target` numeric DEFAULT 500");
     await run("clients.wcq_metrics_last_synced_at", "ALTER TABLE `clients` ADD `wcq_metrics_last_synced_at` text");
     await run("locked_docs_rels.client_metric_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_metric_snapshots_id` integer REFERENCES `client_metric_snapshots`(`id`) ON DELETE cascade");

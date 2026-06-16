@@ -403,6 +403,11 @@ export function buildClientPulseSummary(input: {
   ]);
 
   const metrics = deriveMetrics(latestOrganic, adsSnapshots, analyticsSnapshots[0], organicTrend);
+  // WeCanQuit-only: expose the aggregate assessment counter (pushed from the
+  // WeCanQuit app, no patient data) as a Client Pulse target metric. Only this
+  // client has `wcqAssessmentsCompleted` set, so every other client reads null
+  // here and the `assessments` target shows missing_data unless configured.
+  metrics.assessments = numberValue(input.client.wcqAssessmentsCompleted);
   const analyticsMetrics = selectedAnalyticsMetrics(pulse).map((metric) => ({
     metric,
     label: labelForTarget(metric),
@@ -910,6 +915,7 @@ function clientPulseClientSelect(includeAnalyticsMetrics: boolean): PlainRecord 
     logoThumbUrl: true,
     services: true,
     googleAdsCustomerId: true,
+    wcqAssessmentsCompleted: true,
     spendPolicy: {
       monthlyBudgetTarget: true,
     },
@@ -1149,6 +1155,7 @@ function targetReasons(target: ClientPulseSummary["target"]): string[] {
 function labelForTarget(metric: string): string {
   if (metric === "cpa") return "CPA";
   if (metric === "roas") return "ROAS";
+  if (metric === "assessments") return "Assessments";
   return metric.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
 

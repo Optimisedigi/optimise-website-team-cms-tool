@@ -40,6 +40,39 @@ describe("client-pulse", () => {
     expect(calculateTargetProgress({ metric: "traffic", value: 100 }, { traffic: null }).status).toBe("missing_data");
   });
 
+  it("tracks the WeCanQuit assessment counter as a Client Pulse target", async () => {
+    const payload = {
+      async find(args: Record<string, unknown>) {
+        if (args.collection === "clients") {
+          return {
+            docs: [
+              {
+                id: 7,
+                name: "WeCanQuit",
+                slug: "we-can-quit",
+                isActive: true,
+                services: [],
+                wcqAssessmentsCompleted: 16,
+                clientPulse: { enabled: true, targetValue: 500, primaryTarget: "assessments", servicesTracked: [] },
+              },
+            ],
+          };
+        }
+        return { docs: [] };
+      },
+    };
+
+    const summaries = await getClientPulseSummaries(payload, { now: new Date("2026-06-16T00:00:00.000Z") });
+    expect(summaries[0]?.target).toMatchObject({
+      metric: "assessments",
+      label: "Assessments",
+      value: 500,
+      currentValue: 16,
+      progressPercent: 3,
+      status: "at_risk",
+    });
+  });
+
   it("calculates neglect risk thresholds", () => {
     const now = new Date("2026-06-09T00:00:00.000Z");
     expect(calculateNeglectRisk({ lastMeaningfulActivityAt: "2026-06-01T00:00:00.000Z" }, { warningDays: 14, criticalDays: 30 }, now).status).toBe("good");

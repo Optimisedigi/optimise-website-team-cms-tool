@@ -895,6 +895,29 @@ export async function GET() {
     }
   } catch { /* agency not configured */ }
 
+  // WeCanQuit assessment target — unique to this one client. Surfaces the
+  // aggregate counter pushed from the WeCanQuit app (paid + completed
+  // assessments, no patient data) as a progress bar on the dashboard. Other
+  // clients never have these fields set.
+  let wcqAssessmentTarget: { current: number; target: number } | null = null;
+  try {
+    const wcq = await payload.find({
+      collection: "clients",
+      where: { slug: { equals: "we-can-quit" } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    });
+    const wcqDoc = wcq.docs[0] as any;
+    if (wcqDoc) {
+      const target = Number(wcqDoc.wcqAssessmentTarget) || 0;
+      const current = Number(wcqDoc.wcqAssessmentsCompleted) || 0;
+      if (target > 0) {
+        wcqAssessmentTarget = { current, target };
+      }
+    }
+  } catch { /* we-can-quit client not present */ }
+
   let convertedLeadsCount = 0;
   try {
     const cl = await payload.count({
@@ -1004,6 +1027,7 @@ export async function GET() {
     teamTasks: teamTasksData || null,
     realtimeVoiceCost,
     salesTarget,
+    wcqAssessmentTarget,
     breakdowns: {
       monthlyRetainer: monthlyRetainerBreakdown,
       oneOffYTD: oneOffYTDBreakdown,

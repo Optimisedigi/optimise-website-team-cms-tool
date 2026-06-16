@@ -187,6 +187,10 @@ interface DashboardData {
   salesTarget?: {
     target: number
   } | null
+  wcqAssessmentTarget?: {
+    current: number
+    target: number
+  } | null
   kpiMom?: {
     activeClients?: KpiDelta
     activeLeads?: KpiDelta
@@ -908,6 +912,14 @@ const Dashboard = () => {
 
         {/* ── Right Column ── */}
         <div className="od-dash__side">
+          {/* WeCanQuit assessment target — unique to this one client */}
+          {data.wcqAssessmentTarget && data.wcqAssessmentTarget.target > 0 && (
+            <WcqAssessmentTargetBar
+              current={data.wcqAssessmentTarget.current}
+              target={data.wcqAssessmentTarget.target}
+            />
+          )}
+
           {/* Pending Statements banner */}
           {statementsSummary && statementsSummary.pendingCount > 0 && (
             <a
@@ -1997,6 +2009,31 @@ function ActionItems({
 }
 
 // ─── Yearly Sales Target Bar ─────────────────────────────
+
+function WcqAssessmentTargetBar({ current, target }: { current: number; target: number }) {
+  const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0
+  return (
+    <div
+      className="od-box"
+      style={{ marginBottom: 12 }}
+      title={`${current.toLocaleString('en-AU')} of ${target.toLocaleString('en-AU')} paid + completed assessments`}
+    >
+      <div className="od-box__body" style={{ padding: '14px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 8 }}>
+          <b style={{ fontSize: 12.5, color: 'var(--od-t1)' }}>WeCanQuit Assessments</b>
+          <span style={{ color: 'var(--od-t3)', fontSize: 12 }}>
+            <b style={{ color: 'var(--od-t1)' }}>{current.toLocaleString('en-AU')}</b>
+            {' / '}{target.toLocaleString('en-AU')} ·{' '}
+            <b style={{ color: 'var(--od-green)' }}>{pct}%</b>
+          </span>
+        </div>
+        <div style={{ position: 'relative', height: 8, borderRadius: 20, background: '#eef0f3', overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 20, background: 'linear-gradient(90deg, #468d8b, #74b3a8)' }} />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function YearlySalesTargetBar({ target, current }: { target: number; current: number }) {
   const percentage = Math.min(100, Math.round((current / target) * 100))

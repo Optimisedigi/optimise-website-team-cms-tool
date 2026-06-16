@@ -802,6 +802,7 @@ export const Clients: CollectionConfig = {
                             { label: "Organic clicks", value: "organic_clicks" },
                             { label: "Paid conversions", value: "paid_conversions" },
                             { label: "Revenue", value: "revenue" },
+                            { label: "Assessments (WeCanQuit)", value: "assessments" },
                             { label: "Custom", value: "custom" },
                           ],
                         },
@@ -917,6 +918,88 @@ export const Clients: CollectionConfig = {
               ],
             },
             ],
+            },
+            {
+              type: "collapsible",
+              label: "WeCanQuit Metrics",
+              admin: {
+                initCollapsed: false,
+                condition: (data: any) => data?.slug === "we-can-quit",
+                description:
+                  "Aggregate-only healthcare counters pushed from WeCanQuit. These fields intentionally store counts only — no patient or prescription details.",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "wcqTrackingStartDate",
+                      label: "Tracking Start Date",
+                      type: "text",
+                      defaultValue: "2026-05-01",
+                      admin: {
+                        description: "Inclusive start date for the 500 patient / prescription goals (YYYY-MM-DD).",
+                        width: "25%",
+                      },
+                    },
+                    {
+                      name: "wcqMetricsLastSyncedAt",
+                      label: "Last Synced At",
+                      type: "date",
+                      admin: {
+                        readOnly: true,
+                        width: "25%",
+                        date: { pickerAppearance: "dayAndTime" },
+                      },
+                    },
+                    {
+                      name: "wcqAssessmentTarget",
+                      label: "Assessment Target",
+                      type: "number",
+                      defaultValue: 500,
+                      min: 0,
+                      admin: { width: "25%" },
+                    },
+                    {
+                      name: "wcqPrescriptionTarget",
+                      label: "Prescription Target",
+                      type: "number",
+                      defaultValue: 500,
+                      min: 0,
+                      admin: { width: "25%" },
+                    },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "wcqAssessmentsCompleted",
+                      label: "Assessments (paid + completed)",
+                      type: "number",
+                      defaultValue: 0,
+                      min: 0,
+                      admin: {
+                        readOnly: true,
+                        description: "Aggregate count of paid, completed assessments only. No patient records are stored in this CMS.",
+                        width: "50%",
+                      },
+                    },
+                    {
+                      name: "wcqPrescriptionCount",
+                      label: "Prescriptions",
+                      type: "number",
+                      defaultValue: 0,
+                      min: 0,
+                      admin: {
+                        readOnly: true,
+                        description: "Aggregate count of issued/sent/collected prescriptions only.",
+                        width: "50%",
+                      },
+                    },
+                  ],
+                },
+              ],
             },
             // ══ Contacts & Managers collapsible ═════════════════════
             // Contact info, account managers, locations, conversion goals —
