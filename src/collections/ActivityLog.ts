@@ -88,6 +88,8 @@ export const ActivityLog: CollectionConfig = {
         { label: "Match Type Violation Keyword Added", value: "match_type_violation_keyword_added" },
         { label: "Monthly Negatives Need Review", value: "monthly_negative_needs_review" },
         { label: "Monthly Negatives Applied", value: "monthly_negative_applied" },
+        { label: "Team Task Ready for Review", value: "team_task_ready_for_review" },
+        { label: "Team Task Completed", value: "team_task_completed" },
       ],
     },
     {

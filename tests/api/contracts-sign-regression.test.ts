@@ -161,8 +161,11 @@ describe("contract signing route regressions", () => {
       params: Promise.resolve({ token: "token" }),
     });
 
-    expect(res.status).toBe(400);
-    await expect(res.json()).resolves.toEqual({ error: "Signing link expired" });
+    expect(res.status).toBe(410);
+    await expect(res.json()).resolves.toEqual({
+      error: "Sorry, this link has expired. Please reach out to your Optimise Digital team member for a new link.",
+      code: "contract_link_expired",
+    });
     expect(mockPayload.update).not.toHaveBeenCalled();
     expect(mockSyncContractToClient).not.toHaveBeenCalled();
   });

@@ -75,6 +75,8 @@ export interface Config {
     'process-templates': ProcessTemplate;
     'deck-templates': DeckTemplate;
     'client-processes': ClientProcess;
+    'team-tasks': TeamTask;
+    'team-task-comments': TeamTaskComment;
     'client-portal-requests': ClientPortalRequest;
     'client-value-ledger-items': ClientValueLedgerItem;
     'meeting-schedulers': MeetingScheduler;
@@ -168,6 +170,8 @@ export interface Config {
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
     'deck-templates': DeckTemplatesSelect<false> | DeckTemplatesSelect<true>;
     'client-processes': ClientProcessesSelect<false> | ClientProcessesSelect<true>;
+    'team-tasks': TeamTasksSelect<false> | TeamTasksSelect<true>;
+    'team-task-comments': TeamTaskCommentsSelect<false> | TeamTaskCommentsSelect<true>;
     'client-portal-requests': ClientPortalRequestsSelect<false> | ClientPortalRequestsSelect<true>;
     'client-value-ledger-items': ClientValueLedgerItemsSelect<false> | ClientValueLedgerItemsSelect<true>;
     'meeting-schedulers': MeetingSchedulersSelect<false> | MeetingSchedulersSelect<true>;
@@ -4366,6 +4370,7 @@ export interface User {
         | 'process-templates'
         | 'deck-templates'
         | 'client-processes'
+        | 'team-tasks'
         | 'meeting-schedulers'
         | 'email-templates'
         | 'clients-basic'
@@ -4478,6 +4483,7 @@ export interface PermissionProfile {
         | 'process-templates'
         | 'deck-templates'
         | 'client-processes'
+        | 'team-tasks'
         | 'meeting-schedulers'
         | 'email-templates'
         | 'clients-basic'
@@ -5537,6 +5543,104 @@ export interface ClientProcess {
   createdAt: string;
 }
 /**
+ * Assign and track client work for team members.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "team-tasks".
+ */
+export interface TeamTask {
+  id: number;
+  title: string;
+  /**
+   * Client this work is for.
+   */
+  client?: (number | null) | Client;
+  /**
+   * Team member responsible for this task.
+   */
+  assignedTo?: (number | null) | User;
+  taskType:
+    | 'blog_post'
+    | 'email'
+    | 'product_page'
+    | 'product_update'
+    | 'research'
+    | 'website_content'
+    | 'seo'
+    | 'internal_documentation'
+    | 'reporting'
+    | 'google_ads'
+    | 'schema_fix'
+    | 'faq_schema'
+    | 'product_feed'
+    | 'google_sheet'
+    | 'other';
+  status: 'not_started' | 'in_progress' | 'ready_for_review' | 'completed' | 'task_postponed';
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  dueDate?: string | null;
+  /**
+   * Set automatically when status changes to Completed.
+   */
+  completedAt?: string | null;
+  /**
+   * Original brief, context, checklist, prompts, client notes, or delivery requirements.
+   */
+  instructions?: string | null;
+  /**
+   * Optional primary Trello, Google Doc, Loom, page, CMS, or source link.
+   */
+  sourceUrl?: string | null;
+  relatedLinks?:
+    | {
+        label: string;
+        url: string;
+        kind?: ('brief' | 'loom' | 'google_doc' | 'page' | 'cms' | 'other') | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Assignee notes, blockers, issue links, completion remarks, or questions.
+   */
+  staffNotes?: string | null;
+  /**
+   * Peter/manager review feedback and requested changes.
+   */
+  reviewNotes?: string | null;
+  /**
+   * User who created the task.
+   */
+  createdBy?: (number | null) | User;
+  /**
+   * Historical CSV/week label, e.g. (WEEK 13) Oct 6 to Oct 12, 2025.
+   */
+  sheetWeek?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Comment history for team task detail panes.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "team-task-comments".
+ */
+export interface TeamTaskComment {
+  id: number;
+  task: number | TeamTask;
+  author: number | User;
+  body: string;
+  mentions?: (number | User)[] | null;
+  attachments?:
+    | {
+        label: string;
+        url: string;
+        kind?: ('google_doc' | 'google_sheet' | 'loom' | 'page' | 'cms' | 'other') | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Requests submitted from the client hub.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -5862,7 +5966,9 @@ export interface ActivityLog {
     | 'match_type_violation_rejected'
     | 'match_type_violation_keyword_added'
     | 'monthly_negative_needs_review'
-    | 'monthly_negative_applied';
+    | 'monthly_negative_applied'
+    | 'team_task_ready_for_review'
+    | 'team_task_completed';
   title: string;
   description?: string | null;
   /**
@@ -7918,7 +8024,8 @@ export interface Notification {
     | 'google-ads-budget-review'
     | 'meeting-response-accepted'
     | 'meeting-response-declined'
-    | 'meeting-confirmed';
+    | 'meeting-confirmed'
+    | 'team-task-mention';
   title: string;
   /**
    * Short summary line.
@@ -7930,6 +8037,10 @@ export interface Notification {
   url?: string | null;
   relatedContract?: (number | null) | Contract;
   relatedClient?: (number | null) | Client;
+  /**
+   * Links the notification to a team task mention/comment.
+   */
+  relatedTeamTask?: (number | null) | TeamTask;
   /**
    * Links the notification to the meeting-scheduler row whose attendee responded or whose time was confirmed.
    */
@@ -8321,6 +8432,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'client-processes';
         value: number | ClientProcess;
+      } | null)
+    | ({
+        relationTo: 'team-tasks';
+        value: number | TeamTask;
+      } | null)
+    | ({
+        relationTo: 'team-task-comments';
+        value: number | TeamTaskComment;
       } | null)
     | ({
         relationTo: 'client-portal-requests';
@@ -9538,6 +9657,56 @@ export interface ClientProcessesSelect<T extends boolean = true> {
   durationDays?: T;
   lastSharedAt?: T;
   sharedCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "team-tasks_select".
+ */
+export interface TeamTasksSelect<T extends boolean = true> {
+  title?: T;
+  client?: T;
+  assignedTo?: T;
+  taskType?: T;
+  status?: T;
+  priority?: T;
+  dueDate?: T;
+  completedAt?: T;
+  instructions?: T;
+  sourceUrl?: T;
+  relatedLinks?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        kind?: T;
+        id?: T;
+      };
+  staffNotes?: T;
+  reviewNotes?: T;
+  createdBy?: T;
+  sheetWeek?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "team-task-comments_select".
+ */
+export interface TeamTaskCommentsSelect<T extends boolean = true> {
+  task?: T;
+  author?: T;
+  body?: T;
+  mentions?: T;
+  attachments?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        kind?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -11198,6 +11367,7 @@ export interface NotificationsSelect<T extends boolean = true> {
   url?: T;
   relatedContract?: T;
   relatedClient?: T;
+  relatedTeamTask?: T;
   relatedMeetingScheduler?: T;
   relatedApproval?: T;
   relatedGoalRun?: T;

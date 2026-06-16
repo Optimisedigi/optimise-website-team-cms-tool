@@ -57,6 +57,8 @@ import { SalesLeads } from "./collections/SalesLeads";
 import { ProcessTemplates } from "./collections/ProcessTemplates";
 import { DeckTemplates } from "./collections/DeckTemplates";
 import { ClientProcesses } from "./collections/ClientProcesses";
+import { TeamTasks } from "./collections/TeamTasks";
+import { TeamTaskComments } from "./collections/TeamTaskComments";
 import { TagSetupAudits } from "./collections/TagSetupAudits";
 import { SiteHealthReports } from "./collections/SiteHealthReports";
 import { AiVisibilitySnapshots } from "./collections/AiVisibilitySnapshots";
@@ -127,7 +129,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientProposals, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, ClientProcesses, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
+    Clients, ClientProposals, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO

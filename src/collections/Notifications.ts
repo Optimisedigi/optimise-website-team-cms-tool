@@ -101,6 +101,10 @@ export const Notifications: CollectionConfig = {
           label: "Meeting time confirmed",
           value: "meeting-confirmed",
         },
+        {
+          label: "Team task mention",
+          value: "team-task-mention",
+        },
       ],
     },
     {
@@ -131,6 +135,14 @@ export const Notifications: CollectionConfig = {
       name: "relatedClient",
       type: "relationship",
       relationTo: "clients",
+    },
+    {
+      name: "relatedTeamTask",
+      type: "relationship",
+      relationTo: "team-tasks" as never,
+      admin: {
+        description: "Links the notification to a team task mention/comment.",
+      },
     },
     {
       name: "relatedMeetingScheduler",

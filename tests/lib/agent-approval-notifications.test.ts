@@ -191,10 +191,10 @@ describe("fanOutApprovalNotifications", () => {
 });
 
 describe("clearApprovalNotifications", () => {
-  it("deletes notifications matching the approval id and returns the count", async () => {
+  it("marks notifications matching the approval id read and returns the count", async () => {
     const payload = makePayload();
+    payload.findByID.mockResolvedValue({ status: "approved", title: "Budget push" });
     payload.find.mockResolvedValue({ docs: [{ id: 1 }, { id: 2 }, { id: 3 }], totalDocs: 3 });
-    payload.delete.mockResolvedValue({});
 
     const count = await clearApprovalNotifications(payload as never, 42);
 
@@ -207,15 +207,18 @@ describe("clearApprovalNotifications", () => {
         { relatedApproval: { equals: 42 } },
       ],
     });
-    expect(payload.delete).toHaveBeenCalledTimes(3);
-    expect(payload.delete.mock.calls[0][0]).toMatchObject({
+    expect(payload.delete).not.toHaveBeenCalled();
+    expect(payload.update).toHaveBeenCalledTimes(3);
+    expect(payload.update.mock.calls[0][0]).toMatchObject({
       collection: "notifications",
       id: 1,
       overrideAccess: true,
+      data: { title: "Approval approved: Budget push" },
     });
+    expect(payload.update.mock.calls[0][0].data.readAt).toEqual(expect.any(String));
   });
 
-  it("returns 0 and logs on delete failure", async () => {
+  it("returns 0 and logs on notification clear failure", async () => {
     const payload = makePayload();
     payload.delete.mockRejectedValue(new Error("db error"));
 

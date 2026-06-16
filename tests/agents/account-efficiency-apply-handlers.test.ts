@@ -60,11 +60,16 @@ describe("applyAdGroupPause", () => {
     await applyAdGroupPause({ auditId: 11, campaignId: "c1", adGroupId: "ag1", adGroupName: "Brand", expectedStatus: "ENABLED", operation: "pause" }, fakeCtx());
     expect(mockPostGrowthTools).toHaveBeenCalledWith("/api/google-ads/ad-groups/pause", {
       customerId: "1234567890",
-      campaignId: "c1",
-      adGroupId: "ag1",
-      adGroupName: "Brand",
-      expectedStatus: "ENABLED",
-      operation: "pause",
+      adGroups: [
+        {
+          campaignId: "c1",
+          campaignName: undefined,
+          adGroupId: "ag1",
+          adGroupName: "Brand",
+          expectedStatus: "ENABLED",
+          operation: "pause",
+        },
+      ],
     });
   });
 

@@ -232,7 +232,19 @@ body:has(.login.template-minimal) {
   align-items: center;
   justify-content: center;
   background: rgba(var(--theme-bg-rgb, 255, 255, 255), 0.88);
-  backdrop-filter: blur(2px);
+  -webkit--webkit--webkit--webkit--webkit--webkit--webkit--webkit--webkit--webkit--webkit--webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
+  backdrop-filter: none;
   animation: od-loader-fadein 0.15s ease-out;
 
   .od-splash {
@@ -725,20 +737,20 @@ $svg-close: "%3C/svg%3E";
 // ============================================================
 // Payload's `.app-header` (breadcrumbs + account menu) defaults to
 // `position: relative` and scrolls away. Pin it to the top with the mockup's
-// calmer, blurred, bordered surface so it stays visible while the page
-// scrolls — the same treatment used on the client edit page, now everywhere.
+// calmer, bordered surface so it stays visible while the page scrolls — the
+// same treatment used on the client edit page, now everywhere.
 .app-header {
   position: sticky;
   top: 0;
   // Sit above page content but below the nav drawer / modals.
   z-index: 30;
 
-  // Always show the blurred background (Payload only reveals it on scroll via
+  // Always show the header background (Payload only reveals it on scroll via
   // `--show-bg`); force it on so the sticky bar reads as a solid header.
   .app-header__bg {
     opacity: 1;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: none;
     border-bottom: 1px solid var(--theme-elevation-100, #e7e9ee);
   }
 }
@@ -759,6 +771,7 @@ $svg-close: "%3C/svg%3E";
 
   .app-header .app-header__bg {
     background: #000 !important;
+    -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
     border-bottom-color: rgba(255, 255, 255, 0.14) !important;
   }
@@ -838,8 +851,8 @@ $svg-close: "%3C/svg%3E";
     justify-content: flex-end;
     gap: 12px;
     max-width: calc(100vw - var(--od-savebar-left, 260px) - 168px);
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: none;
     border: 1px solid #e7e9ee;
     border-radius: 12px;
     box-shadow: 0 6px 20px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.05);
@@ -1068,7 +1081,7 @@ $svg-close: "%3C/svg%3E";
     inset 0 1px 1px rgba(216, 236, 248, 0.18),
     inset 0 28px 68px rgba(168, 216, 245, 0.05),
     0 32px 80px rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(22px);
+  backdrop-filter: none;
   box-sizing: border-box;
 }
 
@@ -1775,8 +1788,8 @@ $svg-close: "%3C/svg%3E";
   // viewport so it never runs off-screen on smaller laptops.
   max-height: min(720px, calc(100vh - 120px));
   overflow-y: auto;
-  background: rgba(17, 24, 39, 0.96);
-  backdrop-filter: blur(8px);
+  background: rgba(17, 24, 39, 0.98);
+  backdrop-filter: none;
   color: #ffffff;
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
@@ -5229,8 +5242,8 @@ body:has(:is(
     justify-content: flex-end;
     gap: 12px;
     max-width: calc(100vw - var(--od-savebar-left, 260px) - 168px);
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: none;
     border: 1px solid #e7e9ee;
     border-radius: 12px;
     box-shadow: 0 6px 20px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.05);
@@ -6002,9 +6015,8 @@ body:has(:is(
   // editable service pills + revenue stat strip.
   .od-client-head {
     // Own stacking context (relative + z-index) so the fixed save bar's and
-    // app-header's `backdrop-filter: blur()` compositing layers don't sample
-    // and blur this card — a Chromium backdrop-filter artifact otherwise blurs
-    // the header box that sits between those two blurred layers.
+    // Keep this card in its own stacking context so fixed/sticky admin chrome
+    // does not visually interfere with the header box while scrolling.
     position: relative;
     z-index: 1;
     display: flex;
@@ -6591,8 +6603,8 @@ body.od-client-record {
   }
 
   // ── Sticky bottom save bar (mockup .savebar) ──
-  // Float Payload's controls wrapper (the Save action) as a rounded, blurred
-  // bar pinned to the bottom of the viewport. We do NOT reposition the whole
+  // Float Payload's controls wrapper (the Save action) as a rounded bar pinned
+  // to the bottom of the viewport. We do NOT reposition the whole
   // `.doc-controls` element (it's also a gutter and stretches full-height when
   // taken out of flow); instead we remove it from layout with `display:
   // contents` so it leaves NO box (and no stray stacking context / blur layer
@@ -6633,8 +6645,8 @@ body.od-client-record {
     justify-content: flex-end;
     gap: 12px;
     max-width: calc(100vw - var(--od-savebar-left, 260px) - 168px);
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: none;
     border: 1px solid #e7e9ee;
     border-radius: 12px;
     box-shadow: 0 6px 20px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.05);
@@ -6732,7 +6744,7 @@ body.od-client-record {
   .drawer__blur-bg {
     opacity: 1 !important;
     background: rgba(17, 24, 39, 0.36) !important;
-    backdrop-filter: blur(3px);
+    backdrop-filter: none;
   }
 
   .drawer__close {
@@ -6817,13 +6829,13 @@ body.od-client-record {
   }
 
   // Static mockup-style topbar: restyle Payload's real app-header (breadcrumbs)
-  // into the calmer, sticky, blurred bar from the mockup.
+  // into the calmer, sticky bar from the mockup.
   .app-header {
     --od-border: #e7e9ee;
 
     .app-header__bg {
-      background: rgba(255, 255, 255, 0.85);
-      backdrop-filter: blur(8px);
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: none;
       border-bottom: 1px solid var(--od-border);
     }
 

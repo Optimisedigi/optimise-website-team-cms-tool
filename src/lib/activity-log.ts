@@ -58,7 +58,9 @@ type ActivityType =
   | "monthly_negative_applied"
   | "google_ads_anomaly_detected"
   | "client_value_ledger_item_created"
-  | "organic_growth_snapshot_created";
+  | "organic_growth_snapshot_created"
+  | "team_task_ready_for_review"
+  | "team_task_completed";
 
 interface ActivityEntry {
   type: ActivityType;

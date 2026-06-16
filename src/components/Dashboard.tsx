@@ -115,6 +115,21 @@ interface ProcessesData {
   recentProcesses: RecentProcess[]
 }
 
+interface TeamTasksData {
+  notStarted: number
+  inProgress: number
+  readyForReview: number
+  completedThisMonth: number
+  postponed: number
+  overdue: number
+  perAssignee: Array<{
+    userId: string | number | null
+    name: string
+    active: number
+    readyForReview: number
+  }>
+}
+
 interface RealtimeVoiceCostData {
   estimatedCostAud: number
   durationSeconds: number
@@ -167,6 +182,7 @@ interface DashboardData {
     uncategorisedCount: number
   }
   processes?: ProcessesData | null
+  teamTasks?: TeamTasksData | null
   realtimeVoiceCost?: RealtimeVoiceCostData | null
   salesTarget?: {
     target: number
@@ -499,6 +515,8 @@ const typeLabels: Record<string, string> = {
   proposal_created: 'Proposal',
   gsc_snapshot: 'GSC',
   time_tracked: 'Time Tracked',
+  team_task_ready_for_review: 'Task Review',
+  team_task_completed: 'Task Complete',
   lead_created: 'New Lead',
   lead_stage_changed: 'Lead Update',
 }
@@ -921,6 +939,9 @@ const Dashboard = () => {
 
           <ActivityFeed entries={data.activity} />
 
+          {/* Team Tasks */}
+          <TeamTasksCard teamTasks={data.teamTasks} />
+
           {/* Action Items */}
           <ActionItems
             uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}
@@ -1322,6 +1343,7 @@ function CostBreakdown({ data, open }: { data: DashboardData; open: boolean }) {
 // ─── Activity Feed ────────────────────────────────────────
 
 function activityIcon(type: string): string {
+  if (type.includes('task')) return '🧭'
   if (type.includes('proposal')) return '📄'
   if (type.includes('invoice') || type.includes('cost')) return '💰'
   if (type.includes('agent') || type.includes('google')) return '🤖'
@@ -1731,6 +1753,85 @@ function RealtimeVoiceCostCard({ usage }: { usage?: RealtimeVoiceCostData | null
             {formatVoiceDuration(duration)}
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Team Tasks Card ─────────────────────────────────────
+
+function TeamTasksCard({ teamTasks }: { teamTasks?: TeamTasksData | null }) {
+  if (!teamTasks) {
+    return (
+      <div className="od-box od-box--muted">
+        <div className="od-box__head">
+          <span className="od-box__title">Team Tasks</span>
+        </div>
+        <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+            No team task data available yet.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const openTotal = teamTasks.notStarted + teamTasks.inProgress + teamTasks.readyForReview
+
+  return (
+    <div className="od-box">
+      <div className="od-box__head">
+        <span className="od-box__title">Team Tasks</span>
+        <a
+          href="/admin/collections/team-tasks"
+          style={{ fontSize: 12, color: 'var(--theme-elevation-500)', textDecoration: 'none' }}
+        >
+          View all &rarr;
+        </a>
+      </div>
+      <div className="od-box__body od-card-pad">
+        <div className="od-processes__pills">
+          <span className="od-pill od-pill--green">{teamTasks.inProgress} In progress</span>
+          <span className="od-pill od-pill--amber">{teamTasks.readyForReview} Review</span>
+          <span className="od-pill od-pill--gray">{teamTasks.completedThisMonth} Done MTD</span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 14 }}>
+          <div className="od-stat" style={{ padding: 10 }}>
+            <div className="k">Open</div>
+            <div className="v">{openTotal}</div>
+          </div>
+          <div className="od-stat" style={{ padding: 10 }}>
+            <div className="k">Overdue</div>
+            <div className="v" style={teamTasks.overdue > 0 ? { color: '#f59e0b' } : {}}>{teamTasks.overdue}</div>
+          </div>
+          <div className="od-stat" style={{ padding: 10 }}>
+            <div className="k">Postponed</div>
+            <div className="v">{teamTasks.postponed}</div>
+          </div>
+        </div>
+
+        {teamTasks.perAssignee.length > 0 ? (
+          <div className="od-processes__list" style={{ marginTop: 14 }}>
+            {teamTasks.perAssignee.map((row) => (
+              <a key={row.userId ?? 'unassigned'} href="/admin/collections/team-tasks" className="od-processes__item">
+                <div className="od-processes__row">
+                  <b>{row.name}</b>
+                  <span>{row.active} active</span>
+                </div>
+                <div className="od-processes__meta">
+                  {row.readyForReview > 0 ? `${row.readyForReview} ready for review` : 'No review items waiting'}
+                </div>
+              </a>
+            ))}
+          </div>
+        ) : openTotal === 0 ? (
+          <div style={{ padding: '16px 0', textAlign: 'center' }}>
+            <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+              No open team tasks.
+            </p>
+          </div>
+        ) : null}
       </div>
     </div>
   )

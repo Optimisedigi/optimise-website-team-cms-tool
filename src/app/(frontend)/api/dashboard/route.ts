@@ -221,6 +221,7 @@ export async function GET() {
     totalProposals,
     activeLeadsCount,
     processesData,
+    teamTasksData,
     ...historicalCounts
   ] = await Promise.all([
     // Latest GSC snapshot + 13-month history for Optimise Digital
@@ -494,6 +495,77 @@ export async function GET() {
           recentProcesses,
         };
       } catch {
+        return null;
+      }
+    })(),
+
+    // Team tasks summary for the agency dashboard
+    (async () => {
+      try {
+        const completedMonthStart = monthStart;
+        const nowIso = now.toISOString();
+        const [notStarted, inProgress, readyForReview, completedThisMonth, postponed, overdue, activeResult] = await Promise.all([
+          payload.count({ collection: "team-tasks" as any, where: { status: { equals: "not_started" } } }),
+          payload.count({ collection: "team-tasks" as any, where: { status: { equals: "in_progress" } } }),
+          payload.count({ collection: "team-tasks" as any, where: { status: { equals: "ready_for_review" } } }),
+          payload.count({
+            collection: "team-tasks" as any,
+            where: {
+              and: [
+                { status: { equals: "completed" } },
+                { completedAt: { greater_than: completedMonthStart } },
+              ],
+            },
+          }),
+          payload.count({ collection: "team-tasks" as any, where: { status: { equals: "task_postponed" } } }),
+          payload.count({
+            collection: "team-tasks" as any,
+            where: {
+              and: [
+                { dueDate: { less_than: nowIso } },
+                { status: { not_equals: "completed" } },
+                { status: { not_equals: "task_postponed" } },
+              ],
+            },
+          }),
+          payload.find({
+            collection: "team-tasks" as any,
+            where: {
+              and: [
+                { status: { not_equals: "completed" } },
+                { status: { not_equals: "task_postponed" } },
+              ],
+            },
+            sort: "dueDate",
+            limit: 500,
+            depth: 1,
+            overrideAccess: true,
+          }),
+        ]);
+
+        const assigneeMap = new Map<string, { userId: string | number | null; name: string; active: number; readyForReview: number }>();
+        for (const task of activeResult.docs as any[]) {
+          const assignee = task.assignedTo;
+          const userId = assignee && typeof assignee === "object" ? assignee.id : assignee ?? null;
+          const key = userId == null ? "unassigned" : String(userId);
+          const name = assignee && typeof assignee === "object" ? assignee.name || assignee.email || "Unnamed user" : "Unassigned";
+          const current = assigneeMap.get(key) || { userId, name, active: 0, readyForReview: 0 };
+          current.active += 1;
+          if (task.status === "ready_for_review") current.readyForReview += 1;
+          assigneeMap.set(key, current);
+        }
+
+        return {
+          notStarted: notStarted.totalDocs,
+          inProgress: inProgress.totalDocs,
+          readyForReview: readyForReview.totalDocs,
+          completedThisMonth: completedThisMonth.totalDocs,
+          postponed: postponed.totalDocs,
+          overdue: overdue.totalDocs,
+          perAssignee: Array.from(assigneeMap.values()).sort((a, b) => b.active - a.active).slice(0, 6),
+        };
+      } catch (error) {
+        console.error("[dashboard] Team tasks summary error:", error);
         return null;
       }
     })(),
@@ -929,6 +1001,7 @@ export async function GET() {
     activeLeads: activeLeadsCount.totalDocs,
     businessCosts: businessCostsSummary,
     processes: processesData || null,
+    teamTasks: teamTasksData || null,
     realtimeVoiceCost,
     salesTarget,
     breakdowns: {

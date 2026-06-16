@@ -120,6 +120,8 @@ import * as migration_20260714_120000_add_optimate_voice_realtime_model from './
 import * as migration_20260715_120000_add_agent_soul_applies_to from './20260715_120000_add_agent_soul_applies_to';
 import * as migration_20260716_120000_add_realtime_voice_usage from './20260716_120000_add_realtime_voice_usage';
 import * as migration_20260717_120000_add_notification_hot_path_indexes from './20260717_120000_add_notification_hot_path_indexes';
+import * as migration_20260718_120000_add_team_tasks from './20260718_120000_add_team_tasks';
+import * as migration_20260719_120000_add_team_task_comments from './20260719_120000_add_team_task_comments';
 
 export const migrations = [
   {
@@ -731,5 +733,15 @@ export const migrations = [
     up: migration_20260717_120000_add_notification_hot_path_indexes.up,
     down: migration_20260717_120000_add_notification_hot_path_indexes.down,
     name: '20260717_120000_add_notification_hot_path_indexes'
+  },
+  {
+    up: migration_20260718_120000_add_team_tasks.up,
+    down: migration_20260718_120000_add_team_tasks.down,
+    name: '20260718_120000_add_team_tasks'
+  },
+  {
+    up: migration_20260719_120000_add_team_task_comments.up,
+    down: migration_20260719_120000_add_team_task_comments.down,
+    name: '20260719_120000_add_team_task_comments'
   },
 ];

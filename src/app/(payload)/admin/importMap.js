@@ -97,6 +97,7 @@ import { default as default_03f868076ce9f068b848044dba6c2e81 } from '../../../co
 import { default as default_c942878b95bb76e4edb6703d0af13ae3 } from '../../../components/ProcessTracker'
 import { default as default_e5c235401c2506e52e0da17600621f37 } from '../../../components/ClientProcessWorksheet'
 import { default as default_f3192da0e1eaceb3549701f5cee70cf7 } from '../../../components/CreateProcessFromTemplate'
+import { default as default_03c19e26ded9f30117bc663c9fa87312 } from '../../../components/TeamTasksListView'
 import { default as default_971d902ea7bb079a9f85d3af6410683c } from '../../../components/GenerateSlotsButton'
 import { default as default_00616646d6161fbe87975107f4e83aa2 } from '../../../components/CopyScheduleEmailButton'
 import { default as default_0038b26ea788903db0f6afa6e94f619a } from '../../../components/SendScheduleInvitesButton'
@@ -282,6 +283,7 @@ export const importMap = {
   "./components/ProcessTracker#default": default_c942878b95bb76e4edb6703d0af13ae3,
   "./components/ClientProcessWorksheet#default": default_e5c235401c2506e52e0da17600621f37,
   "./components/CreateProcessFromTemplate#default": default_f3192da0e1eaceb3549701f5cee70cf7,
+  "./components/TeamTasksListView#default": default_03c19e26ded9f30117bc663c9fa87312,
   "./components/GenerateSlotsButton#default": default_971d902ea7bb079a9f85d3af6410683c,
   "./components/CopyScheduleEmailButton#default": default_00616646d6161fbe87975107f4e83aa2,
   "./components/SendScheduleInvitesButton#default": default_0038b26ea788903db0f6afa6e94f619a,
