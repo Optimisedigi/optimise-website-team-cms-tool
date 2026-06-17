@@ -60,17 +60,9 @@ function getRelationshipId(value: unknown): string | number | undefined {
 }
 
 const canReadTeamTasks: Access = ({ req }) => {
-  const user = req.user as { id?: string | number; role?: string } | null;
+  const user = req.user as { role?: string } | null;
   if (!user) return false;
-  if (user.role === "admin") return true;
-  if (!userHasFeature(user, "team-tasks") || user.id == null) return false;
-
-  return {
-    or: [
-      { assignedTo: { equals: user.id } },
-      { createdBy: { equals: user.id } },
-    ],
-  } as any;
+  return userHasFeature(user, "team-tasks");
 };
 
 const canCreateTeamTasks: Access = ({ req }) => {
@@ -80,17 +72,9 @@ const canCreateTeamTasks: Access = ({ req }) => {
 };
 
 const canUpdateTeamTasks: Access = ({ req }) => {
-  const user = req.user as { id?: string | number; role?: string } | null;
+  const user = req.user as { role?: string } | null;
   if (!user) return false;
-  if (user.role === "admin") return true;
-  if (!userHasFeature(user, "team-tasks") || user.id == null) return false;
-
-  return {
-    or: [
-      { assignedTo: { equals: user.id } },
-      { createdBy: { equals: user.id } },
-    ],
-  } as any;
+  return userHasFeature(user, "team-tasks");
 };
 
 const adminOrManagerField: FieldAccess = ({ req }) => {
