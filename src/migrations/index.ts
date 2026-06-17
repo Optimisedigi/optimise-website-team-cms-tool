@@ -124,6 +124,7 @@ import * as migration_20260717_120000_add_notification_hot_path_indexes from './
 import * as migration_20260718_120000_add_team_tasks from './20260718_120000_add_team_tasks';
 import * as migration_20260719_120000_add_team_task_comments from './20260719_120000_add_team_task_comments';
 import * as migration_20260720_120000_add_negative_keyword_campaign_count from './20260720_120000_add_negative_keyword_campaign_count';
+import * as migration_20260720_130000_refresh_negative_keyword_campaign_counts from './20260720_130000_refresh_negative_keyword_campaign_counts';
 
 export const migrations = [
   {
@@ -755,5 +756,10 @@ export const migrations = [
     up: migration_20260720_120000_add_negative_keyword_campaign_count.up,
     down: migration_20260720_120000_add_negative_keyword_campaign_count.down,
     name: '20260720_120000_add_negative_keyword_campaign_count'
+  },
+  {
+    up: migration_20260720_130000_refresh_negative_keyword_campaign_counts.up,
+    down: migration_20260720_130000_refresh_negative_keyword_campaign_counts.down,
+    name: '20260720_130000_refresh_negative_keyword_campaign_counts'
   },
 ];

@@ -1,6 +1,63 @@
 import type { CollectionConfig } from "payload";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { matchesPattern } from "../lib/nkl-routing";
 import { parseNegativeKeywords } from "../lib/parse-negative-keywords";
+
+const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+
+function relationID(value: unknown): string | number | null {
+  if (!value) return null;
+  if (typeof value === "string" || typeof value === "number") return value;
+  if (typeof value === "object" && "id" in value) return (value as { id?: string | number }).id ?? null;
+  return null;
+}
+
+async function fetchMatchingCampaignNames({
+  req,
+  clientRef,
+  campaignRegex,
+}: {
+  req: any;
+  clientRef: unknown;
+  campaignRegex: string;
+}): Promise<string[] | null> {
+  if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) return null;
+
+  const clientId = relationID(clientRef);
+  if (!clientId) return null;
+
+  const client =
+    typeof clientRef === "object" && clientRef && "googleAdsCustomerId" in clientRef
+      ? clientRef
+      : await req.payload.findByID({
+          collection: "clients",
+          id: clientId,
+          depth: 0,
+          overrideAccess: true,
+        });
+
+  const customerId = String((client as any)?.googleAdsCustomerId ?? "").replace(/\D/g, "");
+  if (!customerId) return null;
+
+  try {
+    const res = await fetch(`${GROWTH_TOOLS_URL}/api/google-ads/campaigns?customerId=${customerId}`, {
+      headers: { "x-internal-key": INTERNAL_API_KEY },
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const campaigns: Array<{ name?: string }> = Array.isArray(data?.campaigns) ? data.campaigns : [];
+    return campaigns
+      .map((campaign) => campaign.name)
+      .filter((name): name is string => Boolean(name))
+      .filter((name) => matchesPattern(name, campaignRegex));
+  } catch (err) {
+    req.payload.logger?.warn?.(`[NegativeKeywordLists] campaign count refresh failed: ${err}`);
+    return null;
+  }
+}
 
 export const NegativeKeywordLists: CollectionConfig = {
   slug: "negative-keyword-lists",
@@ -26,8 +83,21 @@ export const NegativeKeywordLists: CollectionConfig = {
     delete: adminOnlyDelete,
   },
   hooks: {
+    afterRead: [
+      ({ doc }) => {
+        const count = Number(doc?.campaignCount);
+        if (Number.isFinite(count) && doc?.campaignCount !== null && doc?.campaignCount !== "") {
+          doc.campaignCount = count;
+          return doc;
+        }
+
+        const hasRegex = String(doc?.campaignRegex ?? "").trim().length > 0;
+        doc.campaignCount = hasRegex && Array.isArray(doc?.campaigns) ? doc.campaigns.length : 0;
+        return doc;
+      },
+    ],
     beforeChange: [
-      ({ data, originalDoc }) => {
+      async ({ data, originalDoc, operation, req }) => {
         if (typeof data?.createKeywordPaste === "string" && data.createKeywordPaste.trim()) {
           const existingKeywords = Array.isArray(data.keywords) ? data.keywords : [];
           const existingSet = new Set(
@@ -61,12 +131,38 @@ export const NegativeKeywordLists: CollectionConfig = {
         }
 
         const nextRegex = typeof data?.campaignRegex === "string" ? data.campaignRegex : originalDoc?.campaignRegex;
-        const nextCampaigns = Array.isArray(data?.campaigns)
+        const nextClient = data?.client ?? originalDoc?.client;
+        const regexChanged = operation === "create" || data?.campaignRegex !== undefined;
+        const clientChanged = operation === "create" || data?.client !== undefined;
+        const hasExplicitCampaigns = Array.isArray(data?.campaigns);
+        const trimmedRegex = String(nextRegex ?? "").trim();
+
+        if (!trimmedRegex) {
+          data.campaigns = [];
+          data.campaignCount = 0;
+          return data;
+        }
+
+        if (!hasExplicitCampaigns && (regexChanged || clientChanged)) {
+          const matchedCampaignNames = await fetchMatchingCampaignNames({
+            req,
+            clientRef: nextClient,
+            campaignRegex: trimmedRegex,
+          });
+
+          if (matchedCampaignNames) {
+            data.campaigns = matchedCampaignNames.map((campaignName) => ({ campaignName }));
+            data.campaignCount = matchedCampaignNames.length;
+            return data;
+          }
+        }
+
+        const nextCampaigns = hasExplicitCampaigns
           ? data.campaigns
           : Array.isArray(originalDoc?.campaigns)
             ? originalDoc.campaigns
             : [];
-        data.campaignCount = String(nextRegex ?? "").trim() ? nextCampaigns.length : 0;
+        data.campaignCount = nextCampaigns.length;
 
         return data;
       },
