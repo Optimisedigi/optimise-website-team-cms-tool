@@ -38,8 +38,14 @@ interface AdGroupRow {
  *  "Limited by budget" badge. 10% is the threshold the Google Ads UI itself
  *  uses for its column highlighting — below that, daily noise dominates. */
 const LIMITED_BY_BUDGET_THRESHOLD = 0.1;
-const BUDGET_TABLE_COLUMNS = '32px minmax(300px, max-content) minmax(46px, 1fr) minmax(66px, 1fr) minmax(76px, 1fr) minmax(76px, 1fr) minmax(68px, 1fr) minmax(70px, 1fr) minmax(58px, 1fr) minmax(58px, 1fr) minmax(52px, 1fr) minmax(58px, 1fr) minmax(72px, 1fr) minmax(54px, 1fr) minmax(62px, 1fr)';
 const BUDGET_TABLE_MIN_WIDTH = 1280;
+
+function getCampaignColumnWidth(campaigns: BudgetCampaign[]): string {
+  const longest = campaigns.reduce((max, c) => Math.max(max, c.campaignName.length), 0);
+  // Approximate width: ~7.5px per character at 13px font, plus padding/gap
+  const width = Math.max(300, Math.min(800, longest * 7.5 + 40));
+  return `${width}px`;
+}
 
 function formatPercentMetric(value: number | undefined): string {
   return typeof value === 'number' ? `${(value * 100).toFixed(0)}%` : '—';
@@ -815,6 +821,14 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     [campaigns]
   );
 
+  // Shared campaign column width so all rows align. Computed from the longest
+  // campaign name in the current filtered set, capped between 300px and 800px.
+  const campaignColumnWidth = useMemo(() => getCampaignColumnWidth(campaigns), [campaigns]);
+  const gridTemplateColumns = useMemo(() => {
+    const metrics = '46px 66px 76px 76px 68px 70px 58px 58px 52px 58px 72px 54px 62px';
+    return `32px ${campaignColumnWidth} ${metrics}`;
+  }, [campaignColumnWidth]);
+
   // Standalone campaigns sit in a separate budget pool. Surface a small subheading
   // under the Monthly Budget Total when any exist so the team understands the
   // monthly figure is the *non-standalone* pool.
@@ -1386,7 +1400,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflowX: 'auto', overflowY: 'hidden', paddingRight: 10 }}>
           {/* Table Header */}
-          <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '10px 10px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
+          <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: gridTemplateColumns, gap: 4, padding: '10px 10px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
             <div></div>
             <div>Campaign</div>
             <div style={{ textAlign: 'right' }}>%</div>
@@ -1455,7 +1469,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               return (
                 <div key={campaign.campaignId} style={{ borderBottom: index < filtered.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <div
-                    style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '10px 10px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
+                    style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: gridTemplateColumns, gap: 4, padding: '10px 10px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
                     onClick={() => {
                       const next = isExpanded ? null : campaign.campaignId;
                       setExpandedCampaign(next);
@@ -1619,7 +1633,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                         const warningAg = adGroupsWarning[campaign.campaignId];
                         return (
                           <div style={{ marginBottom: 10 }}>
-                            <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '0 10px 8px', alignItems: 'center' }}>
+                            <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: gridTemplateColumns, gap: 4, padding: '0 10px 8px', alignItems: 'center' }}>
                               <div />
                               <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>Ad Groups</div>
                               <div style={{ gridColumn: '14 / 16', textAlign: 'right' }}>
@@ -1660,7 +1674,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                             )}
                             {!loadingAg && !errorAg && rows && rows.length > 0 && (
                               <div style={{ borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
-                                <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '8px 10px', background: '#fff', borderBottom: '1px solid #f1f5f9', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
+                                <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: gridTemplateColumns, gap: 4, padding: '8px 10px', background: '#fff', borderBottom: '1px solid #f1f5f9', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
                                   <div />
                                   <div>Ad Group</div>
                                   <div />
@@ -1680,7 +1694,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                                 {rows.map((ag, agIdx) => (
                                   <div
                                     key={ag.adGroupId}
-                                    style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '8px 10px', alignItems: 'center', borderBottom: agIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: 12 }}
+                                    style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: gridTemplateColumns, gap: 4, padding: '8px 10px', alignItems: 'center', borderBottom: agIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: 12 }}
                                   >
                                     <div />
                                     <div style={{ minWidth: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', overflow: 'hidden', paddingLeft: 18 }}>
@@ -1714,7 +1728,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                         );
                       })()}
 
-                      <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '8px 10px 0', alignItems: 'center', fontSize: 12 }}>
+                      <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: gridTemplateColumns, gap: 4, padding: '8px 10px 0', alignItems: 'center', fontSize: 12 }}>
                         <div />
                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                           <input
