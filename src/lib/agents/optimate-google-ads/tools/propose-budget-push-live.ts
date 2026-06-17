@@ -16,8 +16,13 @@ interface PushCampaignIn {
   campaignId: string;
   campaignName: string;
   dailyBudget: number;
+  currentDailyBudget?: number | null;
   bidStrategy?: string;
   bidStrategyId?: string;
+}
+
+function formatDailyBudget(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(2)}/day` : "—";
 }
 
 interface ProposeBudgetPushArgs {
@@ -106,14 +111,15 @@ export const proposeBudgetPushLive: CanonicalTool<ProposeBudgetPushArgs> = {
     const totalDaily = verifiedCampaigns.reduce((s, c) => s + c.dailyBudget, 0);
     const rows = verifiedCampaigns.map((c) => [
       c.campaignName,
-      `$${c.dailyBudget.toFixed(2)}/day`,
+      formatDailyBudget(c.currentDailyBudget),
+      formatDailyBudget(c.dailyBudget),
       c.bidStrategy ?? "—",
     ]);
 
     const internalMarkdown = buildInternalMarkdown({
       summary: args.summary,
       supportingNumbers: args.supportingNumbers,
-      diffSection: `${mdTable(["Campaign", "Daily $", "Bid strategy"], rows)}\n\n**Total daily across pushed campaigns:** $${totalDaily.toFixed(2)}`,
+      diffSection: `${mdTable(["Campaign", "Current daily budget", "New daily budget", "Bid strategy"], rows)}\n\n**Total daily across pushed campaigns:** $${totalDaily.toFixed(2)}`,
       applyEffect: `Will call Growth Tools \`campaign-budgets/push\` against customer ${customerId ?? "?"} for audit #${auditId ?? "?"} and stamp \`actualDailyBudget\` + \`lastPushedAt\` on each CMS row.`,
     });
 

@@ -38,11 +38,15 @@ interface AdGroupRow {
  *  "Limited by budget" badge. 10% is the threshold the Google Ads UI itself
  *  uses for its column highlighting — below that, daily noise dominates. */
 const LIMITED_BY_BUDGET_THRESHOLD = 0.1;
-const BUDGET_TABLE_COLUMNS = '32px minmax(280px, 1fr) 46px 66px 68px 68px 52px 44px 58px 72px 54px 62px';
-const AD_GROUP_TABLE_COLUMNS = 'minmax(240px, 1fr) 66px 56px 48px 44px 58px 62px';
+const BUDGET_TABLE_COLUMNS = '32px minmax(300px, 1fr) 46px 66px 76px 76px 68px 70px 58px 58px 52px 58px 72px 54px 62px';
+const BUDGET_TABLE_MIN_WIDTH = 1280;
 
 function formatPercentMetric(value: number | undefined): string {
   return typeof value === 'number' ? `${(value * 100).toFixed(0)}%` : '—';
+}
+
+function isLiveCampaignActive(campaign: Pick<BudgetCampaign, 'campaignStatus' | 'enabled'>): boolean {
+  return campaign.campaignStatus ? campaign.campaignStatus !== 'PAUSED' && campaign.campaignStatus !== 'REMOVED' : campaign.enabled;
 }
 
 function budgetRestrictionLabel(searchBudgetLostIS: number | undefined): { label: string; color: string; background: string; border: string } {
@@ -792,6 +796,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   );
 
   const totalConversions = campaigns.reduce((sum, c) => sum + (c.conversions || 0), 0);
+  const activeCampaignCount = campaigns.filter(isLiveCampaignActive).length;
 
   // Progress bar calculations
   const percentUsed = monthlySpend.maxBudget > 0 
@@ -824,7 +829,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   const budgetPerWeek = budgetPerDay * 7;
 
   return (
-    <div style={{ padding: '16px 0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div className="od-google-ads-budget-management" style={{ padding: '16px 0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Header */}
       <div
         style={{
@@ -1198,9 +1203,14 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       {/* Campaign Budget List */}
       <div style={{ marginTop: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#1e293b' }}>
-            Campaign Budget Allocation
-          </h3>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#1e293b' }}>
+              Campaign Budget Allocation
+            </h3>
+            <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>
+              {activeCampaignCount} campaign{activeCampaignCount === 1 ? '' : 's'} active in Google Ads
+            </div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 13, color: '#64748b' }}>Allocated:</span>
             <span style={{ fontSize: 15, fontWeight: 700, color: Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : totalPercentage > 100 ? '#dc2626' : '#d97706' }}>
@@ -1221,13 +1231,14 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 4 }}>
             {([
-              { key: 'enabled' as CampaignFilter, label: 'Enabled', count: campaigns.filter(c => c.enabled).length },
-              { key: 'paused' as CampaignFilter, label: 'Paused', count: campaigns.filter(c => !c.enabled).length },
-              { key: 'all' as CampaignFilter, label: 'All', count: campaigns.length },
+              { key: 'enabled' as CampaignFilter, label: 'Enabled', count: campaigns.filter(c => c.enabled).length, title: 'Enabled here means included in budget allocation. New/synced rows default from live Google Ads status.' },
+              { key: 'paused' as CampaignFilter, label: 'Paused', count: campaigns.filter(c => !c.enabled).length, title: 'Paused here means excluded from budget allocation.' },
+              { key: 'all' as CampaignFilter, label: 'All', count: campaigns.length, title: 'All campaigns returned by the latest Google Ads sync.' },
             ]).map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setCampaignFilter(tab.key)}
+                title={tab.title}
                 style={{
                   padding: '6px 14px',
                   fontSize: 12,
@@ -1318,13 +1329,16 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
           {/* Table Header */}
-          <div style={{ display: 'grid', minWidth: 1010, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '10px 10px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
+          <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '10px 10px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
             <div></div>
             <div>Campaign</div>
             <div style={{ textAlign: 'right' }}>%</div>
             <div style={{ textAlign: 'right' }}>MTD</div>
-            <div style={{ textAlign: 'right' }}>Daily</div>
-            <div style={{ textAlign: 'right' }} title="Recommended daily budget from last month's conversions, CPA and spend. Advisory only — click to apply, then push.">Rec.</div>
+            <div style={{ textAlign: 'right' }} title="Current live daily budget from Google Ads.">Current</div>
+            <div style={{ textAlign: 'right' }} title="New calculated daily budget to push.">New Daily</div>
+            <div style={{ textAlign: 'right' }} title="Recommended daily budget from last month's conversions, CPA, ROAS, spend and impression share signals. Advisory only — click to apply, then push.">Rec.</div>
+            <div style={{ textAlign: 'right' }}>Impr.</div>
+            <div style={{ textAlign: 'right' }}>Clicks</div>
             <div style={{ textAlign: 'right' }}>CPC</div>
             <div style={{ textAlign: 'right' }}>Conv.</div>
             <div style={{ textAlign: 'right' }}>CPA</div>
@@ -1384,7 +1398,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               return (
                 <div key={campaign.campaignId} style={{ borderBottom: index < filtered.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <div
-                    style={{ display: 'grid', minWidth: 1010, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '10px 10px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
+                    style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '10px 10px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
                     onClick={() => {
                       const next = isExpanded ? null : campaign.campaignId;
                       setExpandedCampaign(next);
@@ -1450,6 +1464,11 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                       <span style={{ fontSize: 13, color: '#d97706', fontWeight: 500 }}>${(campaign.mtdSpend || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                     </div>
 
+                    {/* Current Daily Budget */}
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontWeight: 700, color: '#475569', fontSize: 14 }}>${(campaign.actualDailyBudget || 0).toFixed(2)}</span>
+                    </div>
+
                     {/* New Daily Budget */}
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontWeight: 700, color: '#059669', fontSize: 14 }}>${campaign.calculatedDailyBudget.toFixed(2)}</span>
@@ -1482,6 +1501,16 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                       >
                         {campaign.recommendationAction === 'increase' ? '↑' : campaign.recommendationAction === 'decrease' ? '↓' : '→'} {Math.abs(campaign.recommendationScore ?? 0).toFixed(1)} <span style={{ opacity: 0.75 }}>ⓘ</span>
                       </span>
+                    </div>
+
+                    {/* Impressions */}
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 13, color: '#64748b' }}>{(campaign.impressions || 0).toLocaleString()}</span>
+                    </div>
+
+                    {/* Clicks */}
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 13, color: '#64748b' }}>{(campaign.clicks || 0).toLocaleString()}</span>
                     </div>
 
                     {/* Avg CPC */}
@@ -1523,80 +1552,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                   </div>
 
                   {isExpanded && (
-                    <div style={{ padding: '12px 16px 16px 38px', background: '#fafafa', borderTop: '1px solid #e2e8f0' }}>
-                      {/* Standalone toggle */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={!!campaign.standalone}
-                            onChange={(e) => {
-                              const nextStandalone = e.target.checked;
-                              setCampaigns(prev => {
-                                const updated = prev.map(c => {
-                                  if (c.campaignId !== campaign.campaignId) return c;
-                                  return {
-                                    ...c,
-                                    standalone: nextStandalone,
-                                    // When turning standalone ON, reset % to 0 so it stops drawing from the % pool.
-                                    budgetPercentage: nextStandalone ? 0 : c.budgetPercentage,
-                                  };
-                                });
-                                const recalculated = recalculateBudgets(updated, monthlyTotal);
-                                const saved = recalculated.find(c => c.campaignId === campaign.campaignId);
-                                if (saved) saveCampaignToCMS(saved);
-                                return recalculated;
-                              });
-                            }}
-                          />
-                          <span style={{ fontWeight: 500 }}>Standalone budget</span>
-                          <span style={{ color: '#94a3b8' }}>— separate from the monthly % split</span>
-                        </label>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 16, marginBottom: 12 }}>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Monthly Share</div>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{campaign.standalone ? '\u2014' : `$${(monthlyTotal * campaign.budgetPercentage / 100).toFixed(0)}`}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>MTD Spend</div>
-                          <div style={{ fontWeight: 600, color: '#d97706' }}>${(campaign.mtdSpend || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Adj. Daily Budget</div>
-                          <div style={{ fontWeight: 600, color: '#2563eb' }}>${campaign.calculatedDailyBudget.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Cost / Conv</div>
-                          <div style={{ fontWeight: 600, color: '#64748b' }}>{formatCostPerConv(campaign.mtdSpend || 0, campaign.conversions || 0)}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Impressions</div>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{(campaign.impressions || 0).toLocaleString()}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Clicks</div>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{(campaign.clicks || 0).toLocaleString()}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Bid Strategy</div>
-                          <div onClick={(e) => { e.stopPropagation(); startEditBidStrategy(campaign); }} style={{ fontWeight: 600, color: '#1e293b', fontSize: 12, cursor: 'pointer' }}>
-                            {isEditingStrategy ? (
-                              <select value={editValue} onChange={(e) => { setEditValue(e.target.value); handleBlurSave(campaign.campaignId, 'bidStrategy', e.target.value); }} onClick={(e) => e.stopPropagation()} onBlur={() => handleBlurSave(campaign.campaignId, 'bidStrategy', editValue)} style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #2563eb', borderRadius: 4 }} autoFocus>
-                                {BID_STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                              </select>
-                            ) : (
-                              BID_STRATEGIES.find((s) => s.value === campaign.bidStrategy)?.label || campaign.bidStrategy
-                            )}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Last Pushed</div>
-                          <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 12 }}>{campaign.lastPushedAt ? new Date(campaign.lastPushedAt).toLocaleDateString() : 'Never'}</div>
-                        </div>
-                      </div>
-
+                    <div style={{ padding: '10px 0 14px', background: '#fafafa', borderTop: '1px solid #e2e8f0', overflowX: 'auto', overflowY: 'hidden' }}>
                       {/* Ad-groups sub-table. Only rendered when the user
                           has flipped the "Show ad groups" toggle on. */}
                       {showAdGroups && (() => {
@@ -1605,38 +1561,40 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                         const errorAg = adGroupsError[campaign.campaignId];
                         const warningAg = adGroupsWarning[campaign.campaignId];
                         return (
-                          <div style={{ marginTop: 4, marginBottom: 12, padding: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <div style={{ marginBottom: 10 }}>
+                            <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '0 10px 8px', alignItems: 'center' }}>
+                              <div />
                               <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>Ad Groups</div>
-                              {!loadingAg && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Force a refetch by clearing the cache slot first.
-                                    setAdGroupsByCampaign(prev => {
-                                      const next = { ...prev };
-                                      delete next[campaign.campaignId];
-                                      return next;
-                                    });
-                                    fetchAdGroups(campaign.campaignId);
-                                  }}
-                                  style={{ fontSize: 11, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                                >
-                                  Refresh
-                                </button>
-                              )}
+                              <div style={{ gridColumn: '14 / 16', textAlign: 'right' }}>
+                                {!loadingAg && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setAdGroupsByCampaign(prev => {
+                                        const next = { ...prev };
+                                        delete next[campaign.campaignId];
+                                        return next;
+                                      });
+                                      fetchAdGroups(campaign.campaignId);
+                                    }}
+                                    style={{ fontSize: 11, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                                  >
+                                    Refresh
+                                  </button>
+                                )}
+                              </div>
                             </div>
                             {loadingAg && (
                               <div style={{ padding: 16, fontSize: 12, color: '#64748b', textAlign: 'center' }}>Loading ad groups…</div>
                             )}
                             {!loadingAg && errorAg && (
-                              <div style={{ padding: 12, fontSize: 12, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6 }}>
+                              <div style={{ margin: '0 10px', padding: 12, fontSize: 12, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6 }}>
                                 {errorAg}
                               </div>
                             )}
                             {!loadingAg && !errorAg && warningAg && (
-                              <div style={{ padding: 12, fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6 }}>
+                              <div style={{ margin: '0 10px', padding: 12, fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6 }}>
                                 {warningAg}
                               </div>
                             )}
@@ -1644,57 +1602,52 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                               <div style={{ padding: 12, fontSize: 12, color: '#64748b', textAlign: 'center' }}>No ad groups returned for this campaign.</div>
                             )}
                             {!loadingAg && !errorAg && rows && rows.length > 0 && (
-                              <div style={{ border: '1px solid #f1f5f9', borderRadius: 6, overflowX: 'auto', overflowY: 'hidden' }}>
-                                <div style={{ display: 'grid', minWidth: 590, gridTemplateColumns: AD_GROUP_TABLE_COLUMNS, gap: 4, padding: '8px 10px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
+                              <div style={{ borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                                <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '8px 10px', background: '#fff', borderBottom: '1px solid #f1f5f9', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
+                                  <div />
                                   <div>Ad Group</div>
-                                  <div style={{ textAlign: 'right' }}>MTD Spend</div>
+                                  <div />
+                                  <div style={{ textAlign: 'right' }}>MTD</div>
+                                  <div />
+                                  <div />
+                                  <div />
                                   <div style={{ textAlign: 'right' }}>Impr.</div>
                                   <div style={{ textAlign: 'right' }}>Clicks</div>
+                                  <div style={{ textAlign: 'right' }}>CPC</div>
                                   <div style={{ textAlign: 'right' }}>Conv.</div>
+                                  <div style={{ textAlign: 'right' }}>CPA</div>
+                                  <div />
                                   <div style={{ textAlign: 'right' }} title="Search Impression Share">Search IS</div>
-                                  <div style={{ textAlign: 'right' }} title="Search impressions lost due to budget">Lost to Budget</div>
+                                  <div style={{ textAlign: 'right' }} title="Search impressions lost due to budget">Lost IS</div>
                                 </div>
                                 {rows.map((ag, agIdx) => (
                                   <div
                                     key={ag.adGroupId}
-                                    style={{ display: 'grid', minWidth: 590, gridTemplateColumns: AD_GROUP_TABLE_COLUMNS, gap: 4, padding: '8px 10px', alignItems: 'center', borderBottom: agIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: 12 }}
+                                    style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '8px 10px', alignItems: 'center', borderBottom: agIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: 12 }}
                                   >
-                                    <div style={{ minWidth: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                                    <div />
+                                    <div style={{ minWidth: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', overflow: 'hidden', paddingLeft: 18 }}>
                                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} title={ag.adGroupName}>{ag.adGroupName}</span>
-                                      {typeof ag.searchBudgetLostIS === 'number' &&
-                                        ag.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD && (
-                                          <span
-                                            title={`Search Budget Lost IS: ${(ag.searchBudgetLostIS * 100).toFixed(0)}%${
-                                              typeof ag.searchImpressionShare === 'number'
-                                                ? ` · Current Search IS: ${(ag.searchImpressionShare * 100).toFixed(0)}%`
-                                                : ''
-                                            }`}
-                                            style={{
-                                              display: 'inline-flex',
-                                              alignItems: 'center',
-                                              padding: '1px 6px',
-                                              fontSize: 10,
-                                              fontWeight: 600,
-                                              color: '#b45309',
-                                              background: '#fef3c7',
-                                              border: '1px solid #fde68a',
-                                              borderRadius: 8,
-                                              whiteSpace: 'nowrap',
-                                            }}
-                                          >
-                                            Limited — {(ag.searchBudgetLostIS * 100).toFixed(0)}%
-                                          </span>
-                                        )}
+                                      {typeof ag.searchBudgetLostIS === 'number' && ag.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD && (
+                                        <span title={`Search Budget Lost IS: ${(ag.searchBudgetLostIS * 100).toFixed(0)}%`} style={{ display: 'inline-flex', padding: '1px 6px', fontSize: 10, fontWeight: 600, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, whiteSpace: 'nowrap' }}>
+                                          Limited — {(ag.searchBudgetLostIS * 100).toFixed(0)}%
+                                        </span>
+                                      )}
                                     </div>
+                                    <div />
                                     <div style={{ textAlign: 'right', color: '#d97706', fontWeight: 500 }}>${(ag.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                    <div />
+                                    <div />
+                                    <div />
                                     <div style={{ textAlign: 'right', color: '#64748b' }}>{(ag.impressions || 0).toLocaleString()}</div>
                                     <div style={{ textAlign: 'right', color: '#64748b' }}>{(ag.clicks || 0).toLocaleString()}</div>
+                                    <div style={{ textAlign: 'right', color: '#64748b' }}>${(ag.avgCpc || 0).toFixed(2)}</div>
                                     <div style={{ textAlign: 'right', color: '#6366f1', fontWeight: 500 }}>{(ag.conversions || 0).toLocaleString()}</div>
-                                    <div style={{ textAlign: 'right', color: '#64748b' }}>
-                                      {typeof ag.searchImpressionShare === 'number' ? `${(ag.searchImpressionShare * 100).toFixed(0)}%` : '—'}
-                                    </div>
+                                    <div style={{ textAlign: 'right', color: '#64748b' }}>{formatCostPerConv(ag.cost || 0, ag.conversions || 0)}</div>
+                                    <div />
+                                    <div style={{ textAlign: 'right', color: '#64748b' }}>{formatPercentMetric(ag.searchImpressionShare)}</div>
                                     <div style={{ textAlign: 'right', color: typeof ag.searchBudgetLostIS === 'number' && ag.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD ? '#b45309' : '#64748b', fontWeight: typeof ag.searchBudgetLostIS === 'number' && ag.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD ? 600 : 400 }}>
-                                      {typeof ag.searchBudgetLostIS === 'number' ? `${(ag.searchBudgetLostIS * 100).toFixed(0)}%` : '—'}
+                                      {formatPercentMetric(ag.searchBudgetLostIS)}
                                     </div>
                                   </div>
                                 ))}
@@ -1703,6 +1656,48 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                           </div>
                         );
                       })()}
+
+                      <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '8px 10px 0', alignItems: 'center', fontSize: 12 }}>
+                        <div />
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          <input
+                            type="checkbox"
+                            checked={!!campaign.standalone}
+                            onChange={(e) => {
+                              const nextStandalone = e.target.checked;
+                              setCampaigns(prev => {
+                                const updated = prev.map(c => c.campaignId === campaign.campaignId ? { ...c, standalone: nextStandalone, budgetPercentage: nextStandalone ? 0 : c.budgetPercentage } : c);
+                                const recalculated = recalculateBudgets(updated, monthlyTotal);
+                                const saved = recalculated.find(c => c.campaignId === campaign.campaignId);
+                                if (saved) saveCampaignToCMS(saved);
+                                return recalculated;
+                              });
+                            }}
+                          />
+                          <span style={{ fontWeight: 600 }}>Standalone budget</span>
+                        </label>
+                        <div style={{ textAlign: 'right' }} title="Monthly Share"><span style={{ fontSize: 10, color: '#64748b' }}>Share</span><br />{campaign.standalone ? '—' : `$${(monthlyTotal * campaign.budgetPercentage / 100).toFixed(0)}`}</div>
+                        <div style={{ textAlign: 'right' }} title="MTD Spend"><span style={{ fontSize: 10, color: '#64748b' }}>MTD</span><br />${(campaign.mtdSpend || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                        <div style={{ textAlign: 'right' }} title="Current daily budget"><span style={{ fontSize: 10, color: '#64748b' }}>Current</span><br />${(campaign.actualDailyBudget || 0).toFixed(2)}</div>
+                        <div style={{ textAlign: 'right' }} title="Adjusted daily budget"><span style={{ fontSize: 10, color: '#64748b' }}>New</span><br />${campaign.calculatedDailyBudget.toFixed(2)}</div>
+                        <div />
+                        <div style={{ textAlign: 'right' }} title="Impressions"><span style={{ fontSize: 10, color: '#64748b' }}>Impr.</span><br />{(campaign.impressions || 0).toLocaleString()}</div>
+                        <div style={{ textAlign: 'right' }} title="Clicks"><span style={{ fontSize: 10, color: '#64748b' }}>Clicks</span><br />{(campaign.clicks || 0).toLocaleString()}</div>
+                        <div />
+                        <div />
+                        <div style={{ gridColumn: '12 / 14' }} title="Bid Strategy"><span style={{ fontSize: 10, color: '#64748b' }}>Bid Strategy</span><br />
+                          <span onClick={(e) => { e.stopPropagation(); startEditBidStrategy(campaign); }} style={{ fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}>
+                            {isEditingStrategy ? (
+                              <select value={editValue} onChange={(e) => { setEditValue(e.target.value); handleBlurSave(campaign.campaignId, 'bidStrategy', e.target.value); }} onClick={(e) => e.stopPropagation()} onBlur={() => handleBlurSave(campaign.campaignId, 'bidStrategy', editValue)} style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #2563eb', borderRadius: 4 }} autoFocus>
+                                {BID_STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                              </select>
+                            ) : (
+                              BID_STRATEGIES.find((s) => s.value === campaign.bidStrategy)?.label || campaign.bidStrategy
+                            )}
+                          </span>
+                        </div>
+                        <div style={{ gridColumn: '14 / 16', textAlign: 'right' }} title="Last pushed"><span style={{ fontSize: 10, color: '#64748b' }}>Last Pushed</span><br />{campaign.lastPushedAt ? new Date(campaign.lastPushedAt).toLocaleDateString() : 'Never'}</div>
+                      </div>
 
                       {campaign.standalone && (
                         <div style={{ padding: 12, background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 8, marginTop: 4 }}>

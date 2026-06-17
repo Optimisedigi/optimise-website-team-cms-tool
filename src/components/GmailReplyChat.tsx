@@ -33,6 +33,11 @@ interface MessageBody {
   body: string
 }
 
+interface ContactSuggestion {
+  name: string
+  email: string
+}
+
 type Phase = 'compose' | 'search' | 'message'
 type ChatRole = 'user' | 'assistant' | 'error'
 
@@ -81,6 +86,18 @@ function buildReplyChatInstructions(args: {
   return parts.join('\n\n')
 }
 
+function recipientSearchTerm(value: string): string {
+  const last = value.split(',').pop()?.trim() ?? ''
+  return last.replace(/^"|"$/g, '')
+}
+
+function replaceActiveRecipient(value: string, suggestion: ContactSuggestion): string {
+  const parts = value.split(',')
+  const prefix = parts.slice(0, -1).map((part) => part.trim()).filter(Boolean)
+  const formatted = suggestion.name ? `${suggestion.name} <${suggestion.email}>` : suggestion.email
+  return [...prefix, formatted].join(', ')
+}
+
 export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyChatProps): React.ReactElement {
   const [connected, setConnected] = useState<boolean | null>(null)
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null)
@@ -99,6 +116,8 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
   const [instructions, setInstructions] = useState('')
   const [composeSubject, setComposeSubject] = useState('')
   const [composeTo, setComposeTo] = useState('')
+  const [contactSuggestions, setContactSuggestions] = useState<ContactSuggestion[]>([])
+  const [contactsOpen, setContactsOpen] = useState(false)
   const [draftingReply, setDraftingReply] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [replyError, setReplyError] = useState<string | null>(null)
@@ -147,6 +166,34 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     }
   }, [phase, chatMessages, draftingReply, replyText, savedUrl])
 
+  useEffect(() => {
+    if (phase !== 'compose') return
+    const term = recipientSearchTerm(composeTo)
+    if (term.length < 2) {
+      setContactSuggestions([])
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/gmail/contacts?q=${encodeURIComponent(term)}&max=8`, {
+          credentials: 'include',
+          signal: controller.signal,
+        })
+        const data = (await res.json()) as { suggestions?: ContactSuggestion[] }
+        setContactSuggestions(res.ok && Array.isArray(data.suggestions) ? data.suggestions : [])
+      } catch (err) {
+        if ((err as { name?: string }).name !== 'AbortError') setContactSuggestions([])
+      }
+    }, 250)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [composeTo, phase])
+
   const resetDraftState = useCallback(() => {
     setReplyText('')
     setReplyError(null)
@@ -154,6 +201,8 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setSaveError(null)
     setChatInput('')
     setChatMessages([])
+    setContactSuggestions([])
+    setContactsOpen(false)
   }, [])
 
   const switchToCompose = useCallback(() => {
@@ -435,13 +484,40 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 0', minHeight: 0 }}>
         {phase === 'compose' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input
-              type="text"
-              value={composeTo}
-              onChange={(e) => setComposeTo(e.target.value)}
-              placeholder="To (optional — you can choose in Gmail)…"
-              style={inputStyle}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={composeTo}
+                onChange={(e) => {
+                  setComposeTo(e.target.value)
+                  setContactsOpen(true)
+                }}
+                onFocus={() => setContactsOpen(true)}
+                onBlur={() => window.setTimeout(() => setContactsOpen(false), 120)}
+                placeholder="To (optional — you can choose in Gmail)…"
+                style={inputStyle}
+              />
+              {contactsOpen && contactSuggestions.length > 0 && (
+                <div style={contactMenu}>
+                  {contactSuggestions.map((contact) => (
+                    <button
+                      key={contact.email}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setComposeTo(replaceActiveRecipient(composeTo, contact))
+                        setContactSuggestions([])
+                        setContactsOpen(false)
+                      }}
+                      style={contactOption}
+                    >
+                      <span style={{ fontWeight: 600 }}>{contact.name || contact.email}</span>
+                      {contact.name && <span style={{ color: '#6b7280' }}>{contact.email}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <input
               type="text"
               value={composeSubject}
@@ -721,6 +797,36 @@ const errorBox: React.CSSProperties = {
   border: '1px solid #fecaca',
   borderRadius: 6,
   padding: '8px 10px',
+  fontSize: 12,
+}
+
+const contactMenu: React.CSSProperties = {
+  position: 'absolute',
+  zIndex: 10,
+  top: 'calc(100% + 4px)',
+  left: 0,
+  right: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  maxHeight: 220,
+  overflowY: 'auto',
+  border: '1px solid var(--theme-border-color, #e5e7eb)',
+  borderRadius: 8,
+  background: 'var(--theme-input-bg, #fff)',
+  boxShadow: '0 12px 28px rgba(15, 23, 42, 0.14)',
+}
+
+const contactOption: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  padding: '8px 10px',
+  border: 0,
+  borderBottom: '1px solid var(--theme-border-color, #f3f4f6)',
+  background: 'transparent',
+  color: 'var(--theme-text, #1f2937)',
+  textAlign: 'left',
+  cursor: 'pointer',
   fontSize: 12,
 }
 

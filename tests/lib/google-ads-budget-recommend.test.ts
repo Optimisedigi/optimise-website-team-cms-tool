@@ -9,8 +9,9 @@ function campaign(
   conversions: number,
   spend: number,
   enabled = true,
+  extras: Partial<CampaignPerformance> = {},
 ): CampaignPerformance {
-  return { campaignId: id, campaignName: `Campaign ${id}`, enabled, conversions, spend };
+  return { campaignId: id, campaignName: `Campaign ${id}`, enabled, conversions, spend, ...extras };
 }
 
 describe("computeBudgetRecommendations", () => {
@@ -42,6 +43,31 @@ describe("computeBudgetRecommendations", () => {
     expect(a.recommendedDailyBudget).toBeGreaterThan(b.recommendedDailyBudget);
     expect(a.basis.cpa).toBe(50);
     expect(b.basis.cpa).toBe(200);
+  });
+
+  it("uses ROAS and budget-lost impression share to prioritise budget-limited performers", () => {
+    const result = computeBudgetRecommendations({
+      monthlyBudget: 6080,
+      daysInMonth: 30.4,
+      clampPct: 0,
+      campaigns: [
+        campaign("efficient-limited", 10, 1000, true, {
+          conversionValue: 6000,
+          impressionShare: 0.4,
+          impressionShareLostToBudget: 0.45,
+        }),
+        campaign("busy-expensive", 12, 1200, true, {
+          conversionValue: 1200,
+          impressionShare: 0.85,
+          impressionShareLostToBudget: 0.02,
+        }),
+      ],
+    });
+    const efficient = result.recommendations.find((r) => r.campaignId === "efficient-limited")!;
+    const expensive = result.recommendations.find((r) => r.campaignId === "busy-expensive")!;
+    expect(efficient.recommendedDailyBudget).toBeGreaterThan(expensive.recommendedDailyBudget);
+    expect(efficient.basis.roas).toBe(6);
+    expect(efficient.basis.impressionShareLostToBudget).toBe(0.45);
   });
 
   it("splits evenly when there are no conversions and no spend", () => {

@@ -18,6 +18,59 @@ interface GrowthToolsCampaignRow {
   campaignStatus?: string;
   conversions?: number;
   cost?: number;
+  conversionValue?: number | string | null;
+  conversionsValue?: number | string | null;
+  roas?: number | string | null;
+  valuePerCost?: number | string | null;
+  impressionShare?: number | string | null;
+  searchImpressionShare?: number | string | null;
+  imprShare?: number | string | null;
+  impressionShareLostToBudget?: number | string | null;
+  searchBudgetLostImpressionShare?: number | string | null;
+  searchImpressionShareLostToBudget?: number | string | null;
+  imprShareLostToBudget?: number | string | null;
+  dailyBudget?: number | null;
+}
+
+function numberFrom(...values: unknown[]): number | null {
+  for (const value of values) {
+    const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function formatDailyBudget(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(2)}/day` : "—";
+}
+
+function formatCurrency(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(2)}` : "—";
+}
+
+function formatNumber(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "—";
+}
+
+function formatPercent(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "—";
+}
+
+function scoreTooltip(rec: CampaignRecommendation): string {
+  const basis = rec.basis;
+  return [
+    `Score blends CPA, ROAS, spend and impression opportunity.`,
+    `Conversions: ${formatNumber(basis.conversions)}`,
+    `Spend: ${formatCurrency(basis.spend)}`,
+    `CPA: ${formatCurrency(basis.cpa)}`,
+    `ROAS: ${formatNumber(basis.roas)}`,
+    `Impression share: ${formatPercent(basis.impressionShare)}`,
+    `Lost to budget: ${formatPercent(basis.impressionShareLostToBudget)}`,
+  ].join(" ");
+}
+
+function formatScoreWithTooltip(rec: CampaignRecommendation): string {
+  return `{{tip:${formatNumber(rec.basis.score)}::${scoreTooltip(rec)}}}`;
 }
 
 interface BudgetAuditDoc {
@@ -122,6 +175,15 @@ export async function runMonthlyBudgetRecommendations(
         enabled: c.campaignStatus !== "PAUSED" && c.campaignStatus !== "REMOVED",
         conversions: Number(c.conversions) || 0,
         spend: Number(c.cost) || 0,
+        conversionValue: numberFrom(c.conversionValue, c.conversionsValue),
+        roas: numberFrom(c.roas, c.valuePerCost),
+        impressionShare: numberFrom(c.impressionShare, c.searchImpressionShare, c.imprShare),
+        impressionShareLostToBudget: numberFrom(
+          c.impressionShareLostToBudget,
+          c.searchBudgetLostImpressionShare,
+          c.searchImpressionShareLostToBudget,
+          c.imprShareLostToBudget,
+        ),
       }));
 
       const { recommendations } = computeBudgetRecommendations({
@@ -146,6 +208,14 @@ export async function runMonthlyBudgetRecommendations(
           customerId,
           monthlyBudget,
           recommendations,
+          currentDailyBudgets: new Map(
+            campaigns.map((campaign) => [
+              campaign.campaignId,
+              typeof campaign.dailyBudget === "number" && Number.isFinite(campaign.dailyBudget)
+                ? campaign.dailyBudget
+                : null,
+            ]),
+          ),
           targetMonthLabel: currentMonthLabel(),
           agentRunId: monthlyBudgetRunId(nowIso),
         });
@@ -300,6 +370,7 @@ async function queueMonthlyBudgetApproval(
     customerId: string;
     monthlyBudget: number;
     recommendations: CampaignRecommendation[];
+    currentDailyBudgets?: Map<string, number | null>;
     targetMonthLabel: string;
     agentRunId: string;
   },
@@ -309,6 +380,7 @@ async function queueMonthlyBudgetApproval(
     .map((rec) => ({
       campaignId: rec.campaignId,
       campaignName: rec.campaignName,
+      currentDailyBudget: input.currentDailyBudgets?.get(rec.campaignId) ?? null,
       dailyBudget: rec.recommendedDailyBudget,
     }));
 
@@ -352,11 +424,16 @@ async function queueMonthlyBudgetApproval(
       "Generated from last-month campaign performance; nothing has been pushed yet.",
     ],
     diffSection: mdTable(
-      ["Campaign", "Recommended daily budget"],
-      campaigns.map((campaign) => [
-        campaign.campaignName,
-        `$${campaign.dailyBudget.toFixed(2)}/day`,
-      ]),
+      ["Campaign", "Current daily budget", "Recommended daily budget", "Score"],
+      campaigns.map((campaign) => {
+        const rec = input.recommendations.find((recommendation) => recommendation.campaignId === campaign.campaignId);
+        return [
+          campaign.campaignName,
+          formatDailyBudget(campaign.currentDailyBudget),
+          formatDailyBudget(campaign.dailyBudget),
+          rec ? formatScoreWithTooltip(rec) : "—",
+        ];
+      }),
     ),
     applyEffect: `Will call Growth Tools \`campaign-budgets/push\` for audit #${input.audit.id} and customer ${input.customerId.replace(/\d(?=\d{4})/g, "•")}, then stamp \`actualDailyBudget\` and \`lastPushedAt\` on the CMS budget rows.`,
   });

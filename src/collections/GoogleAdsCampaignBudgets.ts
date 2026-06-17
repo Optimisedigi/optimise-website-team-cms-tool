@@ -169,7 +169,7 @@ export const GoogleAdsCampaignBudgets: CollectionConfig = {
       admin: {
         readOnly: true,
         description:
-          "Recommended daily budget from last month's CPA / conversions / spend. Advisory — apply manually then push.",
+          "Recommended daily budget from last month's CPA / ROAS, spend, impression share and impression share lost to budget. Advisory — apply manually then push.",
       },
     },
     {
@@ -186,7 +186,7 @@ export const GoogleAdsCampaignBudgets: CollectionConfig = {
       admin: {
         readOnly: true,
         description:
-          "Last-month inputs used for the recommendation (conversions, spend, cpa, score).",
+          "Last-month inputs used for the recommendation (conversions, spend, CPA, ROAS, impression share, impression share lost to budget, score).",
       },
     },
     // Bid strategy

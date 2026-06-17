@@ -32,6 +32,11 @@ export interface GmailMessageBody {
   body: string; // plain text
 }
 
+export interface GmailContactSuggestion {
+  name: string;
+  email: string;
+}
+
 function gmailClient(accessToken: string): gmail_v1.Gmail {
   const oauth2Client = new google.auth.OAuth2();
   oauth2Client.setCredentials({ access_token: accessToken });
@@ -53,6 +58,24 @@ function parseDateHeader(value: string): string {
   const t = Date.parse(value);
   if (Number.isNaN(t)) return value; // fall back to raw header
   return new Date(t).toISOString();
+}
+
+function parseAddressList(value: string): GmailContactSuggestion[] {
+  if (!value) return [];
+  return value
+    .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+    .map((part) => part.trim())
+    .map((part) => {
+      const bracket = part.match(/^(.*?)<([^>]+)>$/);
+      if (bracket) {
+        return {
+          name: bracket[1].replace(/^"|"$/g, "").trim(),
+          email: bracket[2].trim(),
+        };
+      }
+      return { name: "", email: part.replace(/^"|"$/g, "").trim() };
+    })
+    .filter((contact) => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(contact.email));
 }
 
 /**
@@ -107,6 +130,58 @@ export async function searchInbox(
   });
 
   return { results };
+}
+
+export async function suggestGmailContacts(
+  accessToken: string,
+  q: string,
+  maxResults = 8,
+): Promise<{ suggestions: GmailContactSuggestion[] }> {
+  const term = q.trim();
+  if (term.length < 2) return { suggestions: [] };
+
+  const gmail = gmailClient(accessToken);
+  const cap = Math.min(Math.max(1, maxResults), 20);
+  const list = await gmail.users.messages.list({
+    userId: "me",
+    q: term,
+    maxResults: cap,
+  });
+
+  const ids = (list.data.messages ?? [])
+    .map((m) => m.id)
+    .filter((id): id is string => Boolean(id));
+
+  if (ids.length === 0) return { suggestions: [] };
+
+  const messages = await Promise.all(
+    ids.map((id) =>
+      gmail.users.messages.get({
+        userId: "me",
+        id,
+        format: "metadata",
+        metadataHeaders: ["From", "To", "Cc"],
+      }),
+    ),
+  );
+
+  const lowered = term.toLowerCase();
+  const byEmail = new Map<string, GmailContactSuggestion>();
+  for (const res of messages) {
+    const headers = res.data.payload?.headers;
+    const contacts = [
+      ...parseAddressList(getHeader(headers, "From")),
+      ...parseAddressList(getHeader(headers, "To")),
+      ...parseAddressList(getHeader(headers, "Cc")),
+    ];
+    for (const contact of contacts) {
+      const haystack = `${contact.name} ${contact.email}`.toLowerCase();
+      if (!haystack.includes(lowered)) continue;
+      if (!byEmail.has(contact.email.toLowerCase())) byEmail.set(contact.email.toLowerCase(), contact);
+    }
+  }
+
+  return { suggestions: Array.from(byEmail.values()).slice(0, cap) };
 }
 
 /**

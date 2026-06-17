@@ -83,13 +83,19 @@ function renderInternalMarkdown(md: string): React.ReactNode {
 
   const inline = (line: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
-    const re = /\*\*(.+?)\*\*|`([^`]+)`/g;
+    const re = /\{\{tip:([^{}]+?)::([^{}]+?)\}\}|\*\*(.+?)\*\*|`([^`]+)`/g;
     let last = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(line)) !== null) {
       if (m.index > last) parts.push(line.slice(last, m.index));
-      if (m[1]) parts.push(<strong key={`b-${key++}`}>{m[1]}</strong>);
-      else if (m[2]) parts.push(<code key={`c-${key++}`} style={inlineCode}>{m[2]}</code>);
+      if (m[1]) {
+        parts.push(
+          <span key={`tip-${key++}`} title={m[2]} style={tooltipText}>
+            {m[1]}
+          </span>,
+        );
+      } else if (m[3]) parts.push(<strong key={`b-${key++}`}>{m[3]}</strong>);
+      else if (m[4]) parts.push(<code key={`c-${key++}`} style={inlineCode}>{m[4]}</code>);
       last = re.lastIndex;
     }
     if (last < line.length) parts.push(line.slice(last));
@@ -180,6 +186,12 @@ const inlineCode: React.CSSProperties = {
   borderRadius: 3,
   fontSize: "0.9em",
   fontFamily: "ui-monospace, monospace",
+};
+const tooltipText: React.CSSProperties = {
+  cursor: "help",
+  textDecorationLine: "underline",
+  textDecorationStyle: "dotted",
+  textUnderlineOffset: 3,
 };
 
 export default async function ApprovalReviewPage({

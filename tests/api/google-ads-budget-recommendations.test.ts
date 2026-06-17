@@ -108,8 +108,8 @@ describe("GET /api/google-ads-budgets/monthly-recommendations", () => {
       json: () =>
         Promise.resolve({
           campaigns: [
-            { campaignId: "c1", campaignName: "Brand", campaignStatus: "ENABLED", conversions: 20, cost: 1000 },
-            { campaignId: "c2", campaignName: "Generic", campaignStatus: "ENABLED", conversions: 5, cost: 1000 },
+            { campaignId: "c1", campaignName: "Brand", campaignStatus: "ENABLED", conversions: 20, cost: 1000, dailyBudget: 50 },
+            { campaignId: "c2", campaignName: "Generic", campaignStatus: "ENABLED", conversions: 5, cost: 1000, dailyBudget: 40 },
           ],
         }),
     } as Response);
@@ -140,6 +140,12 @@ describe("GET /api/google-ads-budgets/monthly-recommendations", () => {
     );
     expect(createdBudget).toBeDefined();
     expect(createdBudget![0].data.recommendedDailyBudget).toBeGreaterThan(0);
+
+    const approval = mockPayload.create.mock.calls.find(
+      ([args]: [{ collection: string }]) => args.collection === "agent-approval-queue",
+    );
+    expect(approval?.[0].data.rendered.internalMarkdown).toContain("Current daily budget");
+    expect(approval?.[0].data.rendered.internalMarkdown).toContain("$50.00/day");
 
     // Notifies admins with the new kind.
     const notif = mockPayload.create.mock.calls.find(

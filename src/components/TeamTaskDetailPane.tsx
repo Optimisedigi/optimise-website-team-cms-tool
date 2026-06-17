@@ -69,9 +69,68 @@ function initials(value: Rel, users: Option[]): string {
   return name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 }
 
+const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>"']+/gi
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function linkifyText(value: string): string {
+  return value.replace(URL_PATTERN, (rawUrl) => {
+    const trailing = rawUrl.match(/[),.!?:;]+$/)?.[0] || ''
+    const url = trailing ? rawUrl.slice(0, -trailing.length) : rawUrl
+    const href = url.startsWith('www.') ? `https://${url}` : url
+    return `<a href="${href}" target="_blank" rel="noreferrer noopener" style="color:#2563eb;text-decoration:underline;overflow-wrap:anywhere">${url}</a>${trailing}`
+  })
+}
+
+function safeHref(value: string): string {
+  const trimmed = value.trim()
+  if (/^(https?:\/\/|mailto:)/i.test(trimmed)) return trimmed.replace(/"/g, '&quot;')
+  return ''
+}
+
+function sanitiseHtml(value: string): string {
+  const withoutScripts = value.replace(/<\/?(?:script|style)[^>]*>/gi, '')
+  return withoutScripts.replace(/<([^>]+)>/g, (tag) => {
+    const closing = tag.match(/^<\s*\/\s*([a-z0-9]+)\s*>$/i)
+    if (closing) {
+      const name = closing[1].toLowerCase()
+      return ['a', 'b', 'strong', 'i', 'em', 'u', 'div', 'p', 'ul', 'ol', 'li', 'span'].includes(name) ? `</${name}>` : ''
+    }
+
+    const opening = tag.match(/^<\s*([a-z0-9]+)([^>]*)>$/i)
+    if (!opening) return escapeHtml(tag)
+    const name = opening[1].toLowerCase()
+    if (name === 'br') return '<br />'
+    if (name === 'a') {
+      const hrefMatch = opening[2].match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)
+      const href = safeHref(hrefMatch?.[1] || hrefMatch?.[2] || hrefMatch?.[3] || '')
+      return href ? `<a href="${href}" target="_blank" rel="noreferrer noopener" style="color:#2563eb;text-decoration:underline;overflow-wrap:anywhere">` : ''
+    }
+    return ['b', 'strong', 'i', 'em', 'u', 'div', 'p', 'ul', 'ol', 'li', 'span'].includes(name) ? `<${name}>` : ''
+  })
+}
+
+function linkifyHtml(value: string): string {
+  let insideAnchor = false
+  return sanitiseHtml(value)
+    .split(/(<[^>]+>)/g)
+    .map((part) => {
+      if (!part) return part
+      if (part.startsWith('<')) {
+        if (/^<a\b/i.test(part)) insideAnchor = true
+        if (/^<\/a\s*>/i.test(part)) insideAnchor = false
+        return part
+      }
+      return insideAnchor ? part : linkifyText(part)
+    })
+    .join('')
+}
+
 function htmlFromPlainText(value: string): string {
-  if (value.includes('<')) return value
-  return value.split('\n').map((line) => line.trim() ? `<div>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : '<div><br /></div>').join('')
+  if (value.includes('<')) return linkifyHtml(value)
+  return value.split('\n').map((line) => line.trim() ? `<div>${linkifyText(escapeHtml(line))}</div>` : '<div><br /></div>').join('')
 }
 
 function stripHtml(value: string): string {
@@ -105,6 +164,12 @@ function RichBox({ value, onSave, placeholder }: { value: string; onSave: (value
           document.execCommand('delete')
           document.execCommand('insertUnorderedList')
         }
+      }}
+      onClick={(e) => {
+        const link = (e.target as HTMLElement).closest('a') as HTMLAnchorElement | null
+        if (!link?.href) return
+        e.preventDefault()
+        window.open(link.href, '_blank', 'noopener,noreferrer')
       }}
       onBlur={(e) => onSave(e.currentTarget.innerHTML)}
       style={{ ...fieldStyle, minHeight: 90, lineHeight: 1.45, outline: 'none', overflowWrap: 'anywhere' }}
@@ -278,8 +343,8 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
   const users = data?.users || []
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15, 23, 42, .35)', display: 'flex', justifyContent: 'flex-end' }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <aside style={{ width: 'min(1080px, 94vw)', height: '100%', background: 'var(--theme-bg)', boxShadow: '-18px 0 44px rgba(15,23,42,.22)', overflow: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15, 23, 42, .35)', display: 'flex', justifyContent: 'flex-end', paddingInline: 5, boxSizing: 'border-box' }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <aside style={{ width: 'min(1500px, calc(100vw - 10px))', height: '100%', background: 'var(--theme-bg)', boxShadow: '-18px 0 44px rgba(15,23,42,.22)', overflow: 'auto', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--theme-elevation-150)', position: 'sticky', top: 0, background: 'var(--theme-bg)', zIndex: 2 }}>
           <strong style={{ fontSize: 18 }}>Task details</strong>
           <button type="button" onClick={onClose} style={{ ...fieldStyle, width: 42, cursor: 'pointer', fontWeight: 900 }}>×</button>
@@ -290,7 +355,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
         ) : !task ? (
           <div style={{ padding: 24, color: '#991b1b' }}>{error || 'Task not found'}</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.08fr) minmax(360px, .92fr)', gap: 28, padding: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.08fr) minmax(320px, .92fr)', gap: 28, padding: '24px 5px', boxSizing: 'border-box' }}>
             <section style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
               {error && <div style={{ padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
               <input

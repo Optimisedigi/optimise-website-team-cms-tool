@@ -4,10 +4,9 @@ import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 
 /**
- * Returns team members eligible to be account managers as `{ name, email }`
- * options. "Managers" = users granted admin-level access, i.e. role `admin`
- * or `manager` (specialists are excluded). Used by the AccountManagersField
- * combobox (client profile) and the Clients list bulk-assign control.
+ * Returns CMS users as `{ name, email }` options for account-manager pickers.
+ * A signed-in CMS user can still manually enter a non-user manager in the field,
+ * but the dropdown should show people created in the CMS.
  */
 export async function GET(): Promise<NextResponse> {
   try {
@@ -18,20 +17,28 @@ export async function GET(): Promise<NextResponse> {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (user.role !== "admin" && user.role !== "manager") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const result = await payload.find({
       collection: "users",
-      where: { role: { in: ["admin", "manager"] } },
       sort: "name",
       limit: 500,
       depth: 0,
+      where: { role: { in: ["admin", "manager"] } },
+      overrideAccess: true,
       select: { name: true, email: true } as never,
     });
 
     const managers = result.docs
-      .map((u: { name?: string | null; email?: string | null }) => ({
-        name: (u.name || "").trim(),
-        email: (u.email || "").trim(),
-      }))
+      .map((u: { name?: string | null; email?: string | null }) => {
+        const email = (u.email || "").trim();
+        return {
+          name: (u.name || email).trim(),
+          email,
+        };
+      })
       .filter((m) => m.email);
 
     return NextResponse.json({ managers });

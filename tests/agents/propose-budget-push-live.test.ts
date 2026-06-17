@@ -47,7 +47,7 @@ beforeEach(() => {
   mockGrowthToolsGet.mockReset();
   mockGrowthToolsGet.mockResolvedValue({
     ok: true,
-    data: { metrics: [{ campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact" }] },
+    data: { metrics: [{ campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact", dailyBudget: 125 }] },
   });
 });
 
@@ -57,8 +57,8 @@ describe("propose_all_campaign_budget_push", () => {
       ok: true,
       data: {
         metrics: [
-          { campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact", status: "PAUSED" },
-          { campaignId: "23659062884", campaignName: "search_google-ads-services_qld_exact", status: "ENABLED" },
+          { campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact", status: "PAUSED", dailyBudget: 125 },
+          { campaignId: "23659062884", campaignName: "search_google-ads-services_qld_exact", status: "ENABLED", dailyBudget: 80 },
         ],
       },
     });
@@ -74,9 +74,12 @@ describe("propose_all_campaign_budget_push", () => {
 
     expect(result.ok).toBe(true);
     expect(mockQueueProposal.mock.calls[0]?.[0].proposalPayload.campaigns).toEqual([
-      { campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact", dailyBudget: 400 },
-      { campaignId: "23659062884", campaignName: "search_google-ads-services_qld_exact", dailyBudget: 400 },
+      { campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact", currentDailyBudget: 125, dailyBudget: 400 },
+      { campaignId: "23659062884", campaignName: "search_google-ads-services_qld_exact", currentDailyBudget: 80, dailyBudget: 400 },
     ]);
+    expect(mockQueueProposal.mock.calls[0]?.[0].rendered.internalMarkdown).toContain("Current daily budget");
+    expect(mockQueueProposal.mock.calls[0]?.[0].rendered.internalMarkdown).toContain("$125.00/day");
+    expect(mockQueueProposal.mock.calls[0]?.[0].rendered.internalMarkdown).toContain("$400.00/day");
   });
 
   it("can exclude paused campaigns when requested", async () => {
@@ -84,8 +87,8 @@ describe("propose_all_campaign_budget_push", () => {
       ok: true,
       data: {
         metrics: [
-          { campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact", status: "PAUSED" },
-          { campaignId: "23659062884", campaignName: "search_google-ads-services_qld_exact", status: "ENABLED" },
+          { campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact", status: "PAUSED", dailyBudget: 125 },
+          { campaignId: "23659062884", campaignName: "search_google-ads-services_qld_exact", status: "ENABLED", dailyBudget: 80 },
         ],
       },
     });
@@ -101,7 +104,7 @@ describe("propose_all_campaign_budget_push", () => {
 
     expect(result.ok).toBe(true);
     expect(mockQueueProposal.mock.calls[0]?.[0].proposalPayload.campaigns).toEqual([
-      { campaignId: "23659062884", campaignName: "search_google-ads-services_qld_exact", dailyBudget: 400 },
+      { campaignId: "23659062884", campaignName: "search_google-ads-services_qld_exact", currentDailyBudget: 80, dailyBudget: 400 },
     ]);
   });
 });
@@ -127,7 +130,10 @@ describe("propose_budget_push_live", () => {
     expect(result.ok).toBe(true);
     expect(mockQueueProposal).toHaveBeenCalledTimes(1);
     expect(mockQueueProposal.mock.calls[0]?.[0].proposalPayload.campaigns).toEqual([
-      { campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact", dailyBudget: 400 },
+      { campaignId: "23653649175", campaignName: "search_google-ads-services_vic_exact", currentDailyBudget: 125, dailyBudget: 400 },
     ]);
+    expect(mockQueueProposal.mock.calls[0]?.[0].rendered.internalMarkdown).toContain("Current daily budget");
+    expect(mockQueueProposal.mock.calls[0]?.[0].rendered.internalMarkdown).toContain("$125.00/day");
+    expect(mockQueueProposal.mock.calls[0]?.[0].rendered.internalMarkdown).toContain("$400.00/day");
   });
 });

@@ -4,6 +4,7 @@ export interface CampaignIdentity {
   campaignId: string;
   campaignName: string;
   status?: string;
+  currentDailyBudget?: number | null;
 }
 
 interface LiveCampaignRow {
@@ -11,6 +12,7 @@ interface LiveCampaignRow {
   campaignName?: string;
   name?: string;
   status?: string;
+  dailyBudget?: number | null;
 }
 
 interface LiveCampaignEnvelope {
@@ -28,12 +30,14 @@ export async function fetchCampaignsForCustomer(rawCustomerId: string | undefine
   }
 
   const campaigns = (res.data?.metrics ?? [])
-    .map((row) => {
+    .map((row): CampaignIdentity | null => {
       const campaignId = String(row.campaignId ?? "").trim();
       if (!campaignId) return null;
       const campaignName = String(row.campaignName ?? row.name ?? campaignId).trim() || campaignId;
       const status = typeof row.status === "string" && row.status.trim() ? row.status.trim() : undefined;
-      return { campaignId, campaignName, ...(status ? { status } : {}) };
+      const dailyBudget = Number(row.dailyBudget);
+      const currentDailyBudget = Number.isFinite(dailyBudget) ? dailyBudget : null;
+      return { campaignId, campaignName, currentDailyBudget, ...(status ? { status } : {}) };
     })
     .filter((campaign): campaign is CampaignIdentity => campaign !== null);
 
@@ -49,7 +53,7 @@ export async function assertCampaignsExistForCustomer<T extends { campaignId: st
   campaigns: T[],
 ): Promise<T[]> {
   const liveCampaigns = await fetchCampaignsForCustomer(rawCustomerId);
-  const liveById = new Map(liveCampaigns.map((campaign) => [campaign.campaignId, campaign.campaignName]));
+  const liveById = new Map(liveCampaigns.map((campaign) => [campaign.campaignId, campaign]));
   const unknown = campaigns.filter((campaign) => !liveById.has(campaign.campaignId));
 
   if (unknown.length > 0) {
@@ -63,8 +67,12 @@ export async function assertCampaignsExistForCustomer<T extends { campaignId: st
     );
   }
 
-  return campaigns.map((campaign) => ({
-    ...campaign,
-    campaignName: liveById.get(campaign.campaignId) ?? campaign.campaignName,
-  }));
+  return campaigns.map((campaign) => {
+    const live = liveById.get(campaign.campaignId);
+    return {
+      ...campaign,
+      campaignName: live?.campaignName ?? campaign.campaignName,
+      currentDailyBudget: live?.currentDailyBudget ?? null,
+    };
+  });
 }

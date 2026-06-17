@@ -14,6 +14,11 @@ interface PushCampaignOut {
   campaignId: string;
   campaignName: string;
   dailyBudget: number;
+  currentDailyBudget?: number | null;
+}
+
+function formatDailyBudget(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(2)}/day` : "—";
 }
 
 export const proposeAllCampaignBudgetPush: CanonicalTool<ProposeAllCampaignBudgetPushArgs> = {
@@ -69,6 +74,7 @@ export const proposeAllCampaignBudgetPush: CanonicalTool<ProposeAllCampaignBudge
         .map((campaign) => ({
           campaignId: campaign.campaignId,
           campaignName: campaign.campaignName,
+          currentDailyBudget: campaign.currentDailyBudget ?? null,
           dailyBudget: args.dailyBudget,
         }));
     } catch (err) {
@@ -80,11 +86,16 @@ export const proposeAllCampaignBudgetPush: CanonicalTool<ProposeAllCampaignBudge
     }
 
     const totalDaily = campaigns.reduce((s, c) => s + c.dailyBudget, 0);
-    const rows = campaigns.map((campaign) => [campaign.campaignName, `$${campaign.dailyBudget.toFixed(2)}/day`, "—"]);
+    const rows = campaigns.map((campaign) => [
+      campaign.campaignName,
+      formatDailyBudget(campaign.currentDailyBudget),
+      formatDailyBudget(campaign.dailyBudget),
+      "—",
+    ]);
     const internalMarkdown = buildInternalMarkdown({
       summary: args.summary,
       supportingNumbers: args.supportingNumbers,
-      diffSection: `${mdTable(["Campaign", "Daily $", "Bid strategy"], rows)}\n\n**Total daily across pushed campaigns:** $${totalDaily.toFixed(2)}`,
+      diffSection: `${mdTable(["Campaign", "Current daily budget", "New daily budget", "Bid strategy"], rows)}\n\n**Total daily across pushed campaigns:** $${totalDaily.toFixed(2)}`,
       applyEffect: `Will call Growth Tools \`campaign-budgets/push\` against customer ${customerId ?? "?"} for audit #${auditId ?? "?"} and stamp \`actualDailyBudget\` + \`lastPushedAt\` on each CMS row. Campaign rows were expanded from live Growth Tools data, not model-supplied names.`,
     });
 

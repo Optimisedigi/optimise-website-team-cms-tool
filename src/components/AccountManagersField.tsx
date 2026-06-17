@@ -3,10 +3,9 @@
 /**
  * Custom Field for the `accountManagers` array on the Clients collection.
  *
- * Replaces the default name/email row entry with a creatable combobox of
- * eligible manager users (role admin/manager, fetched from
- * `/api/users/managers`). Picking a manager fills both `name` and `email`;
- * users can also type a name/email that is not in the list (manual fallback).
+ * Replaces the default name/email row entry with a CMS-user dropdown backed by
+ * `/api/users/managers`. Picking a user fills both `name` and `email`; users can
+ * also type a name/email that is not in the list (manual fallback).
  * `name` and `email` stay populated per row so downstream notifications keep
  * working.
  *
@@ -26,8 +25,6 @@ type RowData = {
   name: string
   email: string
 }
-
-const DATALIST_ID = 'od-account-managers-options'
 
 /** Pull the flat `accountManagers.N.{name,email}` form state into rows. */
 function extractRows(fields: Record<string, { value?: unknown }>, basePath: string): RowData[] {
@@ -112,6 +109,17 @@ function AccountManagersField(props: {
     [path, updateField],
   )
 
+  const handleUserSelect = useCallback(
+    (index: number, email: string) => {
+      if (!email) return
+      const match = managers.find((m) => m.email === email)
+      if (!match) return
+      updateField(`${path}.${index}.name`, match.name)
+      updateField(`${path}.${index}.email`, match.email)
+    },
+    [managers, path, updateField],
+  )
+
   const handleAdd = useCallback(() => {
     addFieldRow({ path, schemaPath, rowIndex: rows.length })
   }, [addFieldRow, path, schemaPath, rows.length])
@@ -134,14 +142,6 @@ function AccountManagersField(props: {
       <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>{label}</label>
       <p style={{ color: '#888', fontSize: 12, marginTop: 0, marginBottom: 10 }}>{description}</p>
 
-      <datalist id={DATALIST_ID}>
-        {managers.map((m) => (
-          <option key={m.email} value={m.name}>
-            {m.email}
-          </option>
-        ))}
-      </datalist>
-
       {rows.length === 0 && (
         <p style={{ color: '#888', fontSize: 13, marginBottom: 10 }}>
           No account managers assigned yet.
@@ -153,16 +153,28 @@ function AccountManagersField(props: {
           key={index}
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 36px',
+            gridTemplateColumns: 'minmax(180px, 0.9fr) 1fr 1fr 36px',
             gap: 8,
             alignItems: 'center',
             marginBottom: 8,
           }}
         >
+          <select
+            aria-label="Select CMS user as account manager"
+            value={managers.some((m) => m.email === row.email) ? row.email : ''}
+            onChange={(e) => handleUserSelect(index, e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">Choose CMS user…</option>
+            {managers.map((m) => (
+              <option key={m.email} value={m.email}>
+                {m.name} ({m.email})
+              </option>
+            ))}
+          </select>
           <input
             type="text"
-            list={DATALIST_ID}
-            placeholder="Select or type a name…"
+            placeholder="Or type a name…"
             value={row.name}
             onChange={(e) => handleNameChange(index, e.target.value)}
             style={inputStyle}
