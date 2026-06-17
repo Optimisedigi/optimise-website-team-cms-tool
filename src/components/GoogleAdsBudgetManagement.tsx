@@ -198,6 +198,59 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
   }, [id, adGroupsByCampaign, adGroupsLoading]);
 
+  // Fetch metrics for display only (LAST_MONTH / LAST_60_DAYS). Does NOT
+  // update monthlyTotal, daily budgets, or the budget tracker — only refreshes
+  // campaign metrics (impressions, clicks, conversions, etc.) for the table.
+  const fetchMetricsForDisplay = useCallback(async (range: BudgetMetricsRange) => {
+    if (!id || range === 'THIS_MONTH') return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/google-ads-budgets/${id}/list?range=${range}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed (${res.status})`);
+      }
+      const data = await res.json();
+      const freshCampaigns: BudgetCampaign[] = (data.campaigns || []).map((c: any) => ({
+        ...c,
+        enabled: c.enabled !== undefined ? c.enabled : true,
+        budgetPercentage: c.budgetPercentage ?? 0,
+      }));
+      // Preserve existing calculatedDailyBudget and budgetPercentage so the
+      // budget tracker stays unchanged. Only overlay the new metrics.
+      setCampaigns(prev =>
+        prev.map(old => {
+          const updated = freshCampaigns.find((f: BudgetCampaign) => f.campaignId === old.campaignId);
+          if (!updated) return old;
+          return {
+            ...old,
+            impressions: updated.impressions,
+            clicks: updated.clicks,
+            avgCpc: updated.avgCpc,
+            conversions: updated.conversions,
+            mtdSpend: updated.mtdSpend,
+            searchImpressionShare: updated.searchImpressionShare,
+            searchBudgetLostIS: updated.searchBudgetLostIS,
+            recommendedDailyBudget: updated.recommendedDailyBudget,
+            recommendationAction: updated.recommendationAction,
+            recommendationScore: updated.recommendationScore,
+            recommendationReason: updated.recommendationReason,
+            recommendationCpaLast60: updated.recommendationCpaLast60,
+            recommendationConversionsLast60: updated.recommendationConversionsLast60,
+            recommendationGeneratedAt: updated.recommendationGeneratedAt,
+          };
+        })
+      );
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
   const handleMonthlyTotalChange = useCallback((newTotal: number) => {
     setMonthlyTotal(newTotal);
     setCampaigns(prev => recalculateBudgets(prev, newTotal));
@@ -748,7 +801,11 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       rangeChangeLoaded.current = true;
       return;
     }
-    syncFromGoogleAds();
+    if (metricsRange === 'THIS_MONTH') {
+      syncFromGoogleAds();
+    } else {
+      fetchMetricsForDisplay(metricsRange);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, metricsRange]);
 
@@ -1257,7 +1314,6 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           <div style={{ display: 'flex', gap: 4 }}>
             {([
               { key: 'THIS_MONTH' as BudgetMetricsRange, label: 'MTD' },
-              { key: 'LAST_MONTH' as BudgetMetricsRange, label: 'Last month' },
               { key: 'LAST_60_DAYS' as BudgetMetricsRange, label: 'Last 60 days' },
             ]).map(range => (
               <button
