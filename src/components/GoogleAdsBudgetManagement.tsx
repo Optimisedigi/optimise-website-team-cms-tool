@@ -38,7 +38,7 @@ interface AdGroupRow {
  *  "Limited by budget" badge. 10% is the threshold the Google Ads UI itself
  *  uses for its column highlighting — below that, daily noise dominates. */
 const LIMITED_BY_BUDGET_THRESHOLD = 0.1;
-const BUDGET_TABLE_COLUMNS = '32px minmax(300px, 1fr) 46px 66px 76px 76px 68px 70px 58px 58px 52px 58px 72px 54px 62px';
+const BUDGET_TABLE_COLUMNS = '32px 300px 46px 66px 76px 76px 68px 70px 58px 58px 52px 58px 72px 54px 62px';
 const BUDGET_TABLE_MIN_WIDTH = 1280;
 
 function formatPercentMetric(value: number | undefined): string {
@@ -1327,7 +1327,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           }} />
         </div>
 
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflowX: 'auto', overflowY: 'hidden', paddingRight: 10 }}>
           {/* Table Header */}
           <div style={{ display: 'grid', minWidth: BUDGET_TABLE_MIN_WIDTH, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '10px 10px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
             <div></div>
