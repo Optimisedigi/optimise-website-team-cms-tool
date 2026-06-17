@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
       tasks: tasksResult.docs,
       clients: clientsResult.docs.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug })),
       users: usersResult.docs.filter(isAssignableUser).map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email, role: u.role })),
+      canEditTaskFields: userHasFeature(user, "team-tasks"),
       canManage: user.role === "admin" || user.role === "manager",
     });
   } catch (error) {

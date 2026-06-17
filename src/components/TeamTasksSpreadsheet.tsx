@@ -284,6 +284,7 @@ export default function TeamTasksSpreadsheet() {
   const [weekMode, setWeekMode] = useState<'week' | 'all'>('week')
   const [error, setError] = useState('')
   const [canManage, setCanManage] = useState(false)
+  const [canEditTaskFields, setCanEditTaskFields] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | number | null>(null)
   const [draft, setDraft] = useState({ title: '', client: '', taskType: 'blog_post', dueDate: mondayKey(), assignedTo: '', instructions: '' })
 
@@ -300,6 +301,7 @@ export default function TeamTasksSpreadsheet() {
       setClients(json.clients || [])
       setUsers(json.users || [])
       setCanManage(Boolean(json.canManage))
+      setCanEditTaskFields(Boolean(json.canEditTaskFields ?? json.canManage))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load tasks')
     } finally {
@@ -484,13 +486,13 @@ export default function TeamTasksSpreadsheet() {
                   }} />
                 )}
                 <td style={tdStyle}>
-                  <select value={relId(task.client)} onChange={(e) => patch(task.id, { client: e.target.value })} style={inputStyle} title={relName(task.client, clients)} disabled={!canManage}>
+                  <select value={relId(task.client)} onChange={(e) => patch(task.id, { client: e.target.value })} style={inputStyle} title={relName(task.client, clients)} disabled={!canEditTaskFields}>
                     <option value="">—</option>
                     {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
                   </select>
                 </td>
                 <td style={tdStyle}>
-                  <select value={task.taskType || 'other'} onChange={(e) => patch(task.id, { taskType: e.target.value })} style={inputStyle} disabled={!canManage}>
+                  <select value={task.taskType || 'other'} onChange={(e) => patch(task.id, { taskType: e.target.value })} style={inputStyle} disabled={!canEditTaskFields}>
                     {taskTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </td>
@@ -513,7 +515,7 @@ export default function TeamTasksSpreadsheet() {
                   </select>
                 </td>
                 <td style={tdStyle}>
-                  <select value={relId(task.assignedTo)} onChange={(e) => patch(task.id, { assignedTo: e.target.value })} style={inputStyle} title={relName(task.assignedTo, users)} disabled={!canManage}>
+                  <select value={relId(task.assignedTo)} onChange={(e) => patch(task.id, { assignedTo: e.target.value })} style={inputStyle} title={relName(task.assignedTo, users)} disabled={!canEditTaskFields}>
                     <option value="">Unassigned</option>
                     {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                   </select>
