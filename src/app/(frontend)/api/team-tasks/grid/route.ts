@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
         limit: 500,
         depth: 0,
         select: { name: true, slug: true } as any,
+        overrideAccess: true,
       }),
       payload.find({
         collection: "users",
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
         limit: 500,
         depth: 0,
         select: { name: true, email: true, role: true } as any,
-        overrideAccess: user.role === "admin",
+        overrideAccess: true,
       }),
     ]);
 
