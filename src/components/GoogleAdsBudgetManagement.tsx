@@ -231,7 +231,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             clicks: updated.clicks,
             avgCpc: updated.avgCpc,
             conversions: updated.conversions,
-            mtdSpend: updated.mtdSpend,
+            displayMtdSpend: updated.mtdSpend,
             searchImpressionShare: updated.searchImpressionShare,
             searchBudgetLostIS: updated.searchBudgetLostIS,
             recommendedDailyBudget: updated.recommendedDailyBudget,
@@ -802,6 +802,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       return;
     }
     if (metricsRange === 'THIS_MONTH') {
+      setCampaigns(prev => prev.map(c => { const { displayMtdSpend, ...rest } = c; return rest as BudgetCampaign; }));
       syncFromGoogleAds();
     } else {
       fetchMetricsForDisplay(metricsRange);
@@ -1517,7 +1518,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
                     {/* MTD Spend */}
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: 13, color: '#d97706', fontWeight: 500 }}>${(campaign.mtdSpend || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      <span style={{ fontSize: 13, color: '#d97706', fontWeight: 500 }}>${((metricsRange === 'THIS_MONTH' ? campaign.mtdSpend : campaign.displayMtdSpend) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                     </div>
 
                     {/* Current Daily Budget */}
@@ -1733,7 +1734,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                           <span style={{ fontWeight: 600 }}>Standalone budget</span>
                         </label>
                         <div style={{ textAlign: 'right' }} title="Monthly Share"><span style={{ fontSize: 10, color: '#64748b' }}>Share</span><br />{campaign.standalone ? '—' : `$${(monthlyTotal * campaign.budgetPercentage / 100).toFixed(0)}`}</div>
-                        <div style={{ textAlign: 'right' }} title="MTD Spend"><span style={{ fontSize: 10, color: '#64748b' }}>MTD</span><br />${(campaign.mtdSpend || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                        <div style={{ textAlign: 'right' }} title="MTD Spend"><span style={{ fontSize: 10, color: '#64748b' }}>MTD</span><br />${((metricsRange === 'THIS_MONTH' ? campaign.mtdSpend : campaign.displayMtdSpend) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                         <div style={{ textAlign: 'right' }} title="Current daily budget"><span style={{ fontSize: 10, color: '#64748b' }}>Current</span><br />${(campaign.actualDailyBudget || 0).toFixed(2)}</div>
                         <div style={{ textAlign: 'right' }} title="Adjusted daily budget"><span style={{ fontSize: 10, color: '#64748b' }}>New</span><br />${campaign.calculatedDailyBudget.toFixed(2)}</div>
                         <div />

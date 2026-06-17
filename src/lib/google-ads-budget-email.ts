@@ -24,6 +24,10 @@ export interface BudgetCampaign {
   conversions: number;
   spend?: number;
   mtdSpend?: number;
+  /** Display-only MTD spend from the selected metrics range (e.g. last 60 days).
+   *  The budget tracker always uses `mtdSpend` (THIS_MONTH data); this field
+   *  is only for table display when a non-MTD range is selected. */
+  displayMtdSpend?: number;
   locationIds?: string[];
   locationNames?: string[];
   enabled: boolean; // Whether this campaign is included in budget allocation
