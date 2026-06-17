@@ -35,6 +35,42 @@ interface ToolAction {
   result: unknown;
 }
 
+type SupportedImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+interface IncomingImageAttachment {
+  mediaType: SupportedImageMediaType;
+  data: string;
+  name?: string;
+}
+
+const SUPPORTED_IMAGE_MEDIA_TYPES = new Set<SupportedImageMediaType>([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_ATTACHMENTS = 3;
+const UPDATE_INVOICE_FIELDS = [
+  "contactId",
+  "dueDate",
+  "lineItems",
+  "reference",
+  "status",
+  "invoiceNumber",
+] as const;
+
+function pickAllowedFields(
+  source: Record<string, unknown>,
+  keys: readonly string[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (key in source) out[key] = source[key];
+  }
+  return out;
+}
+
 // ─── Tool definitions (OpenAI format) ─────────────────────
 
 export const tools: ToolDef[] = [
@@ -130,6 +166,74 @@ export const tools: ToolDef[] = [
     },
   },
   {
+    name: "createRecurringDrafts",
+    description:
+      "Create draft invoices from configured recurring invoice templates. This can create multiple draft invoices, so confirm with the user before calling this tool.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        mailchimpAmount: {
+          type: "number",
+          description: "Optional Mailchimp amount override to include when Growth Tools creates the recurring drafts.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "updateInvoice",
+    description:
+      "Update an existing Xero invoice. Use this for changes to due date, reference, invoice number, contact, line items, or status. Confirm with the user before calling this tool.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        invoiceId: {
+          type: "string",
+          description: "The Xero invoice ID to update",
+        },
+        contactId: {
+          type: "string",
+          description: "Optional replacement Xero contact ID. Use listContacts first if changing the contact.",
+        },
+        dueDate: {
+          type: "string",
+          description: "Optional due date in YYYY-MM-DD format",
+        },
+        lineItems: {
+          type: "array",
+          description: "Optional replacement invoice line items. Include the full desired line-item set, not just the changed row.",
+          items: {
+            type: "object",
+            properties: {
+              description: { type: "string" },
+              quantity: { type: "number" },
+              unitAmount: { type: "number" },
+              accountCode: {
+                type: "string",
+                description: "Xero account code (default: 200 for Sales)",
+              },
+            },
+            required: ["description", "quantity", "unitAmount"],
+          },
+        },
+        reference: {
+          type: "string",
+          description: "Optional replacement invoice reference",
+        },
+        status: {
+          type: "string",
+          enum: ["DRAFT", "SUBMITTED", "AUTHORISED", "PAID", "VOIDED"],
+          description: "Optional status update. Prefer approveInvoice for approving a draft.",
+        },
+        invoiceNumber: {
+          type: "string",
+          description: "Optional replacement invoice number",
+        },
+      },
+      required: ["invoiceId"],
+    },
+  },
+  {
     name: "approveInvoice",
     description:
       "Approve a draft invoice, changing its status to AUTHORISED so it can be sent.",
@@ -198,6 +302,8 @@ You have access to the following tools to interact with Xero:
 - listInvoices: List invoices with filters
 - getInvoiceSummary: Get outstanding/overdue summary
 - createInvoice: Create a new invoice
+- createRecurringDrafts: Create draft invoices from configured recurring invoice templates
+- updateInvoice: Update an existing invoice
 - approveInvoice: Approve a draft invoice
 - sendInvoice: Send an invoice via email
 - scheduleSend: Schedule an invoice for future sending
@@ -207,7 +313,7 @@ Guidelines:
 - Before creating an invoice, always look up the contact first using listContacts to get the correct contactId.
 - When creating invoices, default the account code to "200" (Sales) unless told otherwise.
 - For "this month's retainer", use the current month and year in the description.
-- Before performing destructive actions (sending, approving), confirm with the user first. Creating a draft is safe and doesn't need confirmation.
+- Before performing destructive, bulk, or modifying actions (creating recurring drafts, updating, sending, approving), confirm with the user first. Creating a single draft invoice is safe and doesn't need confirmation.
 - Format currency amounts in AUD.
 - Be concise and actionable in your responses. Use ✅ for successful actions and ⚠️ for warnings.
 - Today's date is ${new Date().toISOString().split("T")[0]}.`;
@@ -255,6 +361,25 @@ export async function executeTool(
       method = "POST";
       body = JSON.stringify(args);
       break;
+    case "createRecurringDrafts":
+      endpoint = "/api/xero/recurring/create-drafts";
+      method = "POST";
+      body = JSON.stringify(pickAllowedFields(args, ["mailchimpAmount"]));
+      break;
+    case "updateInvoice": {
+      const id = args.invoiceId;
+      if (typeof id !== "string" || !GUID_REGEX.test(id)) {
+        return { error: "Invalid invoiceId format" };
+      }
+      const update = pickAllowedFields(args, UPDATE_INVOICE_FIELDS);
+      if (Object.keys(update).length === 0) {
+        return { error: "At least one invoice field is required to update" };
+      }
+      endpoint = `/api/xero/invoices/${encodeURIComponent(id)}`;
+      method = "PUT";
+      body = JSON.stringify(update);
+      break;
+    }
     case "approveInvoice": {
       const id = args.invoiceId;
       if (typeof id !== "string" || !GUID_REGEX.test(id)) {
@@ -337,6 +462,7 @@ export async function POST(req: NextRequest) {
     message: string;
     history?: Array<{ role: string; content: string }>;
     model?: string;
+    imageAttachments?: unknown;
   };
   try {
     body = await req.json();
@@ -349,6 +475,11 @@ export async function POST(req: NextRequest) {
       { error: "message is required" },
       { status: 400 }
     );
+  }
+
+  const imageAttachments = parseImageAttachments(body.imageAttachments);
+  if (!imageAttachments.ok) {
+    return NextResponse.json({ error: imageAttachments.error }, { status: 400 });
   }
 
   try {
@@ -376,10 +507,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Add the new user message
+    // Add the new user message, with optional screenshot context.
     messages.push({
       role: "user",
-      content: [{ type: "text", text: body.message.trim() }],
+      content: [
+        ...imageAttachments.value.map((image) => ({
+          type: "image" as const,
+          mediaType: image.mediaType,
+          data: image.data,
+        })),
+        { type: "text", text: body.message.trim() },
+      ],
     });
 
     const actions: ToolAction[] = [];
@@ -447,4 +585,44 @@ export async function POST(req: NextRequest) {
     console.error("[xero/chat]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function parseImageAttachments(input: unknown):
+  | { ok: true; value: IncomingImageAttachment[] }
+  | { ok: false; error: string } {
+  if (input === undefined || input === null) return { ok: true, value: [] };
+  if (!Array.isArray(input)) return { ok: false, error: "imageAttachments must be an array" };
+  if (input.length > MAX_IMAGE_ATTACHMENTS) {
+    return { ok: false, error: `Attach up to ${MAX_IMAGE_ATTACHMENTS} images per message` };
+  }
+
+  const parsed: IncomingImageAttachment[] = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object") {
+      return { ok: false, error: "Each image attachment must be an object" };
+    }
+    const item = raw as Record<string, unknown>;
+    const mediaType = item.mediaType;
+    const data = item.data;
+    const name = item.name;
+    if (typeof mediaType !== "string" || !SUPPORTED_IMAGE_MEDIA_TYPES.has(mediaType as SupportedImageMediaType)) {
+      return { ok: false, error: "Unsupported image type. Use PNG, JPEG, GIF, or WebP." };
+    }
+    if (typeof data !== "string" || data.length === 0) {
+      return { ok: false, error: "Image attachment data is required" };
+    }
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
+      return { ok: false, error: "Image attachment data must be base64" };
+    }
+    const estimatedBytes = Math.floor((data.length * 3) / 4);
+    if (estimatedBytes > MAX_IMAGE_ATTACHMENT_BYTES) {
+      return { ok: false, error: "Each image attachment must be 5 MB or smaller" };
+    }
+    parsed.push({
+      mediaType: mediaType as SupportedImageMediaType,
+      data,
+      ...(typeof name === "string" && name.trim().length > 0 ? { name: name.trim().slice(0, 120) } : {}),
+    });
+  }
+  return { ok: true, value: parsed };
 }

@@ -43,6 +43,13 @@ interface ChatMessage {
   modelUsed?: string
 }
 
+interface ImageAttachment {
+  name: string
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+  data: string
+  size: number
+}
+
 interface ToolAction {
   tool: string
   result?: unknown
@@ -52,6 +59,9 @@ interface ToolAction {
  *  from the Google Ads chat key so picking a model in one surface doesn't
  *  silently change the other. */
 const MODEL_STORAGE_KEY = 'optimate-invoice-model'
+const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+const MAX_IMAGE_ATTACHMENTS = 3
+const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 /** True when the stored value is a real model still offered in the picker. */
 function isUsablePickerModel(raw: string | null): raw is string {
@@ -98,11 +108,14 @@ export default function InvoiceAssistantChat() {
   const [sending, setSending] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => loadPersistedModel())
   const [voiceStatus, setVoiceStatus] = useState<string | null>(null)
+  const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([])
+  const [dragActive, setDragActive] = useState(false)
   const [starterQuestions, setStarterQuestions] = useState<string[]>(() => [
     ...DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
   ])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const pushVoiceTurn = useCallback((voiceId: string, role: 'user' | 'assistant', text: string) => {
     setMessages((prev) => {
@@ -157,11 +170,17 @@ export default function InvoiceAssistantChat() {
 
   const sendMessage = async (raw: string) => {
     const text = raw.trim()
-    if (!text || sending) return
+    const currentImages = imageAttachments
+    if ((!text && currentImages.length === 0) || sending) return
+
+    const imageSummary = currentImages.length > 0
+      ? `\n\n[Attached image${currentImages.length === 1 ? '' : 's'}: ${currentImages.map((img) => img.name).join(', ')}]`
+      : ''
+    const displayText = text || 'Please review the attached image.'
 
     setInput('')
     setSending(true)
-    setMessages((prev) => [...prev, { role: 'user', content: text }])
+    setMessages((prev) => [...prev, { role: 'user', content: `${displayText}${imageSummary}` }])
 
     // Only user/assistant turns become history — drop errors so the model
     // doesn't try to interpret them.
@@ -173,7 +192,16 @@ export default function InvoiceAssistantChat() {
       const res = await fetch('/api/xero/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, model: selectedModel }),
+        body: JSON.stringify({
+          message: displayText,
+          history,
+          model: selectedModel,
+          imageAttachments: currentImages.map((image) => ({
+            name: image.name,
+            mediaType: image.mediaType,
+            data: image.data,
+          })),
+        }),
         credentials: 'include',
       })
 
@@ -198,6 +226,8 @@ export default function InvoiceAssistantChat() {
             modelUsed: data.model,
           },
         ])
+        setImageAttachments([])
+        if (imageInputRef.current) imageInputRef.current.value = ''
       }
     } catch (err) {
       setMessages((prev) => [
@@ -213,6 +243,106 @@ export default function InvoiceAssistantChat() {
   }
 
   const handleSend = () => sendMessage(input)
+
+  const readImageAttachment = (file: File): Promise<ImageAttachment> =>
+    new Promise((resolve, reject) => {
+      if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
+        reject(new Error(`${file.name} is not a supported image type. Use PNG, JPEG, GIF, or WebP.`))
+        return
+      }
+      if (file.size > MAX_IMAGE_ATTACHMENT_BYTES) {
+        reject(new Error(`${file.name} is too large. Use images up to 5 MB.`))
+        return
+      }
+      const reader = new FileReader()
+      reader.onerror = () => reject(new Error(`Could not read ${file.name}`))
+      reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : ''
+        const comma = result.indexOf(',')
+        const data = comma >= 0 ? result.slice(comma + 1) : result
+        resolve({
+          name: file.name,
+          mediaType: file.type as ImageAttachment['mediaType'],
+          data,
+          size: file.size,
+        })
+      }
+      reader.readAsDataURL(file)
+    })
+
+  const handleImageFiles = useCallback(async (files: FileList | File[] | null) => {
+    if (!files || files.length === 0) return
+    const incoming = Array.from(files).filter((file) => file.type.startsWith('image/'))
+    if (incoming.length === 0) {
+      setMessages((prev) => [...prev, { role: 'error', content: 'Attach PNG, JPEG, GIF, or WebP screenshots.' }])
+      return
+    }
+    const availableSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - imageAttachments.length)
+    const nextFiles = incoming.slice(0, availableSlots)
+    if (nextFiles.length === 0) {
+      setMessages((prev) => [...prev, { role: 'error', content: `Attach up to ${MAX_IMAGE_ATTACHMENTS} images per message.` }])
+      return
+    }
+    try {
+      const next = await Promise.all(nextFiles.map(readImageAttachment))
+      setImageAttachments((prev) => [...prev, ...next].slice(0, MAX_IMAGE_ATTACHMENTS))
+      if (incoming.length > nextFiles.length) {
+        setMessages((prev) => [...prev, { role: 'error', content: `Attached the first ${nextFiles.length} images. Limit is ${MAX_IMAGE_ATTACHMENTS} per message.` }])
+      }
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: 'error', content: err instanceof Error ? err.message : 'Could not attach image' }])
+    } finally {
+      if (imageInputRef.current) imageInputRef.current.value = ''
+    }
+  }, [imageAttachments.length])
+
+  useEffect(() => {
+    let dragDepth = 0
+
+    const eventHasFiles = (event: DragEvent): boolean =>
+      Array.from(event.dataTransfer?.types ?? []).includes('Files')
+
+    const handleWindowDragEnter = (event: DragEvent) => {
+      if (!eventHasFiles(event)) return
+      event.preventDefault()
+      dragDepth += 1
+      setDragActive(true)
+    }
+
+    const handleWindowDragOver = (event: DragEvent) => {
+      if (!eventHasFiles(event)) return
+      event.preventDefault()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+      setDragActive(true)
+    }
+
+    const handleWindowDragLeave = (event: DragEvent) => {
+      if (!eventHasFiles(event)) return
+      event.preventDefault()
+      dragDepth = Math.max(0, dragDepth - 1)
+      if (dragDepth === 0) setDragActive(false)
+    }
+
+    const handleWindowDrop = (event: DragEvent) => {
+      if (!eventHasFiles(event)) return
+      event.preventDefault()
+      dragDepth = 0
+      setDragActive(false)
+      void handleImageFiles(event.dataTransfer?.files ?? null)
+    }
+
+    window.addEventListener('dragenter', handleWindowDragEnter)
+    window.addEventListener('dragover', handleWindowDragOver)
+    window.addEventListener('dragleave', handleWindowDragLeave)
+    window.addEventListener('drop', handleWindowDrop)
+
+    return () => {
+      window.removeEventListener('dragenter', handleWindowDragEnter)
+      window.removeEventListener('dragover', handleWindowDragOver)
+      window.removeEventListener('dragleave', handleWindowDragLeave)
+      window.removeEventListener('drop', handleWindowDrop)
+    }
+  }, [handleImageFiles])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -398,8 +528,7 @@ export default function InvoiceAssistantChat() {
       </div>
 
       {/* Composer — bordered box with a borderless textarea and a round
-        up-arrow send button, identical to the Google Ads chat (minus the
-        email-attach, image-attach, and voice controls). */}
+        up-arrow send button, identical to the Google Ads chat. */}
       <div
         style={{
           position: 'relative',
@@ -411,6 +540,40 @@ export default function InvoiceAssistantChat() {
           padding: '12px 14px 46px',
         }}
       >
+        {imageAttachments.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {imageAttachments.map((image, idx) => (
+              <span
+                key={`${image.name}-${idx}`}
+                title={`${image.name} · ${Math.round(image.size / 1024)} KB`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  maxWidth: 180,
+                  padding: '4px 7px',
+                  borderRadius: 999,
+                  border: '1px solid #dbeafe',
+                  background: '#eff6ff',
+                  color: '#1d4ed8',
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setImageAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                  aria-label={`Remove ${image.name}`}
+                  disabled={sending}
+                  style={{ border: 0, background: 'transparent', color: '#1d4ed8', cursor: sending ? 'not-allowed' : 'pointer', padding: 0, fontWeight: 900 }}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <textarea
           ref={inputRef}
           rows={1}
@@ -435,6 +598,15 @@ export default function InvoiceAssistantChat() {
           }}
         />
 
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          multiple
+          onChange={(e) => handleImageFiles(e.target.files)}
+          style={{ display: 'none' }}
+        />
+
         <div
           style={{
             position: 'absolute',
@@ -445,6 +617,35 @@ export default function InvoiceAssistantChat() {
             alignItems: 'center',
           }}
         >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              imageInputRef.current?.click()
+            }}
+            disabled={sending || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS}
+            title="Attach a screenshot"
+            aria-label="Attach image screenshot"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 29,
+              height: 29,
+              border: '1px solid #d1d5db',
+              borderRadius: 8,
+              background: '#fff',
+              color: '#374151',
+              cursor: sending || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS ? 'not-allowed' : 'pointer',
+              opacity: sending || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS ? 0.55 : 1,
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 7h3l1.4-2h7.2L17 7h3v12H4V7Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+              <circle cx="12" cy="13" r="3.5" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          </button>
           <OptiMateVoice
             mode="invoice"
             triggerSize={29}
@@ -459,7 +660,7 @@ export default function InvoiceAssistantChat() {
               e.stopPropagation()
               handleSend()
             }}
-            disabled={sending || !input.trim()}
+            disabled={sending || (!input.trim() && imageAttachments.length === 0)}
             title="Send"
             aria-label="Send"
             style={{
@@ -468,11 +669,11 @@ export default function InvoiceAssistantChat() {
               justifyContent: 'center',
               width: 29,
               height: 29,
-              background: sending || !input.trim() ? '#9ca3af' : '#2563eb',
+              background: sending || (!input.trim() && imageAttachments.length === 0) ? '#9ca3af' : '#2563eb',
               color: '#fff',
               border: 'none',
               borderRadius: 8,
-              cursor: sending || !input.trim() ? 'not-allowed' : 'pointer',
+              cursor: sending || (!input.trim() && imageAttachments.length === 0) ? 'not-allowed' : 'pointer',
               transition: 'background 0.15s',
             }}
           >
@@ -488,6 +689,37 @@ export default function InvoiceAssistantChat() {
           </button>
         </div>
       </div>
+
+      {dragActive && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 2147483647,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(37, 99, 235, 0.12)',
+            border: '3px dashed rgba(37, 99, 235, 0.7)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              padding: '16px 22px',
+              borderRadius: 16,
+              background: '#fff',
+              color: '#1d4ed8',
+              boxShadow: '0 18px 45px rgba(15, 23, 42, 0.18)',
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            Drop screenshots to attach to InvoiceMate
+          </div>
+        </div>
+      )}
 
       {/* Model selector — sits below the composer, matching the Google Ads chat. */}
       <div
