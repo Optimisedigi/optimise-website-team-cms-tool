@@ -22,9 +22,9 @@ describe('API endpoint inventory', () => {
     expect(existsSync('docs/api-endpoint-inventory.md')).toBe(true)
     const doc = readFileSync('docs/api-endpoint-inventory.md', 'utf8')
 
-    expect(doc).toContain('CMS route files inventoried: 272')
+    expect(doc).toContain('CMS route files inventoried: 273')
     expect(doc).toContain('Growth Tools route registrations inventoried: 257')
-    expect(doc).toContain('CMS → Growth Tools calls detected: 41')
+    expect(doc).toContain('CMS → Growth Tools calls detected: 42')
     expect(doc).toContain('`/api/dashboard`')
     expect(doc).toContain('`/api/proposals/[id]/run-audits`')
     expect(doc).toContain('CMS → Growth Tools calls')
@@ -49,7 +49,7 @@ describe('API endpoint inventory', () => {
   it('maps CMS outbound Growth Tools calls to Growth Tools route registrations', () => {
     const inventory = readInventoryJson()
     expect(inventory.growthToolsCallRows).toEqual(expect.any(Array))
-    expect(inventory.growthToolsCallRows.length).toBe(41)
+    expect(inventory.growthToolsCallRows.length).toBe(42)
 
     expect(inventory.growthToolsCallRows).toEqual(
       expect.arrayContaining([
@@ -70,6 +70,12 @@ describe('API endpoint inventory', () => {
           method: 'GET',
           path: '/api/search-console/sites',
           matchedGrowthToolsRoute: '/api/search-console/sites',
+        }),
+        expect.objectContaining({
+          cmsRoute: '/api/google-ads/change-tracker',
+          method: 'GET',
+          path: '/api/google-ads/campaign-budgets/get-metrics',
+          matchedGrowthToolsRoute: '/api/google-ads/campaign-budgets/get-metrics',
         }),
       ]),
     )

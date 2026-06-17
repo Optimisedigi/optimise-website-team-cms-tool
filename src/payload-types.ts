@@ -128,6 +128,7 @@ export interface Config {
     'gsc-snapshots': GscSnapshot;
     'gsc-daily': GscDaily;
     'google-ads-snapshots': GoogleAdsSnapshot;
+    'google-ads-change-trackers': GoogleAdsChangeTracker;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
     'google-ads-ad-extensions': GoogleAdsAdExtension;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
@@ -224,6 +225,7 @@ export interface Config {
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
     'google-ads-snapshots': GoogleAdsSnapshotsSelect<false> | GoogleAdsSnapshotsSelect<true>;
+    'google-ads-change-trackers': GoogleAdsChangeTrackersSelect<false> | GoogleAdsChangeTrackersSelect<true>;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
     'google-ads-ad-extensions': GoogleAdsAdExtensionsSelect<false> | GoogleAdsAdExtensionsSelect<true>;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
@@ -7617,6 +7619,35 @@ export interface GoogleAdsSnapshot {
   createdAt: string;
 }
 /**
+ * Saved Google Ads change-tracker workspaces shared by the internal admin team.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-change-trackers".
+ */
+export interface GoogleAdsChangeTracker {
+  id: number;
+  name: string;
+  /**
+   * Stable key for the shared tracker workspace.
+   */
+  workspaceKey: string;
+  view: 'daily' | 'weekly';
+  /**
+   * Serialized graph settings: client, campaigns, metrics, change date, labels, trend line, and title.
+   */
+  graphs:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Campaign budget allocation. Set monthly budget total and percentages, CMS calculates daily budget.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -8706,6 +8737,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'google-ads-snapshots';
         value: number | GoogleAdsSnapshot;
+      } | null)
+    | ({
+        relationTo: 'google-ads-change-trackers';
+        value: number | GoogleAdsChangeTracker;
       } | null)
     | ({
         relationTo: 'google-ads-campaign-budgets';
@@ -11256,6 +11291,18 @@ export interface GoogleAdsSnapshotsSelect<T extends boolean = true> {
   sourceEndpoint?: T;
   fetchDurationMs?: T;
   error?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-change-trackers_select".
+ */
+export interface GoogleAdsChangeTrackersSelect<T extends boolean = true> {
+  name?: T;
+  workspaceKey?: T;
+  view?: T;
+  graphs?: T;
   updatedAt?: T;
   createdAt?: T;
 }

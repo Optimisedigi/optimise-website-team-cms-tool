@@ -388,9 +388,23 @@ export default function GoogleAdsChangeTrackerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [graphs, setGraphs] = useState<ChartConfig[]>([]);
+  const [configLoaded, setConfigLoaded] = useState(false);
 
-  const loadTrackerData = async (customerId: string) => {
-    const params = new URLSearchParams({ view, days: "45", weeks: "8" });
+  const normaliseSavedGraph = (graph: Partial<ChartConfig>, index: number, fallbackCustomerId: string, fallbackCampaigns: string[]): ChartConfig => ({
+    id: Number(graph.id) || index + 1,
+    name: graph.name || (index === 0 ? "Changed campaigns" : `Graph ${index + 1}`),
+    customerId: cleanCustomerId(graph.customerId || fallbackCustomerId),
+    campaigns: Array.isArray(graph.campaigns) ? graph.campaigns : fallbackCampaigns,
+    campaignSearch: "",
+    metrics: Array.isArray(graph.metrics) && graph.metrics.length ? graph.metrics.slice(0, 4) : ["clicks", "cost", "cpc", "conversions"],
+    changeDate: graph.changeDate || "2026-06-17",
+    showTrend: graph.showTrend !== false,
+    showLabels: graph.showLabels === true,
+    controlsOpen: graph.controlsOpen !== false,
+  });
+
+  const loadTrackerData = async (customerId: string, requestedView: ViewMode = view) => {
+    const params = new URLSearchParams({ view: requestedView, days: "45", weeks: "8" });
     if (customerId) params.set("customerId", customerId);
     const res = await fetch(`/api/google-ads/change-tracker?${params}`);
     if (!res.ok) throw new Error((await res.json()).error || "Failed to load tracker");
@@ -411,24 +425,24 @@ export default function GoogleAdsChangeTrackerPage() {
         if (!res.ok) throw new Error((await res.json()).error || "Failed to load clients");
         return res.json() as Promise<ClientOption[]>;
       }),
-      loadTrackerData(""),
+      fetch("/api/google-ads/change-tracker/config").then(async (res) => {
+        if (!res.ok) throw new Error((await res.json()).error || "Failed to load saved tracker config");
+        return res.json() as Promise<{ view?: ViewMode; graphs?: Partial<ChartConfig>[] }>;
+      }),
     ])
-      .then(([clientPayload, defaultData]) => {
+      .then(async ([clientPayload, savedConfig]) => {
+        const savedView = savedConfig.view === "weekly" ? "weekly" : "daily";
+        const defaultData = await loadTrackerData("", savedView);
         if (cancelled) return;
         const googleAdsClients = clientPayload.filter((client) => cleanCustomerId(client.googleAdsCustomerId));
+        const fallbackCustomerId = cleanCustomerId(defaultData.customerId);
+        const fallbackCampaigns = defaultCampaigns(defaultData);
         setClients(googleAdsClients);
-        setGraphs((existing) => existing.length
-          ? existing.map((graph) => {
-              if (graph.customerId !== cleanCustomerId(defaultData.customerId)) return graph;
-              const validCampaigns = graph.campaigns.filter((campaign) => defaultData.availableCampaigns.includes(campaign));
-              const hasRows = defaultData.rows.some((row) => validCampaigns.includes(row.campaignName));
-              return {
-                ...graph,
-                changeDate: graph.changeDate || "2026-06-17",
-                campaigns: graph.name === "Changed campaigns" && !hasRows ? defaultCampaigns(defaultData) : validCampaigns,
-              };
-            })
-          : [defaultGraph(1, cleanCustomerId(defaultData.customerId), defaultCampaigns(defaultData))]);
+        setView(savedView);
+        setGraphs(Array.isArray(savedConfig.graphs) && savedConfig.graphs.length
+          ? savedConfig.graphs.map((graph, index) => normaliseSavedGraph(graph, index, fallbackCustomerId, fallbackCampaigns))
+          : [defaultGraph(1, fallbackCustomerId, fallbackCampaigns)]);
+        setConfigLoaded(true);
       })
       .catch((err) => {
         if (!cancelled) setError(err.message || "Failed to load tracker");
@@ -440,16 +454,17 @@ export default function GoogleAdsChangeTrackerPage() {
     return () => {
       cancelled = true;
     };
-  }, [view]);
+  }, []);
 
   useEffect(() => {
-    const missingCustomerIds = Array.from(new Set(graphs.map((graph) => graph.customerId).filter(Boolean)))
-      .filter((customerId) => !dataByCustomer[customerId]);
+    if (!configLoaded) return;
+    const customerIds = Array.from(new Set(graphs.map((graph) => graph.customerId).filter(Boolean)));
+    const missingCustomerIds = customerIds.filter((customerId) => !dataByCustomer[customerId] || dataByCustomer[customerId].view !== view);
     if (missingCustomerIds.length === 0) return;
     missingCustomerIds.forEach((customerId) => {
-      loadTrackerData(customerId).catch((err) => setError(err.message || "Failed to load tracker"));
+      loadTrackerData(customerId, view).catch((err) => setError(err.message || "Failed to load tracker"));
     });
-  }, [graphs, dataByCustomer, view]);
+  }, [graphs, dataByCustomer, view, configLoaded]);
 
   const updateGraph = (id: number, patch: Partial<ChartConfig>) => {
     setGraphs((items) => items.map((graph) => graph.id === id ? { ...graph, ...patch } : graph));
@@ -465,7 +480,7 @@ export default function GoogleAdsChangeTrackerPage() {
     });
 
     if (!graphData) {
-      loadTrackerData(customerId)
+      loadTrackerData(customerId, view)
         .then((payload) => {
           updateGraph(graph.id, { campaigns: defaultCampaigns(payload) });
         })
@@ -490,6 +505,20 @@ export default function GoogleAdsChangeTrackerPage() {
   const removeCampaign = (graph: ChartConfig, campaign: string) => {
     updateGraph(graph.id, { campaigns: graph.campaigns.filter((item) => item !== campaign) });
   };
+
+  useEffect(() => {
+    if (!configLoaded || graphs.length === 0) return;
+    const timeout = window.setTimeout(() => {
+      fetch("/api/google-ads/change-tracker/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ view, graphs }),
+      }).catch((err) => {
+        console.error("[change-tracker autosave]", err);
+      });
+    }, 650);
+    return () => window.clearTimeout(timeout);
+  }, [configLoaded, graphs, view]);
 
   const fallbackData = Object.values(dataByCustomer)[0] || null;
 

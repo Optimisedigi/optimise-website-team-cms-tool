@@ -39,6 +39,7 @@ import { GscDaily } from "./collections/GscDaily";
 import { GoalRuns } from "./collections/GoalRuns";
 import { GoalRunSnapshots } from "./collections/GoalRunSnapshots";
 import { GoogleAdsSnapshots } from "./collections/GoogleAdsSnapshots";
+import { GoogleAdsChangeTrackers } from "./collections/GoogleAdsChangeTrackers";
 import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { SeoMigrationChecks } from "./collections/SeoMigrationChecks";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
@@ -147,7 +148,7 @@ export default buildConfig({
     // Optimate agents
     AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, RealtimeVoiceUsage, OptimateChatTurns,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, MonthlyKeywordTermsCache, ClientPulseHistory, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
+    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsChangeTrackers, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, MonthlyKeywordTermsCache, ClientPulseHistory, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
   ].map((c) => {
     const collection = c as CollectionConfig
     return {
