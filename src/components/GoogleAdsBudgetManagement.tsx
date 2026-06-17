@@ -38,7 +38,7 @@ interface AdGroupRow {
  *  "Limited by budget" badge. 10% is the threshold the Google Ads UI itself
  *  uses for its column highlighting — below that, daily noise dominates. */
 const LIMITED_BY_BUDGET_THRESHOLD = 0.1;
-const BUDGET_TABLE_COLUMNS = '32px 300px 46px 66px 76px 76px 68px 70px 58px 58px 52px 58px 72px 54px 62px';
+const BUDGET_TABLE_COLUMNS = '32px minmax(300px, max-content) minmax(46px, 1fr) minmax(66px, 1fr) minmax(76px, 1fr) minmax(76px, 1fr) minmax(68px, 1fr) minmax(70px, 1fr) minmax(58px, 1fr) minmax(58px, 1fr) minmax(52px, 1fr) minmax(58px, 1fr) minmax(72px, 1fr) minmax(54px, 1fr) minmax(62px, 1fr)';
 const BUDGET_TABLE_MIN_WIDTH = 1280;
 
 function formatPercentMetric(value: number | undefined): string {
@@ -829,7 +829,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   const budgetPerWeek = budgetPerDay * 7;
 
   return (
-    <div className="od-google-ads-budget-management" style={{ padding: '16px 0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div className="od-google-ads-budget-management" style={{ padding: 16, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Header */}
       <div
         style={{
@@ -849,7 +849,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             Set monthly budget, split % across campaigns. Daily budgets auto-adjust based on MTD spend and remaining days.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             onClick={() => setShowEmailModal(true)}
             style={{
@@ -941,12 +941,12 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-            <button onClick={handleAutoBalance} disabled={campaigns.length === 0} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 500, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: campaigns.length === 0 ? 'not-allowed' : 'pointer' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', flex: '1 1 auto', minWidth: 0 }}>
+            <button onClick={handleAutoBalance} disabled={campaigns.length === 0} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 500, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: campaigns.length === 0 ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
               Auto-Balance ({campaigns.length > 0 ? (100 / campaigns.length).toFixed(1) : '0'}% each)
             </button>
 
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button
                 onClick={handleSaveBudget}
                 disabled={saving || campaigns.length === 0 || monthlyTotal === 0}
@@ -1228,7 +1228,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         </div>
 
         {/* Filter tabs + ad-groups toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 4 }}>
             {([
               { key: 'enabled' as CampaignFilter, label: 'Enabled', count: campaigns.filter(c => c.enabled).length, title: 'Enabled here means included in budget allocation. New/synced rows default from live Google Ads status.' },
@@ -1427,7 +1427,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                     </div>
 
                     <div style={{ minWidth: 0 }}>
-                      <div title={campaign.campaignName} style={{ fontWeight: 500, color: campaign.enabled ? '#1e293b' : '#94a3b8', display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                      <div title={campaign.campaignName} style={{ fontWeight: 500, color: campaign.enabled ? '#1e293b' : '#94a3b8', display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.3, whiteSpace: 'nowrap' }}>
                         <span style={{ fontSize: 10, color: '#94a3b8', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)', flexShrink: 0 }}>▶</span>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{campaign.campaignName}</span>
                       </div>

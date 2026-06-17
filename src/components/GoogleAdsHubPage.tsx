@@ -128,6 +128,17 @@ const GoogleAdsHubPage = () => {
         Google Ads tab — audits, negative keyword lists, deep dive sessions,
         budgets, and automation settings.
       </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+        <button
+          type="button"
+          className="od-settings__btn od-settings__btn--primary"
+          onClick={() => {
+            window.location.href = '/admin/google-ads/change-tracker'
+          }}
+        >
+          Change Tracker
+        </button>
+      </div>
 
       {/* Summary stats */}
       <div className="od-box" style={{ marginBottom: 16 }}>
