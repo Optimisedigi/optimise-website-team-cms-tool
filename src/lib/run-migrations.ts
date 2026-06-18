@@ -3887,6 +3887,18 @@ export async function runMigrations(
     await run("locked_docs_rels.google_ads_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_snapshots_id` integer REFERENCES `google_ads_snapshots`(`id`) ON DELETE cascade");
     await run("payload_locked_documents_rels_google_ads_snapshots_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_google_ads_snapshots_id_idx` ON `payload_locked_documents_rels` (`google_ads_snapshots_id`)");
 
+    // ── google_ads_change_trackers (2026-06-18) ─────────────────────────────
+    // Shared internal Google Ads Change Tracker workspace persisted from
+    // /admin/google-ads/change-tracker. `graphs` is JSON text containing graph
+    // titles, selected customer IDs, campaigns, metrics, and change dates.
+    await run("google_ads_change_trackers", "CREATE TABLE IF NOT EXISTS `google_ads_change_trackers` (`id` integer PRIMARY KEY NOT NULL, `name` text DEFAULT 'Default Google Ads Change Tracker' NOT NULL, `workspace_key` text DEFAULT 'default' NOT NULL, `view` text DEFAULT 'daily' NOT NULL, `graphs` text NOT NULL, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL)");
+    await run("google_ads_change_trackers_workspace_key_idx", "CREATE INDEX IF NOT EXISTS `google_ads_change_trackers_workspace_key_idx` ON `google_ads_change_trackers` (`workspace_key`)");
+    await run("google_ads_change_trackers_name_idx", "CREATE INDEX IF NOT EXISTS `google_ads_change_trackers_name_idx` ON `google_ads_change_trackers` (`name`)");
+    await run("google_ads_change_trackers_updated_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_change_trackers_updated_at_idx` ON `google_ads_change_trackers` (`updated_at`)");
+    await run("google_ads_change_trackers_created_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_change_trackers_created_at_idx` ON `google_ads_change_trackers` (`created_at`)");
+    await run("locked_docs_rels.google_ads_change_trackers_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_change_trackers_id` integer REFERENCES `google_ads_change_trackers`(`id`) ON DELETE cascade");
+    await run("payload_locked_documents_rels_google_ads_change_trackers_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_google_ads_change_trackers_id_idx` ON `payload_locked_documents_rels` (`google_ads_change_trackers_id`)");
+
     // ── Account Health Contract on clients (2026-06-02) ─────────────────
     // Per-client invariants goal agents respect. Reference:
     // docs/goal-agents-architecture-and-build-plan.md §Layer 2.
