@@ -51,6 +51,10 @@ function formatPercentMetric(value: number | undefined): string {
   return typeof value === 'number' ? `${(value * 100).toFixed(0)}%` : '—';
 }
 
+function selectedRangeSpend(campaign: BudgetCampaign, range: BudgetMetricsRange): number {
+  return range === 'THIS_MONTH' ? campaign.mtdSpend || 0 : campaign.displayMtdSpend ?? campaign.mtdSpend ?? 0;
+}
+
 function isLiveCampaignActive(campaign: Pick<BudgetCampaign, 'campaignStatus' | 'enabled'>): boolean {
   return campaign.campaignStatus ? campaign.campaignStatus !== 'PAUSED' && campaign.campaignStatus !== 'REMOVED' : campaign.enabled;
 }
@@ -206,7 +210,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
   // Fetch metrics for display only (LAST_MONTH / LAST_60_DAYS). Does NOT
   // update monthlyTotal, daily budgets, or the budget tracker — only refreshes
-  // campaign metrics (impressions, clicks, conversions, etc.) for the table.
+  // campaign metrics (cost, impressions, clicks, conversions, etc.) for the table.
   const fetchMetricsForDisplay = useCallback(async (range: BudgetMetricsRange) => {
     if (!id || range === 'THIS_MONTH') return;
     setLoading(true);
@@ -1404,7 +1408,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             <div></div>
             <div>Campaign</div>
             <div style={{ textAlign: 'right' }}>%</div>
-            <div style={{ textAlign: 'right' }}>MTD</div>
+            <div style={{ textAlign: 'right' }}>{metricsRange === 'THIS_MONTH' ? 'MTD' : 'Cost'}</div>
             <div style={{ textAlign: 'right' }} title="Current live daily budget from Google Ads.">Current</div>
             <div style={{ textAlign: 'right' }} title="New calculated daily budget to push.">New Daily</div>
             <div style={{ textAlign: 'right' }} title="Recommended daily budget from last month's conversions, CPA, ROAS, spend and impression share signals. Advisory only — click to apply, then push.">Rec.</div>
@@ -1454,6 +1458,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               const isExpanded = expandedCampaign === campaign.campaignId;
               const budgetDiff = campaign.actualDailyBudget ? campaign.calculatedDailyBudget - campaign.actualDailyBudget : null;
               const restriction = budgetRestrictionLabel(campaign.searchBudgetLostIS);
+              const spendForSelectedRange = selectedRangeSpend(campaign, metricsRange);
               const recommendationLines = [
                 campaign.recommendationReason || 'Last 60 days recommendation signal.',
                 typeof campaign.recommendationCpaLast60 === 'number' ? `Last 60d CPA: $${campaign.recommendationCpaLast60.toFixed(0)}` : 'Last 60d CPA: unavailable',
@@ -1530,9 +1535,9 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                       )}
                     </div>
 
-                    {/* MTD Spend */}
+                    {/* Selected range spend */}
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: 13, color: '#d97706', fontWeight: 500 }}>${((metricsRange === 'THIS_MONTH' ? campaign.mtdSpend : campaign.displayMtdSpend) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      <span style={{ fontSize: 13, color: '#d97706', fontWeight: 500 }}>${spendForSelectedRange.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                     </div>
 
                     {/* Current Daily Budget */}
@@ -1596,7 +1601,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
                     {/* Cost / Conversion */}
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: 13, color: '#64748b' }}>{formatCostPerConv(campaign.mtdSpend || 0, campaign.conversions || 0)}</span>
+                      <span style={{ fontSize: 13, color: '#64748b' }}>{formatCostPerConv(spendForSelectedRange, campaign.conversions || 0)}</span>
                     </div>
 
                     {/* Budget restriction */}
@@ -1678,7 +1683,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                                   <div />
                                   <div>Ad Group</div>
                                   <div />
-                                  <div style={{ textAlign: 'right' }}>MTD</div>
+                                  <div style={{ textAlign: 'right' }}>{metricsRange === 'THIS_MONTH' ? 'MTD' : 'Cost'}</div>
                                   <div />
                                   <div />
                                   <div />
@@ -1748,7 +1753,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                           <span style={{ fontWeight: 600 }}>Standalone budget</span>
                         </label>
                         <div style={{ textAlign: 'right' }} title="Monthly Share"><span style={{ fontSize: 10, color: '#64748b' }}>Share</span><br />{campaign.standalone ? '—' : `$${(monthlyTotal * campaign.budgetPercentage / 100).toFixed(0)}`}</div>
-                        <div style={{ textAlign: 'right' }} title="MTD Spend"><span style={{ fontSize: 10, color: '#64748b' }}>MTD</span><br />${((metricsRange === 'THIS_MONTH' ? campaign.mtdSpend : campaign.displayMtdSpend) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                        <div style={{ textAlign: 'right' }} title={metricsRange === 'THIS_MONTH' ? 'MTD Spend' : 'Selected range cost'}><span style={{ fontSize: 10, color: '#64748b' }}>{metricsRange === 'THIS_MONTH' ? 'MTD' : 'Cost'}</span><br />${spendForSelectedRange.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                         <div style={{ textAlign: 'right' }} title="Current daily budget"><span style={{ fontSize: 10, color: '#64748b' }}>Current</span><br />${(campaign.actualDailyBudget || 0).toFixed(2)}</div>
                         <div style={{ textAlign: 'right' }} title="Adjusted daily budget"><span style={{ fontSize: 10, color: '#64748b' }}>New</span><br />${campaign.calculatedDailyBudget.toFixed(2)}</div>
                         <div />
