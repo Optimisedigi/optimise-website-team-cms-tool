@@ -141,6 +141,18 @@ export async function runMigrations(
     )`);
     await run("clients_services_order_idx", "CREATE INDEX IF NOT EXISTS `clients_services_order_idx` ON `clients_services` (`order`)");
     await run("clients_services_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_services_parent_id_idx` ON `clients_services` (`parent_id`)");
+    await run("clients_services_text_id_new", `CREATE TABLE IF NOT EXISTS \`clients_services_new\` (
+      \`order\` integer NOT NULL,
+      \`parent_id\` integer NOT NULL,
+      \`value\` text,
+      \`id\` text PRIMARY KEY NOT NULL,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_services_text_id_copy", "INSERT INTO `clients_services_new` (`order`, `parent_id`, `value`, `id`) SELECT `order`, `parent_id`, `value`, CAST(`id` AS text) FROM `clients_services`", ["UNIQUE constraint failed", "no such table"]);
+    await run("clients_services_text_id_drop_old", "DROP TABLE IF EXISTS `clients_services`");
+    await run("clients_services_text_id_rename", "ALTER TABLE `clients_services_new` RENAME TO `clients_services`", ["no such table", "already exists"]);
+    await run("clients_services_text_id_order_idx", "CREATE INDEX IF NOT EXISTS `clients_services_order_idx` ON `clients_services` (`order`)");
+    await run("clients_services_text_id_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_services_parent_id_idx` ON `clients_services` (`parent_id`)");
 
     // --- Client Pulse leadership config ---
     await run("clients.client_pulse_enabled", "ALTER TABLE `clients` ADD `client_pulse_enabled` integer DEFAULT false");
