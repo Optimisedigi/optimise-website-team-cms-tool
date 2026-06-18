@@ -32,6 +32,7 @@ async function requireGoogleAdsUser() {
 function cleanGraph(graph: any, index: number) {
   const metrics = Array.isArray(graph?.metrics) ? graph.metrics : [];
   const campaigns = Array.isArray(graph?.campaigns) ? graph.campaigns : [];
+  const annotations = Array.isArray(graph?.annotations) ? graph.annotations : [];
   return {
     id: Number(graph?.id) || index + 1,
     name: String(graph?.name || (index === 0 ? "Changed campaigns" : `Graph ${index + 1}`)),
@@ -40,6 +41,11 @@ function cleanGraph(graph: any, index: number) {
     campaignSearch: "",
     metrics: metrics.map((metric: any) => String(metric)).filter(Boolean).slice(0, 4),
     changeDate: String(graph?.changeDate || "2026-06-17").slice(0, 10),
+    annotations: annotations.map((annotation: any, annotationIndex: number) => ({
+      id: Number(annotation?.id) || annotationIndex + 1,
+      date: String(annotation?.date || graph?.changeDate || "2026-06-17").slice(0, 10),
+      note: String(annotation?.note || "").slice(0, 240),
+    })).filter((annotation: any) => annotation.date && annotation.note.trim()),
     showTrend: graph?.showTrend !== false,
     showLabels: graph?.showLabels === true,
     controlsOpen: graph?.controlsOpen !== false,

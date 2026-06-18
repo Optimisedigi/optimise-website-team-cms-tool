@@ -38,6 +38,12 @@ type TrackerData = {
   rows: TrackerRow[];
 };
 
+type ChartAnnotation = {
+  id: number;
+  date: string;
+  note: string;
+};
+
 type ChartConfig = {
   id: number;
   name: string;
@@ -46,6 +52,7 @@ type ChartConfig = {
   campaignSearch: string;
   metrics: MetricKey[];
   changeDate: string;
+  annotations: ChartAnnotation[];
   showTrend: boolean;
   showLabels: boolean;
   controlsOpen: boolean;
@@ -164,12 +171,13 @@ function buildTrend(values: Array<number | null>, xFor: (index: number) => numbe
   return values.map((_, index) => `${xFor(index)},${yFor(intercept + slope * index)}`).join(" ");
 }
 
-function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, view }: {
+function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, annotations, view }: {
   points: ChartPoint[];
   metrics: MetricKey[];
   showTrend: boolean;
   showLabels: boolean;
   changeDate: string;
+  annotations: ChartAnnotation[];
   view: ViewMode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -197,6 +205,12 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, view 
   const xStep = points.length > 1 ? chartW / (points.length - 1) : 0;
   const changeIndex = points.findIndex((point) => point.date >= changeDate);
   const changeX = changeIndex >= 0 ? padLeft + changeIndex * xStep : null;
+  const annotationMarkers = annotations
+    .map((annotation) => {
+      const index = points.findIndex((point) => point.date >= annotation.date);
+      return index >= 0 ? { ...annotation, x: padLeft + index * xStep } : null;
+    })
+    .filter((marker): marker is ChartAnnotation & { x: number } => marker !== null);
 
   const ranges = metrics.reduce((acc, metric) => {
     const values = points
@@ -222,6 +236,15 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, view 
 
   return (
     <div style={{ border: "1px solid #e2e8f0", borderRadius: 18, background: "#fff", padding: "18px 24px 16px", boxShadow: "0 1px 4px rgba(15, 23, 42, 0.08)" }}>
+      {annotations.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          {annotations.map((annotation) => (
+            <div key={annotation.id} style={{ border: "1px solid #bfdbfe", borderRadius: 999, background: "#eff6ff", color: "#1e3a8a", padding: "6px 10px", fontSize: 12, fontWeight: 800 }}>
+              {fmtDate(annotation.date)}: {annotation.note || "Annotation"}
+            </div>
+          ))}
+        </div>
+      )}
       <div ref={containerRef} style={{ width: "100%" }}>
         {width > 0 && (
           <svg width={width} height={height} role="img" aria-label="Google Ads change tracker chart">
@@ -237,6 +260,15 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, view 
                 <text x={changeX > width - 150 ? changeX - 8 : changeX + 8} y={padTop - 16} textAnchor={changeX > width - 150 ? "end" : "start"} fontSize={12} fontWeight={800} fill="#991b1b">Change date</text>
               </g>
             )}
+
+            {annotationMarkers.map((annotation, index) => (
+              <g key={`annotation-${annotation.id}`}>
+                <line x1={annotation.x} x2={annotation.x} y1={padTop - 18} y2={height - 6} stroke="#1d4ed8" strokeDasharray="4 4" strokeWidth={2.4} />
+                <text x={annotation.x > width - 170 ? annotation.x - 8 : annotation.x + 8} y={padTop - 8 - (index % 3) * 12} textAnchor={annotation.x > width - 170 ? "end" : "start"} fontSize={11} fontWeight={800} fill="#1d4ed8">
+                  {annotation.note || "Annotation"}
+                </text>
+              </g>
+            ))}
 
             {metrics.map((metric, metricIndex) => {
               const def = metricDef(metric);
@@ -372,6 +404,7 @@ function defaultGraph(id: number, customerId: string, campaigns: string[]): Char
     campaignSearch: "",
     metrics: ["clicks", "cost", "cpc", "conversions"],
     changeDate: "2026-06-17",
+    annotations: [],
     showTrend: true,
     showLabels: false,
     controlsOpen: true,
@@ -399,6 +432,13 @@ export default function GoogleAdsChangeTrackerPage() {
     campaignSearch: "",
     metrics: Array.isArray(graph.metrics) && graph.metrics.length ? graph.metrics.slice(0, 4) : ["clicks", "cost", "cpc", "conversions"],
     changeDate: graph.changeDate || "2026-06-17",
+    annotations: Array.isArray(graph.annotations)
+      ? graph.annotations.map((annotation, annotationIndex) => ({
+        id: Number(annotation.id) || annotationIndex + 1,
+        date: String(annotation.date || graph.changeDate || "2026-06-17").slice(0, 10),
+        note: String(annotation.note || ""),
+      })).filter((annotation) => annotation.date && annotation.note.trim())
+      : [],
     showTrend: graph.showTrend !== false,
     showLabels: graph.showLabels === true,
     controlsOpen: graph.controlsOpen !== false,
@@ -507,6 +547,19 @@ export default function GoogleAdsChangeTrackerPage() {
     updateGraph(graph.id, { campaigns: graph.campaigns.filter((item) => item !== campaign) });
   };
 
+  const addAnnotation = (graph: ChartConfig) => {
+    const nextId = (graph.annotations.at(-1)?.id ?? 0) + 1;
+    updateGraph(graph.id, { annotations: [...graph.annotations, { id: nextId, date: graph.changeDate || "2026-06-17", note: "" }] });
+  };
+
+  const updateAnnotation = (graph: ChartConfig, annotationId: number, patch: Partial<ChartAnnotation>) => {
+    updateGraph(graph.id, { annotations: graph.annotations.map((annotation) => annotation.id === annotationId ? { ...annotation, ...patch } : annotation) });
+  };
+
+  const removeAnnotation = (graph: ChartConfig, annotationId: number) => {
+    updateGraph(graph.id, { annotations: graph.annotations.filter((annotation) => annotation.id !== annotationId) });
+  };
+
   useEffect(() => {
     if (!configLoaded || graphs.length === 0) return;
     const timeout = window.setTimeout(() => {
@@ -606,6 +659,20 @@ export default function GoogleAdsChangeTrackerPage() {
                     <input type="date" value={graphChangeDate} onChange={(event) => updateGraph(graph.id, { changeDate: event.target.value })} className="od-gsc-page__date-input" />
                   </label>
 
+                  <div style={{ display: "grid", gap: 8, maxWidth: 760 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, fontWeight: 800 }}>Annotations</span>
+                      <button type="button" onClick={() => addAnnotation(graph)} className="od-settings__btn">+ Add annotation</button>
+                    </div>
+                    {graph.annotations.map((annotation) => (
+                      <div key={annotation.id} style={{ display: "grid", gridTemplateColumns: "160px minmax(220px, 1fr) auto", gap: 8, alignItems: "center" }}>
+                        <input type="date" value={annotation.date} onChange={(event) => updateAnnotation(graph, annotation.id, { date: event.target.value })} className="od-gsc-page__date-input" />
+                        <input value={annotation.note} onChange={(event) => updateAnnotation(graph, annotation.id, { note: event.target.value })} placeholder="Note shown above this graph" className="od-gsc-page__date-input" />
+                        <button type="button" onClick={() => removeAnnotation(graph, annotation.id)} className="od-settings__btn" aria-label="Remove annotation">×</button>
+                      </div>
+                    ))}
+                  </div>
+
                   <label style={{ display: "grid", gap: 4, maxWidth: 560, fontSize: 12, fontWeight: 800 }}>
                     Client
                     <select value={graph.customerId} onChange={(event) => changeGraphClient(graph, event.target.value)} className="od-gsc-page__date-input">
@@ -665,7 +732,7 @@ export default function GoogleAdsChangeTrackerPage() {
                       No non-zero activity for the selected metrics in this {view === "daily" ? "45 day" : "8 week"} range. The timeline and change marker are still shown so new/quiet campaigns are easy to monitor.
                     </div>
                   )}
-                  <SeriesChart points={points} metrics={graph.metrics} showTrend={graph.showTrend} showLabels={graph.showLabels} changeDate={graphChangeDate} view={view} />
+                  <SeriesChart points={points} metrics={graph.metrics} showTrend={graph.showTrend} showLabels={graph.showLabels} changeDate={graphChangeDate} annotations={graph.annotations} view={view} />
                 </>
               )}
             </section>
