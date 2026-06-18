@@ -563,15 +563,15 @@ export default function GoogleAdsChangeTrackerPage() {
           const hasActivity = graphData ? hasMetricActivity(points, graph.metrics) : false;
           return (
             <section key={graph.id} className="od-box" style={{ display: "grid", gap: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "start" }}>
+                <div style={{ minWidth: 0 }}>
                   <input value={graph.name} onChange={(event) => updateGraph(graph.id, { name: event.target.value })} className="od-gsc-page__date-input" style={{ minWidth: 260, fontWeight: 900 }} />
-                  <div style={{ marginTop: 8, fontSize: 13, color: "#64748b", maxWidth: 980 }}>
+                  <div style={{ marginTop: 8, fontSize: 13, color: "#64748b", maxWidth: 980, overflowWrap: "anywhere", lineHeight: 1.5 }}>
                     <strong>{graphClient?.name || `Customer ${graph.customerId}`}</strong>{" — "}
                     {graph.campaigns.length ? graph.campaigns.join(" + ") : "No campaigns selected"}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", width: 720, maxWidth: "100%" }}>
                   {METRICS.map((item) => {
                     const selected = graph.metrics.includes(item.key);
                     return (
