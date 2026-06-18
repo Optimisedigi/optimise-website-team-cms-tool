@@ -4462,6 +4462,19 @@ export async function runMigrations(
     await run("monthly_keyword_selections_selections.outcome_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_by` text");
     await run("monthly_keyword_selections_selections.outcome_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_by_user_id` text");
     await run("monthly_keyword_selections_selections.outcome_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_at` text");
+    await run("outcome_followups", `CREATE TABLE IF NOT EXISTS \`outcome_followups\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`comment\` text NOT NULL,
+      \`by\` text,
+      \`by_user_id\` text,
+      \`at\` text,
+      \`tagged_user_ids\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`monthly_keyword_selections_selections\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("outcome_followups_parent_idx", "CREATE INDEX IF NOT EXISTS `outcome_followups_parent_idx` ON `outcome_followups` (`_parent_id`)");
+    await run("outcome_followups_order_idx", "CREATE INDEX IF NOT EXISTS `outcome_followups_order_idx` ON `outcome_followups` (`_order`)");
     await run("monthly_keyword_terms_cache", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_terms_cache\` (
       \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       \`client_id\` integer NOT NULL,
