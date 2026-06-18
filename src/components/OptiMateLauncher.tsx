@@ -39,6 +39,9 @@ const PILL_BOTTOM = 20
 
 const PANEL_WIDTH = 420
 const PANEL_HEIGHT = 600
+const PHONE_PANEL_WIDTH = 390
+const PHONE_PANEL_HEIGHT = 720
+const PHONE_PANEL_MAX_HEIGHT = 760
 
 /**
  * Floating OptiMate launcher mounted globally on every admin page.
@@ -63,6 +66,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   const [selectedAudits, setSelectedAudits] = useState<AuditOption[]>([])
   const [portfolioSelected, setPortfolioSelected] = useState(false)
   const [filter, setFilter] = useState('')
+  const [phoneMode, setPhoneMode] = useState(false)
 
   const loadAudits = useCallback(async () => {
     setAuditsLoading(true)
@@ -155,6 +159,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       (a.businessName ?? '').toLowerCase().includes(q) || a.customerId.toLowerCase().includes(q)
     )
   })
+  const panelWidth = phoneMode ? PHONE_PANEL_WIDTH : PANEL_WIDTH
+  const panelHeight = phoneMode ? PHONE_PANEL_HEIGHT : PANEL_HEIGHT
+  const panelMaxHeight = phoneMode ? `min(${PHONE_PANEL_MAX_HEIGHT}px, calc(100vh - 40px))` : 'calc(100vh - 40px)'
 
   return (
     <>
@@ -223,10 +230,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             bottom: PILL_BOTTOM,
             right: PILL_RIGHT,
             zIndex: 99998,
-            width: PANEL_WIDTH,
+            width: panelWidth,
             maxWidth: 'calc(100vw - 40px)',
-            height: PANEL_HEIGHT,
-            maxHeight: 'calc(100vh - 40px)',
+            height: panelHeight,
+            maxHeight: panelMaxHeight,
             background: 'var(--theme-input-bg, #fff)',
             color: 'var(--theme-text, #1f2937)',
             border: '1px solid var(--theme-border-color, #e5e7eb)',
@@ -316,6 +323,40 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 </span>
               )}
             </div>
+            {step === 'chat' && (
+              <button
+                type="button"
+                onClick={() => setPhoneMode((current) => !current)}
+                title={phoneMode ? 'Use default panel width' : 'Preview phone width'}
+                aria-pressed={phoneMode}
+                style={{
+                  background: phoneMode ? 'rgba(255,255,255,0.18)' : 'transparent',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: 6,
+                  padding: '4px 6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  lineHeight: 1,
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="7" y="2" width="10" height="20" rx="2" />
+                  <path d="M11 18h2" />
+                </svg>
+              </button>
+            )}
             {step === 'chat' && (
               <button
                 type="button"
