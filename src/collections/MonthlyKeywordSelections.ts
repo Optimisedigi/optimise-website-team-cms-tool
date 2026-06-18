@@ -225,6 +225,18 @@ export const MonthlyKeywordSelections: CollectionConfig = {
           type: 'text',
           admin: { description: 'ISO timestamp of the latest added/updated/moved outcome.' },
         },
+        {
+          name: 'outcomeFollowUpComments',
+          type: 'array',
+          admin: { description: 'Follow-up discussion comments on the review outcome, including retagged teammates.' },
+          fields: [
+            { name: 'comment', type: 'textarea', required: true },
+            { name: 'by', type: 'text' },
+            { name: 'byUserId', type: 'text' },
+            { name: 'at', type: 'text' },
+            { name: 'taggedUserIds', type: 'text' },
+          ],
+        },
       ],
     },
   ],

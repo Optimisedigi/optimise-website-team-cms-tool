@@ -8,8 +8,15 @@ const SOURCE_FIELD = {
   removed: 'removedComment',
   dismissed: 'reviewComment',
 } as const
+const NOTIFICATIONS = 'notifications' as never
 
 type OutcomeSource = keyof typeof SOURCE_FIELD
+
+function monthLabel(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-').map(Number)
+  if (!year || !month) return yearMonth
+  return new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, 1)))
+}
 
 /**
  * Edit the single canonical comment on one Review-outcomes row. The field
@@ -30,6 +37,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rowIndex = Number.isInteger(body?.rowIndex) ? Number(body.rowIndex) : 0
   const source = body?.source as OutcomeSource
   const comment = typeof body?.comment === 'string' ? body.comment : ''
+  const mode = body?.mode === 'append' ? 'append' : 'replace'
+  const taggedUserIds = Array.isArray(body?.taggedUserIds)
+    ? body.taggedUserIds.map((id: unknown) => String(id)).filter((id: string) => id && id !== 'undefined')
+    : []
 
   if (!Number.isInteger(clientId) || !/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm) {
     return NextResponse.json({ error: 'clientId, yearMonth and searchTerm are required' }, { status: 400 })
@@ -49,13 +60,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!doc) return NextResponse.json({ error: 'No selections found for client' }, { status: 404 })
 
   const field = SOURCE_FIELD[source]
+  const authorName = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || 'A reviewer'
+  const now = new Date().toISOString()
   let matched = false
+  let followUps: Array<Record<string, unknown>> = []
   const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection) => {
     const sameRow = String(selection.yearMonth) === yearMonth
       && String(selection.searchTerm || '').toLowerCase() === searchTerm.toLowerCase()
       && Number(selection.rowIndex ?? 0) === rowIndex
     if (!sameRow) return selection
     matched = true
+    if (mode === 'append') {
+      followUps = [
+        ...(Array.isArray(selection.outcomeFollowUpComments) ? selection.outcomeFollowUpComments as Array<Record<string, unknown>> : []),
+        { comment, by: authorName, byUserId: String(user.id), at: now, taggedUserIds: taggedUserIds.join(',') },
+      ]
+      return { ...selection, outcomeFollowUpComments: followUps }
+    }
     return { ...selection, [field]: comment }
   })
 
@@ -68,5 +89,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     overrideAccess: true,
   })
 
-  return NextResponse.json({ success: true })
+  let notified = 0
+  if (mode === 'append' && taggedUserIds.length > 0 && comment.trim()) {
+    const client = await payload
+      .findByID({ collection: 'clients', id: clientId, depth: 0, overrideAccess: true })
+      .catch(() => null) as { name?: string } | null
+    const clientName = client?.name || `Client ${clientId}`
+    const url = `/admin/monthly-keyword-selection?clientId=${clientId}`
+    for (const recipientId of taggedUserIds) {
+      if (String(recipientId) === String(user.id)) continue
+      try {
+        await payload.create({
+          collection: NOTIFICATIONS,
+          data: {
+            recipient: recipientId,
+            kind: 'negative-keywords-needs-review',
+            title: `${authorName} retagged you on a negative keyword — ${clientName}`,
+            body: `${monthLabel(yearMonth)} · "${searchTerm}": ${comment.slice(0, 140)}`,
+            url,
+            relatedClient: clientId,
+          } as never,
+          overrideAccess: true,
+        })
+        notified += 1
+      } catch (err) {
+        payload.logger?.warn?.(`[monthly-keyword-outcome-comment] notify failed for ${recipientId}: ${err}`)
+      }
+    }
+  }
+
+  return NextResponse.json({ success: true, followUps, notified })
 }

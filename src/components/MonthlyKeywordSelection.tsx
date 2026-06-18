@@ -13,7 +13,8 @@ const DEFAULT_WATCH_HORIZON: WatchHorizon = 3
 
 type Term = { term: string; impressions: number; clicks: number; cost: number; conversions: number; status?: string }
 type Month = { month: string; terms: Term[]; reviewComplete: boolean; reviewCompletedAt?: string | null; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } }
-type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; removedComment?: string | null; removedBy?: string | null; removedByUserId?: string | null; removedAt?: string | null; decidedBy?: string | null; decidedByUserId?: string | null; reviewDismissedAt?: string | null; reviewDismissedBy?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null; outcomeType?: string | null; outcomeDetail?: string | null; outcomeComment?: string | null; outcomeBy?: string | null; outcomeByUserId?: string | null; outcomeAt?: string | null }
+type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; removedComment?: string | null; removedBy?: string | null; removedByUserId?: string | null; removedAt?: string | null; decidedBy?: string | null; decidedByUserId?: string | null; reviewDismissedAt?: string | null; reviewDismissedBy?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null; outcomeType?: string | null; outcomeDetail?: string | null; outcomeComment?: string | null; outcomeBy?: string | null; outcomeByUserId?: string | null; outcomeAt?: string | null; outcomeFollowUpComments?: FollowUpComment[] | null }
+type FollowUpComment = { id?: string; comment: string; by?: string | null; byUserId?: string | null; at?: string | null; taggedUserIds?: string | null }
 type Nkl = { id: number | string; name: string; isActive?: boolean; keywords?: Array<{ keyword: string; matchType: MatchType; negatedAt?: string | null }> }
 type Teammate = { id: string; label: string }
 
@@ -511,6 +512,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       listDetail: string
       changeDetail: string
       comment: string
+      followUps: FollowUpComment[]
       by: string
       at: string
       originalHandler: string
@@ -577,6 +579,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           listDetail,
           changeDetail,
           comment: selection.outcomeComment || '',
+          followUps: Array.isArray(selection.outcomeFollowUpComments) ? selection.outcomeFollowUpComments : [],
           by: selection.outcomeBy || 'someone',
           originalHandler: type === 'Added' ? (selection.decidedBy || '') : (selection.appliedBy || ''),
           originalAction: type === 'Added' ? 'flagged' : 'submitted',
@@ -589,6 +592,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           type: 'Removed',
           pills: ['Removed'],
           comment: selection.removedComment || '',
+          followUps: Array.isArray(selection.outcomeFollowUpComments) ? selection.outcomeFollowUpComments : [],
           by: selection.removedBy || 'someone',
           originalHandler: selection.appliedBy || '',
           originalAction: 'submitted',
@@ -600,6 +604,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           type: 'Dismissed',
           pills: ['Dismissed'],
           comment: selection.reviewComment || '',
+          followUps: Array.isArray(selection.outcomeFollowUpComments) ? selection.outcomeFollowUpComments : [],
           by: selection.reviewDismissedBy || 'someone',
           originalHandler: selection.decidedBy || '',
           originalAction: 'flagged',
@@ -774,17 +779,19 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     setMessage(data.notified > 0 ? `Comment saved · ${data.notified} teammate${data.notified === 1 ? '' : 's'} notified.` : 'Comment saved.')
   }, [clientId])
 
-  // Edit the single canonical comment on one Review-outcomes row, persisting to
-  // the field that matches the row's outcome source so it stays a single comment.
+  // Edit the single canonical comment on one Review-outcomes row, or append a
+  // follow-up reply that can retag teammates for back-and-forth learning.
   const saveOutcomeComment = useCallback(async (
     entry: { yearMonth: string; searchTerm: string; rowIndex: number; source: 'outcome' | 'removed' | 'dismissed' },
     comment: string,
+    taggedUserIds: string[] = [],
+    mode: 'replace' | 'append' = 'replace',
   ): Promise<boolean> => {
     const res = await fetch('/api/monthly-keyword-selection/outcome-comment', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ clientId: Number(clientId), yearMonth: entry.yearMonth, searchTerm: entry.searchTerm, rowIndex: entry.rowIndex, source: entry.source, comment }),
+      body: JSON.stringify({ clientId: Number(clientId), yearMonth: entry.yearMonth, searchTerm: entry.searchTerm, rowIndex: entry.rowIndex, source: entry.source, comment, taggedUserIds, mode }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setMessage(data?.error || 'Failed to save comment'); return false }
@@ -792,9 +799,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     const key = selectionKey(entry.yearMonth, entry.searchTerm, entry.rowIndex)
     setSelections((current) => ({
       ...current,
-      [key]: { ...current[key], [field]: comment },
+      [key]: mode === 'append'
+        ? { ...current[key], outcomeFollowUpComments: Array.isArray(data.followUps) ? data.followUps : current[key]?.outcomeFollowUpComments }
+        : { ...current[key], [field]: comment },
     }))
-    setMessage('Comment saved.')
+    setMessage(mode === 'append'
+      ? (data.notified > 0 ? `Reply added · ${data.notified} teammate${data.notified === 1 ? '' : 's'} notified.` : 'Reply added.')
+      : 'Comment saved.')
     return true
   }, [clientId])
 
@@ -1117,7 +1128,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                       <OutcomeCommentEditor
                         comment={item.comment}
+                        followUps={item.followUps}
+                        teammates={teammates}
                         onSave={(comment) => saveOutcomeComment({ yearMonth: item.yearMonth, searchTerm: item.searchTerm, rowIndex: item.rowIndex, source: item.source }, comment)}
+                        onReply={(comment, taggedUserIds) => saveOutcomeComment({ yearMonth: item.yearMonth, searchTerm: item.searchTerm, rowIndex: item.rowIndex, source: item.source }, comment, taggedUserIds, 'append')}
                       />
                       <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap', flex: '0 0 auto', textAlign: 'right' }}>{attribution}</span>
                     </div>
@@ -1623,12 +1637,18 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
 // Edit affordance, or an "Add comment" button when empty; editing reveals a
 // textarea with Save/Cancel. Persists via the parent's onSave (returns true on
 // success) which writes back to the row's canonical comment field.
-function OutcomeCommentEditor({ comment, onSave }: {
+function OutcomeCommentEditor({ comment, followUps, teammates, onSave, onReply }: {
   comment: string
+  followUps: FollowUpComment[]
+  teammates: Teammate[]
   onSave: (comment: string) => Promise<boolean>
+  onReply: (comment: string, taggedUserIds: string[]) => Promise<boolean>
 }) {
   const [editing, setEditing] = useState(false)
+  const [replying, setReplying] = useState(false)
   const [draft, setDraft] = useState(comment)
+  const [replyDraft, setReplyDraft] = useState('')
+  const [taggedUserIds, setTaggedUserIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   const startEdit = (): void => { setDraft(comment); setEditing(true) }
@@ -1641,6 +1661,19 @@ function OutcomeCommentEditor({ comment, onSave }: {
     } finally {
       setSaving(false)
     }
+  }
+  const saveReply = async (): Promise<void> => {
+    if (!replyDraft.trim()) return
+    setSaving(true)
+    try {
+      const ok = await onReply(replyDraft.trim(), taggedUserIds)
+      if (ok) { setReplyDraft(''); setTaggedUserIds([]); setReplying(false) }
+    } finally {
+      setSaving(false)
+    }
+  }
+  const toggleTag = (id: string, checked: boolean): void => {
+    setTaggedUserIds((current) => checked ? Array.from(new Set([...current, id])) : current.filter((value) => value !== id))
   }
 
   if (editing) {
@@ -1662,18 +1695,58 @@ function OutcomeCommentEditor({ comment, onSave }: {
     )
   }
 
-  if (comment) {
-    return (
-      <div style={{ flex: '1 1 320px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-        <div style={{ flex: '1 1 auto', fontSize: 13, padding: '6px 9px', borderRadius: 6, background: '#fff', border: '1px solid #000', color: 'var(--theme-elevation-800)' }}>
-          <strong>Comment:</strong> {comment}
-        </div>
-        <button type="button" onClick={startEdit} style={{ padding: '4px 10px', fontSize: 11, flex: '0 0 auto' }}>Edit</button>
+  const commentBlock = comment ? (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <div style={{ flex: '1 1 auto', fontSize: 13, padding: '6px 9px', borderRadius: 6, background: '#fff', border: '1px solid #000', color: 'var(--theme-elevation-800)' }}>
+        <strong>Comment:</strong> {comment}
       </div>
-    )
-  }
+      <button type="button" onClick={startEdit} style={{ padding: '4px 10px', fontSize: 11, flex: '0 0 auto' }}>Edit</button>
+    </div>
+  ) : (
+    <button type="button" onClick={startEdit} style={{ justifySelf: 'start', padding: '4px 10px', fontSize: 11 }}>Add comment</button>
+  )
 
   return (
-    <button type="button" onClick={startEdit} style={{ flex: '0 0 auto', padding: '4px 10px', fontSize: 11 }}>Add comment</button>
+    <div style={{ flex: '1 1 320px', display: 'grid', gap: 6 }}>
+      {commentBlock}
+      {followUps.length > 0 && (
+        <div style={{ display: 'grid', gap: 5, paddingLeft: 10, borderLeft: '2px solid var(--theme-elevation-200)' }}>
+          {followUps.map((reply, index) => {
+            const tagged = (reply.taggedUserIds || '').split(',').map((id) => id.trim()).filter(Boolean)
+            const taggedLabels = tagged.map((id) => teammates.find((t) => t.id === id)?.label || `User ${id}`)
+            return (
+              <div key={reply.id || `${reply.at || 'reply'}-${index}`} style={{ fontSize: 12, padding: '6px 8px', borderRadius: 6, background: '#fff', border: '1px solid var(--theme-elevation-150)' }}>
+                <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{reply.comment}</div>
+                <div style={{ marginTop: 3, fontSize: 10, color: 'var(--theme-elevation-500)' }}>
+                  {reply.by || 'Someone'}{reply.at ? ` · ${new Date(reply.at).toLocaleDateString()}` : ''}{taggedLabels.length > 0 ? ` · tagged ${taggedLabels.map((label) => `@${label}`).join(', ')}` : ''}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {replying ? (
+        <div style={{ display: 'grid', gap: 6, padding: 8, borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)' }}>
+          <textarea value={replyDraft} rows={2} autoFocus placeholder="Add a follow-up reply…" onChange={(event) => setReplyDraft(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, resize: 'vertical', lineHeight: 1.4 }} />
+          {teammates.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11 }}>
+              <span style={{ color: 'var(--theme-elevation-500)' }}>Retag:</span>
+              {teammates.map((teammate) => (
+                <label key={teammate.id} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <input type="checkbox" checked={taggedUserIds.includes(teammate.id)} onChange={(event) => toggleTag(teammate.id, event.target.checked)} />
+                  @{teammate.label}
+                </label>
+              ))}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" onClick={saveReply} disabled={saving || !replyDraft.trim()} style={{ padding: '4px 12px', fontSize: 11 }}>{saving ? 'Saving…' : 'Save reply'}</button>
+            <button type="button" onClick={() => { setReplying(false); setReplyDraft(''); setTaggedUserIds([]) }} disabled={saving} style={{ padding: '4px 12px', fontSize: 11 }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setReplying(true)} style={{ justifySelf: 'start', padding: '4px 10px', fontSize: 11 }}>Add follow-up</button>
+      )}
+    </div>
   )
 }

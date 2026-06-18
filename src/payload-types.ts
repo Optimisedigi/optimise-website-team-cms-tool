@@ -6711,6 +6711,19 @@ export interface MonthlyKeywordSelection {
          * ISO timestamp of the latest added/updated/moved outcome.
          */
         outcomeAt?: string | null;
+        /**
+         * Follow-up discussion comments on the review outcome, including retagged teammates.
+         */
+        outcomeFollowUpComments?:
+          | {
+              comment: string;
+              by?: string | null;
+              byUserId?: string | null;
+              at?: string | null;
+              taggedUserIds?: string | null;
+              id?: string | null;
+            }[]
+          | null;
         id?: string | null;
       }[]
     | null;
@@ -7720,7 +7733,7 @@ export interface GoogleAdsCampaignBudget {
    */
   lastPushedSource?: string | null;
   /**
-   * Recommended daily budget from last month's CPA / conversions / spend. Advisory — apply manually then push.
+   * Recommended daily budget from last month's CPA / ROAS, spend, impression share and impression share lost to budget. Advisory — apply manually then push.
    */
   recommendedDailyBudget?: number | null;
   /**
@@ -7728,7 +7741,7 @@ export interface GoogleAdsCampaignBudget {
    */
   recommendationGeneratedAt?: string | null;
   /**
-   * Last-month inputs used for the recommendation (conversions, spend, cpa, score).
+   * Last-month inputs used for the recommendation (conversions, spend, CPA, ROAS, impression share, impression share lost to budget, score).
    */
   recommendationBasis?:
     | {
@@ -10622,6 +10635,16 @@ export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
         outcomeBy?: T;
         outcomeByUserId?: T;
         outcomeAt?: T;
+        outcomeFollowUpComments?:
+          | T
+          | {
+              comment?: T;
+              by?: T;
+              byUserId?: T;
+              at?: T;
+              taggedUserIds?: T;
+              id?: T;
+            };
         id?: T;
       };
   updatedAt?: T;
