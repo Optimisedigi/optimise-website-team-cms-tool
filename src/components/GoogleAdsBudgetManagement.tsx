@@ -17,7 +17,7 @@ import {
 } from '@/lib/google-ads-budget-email';
 
 type CampaignFilter = 'enabled' | 'paused' | 'all';
-type BudgetMetricsRange = 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_60_DAYS';
+type BudgetMetricsRange = 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_60_DAYS' | 'LAST_180_DAYS';
 
 /** Shape returned by /api/google-ads-budgets/[id]/ad-groups. Kept in sync
  *  with the AdGroupRow type in that route handler. */
@@ -208,7 +208,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
   }, [id, adGroupsByCampaign, adGroupsLoading]);
 
-  // Fetch metrics for display only (LAST_MONTH / LAST_60_DAYS). Does NOT
+  // Fetch metrics for display only (LAST_MONTH / LAST_60_DAYS / LAST_180_DAYS). Does NOT
   // update monthlyTotal, daily budgets, or the budget tracker — only refreshes
   // campaign metrics (cost, impressions, clicks, conversions, etc.) for the table.
   const fetchMetricsForDisplay = useCallback(async (range: BudgetMetricsRange) => {
@@ -1334,6 +1334,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             {([
               { key: 'THIS_MONTH' as BudgetMetricsRange, label: 'MTD' },
               { key: 'LAST_60_DAYS' as BudgetMetricsRange, label: 'Last 60 days' },
+              { key: 'LAST_180_DAYS' as BudgetMetricsRange, label: 'Last 180 days' },
             ]).map(range => (
               <button
                 key={range.key}

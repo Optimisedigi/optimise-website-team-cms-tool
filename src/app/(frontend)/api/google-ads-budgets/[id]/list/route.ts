@@ -6,12 +6,38 @@ import { hasValidApiKey } from "@/collections/api-key-access";
 // Collection slug type (use 'as any' to bypass strict type checking for new collections)
 const BUDGETS_COLLECTION = "google-ads-campaign-budgets" as any;
 
-type BudgetMetricsRange = "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "LAST_60_DAYS";
+type BudgetMetricsRange = "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "LAST_60_DAYS" | "LAST_180_DAYS";
+type GrowthToolsDateRange = Exclude<BudgetMetricsRange, "LAST_180_DAYS">;
+
+type GrowthToolsBudgetMetricsRequest = {
+  dateRange: GrowthToolsDateRange;
+  startDate?: string;
+  endDate?: string;
+};
 
 function parseMetricsRange(value: string | null): BudgetMetricsRange {
-  return value === "LAST_MONTH" || value === "LAST_30_DAYS" || value === "LAST_60_DAYS"
+  return value === "LAST_MONTH" || value === "LAST_30_DAYS" || value === "LAST_60_DAYS" || value === "LAST_180_DAYS"
     ? value
     : "THIS_MONTH";
+}
+
+function formatGoogleAdsDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function getLast180DaysRequest(now = new Date()): GrowthToolsBudgetMetricsRequest {
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - 179);
+  return {
+    dateRange: "LAST_30_DAYS",
+    startDate: formatGoogleAdsDate(start),
+    endDate: formatGoogleAdsDate(end),
+  };
+}
+
+function getGrowthToolsMetricsRequest(range: BudgetMetricsRange): GrowthToolsBudgetMetricsRequest {
+  return range === "LAST_180_DAYS" ? getLast180DaysRequest() : { dateRange: range };
 }
 
 function numberValue(value: unknown): number {
@@ -158,7 +184,8 @@ export async function GET(
   if (growthToolsUrl && internalApiKey) {
     const resolvedInternalApiKey = internalApiKey;
     try {
-      async function fetchCampaignBudgetMetrics(dateRange: BudgetMetricsRange) {
+      async function fetchCampaignBudgetMetrics(range: BudgetMetricsRange) {
+        const metricsRequest = getGrowthToolsMetricsRequest(range);
         const response = await fetch(
           `${growthToolsUrl}/api/google-ads/campaign-budgets/list`,
           {
@@ -169,7 +196,7 @@ export async function GET(
             },
             body: JSON.stringify({
               customerId: customerId.replace(/-/g, ""),
-              dateRange,
+              ...metricsRequest,
               ...(conversionActions.length > 0 && { conversionActions }),
             }),
           }
