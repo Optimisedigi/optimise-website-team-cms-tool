@@ -90,6 +90,7 @@ import * as migration_20260616_120000_add_managed_google_ads_toggle from './2026
 import * as migration_20260617_120000_add_client_logo from './20260617_120000_add_client_logo';
 import * as migration_20260618_120000_add_clients_services from './20260618_120000_add_clients_services';
 import * as migration_20260618_130000_add_google_ads_change_trackers from './20260618_130000_add_google_ads_change_trackers';
+import * as migration_20260618_140000_fix_clients_services_id_type from './20260618_140000_fix_clients_services_id_type';
 import * as migration_20260619_120000_add_agent_memory_review_fields from './20260619_120000_add_agent_memory_review_fields';
 import * as migration_20260620_120000_add_optimate_chat_turns_mode from './20260620_120000_add_optimate_chat_turns_mode';
 import * as migration_20260621_120000_add_contact_phone_fields from './20260621_120000_add_contact_phone_fields';
@@ -587,6 +588,11 @@ export const migrations = [
     up: migration_20260618_130000_add_google_ads_change_trackers.up,
     down: migration_20260618_130000_add_google_ads_change_trackers.down,
     name: '20260618_130000_add_google_ads_change_trackers'
+  },
+  {
+    up: migration_20260618_140000_fix_clients_services_id_type.up,
+    down: migration_20260618_140000_fix_clients_services_id_type.down,
+    name: '20260618_140000_fix_clients_services_id_type'
   },
   {
     up: migration_20260619_120000_add_agent_memory_review_fields.up,
