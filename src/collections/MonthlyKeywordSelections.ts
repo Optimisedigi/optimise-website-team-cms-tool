@@ -227,6 +227,7 @@ export const MonthlyKeywordSelections: CollectionConfig = {
         },
         {
           name: 'outcomeFollowUpComments',
+          dbName: 'outcome_followups',
           type: 'array',
           admin: { description: 'Follow-up discussion comments on the review outcome, including retagged teammates.' },
           fields: [
