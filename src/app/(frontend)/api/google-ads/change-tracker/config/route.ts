@@ -7,6 +7,17 @@ import { userHasFeature } from "@/lib/access";
 const WORKSPACE_KEY = "default";
 const COLLECTION = "google-ads-change-trackers" as any;
 
+function emptyConfig(storageUnavailable = false) {
+  const response = NextResponse.json({
+    view: "daily",
+    graphs: [],
+    updatedAt: null,
+    storageUnavailable,
+  });
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
+
 async function requireGoogleAdsUser() {
   const payload = await getPayload({ config });
   const headersList = await nextHeaders();
@@ -57,7 +68,7 @@ export async function GET() {
     return response;
   } catch (error) {
     console.error("[google-ads/change-tracker/config GET]", error);
-    return NextResponse.json({ error: "Failed to load change tracker config" }, { status: 500 });
+    return emptyConfig(true);
   }
 }
 
@@ -96,6 +107,6 @@ export async function POST(req: NextRequest) {
     return response;
   } catch (error) {
     console.error("[google-ads/change-tracker/config POST]", error);
-    return NextResponse.json({ error: "Failed to save change tracker config" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Failed to save change tracker config" }, { status: 200 });
   }
 }

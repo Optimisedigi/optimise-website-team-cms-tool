@@ -426,7 +426,7 @@ export default function GoogleAdsChangeTrackerPage() {
         return res.json() as Promise<ClientOption[]>;
       }),
       fetch("/api/google-ads/change-tracker/config").then(async (res) => {
-        if (!res.ok) throw new Error((await res.json()).error || "Failed to load saved tracker config");
+        if (!res.ok) return { view: "daily" as ViewMode, graphs: [] };
         return res.json() as Promise<{ view?: ViewMode; graphs?: Partial<ChartConfig>[] }>;
       }),
     ])
