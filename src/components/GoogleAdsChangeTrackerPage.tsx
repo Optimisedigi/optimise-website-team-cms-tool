@@ -312,7 +312,7 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, view 
             {hoveredPoint && hoveredIndex !== null && (() => {
               const x = toX(hoveredIndex);
               const tooltipWidth = 172;
-              const tooltipHeight = 88;
+              const tooltipHeight = 106;
               const selectedValues = metrics
                 .map((metric) => valueFor(hoveredPoint, metric))
                 .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
@@ -330,6 +330,7 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, view 
                   <text x={tooltipX + 12} y={tooltipY + 40} fontSize={11} fill="#dbeafe">Impressions: {fmtMetric("impressions", hoveredPoint.impressions)}</text>
                   <text x={tooltipX + 12} y={tooltipY + 58} fontSize={11} fill="#dbeafe">Clicks: {fmtMetric("clicks", hoveredPoint.clicks)}</text>
                   <text x={tooltipX + 12} y={tooltipY + 76} fontSize={11} fill="#dbeafe">Cost: {fmtMetric("cost", hoveredPoint.cost)}</text>
+                  <text x={tooltipX + 12} y={tooltipY + 94} fontSize={11} fill="#dbeafe">Conversions: {fmtMetric("conversions", hoveredPoint.conversions)}</text>
                 </g>
               );
             })()}
