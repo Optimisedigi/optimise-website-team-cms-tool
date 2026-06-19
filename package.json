@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "optimate:evaluate": "node --env-file=.env --import tsx scripts/optimate-google-ads-eval.ts",
     "prepare": "husky"
   },
   "dependencies": {
