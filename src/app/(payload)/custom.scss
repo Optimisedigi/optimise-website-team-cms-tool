@@ -4747,24 +4747,18 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
   display: none !important;
 }
 
-// Team Tasks spreadsheet: the apparent right-side gap is caused by Payload's
-// parent `.gutter--left.gutter--right`, not by the table. That gutter has its
-// own max-width/padding and clips children, so widening `.od-team-tasks-list`
-// only makes it hit the gutter boundary. Expand the owning gutter when it
-// contains Team Tasks, then let the table fill 100% of that real canvas.
-.gutter--left.gutter--right:has(.od-team-tasks-list) {
-  box-sizing: border-box;
-  max-width: none !important;
-  padding-left: 10px !important;
-  padding-right: 10px !important;
-  width: 100% !important;
-}
-
+// Team Tasks spreadsheet: use the full available admin canvas with a 10px
+// right gutter. The mini-sidebar layout shifts content right, so the collapsed
+// width must subtract the live left offset as well as the desired right gap.
 .od-team-tasks-list {
   box-sizing: border-box;
   max-width: none !important;
-  padding-inline: 0;
-  width: 100%;
+  padding-inline: 10px;
+  width: calc(100vw - 120px);
+}
+
+.template-default:not(.template-default--nav-open) .od-team-tasks-list {
+  width: calc(100vw - 125px);
 }
 
 // Google Ads budget management lives inside the client/audit edit form but needs
