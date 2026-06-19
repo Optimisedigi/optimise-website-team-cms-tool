@@ -25,6 +25,8 @@ type ClientOption = {
   googleAdsCustomerId: string | null;
 };
 
+type CampaignOption = { id: string; name: string };
+
 type TrackerData = {
   customerId: string;
   start: string;
@@ -35,6 +37,7 @@ type TrackerData = {
   changeDate: string;
   trackedCampaigns: string[];
   availableCampaigns: string[];
+  availableCampaignOptions?: CampaignOption[];
   rows: TrackerRow[];
 };
 
@@ -66,6 +69,10 @@ type ChartPoint = {
   conversions: number;
   cpa: number | null;
   cpc: number | null;
+};
+
+const CAMPAIGN_NAME_ALIASES: Record<string, string> = {
+  "Search - Vietnam - AU - Phrase (Target IS 100%)": "Search - Vietnam - AU - Phrase (Max CPC)",
 };
 
 const METRICS: Array<{ key: MetricKey; label: string; color: string; kind: "bar" | "line" }> = [
@@ -130,11 +137,33 @@ function emptyPoint(date: string): ChartPoint {
   return { date, impressions: 0, clicks: 0, cost: 0, conversions: 0, cpa: null, cpc: null };
 }
 
+function campaignOptions(data: TrackerData): CampaignOption[] {
+  const options = data.availableCampaignOptions?.length
+    ? data.availableCampaignOptions
+    : data.availableCampaigns.map((name) => ({ id: name, name }));
+  return options.filter((campaign) => campaign.id || campaign.name);
+}
+
+function campaignLabel(data: TrackerData | null | undefined, value: string): string {
+  const alias = CAMPAIGN_NAME_ALIASES[value] || value;
+  const match = data ? campaignOptions(data).find((campaign) => campaign.id === alias || campaign.name === alias || campaign.id === value || campaign.name === value) : null;
+  return match?.name || alias;
+}
+
+function normaliseCampaignSelection(data: TrackerData, campaigns: string[]): string[] {
+  const options = campaignOptions(data);
+  return campaigns.map((value) => {
+    const alias = CAMPAIGN_NAME_ALIASES[value] || value;
+    const match = options.find((campaign) => campaign.id === alias || campaign.name === alias || campaign.id === value || campaign.name === value);
+    return match?.id || alias;
+  });
+}
+
 function aggregateRows(rows: TrackerRow[], campaigns: string[], timeline: string[]): ChartPoint[] {
   const campaignSet = new Set(campaigns);
   const byDate = new Map<string, ChartPoint>(timeline.map((date) => [date, emptyPoint(date)]));
   for (const row of rows) {
-    if (!campaignSet.has(row.campaignName)) continue;
+    if (!campaignSet.has(row.campaignId) && !campaignSet.has(row.campaignName)) continue;
     const current = byDate.get(row.date) ?? emptyPoint(row.date);
     current.impressions += row.impressions;
     current.clicks += row.clicks;
@@ -194,13 +223,11 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, annot
   }, []);
 
   const isSingle = metrics.length === 1;
-  const height = view === "daily" ? 300 : 280;
+  const height = view === "daily" ? 340 : 320;
   const tiltLabels = view === "daily";
-  const padTop = 34 + Math.max(0, metrics.length - 1) * 10;
   const padBottom = tiltLabels ? 58 : 44;
   const padLeft = isSingle ? 55 : 36;
   const padRight = 42;
-  const chartH = height - padTop - padBottom;
   const chartW = Math.max(0, width - padLeft - padRight);
   const xStep = points.length > 1 ? chartW / (points.length - 1) : 0;
   const changeIndex = points.findIndex((point) => point.date >= changeDate);
@@ -211,6 +238,11 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, annot
       return index >= 0 ? { ...annotation, x: padLeft + index * xStep } : null;
     })
     .filter((marker): marker is ChartAnnotation & { x: number } => marker !== null);
+  const markerLaneCount = Math.max(1, annotationMarkers.length + (changeX !== null ? 1 : 0));
+  const padTop = 42 + Math.min(markerLaneCount - 1, 5) * 24 + Math.max(0, metrics.length - 1) * 10;
+  const chartH = height - padTop - padBottom;
+  const labelBoxHeight = 19;
+  const labelX = (x: number, boxWidth: number) => x - boxWidth / 2;
 
   const ranges = metrics.reduce((acc, metric) => {
     const values = points
@@ -247,7 +279,7 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, annot
       )}
       <div ref={containerRef} style={{ width: "100%" }}>
         {width > 0 && (
-          <svg width={width} height={height} role="img" aria-label="Google Ads change tracker chart">
+          <svg width={width} height={height} role="img" aria-label="Google Ads change tracker chart" style={{ overflow: "visible" }}>
             {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
               const y = padTop + chartH * tick;
               return <line key={tick} x1={padLeft} x2={width - padRight} y1={y} y2={y} stroke="#e2e8f0" strokeWidth={1} />;
@@ -256,19 +288,29 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, annot
             {changeX !== null && (
               <g>
                 <rect x={changeX} y={padTop} width={width - padRight - changeX} height={chartH} fill="#fee2e2" opacity="0.18" />
-                <line x1={changeX} x2={changeX} y1={padTop - 26} y2={height - 6} stroke="#991b1b" strokeDasharray="6 5" strokeWidth={3.5} />
-                <text x={changeX > width - 150 ? changeX - 8 : changeX + 8} y={padTop - 16} textAnchor={changeX > width - 150 ? "end" : "start"} fontSize={12} fontWeight={800} fill="#991b1b">Change date</text>
+                <line x1={changeX} x2={changeX} y1={padTop - 26} y2={height - 6} stroke="#111827" strokeDasharray="6 5" strokeWidth={3.5} />
+                <line x1={changeX} x2={changeX} y1={31} y2={padTop - 26} stroke="#111827" strokeWidth={1.2} />
+                <rect x={labelX(changeX, 96)} y={12} width={96} height={labelBoxHeight} rx={5} fill="#fff" stroke="#e5e7eb" />
+                <text x={labelX(changeX, 96) + 48} y={25} textAnchor="middle" fontSize={12} fontWeight={800} fill="#111827">Change date</text>
               </g>
             )}
 
-            {annotationMarkers.map((annotation, index) => (
-              <g key={`annotation-${annotation.id}`}>
-                <line x1={annotation.x} x2={annotation.x} y1={padTop - 18} y2={height - 6} stroke="#1d4ed8" strokeDasharray="4 4" strokeWidth={2.4} />
-                <text x={annotation.x > width - 170 ? annotation.x - 8 : annotation.x + 8} y={padTop - 8 - (index % 3) * 12} textAnchor={annotation.x > width - 170 ? "end" : "start"} fontSize={11} fontWeight={800} fill="#1d4ed8">
-                  {annotation.note || "Annotation"}
-                </text>
-              </g>
-            ))}
+            {annotationMarkers.map((annotation, index) => {
+              const laneY = 36 + (changeX !== null ? index + 1 : index) * 24;
+              const text = annotation.note || "Annotation";
+              const boxWidth = Math.min(240, Math.max(96, text.length * 6.6 + 18));
+              const x = labelX(annotation.x, boxWidth);
+              return (
+                <g key={`annotation-${annotation.id}`}>
+                  <line x1={annotation.x} x2={annotation.x} y1={padTop - 18} y2={height - 6} stroke="#111827" strokeDasharray="4 4" strokeWidth={2.4} />
+                  <line x1={annotation.x} x2={annotation.x} y1={laneY + 5} y2={padTop - 18} stroke="#111827" strokeWidth={1.2} />
+                  <rect x={x} y={laneY - 14} width={boxWidth} height={labelBoxHeight} rx={5} fill="#fff" stroke="#e5e7eb" />
+                  <text x={x + boxWidth / 2} y={laneY} textAnchor="middle" fontSize={11} fontWeight={800} fill="#111827">
+                    {text}
+                  </text>
+                </g>
+              );
+            })}
 
             {metrics.map((metric, metricIndex) => {
               const def = metricDef(metric);
@@ -386,13 +428,17 @@ function SeriesChart({ points, metrics, showTrend, showLabels, changeDate, annot
 }
 
 function defaultCampaigns(data: TrackerData): string[] {
-  const active = new Set(data.availableCampaigns);
-  const campaignsWithRows = new Set(data.rows.map((row) => row.campaignName));
-  const trackedWithRows = data.trackedCampaigns.filter((campaign) => active.has(campaign) && campaignsWithRows.has(campaign));
+  const options = campaignOptions(data);
+  const byName = new Map(options.map((campaign) => [campaign.name, campaign.id]));
+  const activeNames = new Set(options.map((campaign) => campaign.name));
+  const campaignsWithRows = new Set(data.rows.flatMap((row) => [row.campaignId, row.campaignName]).filter(Boolean));
+  const trackedWithRows = data.trackedCampaigns
+    .map((campaign) => byName.get(campaign) || campaign)
+    .filter((campaign) => campaignsWithRows.has(campaign));
   if (trackedWithRows.length > 0) return trackedWithRows;
-  const trackedActive = data.trackedCampaigns.filter((campaign) => active.has(campaign));
+  const trackedActive = data.trackedCampaigns.filter((campaign) => activeNames.has(campaign)).map((campaign) => byName.get(campaign) || campaign);
   if (trackedActive.length > 0) return trackedActive;
-  return data.availableCampaigns.slice(0, 1);
+  return options.slice(0, 1).map((campaign) => campaign.id || campaign.name);
 }
 
 function defaultGraph(id: number, customerId: string, campaigns: string[]): ChartConfig {
@@ -605,26 +651,27 @@ export default function GoogleAdsChangeTrackerPage() {
         {graphs.map((graph) => {
           const graphData = dataByCustomer[graph.customerId] || null;
           const graphClient = clients.find((client) => cleanCustomerId(client.googleAdsCustomerId) === graph.customerId);
-          const campaignNames = graphData?.availableCampaigns ?? [];
+          const availableCampaignOptions = graphData ? campaignOptions(graphData) : [];
           const graphChangeDate = graph.changeDate || "2026-06-17";
           const timeline = graphData ? buildTimeline(graphData, graphChangeDate) : [];
           const search = graph.campaignSearch.trim().toLowerCase();
-          const campaignOptions = search
-            ? campaignNames.filter((campaign) => campaign.toLowerCase().includes(search) && !graph.campaigns.includes(campaign)).slice(0, 12)
+          const filteredCampaignOptions = search
+            ? availableCampaignOptions.filter((campaign) => campaign.name.toLowerCase().includes(search) && !graph.campaigns.includes(campaign.id) && !graph.campaigns.includes(campaign.name)).slice(0, 12)
             : [];
-          const points = graphData ? aggregateRows(graphData.rows, graph.campaigns, timeline) : [];
+          const selectedCampaigns = graphData ? normaliseCampaignSelection(graphData, graph.campaigns) : graph.campaigns;
+          const points = graphData ? aggregateRows(graphData.rows, selectedCampaigns, timeline) : [];
           const hasActivity = graphData ? hasMetricActivity(points, graph.metrics) : false;
           return (
             <section key={graph.id} className="od-box" style={{ display: "grid", gap: 14 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) max-content", gap: 12, alignItems: "start" }}>
                 <div style={{ minWidth: 0 }}>
                   <input value={graph.name} onChange={(event) => updateGraph(graph.id, { name: event.target.value })} className="od-gsc-page__date-input" style={{ minWidth: 260, fontWeight: 900 }} />
-                  <div style={{ marginTop: 8, fontSize: 13, color: "#64748b", maxWidth: 980, overflowWrap: "anywhere", lineHeight: 1.5 }}>
+                  <div style={{ marginTop: 8, fontSize: 13, color: "#64748b", maxWidth: 760, overflowWrap: "anywhere", lineHeight: 1.5 }}>
                     <strong>{graphClient?.name || `Customer ${graph.customerId}`}</strong>{" — "}
-                    {graph.campaigns.length ? graph.campaigns.join(" + ") : "No campaigns selected"}
+                    {graph.campaigns.length ? graph.campaigns.map((campaign) => campaignLabel(graphData, campaign)).join(" + ") : "No campaigns selected"}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", width: 720, maxWidth: "100%" }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center", justifyContent: "flex-end", width: "max-content", maxWidth: "none" }}>
                   {METRICS.map((item) => {
                     const selected = graph.metrics.includes(item.key);
                     return (
@@ -692,9 +739,9 @@ export default function GoogleAdsChangeTrackerPage() {
                       className="od-gsc-page__date-input"
                       style={{ maxWidth: 560 }}
                     />
-                    {campaignOptions.length > 0 && (
+                    {filteredCampaignOptions.length > 0 && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {campaignOptions.map((campaign) => <button key={campaign} type="button" className="od-settings__btn" onClick={() => addCampaign(graph, campaign)}>+ {campaign}</button>)}
+                        {filteredCampaignOptions.map((campaign) => <button key={campaign.id || campaign.name} type="button" className="od-settings__btn" onClick={() => addCampaign(graph, campaign.id || campaign.name)}>+ {campaign.name}</button>)}
                       </div>
                     )}
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -707,7 +754,7 @@ export default function GoogleAdsChangeTrackerPage() {
                           onClick={() => removeCampaign(graph, campaign)}
                           title="Remove campaign from this graph"
                         >
-                          {campaign} ×
+                          {campaignLabel(graphData, campaign)} ×
                         </button>
                       ))}
                     </div>

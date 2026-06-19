@@ -13,7 +13,7 @@ const DEFAULT_DAYS = 45;
 
 const TRACKED_CAMPAIGNS = [
   "Search - Vietnam - AU - Exact (Target IS 100%)",
-  "Search - Vietnam - AU - Phrase (Target IS 100%)",
+  "Search - Vietnam - AU - Phrase (Max CPC)",
   "Search - Vietnam - US - Exact (Target IS 100%)",
   "Search - Vietnam - US - Phrase (Target IS 100%)",
   "Search - Non-Brand - Developer/IT - AU",
@@ -88,12 +88,11 @@ export async function GET(req: NextRequest) {
 
     const data = await upstream.json();
     const campaignData = campaignsUpstream?.ok ? await campaignsUpstream.json() : null;
-    const activeCampaignNames = new Set(
-      (Array.isArray(campaignData?.campaigns) ? campaignData.campaigns : [])
-        .filter((campaign: any) => String(campaign.status || "").toUpperCase() === "ENABLED")
-        .map((campaign: any) => String(campaign.name || ""))
-        .filter(Boolean),
-    );
+    const activeCampaignOptions = (Array.isArray(campaignData?.campaigns) ? campaignData.campaigns : [])
+      .filter((campaign: any) => String(campaign.status || "").toUpperCase() === "ENABLED")
+      .map((campaign: any) => ({ id: String(campaign.id || ""), name: String(campaign.name || "") }))
+      .filter((campaign: any) => campaign.id && campaign.name);
+    const activeCampaignNames = new Set(activeCampaignOptions.map((campaign: any) => campaign.name));
     const rawRows = Array.isArray(data.metrics) ? data.metrics : [];
     const activeRows = rawRows.filter((row: any) => {
       const status = String(row.status || "").toUpperCase();
@@ -140,6 +139,7 @@ export async function GET(req: NextRequest) {
       changeDate: req.nextUrl.searchParams.get("changeDate") || "2026-06-17",
       trackedCampaigns: TRACKED_CAMPAIGNS,
       availableCampaigns,
+      availableCampaignOptions: activeCampaignOptions.sort((a: any, b: any) => a.name.localeCompare(b.name)),
       rows,
     });
     response.headers.set("Cache-Control", "no-store");

@@ -17,8 +17,8 @@ const Logo = () => {
         style={{
           display: "block",
           height: "auto",
-          maxWidth: "360px",
-          width: "100%",
+          maxWidth: "234px",
+          width: "65%",
         }}
       />
       <p
