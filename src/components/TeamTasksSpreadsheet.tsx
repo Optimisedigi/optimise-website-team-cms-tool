@@ -278,7 +278,7 @@ export default function TeamTasksSpreadsheet() {
   const [users, setUsers] = useState<Option[]>([])
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | number | null>(null)
-  const [statusFilter, setStatusFilter] = useState('open')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [clientFilter, setClientFilter] = useState('')
   const [weekStart, setWeekStart] = useState(() => mondayKey())
   const [weekMode, setWeekMode] = useState<'week' | 'all'>('week')
@@ -405,14 +405,13 @@ export default function TeamTasksSpreadsheet() {
   }
 
   return (
-    <div style={{ padding: '24px 0 40px' }}>
+    <div style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
       <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Team Tasks</h1>
       <div style={{ display: 'grid', gridTemplateColumns: '150px 220px 180px 260px 1fr', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
           Weeks
           <select value={weekMode} onChange={(e) => setWeekMode(e.target.value as 'week' | 'all')} style={inputStyle}>
             <option value="week">Selected week</option>
-            <option value="all">All weeks</option>
           </select>
         </label>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700, opacity: weekMode === 'all' ? .55 : 1 }}>
@@ -430,8 +429,8 @@ export default function TeamTasksSpreadsheet() {
           />
         </label>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={inputStyle}>
+          <option value="all">All statuses</option>
           <option value="open">Open work</option>
-          <option value="all">All tasks</option>
           {statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={inputStyle}>
@@ -439,7 +438,7 @@ export default function TeamTasksSpreadsheet() {
           {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
         </select>
         <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)', paddingBottom: 8 }}>
-          Showing work to do for <strong>{weekMode === 'all' ? 'all weeks' : weekLabel(weekStart)}</strong>
+          Showing tasks for <strong>{weekMode === 'all' ? 'all weeks' : weekLabel(weekStart)}</strong>
         </div>
       </div>
 

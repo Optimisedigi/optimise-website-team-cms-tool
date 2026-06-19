@@ -7,6 +7,10 @@ import { userHasFeature } from "@/lib/access";
 const WORKSPACE_KEY = "default";
 const COLLECTION = "google-ads-change-trackers" as any;
 
+const CAMPAIGN_NAME_ALIASES: Record<string, string> = {
+  "Search - Vietnam - AU - Phrase (Target IS 100%)": "Search - Vietnam - AU - Phrase (Max CPC)",
+};
+
 function emptyConfig(storageUnavailable = false) {
   const response = NextResponse.json({
     view: "daily",
@@ -37,7 +41,7 @@ function cleanGraph(graph: any, index: number) {
     id: Number(graph?.id) || index + 1,
     name: String(graph?.name || (index === 0 ? "Changed campaigns" : `Graph ${index + 1}`)),
     customerId: String(graph?.customerId || "").replace(/-/g, ""),
-    campaigns: campaigns.map((campaign: any) => String(campaign)).filter(Boolean),
+    campaigns: campaigns.map((campaign: any) => CAMPAIGN_NAME_ALIASES[String(campaign)] || String(campaign)).filter(Boolean),
     campaignSearch: "",
     metrics: metrics.map((metric: any) => String(metric)).filter(Boolean).slice(0, 4),
     changeDate: String(graph?.changeDate || "2026-06-17").slice(0, 10),

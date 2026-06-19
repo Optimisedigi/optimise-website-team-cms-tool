@@ -46,7 +46,9 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status") || "open";
+    // Default to all statuses so completed tasks remain visible in the
+    // current Monday–Sunday week instead of disappearing after completion.
+    const status = searchParams.get("status") || "all";
     const client = searchParams.get("client") || "";
     const weekStart = searchParams.get("weekStart") || "";
 
