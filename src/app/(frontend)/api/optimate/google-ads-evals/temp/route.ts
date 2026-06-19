@@ -32,39 +32,44 @@ interface RequestBody {
 }
 
 export async function POST(request: Request) {
-  const auth = request.headers.get("x-internal-api-key") ?? request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!process.env.INTERNAL_API_KEY || auth !== process.env.INTERNAL_API_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const auth = request.headers.get("x-internal-api-key") ?? request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    if (!process.env.INTERNAL_API_KEY || auth !== process.env.INTERNAL_API_KEY) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as RequestBody;
+    const models = parseModels(body.models);
+
+    if (body.action === "probe") {
+      const report = await probeModels(models);
+      return NextResponse.json({ ok: true, report });
+    }
+
+    if (body.action === "run") {
+      const auditId = await resolveAuditId(body);
+      const result = await runOptimateGoogleAdsEval({
+        auditId,
+        models,
+        categories: body.caseIds?.length ? undefined : parseCategories(body.cases),
+        caseIds: body.caseIds,
+        repeats: body.repeats ?? 1,
+        concurrency: body.concurrency ?? 1,
+        allowActions: body.allowActions === true,
+        outputDir: "/tmp/optimate-evals",
+      });
+      return NextResponse.json({
+        ok: true,
+        result: result.result,
+        summary: buildEvalReportSummary(result.result),
+      });
+    }
+
+    return NextResponse.json({ error: "Unknown action. Use probe or run." }, { status: 400 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
-
-  const body = (await request.json().catch(() => ({}))) as RequestBody;
-  const models = parseModels(body.models);
-
-  if (body.action === "probe") {
-    const report = await probeModels(models);
-    return NextResponse.json({ ok: true, report });
-  }
-
-  if (body.action === "run") {
-    const auditId = await resolveAuditId(body);
-    const result = await runOptimateGoogleAdsEval({
-      auditId,
-      models,
-      categories: body.caseIds?.length ? undefined : parseCategories(body.cases),
-      caseIds: body.caseIds,
-      repeats: body.repeats ?? 1,
-      concurrency: body.concurrency ?? 1,
-      allowActions: body.allowActions === true,
-      outputDir: "/tmp/optimate-evals",
-    });
-    return NextResponse.json({
-      ok: true,
-      result: result.result,
-      summary: buildEvalReportSummary(result.result),
-    });
-  }
-
-  return NextResponse.json({ error: "Unknown action. Use probe or run." }, { status: 400 });
 }
 
 function parseModels(models?: string[]): CanonicalModelName[] {
