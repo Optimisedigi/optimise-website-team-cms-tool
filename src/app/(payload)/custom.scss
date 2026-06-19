@@ -4747,15 +4747,17 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
   display: none !important;
 }
 
-// Team Tasks spreadsheet: use the full available admin canvas while respecting
-// the actual Payload content area. Keep 10px on both sides; avoid viewport-based
-// widths here because the collapsed mini-sidebar shifts the wrap right, causing
-// the table to overshoot the viewport on the right.
+// Team Tasks spreadsheet: use the full available admin canvas, including when
+// Payload auto-collapses the sidebar to the mini rail.
 .od-team-tasks-list {
   box-sizing: border-box;
   max-width: none !important;
-  padding-inline: 10px;
-  width: 100%;
+  padding-inline: 6px;
+  width: calc(100vw - 112px);
+}
+
+.template-default:not(.template-default--nav-open) .od-team-tasks-list {
+  width: calc(100vw - 30px);
 }
 
 // Google Ads budget management lives inside the client/audit edit form but needs
