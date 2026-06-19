@@ -59,23 +59,51 @@ function health(report: MilestoneReport): "critical" | "warning" | "healthy" {
   return "healthy";
 }
 
-function bar(widthPct: number, color: string): string {
-  return `<div style="height:10px;width:${Math.max(2, Math.min(100, widthPct))}%;background:${color};border-radius:999px;"></div>`;
-}
-
 function miniChart(report: MilestoneReport): string {
-  const rows = report.snapshots;
-  const maxClicks = Math.max(1, ...rows.map((row) => row.clicks));
-  const maxImpressions = Math.max(1, ...rows.map((row) => row.impressions));
-  if (!rows.length) return `<p style="color:#64748b;">GSC daily data is still pending.</p>`;
-  return `<table style="width:100%;border-collapse:collapse;font-size:12px;">
-    <thead><tr><th align="left" style="padding-left:8px;">Date</th><th align="left">Clicks</th><th align="left" style="padding-right:8px;">Impressions</th></tr></thead>
-    <tbody>${rows.map((row) => `<tr>
-      <td style="padding:6px 8px;color:#475569;white-space:nowrap;">${esc(formatDayLabel(row.date))}${row.daysSinceCutover === 1 ? " · migration" : row.daysSinceCutover < 1 ? ` · ${row.daysSinceCutover}d` : ""}</td>
-      <td style="padding:6px 8px;min-width:130px;">${bar((row.clicks / maxClicks) * 100, "#2563eb")}<span style="color:#334155;">${n(row.clicks)}</span></td>
-      <td style="padding:6px 8px;min-width:130px;">${bar((row.impressions / maxImpressions) * 100, "#8b5cf6")}<span style="color:#334155;">${n(row.impressions)}</span></td>
-    </tr>`).join("")}</tbody>
-  </table>`;
+  const points = report.snapshots;
+  if (!points.length) return `<p style="color:#64748b;">GSC daily data is still pending.</p>`;
+
+  const w = 760;
+  const h = 250;
+  const pad = 34;
+  const axisBottom = 56; // room for vertical date labels
+  const plotH = h - pad - axisBottom;
+  const maxClicks = Math.max(1, ...points.map((p) => p.clicks));
+  const maxImpressions = Math.max(1, ...points.map((p) => p.impressions));
+  const x = (i: number) => pad + (points.length <= 1 ? 0 : (i / (points.length - 1)) * (w - pad * 2));
+  const yClicks = (v: number) => pad + plotH - (v / maxClicks) * plotH;
+  const yImpressions = (v: number) => pad + plotH - (v / maxImpressions) * plotH;
+  const labelStep = Math.max(1, Math.ceil(points.length / 14));
+  const clicksLine = points.map((p, i) => `${x(i)},${yClicks(p.clicks)}`).join(" ");
+  const impressionsLine = points.map((p, i) => `${x(i)},${yImpressions(p.impressions)}`).join(" ");
+  const migrationIndex = Math.max(0, points.findIndex((p) => p.daysSinceCutover === 1));
+  const migrationX = x(migrationIndex);
+
+  const gridlines = [0, 0.25, 0.5, 0.75, 1]
+    .map((t) => `<line x1="${pad}" x2="${w - pad}" y1="${pad + t * plotH}" y2="${pad + t * plotH}" stroke="#e2e8f0" />`)
+    .join("");
+  const labels = points
+    .map((p, i) =>
+      i % labelStep === 0 || i === points.length - 1
+        ? `<text x="${x(i)}" y="${pad + plotH + 8}" font-size="9" fill="#94a3b8" text-anchor="end" transform="rotate(-90 ${x(i)} ${pad + plotH + 8})">${esc(formatDayLabel(p.date))}</text>`
+        : "",
+    )
+    .join("");
+
+  const svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block;width:100%;height:auto;" role="img" aria-label="Post-migration clicks and impressions chart">
+    ${gridlines}
+    <rect x="${migrationX}" y="18" width="${w - pad - migrationX}" height="${pad + plotH - 18}" fill="#fee2e2" opacity="0.16" />
+    <line x1="${migrationX}" x2="${migrationX}" y1="18" y2="${pad + plotH}" stroke="#991b1b" stroke-dasharray="6 5" stroke-width="3" />
+    <text x="${migrationX + 8}" y="24" font-size="12" fill="#991b1b" font-weight="700">Migration date</text>
+    <polyline points="${clicksLine}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+    <polyline points="${impressionsLine}" fill="none" stroke="#8b5cf6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+    ${labels}
+  </svg>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#475569;">
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2563eb;margin-right:4px;"></span>Clicks</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8b5cf6;margin-right:4px;"></span>Impressions</span>
+  </div>`;
+  return svg;
 }
 
 function compactMetric(value: number, max: number, color: string): string {
