@@ -79,6 +79,27 @@ const scoreColor = (s: number) =>
 
 const fmt = (value: number | null | undefined) => value == null ? '-' : Math.round(value).toLocaleString()
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function ordinal(day: number): string {
+  const rem100 = day % 100
+  if (rem100 >= 11 && rem100 <= 13) return `${day}th`
+  switch (day % 10) {
+    case 1: return `${day}st`
+    case 2: return `${day}nd`
+    case 3: return `${day}rd`
+    default: return `${day}th`
+  }
+}
+
+// "2026-05-11" -> "11th May"
+function formatDayLabel(iso: string): string {
+  const day = Number(iso.slice(8, 10))
+  const month = Number(iso.slice(5, 7))
+  if (!day || !month) return iso
+  return `${ordinal(day)} ${MONTHS_SHORT[month - 1]}`
+}
+
 function TrackingReport({ result }: { result: MigrationResult }) {
   const points = result.trackingSnapshots ?? []
   const latest = points[points.length - 1]
@@ -87,9 +108,13 @@ function TrackingReport({ result }: { result: MigrationResult }) {
   const w = 760
   const h = 250
   const pad = 34
+  const axisBottom = 56 // extra room for vertical date labels
+  const plotH = h - pad - axisBottom
   const x = (i: number) => pad + (points.length <= 1 ? 0 : (i / (points.length - 1)) * (w - pad * 2))
-  const yClicks = (v: number) => h - pad - (v / maxClicks) * (h - pad * 2)
-  const yImpressions = (v: number) => h - pad - (v / maxImpressions) * (h - pad * 2)
+  const yClicks = (v: number) => pad + plotH - (v / maxClicks) * plotH
+  const yImpressions = (v: number) => pad + plotH - (v / maxImpressions) * plotH
+  // Render at most ~14 x-axis labels so they don't overlap.
+  const labelStep = Math.max(1, Math.ceil(points.length / 14))
   const clicksLine = points.map((p, i) => `${x(i)},${yClicks(p.clicks)}`).join(' ')
   const impressionsLine = points.map((p, i) => `${x(i)},${yImpressions(p.impressions)}`).join(' ')
   const migrationIndex = Math.max(0, points.findIndex((p) => p.daysSinceCutover === 1))
@@ -108,21 +133,23 @@ function TrackingReport({ result }: { result: MigrationResult }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 14 }}>
         {[
-          ['Latest date', latest?.date || 'Pending'],
+          ['Latest date', latest?.date ? formatDayLabel(latest.date) : 'Pending'],
           ['Clicks', fmt(latest?.clicks)],
           ['Impressions', fmt(latest?.impressions)],
           ['CTR', latest?.ctr != null ? `${latest.ctr}%` : '-'],
           ['Avg position', latest?.position ?? '-'],
         ].map(([label, value]) => <div key={label} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#f8fafc' }}><div style={{ fontSize: 11, color: '#64748b' }}>{label}</div><div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{value}</div></div>)}
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 280, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }} role="img" aria-label="Post-migration clicks and impressions chart">
-        {[0, .25, .5, .75, 1].map((t) => <line key={t} x1={pad} x2={w - pad} y1={pad + t * (h - pad * 2)} y2={pad + t * (h - pad * 2)} stroke="#e2e8f0" />)}
-        <rect x={migrationX} y={18} width={w - pad - migrationX} height={h - pad} fill="#fee2e2" opacity="0.16" />
-        <line x1={migrationX} x2={migrationX} y1={18} y2={h - 12} stroke="#991b1b" strokeDasharray="6 5" strokeWidth={3} />
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 300, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }} role="img" aria-label="Post-migration clicks and impressions chart">
+        {[0, .25, .5, .75, 1].map((t) => <line key={t} x1={pad} x2={w - pad} y1={pad + t * plotH} y2={pad + t * plotH} stroke="#e2e8f0" />)}
+        <rect x={migrationX} y={18} width={w - pad - migrationX} height={pad + plotH - 18} fill="#fee2e2" opacity="0.16" />
+        <line x1={migrationX} x2={migrationX} y1={18} y2={pad + plotH} stroke="#991b1b" strokeDasharray="6 5" strokeWidth={3} />
         <text x={migrationX + 8} y={24} fontSize={12} fill="#991b1b" fontWeight={700}>Migration date</text>
         <polyline points={clicksLine} fill="none" stroke="#2563eb" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
         <polyline points={impressionsLine} fill="none" stroke="#8b5cf6" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-        {points.map((p, i) => <text key={p.date} x={x(i)} y={h - 8} fontSize={9} fill="#94a3b8" textAnchor="middle">{p.date.slice(5)}</text>)}
+        {points.map((p, i) => (i % labelStep === 0 || i === points.length - 1)
+          ? <text key={p.date} x={x(i)} y={pad + plotH + 8} fontSize={9} fill="#94a3b8" textAnchor="end" transform={`rotate(-90 ${x(i)} ${pad + plotH + 8})`}>{formatDayLabel(p.date)}</text>
+          : null)}
       </svg>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: '#475569' }}>
         <span><span style={{ ...dot, background: '#2563eb' }} /> Clicks</span>
@@ -135,7 +162,7 @@ function TrackingReport({ result }: { result: MigrationResult }) {
           <div style={{ width: `${(totalGeneric / splitTotal) * 100}%`, background: '#22c55e' }} />
         </div>
         <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Post-migration total: Brand {fmt(totalBrand)} · Generic {fmt(totalGeneric)}</div>
-        <div style={{ marginTop: 10, overflowX: 'auto' }}>
+        <div style={{ marginTop: 10, overflowX: 'auto', padding: '0 12px', border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, color: '#475569' }}>
             <thead>
               <tr><th align="left">Date</th><th align="left">Brand clicks</th><th align="left">Generic clicks</th><th align="left">Brand impr.</th><th align="left">Generic impr.</th><th align="right">Impr. share</th></tr>
@@ -149,7 +176,7 @@ function TrackingReport({ result }: { result: MigrationResult }) {
                 const totalImpressions = Math.max(1, brandImpressions + genericImpressions)
                 const metricBar = (value: number, max: number, color: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}><span style={{ minWidth: 30, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(value)}</span><span style={{ display: 'inline-block', height: 7, width: `${Math.max(4, Math.min(100, (value / max) * 100))}%`, maxWidth: 70, background: color, borderRadius: 999 }} /></div>
                 return <tr key={p.date}>
-                  <td style={{ padding: '4px 6px 4px 0', whiteSpace: 'nowrap' }}>{p.date.slice(5)}{p.daysSinceCutover === 1 ? ' · migration' : p.daysSinceCutover < 1 ? ` · ${p.daysSinceCutover}d` : ` · +${p.daysSinceCutover - 1}d`}</td>
+                  <td style={{ padding: '4px 6px 4px 0', whiteSpace: 'nowrap' }}>{formatDayLabel(p.date)}{p.daysSinceCutover === 1 ? ' · migration' : p.daysSinceCutover < 1 ? ` · ${p.daysSinceCutover}d` : ` · +${p.daysSinceCutover - 1}d`}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(brandClicks, maxSplitClicks, '#0ea5e9')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(genericClicks, maxSplitClicks, '#22c55e')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(brandImpressions, maxSplitImpressions, '#38bdf8')}</td>

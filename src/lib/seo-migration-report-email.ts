@@ -27,6 +27,27 @@ function n(value: number | null | undefined): string {
   return Math.round(value).toLocaleString("en-AU");
 }
 
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function ordinal(day: number): string {
+  const rem100 = day % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${day}th`;
+  switch (day % 10) {
+    case 1: return `${day}st`;
+    case 2: return `${day}nd`;
+    case 3: return `${day}rd`;
+    default: return `${day}th`;
+  }
+}
+
+// "2026-05-11" -> "11th May"
+function formatDayLabel(iso: string): string {
+  const day = Number(iso.slice(8, 10));
+  const month = Number(iso.slice(5, 7));
+  if (!day || !month) return iso;
+  return `${ordinal(day)} ${MONTHS_SHORT[month - 1]}`;
+}
+
 function pct(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "-";
   return `${value > 0 ? "+" : ""}${value}%`;
@@ -48,11 +69,11 @@ function miniChart(report: MilestoneReport): string {
   const maxImpressions = Math.max(1, ...rows.map((row) => row.impressions));
   if (!rows.length) return `<p style="color:#64748b;">GSC daily data is still pending.</p>`;
   return `<table style="width:100%;border-collapse:collapse;font-size:12px;">
-    <thead><tr><th align="left">Date</th><th align="left">Clicks</th><th align="left">Impressions</th></tr></thead>
+    <thead><tr><th align="left" style="padding-left:8px;">Date</th><th align="left">Clicks</th><th align="left" style="padding-right:8px;">Impressions</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
-      <td style="padding:6px 8px 6px 0;color:#475569;white-space:nowrap;">${esc(row.date)}${row.daysSinceCutover === 1 ? " · migration" : row.daysSinceCutover < 1 ? ` · ${row.daysSinceCutover}d` : ""}</td>
+      <td style="padding:6px 8px;color:#475569;white-space:nowrap;">${esc(formatDayLabel(row.date))}${row.daysSinceCutover === 1 ? " · migration" : row.daysSinceCutover < 1 ? ` · ${row.daysSinceCutover}d` : ""}</td>
       <td style="padding:6px 8px;min-width:130px;">${bar((row.clicks / maxClicks) * 100, "#2563eb")}<span style="color:#334155;">${n(row.clicks)}</span></td>
-      <td style="padding:6px 0;min-width:130px;">${bar((row.impressions / maxImpressions) * 100, "#8b5cf6")}<span style="color:#334155;">${n(row.impressions)}</span></td>
+      <td style="padding:6px 8px;min-width:130px;">${bar((row.impressions / maxImpressions) * 100, "#8b5cf6")}<span style="color:#334155;">${n(row.impressions)}</span></td>
     </tr>`).join("")}</tbody>
   </table>`;
 }
@@ -68,7 +89,7 @@ function brandGenericTable(report: MilestoneReport): string {
   const maxImpressions = Math.max(1, ...rows.flatMap((row) => [row.brandImpressions ?? 0, row.genericImpressions ?? 0]));
   if (!rows.length) return `<p style="color:#64748b;">Brand/generic data is still pending.</p>`;
   return `<table style="width:100%;border-collapse:collapse;font-size:11px;">
-    <thead><tr><th align="left">Date</th><th align="left">Brand clicks</th><th align="left">Generic clicks</th><th align="left">Brand impr.</th><th align="left">Generic impr.</th><th align="right">Impr. share</th></tr></thead>
+    <thead><tr><th align="left" style="padding-left:8px;">Date</th><th align="left">Brand clicks</th><th align="left">Generic clicks</th><th align="left">Brand impr.</th><th align="left">Generic impr.</th><th align="right" style="padding-right:8px;">Impr. share</th></tr></thead>
     <tbody>${rows.map((row) => {
       const brandClicks = row.brandClicks ?? 0;
       const genericClicks = row.genericClicks ?? 0;
@@ -76,12 +97,12 @@ function brandGenericTable(report: MilestoneReport): string {
       const genericImpressions = row.genericImpressions ?? 0;
       const totalImpressions = Math.max(1, brandImpressions + genericImpressions);
       return `<tr>
-        <td style="padding:4px 6px 4px 0;color:#475569;white-space:nowrap;">${esc(row.date)}${row.daysSinceCutover === 1 ? " · migration" : row.daysSinceCutover < 1 ? ` · ${row.daysSinceCutover}d` : ` · +${row.daysSinceCutover - 1}d`}</td>
+        <td style="padding:4px 8px;color:#475569;white-space:nowrap;">${esc(formatDayLabel(row.date))}${row.daysSinceCutover === 1 ? " · migration" : row.daysSinceCutover < 1 ? ` · ${row.daysSinceCutover}d` : ` · +${row.daysSinceCutover - 1}d`}</td>
         <td style="padding:4px 6px;min-width:86px;">${compactMetric(brandClicks, maxClicks, "#0ea5e9")}</td>
         <td style="padding:4px 6px;min-width:86px;">${compactMetric(genericClicks, maxClicks, "#22c55e")}</td>
         <td style="padding:4px 6px;min-width:86px;">${compactMetric(brandImpressions, maxImpressions, "#38bdf8")}</td>
         <td style="padding:4px 6px;min-width:86px;">${compactMetric(genericImpressions, maxImpressions, "#86efac")}</td>
-        <td align="right" style="padding:4px 0;color:#64748b;white-space:nowrap;">${Math.round((brandImpressions / totalImpressions) * 100)}% / ${Math.round((genericImpressions / totalImpressions) * 100)}%</td>
+        <td align="right" style="padding:4px 8px;color:#64748b;white-space:nowrap;">${Math.round((brandImpressions / totalImpressions) * 100)}% / ${Math.round((genericImpressions / totalImpressions) * 100)}%</td>
       </tr>`;
     }).join("")}</tbody>
   </table>`;
