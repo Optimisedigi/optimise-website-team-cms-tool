@@ -405,7 +405,7 @@ export default function TeamTasksSpreadsheet() {
   }
 
   return (
-    <div style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
+    <div style={{ padding: '24px 0 40px' }}>
       <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Team Tasks</h1>
       <div style={{ display: 'grid', gridTemplateColumns: '150px 220px 180px 260px 1fr', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
