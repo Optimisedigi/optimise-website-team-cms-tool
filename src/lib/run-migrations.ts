@@ -4353,6 +4353,23 @@ export async function runMigrations(
     await run("seo_migration_checks_updated_at_idx", "CREATE INDEX IF NOT EXISTS `seo_migration_checks_updated_at_idx` ON `seo_migration_checks` (`updated_at`)");
     await run("locked_docs_rels.seo_migration_checks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `seo_migration_checks_id` integer REFERENCES `seo_migration_checks`(`id`) ON DELETE cascade");
 
+    // ── Post-migration 30-day review tracking columns (2026-06-19) ──
+    // Added to seo_migration_checks for the sequenced post-migration GSC
+    // tracking + milestone emails. These columns ship in the Payload config
+    // but must be added here too so /api/migrate brings production up to date.
+    await run("seo_migration_checks.tracking_enabled", "ALTER TABLE `seo_migration_checks` ADD `tracking_enabled` integer DEFAULT true");
+    await run("seo_migration_checks.tracking_status", "ALTER TABLE `seo_migration_checks` ADD `tracking_status` text DEFAULT 'active'");
+    await run("seo_migration_checks.email_recipients", "ALTER TABLE `seo_migration_checks` ADD `email_recipients` text");
+    await run("seo_migration_checks.tracking_notes", "ALTER TABLE `seo_migration_checks` ADD `tracking_notes` text");
+    await run("seo_migration_checks.last_tracking_run_at", "ALTER TABLE `seo_migration_checks` ADD `last_tracking_run_at` text");
+    await run("seo_migration_checks.last_email_sent_at", "ALTER TABLE `seo_migration_checks` ADD `last_email_sent_at` text");
+    await run("seo_migration_checks.last_email_milestone_day", "ALTER TABLE `seo_migration_checks` ADD `last_email_milestone_day` numeric");
+    await run("seo_migration_checks.next_email_milestone_day", "ALTER TABLE `seo_migration_checks` ADD `next_email_milestone_day` numeric");
+    await run("seo_migration_checks.tracking_schedule", "ALTER TABLE `seo_migration_checks` ADD `tracking_schedule` text");
+    await run("seo_migration_checks.tracking_snapshots", "ALTER TABLE `seo_migration_checks` ADD `tracking_snapshots` text");
+    await run("seo_migration_checks.tracking_flags", "ALTER TABLE `seo_migration_checks` ADD `tracking_flags` text");
+    await run("seo_migration_checks.tracking_issue_report", "ALTER TABLE `seo_migration_checks` ADD `tracking_issue_report` text");
+
     // ── Agency KPI Snapshots (monthly agency KPI cache, 2026-06-28) ──
     // The collection ships in the Payload config but was only added to the
     // generated migration file, never to this inline sweep that /api/migrate
