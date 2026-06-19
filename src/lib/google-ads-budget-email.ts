@@ -32,6 +32,8 @@ export interface BudgetCampaign {
   locationNames?: string[];
   enabled: boolean; // Whether this campaign is included in budget allocation
   campaignStatus?: string;
+  campaignStartDate?: string | null;
+  campaignEndDate?: string | null;
   standalone?: boolean;
   standaloneBudget?: number;
   standaloneStartDate?: string | null;

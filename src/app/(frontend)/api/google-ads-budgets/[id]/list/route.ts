@@ -366,6 +366,8 @@ export async function GET(
         return {
           campaignId: c.campaignId,
           campaignName: c.campaignName,
+          campaignStartDate: c.campaignStartDate ?? c.campaign_start_date ?? null,
+          campaignEndDate: c.campaignEndDate ?? c.campaign_end_date ?? null,
           budgetPercentage: saved?.budgetPercentage ?? 0,
           calculatedDailyBudget: saved?.calculatedDailyBudget ?? (c.dailyBudget || 0),
           actualDailyBudget: c.dailyBudget || 0,
