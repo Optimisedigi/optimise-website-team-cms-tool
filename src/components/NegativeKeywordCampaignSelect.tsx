@@ -44,11 +44,11 @@ export default function NegativeKeywordCampaignSelect() {
         return
       }
 
-      const allCampaigns: Array<{ name: string }> = json.campaigns || []
+      const activeCampaigns: Array<{ name: string }> = json.campaigns || []
 
-      // Match campaigns against the pattern via the shared routing helper.
+      // Match active campaigns against the pattern via the shared routing helper.
       // Supports plain text (e.g. "Brand") or regex (e.g. ".*Brand.*").
-      const matched = allCampaigns
+      const matched = activeCampaigns
         .filter((c) => matchesPattern(c.name, campaignRegex))
         .map((c) => c.name)
 
@@ -64,7 +64,7 @@ export default function NegativeKeywordCampaignSelect() {
 
       if (matched.length === 0) {
         setPreviewedCampaigns([])
-        setError(`No campaigns matched the pattern "${campaignRegex}". ${allCampaigns.length} campaigns found in the account.`)
+        setError(`No active campaigns matched the pattern "${campaignRegex}". ${activeCampaigns.length} active campaigns found in the account.`)
         setLoading(false)
         return
       }
@@ -94,8 +94,8 @@ export default function NegativeKeywordCampaignSelect() {
       boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
     }}>
       <p style={{ margin: '0 0 10px', fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
-        Preview which campaigns this list will apply to when the Google Ads sync script runs.
-        This does not push anything to Google Ads — it just checks which campaign names match your regex.
+        Preview which active campaigns this list will apply to when the Google Ads sync script runs.
+        This does not push anything to Google Ads — it just checks which active campaign names match your regex.
       </p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -154,6 +154,9 @@ export default function NegativeKeywordCampaignSelect() {
       </div>
       <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 4, fontStyle: 'italic' }}>
         Save the document first if you&apos;ve changed the regex, then preview.
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 4, fontStyle: 'italic' }}>
+        Scope is visual/context only here; campaign matching is controlled by the regex and active Google Ads campaigns.
       </div>
     </div>
   )

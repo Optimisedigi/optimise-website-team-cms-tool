@@ -6,6 +6,12 @@ import { headers as nextHeaders } from "next/headers";
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
+function isActiveCampaign(campaign: any): boolean {
+  const status = String(campaign?.status || campaign?.campaignStatus || "").toUpperCase();
+  if (!status) return true;
+  return status === "ENABLED";
+}
+
 /**
  * GET /api/negative-keyword-lists/campaigns?clientId=1
  * Fetches campaign and ad group names from Google Ads via Growth Tools.
@@ -73,7 +79,8 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await res.json();
-    return NextResponse.json({ ok: true, campaigns: data.campaigns || [] });
+    const campaigns = Array.isArray(data.campaigns) ? data.campaigns.filter(isActiveCampaign) : [];
+    return NextResponse.json({ ok: true, campaigns });
   } catch (err) {
     console.error("[negative-keyword-lists/campaigns] error:", err);
     return NextResponse.json(
