@@ -27,6 +27,19 @@ describe("seo migration tracking", () => {
     expect(snapshots[1]).toMatchObject({ date: "2026-06-10", daysSinceCutover: 1, clicks: 10, brandClicks: 4, genericClicks: 6 });
   });
 
+  it("accepts a full ISO datetime cutover (Payload date field format)", () => {
+    const snapshots = buildPostMigrationTrackingSnapshots({
+      cutoverDate: "2026-06-10T00:00:00.000Z",
+      startDate: "2026-06-09",
+      availableEndDate: "2026-06-11",
+      overall,
+      now: new Date("2026-06-15T00:00:00Z"),
+    });
+    expect(snapshots).toHaveLength(3);
+    expect(snapshots[1]).toMatchObject({ date: "2026-06-10", daysSinceCutover: 1, clicks: 10 });
+    expect(getDueMilestoneDay("2026-06-10T00:00:00.000Z", new Date("2026-06-17T12:00:00Z"), 3)).toBe(7);
+  });
+
   it("flags material traffic drops and missing brand terms", () => {
     const snapshots = buildPostMigrationTrackingSnapshots({ cutoverDate: "2026-06-10", availableEndDate: "2026-06-11", overall, now: new Date("2026-06-15T00:00:00Z") });
     const flags = buildPostMigrationFlags({

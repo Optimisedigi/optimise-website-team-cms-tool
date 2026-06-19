@@ -42,8 +42,20 @@ export type TrackingIssueReport = Record<CheckPhase, string[]>;
 
 const PHASES: CheckPhase[] = ["redirects", "indexing", "performance", "technical", "process"];
 
+/**
+ * Normalise any stored date to a `YYYY-MM-DD` string. Payload `date` fields
+ * persist a full ISO datetime (e.g. `2026-05-25T00:00:00.000Z`), but the
+ * tracking math and GSC API only deal in calendar days. Returns "" for
+ * null/invalid input so downstream validation can reject it.
+ */
+export function toDateOnly(value: string | null | undefined): string {
+  if (!value) return "";
+  return String(value).slice(0, 10);
+}
+
 function isValidIsoDate(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime());
+  const day = toDateOnly(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) && !Number.isNaN(new Date(`${day}T00:00:00Z`).getTime());
 }
 
 function minDate(a: string, b: string): string {
@@ -277,19 +289,22 @@ export async function processSeoMigrationTracking(options: { reviewId?: string |
       }
       const siteUrl = review.siteUrl || client.gscPropertyUrl;
       if (!siteUrl) throw new Error("Missing GSC property URL");
+      // Payload `date` fields store a full ISO datetime; the tracking math and
+      // GSC API only accept calendar days, so normalise once up front.
+      const cutoverDate = toDateOnly(review.cutoverDate);
       const availableEndDate = getAvailableGscEndDate();
-      const fetchStartDate = addDays(review.cutoverDate, -PRE_MIGRATION_CHART_DAYS);
-      const fetchEndDate = minDate(availableEndDate, addDays(review.cutoverDate, 60));
-      const hasAvailableRange = isValidIsoDate(review.cutoverDate) && fetchEndDate >= fetchStartDate;
+      const fetchStartDate = addDays(cutoverDate, -PRE_MIGRATION_CHART_DAYS);
+      const fetchEndDate = minDate(availableEndDate, addDays(cutoverDate, 60));
+      const hasAvailableRange = isValidIsoDate(cutoverDate) && fetchEndDate >= fetchStartDate;
       const overall = hasAvailableRange ? await fetchDailySearchAnalytics(accessToken, siteUrl, fetchStartDate, fetchEndDate) : [];
       const brandTerms = parseBrandTerms(client.brandKeywords);
       const branded = brandTerms.length && hasAvailableRange
         ? await fetchDailyBrandedAnalytics(accessToken, siteUrl, fetchStartDate, fetchEndDate, brandTerms)
         : { brand: null, nonBrand: null };
-      const snapshots = buildPostMigrationTrackingSnapshots({ cutoverDate: review.cutoverDate, startDate: fetchStartDate, availableEndDate: fetchEndDate, overall, brand: branded.brand, nonBrand: branded.nonBrand });
+      const snapshots = buildPostMigrationTrackingSnapshots({ cutoverDate, startDate: fetchStartDate, availableEndDate: fetchEndDate, overall, brand: branded.brand, nonBrand: branded.nonBrand });
       const flags = buildPostMigrationFlags({ snapshots, performance: review.performance, hasBrandTerms: brandTerms.length > 0 });
       const issueReport = buildChecklistIssueReport({ checklist: review.checklist, actions: review.actions, flags, performance: review.performance });
-      const dueMilestone = getDueMilestoneDay(review.cutoverDate, new Date(), review.lastEmailMilestoneDay);
+      const dueMilestone = getDueMilestoneDay(cutoverDate, new Date(), review.lastEmailMilestoneDay);
       const nextMilestone = POST_MIGRATION_EMAIL_MILESTONES.find((day) => day > (dueMilestone ?? review.lastEmailMilestoneDay ?? 0)) ?? null;
       const updateData: Record<string, unknown> = {
         trackingSnapshots: snapshots,
