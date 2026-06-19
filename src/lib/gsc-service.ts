@@ -19,6 +19,13 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function buildBrandRegex(brandTerms: string[]): string {
+  return brandTerms
+    .map((term) => escapeRegExp(term.trim().toLowerCase()))
+    .filter((t) => t.length > 0)
+    .join("|");
+}
+
 /**
  * Generate the Google OAuth consent URL for GSC access.
  *
@@ -173,10 +180,7 @@ export async function fetchBrandedAnalytics(
   // "and" — so an OR across multiple `contains` filters returns HTTP 400.
   // `includingRegex` / `excludingRegex` give correct OR / NOR semantics in one
   // filter. Brand terms are regex-escaped since they now go into a pattern.
-  const brandRegex = brandTerms
-    .map((term) => escapeRegExp(term.trim().toLowerCase()))
-    .filter((t) => t.length > 0)
-    .join("|");
+  const brandRegex = buildBrandRegex(brandTerms);
 
   // All brand terms were blank after trimming — an empty regex would match
   // everything (brand) / nothing (non-brand), silently mislabelling the split.
@@ -270,6 +274,92 @@ export async function fetchBrandedAnalytics(
     };
   } catch (err) {
     console.error("[gsc-service] fetchBrandedAnalytics error:", err);
+    return { brand: null, nonBrand: null };
+  }
+}
+
+export interface DailySearchAnalyticsRow {
+  date: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+function dailyRows(rows: searchconsole_v1.Schema$ApiDataRow[] | undefined): DailySearchAnalyticsRow[] {
+  return (rows || [])
+    .map((row) => ({
+      date: row.keys?.[0] || "",
+      clicks: row.clicks || 0,
+      impressions: row.impressions || 0,
+      ctr: Math.round((row.ctr || 0) * 10000) / 100,
+      position: Math.round((row.position || 0) * 10) / 10,
+    }))
+    .filter((row) => row.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export async function fetchDailySearchAnalytics(
+  accessToken: string,
+  siteUrl: string,
+  startDate: string,
+  endDate: string
+): Promise<DailySearchAnalyticsRow[]> {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const searchconsole = google.searchconsole({ version: "v1", auth: oauth2Client });
+  const res = await searchconsole.searchanalytics.query({
+    siteUrl,
+    requestBody: { startDate, endDate, dimensions: ["date"], rowLimit: 25000 },
+  });
+  return dailyRows(res.data.rows);
+}
+
+export async function fetchDailyBrandedAnalytics(
+  accessToken: string,
+  siteUrl: string,
+  startDate: string,
+  endDate: string,
+  brandTerms: string[]
+): Promise<{ brand: DailySearchAnalyticsRow[] | null; nonBrand: DailySearchAnalyticsRow[] | null }> {
+  const brandRegex = buildBrandRegex(brandTerms);
+  if (!brandRegex) return { brand: null, nonBrand: null };
+
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const searchconsole = google.searchconsole({ version: "v1", auth: oauth2Client });
+
+  try {
+    const [brandRes, nonBrandRes] = await Promise.all([
+      searchconsole.searchanalytics.query({
+        siteUrl,
+        requestBody: {
+          startDate,
+          endDate,
+          dimensions: ["date"],
+          dimensionFilterGroups: [
+            { filters: [{ dimension: "query", operator: "includingRegex", expression: brandRegex }] },
+          ],
+          rowLimit: 25000,
+        },
+      }),
+      searchconsole.searchanalytics.query({
+        siteUrl,
+        requestBody: {
+          startDate,
+          endDate,
+          dimensions: ["date"],
+          dimensionFilterGroups: [
+            { filters: [{ dimension: "query", operator: "excludingRegex", expression: brandRegex }] },
+          ],
+          rowLimit: 25000,
+        },
+      }),
+    ]);
+
+    return { brand: dailyRows(brandRes.data.rows), nonBrand: dailyRows(nonBrandRes.data.rows) };
+  } catch (err) {
+    console.error("[gsc-service] fetchDailyBrandedAnalytics error:", err);
     return { brand: null, nonBrand: null };
   }
 }

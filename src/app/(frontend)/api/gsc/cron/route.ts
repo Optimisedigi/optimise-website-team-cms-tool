@@ -3,6 +3,7 @@ import crypto from "crypto";
 import sgMail from "@sendgrid/mail";
 import { runGscMonitor } from "@/lib/gsc-monitor";
 import { processIndexingBatches } from "@/lib/gsc-indexing";
+import { processSeoMigrationTracking } from "@/lib/seo-migration-tracking";
 
 export const maxDuration = 120;
 
@@ -51,10 +52,18 @@ export async function GET(req: NextRequest) {
       console.error("[gsc-cron] Indexing batch processing error:", err);
     }
 
+    let migrationTrackingResults: Awaited<ReturnType<typeof processSeoMigrationTracking>> = [];
+    try {
+      migrationTrackingResults = await processSeoMigrationTracking({ limit: 10, sendEmails: true });
+    } catch (err) {
+      console.error("[gsc-cron] SEO migration tracking error:", err);
+    }
+
     return NextResponse.json({
       ok: true,
       clientsProcessed: results.length,
       clientsWithAlerts: alertResults.length,
+      migrationReportsProcessed: migrationTrackingResults.length,
       errors: results.filter((r) => r.error).length,
     });
   } catch (err) {

@@ -36,9 +36,18 @@ export interface MigrationResult {
     before?: { clicks: number; impressions: number; position: number }
     after?: { clicks: number; impressions: number; position: number }
     clicksChangePct?: number | null
+    impressionsChangePct?: number | null
     positionDelta?: number
     windowDays?: number
   } | null
+  trackingSnapshots?: Array<{ date: string; daysSinceCutover: number; clicks: number; impressions: number; ctr: number; position: number; brandClicks?: number | null; brandImpressions?: number | null; genericClicks?: number | null; genericImpressions?: number | null; dataComplete?: boolean }>
+  trackingFlags?: Array<{ severity: 'critical' | 'warning' | 'advisory' | 'healthy'; phase: string; metric: string; title: string; description: string; recommendation?: string }>
+  trackingIssueReport?: Record<string, string[]>
+  trackingStatus?: string
+  lastTrackingRunAt?: string
+  lastEmailSentAt?: string
+  lastEmailMilestoneDay?: number
+  nextEmailMilestoneDay?: number
   runAt?: string
 }
 
@@ -67,6 +76,106 @@ const PHASE_LABELS: Record<string, string> = {
 
 const scoreColor = (s: number) =>
   s >= 80 ? { bg: '#dcfce7', fg: '#166534' } : s >= 60 ? { bg: '#fef3c7', fg: '#92400e' } : { bg: '#fee2e2', fg: '#991b1b' }
+
+const fmt = (value: number | null | undefined) => value == null ? '-' : Math.round(value).toLocaleString()
+
+function TrackingReport({ result }: { result: MigrationResult }) {
+  const points = result.trackingSnapshots ?? []
+  const latest = points[points.length - 1]
+  const maxClicks = Math.max(1, ...points.map((p) => p.clicks))
+  const maxImpressions = Math.max(1, ...points.map((p) => p.impressions))
+  const w = 760
+  const h = 250
+  const pad = 34
+  const x = (i: number) => pad + (points.length <= 1 ? 0 : (i / (points.length - 1)) * (w - pad * 2))
+  const yClicks = (v: number) => h - pad - (v / maxClicks) * (h - pad * 2)
+  const yImpressions = (v: number) => h - pad - (v / maxImpressions) * (h - pad * 2)
+  const clicksLine = points.map((p, i) => `${x(i)},${yClicks(p.clicks)}`).join(' ')
+  const impressionsLine = points.map((p, i) => `${x(i)},${yImpressions(p.impressions)}`).join(' ')
+  const migrationIndex = Math.max(0, points.findIndex((p) => p.daysSinceCutover === 1))
+  const migrationX = x(migrationIndex)
+  const totalBrand = points.filter((p) => p.daysSinceCutover >= 1).reduce((s, p) => s + (p.brandClicks ?? 0), 0)
+  const totalGeneric = points.filter((p) => p.daysSinceCutover >= 1).reduce((s, p) => s + (p.genericClicks ?? 0), 0)
+  const splitTotal = Math.max(1, totalBrand + totalGeneric)
+  const maxSplitClicks = Math.max(1, ...points.flatMap((p) => [p.brandClicks ?? 0, p.genericClicks ?? 0]))
+  const maxSplitImpressions = Math.max(1, ...points.flatMap((p) => [p.brandImpressions ?? 0, p.genericImpressions ?? 0]))
+  const issueReport = result.trackingIssueReport ?? {}
+  return (
+    <div className="od-box" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, color: '#0f172a' }}>Post-migration GSC tracking</div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>Status: {result.trackingStatus || 'active'} · next email day {result.nextEmailMilestoneDay ?? '—'}</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 14 }}>
+        {[
+          ['Latest date', latest?.date || 'Pending'],
+          ['Clicks', fmt(latest?.clicks)],
+          ['Impressions', fmt(latest?.impressions)],
+          ['CTR', latest?.ctr != null ? `${latest.ctr}%` : '-'],
+          ['Avg position', latest?.position ?? '-'],
+        ].map(([label, value]) => <div key={label} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#f8fafc' }}><div style={{ fontSize: 11, color: '#64748b' }}>{label}</div><div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{value}</div></div>)}
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 280, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }} role="img" aria-label="Post-migration clicks and impressions chart">
+        {[0, .25, .5, .75, 1].map((t) => <line key={t} x1={pad} x2={w - pad} y1={pad + t * (h - pad * 2)} y2={pad + t * (h - pad * 2)} stroke="#e2e8f0" />)}
+        <rect x={migrationX} y={18} width={w - pad - migrationX} height={h - pad} fill="#fee2e2" opacity="0.16" />
+        <line x1={migrationX} x2={migrationX} y1={18} y2={h - 12} stroke="#991b1b" strokeDasharray="6 5" strokeWidth={3} />
+        <text x={migrationX + 8} y={24} fontSize={12} fill="#991b1b" fontWeight={700}>Migration date</text>
+        <polyline points={clicksLine} fill="none" stroke="#2563eb" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points={impressionsLine} fill="none" stroke="#8b5cf6" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((p, i) => <text key={p.date} x={x(i)} y={h - 8} fontSize={9} fill="#94a3b8" textAnchor="middle">{p.date.slice(5)}</text>)}
+      </svg>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: '#475569' }}>
+        <span><span style={{ ...dot, background: '#2563eb' }} /> Clicks</span>
+        <span><span style={{ ...dot, background: '#8b5cf6' }} /> Impressions</span>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 6 }}>Brand vs generic clicks</div>
+        <div style={{ height: 18, display: 'flex', borderRadius: 999, overflow: 'hidden', background: '#e2e8f0' }}>
+          <div style={{ width: `${(totalBrand / splitTotal) * 100}%`, background: '#0ea5e9' }} />
+          <div style={{ width: `${(totalGeneric / splitTotal) * 100}%`, background: '#22c55e' }} />
+        </div>
+        <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Post-migration total: Brand {fmt(totalBrand)} · Generic {fmt(totalGeneric)}</div>
+        <div style={{ marginTop: 10, overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, color: '#475569' }}>
+            <thead>
+              <tr><th align="left">Date</th><th align="left">Brand clicks</th><th align="left">Generic clicks</th><th align="left">Brand impr.</th><th align="left">Generic impr.</th><th align="right">Impr. share</th></tr>
+            </thead>
+            <tbody>
+              {points.map((p) => {
+                const brandClicks = p.brandClicks ?? 0
+                const genericClicks = p.genericClicks ?? 0
+                const brandImpressions = p.brandImpressions ?? 0
+                const genericImpressions = p.genericImpressions ?? 0
+                const totalImpressions = Math.max(1, brandImpressions + genericImpressions)
+                const metricBar = (value: number, max: number, color: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}><span style={{ minWidth: 30, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(value)}</span><span style={{ display: 'inline-block', height: 7, width: `${Math.max(4, Math.min(100, (value / max) * 100))}%`, maxWidth: 70, background: color, borderRadius: 999 }} /></div>
+                return <tr key={p.date}>
+                  <td style={{ padding: '4px 6px 4px 0', whiteSpace: 'nowrap' }}>{p.date.slice(5)}{p.daysSinceCutover === 1 ? ' · migration' : p.daysSinceCutover < 1 ? ` · ${p.daysSinceCutover}d` : ` · +${p.daysSinceCutover - 1}d`}</td>
+                  <td style={{ padding: '4px 6px' }}>{metricBar(brandClicks, maxSplitClicks, '#0ea5e9')}</td>
+                  <td style={{ padding: '4px 6px' }}>{metricBar(genericClicks, maxSplitClicks, '#22c55e')}</td>
+                  <td style={{ padding: '4px 6px' }}>{metricBar(brandImpressions, maxSplitImpressions, '#38bdf8')}</td>
+                  <td style={{ padding: '4px 6px' }}>{metricBar(genericImpressions, maxSplitImpressions, '#86efac')}</td>
+                  <td style={{ padding: '4px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>{Math.round((brandImpressions / totalImpressions) * 100)}% / {Math.round((genericImpressions / totalImpressions) * 100)}%</td>
+                </tr>
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {result.trackingFlags && result.trackingFlags.length > 0 && <div style={{ marginTop: 14 }}>
+        <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 8 }}>Flags</div>
+        {result.trackingFlags.map((flag, i) => <div key={i} style={{ marginBottom: 6, fontSize: 12, color: '#475569' }}><strong>{flag.severity.toUpperCase()}:</strong> {flag.title} — {flag.description}</div>)}
+      </div>}
+      {Object.keys(issueReport).length > 0 && <div style={{ marginTop: 14 }}>
+        <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 8 }}>Bullet-point issue report</div>
+        {Object.entries(PHASE_LABELS).map(([phase, label]) => {
+          const bullets = issueReport[phase] || []
+          if (!bullets.length) return null
+          return <div key={phase} style={{ marginBottom: 8 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div><ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 12, color: '#475569' }}>{bullets.slice(0, 6).map((b, i) => <li key={i}>{b}</li>)}</ul></div>
+        })}
+      </div>}
+    </div>
+  )
+}
 
 const SeoMigrationCheckView = ({ result }: { result: MigrationResult | null }) => {
   if (!result || (!result.checklist && result.overallScore == null)) {
@@ -136,6 +245,10 @@ const SeoMigrationCheckView = ({ result }: { result: MigrationResult | null }) =
         </div>
       </div>
 
+      {result.trackingSnapshots && result.trackingSnapshots.length > 0 && (
+        <TrackingReport result={result} />
+      )}
+
       {/* Prioritised actions */}
       {result.actions && result.actions.length > 0 && (
         <div className="od-box" style={{ marginBottom: 16 }}>
@@ -196,6 +309,14 @@ const SeoMigrationCheckView = ({ result }: { result: MigrationResult | null }) =
       })}
     </div>
   )
+}
+
+const dot: CSSProperties = {
+  display: 'inline-block',
+  width: 10,
+  height: 10,
+  borderRadius: '50%',
+  marginRight: 4,
 }
 
 const badge: CSSProperties = {

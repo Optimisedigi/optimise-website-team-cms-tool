@@ -125,6 +125,83 @@ export const SeoMigrationChecks: CollectionConfig = {
                 condition: (_d, sibling) => !!sibling?.error,
               },
             },
+            {
+              name: "trackingControls",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/SeoMigrationTrackingControls",
+                },
+              },
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "trackingEnabled",
+                  label: "Migration 30-day review",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Turn on the sequenced 30-day migration review. Emails send at days 1, 2, 3, 7, 10, 14, 21, and 30 after cutover.",
+                  },
+                },
+                {
+                  name: "trackingStatus",
+                  label: "30-day review status",
+                  type: "select",
+                  defaultValue: "active",
+                  options: [
+                    { label: "Active", value: "active" },
+                    { label: "Complete", value: "complete" },
+                    { label: "Paused", value: "paused" },
+                    { label: "Failed", value: "failed" },
+                  ],
+                  admin: { readOnly: true, description: "Scheduled report processing status" },
+                },
+              ],
+            },
+            {
+              name: "emailRecipients",
+              label: "30-day review email recipients",
+              type: "textarea",
+              admin: {
+                description: "Comma/newline-separated recipients. Falls back to ALERT_EMAIL_TO if empty.",
+              },
+            },
+            {
+              name: "trackingNotes",
+              label: "30-day review notes / email comment",
+              type: "textarea",
+              admin: {
+                description: "Optional internal note/comment for this migration review. Included in milestone emails so recipients know the context.",
+              },
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "lastTrackingRunAt",
+                  type: "date",
+                  admin: { readOnly: true, description: "Last scheduled tracking refresh" },
+                },
+                {
+                  name: "lastEmailSentAt",
+                  type: "date",
+                  admin: { readOnly: true, description: "Last milestone email sent" },
+                },
+                {
+                  name: "lastEmailMilestoneDay",
+                  type: "number",
+                  admin: { readOnly: true, description: "Last emailed post-migration day" },
+                },
+                {
+                  name: "nextEmailMilestoneDay",
+                  type: "number",
+                  admin: { readOnly: true, description: "Next scheduled post-migration day" },
+                },
+              ],
+            },
           ],
         },
         {
@@ -153,6 +230,26 @@ export const SeoMigrationChecks: CollectionConfig = {
             },
             {
               name: "actions",
+              type: "json",
+              admin: { readOnly: true, condition: () => false },
+            },
+            {
+              name: "trackingSchedule",
+              type: "json",
+              admin: { readOnly: true, condition: () => false },
+            },
+            {
+              name: "trackingSnapshots",
+              type: "json",
+              admin: { readOnly: true, condition: () => false },
+            },
+            {
+              name: "trackingFlags",
+              type: "json",
+              admin: { readOnly: true, condition: () => false },
+            },
+            {
+              name: "trackingIssueReport",
               type: "json",
               admin: { readOnly: true, condition: () => false },
             },

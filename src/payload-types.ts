@@ -6501,6 +6501,38 @@ export interface SeoMigrationCheck {
    */
   runAt?: string | null;
   error?: string | null;
+  /**
+   * Turn on the sequenced 30-day migration review. Emails send at days 1, 2, 3, 7, 10, 14, 21, and 30 after cutover.
+   */
+  trackingEnabled?: boolean | null;
+  /**
+   * Scheduled report processing status
+   */
+  trackingStatus?: ('active' | 'complete' | 'paused' | 'failed') | null;
+  /**
+   * Comma/newline-separated recipients. Falls back to ALERT_EMAIL_TO if empty.
+   */
+  emailRecipients?: string | null;
+  /**
+   * Optional internal note/comment for this migration review. Included in milestone emails so recipients know the context.
+   */
+  trackingNotes?: string | null;
+  /**
+   * Last scheduled tracking refresh
+   */
+  lastTrackingRunAt?: string | null;
+  /**
+   * Last milestone email sent
+   */
+  lastEmailSentAt?: string | null;
+  /**
+   * Last emailed post-migration day
+   */
+  lastEmailMilestoneDay?: number | null;
+  /**
+   * Next scheduled post-migration day
+   */
+  nextEmailMilestoneDay?: number | null;
   scoresByPhase?:
     | {
         [k: string]: unknown;
@@ -6538,6 +6570,42 @@ export interface SeoMigrationCheck {
     | boolean
     | null;
   actions?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  trackingSchedule?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  trackingSnapshots?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  trackingFlags?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  trackingIssueReport?:
     | {
         [k: string]: unknown;
       }
@@ -10504,11 +10572,23 @@ export interface SeoMigrationChecksSelect<T extends boolean = true> {
   overallScore?: T;
   runAt?: T;
   error?: T;
+  trackingEnabled?: T;
+  trackingStatus?: T;
+  emailRecipients?: T;
+  trackingNotes?: T;
+  lastTrackingRunAt?: T;
+  lastEmailSentAt?: T;
+  lastEmailMilestoneDay?: T;
+  nextEmailMilestoneDay?: T;
   scoresByPhase?: T;
   checklist?: T;
   redirects?: T;
   performance?: T;
   actions?: T;
+  trackingSchedule?: T;
+  trackingSnapshots?: T;
+  trackingFlags?: T;
+  trackingIssueReport?: T;
   updatedAt?: T;
   createdAt?: T;
 }

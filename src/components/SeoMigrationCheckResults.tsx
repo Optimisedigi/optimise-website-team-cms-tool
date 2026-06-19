@@ -32,6 +32,14 @@ const SeoMigrationCheckResults = () => {
     checklist: data.checklist as MigrationResult['checklist'],
     actions: data.actions as MigrationResult['actions'],
     performance: data.performance as MigrationResult['performance'],
+    trackingSnapshots: data.trackingSnapshots as MigrationResult['trackingSnapshots'],
+    trackingFlags: data.trackingFlags as MigrationResult['trackingFlags'],
+    trackingIssueReport: data.trackingIssueReport as MigrationResult['trackingIssueReport'],
+    trackingStatus: data.trackingStatus as string | undefined,
+    lastTrackingRunAt: data.lastTrackingRunAt as string | undefined,
+    lastEmailSentAt: data.lastEmailSentAt as string | undefined,
+    lastEmailMilestoneDay: data.lastEmailMilestoneDay as number | undefined,
+    nextEmailMilestoneDay: data.nextEmailMilestoneDay as number | undefined,
     runAt: data.runAt as string | undefined,
   }
 
