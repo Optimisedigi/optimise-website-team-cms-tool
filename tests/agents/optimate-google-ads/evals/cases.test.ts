@@ -12,4 +12,16 @@ describe("OptiMate eval cases", () => {
     expect(actionCases.length).toBeGreaterThan(0);
     expect(actionCases.every((testCase) => !testCase.parallelSafe)).toBe(true);
   });
+
+  it("includes the frequent eight-week performance story prompt as read-only", () => {
+    const testCase = OPTIMATE_GOOGLE_ADS_EVAL_CASES.find((item) => item.id === "eight-week-performance-story");
+    expect(testCase).toMatchObject({
+      category: "read-only",
+      expectedTools: ["get_weekly_metric_table"],
+      requiresAllowActions: false,
+      parallelSafe: true,
+    });
+    expect(testCase?.prompt).toContain("last eight weeks performance");
+    expect(testCase?.prompt).toContain("two-sentence summary");
+  });
 });

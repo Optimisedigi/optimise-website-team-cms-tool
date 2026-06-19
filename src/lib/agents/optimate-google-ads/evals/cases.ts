@@ -54,7 +54,7 @@ export const ALL_PROPOSE_TOOLS = [
   "create_account_efficiency_goal_run",
 ];
 
-export const OPTIMATE_EVAL_CASE_VERSION = 1;
+export const OPTIMATE_EVAL_CASE_VERSION = 2;
 
 export const OPTIMATE_GOOGLE_ADS_EVAL_CASES: OptimateEvalCase[] = [
   {
@@ -116,6 +116,22 @@ export const OPTIMATE_GOOGLE_ADS_EVAL_CASES: OptimateEvalCase[] = [
     forbiddenTools: [...ALL_PROPOSE_TOOLS, "get_weekly_trend_note"],
     requiresAllowActions: false,
     parallelSafe: true,
+  },
+  {
+    id: "eight-week-performance-story",
+    version: OPTIMATE_EVAL_CASE_VERSION,
+    category: "read-only",
+    mode: "audit",
+    prompt:
+      "Can you give me the last eight weeks performance and give me the clicks, costs, conversions and CPAs over the eight weeks in a table, and then look at last week only from Monday to Sunday and tell me if there's been any improvement for last week that needs to be called out, and if there's a good story, a positive story to tell for the data, likely conversions or CPA, or if not, average cost per click. Write a two-sentence summary on top of the table.",
+    reasoningMode: "off",
+    expectedTools: ["get_weekly_metric_table"],
+    forbiddenTools: [...ALL_PROPOSE_TOOLS, "get_weekly_trend_note"],
+    forbiddenPhrases: ["I estimate", "roughly", "probably", "I don't have access", "I cannot access"],
+    requiresAllowActions: false,
+    parallelSafe: true,
+    notes:
+      "Hallucination-sensitive frequent user prompt. Must use canonical weekly table for weeks=8 and metrics including clicks, spend/cost, conversions, CPA, and should ground the two-sentence story in the returned rows rather than invented week-over-week figures.",
   },
   {
     id: "monthly-ctr-q1",
