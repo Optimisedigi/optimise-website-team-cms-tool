@@ -1,6 +1,6 @@
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import sgMail from "@sendgrid/mail";
+import { sendBrevoEmail } from "@/lib/brevo-email";
 import { parseBrandTerms } from "@/lib/brand-terms";
 import { fetchDailyBrandedAnalytics, fetchDailySearchAnalytics, refreshAccessToken, type DailySearchAnalyticsRow } from "@/lib/gsc-service";
 import { GSC_LAG_DAYS, type CheckPhase, type ChecklistItem, type MigrationAction, type PerformanceDelta } from "@/lib/seo-migration-check";
@@ -303,10 +303,9 @@ export async function processSeoMigrationTracking(options: { reviewId?: string |
         updateData.trackingStatus = 'active';
       }
 
-      if (dueMilestone && options.sendEmails === true && process.env.SENDGRID_API_KEY && process.env.ALERT_EMAIL_FROM) {
+      if (dueMilestone && options.sendEmails === true && process.env.BREVO_API_KEY) {
         const to = recipientsFrom(review.emailRecipients);
         if (to.length) {
-          sgMail.setApiKey(process.env.SENDGRID_API_KEY);
           const milestoneReport = buildMilestoneReport({ milestoneDay: dueMilestone, snapshots, flags, issueReport, performance: review.performance });
           const email = buildSeoMigrationReportEmail({
             clientName: client.name || "Client",
@@ -318,7 +317,15 @@ export async function processSeoMigrationTracking(options: { reviewId?: string |
             trackingNotes: review.trackingNotes ?? null,
             report: milestoneReport,
           });
-          await sgMail.send({ from: process.env.ALERT_EMAIL_FROM, to, subject: email.subject, html: email.html, text: email.text });
+          const sendResult = await sendBrevoEmail({
+            to: to.map((email) => ({ email })),
+            subject: email.subject,
+            htmlContent: email.html,
+            textContent: email.text,
+          });
+          if (!sendResult.ok) {
+            throw new Error(`Brevo send failed: ${[sendResult.code, sendResult.message].filter(Boolean).join(" — ") || "unknown error"}`);
+          }
           updateData.lastEmailSentAt = new Date().toISOString();
           updateData.lastEmailMilestoneDay = dueMilestone;
           if (dueMilestone === 30) updateData.trackingStatus = "complete";

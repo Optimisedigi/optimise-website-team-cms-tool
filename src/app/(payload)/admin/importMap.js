@@ -140,6 +140,7 @@ import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../co
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
 import { default as default_47462fb0551fe403e8e18448c49a5142 } from '../../../components/SeoMigrationCheckResults'
+import { default as default_63916dbe1a8ad3218e444be0ca597faf } from '../../../components/SeoMigrationTrackingControls'
 import { default as default_c99210795b28d20ce793bfa990d64a2d } from '../../../components/NegativeKeywordListInfo'
 import { default as default_782e1e631e6dbac23bb6406c8354b517 } from '../../../components/NegativeKeywordCampaignSelect'
 import { default as default_67cd75f7dc15172a4e21290c38ac2619 } from '../../../components/NegativeKeywordBulkAdd'
@@ -326,6 +327,7 @@ export const importMap = {
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,
   "./components/GscIndexingAuditResults#default": default_14da33fa7cd5bda0159f477250995b44,
   "./components/SeoMigrationCheckResults#default": default_47462fb0551fe403e8e18448c49a5142,
+  "./components/SeoMigrationTrackingControls#default": default_63916dbe1a8ad3218e444be0ca597faf,
   "./components/NegativeKeywordListInfo#default": default_c99210795b28d20ce793bfa990d64a2d,
   "./components/NegativeKeywordCampaignSelect#default": default_782e1e631e6dbac23bb6406c8354b517,
   "./components/NegativeKeywordBulkAdd#default": default_67cd75f7dc15172a4e21290c38ac2619,
