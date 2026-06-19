@@ -59,51 +59,52 @@ function health(report: MilestoneReport): "critical" | "warning" | "healthy" {
   return "healthy";
 }
 
+/**
+ * Build a QuickChart image URL for the clicks/impressions line graph.
+ *
+ * Inline `<svg>` is stripped by Gmail and other email clients, so the email
+ * renders the chart as a hosted PNG via `<img>` (QuickChart runs Chart.js
+ * server-side). Every day is labelled on the x-axis (`autoSkip:false`,
+ * `maxRotation:90`) and the migration day is drawn as a dashed annotation
+ * line.
+ */
+function quickChartUrl(points: MilestoneReport["snapshots"]): string {
+  const labels = points.map((p) => formatDayLabel(p.date));
+  const migrationIndex = Math.max(0, points.findIndex((p) => p.daysSinceCutover === 1));
+  const config = {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "Clicks", data: points.map((p) => p.clicks), borderColor: "#2563eb", backgroundColor: "#2563eb", borderWidth: 3, pointRadius: 0, fill: false, yAxisID: "clicks", tension: 0.3 },
+        { label: "Impressions", data: points.map((p) => p.impressions), borderColor: "#8b5cf6", backgroundColor: "#8b5cf6", borderWidth: 3, pointRadius: 0, fill: false, yAxisID: "impressions", tension: 0.3 },
+      ],
+    },
+    options: {
+      legend: { position: "bottom" },
+      scales: {
+        xAxes: [{ ticks: { autoSkip: false, maxRotation: 90, minRotation: 90, fontSize: 9, fontColor: "#94a3b8" }, gridLines: { display: false } }],
+        yAxes: [
+          { id: "clicks", position: "left", ticks: { beginAtZero: true, fontColor: "#2563eb" }, scaleLabel: { display: true, labelString: "Clicks", fontColor: "#2563eb" } },
+          { id: "impressions", position: "right", ticks: { beginAtZero: true, fontColor: "#8b5cf6" }, gridLines: { display: false }, scaleLabel: { display: true, labelString: "Impressions", fontColor: "#8b5cf6" } },
+        ],
+      },
+      annotation: {
+        annotations: [
+          { type: "line", mode: "vertical", scaleID: "x-axis-0", value: labels[migrationIndex], borderColor: "#991b1b", borderWidth: 2, borderDash: [6, 5], label: { enabled: true, content: "Migration", position: "top", backgroundColor: "#991b1b", fontSize: 10 } },
+        ],
+      },
+    },
+  };
+  const encoded = encodeURIComponent(JSON.stringify(config));
+  return `https://quickchart.io/chart?w=760&h=300&devicePixelRatio=2&bkg=white&c=${encoded}`;
+}
+
 function miniChart(report: MilestoneReport): string {
   const points = report.snapshots;
   if (!points.length) return `<p style="color:#64748b;">GSC daily data is still pending.</p>`;
-
-  const w = 760;
-  const h = 250;
-  const pad = 34;
-  const axisBottom = 56; // room for vertical date labels
-  const plotH = h - pad - axisBottom;
-  const maxClicks = Math.max(1, ...points.map((p) => p.clicks));
-  const maxImpressions = Math.max(1, ...points.map((p) => p.impressions));
-  const x = (i: number) => pad + (points.length <= 1 ? 0 : (i / (points.length - 1)) * (w - pad * 2));
-  const yClicks = (v: number) => pad + plotH - (v / maxClicks) * plotH;
-  const yImpressions = (v: number) => pad + plotH - (v / maxImpressions) * plotH;
-  const labelStep = Math.max(1, Math.ceil(points.length / 14));
-  const clicksLine = points.map((p, i) => `${x(i)},${yClicks(p.clicks)}`).join(" ");
-  const impressionsLine = points.map((p, i) => `${x(i)},${yImpressions(p.impressions)}`).join(" ");
-  const migrationIndex = Math.max(0, points.findIndex((p) => p.daysSinceCutover === 1));
-  const migrationX = x(migrationIndex);
-
-  const gridlines = [0, 0.25, 0.5, 0.75, 1]
-    .map((t) => `<line x1="${pad}" x2="${w - pad}" y1="${pad + t * plotH}" y2="${pad + t * plotH}" stroke="#e2e8f0" />`)
-    .join("");
-  const labels = points
-    .map((p, i) =>
-      i % labelStep === 0 || i === points.length - 1
-        ? `<text x="${x(i)}" y="${pad + plotH + 8}" font-size="9" fill="#94a3b8" text-anchor="end" transform="rotate(-90 ${x(i)} ${pad + plotH + 8})">${esc(formatDayLabel(p.date))}</text>`
-        : "",
-    )
-    .join("");
-
-  const svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block;width:100%;height:auto;" role="img" aria-label="Post-migration clicks and impressions chart">
-    ${gridlines}
-    <rect x="${migrationX}" y="18" width="${w - pad - migrationX}" height="${pad + plotH - 18}" fill="#fee2e2" opacity="0.16" />
-    <line x1="${migrationX}" x2="${migrationX}" y1="18" y2="${pad + plotH}" stroke="#991b1b" stroke-dasharray="6 5" stroke-width="3" />
-    <text x="${migrationX + 8}" y="24" font-size="12" fill="#991b1b" font-weight="700">Migration date</text>
-    <polyline points="${clicksLine}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-    <polyline points="${impressionsLine}" fill="none" stroke="#8b5cf6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-    ${labels}
-  </svg>
-  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#475569;">
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2563eb;margin-right:4px;"></span>Clicks</span>
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8b5cf6;margin-right:4px;"></span>Impressions</span>
-  </div>`;
-  return svg;
+  const url = quickChartUrl(points);
+  return `<img src="${esc(url)}" width="760" alt="Post-migration clicks and impressions chart" style="display:block;width:100%;max-width:760px;height:auto;border:1px solid #e2e8f0;border-radius:12px;" />`;
 }
 
 function compactMetric(value: number, max: number, color: string): string {
