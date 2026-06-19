@@ -118,7 +118,7 @@ function brandGenericTable(report: MilestoneReport): string {
   const maxImpressions = Math.max(1, ...rows.flatMap((row) => [row.brandImpressions ?? 0, row.genericImpressions ?? 0]));
   if (!rows.length) return `<p style="color:#64748b;">Brand/generic data is still pending.</p>`;
   return `<table style="width:100%;border-collapse:collapse;font-size:11px;">
-    <thead><tr><th align="left" style="padding-left:8px;">Date</th><th align="left">Brand clicks</th><th align="left">Generic clicks</th><th align="left">Brand impr.</th><th align="left">Generic impr.</th><th align="right" style="padding-right:8px;">Impr. share</th></tr></thead>
+    <thead><tr><th align="left" style="padding-left:8px;">Date</th><th align="left">Brand clicks</th><th align="left">Brand impressions</th><th align="left">Generic clicks</th><th align="left">Generic impressions</th><th align="right" style="padding-right:8px;">Impr. share</th></tr></thead>
     <tbody>${rows.map((row) => {
       const brandClicks = row.brandClicks ?? 0;
       const genericClicks = row.genericClicks ?? 0;
@@ -128,8 +128,8 @@ function brandGenericTable(report: MilestoneReport): string {
       return `<tr>
         <td style="padding:4px 8px;color:#475569;white-space:nowrap;">${esc(formatDayLabel(row.date))}${row.daysSinceCutover === 1 ? " · migration" : row.daysSinceCutover < 1 ? ` · ${row.daysSinceCutover}d` : ` · +${row.daysSinceCutover - 1}d`}</td>
         <td style="padding:4px 6px;min-width:86px;">${compactMetric(brandClicks, maxClicks, "#0ea5e9")}</td>
-        <td style="padding:4px 6px;min-width:86px;">${compactMetric(genericClicks, maxClicks, "#22c55e")}</td>
         <td style="padding:4px 6px;min-width:86px;">${compactMetric(brandImpressions, maxImpressions, "#38bdf8")}</td>
+        <td style="padding:4px 6px;min-width:86px;">${compactMetric(genericClicks, maxClicks, "#22c55e")}</td>
         <td style="padding:4px 6px;min-width:86px;">${compactMetric(genericImpressions, maxImpressions, "#86efac")}</td>
         <td align="right" style="padding:4px 8px;color:#64748b;white-space:nowrap;">${Math.round((brandImpressions / totalImpressions) * 100)}% / ${Math.round((genericImpressions / totalImpressions) * 100)}%</td>
       </tr>`;

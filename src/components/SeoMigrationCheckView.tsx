@@ -165,7 +165,7 @@ function TrackingReport({ result }: { result: MigrationResult }) {
         <div style={{ marginTop: 10, overflowX: 'auto', padding: '0 12px', border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, color: '#475569' }}>
             <thead>
-              <tr><th align="left">Date</th><th align="left">Brand clicks</th><th align="left">Generic clicks</th><th align="left">Brand impr.</th><th align="left">Generic impr.</th><th align="right">Impr. share</th></tr>
+              <tr><th align="left">Date</th><th align="left">Brand clicks</th><th align="left">Brand impressions</th><th align="left">Generic clicks</th><th align="left">Generic impressions</th><th align="right">Impr. share</th></tr>
             </thead>
             <tbody>
               {points.map((p) => {
@@ -178,8 +178,8 @@ function TrackingReport({ result }: { result: MigrationResult }) {
                 return <tr key={p.date}>
                   <td style={{ padding: '4px 6px 4px 0', whiteSpace: 'nowrap' }}>{formatDayLabel(p.date)}{p.daysSinceCutover === 1 ? ' · migration' : p.daysSinceCutover < 1 ? ` · ${p.daysSinceCutover}d` : ` · +${p.daysSinceCutover - 1}d`}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(brandClicks, maxSplitClicks, '#0ea5e9')}</td>
-                  <td style={{ padding: '4px 6px' }}>{metricBar(genericClicks, maxSplitClicks, '#22c55e')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(brandImpressions, maxSplitImpressions, '#38bdf8')}</td>
+                  <td style={{ padding: '4px 6px' }}>{metricBar(genericClicks, maxSplitClicks, '#22c55e')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(genericImpressions, maxSplitImpressions, '#86efac')}</td>
                   <td style={{ padding: '4px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>{Math.round((brandImpressions / totalImpressions) * 100)}% / {Math.round((genericImpressions / totalImpressions) * 100)}%</td>
                 </tr>
