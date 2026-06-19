@@ -1862,6 +1862,16 @@ export async function runMigrations(
     )`);
     await run("nkl_camp_order_idx", "CREATE INDEX IF NOT EXISTS `nkl_camp_order_idx` ON `negative_keyword_lists_campaigns` (`_order`)");
     await run("nkl_camp_parent_idx", "CREATE INDEX IF NOT EXISTS `nkl_camp_parent_idx` ON `negative_keyword_lists_campaigns` (`_parent_id`)");
+    await run("negative_keyword_lists.campaign_count", "ALTER TABLE `negative_keyword_lists` ADD `campaign_count` numeric DEFAULT 0");
+    await run("negative_keyword_lists.campaign_count_backfill", `UPDATE \`negative_keyword_lists\`
+      SET \`campaign_count\` = CASE
+        WHEN COALESCE(TRIM(\`campaign_regex\`), '') = '' THEN 0
+        ELSE COALESCE((
+          SELECT COUNT(*)
+          FROM \`negative_keyword_lists_campaigns\`
+          WHERE \`negative_keyword_lists_campaigns\`.\`_parent_id\` = \`negative_keyword_lists\`.\`id\`
+        ), 0)
+      END`);
   
     // ── SEO Auto Notification Emails (Payload array: seoAuto.notificationEmails on Clients) ──
     await run("clients_seo_auto_notification_emails", `CREATE TABLE IF NOT EXISTS \`clients_seo_auto_notification_emails\` (
