@@ -346,8 +346,21 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15, 23, 42, .35)', display: 'flex', justifyContent: 'flex-end', paddingInline: 5, boxSizing: 'border-box' }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <aside style={{ width: 'min(1500px, calc(100vw - 10px))', height: '100%', background: 'var(--theme-bg)', boxShadow: '-18px 0 44px rgba(15,23,42,.22)', overflow: 'auto', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--theme-elevation-150)', position: 'sticky', top: 0, background: 'var(--theme-bg)', zIndex: 2 }}>
-          <strong style={{ fontSize: 18 }}>Task details</strong>
-          <button type="button" onClick={onClose} style={{ ...fieldStyle, width: 42, cursor: 'pointer', fontWeight: 900 }}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '1 1 auto' }}>
+            <strong style={{ fontSize: 18, whiteSpace: 'nowrap' }}>Task details:</strong>
+            {task ? (
+              <input
+                value={task.title || ''}
+                aria-label="Task title"
+                onChange={(e) => setData((current) => current ? { ...current, task: { ...current.task, title: e.target.value } } : current)}
+                onBlur={(e) => { if (e.target.value !== task.title) void patchTask({ title: e.target.value || 'New task' }) }}
+                style={{ border: 0, background: 'transparent', color: 'inherit', fontSize: 18, fontWeight: 800, minWidth: 0, flex: '1 1 auto', outline: 'none', padding: 0 }}
+              />
+            ) : (
+              <span style={{ color: 'var(--theme-elevation-500)' }}>Loading…</span>
+            )}
+          </div>
+          <button type="button" onClick={onClose} style={{ ...fieldStyle, width: 42, cursor: 'pointer', fontWeight: 900, flex: '0 0 auto' }}>×</button>
         </div>
 
         {loading ? (
@@ -355,16 +368,9 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
         ) : !task ? (
           <div style={{ padding: 24, color: '#991b1b' }}>{error || 'Task not found'}</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.08fr) minmax(320px, .92fr)', gap: 28, padding: '24px 5px', boxSizing: 'border-box' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.08fr) minmax(320px, .92fr)', gap: 28, padding: '24px 24px', boxSizing: 'border-box' }}>
             <section style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
               {error && <div style={{ padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
-              <input
-                value={task.title || ''}
-                onChange={(e) => setData((current) => current ? { ...current, task: { ...current.task, title: e.target.value } } : current)}
-                onBlur={(e) => { if (e.target.value !== task.title) void patchTask({ title: e.target.value || 'New task' }) }}
-                style={{ ...fieldStyle, fontSize: 30, fontWeight: 900, border: 'none', padding: 0, background: 'transparent' }}
-              />
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <label style={{ display: 'grid', gap: 5, fontWeight: 700, fontSize: 12, color: 'var(--theme-elevation-500)' }}>
                   Assigned

@@ -38,17 +38,12 @@ describe('TeamTasksSpreadsheet permissions', () => {
     render(<TeamTasksSpreadsheet />)
 
     const existingClient = await screen.findByDisplayValue('Berendsen')
-    const [existingTaskType, draftTaskType] = screen.getAllByDisplayValue('Blog Post')
+    const existingTaskType = screen.getByDisplayValue('Blog Post')
     const existingAssignee = screen.getByDisplayValue('Lorenzo')
-    const draftClient = screen.getByDisplayValue('Client')
-    const draftAssignee = screen.getByDisplayValue('Unassigned')
 
     expect(existingClient).toBeEnabled()
     expect(existingTaskType).toBeEnabled()
     expect(existingAssignee).toBeEnabled()
-    expect(draftClient).toBeEnabled()
-    expect(draftTaskType).toBeEnabled()
-    expect(draftAssignee).toBeEnabled()
 
     await waitFor(() => {
       expect(screen.queryByTitle('Delete row')).not.toBeInTheDocument()

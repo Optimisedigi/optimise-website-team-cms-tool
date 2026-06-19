@@ -4756,8 +4756,15 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
   width: calc(100vw - 112px);
 }
 
+.template-default:not(.template-default--nav-open) .template-default__wrap:has(.od-team-tasks-list) {
+  margin-left: 64px;
+  max-width: none;
+  width: calc(100% - 64px);
+}
+
 .template-default:not(.template-default--nav-open) .od-team-tasks-list {
-  width: calc(100vw - 30px);
+  padding-inline: 10px;
+  width: 100%;
 }
 
 // Google Ads budget management lives inside the client/audit edit form but needs

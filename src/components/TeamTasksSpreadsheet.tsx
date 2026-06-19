@@ -27,17 +27,12 @@ const taskTypes = [
   ['blog_post', 'Blog Post'],
   ['email', 'Email'],
   ['product_page', 'Product Page'],
-  ['product_update', 'Product Update'],
   ['research', 'Research'],
   ['website_content', 'Website Content'],
   ['seo', 'SEO'],
-  ['internal_documentation', 'Internal Documentation'],
   ['reporting', 'Reporting'],
   ['google_ads', 'Google Ads'],
-  ['schema_fix', 'Schema Fix'],
-  ['faq_schema', 'FAQ Schema'],
   ['product_feed', 'Product Feed'],
-  ['google_sheet', 'Google Sheet'],
   ['other', 'Other'],
 ]
 
@@ -286,7 +281,6 @@ export default function TeamTasksSpreadsheet() {
   const [canManage, setCanManage] = useState(false)
   const [canEditTaskFields, setCanEditTaskFields] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | number | null>(null)
-  const [draft, setDraft] = useState({ title: '', client: '', taskType: 'blog_post', dueDate: mondayKey(), assignedTo: '', instructions: '' })
 
   const load = async () => {
     setLoading(true)
@@ -326,11 +320,6 @@ export default function TeamTasksSpreadsheet() {
     }
     return Array.from(groups.entries())
   }, [tasks, weekStart])
-  const draftWeek = taskWeek(draft.dueDate) || weekStart
-  const lastGroupIndex = groupedTasks.length - 1
-  const draftMergesWithLastWeek = lastGroupIndex >= 0 && groupedTasks[lastGroupIndex]?.[0] === draftWeek
-  const draftWeekColor = draftMergesWithLastWeek ? weekColors[lastGroupIndex % weekColors.length] : weekColors[groupedTasks.length % weekColors.length]
-
   const openTask = (id: string | number) => {
     setSelectedTaskId(id)
     const url = new URL(window.location.href)
@@ -391,11 +380,10 @@ export default function TeamTasksSpreadsheet() {
       const res = await fetch('/api/team-tasks/grid', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...draft, title: draft.title.trim() || 'New task', status: 'in_progress', priority: 'normal' }),
+        body: JSON.stringify({ title: 'New task', taskType: 'blog_post', dueDate: weekStart, status: 'in_progress', priority: 'normal' }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to add task')
-      setDraft({ title: '', client: draft.client, taskType: draft.taskType, dueDate: weekStart, assignedTo: draft.assignedTo, instructions: '' })
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add task')
@@ -423,7 +411,6 @@ export default function TeamTasksSpreadsheet() {
             onChange={(e) => {
               const next = mondayKey(new Date(`${e.target.value}T00:00:00`))
               setWeekStart(next)
-              setDraft((current) => ({ ...current, dueDate: next }))
             }}
             style={inputStyle}
           />
@@ -448,13 +435,13 @@ export default function TeamTasksSpreadsheet() {
         <table style={{ width: '100%', minWidth: 1360, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: 132 }} />
-            <col style={{ width: 120 }} />
-            <col style={{ width: 145 }} />
+            <col style={{ width: 170 }} />
+            <col style={{ width: 175 }} />
             <col style={{ width: 260 }} />
             <col style={{ width: 128 }} />
             <col style={{ width: 150 }} />
             <col />
-            <col style={{ width: 96 }} />
+            <col style={{ width: 54 }} />
           </colgroup>
           <thead>
             <tr>
@@ -475,13 +462,11 @@ export default function TeamTasksSpreadsheet() {
               <tr><td colSpan={8} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No tasks match this week — add the first row below.</td></tr>
             ) : groupedTasks.map(([week, rows], groupIndex) => {
               const weekColor = weekColors[groupIndex % weekColors.length]
-              const mergesDraft = groupIndex === lastGroupIndex && draftMergesWithLastWeek
               return rows.map((task, index) => (
               <tr key={task.id} style={{ background: weekColor.bg, ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
                 {index === 0 && (
-                  <WeekPickerCell value={week} rowSpan={rows.length + (mergesDraft ? 1 : 0)} color={weekColor.bg} boxColor={weekColor.box} onChange={(nextWeek) => {
+                  <WeekPickerCell value={week} rowSpan={rows.length} color={weekColor.bg} boxColor={weekColor.box} onChange={(nextWeek) => {
                     void Promise.all(rows.map((row) => patch(row.id, { dueDate: nextWeek })))
-                    if (mergesDraft) setDraft((current) => ({ ...current, dueDate: nextWeek }))
                   }} />
                 )}
                 <td style={tdStyle}>
@@ -520,15 +505,20 @@ export default function TeamTasksSpreadsheet() {
                   </select>
                 </td>
                 <td style={tdStyle}>
-                  <NotesPreview value={task.instructions || task.staffNotes || ''} />
+                  <NotesEditor
+                    value={task.instructions || ''}
+                    onSave={(next) => {
+                      if (next !== (task.instructions || '')) void patch(task.id, { instructions: next })
+                    }}
+                  />
                 </td>
-                <td style={tdStyle}>
-                  <div style={{ display: 'grid', gap: 4 }}>
+                <td style={{ ...tdStyle, width: 54, minWidth: 54, padding: 4 }}>
+                  <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
                     <button
                       type="button"
                       onClick={() => openTask(task.id)}
                       title="Open task details"
-                      style={{ ...inputStyle, padding: '7px 0', cursor: 'pointer', color: '#1d4ed8', fontWeight: 900 }}
+                      style={{ ...inputStyle, width: 36, height: 36, padding: 0, cursor: 'pointer', color: '#1d4ed8', fontWeight: 900 }}
                     >
                       ↗
                     </button>
@@ -538,7 +528,7 @@ export default function TeamTasksSpreadsheet() {
                         onClick={() => void deleteRow(task.id)}
                         disabled={savingId === task.id}
                         title="Delete row"
-                        style={{ ...inputStyle, padding: '7px 0', cursor: 'pointer', color: '#991b1b', fontWeight: 900 }}
+                        style={{ ...inputStyle, width: 36, height: 36, padding: 0, cursor: 'pointer', color: '#991b1b', fontWeight: 900 }}
                       >
                         ×
                       </button>
@@ -550,63 +540,6 @@ export default function TeamTasksSpreadsheet() {
             })}
             {!loading && (
               <>
-                <tr style={{ background: draftWeekColor.bg }}>
-                  {!draftMergesWithLastWeek && (
-                    <WeekPickerCell value={draft.dueDate} color={draftWeekColor.bg} boxColor={draftWeekColor.box} onChange={(nextWeek) => setDraft({ ...draft, dueDate: nextWeek })} />
-                  )}
-                  <td style={tdStyle}>
-                    <select value={draft.client} onChange={(e) => setDraft({ ...draft, client: e.target.value })} style={inputStyle}>
-                      <option value="">Client</option>
-                      {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-                    </select>
-                  </td>
-                  <td style={tdStyle}>
-                    <select value={draft.taskType} onChange={(e) => setDraft({ ...draft, taskType: e.target.value })} style={inputStyle}>
-                      {taskTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                    </select>
-                  </td>
-                  <td style={tdStyle}>
-                    <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Type task title here…" style={{ ...inputStyle, minWidth: 260, borderColor: '#14b8a6' }} onKeyDown={(e) => { if (e.key === 'Enter') void addRow() }} />
-                  </td>
-                  <td style={tdStyle}>
-                    <select value="in_progress" disabled style={{ ...inputStyle, width: 126, whiteSpace: 'nowrap', fontSize: 12, opacity: 1, ...statusTone('in_progress') }}>
-                      <option value="in_progress">In Progress</option>
-                    </select>
-                  </td>
-                  <td style={tdStyle}>
-                    <select value={draft.assignedTo} onChange={(e) => setDraft({ ...draft, assignedTo: e.target.value })} style={inputStyle}>
-                      <option value="">Unassigned</option>
-                      {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-                    </select>
-                  </td>
-                  <td style={tdStyle}>
-                    <NotesEditor
-                      value={draft.instructions}
-                      onSave={(next) => setDraft({ ...draft, instructions: next })}
-                      minWidth={260}
-                    />
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ display: 'grid', gap: 4 }}>
-                      <button
-                        type="button"
-                        disabled
-                        title="Add the row before opening task details"
-                        style={{ ...inputStyle, padding: '7px 0', cursor: 'not-allowed', color: '#94a3b8', fontWeight: 900, opacity: .65 }}
-                      >
-                        ↗
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDraft({ title: '', client: '', taskType: 'blog_post', dueDate: weekStart, assignedTo: '', instructions: '' })}
-                        title="Clear draft row"
-                        style={{ ...inputStyle, padding: '7px 0', cursor: 'pointer', color: '#64748b', fontWeight: 900 }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </td>
-                </tr>
                 <tr style={{ background: 'rgba(70, 141, 139, 0.08)' }}>
                   <td colSpan={8} style={{ padding: '8px 10px 12px', borderBottom: '1px solid var(--theme-elevation-100)' }}>
                     <button type="button" onClick={addRow} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#14b8a6', borderColor: '#0f766e', color: '#fff' }}>
