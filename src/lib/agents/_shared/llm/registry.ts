@@ -48,6 +48,7 @@ export const MODEL_REGISTRY = {
   // OpenAI / GPT (OpenAI-compatible). API-key path billed to OPENAI_API_KEY.
   "gpt-5.5": { provider: "openai", model: "gpt-5.5" },
   "gpt-4.1": { provider: "openai", model: "gpt-4.1" },
+  "gpt-4.0": { provider: "openai", model: "gpt-4.0" },
   "gpt-4o": { provider: "openai", model: "gpt-4o" },
 
   // GPT-5.5 over the Codex Responses backend, served by a ChatGPT
@@ -211,6 +212,8 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   { canonical: "kimi-for-coding", label: "Kimi For Coding (Kimi OAuth)", hint: "Kimi coding subscription via device-code OAuth. No API tokens billed." },
   { canonical: "kimi-k2.6", label: "Kimi K2.6 (API key)", hint: "Long context, analytical. Default for autonomous runs." },
   { canonical: "minimax-m3", label: "MiniMax M3", hint: "Latest MiniMax fallback for agentic workflows." },
+  { canonical: "gpt-4.1", label: "GPT 4.1 (API key)", hint: "OpenAI API-key path for GPT 4.1 benchmarking." },
+  { canonical: "gpt-4.0", label: "GPT 4.0 (API key)", hint: "OpenAI API-key path for GPT 4.0 benchmarking." },
   { canonical: "gpt-5.5-codex", label: "GPT-5.5 Codex (ChatGPT OAuth)", hint: "GPT-5.5 over Codex. Reasoning is controlled per request." },
   { canonical: "grok-build", label: "Grok Build (SuperGrok OAuth)", hint: "xAI Grok coding model via your SuperGrok subscription. No API tokens billed." },
   { canonical: "grok-composer-2.5-fast", label: "Grok Composer 2.5 Fast (SuperGrok OAuth)", hint: "Faster Grok model via SuperGrok subscription." },

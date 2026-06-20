@@ -22,6 +22,8 @@ describe("OptiMate eval cases", () => {
       parallelSafe: true,
     });
     expect(testCase?.prompt).toContain("last eight weeks performance");
+    expect(testCase?.prompt).toContain("endDate 2026-06-14");
+    expect(testCase?.prompt).toContain("Monday 2026-06-08 to Sunday 2026-06-14");
     expect(testCase?.prompt).toContain("two-sentence summary");
   });
 });

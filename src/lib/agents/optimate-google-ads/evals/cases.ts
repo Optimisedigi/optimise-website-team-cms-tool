@@ -54,7 +54,7 @@ export const ALL_PROPOSE_TOOLS = [
   "create_account_efficiency_goal_run",
 ];
 
-export const OPTIMATE_EVAL_CASE_VERSION = 2;
+export const OPTIMATE_EVAL_CASE_VERSION = 3;
 
 export const OPTIMATE_GOOGLE_ADS_EVAL_CASES: OptimateEvalCase[] = [
   {
@@ -123,7 +123,7 @@ export const OPTIMATE_GOOGLE_ADS_EVAL_CASES: OptimateEvalCase[] = [
     category: "read-only",
     mode: "audit",
     prompt:
-      "Can you give me the last eight weeks performance and give me the clicks, costs, conversions and CPAs over the eight weeks in a table, and then look at last week only from Monday to Sunday and tell me if there's been any improvement for last week that needs to be called out, and if there's a good story, a positive story to tell for the data, likely conversions or CPA, or if not, average cost per click. Write a two-sentence summary on top of the table.",
+      "Can you give me the last eight weeks performance ending Sunday 2026-06-14. Use endDate 2026-06-14 and give me clicks, cost, conversions and CPA for each of the eight Monday-to-Sunday weeks in a table. Then look at last week only, Monday 2026-06-08 to Sunday 2026-06-14, and tell me if there's been any improvement that needs to be called out, and if there's a good positive story to tell from the data, likely conversions or CPA, or if not, average cost per click. Write a two-sentence summary on top of the table.",
     reasoningMode: "off",
     expectedTools: ["get_weekly_metric_table"],
     forbiddenTools: [...ALL_PROPOSE_TOOLS, "get_weekly_trend_note"],
@@ -131,7 +131,7 @@ export const OPTIMATE_GOOGLE_ADS_EVAL_CASES: OptimateEvalCase[] = [
     requiresAllowActions: false,
     parallelSafe: true,
     notes:
-      "Hallucination-sensitive frequent user prompt. Must use canonical weekly table for weeks=8 and metrics including clicks, spend/cost, conversions, CPA, and should ground the two-sentence story in the returned rows rather than invented week-over-week figures.",
+      "Hallucination-sensitive frequent user prompt. Must use canonical weekly table with weeks=8, endDate=2026-06-14, and metrics including clicks, spend/cost, conversions, CPA. The final week must be Monday 2026-06-08 to Sunday 2026-06-14, and the two-sentence story must be grounded in the returned rows rather than invented week-over-week figures.",
   },
   {
     id: "monthly-ctr-q1",
