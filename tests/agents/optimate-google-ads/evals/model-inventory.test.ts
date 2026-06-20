@@ -9,7 +9,8 @@ import { getActivePickerModels, getLegacyHiddenModels, getModelInventory } from 
 
     expect(active).toContain("claude-sonnet-4.6");
     expect(active).toContain("gpt-4.1");
-    expect(active).toContain("gpt-4.0");
+    expect(active).toContain("gpt-4");
+    expect(active).toContain("gpt-4o-mini");
     expect(active).toContain("grok-build");
     expect(legacy).toContain("gpt-4o");
     expect(inventory.find((entry) => entry.canonical === "gpt-4o")?.status).toBe("legacy_hidden");
