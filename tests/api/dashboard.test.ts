@@ -217,6 +217,28 @@ describe('GET /api/dashboard', () => {
     })
   })
 
+  it('calculates lead conversion from converted leads over total leads received', async () => {
+    mockPayload.count.mockImplementation((args: any) => {
+      if (args?.collection === 'sales-leads' && args?.where?.stage?.equals === 'client') {
+        return Promise.resolve({ totalDocs: 3 })
+      }
+      if (args?.collection === 'sales-leads' && !args?.where) {
+        return Promise.resolve({ totalDocs: 12 })
+      }
+      if (args?.collection === 'sales-leads') {
+        return Promise.resolve({ totalDocs: 4 })
+      }
+      return Promise.resolve({ totalDocs: 0 })
+    })
+
+    const res = await GET()
+    const json = await res.json()
+
+    expect(json.proposals.conversionRate).toBe(25)
+    expect(json.totalLeads).toBe(12)
+    expect(json.activeLeads).toBe(4)
+  })
+
   it('omits revenueSharePercent badge when share is 100', async () => {
     mockPayload.find.mockImplementation((args: any) => {
       if (args?.collection === 'clients' && args?.select?.monthlyRetainer) {

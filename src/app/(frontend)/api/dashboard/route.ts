@@ -220,6 +220,7 @@ export async function GET() {
     convertedProposals,
     totalProposals,
     activeLeadsCount,
+    totalLeadsReceivedCount,
     processesData,
     teamTasksData,
     ...historicalCounts
@@ -439,6 +440,9 @@ export async function GET() {
         ],
       },
     } as any).catch(() => ({ totalDocs: 0 })),
+
+    // Total leads received — conversion denominator includes every lead, not only active leads.
+    payload.count({ collection: "sales-leads" as any }).catch(() => ({ totalDocs: 0 })),
 
     // Client processes counts by status
     (async () => {
@@ -926,8 +930,9 @@ export async function GET() {
     });
     convertedLeadsCount = cl.totalDocs;
   } catch {}
-  const conversionRate = activeLeadsCount.totalDocs > 0
-    ? round((convertedLeadsCount / activeLeadsCount.totalDocs) * 100)
+  const totalLeadsReceived = Number(totalLeadsReceivedCount.totalDocs) || 0;
+  const conversionRate = totalLeadsReceived > 0
+    ? round((convertedLeadsCount / totalLeadsReceived) * 100)
     : 0;
 
   let realtimeVoiceCost = { estimatedCostAud: 0, durationSeconds: 0, calls: 0 };
@@ -1020,7 +1025,7 @@ export async function GET() {
     },
     kpiMom,
     costHistory: historicalCounts,
-    totalLeads: activeLeadsCount.totalDocs,
+    totalLeads: totalLeadsReceived,
     activeLeads: activeLeadsCount.totalDocs,
     businessCosts: businessCostsSummary,
     processes: processesData || null,
