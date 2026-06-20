@@ -135,6 +135,20 @@ export interface GoogleAdsDashboardAdGroupAuctionInsight {
   competitors: GoogleAdsDashboardCompetitor[];
 }
 
+export interface GoogleAdsDashboardImpressionShareMonthlyPoint {
+  month: string;
+  impressionShare: number;
+  budgetLost?: number;
+  rankLost?: number;
+  impressions?: number;
+}
+
+export interface GoogleAdsDashboardImpressionShareAdGroup {
+  campaignName: string;
+  adGroupName: string;
+  monthly: GoogleAdsDashboardImpressionShareMonthlyPoint[];
+}
+
 export interface GoogleAdsDashboardImpressionShare {
   overallVisibility: number;
   budgetLost: number;
@@ -145,7 +159,10 @@ export interface GoogleAdsDashboardImpressionShare {
     budgetLost: number;
     rankLost: number;
     impressions: number;
+    monthly?: GoogleAdsDashboardImpressionShareMonthlyPoint[];
   }>;
+  monthly?: GoogleAdsDashboardImpressionShareMonthlyPoint[];
+  byAdGroup?: GoogleAdsDashboardImpressionShareAdGroup[];
 }
 
 export interface GoogleAdsDashboardNote {
