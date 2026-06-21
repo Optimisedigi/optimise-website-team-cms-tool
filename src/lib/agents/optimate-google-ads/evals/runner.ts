@@ -144,6 +144,9 @@ async function executeJob(args: {
   const durationMs = Date.now() - started;
   const activityRows = result?.runId ? await fetchActivityRows(result.runId) : [];
   const score = scoreEvalRun({ testCase: args.job.testCase, result, activityRows, durationMs, error });
+  const hasHardFailure = score.flags.some((flag) =>
+    flag.startsWith("missing_expected_tools:") || flag === "numeric_claim_without_read_tool",
+  );
 
   return {
     id,
@@ -153,7 +156,7 @@ async function executeJob(args: {
     modelUsed: result?.modelUsed,
     source: result?.source,
     repeatIndex: args.job.repeatIndex,
-    status: error ? "failed" : "passed",
+    status: error || hasHardFailure ? "failed" : "passed",
     startedAt,
     completedAt: new Date().toISOString(),
     durationMs,
