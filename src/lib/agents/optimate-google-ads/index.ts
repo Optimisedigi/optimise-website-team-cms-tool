@@ -231,6 +231,8 @@ export interface RunChatTurnInput {
   restrictExternalContextActions?: boolean;
   /** Per-request reasoning mode. Defaults to off for routine chat turns. */
   reasoningMode?: ReasoningMode;
+  /** Disable model failover for strict benchmark runs where fallback would invalidate the result. */
+  disableFallbacks?: boolean;
 }
 
 export interface RunPortfolioChatTurnInput {
@@ -347,7 +349,7 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
 }
 
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
-  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, autonomous, reasoningMode } = input;
+  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, autonomous, reasoningMode, disableFallbacks } = input;
   if (!audit.customerId || !String(audit.customerId).trim()) {
     throw new Error("Audit has no Customer ID; cannot run agent.");
   }
@@ -393,7 +395,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     tools: getTools({ restrictExternalContextActions }),
     initialMessages: messages,
     model: modelRequested,
-    fallbackModels: DEFAULT_FALLBACKS,
+    fallbackModels: disableFallbacks ? [] : DEFAULT_FALLBACKS,
     maxTokens: CHAT_MAX_TOKENS,
     reasoningMode,
     context: agentContext,
@@ -447,7 +449,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
       tools: getTools({ restrictExternalContextActions }),
       initialMessages: retryMessages,
       model: modelRequested,
-      fallbackModels: DEFAULT_FALLBACKS,
+      fallbackModels: disableFallbacks ? [] : DEFAULT_FALLBACKS,
       maxTokens: CHAT_MAX_TOKENS,
       reasoningMode,
       context: agentContext,

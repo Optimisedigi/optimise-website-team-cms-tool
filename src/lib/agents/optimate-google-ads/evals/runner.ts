@@ -135,6 +135,7 @@ async function executeJob(args: {
       userId: args.userId,
       reasoningMode: args.job.testCase.reasoningMode,
       restrictExternalContextActions: args.job.testCase.category === "security",
+      disableFallbacks: true,
     });
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
