@@ -169,9 +169,10 @@ function NotesEditor({ value, onSave, minWidth = 320 }: { value: string; onSave:
         onBlur={(e) => onSave(e.currentTarget.innerHTML)}
         style={{
           ...inputStyle,
-          minHeight: 58,
+          height: 'calc(5 * 1.35em + 16px)',
           lineHeight: 1.35,
           outline: 'none',
+          overflowY: 'auto',
           overflowWrap: 'anywhere',
         }}
       />
@@ -230,7 +231,7 @@ function WeekPickerCell({ value, onChange, rowSpan, color, boxColor }: { value: 
   const week = taskWeek(value) || mondayKey()
 
   return (
-    <td rowSpan={rowSpan} style={{ ...tdStyle, width: 132, minWidth: 132, verticalAlign: 'middle', background: color }}>
+    <td rowSpan={rowSpan} style={{ ...tdStyle, width: 132, minWidth: 132, verticalAlign: 'stretch', background: color, padding: 6 }}>
       <button
         type="button"
         onClick={() => {
@@ -240,7 +241,8 @@ function WeekPickerCell({ value, onChange, rowSpan, color, boxColor }: { value: 
         }}
         style={{
           width: '100%',
-          minHeight: rowSpan && rowSpan > 1 ? Math.max(rowSpan * 72, 72) : 58,
+          height: '100%',
+          minHeight: rowSpan && rowSpan > 1 ? Math.max(rowSpan * 74, 74) : 74,
           border: '1px solid rgba(255,255,255,.35)',
           borderRadius: 8,
           padding: '8px',
@@ -373,14 +375,14 @@ export default function TeamTasksSpreadsheet() {
     }
   }
 
-  const addRow = async () => {
+  const addRow = async (dueDate = weekStart) => {
     setSavingId('new')
     setError('')
     try {
       const res = await fetch('/api/team-tasks/grid', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New task', taskType: 'blog_post', dueDate: weekStart, status: 'in_progress', priority: 'normal' }),
+        body: JSON.stringify({ title: 'New task', taskType: 'blog_post', dueDate, status: 'in_progress', priority: 'normal' }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to add task')
@@ -390,6 +392,20 @@ export default function TeamTasksSpreadsheet() {
     } finally {
       setSavingId(null)
     }
+  }
+
+  const addWeek = async () => {
+    const latestWeek = groupedTasks.reduce((latest, [week]) => week > latest ? week : latest, weekStart)
+    const next = new Date(`${latestWeek}T00:00:00`)
+    next.setDate(next.getDate() + 7)
+    const nextWeek = mondayKey(next)
+    setWeekStart(nextWeek)
+    if (weekMode === 'all') {
+      await addRow(nextWeek)
+      return
+    }
+    setWeekMode('all')
+    await addRow(nextWeek)
   }
 
   return (
@@ -463,7 +479,7 @@ export default function TeamTasksSpreadsheet() {
             ) : groupedTasks.map(([week, rows], groupIndex) => {
               const weekColor = weekColors[groupIndex % weekColors.length]
               return rows.map((task, index) => (
-              <tr key={task.id} style={{ background: weekColor.bg, ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
+              <tr key={task.id} style={{ background: weekColor.bg, height: 74, ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
                 {index === 0 && (
                   <WeekPickerCell value={week} rowSpan={rows.length} color={weekColor.bg} boxColor={weekColor.box} onChange={(nextWeek) => {
                     void Promise.all(rows.map((row) => patch(row.id, { dueDate: nextWeek })))
@@ -542,9 +558,14 @@ export default function TeamTasksSpreadsheet() {
               <>
                 <tr style={{ background: 'rgba(70, 141, 139, 0.08)' }}>
                   <td colSpan={8} style={{ padding: '8px 10px 12px', borderBottom: '1px solid var(--theme-elevation-100)' }}>
-                    <button type="button" onClick={addRow} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#14b8a6', borderColor: '#0f766e', color: '#fff' }}>
-                      {savingId === 'new' ? 'Adding row…' : '+ Add row'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button type="button" onClick={() => void addRow()} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#14b8a6', borderColor: '#0f766e', color: '#fff' }}>
+                        {savingId === 'new' ? 'Adding row…' : '+ Add row'}
+                      </button>
+                      <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#7c3aed', borderColor: '#5b21b6', color: '#fff' }}>
+                        {savingId === 'new' ? 'Adding week…' : '+ Add week'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </>
