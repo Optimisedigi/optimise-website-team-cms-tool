@@ -12136,6 +12136,24 @@ export interface OptimateSetting {
       )
     | null;
   /**
+   * Optional. Model used by GmailMate / OptiMate Gmail. Leave blank to use the autonomous default. Users can still switch models at the bottom of GmailMate.
+   */
+  emailAssistantModel?:
+    | (
+        | 'claude-sonnet-4.6'
+        | 'claude-opus-4-8'
+        | 'claude-haiku-4.5'
+        | 'kimi-for-coding'
+        | 'kimi-k2.6'
+        | 'minimax-m3'
+        | 'gpt-5.5-codex'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
+        | 'grok-build'
+        | 'grok-composer-2.5-fast'
+      )
+    | null;
+  /**
    * Starter prompt chips shown on the empty OptiMate chat screen. Users can click a chip to send that question immediately.
    */
   googleMateStarterQuestions?:
@@ -12362,6 +12380,7 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
   chatHistoryTokenLimit?: T;
   blogPrompterModel?: T;
   invoiceAssistantModel?: T;
+  emailAssistantModel?: T;
   googleMateStarterQuestions?:
     | T
     | {

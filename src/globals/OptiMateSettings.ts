@@ -183,6 +183,16 @@ export const OptiMateSettings: GlobalConfig = {
                   "Optional. Model used by the Xero invoice assistant. Leave blank to use the autonomous default.",
               },
             },
+            {
+              name: "emailAssistantModel",
+              type: "select",
+              options: MODEL_OPTIONS,
+              label: "Email Assistant model",
+              admin: {
+                description:
+                  "Optional. Model used by GmailMate / OptiMate Gmail. Leave blank to use the autonomous default. Users can still switch models at the bottom of GmailMate.",
+              },
+            },
           ],
         },
         {

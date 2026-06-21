@@ -30,6 +30,10 @@ export async function GET() {
     // to the autonomous default when no invoice-specific model is configured.
     invoiceAssistantModel:
       defaults.invoiceAssistantModel ?? defaults.defaultAutonomousModel,
+    // Used by GmailMate / OptiMate Gmail. Falls back to the autonomous default
+    // when no email-specific model is configured.
+    emailAssistantModel:
+      defaults.emailAssistantModel ?? defaults.defaultAutonomousModel,
     googleMateStarterQuestions: defaults.googleMateStarterQuestions,
     googleMatePortfolioStarterQuestions: defaults.googleMatePortfolioStarterQuestions,
     invoiceMateStarterQuestions: defaults.invoiceMateStarterQuestions,

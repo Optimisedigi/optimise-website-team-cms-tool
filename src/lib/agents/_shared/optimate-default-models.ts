@@ -40,6 +40,8 @@ export interface OptiMateDefaultModels {
   blogPrompterModel?: CanonicalModelName;
   /** Optional task-specific model for the Xero invoice assistant. */
   invoiceAssistantModel?: CanonicalModelName;
+  /** Optional task-specific model for GmailMate / OptiMate Gmail. */
+  emailAssistantModel?: CanonicalModelName;
   /** Approximate token budget for chat history before compacting older turns. */
   chatHistoryTokenLimit: number;
   /** Starter prompt chips for single-account Google Mate chats. */
@@ -109,6 +111,7 @@ export async function getOptiMateDefaultModels(
       defaultAutonomousModel?: unknown;
       blogPrompterModel?: unknown;
       invoiceAssistantModel?: unknown;
+      emailAssistantModel?: unknown;
       voiceRealtimeModel?: unknown;
       chatHistoryTokenLimit?: unknown;
       googleMateStarterQuestions?: unknown;
@@ -118,6 +121,7 @@ export async function getOptiMateDefaultModels(
 
     const blogPrompterModel = resolvePickerModel(global?.blogPrompterModel);
     const invoiceAssistantModel = resolvePickerModel(global?.invoiceAssistantModel);
+    const emailAssistantModel = resolvePickerModel(global?.emailAssistantModel);
 
     return {
       defaultChatModel: resolvePickerModel(global?.defaultChatModel) ?? DEFAULT_CHAT_MODEL,
@@ -138,6 +142,7 @@ export async function getOptiMateDefaultModels(
       ),
       ...(blogPrompterModel ? { blogPrompterModel } : {}),
       ...(invoiceAssistantModel ? { invoiceAssistantModel } : {}),
+      ...(emailAssistantModel ? { emailAssistantModel } : {}),
     };
   } catch (err) {
     console.warn(

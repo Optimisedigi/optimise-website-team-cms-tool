@@ -15,8 +15,14 @@
  * The system prompt is owned server-side (here) and never lives in the client.
  */
 
+import { runAgent } from "../_shared/base-agent";
+import type { Message, CredentialSource, Usage } from "../_shared/llm/types";
+import { DEFAULT_AUTONOMOUS_FALLBACKS } from "../_shared/llm/registry";
+import { getOptiMateDefaultModels } from "../_shared/optimate-default-models";
+import type { AgentStep } from "../_shared/types";
 import type { CanonicalTool } from "../_shared/tool";
 import { buildSystemPrompt } from "../_shared/system-prompt-builder";
+import { loadPinnedMemoryBlock } from "../optimate-google-ads/memory-loader";
 import type { RealtimeFunctionTool } from "../optimate-google-ads/realtime-tools";
 import { createGmailDraftTool } from "../optimate-google-ads/tools/create-gmail-draft";
 import { remember } from "../optimate-google-ads/tools/remember";
@@ -81,7 +87,7 @@ const TOOL_INVENTORY = [
 ].join("\n");
 
 const OUTPUT_FORMAT =
-  "On a live voice call, keep spoken turns short and conversational. When you have a draft ready, call stage_email_reply with the full body and let the user review it in the box — then briefly say it is ready for review. Do not read long email bodies aloud.";
+  "In text chat, be conversational and concise. Ask clarifying questions when needed. When you have or revise a draft, call stage_email_reply with the full body so it appears in the review box, then briefly explain what changed. Do not paste long inbound email bodies back to the user.";
 
 /**
  * Build the email-reply agent system prompt. Owned server-side; the client
@@ -94,4 +100,98 @@ export function buildEmailReplySystemPrompt(): string {
     toolInventory: TOOL_INVENTORY,
     outputFormat: OUTPUT_FORMAT,
   });
+}
+
+export interface StagedEmailReply {
+  subject?: string;
+  body: string;
+}
+
+export interface RunEmailChatTurnInput {
+  messages: Message[];
+  modelOverride?: string;
+  userId?: number;
+}
+
+export interface RunEmailChatTurnResult {
+  reply: string;
+  runId: string;
+  modelRequested: string;
+  modelUsed: string;
+  source: CredentialSource;
+  totalUsage: Usage;
+  stagedEmailReply?: StagedEmailReply;
+}
+
+const EMAIL_CHAT_MAX_TOKENS = 8192;
+
+export async function runEmailChatTurn(input: RunEmailChatTurnInput): Promise<RunEmailChatTurnResult> {
+  const pinnedMemory = await loadPinnedMemoryBlock([], {
+    includePinnedFacts: false,
+    soulAgentKeys: ["email"],
+  });
+  const memoryBlock = pinnedMemory.text.trim()
+    ? `\n\n${pinnedMemory.text}\n\nThe soul rules above are ABSOLUTE for the email agent. If any draft instruction conflicts with a soul rule, the soul rule wins. Agent-specific soul rows for other agents, such as google-ads-*, are intentionally not loaded here.`
+    : "";
+
+  const defaults = input.modelOverride ? null : await getOptiMateDefaultModels();
+  const modelRequested = input.modelOverride ?? defaults?.emailAssistantModel ?? defaults?.defaultAutonomousModel ?? "kimi-k2.6";
+
+  const result = await runAgent({
+    agentName: EMAIL_AGENT_NAME,
+    systemPrompt: buildEmailReplySystemPrompt() + memoryBlock,
+    tools: getEmailTools(),
+    initialMessages: input.messages,
+    model: modelRequested,
+    fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS,
+    maxTokens: EMAIL_CHAT_MAX_TOKENS,
+    context: {
+      ...(input.userId !== undefined ? { userId: input.userId } : {}),
+    },
+  });
+
+  return {
+    reply: extractReplyText(result.finalMessage),
+    runId: result.runId,
+    modelRequested,
+    modelUsed: result.modelUsed,
+    source: result.source,
+    totalUsage: result.totalUsage,
+    stagedEmailReply: extractLatestStagedEmailReply(result.steps),
+  };
+}
+
+function extractReplyText(finalMessage: { content: Array<{ type: string; text?: string }> }): string {
+  return finalMessage.content
+    .filter((part) => part.type === "text" && typeof part.text === "string")
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+}
+
+export function extractLatestStagedEmailReply(steps: AgentStep[]): StagedEmailReply | undefined {
+  let latest: StagedEmailReply | undefined;
+  for (const step of steps) {
+    if (step.type !== "tool-call" || step.toolName !== "stage_email_reply") continue;
+    const output = typeof step.output === "string" ? parseJson(step.output) : step.output;
+    if (!output || typeof output !== "object") continue;
+    const data = (output as { data?: unknown }).data;
+    if (!data || typeof data !== "object") continue;
+    const body = (data as { body?: unknown }).body;
+    if (typeof body !== "string" || !body.trim()) continue;
+    const subject = (data as { subject?: unknown }).subject;
+    latest = {
+      body: body.trim(),
+      ...(typeof subject === "string" && subject.trim() ? { subject: subject.trim() } : {}),
+    };
+  }
+  return latest;
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
 }

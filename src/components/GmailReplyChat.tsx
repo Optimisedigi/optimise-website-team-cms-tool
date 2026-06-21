@@ -1,6 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  CHAT_PICKER_MODELS,
+  DEFAULT_CHAT_MODEL,
+  isCanonicalModel,
+} from '@/lib/agents/_shared/llm/registry'
 import VoiceField from './VoiceField'
 
 /**
@@ -44,6 +49,9 @@ type ChatRole = 'user' | 'assistant' | 'error'
 interface ChatMessage {
   role: ChatRole
   content: string
+  modelUsed?: string
+  modelRequested?: string
+  runId?: string
 }
 
 interface GmailReplyChatProps {
@@ -62,28 +70,14 @@ function replySubject(subject: string): string {
   return /^re:/i.test(subject.trim()) ? subject : `Re: ${subject}`
 }
 
-function buildReplyChatInstructions(args: {
-  conversation: ChatMessage[]
-  currentDraft: string
-  latestRequest: string
-}): string {
-  const parts: string[] = []
-  if (args.currentDraft.trim()) {
-    parts.push(`Current draft to improve:\n${args.currentDraft.trim()}`)
-  }
-
-  const priorTurns = args.conversation
-    .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-    .map((msg) => `${msg.role === 'user' ? 'User request' : 'Assistant draft'}:\n${msg.content.trim()}`)
-    .join('\n\n')
-
-  if (priorTurns) {
-    parts.push(`Conversation so far:\n${priorTurns}`)
-  }
-
-  parts.push(`Latest request:\n${args.latestRequest}`)
-  parts.push('Return the best complete reply email body now. Do not include commentary or headers.')
-  return parts.join('\n\n')
+interface EmailChatResponse {
+  reply?: string
+  stagedEmailReply?: { subject?: string; body?: string }
+  runId?: string
+  modelRequested?: string
+  modelUsed?: string
+  source?: string
+  error?: string
 }
 
 function recipientSearchTerm(value: string): string {
@@ -124,12 +118,40 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
 
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_CHAT_MODEL)
+  const modelManuallyChangedRef = useRef(false)
 
   const [saving, setSaving] = useState(false)
   const [savedUrl, setSavedUrl] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/optimate/default-model', { credentials: 'include' })
+        if (!res.ok) return
+        const data = (await res.json()) as { emailAssistantModel?: unknown }
+        const next = data.emailAssistantModel
+        if (
+          !cancelled &&
+          !modelManuallyChangedRef.current &&
+          typeof next === 'string' &&
+          isCanonicalModel(next) &&
+          CHAT_PICKER_MODELS.some((m) => m.canonical === next)
+        ) {
+          setSelectedModel(next)
+        }
+      } catch {
+        // Keep bundled default.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -276,34 +298,60 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
   const draftNewEmail = useCallback(async () => {
     const prompt = instructions.trim()
     if (!prompt) return
+    const userMessage: ChatMessage = { role: 'user', content: prompt }
+    const history = [...chatMessages]
+    setChatMessages((prev) => [...prev, userMessage])
+    setInstructions('')
     setDraftingReply(true)
     setReplyError(null)
     setSavedUrl(null)
     setSaveError(null)
     try {
-      const res = await fetch('/api/gmail/ai-reply', {
+      const res = await fetch('/api/optimate/email/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           mode: 'draft',
-          bodyText: prompt,
-          subject: composeSubject.trim() || undefined,
-          instructions: 'Draft a brand-new outbound email from these instructions. Return only the email body, with no subject line or headers.',
+          message: prompt,
+          history: history.filter((msg) => msg.role !== 'error').map(({ role, content }) => ({ role, content })),
+          model: selectedModel,
+          draft: {
+            to: composeTo.trim() || undefined,
+            subject: composeSubject.trim() || undefined,
+            body: replyText || undefined,
+          },
         }),
       })
-      const data = (await res.json()) as { reply?: string; error?: string }
+      const data = (await res.json()) as EmailChatResponse
       if (!res.ok) {
-        setReplyError(data.error || `Draft failed (${res.status})`)
+        setChatMessages((prev) => [...prev, { role: 'error', content: data.error || `Draft failed (${res.status})` }])
         return
       }
-      setReplyText(data.reply ?? '')
+      const stagedBody = data.stagedEmailReply?.body?.trim()
+      const assistantText = data.reply || (stagedBody ? 'I’ve staged the latest draft below.' : 'No response received.')
+      if (stagedBody) setReplyText(stagedBody)
+      else if (!replyText.trim() && data.reply?.trim()) setReplyText(data.reply.trim())
+      if (data.stagedEmailReply?.subject && !composeSubject.trim()) setComposeSubject(data.stagedEmailReply.subject)
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: assistantText,
+          runId: typeof data.runId === 'string' ? data.runId : undefined,
+          modelUsed: typeof data.modelUsed === 'string' ? data.modelUsed : undefined,
+          modelRequested: typeof data.modelRequested === 'string' ? data.modelRequested : undefined,
+        },
+      ])
     } catch (err) {
-      setReplyError(err instanceof Error ? err.message : 'Draft failed')
+      setChatMessages((prev) => [
+        ...prev,
+        { role: 'error', content: err instanceof Error ? err.message : 'Draft failed' },
+      ])
     } finally {
       setDraftingReply(false)
     }
-  }, [instructions, composeSubject])
+  }, [instructions, chatMessages, selectedModel, composeTo, composeSubject, replyText])
 
   const sendReplyChatMessage = useCallback(async () => {
     if (!message || draftingReply) return
@@ -320,29 +368,42 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setSavedUrl(null)
 
     try {
-      const res = await fetch('/api/gmail/ai-reply', {
+      const res = await fetch('/api/optimate/email/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          bodyText: message.body,
-          subject: message.subject,
-          from: message.from,
-          instructions: buildReplyChatInstructions({
-            conversation: history,
-            currentDraft: replyText,
-            latestRequest: request,
-          }),
+          mode: 'reply',
+          message: request,
+          history: history.filter((msg) => msg.role !== 'error').map(({ role, content }) => ({ role, content })),
+          model: selectedModel,
+          draft: {
+            subject: replySubject(message.subject),
+            to: parseFromAddress(message.from),
+            body: replyText || undefined,
+          },
+          email: message,
         }),
       })
-      const data = (await res.json()) as { reply?: string; error?: string }
+      const data = (await res.json()) as EmailChatResponse
       if (!res.ok) {
         setChatMessages((prev) => [...prev, { role: 'error', content: data.error || `Draft failed (${res.status})` }])
         return
       }
-      const nextReply = data.reply ?? ''
-      setReplyText(nextReply)
-      setChatMessages((prev) => [...prev, { role: 'assistant', content: nextReply || '(no reply)' }])
+      const stagedBody = data.stagedEmailReply?.body?.trim()
+      const assistantText = data.reply || (stagedBody ? 'I’ve staged the latest draft below.' : 'No response received.')
+      if (stagedBody) setReplyText(stagedBody)
+      else if (!replyText.trim() && data.reply?.trim()) setReplyText(data.reply.trim())
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: assistantText,
+          runId: typeof data.runId === 'string' ? data.runId : undefined,
+          modelUsed: typeof data.modelUsed === 'string' ? data.modelUsed : undefined,
+          modelRequested: typeof data.modelRequested === 'string' ? data.modelRequested : undefined,
+        },
+      ])
     } catch (err) {
       setChatMessages((prev) => [
         ...prev,
@@ -351,7 +412,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     } finally {
       setDraftingReply(false)
     }
-  }, [message, draftingReply, chatInput, chatMessages, replyText])
+  }, [message, draftingReply, chatInput, chatMessages, selectedModel, replyText])
 
   const saveNewDraft = useCallback(async () => {
     if (!replyText.trim()) return
@@ -534,14 +595,34 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
               />
             </div>
             {replyError && <div style={errorBox}>{replyError}</div>}
+            {(chatMessages.length > 0 || draftingReply) && (
+              <div style={chatPanel}>
+                {chatMessages.map((msg, index) => (
+                  <ChatBubble key={`${msg.role}-${index}`} msg={msg} />
+                ))}
+                {draftingReply && (
+                  <div style={{ ...chatBubble, ...assistantBubble }}>
+                    <div style={bubbleLabel}>GmailMate</div>
+                    Thinking…
+                  </div>
+                )}
+              </div>
+            )}
             <button
               type="button"
               onClick={draftNewEmail}
               disabled={draftingReply || !instructions.trim()}
               style={{ ...primaryButton, opacity: draftingReply || !instructions.trim() ? 0.6 : 1 }}
             >
-              {draftingReply ? 'Drafting…' : replyText ? 'Redraft email' : 'Draft email'}
+              {draftingReply ? 'Thinking…' : replyText ? 'Send change to GmailMate' : 'Send to GmailMate'}
             </button>
+            <ModelSelector
+              selectedModel={selectedModel}
+              onChange={(model) => {
+                modelManuallyChangedRef.current = true
+                setSelectedModel(model)
+              }}
+            />
             {replyText && (
               <>
                 <textarea
@@ -556,7 +637,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                   disabled={saving || !replyText.trim()}
                   style={{ ...primaryButton, background: '#059669', opacity: saving || !replyText.trim() ? 0.6 : 1 }}
                 >
-                  {saving ? 'Saving…' : 'Save to Gmail Drafts'}
+                  {saving ? 'Saving…' : 'Save latest draft to Gmail Drafts'}
                 </button>
                 {saveError && <div style={errorBox}>{saveError}</div>}
                 {savedUrl && <SavedDraftLink savedUrl={savedUrl} />}
@@ -665,18 +746,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                     </div>
                   )}
                   {chatMessages.map((msg, index) => (
-                    <div
-                      key={`${msg.role}-${index}`}
-                      style={{
-                        ...chatBubble,
-                        ...(msg.role === 'user' ? userBubble : msg.role === 'error' ? errorBubble : assistantBubble),
-                      }}
-                    >
-                      <div style={bubbleLabel}>
-                        {msg.role === 'user' ? 'You' : msg.role === 'error' ? 'Error' : 'GmailMate draft'}
-                      </div>
-                      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-                    </div>
+                    <ChatBubble key={`${msg.role}-${index}`} msg={msg} />
                   ))}
                   {draftingReply && (
                     <div style={{ ...chatBubble, ...assistantBubble }}>
@@ -700,8 +770,15 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                   disabled={draftingReply || !chatInput.trim()}
                   style={{ ...primaryButton, opacity: draftingReply || !chatInput.trim() ? 0.6 : 1 }}
                 >
-                  {draftingReply ? 'Drafting…' : replyText ? 'Ask for change' : 'Draft reply'}
+                  {draftingReply ? 'Thinking…' : replyText ? 'Ask for change' : 'Send to GmailMate'}
                 </button>
+                <ModelSelector
+                  selectedModel={selectedModel}
+                  onChange={(model) => {
+                    modelManuallyChangedRef.current = true
+                    setSelectedModel(model)
+                  }}
+                />
 
                 {replyText && (
                   <>
@@ -720,7 +797,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                       disabled={saving || !replyText.trim()}
                       style={{ ...primaryButton, background: '#059669', opacity: saving || !replyText.trim() ? 0.6 : 1 }}
                     >
-                      {saving ? 'Saving…' : 'Save latest draft to Gmail'}
+                      {saving ? 'Saving…' : 'Save latest draft to Gmail Drafts'}
                     </button>
                     {saveError && <div style={errorBox}>{saveError}</div>}
                     {savedUrl && <SavedDraftLink savedUrl={savedUrl} />}
@@ -735,6 +812,29 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
   )
 }
 
+function ChatBubble({ msg }: { msg: ChatMessage }): React.ReactElement {
+  return (
+    <div
+      style={{
+        ...chatBubble,
+        ...(msg.role === 'user' ? userBubble : msg.role === 'error' ? errorBubble : assistantBubble),
+      }}
+    >
+      <div style={bubbleLabel}>
+        {msg.role === 'user' ? 'You' : msg.role === 'error' ? 'Error' : 'GmailMate'}
+      </div>
+      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+      {msg.role === 'assistant' && (msg.modelUsed || msg.modelRequested) && (
+        <div style={modelBadgeStyle}>
+          {msg.modelRequested && msg.modelUsed && msg.modelRequested !== msg.modelUsed
+            ? `⚠️ ${msg.modelRequested} → ${msg.modelUsed}`
+            : msg.modelUsed}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SavedDraftLink({ savedUrl }: { savedUrl: string }): React.ReactElement {
   return (
     <div style={{ fontSize: 12, color: '#166534' }}>
@@ -742,6 +842,32 @@ function SavedDraftLink({ savedUrl }: { savedUrl: string }): React.ReactElement 
       <a href={savedUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
         Open in Gmail →
       </a>
+    </div>
+  )
+}
+
+function ModelSelector({
+  selectedModel,
+  onChange,
+}: {
+  selectedModel: string
+  onChange: (model: string) => void
+}): React.ReactElement {
+  return (
+    <div style={modelSelectorWrap}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: '#6b7280' }}>Model</span>
+      <select
+        value={selectedModel}
+        onChange={(e) => onChange(e.target.value)}
+        title="Model used for the next GmailMate turn"
+        style={modelSelectStyle}
+      >
+        {CHAT_PICKER_MODELS.map((m) => (
+          <option key={m.canonical} value={m.canonical}>
+            {m.label}
+          </option>
+        ))}
+      </select>
     </div>
   )
 }
@@ -875,6 +1001,30 @@ const bubbleLabel: React.CSSProperties = {
   fontWeight: 700,
   opacity: 0.7,
   marginBottom: 3,
+}
+
+const modelBadgeStyle: React.CSSProperties = {
+  marginTop: 6,
+  fontSize: 10,
+  color: '#6b7280',
+}
+
+const modelSelectorWrap: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '2px 0 4px',
+}
+
+const modelSelectStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  padding: '5px 7px',
+  border: '1px solid var(--theme-border-color, #e5e7eb)',
+  borderRadius: 6,
+  background: 'var(--theme-input-bg, #fff)',
+  color: 'var(--theme-text, #1f2937)',
+  fontSize: 11,
 }
 
 const resultRow: React.CSSProperties = {
