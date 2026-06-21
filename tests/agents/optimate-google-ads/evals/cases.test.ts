@@ -27,4 +27,18 @@ describe("OptiMate eval cases", () => {
     expect(testCase?.prompt).toContain("Monday 2026-06-08 to Sunday 2026-06-14");
     expect(testCase?.prompt).toContain("two-sentence summary");
   });
+
+  it("includes the May converting search terms prompt without requiring a specific tool", () => {
+    const testCase = OPTIMATE_GOOGLE_ADS_EVAL_CASES.find((item) => item.id === "may-converting-search-terms-top-10");
+    expect(testCase).toMatchObject({
+      category: "read-only",
+      requiresAllowActions: false,
+      parallelSafe: true,
+    });
+    expect(testCase?.expectedTools).toBeUndefined();
+    expect(testCase?.prompt).toContain("top 10 search terms");
+    expect(testCase?.prompt).toContain("1 or more conversion");
+    expect(testCase?.prompt).toContain("May 2026");
+    expect(testCase?.prompt).toContain("CPA, cost and the avg cpc");
+  });
 });

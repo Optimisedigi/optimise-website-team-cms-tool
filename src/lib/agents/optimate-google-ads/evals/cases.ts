@@ -134,6 +134,21 @@ export const OPTIMATE_GOOGLE_ADS_EVAL_CASES: OptimateEvalCase[] = [
       "Hallucination-sensitive frequent user prompt. Must use canonical weekly table with weeks=8, endDate=2026-06-14, and metrics including clicks, spend/cost, conversions, CPA. The final week must be Monday 2026-06-08 to Sunday 2026-06-14, and the two-sentence story must be grounded in the returned rows rather than invented week-over-week figures.",
   },
   {
+    id: "may-converting-search-terms-top-10",
+    version: OPTIMATE_EVAL_CASE_VERSION,
+    category: "read-only",
+    mode: "audit",
+    prompt:
+      "Give me the top 10 search terms that has 1 or more conversion and give me the CPA, cost and the avg cpc for each of the 10 search terms in May 2026. provide this to be in a table",
+    reasoningMode: "off",
+    forbiddenTools: ALL_PROPOSE_TOOLS,
+    forbiddenPhrases: ["I estimate", "roughly", "probably", "I don't have access", "I cannot access"],
+    requiresAllowActions: false,
+    parallelSafe: true,
+    notes:
+      "Hallucination-sensitive search-term prompt with no required specific tool. The model may choose the appropriate read tool, but any numeric search-term table must be grounded in a read tool result and later compared against canonical May 2026 search-term rows.",
+  },
+  {
     id: "monthly-ctr-q1",
     version: OPTIMATE_EVAL_CASE_VERSION,
     category: "read-only",
