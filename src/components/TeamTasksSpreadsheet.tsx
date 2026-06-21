@@ -131,11 +131,31 @@ const weekColors = [
   { bg: '#fff7ed', box: '#c2410c' },
 ]
 
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function autolinkHtml(value: string): string {
+  const urlPattern = /((?:https?:\/\/|www\.)[^\s<]+)/gi
+  return value
+    .split(/(<a\b[\s\S]*?<\/a>)/gi)
+    .map((part) => {
+      if (/^<a\b/i.test(part)) return part
+      return part.replace(urlPattern, (match) => {
+        const trailing = match.match(/[).,!?;:]+$/)?.[0] || ''
+        const urlText = trailing ? match.slice(0, -trailing.length) : match
+        const href = urlText.startsWith('www.') ? `https://${urlText}` : urlText
+        return `<a href="${escapeHtml(href)}" target="_blank" rel="noreferrer" style="color:#2563eb;text-decoration:underline;">${escapeHtml(urlText)}</a>${trailing}`
+      })
+    })
+    .join('')
+}
+
 function htmlFromPlainText(value: string): string {
-  if (value.includes('<')) return value
+  if (value.includes('<')) return autolinkHtml(value)
   return value
     .split('\n')
-    .map((line) => line.trim() ? `<div>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : '<div><br /></div>')
+    .map((line) => line.trim() ? `<div>${autolinkHtml(escapeHtml(line))}</div>` : '<div><br /></div>')
     .join('')
 }
 
@@ -166,7 +186,11 @@ function NotesEditor({ value, onSave, minWidth = 320 }: { value: string; onSave:
             document.execCommand('insertUnorderedList')
           }
         }}
-        onBlur={(e) => onSave(e.currentTarget.innerHTML)}
+        onBlur={(e) => {
+          const next = autolinkHtml(e.currentTarget.innerHTML)
+          e.currentTarget.innerHTML = next
+          onSave(next)
+        }}
         style={{
           ...inputStyle,
           height: 'calc(5 * 1.35em + 16px)',
@@ -231,7 +255,7 @@ function WeekPickerCell({ value, onChange, rowSpan, color, boxColor }: { value: 
   const week = taskWeek(value) || mondayKey()
 
   return (
-    <td rowSpan={rowSpan} style={{ ...tdStyle, width: 132, minWidth: 132, verticalAlign: 'stretch', background: color, padding: 6 }}>
+    <td rowSpan={rowSpan} style={{ ...tdStyle, width: 132, minWidth: 132, verticalAlign: 'stretch', background: color, padding: 0, position: 'relative' }}>
       <button
         type="button"
         onClick={() => {
@@ -240,12 +264,14 @@ function WeekPickerCell({ value, onChange, rowSpan, color, boxColor }: { value: 
           else input?.focus()
         }}
         style={{
+          position: 'absolute',
+          inset: 0,
           width: '100%',
           height: '100%',
-          minHeight: rowSpan && rowSpan > 1 ? Math.max(rowSpan * 74, 74) : 74,
+          minHeight: 74,
           border: '1px solid rgba(255,255,255,.35)',
-          borderRadius: 8,
-          padding: '8px',
+          borderRadius: 0,
+          padding: '8px 10px',
           background: boxColor || '#0f766e',
           color: '#fff',
           cursor: 'pointer',
@@ -278,7 +304,7 @@ export default function TeamTasksSpreadsheet() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [clientFilter, setClientFilter] = useState('')
   const [weekStart, setWeekStart] = useState(() => mondayKey())
-  const [weekMode, setWeekMode] = useState<'week' | 'all'>('week')
+  const [weekMode, setWeekMode] = useState<'week' | 'all' | 'last2' | 'last4'>('week')
   const [error, setError] = useState('')
   const [canManage, setCanManage] = useState(false)
   const [canEditTaskFields, setCanEditTaskFields] = useState(false)
@@ -288,7 +314,7 @@ export default function TeamTasksSpreadsheet() {
     setLoading(true)
     setError('')
     try {
-      const params = new URLSearchParams({ status: statusFilter, weekStart: weekMode === 'all' ? 'all' : weekStart })
+      const params = new URLSearchParams({ status: statusFilter, weekStart: weekMode === 'week' ? weekStart : weekMode })
       if (clientFilter) params.set('client', clientFilter)
       const res = await fetch(`/api/team-tasks/grid?${params.toString()}`)
       const json = await res.json()
@@ -414,16 +440,19 @@ export default function TeamTasksSpreadsheet() {
       <div style={{ display: 'grid', gridTemplateColumns: '150px 220px 180px 260px 1fr', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
           Weeks
-          <select value={weekMode} onChange={(e) => setWeekMode(e.target.value as 'week' | 'all')} style={inputStyle}>
-            <option value="week">Selected week</option>
+          <select value={weekMode} onChange={(e) => setWeekMode(e.target.value as 'week' | 'all' | 'last2' | 'last4')} style={inputStyle}>
+            <option value="week">This week</option>
+            <option value="all">All weeks</option>
+            <option value="last2">Last 2 weeks</option>
+            <option value="last4">Last 4 weeks</option>
           </select>
         </label>
-        <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700, opacity: weekMode === 'all' ? .55 : 1 }}>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700, opacity: weekMode === 'week' ? 1 : .55 }}>
           Week
           <input
             type="date"
             value={weekStart}
-            disabled={weekMode === 'all'}
+            disabled={weekMode !== 'week'}
             onChange={(e) => {
               const next = mondayKey(new Date(`${e.target.value}T00:00:00`))
               setWeekStart(next)
@@ -441,7 +470,7 @@ export default function TeamTasksSpreadsheet() {
           {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
         </select>
         <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)', paddingBottom: 8 }}>
-          Showing tasks for <strong>{weekMode === 'all' ? 'all weeks' : weekLabel(weekStart)}</strong>
+          Showing tasks for <strong>{weekMode === 'all' ? 'all weeks' : weekMode === 'last2' ? 'last 2 weeks' : weekMode === 'last4' ? 'last 4 weeks' : weekLabel(weekStart)}</strong>
         </div>
       </div>
 

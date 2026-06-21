@@ -60,11 +60,22 @@ export async function GET(req: NextRequest) {
     }
     if (client) and.push({ client: { equals: client } });
     if (weekStart && weekStart !== "all") {
-      const start = new Date(`${weekStart}T00:00:00.000Z`);
+      const now = new Date();
+      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const utcDay = today.getUTCDay() || 7;
+      const thisMonday = new Date(today);
+      thisMonday.setUTCDate(thisMonday.getUTCDate() - utcDay + 1);
+      const rangeWeeks = weekStart === "last2" ? 2 : weekStart === "last4" ? 4 : 1;
+      const start = weekStart === "last2" || weekStart === "last4"
+        ? new Date(thisMonday)
+        : new Date(`${weekStart}T00:00:00.000Z`);
+      if (weekStart === "last2" || weekStart === "last4") {
+        start.setUTCDate(start.getUTCDate() - ((rangeWeeks - 1) * 7));
+      }
       if (!Number.isNaN(start.getTime())) {
         const beforeStart = new Date(start);
         beforeStart.setUTCDate(beforeStart.getUTCDate() - 1);
-        const end = new Date(start);
+        const end = new Date(weekStart === "last2" || weekStart === "last4" ? thisMonday : start);
         end.setUTCDate(end.getUTCDate() + 7);
         and.push({ dueDate: { greater_than: beforeStart.toISOString() } }, { dueDate: { less_than: end.toISOString() } });
       }
