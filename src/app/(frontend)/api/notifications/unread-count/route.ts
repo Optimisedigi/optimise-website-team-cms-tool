@@ -47,6 +47,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       overrideAccess: true,
       select: {
         id: true,
+        readAt: true,
         relatedApproval: true,
       } as never,
     }),
@@ -63,8 +64,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }),
   ]);
 
-  const countedApprovalIds = new Set(
+  const visibleApprovalIds = new Set(
     (userApprovalNotifications.docs as Array<Record<string, unknown>>)
+      .filter((doc) => !doc.readAt)
+      .map((doc) => {
+        const related = doc.relatedApproval;
+        if (typeof related === "object" && related && "id" in related) return String(related.id);
+        return related == null ? null : String(related);
+      })
+      .filter((value): value is string => Boolean(value)),
+  );
+  const dismissedApprovalIds = new Set(
+    (userApprovalNotifications.docs as Array<Record<string, unknown>>)
+      .filter((doc) => Boolean(doc.readAt))
       .map((doc) => {
         const related = doc.relatedApproval;
         if (typeof related === "object" && related && "id" in related) return String(related.id);
@@ -73,9 +85,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .filter((value): value is string => Boolean(value)),
   );
 
-  const syntheticPendingCount = (pendingApprovals.docs as Array<Record<string, unknown>>).filter(
-    (approval) => !countedApprovalIds.has(String(approval.id)),
-  ).length;
+  const syntheticPendingCount = (pendingApprovals.docs as Array<Record<string, unknown>>).filter((approval) => {
+    const id = String(approval.id);
+    return !visibleApprovalIds.has(id) && !dismissedApprovalIds.has(id);
+  }).length;
 
   return NextResponse.json({ count: unreadNotifications.totalDocs + syntheticPendingCount });
 }

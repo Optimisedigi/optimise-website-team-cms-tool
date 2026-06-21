@@ -12,6 +12,7 @@ import config from "@/payload.config";
 import { getVisibleEntities, getCustomViewActions } from "@/lib/visible-entities";
 import AdminStepNavSetter from "@/components/AdminStepNavSetter";
 import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
+import AgentApprovalsBulkActions from "./BulkActions";
 
 export const dynamic = "force-dynamic";
 
@@ -210,6 +211,8 @@ export default async function AgentApprovalsListPage({
               Filter
             </button>
           </form>
+
+          <AgentApprovalsBulkActions rows={rows.map((row) => ({ id: row.id, title: row.title, status: row.status }))} />
 
           {rows.length === 0 ? (
             <div

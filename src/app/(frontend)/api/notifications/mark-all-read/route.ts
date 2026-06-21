@@ -34,7 +34,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { readAt: { exists: false } },
       ],
     } as never,
-    limit: 200,
+    limit: 500,
     overrideAccess: true,
     depth: 0,
   });

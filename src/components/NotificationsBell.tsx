@@ -180,7 +180,6 @@ const NotificationsBell = (): ReactElement | null => {
     const readAt = new Date().toISOString();
     setItems((prev) => prev.map((p) => (p.id === item.id ? { ...p, readAt } : p)));
     setUnreadCount((c) => Math.max(0, c - 1));
-    if (String(item.id).startsWith("approval-")) return;
     try {
       await fetch(`/api/notifications/${item.id}/mark-read`, {
         method: "POST",
