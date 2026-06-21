@@ -12072,6 +12072,8 @@ export interface OptimateSetting {
     | 'kimi-k2.6'
     | 'minimax-m3'
     | 'gpt-5.5-codex'
+    | 'gpt-5.4'
+    | 'gpt-5.4-mini'
     | 'grok-build'
     | 'grok-composer-2.5-fast';
   /**
@@ -12085,6 +12087,8 @@ export interface OptimateSetting {
     | 'kimi-k2.6'
     | 'minimax-m3'
     | 'gpt-5.5-codex'
+    | 'gpt-5.4'
+    | 'gpt-5.4-mini'
     | 'grok-build'
     | 'grok-composer-2.5-fast';
   /**
@@ -12107,6 +12111,8 @@ export interface OptimateSetting {
         | 'kimi-k2.6'
         | 'minimax-m3'
         | 'gpt-5.5-codex'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
         | 'grok-build'
         | 'grok-composer-2.5-fast'
       )
@@ -12123,6 +12129,8 @@ export interface OptimateSetting {
         | 'kimi-k2.6'
         | 'minimax-m3'
         | 'gpt-5.5-codex'
+        | 'gpt-5.4'
+        | 'gpt-5.4-mini'
         | 'grok-build'
         | 'grok-composer-2.5-fast'
       )

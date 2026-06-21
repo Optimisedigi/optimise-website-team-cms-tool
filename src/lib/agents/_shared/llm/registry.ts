@@ -55,6 +55,13 @@ export const MODEL_REGISTRY = {
   "gpt-5.5-codex": { provider: "openai-codex", model: "gpt-5.5" },
   "gpt-5.4": { provider: "openai-codex", model: "gpt-5.4" },
   "gpt-5.4-mini": { provider: "openai-codex", model: "gpt-5.4-mini" },
+  // Back-compat aliases for stored prod selections from the short-lived GPT-4
+  // picker entries. The Codex OAuth backend rejects these GPT-4 model IDs, so
+  // route them to the matching supported gg-framework Codex models instead of
+  // failing as "Unknown model".
+  "gpt-4.1": { provider: "openai-codex", model: "gpt-5.4" },
+  "gpt-4": { provider: "openai-codex", model: "gpt-5.4" },
+  "gpt-4o-mini": { provider: "openai-codex", model: "gpt-5.4-mini" },
 
   // xAI Grok over the grok-cli proxy (cli-chat-proxy.grok.com), served by a
   // SuperGrok subscription via device-code OAuth — NOT the billed XAI_API_KEY
