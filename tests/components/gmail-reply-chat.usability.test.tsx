@@ -32,28 +32,38 @@ describe('GmailReplyChat usability smoke', () => {
   })
 
   it('opens directly into the compose flow and creates a Gmail draft', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ connected: true, email: 'user@example.com' }))
-      .mockResolvedValueOnce(jsonResponse({ reply: 'Hi there,\n\nThanks for reaching out.' }))
-      .mockResolvedValueOnce(jsonResponse({ gmailUrl: 'https://mail.google.com/draft/1' }))
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url === '/api/optimate/email/chat') {
+        return jsonResponse({
+          reply: 'I’ve staged the draft below.',
+          stagedEmailReply: { body: 'Hi there,\n\nThanks for reaching out.' },
+          modelUsed: 'claude-sonnet-4.6',
+        })
+      }
+      if (url === '/api/gmail/draft') return jsonResponse({ gmailUrl: 'https://mail.google.com/draft/1' })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
 
     render(<GmailReplyChat initialPhase="compose" />)
 
     expect(await screen.findByText('Gmail · user@example.com')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reply to an email' })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText('To (optional — you can choose in Gmail)…'), {
+    fireEvent.change(screen.getByPlaceholderText('To (optional)…'), {
       target: { value: 'client@example.com' },
     })
-    fireEvent.change(screen.getByPlaceholderText('Subject (optional)…'), {
+    fireEvent.change(screen.getByPlaceholderText('Subject…'), {
       target: { value: 'Follow up' },
     })
-    fireEvent.change(screen.getByPlaceholderText('What should the email say?'), {
+    fireEvent.change(screen.getByPlaceholderText('Message GmailMate about the email…'), {
       target: { value: 'Thank them for the meeting and ask for the report.' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Draft email' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send to GmailMate' }))
 
-    const saveComposeDraft = await screen.findByRole('button', { name: 'Save to Gmail Drafts' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview & save' }))
+    const saveComposeDraft = await screen.findByRole('button', { name: 'Save latest draft to Gmail Drafts' })
     fireEvent.click(saveComposeDraft)
 
     await screen.findByText('Saved to Drafts.')
@@ -67,6 +77,9 @@ describe('GmailReplyChat usability smoke', () => {
 
   it('supports search → pick email → chat through reply → save threaded draft', async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/optimate/default-model') {
+        return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      }
       if (url === '/api/gmail/status') {
         return jsonResponse({ connected: true, email: 'user@example.com' })
       }
@@ -96,10 +109,14 @@ describe('GmailReplyChat usability smoke', () => {
           body: 'Can you clarify the next steps?',
         })
       }
-      if (url === '/api/gmail/ai-reply') {
+      if (url === '/api/optimate/email/chat') {
         const request = JSON.parse(String(init?.body))
-        expect(request.instructions).toContain('Latest request:')
-        return jsonResponse({ reply: 'Hi Client,\n\nThe next step is to review the proposal together.' })
+        expect(request.message).toBe('Be warm and explain the next step.')
+        return jsonResponse({
+          reply: 'I’ve staged the reply below.',
+          stagedEmailReply: { body: 'Hi Client,\n\nThe next step is to review the proposal together.' },
+          modelUsed: 'claude-sonnet-4.6',
+        })
       }
       if (url === '/api/gmail/draft') {
         return jsonResponse({ gmailUrl: 'https://mail.google.com/draft/2' })
@@ -118,13 +135,13 @@ describe('GmailReplyChat usability smoke', () => {
     fireEvent.click(await screen.findByText('Proposal question'))
     expect(await screen.findByText('Can you clarify the next steps?')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText('How should I reply?'), {
+    fireEvent.change(screen.getByPlaceholderText('Message GmailMate about the reply…'), {
       target: { value: 'Be warm and explain the next step.' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Draft reply' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send to GmailMate' }))
 
-    expect(await screen.findByText('GmailMate draft')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Save latest draft to Gmail' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview & save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save latest draft to Gmail Drafts' }))
     await screen.findByText('Saved to Drafts.')
 
     await waitFor(() => {

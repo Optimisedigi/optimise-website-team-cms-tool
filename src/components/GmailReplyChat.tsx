@@ -124,6 +124,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
   const [saving, setSaving] = useState(false)
   const [savedUrl, setSavedUrl] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [draftPreviewOpen, setDraftPreviewOpen] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -223,6 +224,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setSaveError(null)
     setChatInput('')
     setChatMessages([])
+    setDraftPreviewOpen(false)
     setContactSuggestions([])
     setContactsOpen(false)
   }, [])
@@ -278,6 +280,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setChatMessages([])
     setSavedUrl(null)
     setSaveError(null)
+    setDraftPreviewOpen(false)
     try {
       const res = await fetch(`/api/gmail/message/${encodeURIComponent(r.messageId)}`, {
         credentials: 'include',
@@ -306,6 +309,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setReplyError(null)
     setSavedUrl(null)
     setSaveError(null)
+    setDraftPreviewOpen(false)
     try {
       const res = await fetch('/api/optimate/email/chat', {
         method: 'POST',
@@ -544,105 +548,104 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
 
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 0', minHeight: 0 }}>
         {phase === 'compose' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                value={composeTo}
-                onChange={(e) => {
-                  setComposeTo(e.target.value)
-                  setContactsOpen(true)
-                }}
-                onFocus={() => setContactsOpen(true)}
-                onBlur={() => window.setTimeout(() => setContactsOpen(false), 120)}
-                placeholder="To (optional — you can choose in Gmail)…"
-                style={inputStyle}
-              />
-              {contactsOpen && contactSuggestions.length > 0 && (
-                <div style={contactMenu}>
-                  {contactSuggestions.map((contact) => (
-                    <button
-                      key={contact.email}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setComposeTo(replaceActiveRecipient(composeTo, contact))
-                        setContactSuggestions([])
-                        setContactsOpen(false)
-                      }}
-                      style={contactOption}
-                    >
-                      <span style={{ fontWeight: 600 }}>{contact.name || contact.email}</span>
-                      {contact.name && <span style={{ color: '#6b7280' }}>{contact.email}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <input
-              type="text"
-              value={composeSubject}
-              onChange={(e) => setComposeSubject(e.target.value)}
-              placeholder="Subject (optional)…"
-              style={inputStyle}
-            />
-            <div style={voiceWrapper}>
-              <VoiceField
-                value={instructions}
-                onChange={setInstructions}
-                multiline
-                placeholder="What should the email say?"
-              />
-            </div>
-            {replyError && <div style={errorBox}>{replyError}</div>}
-            {(chatMessages.length > 0 || draftingReply) && (
-              <div style={chatPanel}>
-                {chatMessages.map((msg, index) => (
-                  <ChatBubble key={`${msg.role}-${index}`} msg={msg} />
-                ))}
-                {draftingReply && (
-                  <div style={{ ...chatBubble, ...assistantBubble }}>
-                    <div style={bubbleLabel}>GmailMate</div>
-                    Thinking…
+          <div style={chatFirstPane}>
+            <div style={detailStripStyle}>
+              <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                <input
+                  type="text"
+                  value={composeTo}
+                  onChange={(e) => {
+                    setComposeTo(e.target.value)
+                    setContactsOpen(true)
+                  }}
+                  onFocus={() => setContactsOpen(true)}
+                  onBlur={() => window.setTimeout(() => setContactsOpen(false), 120)}
+                  placeholder="To (optional)…"
+                  style={compactInputStyle}
+                />
+                {contactsOpen && contactSuggestions.length > 0 && (
+                  <div style={contactMenu}>
+                    {contactSuggestions.map((contact) => (
+                      <button
+                        key={contact.email}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setComposeTo(replaceActiveRecipient(composeTo, contact))
+                          setContactSuggestions([])
+                          setContactsOpen(false)
+                        }}
+                        style={contactOption}
+                      >
+                        <span style={{ fontWeight: 600 }}>{contact.name || contact.email}</span>
+                        {contact.name && <span style={{ color: '#6b7280' }}>{contact.email}</span>}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
-            )}
-            <button
-              type="button"
-              onClick={draftNewEmail}
-              disabled={draftingReply || !instructions.trim()}
-              style={{ ...primaryButton, opacity: draftingReply || !instructions.trim() ? 0.6 : 1 }}
-            >
-              {draftingReply ? 'Thinking…' : replyText ? 'Send change to GmailMate' : 'Send to GmailMate'}
-            </button>
-            <ModelSelector
-              selectedModel={selectedModel}
-              onChange={(model) => {
-                modelManuallyChangedRef.current = true
-                setSelectedModel(model)
-              }}
+              <input
+                type="text"
+                value={composeSubject}
+                onChange={(e) => setComposeSubject(e.target.value)}
+                placeholder="Subject…"
+                style={{ ...compactInputStyle, flex: 1 }}
+              />
+            </div>
+
+            {replyError && <div style={errorBox}>{replyError}</div>}
+            <div style={{ ...chatPanel, flex: 1, minHeight: 150, overflowY: 'auto' }}>
+              {chatMessages.length === 0 && !draftingReply && (
+                <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '18px 8px' }}>
+                  Chat with GmailMate about the email. Ask for drafts, changes, tone edits, then preview and save when ready.
+                </div>
+              )}
+              {chatMessages.map((msg, index) => (
+                <ChatBubble key={`${msg.role}-${index}`} msg={msg} />
+              ))}
+              {draftingReply && (
+                <div style={{ ...chatBubble, ...assistantBubble }}>
+                  <div style={bubbleLabel}>GmailMate</div>
+                  Thinking…
+                </div>
+              )}
+            </div>
+            <DraftPreviewPanel
+              replyText={replyText}
+              setReplyText={setReplyText}
+              saving={saving}
+              saveError={saveError}
+              savedUrl={savedUrl}
+              onSave={saveNewDraft}
+              open={draftPreviewOpen}
+              setOpen={setDraftPreviewOpen}
+              summary={[composeTo.trim(), composeSubject.trim()].filter(Boolean).join(' · ')}
             />
-            {replyText && (
-              <>
-                <textarea
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  rows={10}
-                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.45 }}
+            <div style={composerBlockStyle}>
+              <div style={voiceWrapper}>
+                <VoiceField
+                  value={instructions}
+                  onChange={setInstructions}
+                  multiline
+                  placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the email…'}
                 />
-                <button
-                  type="button"
-                  onClick={saveNewDraft}
-                  disabled={saving || !replyText.trim()}
-                  style={{ ...primaryButton, background: '#059669', opacity: saving || !replyText.trim() ? 0.6 : 1 }}
-                >
-                  {saving ? 'Saving…' : 'Save latest draft to Gmail Drafts'}
-                </button>
-                {saveError && <div style={errorBox}>{saveError}</div>}
-                {savedUrl && <SavedDraftLink savedUrl={savedUrl} />}
-              </>
-            )}
+              </div>
+              <button
+                type="button"
+                onClick={draftNewEmail}
+                disabled={draftingReply || !instructions.trim()}
+                style={{ ...primaryButton, opacity: draftingReply || !instructions.trim() ? 0.6 : 1 }}
+              >
+                {draftingReply ? 'Thinking…' : 'Send to GmailMate'}
+              </button>
+              <ModelSelector
+                selectedModel={selectedModel}
+                onChange={(model) => {
+                  modelManuallyChangedRef.current = true
+                  setSelectedModel(model)
+                }}
+              />
+            </div>
           </div>
         )}
 
@@ -714,7 +717,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
         )}
 
         {phase === 'message' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={chatFirstPane}>
             {loadingMessage && (
               <div style={{ fontSize: 12, color: '#6b7280', padding: '8px 0' }}>Loading email…</div>
             )}
@@ -722,7 +725,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
 
             {message && (
               <>
-                <div style={{ background: 'var(--theme-elevation-50, #f3f4f6)', borderRadius: 8, padding: 10 }}>
+                <div style={{ background: 'var(--theme-elevation-50, #f3f4f6)', borderRadius: 8, padding: 10, flexShrink: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{message.subject || '(no subject)'}</div>
                   <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>From: {message.from}</div>
                   <div
@@ -731,7 +734,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                       color: '#374151',
                       marginTop: 8,
                       whiteSpace: 'pre-wrap',
-                      maxHeight: 160,
+                      maxHeight: 96,
                       overflowY: 'auto',
                     }}
                   >
@@ -739,10 +742,10 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                   </div>
                 </div>
 
-                <div style={chatPanel}>
+                <div style={{ ...chatPanel, flex: 1, minHeight: 150, overflowY: 'auto' }}>
                   {chatMessages.length === 0 && !draftingReply && (
-                    <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '8px 4px' }}>
-                      Ask how you want to reply. You can keep asking for changes, then save the final draft to Gmail.
+                    <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '18px 8px' }}>
+                      Chat with GmailMate about the reply. Ask for edits until it sounds right, then open the draft preview to save.
                     </div>
                   )}
                   {chatMessages.map((msg, index) => (
@@ -751,58 +754,47 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                   {draftingReply && (
                     <div style={{ ...chatBubble, ...assistantBubble }}>
                       <div style={bubbleLabel}>GmailMate</div>
-                      Drafting…
+                      Thinking…
                     </div>
                   )}
                 </div>
 
-                <div style={voiceWrapper}>
-                  <VoiceField
-                    value={chatInput}
-                    onChange={setChatInput}
-                    multiline
-                    placeholder={replyText ? 'Ask for a change to the draft…' : 'How should I reply?'}
+                <DraftPreviewPanel
+                  replyText={replyText}
+                  setReplyText={setReplyText}
+                  saving={saving}
+                  saveError={saveError}
+                  savedUrl={savedUrl}
+                  onSave={saveDraft}
+                  open={draftPreviewOpen}
+                  setOpen={setDraftPreviewOpen}
+                  summary={message ? `${replySubject(message.subject)} · ${parseFromAddress(message.from)}` : undefined}
+                />
+                <div style={composerBlockStyle}>
+                  <div style={voiceWrapper}>
+                    <VoiceField
+                      value={chatInput}
+                      onChange={setChatInput}
+                      multiline
+                      placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the reply…'}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={sendReplyChatMessage}
+                    disabled={draftingReply || !chatInput.trim()}
+                    style={{ ...primaryButton, opacity: draftingReply || !chatInput.trim() ? 0.6 : 1 }}
+                  >
+                    {draftingReply ? 'Thinking…' : 'Send to GmailMate'}
+                  </button>
+                  <ModelSelector
+                    selectedModel={selectedModel}
+                    onChange={(model) => {
+                      modelManuallyChangedRef.current = true
+                      setSelectedModel(model)
+                    }}
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={sendReplyChatMessage}
-                  disabled={draftingReply || !chatInput.trim()}
-                  style={{ ...primaryButton, opacity: draftingReply || !chatInput.trim() ? 0.6 : 1 }}
-                >
-                  {draftingReply ? 'Thinking…' : replyText ? 'Ask for change' : 'Send to GmailMate'}
-                </button>
-                <ModelSelector
-                  selectedModel={selectedModel}
-                  onChange={(model) => {
-                    modelManuallyChangedRef.current = true
-                    setSelectedModel(model)
-                  }}
-                />
-
-                {replyText && (
-                  <>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>
-                      Final draft to save
-                    </label>
-                    <textarea
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      rows={8}
-                      style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.45 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={saveDraft}
-                      disabled={saving || !replyText.trim()}
-                      style={{ ...primaryButton, background: '#059669', opacity: saving || !replyText.trim() ? 0.6 : 1 }}
-                    >
-                      {saving ? 'Saving…' : 'Save latest draft to Gmail Drafts'}
-                    </button>
-                    {saveError && <div style={errorBox}>{saveError}</div>}
-                    {savedUrl && <SavedDraftLink savedUrl={savedUrl} />}
-                  </>
-                )}
               </>
             )}
           </div>
@@ -831,6 +823,77 @@ function ChatBubble({ msg }: { msg: ChatMessage }): React.ReactElement {
             : msg.modelUsed}
         </div>
       )}
+    </div>
+  )
+}
+
+function DraftPreviewPanel({
+  replyText,
+  setReplyText,
+  saving,
+  saveError,
+  savedUrl,
+  onSave,
+  open,
+  setOpen,
+  summary,
+}: {
+  replyText: string
+  setReplyText: (value: string) => void
+  saving: boolean
+  saveError: string | null
+  savedUrl: string | null
+  onSave: () => void
+  open: boolean
+  setOpen: (open: boolean) => void
+  summary?: string
+}): React.ReactElement | null {
+  const hasDraft = replyText.trim().length > 0
+  if (!hasDraft) return null
+
+  if (!open) {
+    return (
+      <div style={draftStripStyle}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#166534' }}>Draft ready</div>
+          <div style={{ fontSize: 11, color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {summary || 'Open preview when you are ready to review and save.'}
+          </div>
+        </div>
+        <button type="button" onClick={() => setOpen(true)} style={smallPreviewButton}>
+          Preview & save
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={draftPanelStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Draft preview</div>
+          {summary && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{summary}</div>}
+        </div>
+        <button type="button" onClick={() => setOpen(false)} style={ghostLink}>
+          Collapse
+        </button>
+      </div>
+      <textarea
+        value={replyText}
+        onChange={(e) => setReplyText(e.target.value)}
+        rows={8}
+        style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.45 }}
+      />
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving || !replyText.trim()}
+        style={{ ...primaryButton, background: '#059669', opacity: saving || !replyText.trim() ? 0.6 : 1 }}
+      >
+        {saving ? 'Saving…' : 'Save latest draft to Gmail Drafts'}
+      </button>
+      {saveError && <div style={errorBox}>{saveError}</div>}
+      {savedUrl && <SavedDraftLink savedUrl={savedUrl} />}
     </div>
   )
 }
@@ -1007,6 +1070,65 @@ const modelBadgeStyle: React.CSSProperties = {
   marginTop: 6,
   fontSize: 10,
   color: '#6b7280',
+}
+
+const draftStripStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 10,
+  padding: '8px 10px',
+  borderRadius: 10,
+  border: '1px solid #bbf7d0',
+  background: '#f0fdf4',
+}
+
+const draftPanelStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  padding: 10,
+  borderRadius: 10,
+  border: '1px solid var(--theme-border-color, #e5e7eb)',
+  background: 'var(--theme-input-bg, #fff)',
+}
+
+const smallPreviewButton: React.CSSProperties = {
+  padding: '6px 10px',
+  background: '#059669',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 8,
+  fontWeight: 700,
+  fontSize: 11,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+}
+
+const composerBlockStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  flexShrink: 0,
+}
+
+const chatFirstPane: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  minHeight: '100%',
+}
+
+const detailStripStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 6,
+  flexShrink: 0,
+}
+
+const compactInputStyle: React.CSSProperties = {
+  ...inputStyle,
+  padding: '6px 8px',
+  fontSize: 12,
 }
 
 const modelSelectorWrap: React.CSSProperties = {
