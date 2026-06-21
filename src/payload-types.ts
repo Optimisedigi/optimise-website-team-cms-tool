@@ -4590,6 +4590,10 @@ export interface NegativeKeywordList {
    */
   scope: 'account' | 'campaign' | 'ad_group';
   /**
+   * Controls which campaigns the Google Ads script attaches this list to. Leave blank to sync/create the list only and not auto-attach it. Examples: .* = all campaigns; Brand = campaigns containing Brand; Brand|Generic = campaigns containing Brand or Generic.
+   */
+  campaignRegex?: string | null;
+  /**
    * Primary campaign name (legacy, use campaigns array instead).
    */
   campaignName?: string | null;
@@ -4606,10 +4610,6 @@ export interface NegativeKeywordList {
    * Ad group name (for ad group scope)
    */
   adGroupName?: string | null;
-  /**
-   * Controls which campaigns the Google Ads script attaches this list to. Leave blank to sync/create the list only and not auto-attach it. Beginner examples: .* = all campaigns; Brand = campaigns containing Brand; Brand|Generic = campaigns containing Brand or Generic; ^(?!.*Vietnam).* = all campaigns except names containing Vietnam. Case insensitive. Save first, then preview.
-   */
-  campaignRegex?: string | null;
   /**
    * Create-screen paste box: one keyword per line. Bare terms become exact match; quoted terms become phrase match. Saved into the hidden keywords list when you create the record.
    */
@@ -10625,6 +10625,7 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
   client?: T;
   name?: T;
   scope?: T;
+  campaignRegex?: T;
   campaignName?: T;
   campaigns?:
     | T
@@ -10633,7 +10634,6 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
         id?: T;
       };
   adGroupName?: T;
-  campaignRegex?: T;
   createKeywordPaste?: T;
   keywords?:
     | T

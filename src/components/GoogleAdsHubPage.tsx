@@ -249,6 +249,7 @@ const GoogleAdsHubPage = () => {
                   onClick={() => {
                     window.location.href = href
                   }}
+                  style={{ cursor: 'pointer' }}
                 >
                   <td className="cell-name">
                     <div className="od-client-cell">
@@ -332,6 +333,7 @@ const GoogleAdsHubPage = () => {
                         textDecoration: 'none',
                         fontWeight: 500,
                         fontSize: 13,
+                        cursor: 'pointer',
                       }}
                     >
                       Open →

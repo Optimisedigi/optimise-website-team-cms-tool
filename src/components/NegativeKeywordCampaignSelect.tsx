@@ -1,6 +1,6 @@
 'use client'
 
-import { useDocumentInfo } from '@payloadcms/ui'
+import { useDocumentInfo, useFormFields } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 import { matchesPattern } from '@/lib/nkl-routing'
 
@@ -8,8 +8,12 @@ export default function NegativeKeywordCampaignSelect() {
   const { initialData } = useDocumentInfo()
   const data = initialData as any
 
+  const formScope = useFormFields(([fields]) => fields.scope?.value)
+  const formCampaignRegex = useFormFields(([fields]) => fields.campaignRegex?.value)
+
   const clientId = typeof data?.client === 'object' ? data?.client?.id : data?.client
-  const campaignRegex = data?.campaignRegex || ''
+  const scope = String(formScope || data?.scope || '')
+  const campaignRegex = String(formCampaignRegex || data?.campaignRegex || '')
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -23,6 +27,7 @@ export default function NegativeKeywordCampaignSelect() {
   // Only show after the list is saved and linked to a client.
   if (!mounted || !data?.id) return null
   if (!clientId) return null
+  if (scope !== 'account' && scope !== 'campaign') return null
 
   const savedCampaigns: string[] = (data?.campaigns || []).map((c: any) => c.campaignName).filter(Boolean)
   const currentCampaigns = previewedCampaigns ?? savedCampaigns
@@ -156,7 +161,7 @@ export default function NegativeKeywordCampaignSelect() {
         Save the document first if you&apos;ve changed the regex, then preview.
       </div>
       <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 4, fontStyle: 'italic' }}>
-        Scope is visual/context only here; campaign matching is controlled by the regex and active Google Ads campaigns.
+        Available for account-level and campaign-level lists; campaign matching is controlled by the regex and active Google Ads campaigns.
       </div>
     </div>
   )

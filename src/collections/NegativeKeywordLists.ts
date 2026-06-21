@@ -74,6 +74,9 @@ export const NegativeKeywordLists: CollectionConfig = {
     group: "Growth Tools",
     useAsTitle: "name",
     defaultColumns: ["client", "name", "scope", "keywordCount", "campaignCount", "isActive"],
+    components: {
+      beforeListTable: ["./components/NegativeKeywordListsClientFilter"],
+    },
   },
   defaultSort: "client",
   access: {
@@ -269,47 +272,58 @@ export const NegativeKeywordLists: CollectionConfig = {
   },
   fields: [
     {
-      name: "infoPanel",
-      type: "ui",
-      admin: {
-        // Hidden until save so Payload does not show a custom-field placeholder on create.
-        condition: (data) => Boolean(data?.id),
-        components: {
-          Field: "./components/NegativeKeywordListInfo",
+      type: "row",
+      fields: [
+        {
+          name: "client",
+          type: "relationship",
+          relationTo: "clients",
+          required: true,
+          admin: {
+            description: "The client this negative keyword list belongs to",
+            width: "50%",
+          },
         },
-      },
-    },
-    {
-      name: "client",
-      type: "relationship",
-      relationTo: "clients",
-      required: true,
-      admin: {
-        position: "sidebar",
-        description: "The client this negative keyword list belongs to",
-      },
-    },
-    {
-      name: "name",
-      type: "text",
-      required: true,
-      admin: {
-        description: 'List name (e.g. "Brand Terms", "Competitor Terms")',
-      },
-    },
-    {
-      name: "scope",
-      type: "select",
-      required: true,
-      defaultValue: "account",
-      options: [
-        { label: "Account Level", value: "account" },
-        { label: "Campaign Level", value: "campaign" },
-        { label: "Ad Group Level", value: "ad_group" },
+        {
+          name: "name",
+          type: "text",
+          required: true,
+          admin: {
+            description: 'List name (e.g. "Brand Terms", "Competitor Terms")',
+            width: "50%",
+          },
+        },
       ],
-      admin: {
-        description: "Where this negative keyword list applies",
-      },
+    },
+    {
+      type: "row",
+      fields: [
+        {
+          name: "scope",
+          type: "select",
+          required: true,
+          defaultValue: "account",
+          options: [
+            { label: "Account Level", value: "account" },
+            { label: "Campaign Level", value: "campaign" },
+            { label: "Ad Group Level", value: "ad_group" },
+          ],
+          admin: {
+            description: "Where this negative keyword list applies",
+            width: "50%",
+          },
+        },
+        {
+          name: "campaignRegex",
+          type: "text",
+          label: "Regex",
+          admin: {
+            width: "50%",
+            description:
+              "Controls which campaigns the Google Ads script attaches this list to. Leave blank to sync/create the list only and not auto-attach it. Examples: .* = all campaigns; Brand = campaigns containing Brand; Brand|Generic = campaigns containing Brand or Generic.",
+          },
+        },
+      ],
     },
     {
       name: "campaignSelect",
@@ -350,15 +364,6 @@ export const NegativeKeywordLists: CollectionConfig = {
       admin: {
         description: "Ad group name (for ad group scope)",
         condition: (data) => data?.scope === "ad_group",
-      },
-    },
-    {
-      name: "campaignRegex",
-      type: "text",
-      label: "Regex",
-      admin: {
-        description:
-          "Controls which campaigns the Google Ads script attaches this list to. Leave blank to sync/create the list only and not auto-attach it. Beginner examples: .* = all campaigns; Brand = campaigns containing Brand; Brand|Generic = campaigns containing Brand or Generic; ^(?!.*Vietnam).* = all campaigns except names containing Vietnam. Case insensitive. Save first, then preview.",
       },
     },
     {
@@ -459,25 +464,43 @@ export const NegativeKeywordLists: CollectionConfig = {
       },
     },
     {
-      name: "isActive",
-      type: "checkbox",
-      defaultValue: true,
-      admin: {
-        description: "Inactive lists are excluded from the Google Ads sync",
-      },
+      type: "row",
+      fields: [
+        {
+          name: "isActive",
+          type: "checkbox",
+          defaultValue: true,
+          admin: {
+            width: "50%",
+            description: "Inactive lists are excluded from the Google Ads sync",
+          },
+        },
+        {
+          name: "relevancyExclusion",
+          type: "select",
+          defaultValue: "none",
+          options: [
+            { label: "Count against relevancy (default)", value: "none" },
+            { label: "Exclude as competitor", value: "competitor" },
+            { label: "Exclude as brand", value: "brand" },
+          ],
+          admin: {
+            width: "50%",
+            description:
+              "Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor' or 'brand' for negatives that block non-converting-but-not-irrelevant traffic (e.g. competitor brand terms) — their spend is kept out of the default relevancy % but can be toggled back on per-category in the dashboard. The keywords are still synced to Google Ads regardless.",
+          },
+        },
+      ],
     },
     {
-      name: "relevancyExclusion",
-      type: "select",
-      defaultValue: "none",
-      options: [
-        { label: "Count against relevancy (default)", value: "none" },
-        { label: "Exclude as competitor", value: "competitor" },
-        { label: "Exclude as brand", value: "brand" },
-      ],
+      name: "infoPanel",
+      type: "ui",
       admin: {
-        description:
-          "Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor' or 'brand' for negatives that block non-converting-but-not-irrelevant traffic (e.g. competitor brand terms) — their spend is kept out of the default relevancy % but can be toggled back on per-category in the dashboard. The keywords are still synced to Google Ads regardless.",
+        // Hidden until save so Payload does not show a custom-field placeholder on create.
+        condition: (data) => Boolean(data?.id),
+        components: {
+          Field: "./components/NegativeKeywordListInfo",
+        },
       },
     },
     {
@@ -487,6 +510,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       admin: {
         readOnly: true,
         description: "Where this list originated: 'nlb' (Negative List Builder) or 'deep_dive' (Keyword Deep Dive)",
+        condition: () => false,
       },
     },
   ],

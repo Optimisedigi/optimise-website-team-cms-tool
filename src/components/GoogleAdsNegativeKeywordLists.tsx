@@ -1,6 +1,6 @@
 'use client'
 
-import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
+import { useDocumentInfo } from '@payloadcms/ui'
 import { useState, useEffect } from 'react'
 
 interface NKLRecord {
@@ -11,6 +11,7 @@ interface NKLRecord {
   isActive: boolean
   campaignName?: string
   campaigns?: { campaignName: string }[]
+  campaignCount?: number
   campaignRegex?: string
   updatedAt: string
 }
@@ -35,12 +36,12 @@ const badge = (color: string): React.CSSProperties => ({
 
 const GoogleAdsNegativeKeywordLists = () => {
   const { id } = useDocumentInfo()
-  const [fields] = useAllFormFields()
 
   const [lists, setLists] = useState<NKLRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [clientId, setClientId] = useState<string | null>(null)
+  const [openCampaignLists, setOpenCampaignLists] = useState<Record<string, boolean>>({})
 
   // Get client ID from the audit's sidebar relationship
   useEffect(() => {
@@ -180,12 +181,13 @@ const GoogleAdsNegativeKeywordLists = () => {
       )}
 
       {lists.map(list => {
-        const campaignNames = list.campaigns?.map(c => c.campaignName).filter(Boolean) || []
-        const scopeDetail = list.scope === 'campaign' && campaignNames.length > 0
-          ? campaignNames.join(', ')
-          : list.scope === 'account' && list.campaignRegex
-            ? `Regex: ${list.campaignRegex}`
-            : null
+        const campaignNames = Array.from(new Set(list.campaigns?.map(c => c.campaignName).filter(Boolean) || []))
+        const activeCampaignCount = campaignNames.length
+        const showCampaigns = activeCampaignCount > 0 && campaignNames.length > 0
+        const campaignsOpen = Boolean(openCampaignLists[list.id])
+        const scopeDetail = list.scope === 'account' && list.campaignRegex
+          ? `Regex: ${list.campaignRegex}`
+          : null
 
         return (
           <div
@@ -219,10 +221,55 @@ const GoogleAdsNegativeKeywordLists = () => {
                   </span>
                   <span style={badge('blue')}>{scopeLabels[list.scope] || list.scope}</span>
                   <span style={badge('gray')}>{list.keywordCount || 0} keywords</span>
+                  <span style={badge('gray')}>{activeCampaignCount} active campaign{activeCampaignCount === 1 ? '' : 's'}</span>
                 </div>
                 {scopeDetail && (
                   <div style={{ marginTop: 4, fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>
                     {scopeDetail}
+                  </div>
+                )}
+                {showCampaigns && (
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenCampaignLists(prev => ({ ...prev, [list.id]: !prev[list.id] }))}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid #cbd5e1',
+                        background: '#fff',
+                        color: '#475569',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span aria-hidden="true">{campaignsOpen ? '▾' : '▸'}</span>
+                      {campaignsOpen ? 'Hide active campaigns' : 'Show active campaigns'}
+                    </button>
+                    {campaignsOpen && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                        {campaignNames.map(name => (
+                          <span
+                            key={name}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              lineHeight: 1.4,
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
+                            }}
+                          >
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
