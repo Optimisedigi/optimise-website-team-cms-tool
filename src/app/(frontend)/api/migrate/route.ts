@@ -968,6 +968,7 @@ export async function GET(request: NextRequest) {
   // (not just the POST sweep) because the full POST sweep can time out before
   // reaching it. See src/migrations/20260629_120000_add_optimate_chat_history_token_limit.ts.
   await run("optimate_settings.chat_history_token_limit", "ALTER TABLE \`optimate_settings\` ADD \`chat_history_token_limit\` numeric DEFAULT 6000");
+  await run("optimate_settings.email_assistant_model", "ALTER TABLE \`optimate_settings\` ADD \`email_assistant_model\` text");
 
   // clients.gads_auto_is_managed_google_ads_account (2026-06-16). The "managed
   // Google Ads account" toggle hides a client's account from OptiMate / active

@@ -50,6 +50,23 @@ const REALTIME_MODEL_OPTIONS = [
   },
 ];
 
+const MODEL_OPTION_VALUES = new Set<string>(MODEL_OPTIONS.map((option) => option.value));
+const REALTIME_MODEL_OPTION_VALUES = new Set<string>(REALTIME_MODEL_OPTIONS.map((option) => option.value));
+
+function normaliseOptionalPickerModel(value: unknown): string | undefined {
+  return typeof value === "string" && MODEL_OPTION_VALUES.has(value) ? value : undefined;
+}
+
+function normaliseRequiredPickerModel(value: unknown, fallback: string): string {
+  return typeof value === "string" && MODEL_OPTION_VALUES.has(value) ? value : fallback;
+}
+
+function normaliseRealtimeModel(value: unknown): string {
+  return typeof value === "string" && REALTIME_MODEL_OPTION_VALUES.has(value)
+    ? value
+    : DEFAULT_VOICE_REALTIME_MODEL;
+}
+
 function starterQuestionDefaults(questions: readonly string[]): Array<{ question: string }> {
   return questions.map((question) => ({ question }));
 }
@@ -85,6 +102,22 @@ export const OptiMateSettings: GlobalConfig = {
     hidden: hideGlobalUnlessFeature("optimate-settings"),
   },
   access: globalAccess("optimate-settings"),
+  hooks: {
+    beforeValidate: [
+      ({ data }) => {
+        if (!data) return data;
+
+        data.defaultChatModel = normaliseRequiredPickerModel(data.defaultChatModel, DEFAULT_CHAT_MODEL);
+        data.defaultAutonomousModel = normaliseRequiredPickerModel(data.defaultAutonomousModel, DEFAULT_AUTONOMOUS_MODEL);
+        data.voiceRealtimeModel = normaliseRealtimeModel(data.voiceRealtimeModel);
+        data.blogPrompterModel = normaliseOptionalPickerModel(data.blogPrompterModel);
+        data.invoiceAssistantModel = normaliseOptionalPickerModel(data.invoiceAssistantModel);
+        data.emailAssistantModel = normaliseOptionalPickerModel(data.emailAssistantModel);
+
+        return data;
+      },
+    ],
+  },
   fields: [
     {
       type: "tabs",

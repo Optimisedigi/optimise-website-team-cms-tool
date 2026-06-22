@@ -127,6 +127,7 @@ import * as migration_20260718_120000_add_team_tasks from './20260718_120000_add
 import * as migration_20260719_120000_add_team_task_comments from './20260719_120000_add_team_task_comments';
 import * as migration_20260720_120000_add_negative_keyword_campaign_count from './20260720_120000_add_negative_keyword_campaign_count';
 import * as migration_20260720_130000_refresh_negative_keyword_campaign_counts from './20260720_130000_refresh_negative_keyword_campaign_counts';
+import * as migration_20260721_120000_add_optimate_email_assistant_model from './20260721_120000_add_optimate_email_assistant_model';
 
 export const migrations = [
   {
@@ -738,6 +739,11 @@ export const migrations = [
     up: migration_20260714_120000_add_optimate_voice_realtime_model.up,
     down: migration_20260714_120000_add_optimate_voice_realtime_model.down,
     name: '20260714_120000_add_optimate_voice_realtime_model'
+  },
+  {
+    up: migration_20260721_120000_add_optimate_email_assistant_model.up,
+    down: migration_20260721_120000_add_optimate_email_assistant_model.down,
+    name: '20260721_120000_add_optimate_email_assistant_model'
   },
   {
     up: migration_20260715_120000_add_agent_soul_applies_to.up,
