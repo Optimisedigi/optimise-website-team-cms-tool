@@ -4085,6 +4085,32 @@ export async function runMigrations(
     )`);
     await run("optimate_settings_invoice_mate_starter_questions_order_idx", "CREATE INDEX IF NOT EXISTS `optimate_settings_invoice_mate_starter_questions_order_idx` ON `optimate_settings_invoice_mate_starter_questions` (`_order`)");
     await run("optimate_settings_invoice_mate_starter_questions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `optimate_settings_invoice_mate_starter_questions_parent_id_idx` ON `optimate_settings_invoice_mate_starter_questions` (`_parent_id`)");
+    await run("optimate_settings_google_mate_starter_questions_seed_defaults", `INSERT INTO \`optimate_settings_google_mate_starter_questions\` (\`_order\`, \`_parent_id\`, \`id\`, \`question\`)
+      SELECT seed._order, os.id, seed.idPrefix || os.id, seed.question
+      FROM \`optimate_settings\` os
+      JOIN (
+        SELECT 1 AS _order, 'google-mate-starter-default-1-' AS idPrefix, 'Draft the budget pacing this month with a 1 sentence performance summary on top, then save it as a Gmail draft.' AS question
+        UNION ALL SELECT 2, 'google-mate-starter-default-2-', 'How is my budget pacing this month? Include percent used, target spend to date, and days remaining.'
+        UNION ALL SELECT 3, 'google-mate-starter-default-3-', 'Which campaigns are performing best this week?'
+        UNION ALL SELECT 4, 'google-mate-starter-default-4-', 'Are there any keywords wasting spend?'
+      ) seed
+      WHERE NOT EXISTS (
+        SELECT 1 FROM \`optimate_settings_google_mate_starter_questions\` existing
+        WHERE existing.\`_parent_id\` = os.id
+      )`);
+    await run("optimate_settings_google_mate_portfolio_starter_questions_seed_defaults", `INSERT INTO \`optimate_settings_google_mate_portfolio_starter_questions\` (\`_order\`, \`_parent_id\`, \`id\`, \`question\`)
+      SELECT seed._order, os.id, seed.idPrefix || os.id, seed.question
+      FROM \`optimate_settings\` os
+      JOIN (
+        SELECT 1 AS _order, 'google-mate-portfolio-starter-default-1-' AS idPrefix, 'Create separate Gmail drafts for each selected account''s budget pacing this month, each with a 1 sentence performance summary on top.' AS question
+        UNION ALL SELECT 2, 'google-mate-portfolio-starter-default-2-', 'Show me the account inventory'
+        UNION ALL SELECT 3, 'google-mate-portfolio-starter-default-3-', 'Summarise portfolio performance'
+        UNION ALL SELECT 4, 'google-mate-portfolio-starter-default-4-', 'Find cross-account search-term waste'
+      ) seed
+      WHERE NOT EXISTS (
+        SELECT 1 FROM \`optimate_settings_google_mate_portfolio_starter_questions\` existing
+        WHERE existing.\`_parent_id\` = os.id
+      )`);
 
     // ── google_ads_campaign_budgets monthly recommendation fields (2026-06-08) ──
     // Advisory recommended daily budgets set by the monthly recommendation cron.
