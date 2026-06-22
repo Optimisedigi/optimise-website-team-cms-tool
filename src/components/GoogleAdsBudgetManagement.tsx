@@ -11,6 +11,9 @@ import {
   getMonthInfo,
   getTotalMtdSpend,
   formatCostPerConv,
+  shouldShowBudgetCampaign,
+  isBudgetAllocationCampaign,
+  isBudgetPushEligible,
   type BudgetCampaign,
   type MonthlySpend,
   type LastMonthRecap,
@@ -55,27 +58,8 @@ function selectedRangeSpend(campaign: BudgetCampaign, range: BudgetMetricsRange)
   return range === 'THIS_MONTH' ? campaign.mtdSpend || 0 : campaign.displayMtdSpend ?? campaign.mtdSpend ?? 0;
 }
 
-function isLiveCampaignActive(campaign: Pick<BudgetCampaign, 'campaignStatus' | 'enabled'>): boolean {
-  return campaign.campaignStatus ? campaign.campaignStatus !== 'PAUSED' && campaign.campaignStatus !== 'REMOVED' : campaign.enabled;
-}
-
-function parseGoogleAdsDate(value: string | null | undefined): Date | null {
-  if (!value) return null;
-  const compact = value.match(/^(\d{4})(\d{2})(\d{2})$/);
-  const iso = compact ? `${compact[1]}-${compact[2]}-${compact[3]}` : value.slice(0, 10);
-  const parsed = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function isCampaignEnded(campaign: Pick<BudgetCampaign, 'campaignEndDate'>, today = new Date()): boolean {
-  const endDate = parseGoogleAdsDate(campaign.campaignEndDate);
-  if (!endDate) return false;
-  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  return endDate < todayDate;
-}
-
 function isBudgetIncludedCampaign(campaign: BudgetCampaign): boolean {
-  return campaign.enabled && !isCampaignEnded(campaign);
+  return shouldShowBudgetCampaign(campaign);
 }
 
 function budgetRestrictionLabel(searchBudgetLostIS: number | undefined): { label: string; color: string; background: string; border: string } {
@@ -433,7 +417,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
     // Only validate enabled, non-standalone campaigns. Standalone campaigns push
     // their own derived daily budget independently of the % split.
-    const enabledCampaigns = campaigns.filter(c => isBudgetIncludedCampaign(c) && !c.standalone);
+    const enabledCampaigns = campaigns.filter(isBudgetAllocationCampaign);
     const enabledPercentage = enabledCampaigns.reduce((sum, c) => sum + c.budgetPercentage, 0);
     if (enabledCampaigns.length > 0 && Math.abs(enabledPercentage - 100) > 0.5) {
       setError(`Enabled campaigns sum to ${enabledPercentage.toFixed(1)}%, not 100%. Please adjust before pushing.`);
@@ -459,7 +443,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             // Push enabled campaigns with a positive daily budget. Standalone
             // campaigns are included even though their % is 0 — they push their
             // standalone-derived daily budget.
-            .filter(c => isBudgetIncludedCampaign(c) && c.calculatedDailyBudget > 0 && (c.standalone || c.budgetPercentage > 0))
+            .filter(c => isBudgetPushEligible(c) && c.calculatedDailyBudget > 0 && (c.standalone || c.budgetPercentage > 0))
             .map(c => ({
               campaignId: c.campaignId,
               dailyBudget: Math.round(c.calculatedDailyBudget * 100) / 100,
@@ -617,14 +601,14 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
   const handleAutoBalance = useCallback(() => {
     // Only balance enabled, non-standalone campaigns. Standalone keep % at 0.
-    const targets = campaigns.filter(c => isBudgetIncludedCampaign(c) && !c.standalone);
+    const targets = campaigns.filter(isBudgetAllocationCampaign);
     if (targets.length === 0) return;
     const equalPercentage = Math.round(10000 / targets.length) / 100;
     const remainder = 100 - (equalPercentage * targets.length);
 
     let firstAssigned = false;
     const balanced = campaigns.map(c => {
-      if (!isBudgetIncludedCampaign(c) || c.standalone) {
+      if (!isBudgetPushEligible(c) || c.standalone) {
         return { ...c, budgetPercentage: c.standalone ? 0 : c.budgetPercentage };
       }
       const pct = !firstAssigned ? equalPercentage + remainder : equalPercentage;
@@ -842,7 +826,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   }, [id, metricsRange]);
 
   const totalPercentage = useMemo(() =>
-    campaigns.filter(c => isBudgetIncludedCampaign(c) && !c.standalone).reduce((sum, c) => sum + c.budgetPercentage, 0),
+    campaigns.filter(isBudgetAllocationCampaign).reduce((sum, c) => sum + c.budgetPercentage, 0),
     [campaigns]
   );
 
@@ -870,13 +854,13 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   // - non-standalone enabled % sums to 100, OR
   // - there are no non-standalone enabled campaigns (i.e. only standalone to push)
   const enabledNonStandaloneCount = useMemo(
-    () => campaigns.filter(c => isBudgetIncludedCampaign(c) && !c.standalone).length,
+    () => campaigns.filter(isBudgetAllocationCampaign).length,
     [campaigns]
   );
   const canPush = useMemo(() => {
     if (enabledNonStandaloneCount === 0) {
-      // Only standalone (or none enabled); allow push if any enabled campaign exists with a daily budget.
-      return campaigns.some(c => isBudgetIncludedCampaign(c) && c.calculatedDailyBudget > 0);
+      // Only standalone (or none enabled); allow push if any eligible campaign exists with a daily budget.
+      return campaigns.some(c => isBudgetPushEligible(c) && c.calculatedDailyBudget > 0);
     }
     return Math.abs(totalPercentage - 100) <= 0.5;
   }, [campaigns, enabledNonStandaloneCount, totalPercentage]);
@@ -893,7 +877,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   );
 
   const totalConversions = campaigns.reduce((sum, c) => sum + (c.conversions || 0), 0);
-  const activeCampaignCount = campaigns.filter(c => isLiveCampaignActive(c) && !isCampaignEnded(c)).length;
+  const activeCampaignCount = campaigns.filter(isBudgetIncludedCampaign).length;
 
   // Progress bar calculations
   const percentUsed = monthlySpend.maxBudget > 0 
@@ -1328,7 +1312,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 4 }}>
             {([
-              { key: 'enabled' as CampaignFilter, label: 'Enabled', count: campaigns.filter(isBudgetIncludedCampaign).length, title: 'Enabled campaigns that have not ended. Ended campaigns stay visible under All.' },
+              { key: 'enabled' as CampaignFilter, label: 'Enabled', count: campaigns.filter(isBudgetIncludedCampaign).length, title: 'Active/configured campaigns plus ended, paused, or removed campaigns that have data in this period.' },
               { key: 'paused' as CampaignFilter, label: 'Paused', count: campaigns.filter(c => !c.enabled).length, title: 'Paused here means excluded from budget allocation.' },
               { key: 'all' as CampaignFilter, label: 'All', count: campaigns.length, title: 'All campaigns returned by the latest Google Ads sync, including ended campaigns.' },
             ]).map(tab => (
@@ -1469,7 +1453,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                 <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748b' }}>
                   {loading ? 'Loading...' :
                     campaigns.length === 0 ? <>No campaigns found. <button onClick={handleSync} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit' }}>Click here to sync from Google Ads.</button></> :
-                    campaignFilter === 'enabled' ? 'No active enabled campaigns. Switch to "All" to see ended campaigns or "Paused" to enable campaigns.' :
+                    campaignFilter === 'enabled' ? 'No active/configured campaigns or ended campaigns with data. Switch to "All" to review every campaign.' :
                     'No paused campaigns.'}
                 </div>
               );

@@ -139,8 +139,24 @@ export function getMonthInfo(): { daysInMonth: number; daysElapsed: number; days
 
 // Get actual MTD spend from campaign data (from Google Ads THIS_MONTH query)
 // Standalone campaigns have their own budget pool and are excluded by default.
+export function campaignHasPeriodData(c: Pick<BudgetCampaign, 'mtdSpend' | 'spend' | 'impressions' | 'clicks' | 'conversions'>): boolean {
+  return Number(c.mtdSpend ?? c.spend ?? 0) > 0 || Number(c.impressions || 0) > 0 || Number(c.clicks || 0) > 0 || Number(c.conversions || 0) > 0;
+}
+
+export function shouldShowBudgetCampaign(c: Pick<BudgetCampaign, 'enabled' | 'standalone' | 'budgetPercentage' | 'mtdSpend' | 'spend' | 'impressions' | 'clicks' | 'conversions'>): boolean {
+  return Boolean(c.enabled || c.standalone || Number(c.budgetPercentage || 0) > 0 || campaignHasPeriodData(c));
+}
+
+export function isBudgetAllocationCampaign(c: Pick<BudgetCampaign, 'enabled' | 'standalone' | 'budgetPercentage'>): boolean {
+  return Boolean(c.enabled && !c.standalone && Number(c.budgetPercentage || 0) > 0);
+}
+
+export function isBudgetPushEligible(c: Pick<BudgetCampaign, 'enabled' | 'campaignStatus'>): boolean {
+  return c.enabled && c.campaignStatus !== 'REMOVED';
+}
+
 export function getTotalMtdSpend(campaigns: BudgetCampaign[]): number {
-  return campaigns.reduce((sum, c) => (c.standalone ? sum : sum + (c.mtdSpend || 0)), 0);
+  return campaigns.reduce((sum, c) => (c.standalone || !shouldShowBudgetCampaign(c) ? sum : sum + (c.mtdSpend || 0)), 0);
 }
 
 // Daily budget for a standalone campaign:
@@ -229,10 +245,11 @@ export function generateBudgetEmailHtml(
     : isAheadOfPace
       ? `Ahead of expected pace by ${formatWholeCurrency(absPacingDelta)}`
       : 'Within $1 of expected spend-to-date';
-  // Show enabled campaigns that either have a non-zero % split OR are standalone
-  // (standalone always have % = 0 but still need to appear in the report).
+  // Show active/configured campaigns and any ended/paused/removed campaigns that
+  // still have data in the selected period. This keeps the email honest without
+  // depending on campaign start/end date fields from Google Ads.
   const enabledCampaigns = campaigns
-    .filter(c => c.enabled && (c.standalone || c.budgetPercentage > 0))
+    .filter(shouldShowBudgetCampaign)
     .sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
 
   const campaignRows = enabledCampaigns.map(c => {
