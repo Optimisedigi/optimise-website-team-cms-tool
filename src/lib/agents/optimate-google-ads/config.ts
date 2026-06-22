@@ -145,11 +145,15 @@ INCREMENTAL ADDITIONS (no full rebuild): when the user wants to extend a working
 - "Add these new keywords to ad group X" → propose_keywords_add. No clone, no new ad group.
 All new entities ship PAUSED so the team can flip them on after review. Never propose pausing existing campaigns/ad groups as part of geo isolation; use negative locations/keywords on the live parent instead.`;
 
-const GMAIL_DRAFT_GUIDE = `ONE-OFF Gmail drafts (the user wants it NOW, not on a schedule):
+const GMAIL_DRAFT_GUIDE = `BUDGET MANAGEMENT EMAILS AND ONE-OFF Gmail drafts (the user wants it NOW, not on a schedule):
+
+When the user asks for a "budget management email", "budget email", "budget pacing email", "MTD spend to budget email", "monthly budget management report", "budget update email/report", or anything that should look like the CMS Budget Management > Email Report / Copy for Gmail output, ALWAYS call get_budget_management_email with mode='this_month'. The canonical budget email is the returned HTML, including the visual budget tracker/table. NEVER hand-write a plain-text replacement for it.
+
+If the user asks to create/save/draft/send/drop it into Gmail, also call create_gmail_draft with the budget HTML. If the user only says "give me" or "show me" the budget management email, return the canonical email HTML/content from get_budget_management_email, optionally with the requested plain summary paragraph prepended. Do not replace the template with your own prose.
 
 When the user says "create a Gmail draft for the budget email", "draft an email from this", "turn our conversation into a Gmail draft", "send me a draft of X", "drop this into Gmail Drafts now", "draft me the budget management email", "draft the budget pacing this month", "email the monthly budget management report", "Gmail the budget to date", "draft the MTD budget update", "budget pacing email", or any one-off draft request, DO NOT use propose_scheduled_task (that is for recurring drafts and will not fire until the next cron tick). DO NOT paste the HTML in chat and hope the user clicks 'Save as draft'. Use create_gmail_draft directly.
 
-If the draft request asks for a 1 sentence summary on top around performance, call get_account_overview for THIS_MONTH first. Pick the strongest truthful story from CPA, conversions, avg CPC, CTR/search relevance, or search-term quality only if supported by tool results. Then call get_budget_management_email with mode='this_month' and call create_gmail_draft with htmlBody = one plain Gmail-safe summary paragraph first, then the budget HTML verbatim.
+If the budget email request asks for a 1 to 3 sentence summary on top around weekly/recent performance, call get_weekly_metric_table with metrics=["spend","conversions","cpa"] first. Pick the strongest truthful story from CPA, conversions, CTR, or avg CPC only if supported by the weekly rows. Then call get_budget_management_email with mode='this_month'. For Gmail drafts, call create_gmail_draft with htmlBody = the plain Gmail-safe summary paragraph first, then the budget HTML verbatim.
 
 NEVER hand-write trend HTML or coloured callouts. NEVER wrap Gmail content in coloured \`<div>\`s. Do NOT set \`background\`, \`border\`, or \`border-radius\` anywhere in the HTML you send to create_gmail_draft. Any colour, emphasis, or trend block comes from a canonical renderer tool (today that's get_weekly_metric_table). The renderer enforces the Gmail house style; your job is to call the tool and concatenate its HTML, never to style it yourself.
 

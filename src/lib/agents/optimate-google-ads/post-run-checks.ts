@@ -36,6 +36,7 @@ export interface CorrectionRequest {
   reason:
     | "zero_tool_call_on_action"
     | "promised_but_not_delivered"
+    | "budget_email_without_template"
     | "unverified_metric_breakdown"
     | "unverified_google_ads_data";
   /** Synthetic user message replayed to the agent for one corrective retry. */
@@ -84,6 +85,12 @@ const ACTION_VERBS: readonly string[] = [
   "turn back on",
   "remember that",
   "save that to memory",
+  "budget management email",
+  "budget email",
+  "budget pacing email",
+  "mtd spend to budget email",
+  "budget update email",
+  "monthly budget management report",
 ];
 
 /**
@@ -420,6 +427,30 @@ function calledGoogleAdsReadTool(toolNamesCalledThisRun: readonly string[]): boo
   return toolNamesCalledThisRun.some((toolName) => GOOGLE_ADS_READ_TOOLS.has(toolName));
 }
 
+const BUDGET_EMAIL_PHRASES: readonly string[] = [
+  "budget management email",
+  "budget email",
+  "budget pacing email",
+  "mtd spend to budget email",
+  "mtd budget update",
+  "budget update email",
+  "monthly budget management report",
+  "spend to budget",
+];
+
+export function detectBudgetEmailWithoutTemplate(
+  userMessage: string,
+  toolNamesCalledThisRun: readonly string[],
+): CorrectionRequest | null {
+  if (!containsAnyPhrase(userMessage, BUDGET_EMAIL_PHRASES)) return null;
+  if (toolNamesCalledThisRun.includes("get_budget_management_email")) return null;
+  return {
+    reason: "budget_email_without_template",
+    correctionNote:
+      "The user asked for a Budget Management email. You must call get_budget_management_email with mode='this_month' and use its returned canonical HTML/template. If the user asked for a Gmail draft, then call create_gmail_draft with that HTML. If they only asked to see/give the email, return the canonical email content with any requested short summary prepended. Do not hand-write a plain-text replacement.",
+  };
+}
+
 export function detectUnverifiedGoogleAdsData(
   userMessage: string,
   reply: string,
@@ -486,6 +517,7 @@ export function checkRunForCorrection(
   return (
     detectZeroToolCallOnAction(userMessage, toolNamesCalledThisRun) ??
     detectPromisedButNotDelivered(reply, toolNamesCalledThisRun) ??
+    detectBudgetEmailWithoutTemplate(userMessage, toolNamesCalledThisRun) ??
     detectUnverifiedMetricBreakdown(userMessage, reply, toolNamesCalledThisRun) ??
     detectUnverifiedGoogleAdsData(userMessage, reply, toolNamesCalledThisRun)
   );
