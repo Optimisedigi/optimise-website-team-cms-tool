@@ -418,22 +418,22 @@ function CampaignCard({ campaign, palette }: { campaign: Campaign; palette: Camp
       </div>
       <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
         <div>
-          <div className="text-[9px] uppercase tracking-wider font-semibold opacity-70">Spend</div>
-          <div className="text-sm font-mono font-bold leading-none">{fmt(campaign.spend)}</div>
+          <div className="text-[11px] uppercase tracking-wider font-semibold opacity-70">Spend</div>
+          <div className="text-base font-mono font-bold leading-none">{fmt(campaign.spend)}</div>
         </div>
         <div>
-          <div className="text-[9px] uppercase tracking-wider font-semibold opacity-70">Conv.</div>
-          <div className="text-sm font-mono font-bold leading-none">
+          <div className="text-[11px] uppercase tracking-wider font-semibold opacity-70">Conv.</div>
+          <div className="text-base font-mono font-bold leading-none">
             {campaign.conversions > 0 ? campaign.conversions.toFixed(0) : "—"}
           </div>
         </div>
         <div>
-          <div className="text-[9px] uppercase tracking-wider font-semibold opacity-70">CPA</div>
-          <div className="text-sm font-mono font-bold leading-none">{fmtCpa(campaign.cpa)}</div>
+          <div className="text-[11px] uppercase tracking-wider font-semibold opacity-70">CPA</div>
+          <div className="text-base font-mono font-bold leading-none">{fmtCpa(campaign.cpa)}</div>
         </div>
         <div>
-          <div className="text-[9px] uppercase tracking-wider font-semibold opacity-70">Imp. Share</div>
-          <div className="text-sm font-mono font-bold leading-none">{fmtPct(campaign.searchImpressionShare)}</div>
+          <div className="text-[11px] uppercase tracking-wider font-semibold opacity-70">Imp. Share</div>
+          <div className="text-base font-mono font-bold leading-none">{fmtPct(campaign.searchImpressionShare)}</div>
         </div>
       </div>
       {campaign.searchBudgetLostImpressionShare !== null &&
@@ -493,17 +493,17 @@ function AdGroupCard({
           )}
         </div>
       </div>
-      <div className="mt-auto grid grid-cols-3 gap-1 font-mono text-[11px] leading-none">
+      <div className="mt-auto grid grid-cols-3 gap-1 font-mono text-[17px] leading-none">
         <div>
-          <div className="text-[8px] uppercase opacity-70">Spend</div>
+          <div className="text-[14px] uppercase opacity-70">Spend</div>
           <div className="font-bold">{fmt(adGroup.spend)}</div>
         </div>
         <div>
-          <div className="text-[8px] uppercase opacity-70">Conv</div>
+          <div className="text-[14px] uppercase opacity-70">Conv</div>
           <div className="font-bold">{adGroup.conversions > 0 ? adGroup.conversions.toFixed(0) : "—"}</div>
         </div>
         <div>
-          <div className="text-[8px] uppercase opacity-70">CPA</div>
+          <div className="text-[14px] uppercase opacity-70">CPA</div>
           <div className="font-bold">{fmtCpa(adGroup.cpa)}</div>
         </div>
       </div>
@@ -539,27 +539,25 @@ function KeywordRow({
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-[12px] font-mono font-semibold truncate">{kw.text}</span>
-          <span className={`shrink-0 text-[8px] font-bold px-1 py-0 rounded ${matchBadge(kw.matchType)}`}>
+          <span className="text-[13px] font-mono font-semibold truncate">{kw.text}</span>
+          <span className={`shrink-0 text-[9px] font-bold px-1 py-0 rounded ${matchBadge(kw.matchType)}`}>
             {kw.matchType}
           </span>
         </div>
       </div>
-      <div className="shrink-0 flex items-center gap-2 font-mono text-[10px] leading-none">
-        <div className="text-right">
-          <div className="text-[8px] uppercase opacity-70">Avg CPC</div>
+      <div className="shrink-0 grid grid-cols-3 gap-2 font-mono text-[13px] leading-none">
+        <div className="w-14 text-right">
+          <div className="text-[11px] uppercase opacity-70">Avg CPC</div>
           <div className="font-bold">{fmtAvgCpc(kw.spend, kw.clicks)}</div>
         </div>
-        <div className="text-right">
-          <div className="text-[8px] uppercase opacity-70">Spend</div>
+        <div className="w-14 text-right">
+          <div className="text-[11px] uppercase opacity-70">Spend</div>
           <div className="font-bold">{fmt(kw.spend)}</div>
         </div>
-        {hasConv && (
-          <div className="text-right">
-            <div className="text-[8px] uppercase opacity-70">Conv</div>
-            <div className="font-bold">{kw.conversions.toFixed(0)}</div>
-          </div>
-        )}
+        <div className="w-10 text-right">
+          <div className="text-[11px] uppercase opacity-70">Conv</div>
+          <div className="font-bold">{hasConv ? kw.conversions.toFixed(0) : "\u00a0"}</div>
+        </div>
       </div>
     </div>
   );
@@ -655,6 +653,8 @@ function LandingPageCard({
   url,
   rowCount,
   spend,
+  conversions,
+  cpa,
   inherited,
   previewAd,
   palette,
@@ -662,6 +662,8 @@ function LandingPageCard({
   url: string | null;
   rowCount: number;
   spend: number;
+  conversions: number;
+  cpa: number | null;
   /** True when this URL was inherited from the ad-group landing page. */
   inherited?: boolean;
   /** Ad whose final URL matches this landing page — drives the hover preview. */
@@ -675,8 +677,8 @@ function LandingPageCard({
         style={{ backgroundColor: palette.landingPage, filter: "saturate(0.6) brightness(0.85)" }}
       >
         {previewAd && <AdPreviewIcon ad={previewAd} />}
-        <span className="text-[11px]">— no landing page</span>
-        <span className="ml-auto text-[10px] font-mono opacity-80">{rowCount}</span>
+        <span className="text-[13px]">— no landing page</span>
+        <span className="ml-auto text-[12px] font-mono opacity-80">{rowCount}</span>
       </div>
     );
   }
@@ -686,33 +688,30 @@ function LandingPageCard({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group h-full w-full rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 text-white transition-all hover:brightness-110"
+      className="group relative h-full w-full rounded-lg px-3 py-2 shadow-sm flex flex-col items-stretch gap-2 text-white transition-all hover:brightness-110"
       style={{ backgroundColor: palette.landingPage, filter: inherited ? "brightness(0.9)" : undefined }}
       title={inherited ? `${url} (inherited from ad group)` : url}
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1">
-          {host && <div className="text-[9px] uppercase tracking-wider font-semibold opacity-80 truncate">{host}</div>}
-          {inherited && (
-            <span className="shrink-0 text-[8px] font-semibold px-1 rounded bg-white/20" title="Inherited from ad-group / ad landing page">
-              inherited
-            </span>
-          )}
-        </div>
-        <div className="font-mono text-[12px] font-semibold truncate">{path || "/"}</div>
-      </div>
-      {previewAd && <AdPreviewIcon ad={previewAd} />}
-      <div className="shrink-0 flex items-center gap-2 font-mono text-[10px] leading-none">
-        <div className="text-right">
-          <div className="text-[8px] uppercase opacity-70">Spend</div>
-          <div className="font-bold">{fmt(spend)}</div>
-        </div>
-        <div className="text-right">
-          <div className="text-[8px] uppercase opacity-70">Rows</div>
-          <div className="font-bold">{rowCount}</div>
+      <div className="min-w-0 flex-1 flex flex-col gap-2 pr-5">
+        <div className="font-mono text-[14px] font-semibold break-all">{path || "/"}</div>
+        {previewAd ? (
+          <div className="rounded-lg bg-white px-3 py-2 text-slate-900 shadow-sm" title={previewAd.headlines.join("\n") || previewAd.type.replace(/_/g, " ")}>
+            <div className="text-[11px] font-bold text-slate-500">Sponsored</div>
+            <div className="text-[15px] font-semibold text-[#1a0dab] leading-snug">
+              {previewAd.headlines.slice(0, 3).join(" | ") || previewAd.type.replace(/_/g, " ")}
+            </div>
+            <div className="mt-1 text-[12px] leading-snug text-slate-600">
+              {previewAd.descriptions.slice(0, 2).join(" ") || "—"}
+            </div>
+          </div>
+        ) : null}
+        <div className="mt-auto pt-2 flex items-end gap-3 font-mono text-[14px] leading-none whitespace-nowrap">
+          <span><span className="uppercase opacity-70">Spend</span> <span className="font-bold">{fmt(spend)}</span></span>
+          <span><span className="uppercase opacity-70">Conv</span> <span className="font-bold">{conversions > 0 ? conversions.toFixed(0) : "—"}</span></span>
+          <span><span className="uppercase opacity-70">CPA</span> <span className="font-bold">{fmtCpa(cpa)}</span></span>
         </div>
       </div>
-      <svg className="w-3 h-3 opacity-70 group-hover:opacity-100 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <svg className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 opacity-70 group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
       </svg>
     </a>
@@ -736,21 +735,21 @@ function AdRow({ ad, palette }: { ad: Ad; palette: CampaignPalette }) {
       <AdPreviewIcon ad={ad} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-[12px] font-semibold truncate">{primaryHeadline}</span>
-          <span className="shrink-0 text-[8px] font-bold px-1 py-0 rounded bg-white/20">AD</span>
+          <span className="text-[14px] font-semibold truncate">{primaryHeadline}</span>
+          <span className="shrink-0 text-[10px] font-bold px-1 py-0 rounded bg-white/20">AD</span>
           {ad.status !== "ENABLED" && (
-            <span className="shrink-0 text-[8px] font-semibold text-amber-300">{ad.status}</span>
+            <span className="shrink-0 text-[10px] font-semibold text-amber-300">{ad.status}</span>
           )}
         </div>
       </div>
-      <div className="shrink-0 flex items-center gap-2 font-mono text-[10px] leading-none">
+      <div className="shrink-0 flex items-center gap-2 font-mono text-[14px] leading-none">
         <div className="text-right">
-          <div className="text-[8px] uppercase opacity-70">Spend</div>
+          <div className="text-[12px] uppercase opacity-70">Spend</div>
           <div className="font-bold">{fmt(ad.spend)}</div>
         </div>
         {hasConv && (
           <div className="text-right">
-            <div className="text-[8px] uppercase opacity-70">Conv</div>
+            <div className="text-[12px] uppercase opacity-70">Conv</div>
             <div className="font-bold">{ad.conversions.toFixed(0)}</div>
           </div>
         )}
@@ -820,6 +819,8 @@ function groupByLandingPageRun(
 ): Array<{
   url: string | null;
   spend: number;
+  conversions: number;
+  cpa: number | null;
   count: number;
   startIndex: number;
   inherited: boolean;
@@ -827,24 +828,29 @@ function groupByLandingPageRun(
 }> {
   const adByUrl = new Map<string, Ad>();
   for (const ad of ads) if (ad.finalUrl && !adByUrl.has(ad.finalUrl)) adByUrl.set(ad.finalUrl, ad);
-  const runs: Array<{ url: string | null; spend: number; count: number; startIndex: number; inherited: boolean; previewAd: Ad | null }> = [];
+  const runs: Array<{ url: string | null; spend: number; conversions: number; cpa: number | null; count: number; startIndex: number; inherited: boolean; previewAd: Ad | null }> = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const url = row.landingPage ?? null;
     const spend = row.kind === "ad" ? row.ad.spend : row.kw.spend;
+    const conversions = row.kind === "ad" ? row.ad.conversions : row.kw.conversions;
     const last = runs[runs.length - 1];
     if (last && last.url === url) {
       last.count += 1;
       last.spend += spend;
+      last.conversions += conversions;
+      last.cpa = last.conversions > 0 ? last.spend / last.conversions : null;
       last.inherited = last.inherited && (row.kind === "keyword" ? row.inherited : false);
     } else {
       runs.push({
         url,
         spend,
+        conversions,
+        cpa: conversions > 0 ? spend / conversions : null,
         count: 1,
         startIndex: i,
         inherited: row.kind === "keyword" ? row.inherited : false,
-        previewAd: url ? adByUrl.get(url) ?? null : null,
+        previewAd: row.kind === "ad" ? row.ad : url ? adByUrl.get(url) ?? null : null,
       });
     }
   }
@@ -881,11 +887,11 @@ function CompactAdGroupBar({
       )}
       <span className="shrink-0 text-[9px] uppercase font-semibold opacity-75">{adCount} ads</span>
       <span className="shrink-0 text-[9px] uppercase font-semibold opacity-75">{kwCount} kws</span>
-      <span className="shrink-0 font-mono text-[11px] font-bold w-16 text-right">{fmt(adGroup.spend)}</span>
-      <span className="shrink-0 font-mono text-[11px] font-bold w-10 text-right">
+      <span className="shrink-0 font-mono text-[13px] font-bold w-16 text-right">{fmt(adGroup.spend)}</span>
+      <span className="shrink-0 font-mono text-[13px] font-bold w-10 text-right">
         {adGroup.conversions > 0 ? adGroup.conversions.toFixed(0) : "\u2014"}
       </span>
-      <span className="shrink-0 font-mono text-[11px] font-bold w-12 text-right">{fmtCpa(adGroup.cpa)}</span>
+      <span className="shrink-0 font-mono text-[13px] font-bold w-12 text-right">{fmtCpa(adGroup.cpa)}</span>
     </button>
   );
 }
@@ -921,18 +927,19 @@ function CampaignGridBlock({
     return campaign.adGroups.map((ag) => {
       const collapsed = collapsedAdGroups.has(ag.id);
       const rows = collapsed ? [] : buildDetailRows(ag, mode, showAds, showKeywords);
-      const lpRuns = groupByLandingPageRun(rows, ag.ads ?? []);
-      return { adGroup: ag, rows, lpRuns, collapsed };
+      const visibleRows = rows.filter((row) => (showKeywords ? row.kind === "keyword" : row.kind === "ad"));
+      const lpRuns = groupByLandingPageRun(visibleRows, showAds ? ag.ads ?? [] : []);
+      return { adGroup: ag, rows, visibleRows, lpRuns, collapsed };
     });
   }, [campaign, mode, showAds, showKeywords, collapsedAdGroups]);
 
-  const totalRows = adGroupRows.reduce((s, r) => s + Math.max(1, r.rows.length), 0);
+  const totalRows = adGroupRows.reduce((s, r) => s + Math.max(1, r.visibleRows.length), 0);
 
   if (adGroupRows.length === 0) {
     return (
       <div
         className="items-stretch"
-        style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: "0.75rem" }}
+        style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: "0.75rem" }}
       >
         <CampaignCard campaign={campaign} palette={palette} />
         <div className="rounded-xl border-2 border-dashed border-white/20 p-6 text-center text-xs text-white/60 italic">
@@ -946,7 +953,7 @@ function CampaignGridBlock({
     return (
       <div
         className="items-start"
-        style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: "0.5rem" }}
+        style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: "0.5rem" }}
       >
         <CampaignCard campaign={campaign} palette={palette} />
         <div className="flex flex-col gap-1">
@@ -970,24 +977,24 @@ function CampaignGridBlock({
         display: "grid",
         // Tailwind JIT chokes on arbitrary classes with commas inside
         // minmax() — inline style avoids the silent-fallback-to-block bug.
-        gridTemplateColumns: "240px 240px minmax(280px, 1fr) minmax(240px, 0.9fr)",
+        gridTemplateColumns: "360px 270px minmax(240px, 1fr) minmax(230px, 0.9fr)",
         gap: "0.5rem",
       }}
     >
       {/* Column 1: campaign card spans every detail row across every ad group. */}
-      <div style={{ gridRow: `1 / span ${totalRows}` }}>
+      <div style={{ gridColumn: 1, gridRow: `1 / span ${totalRows}` }}>
         <CampaignCard campaign={campaign} palette={palette} />
       </div>
 
-      {adGroupRows.map(({ adGroup, rows, lpRuns, collapsed }) => {
-        const adGroupSpan = Math.max(1, rows.length);
+      {adGroupRows.map(({ adGroup, rows, visibleRows, lpRuns, collapsed }) => {
+        const adGroupSpan = Math.max(1, visibleRows.length);
         const adCount = adGroup.ads?.length ?? 0;
         if (rows.length === 0) {
           // Collapsed, or nothing to show given the current toggles: render a
           // single placeholder row so the ad group still appears in structure.
           return (
             <div key={adGroup.id} className="contents">
-              <div style={{ gridRow: `span 1` }}>
+              <div style={{ gridColumn: 2, gridRow: `span 1` }}>
                 <AdGroupCard
                   adGroup={adGroup}
                   palette={palette}
@@ -997,10 +1004,10 @@ function CampaignGridBlock({
                   onToggleCollapse={() => onToggleAdGroup(adGroup.id)}
                 />
               </div>
-              <div className="rounded-lg border border-dashed border-white/15 p-2 text-[11px] text-white/50 italic flex items-center">
+              <div style={{ gridColumn: 3 }} className="rounded-lg border border-dashed border-white/15 p-2 text-[11px] text-white/50 italic flex items-center">
                 {collapsed ? "collapsed — click to expand" : "no ads or keywords in view"}
               </div>
-              <div className="rounded-lg border border-dashed border-white/15 p-2 text-[11px] text-white/50 italic flex items-center">
+              <div style={{ gridColumn: 4 }} className="rounded-lg border border-dashed border-white/15 p-2 text-[11px] text-white/50 italic flex items-center">
                 {adGroup.landingPage ? prettyUrl(adGroup.landingPage).path || "/" : "\u2014"}
               </div>
             </div>
@@ -1009,7 +1016,7 @@ function CampaignGridBlock({
         return (
           <div key={adGroup.id} className="contents">
             {/* Column 2: ad-group cell spans all this ad group's detail rows. */}
-            <div style={{ gridRow: `span ${adGroupSpan}` }}>
+            <div style={{ gridColumn: 2, gridRow: `span ${adGroupSpan}` }}>
               <AdGroupCard
                 adGroup={adGroup}
                 palette={palette}
@@ -1021,19 +1028,21 @@ function CampaignGridBlock({
             </div>
             {/* Columns 3+4 — one row per ad/keyword, with landing-page cells
                 merged across runs of consecutive same-URL rows. */}
-            {rows.map((row, i) => {
-              const lpRun = lpRuns.find((r) => r.startIndex === i);
+            {visibleRows.map((row, i) => {
+              const lpRun = lpRuns[i];
               return (
                 <div key={row.key} className="contents">
-                  <div>
-                    {row.kind === "ad" ? <AdRow ad={row.ad} palette={palette} /> : <KeywordRow kw={row.kw} palette={palette} />}
+                  <div aria-label={row.kind === "keyword" ? "Keyword" : "Ad shown with landing page"} style={{ gridColumn: 3 }}>
+                    {row.kind === "keyword" ? <KeywordRow kw={row.kw} palette={palette} /> : null}
                   </div>
                   {lpRun && (
-                    <div style={{ gridRow: `span ${lpRun.count}` }}>
+                    <div aria-label="Landing page" style={{ gridColumn: 4, gridRow: `span ${lpRun.count}` }}>
                       <LandingPageCard
                         url={lpRun.url}
                         rowCount={lpRun.count}
                         spend={lpRun.spend}
+                        conversions={lpRun.conversions}
+                        cpa={lpRun.cpa}
                         inherited={lpRun.inherited}
                         previewAd={lpRun.previewAd}
                         palette={palette}
@@ -1191,15 +1200,15 @@ export default function AccountStructureTree({
       style={{ backgroundColor: PALETTE.pageBg }}
     >
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-800 shadow-sm">
+      <header className="sticky top-0 z-30 bg-slate-800/95 backdrop-blur border-b border-slate-700 shadow-sm">
         <div className="px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
           <div className="min-w-0">
-            <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-none">Account Structure Explorer</h1>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 leading-none">
+            <h1 className="pb-px text-base font-bold text-white leading-none">Account Structure Explorer</h1>
+            <p className="text-[11px] text-slate-300 mt-1 leading-none">
               {clientName}
-              {googleAdsCustomerId ? <span className="ml-2 font-mono text-gray-400">· {googleAdsCustomerId}</span> : null}
-              <span className="ml-2 text-gray-400">· {rangeLabel(range)}</span>
-              <span className="ml-1 font-mono text-gray-400">({range.from} → {range.to})</span>
+              {googleAdsCustomerId ? <span className="ml-2 font-mono text-slate-400">· {googleAdsCustomerId}</span> : null}
+              <span className="ml-2 text-slate-400">· {rangeLabel(range)}</span>
+              <span className="ml-1 font-mono text-slate-400">({range.from} → {range.to})</span>
             </p>
           </div>
 
@@ -1212,8 +1221,8 @@ export default function AccountStructureTree({
               { label: "Ad Groups", value: String(totalAdGroups) },
             ].map(({ label, value }) => (
               <div key={label} className="flex flex-col items-center leading-none">
-                <span className="text-[9px] text-gray-400 uppercase tracking-wider">{label}</span>
-                <span className="text-sm font-mono font-bold mt-0.5 text-gray-900 dark:text-gray-100">{value}</span>
+                <span className="text-[12px] text-slate-400 uppercase tracking-wider">{label}</span>
+                <span className="text-[17px] font-mono font-bold mt-0.5 text-white">{value}</span>
               </div>
             ))}
           </div>
@@ -1263,7 +1272,7 @@ export default function AccountStructureTree({
             )}
             <button
               onClick={() => fetchData(range)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-xs text-gray-700 dark:text-gray-300"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-600 bg-slate-900/60 hover:bg-slate-900 text-xs text-slate-100"
               title="Refresh"
             >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1275,6 +1284,17 @@ export default function AccountStructureTree({
             </svg>
               Refresh
             </button>
+          </div>
+        </div>
+        <div className="px-6 pb-0">
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: "360px 270px minmax(240px, 1fr) minmax(230px, 0.9fr)" }}
+          >
+            <div className="rounded-md bg-slate-900/95 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-white/70">Campaigns</div>
+            <div className="rounded-md bg-slate-900/95 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-white/70">Ad groups</div>
+            <div className="rounded-md bg-slate-900/95 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-white/70">Keywords</div>
+            <div className="rounded-md bg-slate-900/95 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-white/70">Ads + landing pages</div>
           </div>
         </div>
       </header>
@@ -1392,17 +1412,16 @@ export default function AccountStructureTree({
                 >
                   {showKeywords ? "▤ Hide keywords" : "▤ Show keywords"}
                 </button>
-              </div>
-
-              <div className="mb-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-3 flex-wrap">
-                <span>
-                  Showing <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{filtered.length}</span> of{" "}
-                  <span className="font-mono">{data.campaignCount}</span> campaigns
-                </span>
-                <span>·</span>
-                <span className="text-emerald-600 dark:text-emerald-400">● Healthy CPA</span>
-                <span className="text-amber-600 dark:text-amber-400">● Warning</span>
-                <span className="text-red-600 dark:text-red-400">● High CPA / no conv.</span>
+                <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 flex items-center gap-3 flex-wrap">
+                  <span>
+                    Showing <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{filtered.length}</span> of{" "}
+                    <span className="font-mono">{data.campaignCount}</span> campaigns
+                  </span>
+                  <span>·</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">● Healthy CPA</span>
+                  <span className="text-amber-600 dark:text-amber-400">● Warning</span>
+                  <span className="text-red-600 dark:text-red-400">● High CPA / no conv.</span>
+                </div>
               </div>
 
               {/* Full-width grid: Campaign | Ad group | Ads + Keywords |
