@@ -70,6 +70,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [activeTab, setActiveTab] = useState<'months' | 'review' | 'submitted' | 'removed'>('months')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [applying, setApplying] = useState(false)
+  const [appliedJustNow, setAppliedJustNow] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [lastLoadSummary, setLastLoadSummary] = useState<{ misses?: number; missingMonths?: string[]; error?: string; diagnostics?: { customerId?: string; startDate?: string; endDate?: string; totalRows?: number; matchedRows?: number } } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -256,6 +258,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         body: JSON.stringify({ clientId: Number(clientId), selections: Object.values(next), ...(deletions && deletions.length ? { deletions } : {}) }),
       })
       if (!res.ok) throw new Error('Auto-save failed')
+      // Clear a stale auto-save error once a later save succeeds. Without this the
+      // banner from a single aborted/superseded request in a rapid skip burst
+      // would stick forever even though every subsequent save returns 200.
+      setMessage((current) => (current === 'Auto-save failed' ? null : current))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Auto-save failed')
     } finally {
@@ -433,18 +439,31 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     // re-stamp its history.
     const approved = Object.values(selections).filter((selection) => selection.decision === 'approved' && selection.appliedToNKL && !selection.appliedAt)
     if (approved.length === 0) return
-    const res = await fetch('/api/monthly-keyword-selection/apply', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ clientId: Number(clientId), selections: approved }),
-    })
+    setApplying(true)
+    let res: Response
+    try {
+      res = await fetch('/api/monthly-keyword-selection/apply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ clientId: Number(clientId), selections: approved }),
+      })
+    } catch (error) {
+      setApplying(false)
+      setMessage(error instanceof Error ? error.message : 'Apply failed')
+      return
+    }
     const data = await res.json().catch(() => ({}))
+    setApplying(false)
     if (res.ok) {
       const applied = data.applied || 0
       const skipped = data.skipped || 0
       const total = applied + skipped
       setMessage(`Submitted ${total} negative(s) — ${applied} newly added, ${skipped} already on the list.`)
+      // Flash a transient "Saved ✓" on the Apply button so it's obvious the
+      // press registered even when the screen otherwise looks unchanged.
+      setAppliedJustNow(true)
+      setTimeout(() => setAppliedJustNow(false), 2500)
       // Mirror the server's appliedAt stamp locally so the Apply button count
       // clears immediately without a full reload.
       const appliedAtNow = new Date().toISOString()
@@ -959,7 +978,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) minmax(360px, 0.9fr)', gap: 12, alignItems: 'start', marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', minHeight: 66, padding: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 8 }}>
-          <button type="button" onClick={applyApproved} disabled={approvedCount === 0} style={{ padding: '8px 12px' }}>Apply {approvedCount} added negative{approvedCount === 1 ? '' : 's'}</button>
+          <button type="button" onClick={applyApproved} disabled={approvedCount === 0 || applying} style={{ padding: '8px 12px' }}>{applying ? 'Saving…' : appliedJustNow ? 'Saved ✓' : `Apply ${approvedCount} added negative${approvedCount === 1 ? '' : 's'}`}</button>
           <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>{saving ? 'Saving…' : 'Auto-saved'} · Open a month, then tick the NKL column for each search term you want to add.</span>
           {hiddenNkls.length > 0 && (
             <button type="button" onClick={() => setHiddenNklIds(new Set())} style={{ padding: '6px 10px', fontSize: 12 }}>Show {hiddenNkls.length} hidden NKL{hiddenNkls.length === 1 ? '' : 's'}</button>
