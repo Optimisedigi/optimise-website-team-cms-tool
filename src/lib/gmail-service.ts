@@ -179,6 +179,18 @@ export async function getPrimaryGmailSignature(accessToken: string): Promise<str
   return typeof primary?.signature === "string" ? primary.signature.trim() : "";
 }
 
+const GMAIL_DRAFT_FONT_STYLE = "font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;";
+
+export function formatGmailDraftHtml(htmlBody: string): string {
+  const trimmed = htmlBody.trim();
+  if (!trimmed) return `<div style="${GMAIL_DRAFT_FONT_STYLE}"></div>`;
+  if (trimmed.includes("data-optimate-gmail-draft-font")) return trimmed;
+  const normalised = trimmed
+    .replace(/font-family\s*:\s*[^;"']+;?/gi, "font-family:Verdana,Geneva,sans-serif;")
+    .replace(/font-size\s*:\s*[^;"']+;?/gi, "font-size:13px;");
+  return `<div data-optimate-gmail-draft-font="true" style="${GMAIL_DRAFT_FONT_STYLE}">${normalised}</div>`;
+}
+
 function appendGmailSignature(htmlBody: string, signatureHtml: string): string {
   const signature = signatureHtml.trim();
   if (!signature) return htmlBody;
@@ -208,9 +220,10 @@ export async function createGmailDraft(
   oauth2Client.setCredentials({ access_token: accessToken });
 
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-  const htmlBody = args.appendSignature === false
+  const signedHtmlBody = args.appendSignature === false
     ? args.htmlBody
     : appendGmailSignature(args.htmlBody, await getPrimaryGmailSignature(accessToken));
+  const htmlBody = formatGmailDraftHtml(signedHtmlBody);
   const raw = buildMimeMessage({
     to: args.to,
     subject: args.subject,

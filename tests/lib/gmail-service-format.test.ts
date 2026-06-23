@@ -1,0 +1,27 @@
+import { describe, expect, it } from "vitest";
+import { formatGmailDraftHtml } from "@/lib/gmail-service";
+
+describe("formatGmailDraftHtml", () => {
+  it("wraps draft HTML in Verdana normal-size Gmail styling", () => {
+    expect(formatGmailDraftHtml("<p>Hello</p>")).toBe(
+      '<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;"><p>Hello</p></div>',
+    );
+  });
+
+  it("normalises existing inline font family and size from agent-generated HTML", () => {
+    const html = formatGmailDraftHtml(
+      '<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;">Hello</p>',
+    );
+
+    expect(html).toContain("font-family:Verdana,Geneva,sans-serif;");
+    expect(html).toContain("font-size:13px;");
+    expect(html).not.toContain("font-family:Arial");
+    expect(html).not.toContain("font-size:14px");
+  });
+
+  it("does not double-wrap already normalised drafts", () => {
+    const html = '<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;"><p>Hello</p></div>';
+
+    expect(formatGmailDraftHtml(html)).toBe(html);
+  });
+});
