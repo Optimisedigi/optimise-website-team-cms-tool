@@ -123,7 +123,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
   const runId = opts.runId ?? newRunId();
   const maxTurns = opts.maxTurns ?? DEFAULT_MAX_TURNS;
   const toolMap = new Map(opts.tools.map((t) => [t.name, t]));
-  const toolDefs = opts.tools.map((t) => toToolDef(t));
+  const attachTools = (tools: CanonicalTool<unknown>[]) => {
+    for (const tool of tools) {
+      toolMap.set(tool.name, tool);
+    }
+  };
 
   const messages: Message[] = [...opts.initialMessages];
   const steps: AgentStep[] = [];
@@ -155,7 +159,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
         fallbackModels: opts.fallbackModels,
         messages,
         system: opts.systemPrompt,
-        tools: toolDefs.length > 0 ? toolDefs : undefined,
+        tools: toolMap.size > 0 ? Array.from(toolMap.values()).map((t) => toToolDef(t)) : undefined,
         ...(currentMaxTokens !== undefined ? { maxTokens: currentMaxTokens } : {}),
         timeoutMs: opts.timeoutMs,
         reasoningMode: opts.reasoningMode,
@@ -381,6 +385,21 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
           // the next LLM call doesn't fail the strict pairing constraint.
           resultContent = `Tool execution failed: ${(err as Error).message}`;
           isError = true;
+        }
+      }
+
+      if (opts.resolveToolBundles) {
+        try {
+          const bundledTools = await opts.resolveToolBundles({
+            toolName: tu.name,
+            input: tu.input,
+            output: resultContent,
+            isError,
+            context: opts.context,
+          });
+          attachTools(bundledTools);
+        } catch (err) {
+          console.warn(`[${opts.agentName}] Failed to resolve tool bundles:`, (err as Error).message);
         }
       }
 

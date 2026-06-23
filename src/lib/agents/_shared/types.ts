@@ -35,6 +35,18 @@ export interface AgentRunOptions {
   reasoningMode?: ReasoningMode;
   /** Optional pre-allocated run id; useful for chaining log entries. */
   runId?: string;
+  /**
+   * Optional dynamic tool expansion hook. Called after a tool executes so an
+   * agent can expose lean router tools first, then attach heavier specialist
+   * tools before the next LLM turn.
+   */
+  resolveToolBundles?: (event: {
+    toolName: string;
+    input: unknown;
+    output: unknown;
+    isError: boolean;
+    context: Record<string, unknown>;
+  }) => CanonicalTool<unknown>[] | Promise<CanonicalTool<unknown>[]>;
 }
 
 export interface AgentStep {
