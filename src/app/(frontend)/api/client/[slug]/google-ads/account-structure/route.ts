@@ -1,20 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import configPromise from "@/payload.config";
+import {
+  accountStructureConversionFilterKey,
+  assertIsoDate,
+  fetchLiveAccountStructure,
+  getLatestCachedAccountStructure,
+  normalizeCustomerId,
+  upsertAccountStructureSnapshot,
+  withCacheMeta,
+  withConversionFilterKey,
+} from "@/lib/google-ads-account-structure-cache";
 
 /**
- * GET /api/client/[slug]/google-ads/account-structure?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * GET /api/client/[slug]/google-ads/account-structure?from=YYYY-MM-DD&to=YYYY-MM-DD&refresh=live
  *
- * Resolves the client by slug via Payload, then proxies the growth-tools
- * service endpoint:
- *   GET ${GROWTH_TOOLS_URL}/api/google-ads/account-structure/:customerId?from=&to=
- *
- * Returns the upstream JSON + status verbatim. Mirrors the proxy pattern in
- * `/api/partners/[clientSlug]/account-structure/route.ts` and the client
- * lookup pattern in `src/app/(frontend)/google-dashboard/[slug]/page.tsx`.
+ * Cached by default. `refresh=live` calls Growth Tools and writes through to the
+ * dedicated full-response account-structure cache.
  */
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+type ConversionActionCategoryRow = {
+  label?: unknown;
+  color?: unknown;
+  actions?: unknown;
+};
+
+function normalizeActionList(value: unknown): string {
+  return String(value || "")
+    .split(/[\r\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(",");
+}
+
+function serializeConversionActionCategories(client: Record<string, unknown>): string {
+  const arr = client.conversionActionCategories;
+  if (!Array.isArray(arr) || arr.length === 0) return "";
+  return JSON.stringify(
+    arr
+      .map((row: ConversionActionCategoryRow) => ({
+        label: String(row.label || "").trim(),
+        color: String(row.color || "sky"),
+        actions: normalizeActionList(row.actions),
+      }))
+      .map((row) => ({ ...row, actions: row.actions ? row.actions.split(",") : [] }))
+      .filter((row) => row.label && row.actions.length > 0),
+  );
+}
 
 export async function GET(
   req: NextRequest,
@@ -22,37 +54,19 @@ export async function GET(
 ) {
   const { slug } = await params;
 
-  // ── Validate query params ────────────────────────────────────────────────
-  const fromRaw = req.nextUrl.searchParams.get("from");
-  const toRaw = req.nextUrl.searchParams.get("to");
-  if (fromRaw !== null && !ISO_DATE_RE.test(fromRaw)) {
+  let fromRaw: string | null;
+  let toRaw: string | null;
+  try {
+    fromRaw = assertIsoDate(req.nextUrl.searchParams.get("from"), "from");
+    toRaw = assertIsoDate(req.nextUrl.searchParams.get("to"), "to");
+  } catch (err) {
     return NextResponse.json(
-      { message: "Invalid 'from' — expected YYYY-MM-DD" },
+      { message: err instanceof Error ? err.message : String(err) },
       { status: 400 },
     );
   }
-  if (toRaw !== null && !ISO_DATE_RE.test(toRaw)) {
-    return NextResponse.json(
-      { message: "Invalid 'to' — expected YYYY-MM-DD" },
-      { status: 400 },
-    );
-  }
+  const refreshLive = req.nextUrl.searchParams.get("refresh") === "live";
 
-  // ── Env config ───────────────────────────────────────────────────────────
-  const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
-  const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
-  if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) {
-    return NextResponse.json(
-      {
-        message: `Server misconfigured: missing ${!GROWTH_TOOLS_URL ? "GROWTH_TOOLS_URL" : ""}${
-          !GROWTH_TOOLS_URL && !INTERNAL_API_KEY ? " and " : ""
-        }${!INTERNAL_API_KEY ? "INTERNAL_API_KEY" : ""}`,
-      },
-      { status: 500 },
-    );
-  }
-
-  // ── Resolve client by slug ───────────────────────────────────────────────
   const payload = await getPayload({ config: configPromise });
   const result = await payload.find({
     collection: "clients",
@@ -66,11 +80,23 @@ export async function GET(
       id: true,
       name: true,
       googleAdsCustomerId: true,
+      dashboardConversionActions: true,
+      conversionActionCategories: true,
+      phoneCallConversionActions: true,
+      formSubmitConversionActions: true,
     },
   });
 
   const client = result.docs[0] as
-    | { id: string | number; name?: string; googleAdsCustomerId?: string }
+    | {
+        id: string | number;
+        name?: string;
+        googleAdsCustomerId?: string;
+        dashboardConversionActions?: string | null;
+        conversionActionCategories?: unknown;
+        phoneCallConversionActions?: string | null;
+        formSubmitConversionActions?: string | null;
+      }
     | undefined;
   if (!client) {
     return NextResponse.json(
@@ -85,48 +111,64 @@ export async function GET(
     );
   }
 
-  // Strip dashes — Google Ads API uses dashless 10-digit format.
-  const cleanCid = client.googleAdsCustomerId.replace(/[-\s]/g, "");
-
-  // Forward from/to verbatim only when provided.
-  const forwardParams = new URLSearchParams();
-  if (fromRaw) forwardParams.set("from", fromRaw);
-  if (toRaw) forwardParams.set("to", toRaw);
-  const qs = forwardParams.toString();
-  const upstreamUrl = `${GROWTH_TOOLS_URL.replace(/\/$/, "")}/api/google-ads/account-structure/${cleanCid}${
-    qs ? `?${qs}` : ""
-  }`;
+  const customerId = normalizeCustomerId(client.googleAdsCustomerId);
+  const conversionFilters = {
+    conversionActions: normalizeActionList(
+      req.nextUrl.searchParams.get("conversionActions") ?? client.dashboardConversionActions,
+    ),
+    phoneCallActions: req.nextUrl.searchParams.get("phoneCallActions") ?? client.phoneCallConversionActions ?? "",
+    formSubmitActions: req.nextUrl.searchParams.get("formSubmitActions") ?? client.formSubmitConversionActions ?? "",
+    conversionActionCategories:
+      req.nextUrl.searchParams.get("conversionActionCategories") ??
+      serializeConversionActionCategories(client as Record<string, unknown>),
+  };
+  const conversionFilterKey = accountStructureConversionFilterKey(conversionFilters);
 
   try {
-    const upstream = await fetch(upstreamUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "x-internal-key": INTERNAL_API_KEY,
-      },
-      cache: "no-store",
-    });
-
-    const text = await upstream.text();
-    let body: unknown;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = {
-        message:
-          text || `Upstream returned non-JSON (HTTP ${upstream.status})`,
-      };
+    if (!refreshLive) {
+      const cached = await getLatestCachedAccountStructure(payload, client.id, {
+        conversionFilterKey,
+        dateRangeStart: fromRaw,
+        dateRangeEnd: toRaw,
+      });
+      if (cached) return NextResponse.json(cached.data);
     }
 
-    return NextResponse.json(body, { status: upstream.status });
+    const livePayload = await fetchLiveAccountStructure({
+      clientSlug: slug,
+      customerId,
+      from: fromRaw,
+      to: toRaw,
+      endpoint: "client",
+      conversionFilters,
+    });
+    const cachePayload = withConversionFilterKey(livePayload, conversionFilterKey);
+    const doc = await upsertAccountStructureSnapshot(payload, {
+      clientId: client.id,
+      clientSlug: slug,
+      customerId,
+      dateRangeStart: fromRaw ?? undefined,
+      dateRangeEnd: toRaw ?? undefined,
+      source: "manual_refresh",
+      payload: cachePayload,
+    });
+
+    return NextResponse.json(withCacheMeta(cachePayload, {
+      source: refreshLive ? "manual_refresh" : "cold_cache_live_fill",
+      capturedAt: doc.capturedAt ?? new Date().toISOString(),
+      ...(fromRaw ? { dateRangeStart: fromRaw } : {}),
+      ...(toRaw ? { dateRangeEnd: toRaw } : {}),
+      conversionFilterKey,
+      stale: false,
+    }));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(
-      `[client-account-structure] proxy error for ${slug} (${cleanCid}):`,
+      `[client-account-structure] cache/live error for ${slug} (${customerId}):`,
       msg,
     );
     return NextResponse.json(
-      { message: `Failed to reach growth-tools: ${msg}` },
+      { message: `Failed to load account structure: ${msg}` },
       { status: 502 },
     );
   }

@@ -979,6 +979,11 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               slug={data.slug}
               clientName={data.clientName ?? data.slug}
               googleAdsCustomerId={data.customerId ?? null}
+              conversionActions={activeConversionActions}
+              phoneCallActions={phoneCallActions}
+              formSubmitActions={formSubmitActions}
+              conversionActionCategories={conversionActionCategories}
+              dashboardRange={range}
             />
           )}
         </div>

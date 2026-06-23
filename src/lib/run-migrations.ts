@@ -3911,6 +3911,31 @@ export async function runMigrations(
     await run("locked_docs_rels.google_ads_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_snapshots_id` integer REFERENCES `google_ads_snapshots`(`id`) ON DELETE cascade");
     await run("payload_locked_documents_rels_google_ads_snapshots_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_google_ads_snapshots_id_idx` ON `payload_locked_documents_rels` (`google_ads_snapshots_id`)");
 
+    // ── google_ads_account_structure_snapshots (2026-06-27) ─────────────────
+    // Full-response cache for Account Structure Explorer. Keeps page loads from
+    // calling Growth Tools unless the user explicitly clicks Refresh live data.
+    await run("google_ads_account_structure_snapshots", `CREATE TABLE IF NOT EXISTS \`google_ads_account_structure_snapshots\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`client_slug\` text,
+      \`customer_id\` text,
+      \`captured_at\` text NOT NULL,
+      \`date_range_start\` text,
+      \`date_range_end\` text,
+      \`source\` text DEFAULT 'cron',
+      \`payload\` text NOT NULL,
+      \`error\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("google_ads_account_structure_snapshots_client_idx", "CREATE INDEX IF NOT EXISTS `google_ads_account_structure_snapshots_client_idx` ON `google_ads_account_structure_snapshots` (`client_id`)");
+    await run("google_ads_account_structure_snapshots_client_slug_idx", "CREATE INDEX IF NOT EXISTS `google_ads_account_structure_snapshots_client_slug_idx` ON `google_ads_account_structure_snapshots` (`client_slug`)");
+    await run("google_ads_account_structure_snapshots_customer_id_idx", "CREATE INDEX IF NOT EXISTS `google_ads_account_structure_snapshots_customer_id_idx` ON `google_ads_account_structure_snapshots` (`customer_id`)");
+    await run("google_ads_account_structure_snapshots_captured_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_account_structure_snapshots_captured_at_idx` ON `google_ads_account_structure_snapshots` (`captured_at`)");
+    await run("locked_docs_rels.google_ads_account_structure_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_account_structure_snapshots_id` integer REFERENCES `google_ads_account_structure_snapshots`(`id`) ON DELETE cascade");
+    await run("payload_locked_documents_rels_google_ads_account_structure_snapshots_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_google_ads_account_structure_snapshots_id_idx` ON `payload_locked_documents_rels` (`google_ads_account_structure_snapshots_id`)");
+
     // ── google_ads_change_trackers (2026-06-18) ─────────────────────────────
     // Shared internal Google Ads Change Tracker workspace persisted from
     // /admin/google-ads/change-tracker. `graphs` is JSON text containing graph

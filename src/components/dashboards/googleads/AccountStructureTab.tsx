@@ -45,15 +45,34 @@ interface AccountStructureTabProps {
   clientName: string;
   /** Google Ads customer ID (with or without dashes) shown next to the name. */
   googleAdsCustomerId: string | null;
+  conversionActions?: string;
+  phoneCallActions?: string;
+  formSubmitActions?: string;
+  conversionActionCategories?: string;
+  dashboardRange?: string;
 }
 
-export function AccountStructureTab({ slug, clientName, googleAdsCustomerId }: AccountStructureTabProps) {
+export function AccountStructureTab({
+  slug,
+  clientName,
+  googleAdsCustomerId,
+  conversionActions,
+  phoneCallActions,
+  formSubmitActions,
+  conversionActionCategories,
+  dashboardRange,
+}: AccountStructureTabProps) {
   return (
     <AccountStructureTree
       clientSlug={slug}
       clientName={clientName}
       googleAdsCustomerId={googleAdsCustomerId}
       apiPath={`/api/client/${slug}/google-ads/account-structure`}
+      conversionActions={conversionActions}
+      phoneCallActions={phoneCallActions}
+      formSubmitActions={formSubmitActions}
+      conversionActionCategories={conversionActionCategories}
+      dashboardRange={dashboardRange}
     />
   );
 }

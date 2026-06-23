@@ -1,23 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import {
+  accountStructureConversionFilterKey,
+  assertIsoDate,
+  fetchLiveAccountStructure,
+  getLatestCachedAccountStructure,
+  normalizeCustomerId,
+  upsertAccountStructureSnapshot,
+  withCacheMeta,
+  withConversionFilterKey,
+} from "@/lib/google-ads-account-structure-cache";
 
 /**
- * GET /api/partners/[clientSlug]/account-structure
+ * GET /api/partners/[clientSlug]/account-structure?from=YYYY-MM-DD&to=YYYY-MM-DD&refresh=live
  *
- * Proxies the growth-tools service (Railway) which returns the full
- * campaign → ad group → keyword hierarchy for the given client.
- *
- * Growth Tools serves LIVE account structure for any client when given the
- * client's Google Ads customer id, so we resolve `googleAdsCustomerId` from the
- * CMS client record (matched by slug) and pass it through as `?customerId=`.
- * Clients without a customer id fall back to the Growth Tools away-digital
- * fixture (the only slug with on-disk demo data). Optional `from`/`to`
- * (`YYYY-MM-DD`) query params are forwarded to scope the date range.
+ * Cached by default. `refresh=live` calls Growth Tools and writes through to the
+ * dedicated full-response account-structure cache.
  */
 
-const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+type ConversionActionCategoryRow = {
+  label?: unknown;
+  color?: unknown;
+  actions?: unknown;
+};
+
+function normalizeActionList(value: unknown): string {
+  return String(value || "")
+    .split(/[\r\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(",");
+}
+
+function serializeConversionActionCategories(client: Record<string, unknown>): string {
+  const arr = client.conversionActionCategories;
+  if (!Array.isArray(arr) || arr.length === 0) return "";
+  return JSON.stringify(
+    arr
+      .map((row: ConversionActionCategoryRow) => ({
+        label: String(row.label || "").trim(),
+        color: String(row.color || "sky"),
+        actions: normalizeActionList(row.actions),
+      }))
+      .map((row) => ({ ...row, actions: row.actions ? row.actions.split(",") : [] }))
+      .filter((row) => row.label && row.actions.length > 0),
+  );
+}
 
 export async function GET(
   req: NextRequest,
@@ -25,70 +54,108 @@ export async function GET(
 ) {
   const { clientSlug } = await params;
 
-  if (!GROWTH_TOOLS_URL) {
+  let from: string | null;
+  let to: string | null;
+  try {
+    from = assertIsoDate(req.nextUrl.searchParams.get("from"), "from");
+    to = assertIsoDate(req.nextUrl.searchParams.get("to"), "to");
+  } catch (err) {
     return NextResponse.json(
-      { message: "Server misconfigured: missing GROWTH_TOOLS_URL" },
-      { status: 500 },
+      { message: err instanceof Error ? err.message : String(err) },
+      { status: 400 },
+    );
+  }
+  const refreshLive = req.nextUrl.searchParams.get("refresh") === "live";
+
+  const payload = await getPayload({ config: await config });
+  const found = await payload.find({
+    collection: "clients",
+    where: { slug: { equals: clientSlug } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  });
+  const client = found.docs[0] as
+    | {
+        id: string | number;
+        googleAdsCustomerId?: string | null;
+        dashboardConversionActions?: string | null;
+        conversionActionCategories?: unknown;
+        phoneCallConversionActions?: string | null;
+        formSubmitConversionActions?: string | null;
+      }
+    | undefined;
+  const digits = typeof client?.googleAdsCustomerId === "string"
+    ? normalizeCustomerId(client.googleAdsCustomerId)
+    : "";
+
+  if (!client) {
+    return NextResponse.json(
+      { message: `No client found for slug "${clientSlug}"` },
+      { status: 404 },
+    );
+  }
+  if (digits.length !== 10) {
+    return NextResponse.json(
+      { message: `Client "${clientSlug}" has no Google Ads Customer ID configured` },
+      { status: 404 },
     );
   }
 
-  // Resolve the client's Google Ads customer id (best-effort) so Growth Tools
-  // can serve live data for any client, not just the away-digital fixture.
-  let customerId: string | null = null;
-  try {
-    const payload = await getPayload({ config: await config });
-    const found = await payload.find({
-      collection: "clients",
-      where: { slug: { equals: clientSlug } },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    });
-    const raw = (found.docs[0] as { googleAdsCustomerId?: string | null } | undefined)
-      ?.googleAdsCustomerId;
-    const digits = typeof raw === "string" ? raw.replace(/\D/g, "") : "";
-    if (digits.length === 10) customerId = digits;
-  } catch (err) {
-    // Non-fatal: fall through to the slug-only (fixture) request.
-    console.error(`[partner-account] client lookup failed for ${clientSlug}:`, err);
-  }
-
-  const qs = new URLSearchParams();
-  if (customerId) qs.set("customerId", customerId);
-  const from = req.nextUrl.searchParams.get("from");
-  const to = req.nextUrl.searchParams.get("to");
-  if (from) qs.set("from", from);
-  if (to) qs.set("to", to);
-  const query = qs.toString();
-
-  const url = `${GROWTH_TOOLS_URL.replace(/\/$/, "")}/api/partners/${encodeURIComponent(clientSlug)}/account-structure${query ? `?${query}` : ""}`;
+  const conversionFilters = {
+    conversionActions: normalizeActionList(
+      req.nextUrl.searchParams.get("conversionActions") ?? client.dashboardConversionActions,
+    ),
+    phoneCallActions: req.nextUrl.searchParams.get("phoneCallActions") ?? client.phoneCallConversionActions ?? "",
+    formSubmitActions: req.nextUrl.searchParams.get("formSubmitActions") ?? client.formSubmitConversionActions ?? "",
+    conversionActionCategories:
+      req.nextUrl.searchParams.get("conversionActionCategories") ??
+      serializeConversionActionCategories(client as Record<string, unknown>),
+  };
+  const conversionFilterKey = accountStructureConversionFilterKey(conversionFilters);
 
   try {
-    const upstream = await fetch(url, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        ...(INTERNAL_API_KEY ? { "x-internal-key": INTERNAL_API_KEY } : {}),
-      },
-      // Growth-tools data updates only when the JSON exports are refreshed,
-      // so brief caching is safe and reduces Railway load.
-      next: { revalidate: 60 },
-    });
-
-    const text = await upstream.text();
-    let body: unknown;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = { message: text || `Upstream returned non-JSON (HTTP ${upstream.status})` };
+    if (!refreshLive) {
+      const cached = await getLatestCachedAccountStructure(payload, client.id, {
+        conversionFilterKey,
+        dateRangeStart: from,
+        dateRangeEnd: to,
+      });
+      if (cached) return NextResponse.json(cached.data);
     }
 
-    return NextResponse.json(body, { status: upstream.status });
+    const livePayload = await fetchLiveAccountStructure({
+      clientSlug,
+      customerId: digits,
+      from,
+      to,
+      endpoint: "partner",
+      conversionFilters,
+    });
+    const cachePayload = withConversionFilterKey(livePayload, conversionFilterKey);
+    const doc = await upsertAccountStructureSnapshot(payload, {
+      clientId: client.id,
+      clientSlug,
+      customerId: digits,
+      dateRangeStart: from ?? undefined,
+      dateRangeEnd: to ?? undefined,
+      source: "manual_refresh",
+      payload: cachePayload,
+    });
+
+    return NextResponse.json(withCacheMeta(cachePayload, {
+      source: refreshLive ? "manual_refresh" : "cold_cache_live_fill",
+      capturedAt: doc.capturedAt ?? new Date().toISOString(),
+      ...(from ? { dateRangeStart: from } : {}),
+      ...(to ? { dateRangeEnd: to } : {}),
+      conversionFilterKey,
+      stale: false,
+    }));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[partner-account] proxy error for ${clientSlug}:`, msg);
+    console.error(`[partner-account] cache/live error for ${clientSlug}:`, msg);
     return NextResponse.json(
-      { message: `Failed to reach growth-tools: ${msg}` },
+      { message: `Failed to load account structure: ${msg}` },
       { status: 502 },
     );
   }
