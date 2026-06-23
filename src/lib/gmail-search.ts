@@ -282,6 +282,7 @@ export async function fetchMessageBody(
 export async function fetchThreadContext(
   accessToken: string,
   threadId: string,
+  /** Optional limit for callers that need a subset; defaults to the full thread. */
   maxMessages?: number,
 ): Promise<GmailThreadContext> {
   const gmail = gmailClient(accessToken);
