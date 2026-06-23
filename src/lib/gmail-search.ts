@@ -282,7 +282,7 @@ export async function fetchMessageBody(
 export async function fetchThreadContext(
   accessToken: string,
   threadId: string,
-  maxMessages = 20,
+  maxMessages?: number,
 ): Promise<GmailThreadContext> {
   const gmail = gmailClient(accessToken);
   const res = await gmail.users.threads.get({
@@ -290,9 +290,11 @@ export async function fetchThreadContext(
     id: threadId,
     format: "full",
   });
-  const messages = (res.data.messages ?? [])
-    .slice(-Math.min(Math.max(1, maxMessages), 50))
-    .map((msg, index) => messageToBody(msg, msg.id ?? `${threadId}-${index}`));
+  const rawMessages = res.data.messages ?? [];
+  const messagesToDecode = typeof maxMessages === "number"
+    ? rawMessages.slice(0, Math.min(Math.max(1, maxMessages), rawMessages.length))
+    : rawMessages;
+  const messages = messagesToDecode.map((msg, index) => messageToBody(msg, msg.id ?? `${threadId}-${index}`));
 
   return {
     threadId: res.data.id ?? threadId,

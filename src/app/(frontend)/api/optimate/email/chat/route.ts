@@ -156,7 +156,7 @@ async function loadThreadContext(userId: number | string, threadId?: string): Pr
   const numericUserId = typeof userId === "number" ? userId : Number(userId);
   const tokenResult = await getValidGmailToken(Number.isFinite(numericUserId) ? numericUserId : undefined);
   if (!tokenResult.ok) throw new Error(`Gmail thread context unavailable: ${tokenResult.reason}`);
-  const thread = await fetchThreadContext(tokenResult.accessToken, threadId, 20);
+  const thread = await fetchThreadContext(tokenResult.accessToken, threadId);
   return trimThreadContext(thread);
 }
 
