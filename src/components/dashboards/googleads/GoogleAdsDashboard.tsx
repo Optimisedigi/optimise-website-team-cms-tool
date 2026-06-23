@@ -537,11 +537,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     return { ...m, brandSpend, genericSpend };
   });
 
-  const isAccountStructureTab = activeTab === "accountStructure";
-
   return (
     <div className="od-dashboard-root min-h-screen bg-slate-50 text-slate-900">
-      <div className={`mx-auto px-4 sm:px-6 lg:px-8 pt-[11px] pb-6 ${isAccountStructureTab ? "max-w-none" : "max-w-7xl"}`}>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-[20px]">
           <div className="flex items-center gap-3 flex-wrap">
@@ -975,16 +973,18 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
           )}
 
           {activeTab === "accountStructure" && data.slug && (
-            <AccountStructureTab
-              slug={data.slug}
-              clientName={data.clientName ?? data.slug}
-              googleAdsCustomerId={data.customerId ?? null}
-              conversionActions={activeConversionActions}
-              phoneCallActions={phoneCallActions}
-              formSubmitActions={formSubmitActions}
-              conversionActionCategories={conversionActionCategories}
-              dashboardRange={range}
-            />
+            <div className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-8">
+              <AccountStructureTab
+                slug={data.slug}
+                clientName={data.clientName ?? data.slug}
+                googleAdsCustomerId={data.customerId ?? null}
+                conversionActions={activeConversionActions}
+                phoneCallActions={phoneCallActions}
+                formSubmitActions={formSubmitActions}
+                conversionActionCategories={conversionActionCategories}
+                dashboardRange={range}
+              />
+            </div>
           )}
         </div>
 

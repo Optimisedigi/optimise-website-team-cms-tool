@@ -449,30 +449,31 @@ function CampaignCard({
   wideMetrics?: boolean;
 }) {
   const h = healthStyles[campaignHealth(campaign)];
+  const hasBudgetLostWarning = campaign.searchBudgetLostImpressionShare !== null && campaign.searchBudgetLostImpressionShare > 0.05;
   return (
     <div
-      className={`relative h-full rounded-2xl p-4 shadow-lg flex ${wideMetrics ? "flex-row items-center" : "flex-col"} gap-3 overflow-hidden text-white`}
+      className={`relative h-full shadow-lg flex ${wideMetrics ? "min-h-[64px] rounded-lg px-4 py-2 flex-row items-center gap-3" : "rounded-2xl p-4 flex-col gap-3"} overflow-hidden text-white`}
       style={{ backgroundColor: palette.campaign }}
       title={campaign.name}
     >
       <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${h.dot}`} />
       <div className={wideMetrics ? "min-w-0 flex-1" : undefined}>
         <div className={wideMetrics ? "flex items-center gap-2 min-w-0" : undefined}>
-          <div className="text-sm font-bold leading-tight line-clamp-4">{campaign.name}</div>
+          <div className={`${wideMetrics ? "text-[15px]" : "text-sm"} font-bold leading-tight line-clamp-3`}>{campaign.name}</div>
           <div className={`${wideMetrics ? "shrink-0" : "mt-1.5"} flex items-center gap-1 flex-wrap`}>
-            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-white/15">
+            <span className={`${wideMetrics ? "text-[8px] px-1.5 py-0" : "text-[9px] px-1.5 py-0.5"} font-semibold rounded bg-white/15`}>
               {campaign.channelType}
             </span>
             {campaign.status !== "ENABLED" && (
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-400/30">{campaign.status}</span>
+              <span className={`${wideMetrics ? "text-[8px] px-1.5 py-0" : "text-[9px] px-1.5 py-0.5"} font-semibold rounded bg-amber-400/30`}>{campaign.status}</span>
             )}
-            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-white/15">
+            <span className={`${wideMetrics ? "text-[8px] px-1.5 py-0" : "text-[9px] px-1.5 py-0.5"} font-semibold rounded bg-white/15`}>
               {campaign.adGroups.length} Ad Group{campaign.adGroups.length === 1 ? "" : "s"}
             </span>
           </div>
         </div>
       </div>
-      <div className={`grid ${wideMetrics ? "shrink-0 grid-cols-5 gap-x-5" : "grid-cols-3 gap-x-2"} gap-y-1.5`}>
+      <div className={`grid ${wideMetrics ? "shrink-0 grid-cols-5 gap-x-5 w-[670px]" : "grid-cols-3 gap-x-2"} ${wideMetrics ? "gap-y-0" : "gap-y-1.5"}`}>
         <div>
           <div className="text-[11px] uppercase tracking-wider font-semibold opacity-70">Spend</div>
           <div className="text-base font-mono font-bold leading-none">{fmt(campaign.spend)}</div>
@@ -496,13 +497,16 @@ function CampaignCard({
           <div className="text-base font-mono font-bold leading-none">{fmtPct(campaign.searchImpressionShare)}</div>
         </div>
       </div>
-      {campaign.searchBudgetLostImpressionShare !== null &&
-        campaign.searchBudgetLostImpressionShare > 0.05 && (
-          <div className="text-[11px] text-amber-300 font-semibold flex items-center gap-1">
-            <span>⚠</span>
-            <span>{fmtPct(campaign.searchBudgetLostImpressionShare)} budget-lost IS</span>
-          </div>
-        )}
+      {(wideMetrics || hasBudgetLostWarning) && (
+        <div className={`${wideMetrics ? "shrink-0 w-[170px]" : ""} text-[11px] text-amber-300 font-semibold flex items-center gap-1`}>
+          {hasBudgetLostWarning && (
+            <>
+              <span>⚠</span>
+              <span>{fmtPct(campaign.searchBudgetLostImpressionShare)} budget-lost IS</span>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -525,13 +529,13 @@ function AdGroupCard({
   return (
     <button
       onClick={onToggleCollapse}
-      className="group h-full w-full text-left rounded-xl p-3 shadow-md flex flex-col gap-2 text-white transition-all hover:shadow-lg hover:brightness-110"
+      className="group h-full w-full text-left rounded-lg px-2.5 py-2 shadow-md flex flex-col gap-1 text-white transition-all hover:shadow-lg hover:brightness-110"
       style={{ backgroundColor: palette.adGroup }}
       title={`${adGroup.name} — click to ${collapsed ? "expand" : "collapse"}`}
     >
       <div>
-        <div className="flex items-center justify-between gap-1 mb-0.5">
-          <div className="text-[9px] uppercase tracking-wider font-semibold opacity-70">Ad Group</div>
+        <div className="flex items-center justify-between gap-1">
+          <div className="text-[8px] uppercase tracking-wider font-semibold opacity-65 leading-none">Ad Group</div>
           <span
             className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded group-hover:bg-white/20 transition-colors"
             aria-hidden="true"
@@ -544,8 +548,8 @@ function AdGroupCard({
             </svg>
           </span>
         </div>
-        <div className="text-sm font-bold leading-tight line-clamp-3">{adGroup.name}</div>
-        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+        <div className="text-[15px] font-bold leading-tight line-clamp-2">{adGroup.name}</div>
+        <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
           <span className="text-[11px] uppercase font-semibold opacity-80">kws ({keywordCount})</span>
           <span className="text-[11px] uppercase font-semibold opacity-80">ads ({adCount})</span>
           {adGroup.status !== "ENABLED" && (
@@ -553,18 +557,22 @@ function AdGroupCard({
           )}
         </div>
       </div>
-      <div className="mt-auto grid grid-cols-3 gap-1 font-mono text-[18px] leading-none">
+      <div className="mt-auto grid grid-cols-4 gap-1 font-mono text-[15px] leading-none">
         <div>
-          <div className="text-[15px] uppercase opacity-70">Spend</div>
+          <div className="text-[10px] uppercase opacity-70 leading-[0.8]">Spend</div>
           <div className="font-bold">{fmt(adGroup.spend)}</div>
         </div>
         <div>
-          <div className="text-[15px] uppercase opacity-70">Conv</div>
+          <div className="text-[10px] uppercase opacity-70 leading-[0.8]">Conv</div>
           <div className="font-bold">{adGroup.conversions > 0 ? adGroup.conversions.toFixed(0) : "—"}</div>
         </div>
         <div>
-          <div className="text-[15px] uppercase opacity-70">CPA</div>
+          <div className="text-[10px] uppercase opacity-70 leading-[0.8]">CPA</div>
           <div className="font-bold">{fmtCpa(adGroup.cpa)}</div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase opacity-70 leading-[0.8]">IS</div>
+          <div className="font-bold">{fmtPct(adGroup.searchImpressionShare)}</div>
         </div>
       </div>
     </button>
@@ -937,7 +945,7 @@ function CompactAdGroupBar({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left rounded-md px-3 py-1.5 shadow-sm flex items-center gap-2 text-white transition-all hover:brightness-110"
+      className="w-full text-left rounded-md px-3 py-1 shadow-sm flex items-center gap-2 text-white transition-all hover:brightness-110"
       style={{ backgroundColor: palette.adGroup }}
       title={adGroup.name}
     >
@@ -948,20 +956,20 @@ function CompactAdGroupBar({
       <span className="shrink-0 text-[11px] uppercase font-semibold opacity-75">{adCount} ads</span>
       <span className="shrink-0 text-[11px] uppercase font-semibold opacity-75">{kwCount} kws</span>
       <span className="shrink-0 font-mono text-[14px] w-16 text-right">
-        <span className="block text-[10px] uppercase opacity-70">Spend</span>
-        <span className="font-bold">{fmt(adGroup.spend)}</span>
+        <span className="block text-[9px] uppercase opacity-70 leading-[0.75]">Spend</span>
+        <span className="block font-bold leading-none">{fmt(adGroup.spend)}</span>
       </span>
       <span className="shrink-0 font-mono text-[14px] w-10 text-right">
-        <span className="block text-[10px] uppercase opacity-70">Conv</span>
-        <span className="font-bold">{adGroup.conversions > 0 ? adGroup.conversions.toFixed(0) : "\u2014"}</span>
+        <span className="block text-[9px] uppercase opacity-70 leading-[0.75]">Conv</span>
+        <span className="block font-bold leading-none">{adGroup.conversions > 0 ? adGroup.conversions.toFixed(0) : "\u2014"}</span>
       </span>
       <span className="shrink-0 font-mono text-[14px] w-12 text-right">
-        <span className="block text-[10px] uppercase opacity-70">CPA</span>
-        <span className="font-bold">{fmtCpa(adGroup.cpa)}</span>
+        <span className="block text-[9px] uppercase opacity-70 leading-[0.75]">CPA</span>
+        <span className="block font-bold leading-none">{fmtCpa(adGroup.cpa)}</span>
       </span>
       <span className="shrink-0 font-mono text-[14px] w-20 text-right">
-        <span className="block text-[10px] uppercase opacity-70">Impr Share</span>
-        <span className="font-bold">{fmtPct(adGroup.searchImpressionShare)}</span>
+        <span className="block text-[9px] uppercase opacity-70 leading-[0.75]">Impr Share</span>
+        <span className="block font-bold leading-none">{fmtPct(adGroup.searchImpressionShare)}</span>
       </span>
     </button>
   );
@@ -1171,7 +1179,7 @@ function AccountGrid({
   onToggleAdGroup: (id: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-[22px]">
+    <div className={`flex flex-col ${showAdGroups ? "gap-[14px]" : "gap-[2px]"}`}>
       {campaigns.map((c, i) => (
         <CampaignGridBlock
           key={c.id}
@@ -1212,7 +1220,6 @@ export default function AccountStructureTree({
 
   const [search, setSearch] = useState("");
   const [healthFilter, setHealthFilter] = useState<Health | "all">("all");
-  const [channelFilter, setChannelFilter] = useState<string>("all");
   // Keyword display mode — "compact" (default) shows the curated top-5 by
   // conversions + top-5 spenders-with-no-conv; "all" shows every spending
   // keyword the server returned. Boxes grow vertically when expanded.
@@ -1289,22 +1296,14 @@ export default function AccountStructureTree({
     setRange(next);
   };
 
-  const channels = useMemo(() => {
-    if (!data) return [] as string[];
-    const set = new Set<string>();
-    for (const c of data.campaigns) set.add(c.channelType);
-    return Array.from(set).sort();
-  }, [data]);
-
   const filtered = useMemo(() => {
     if (!data) return [] as Campaign[];
     return data.campaigns.filter((c) => {
       if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (channelFilter !== "all" && c.channelType !== channelFilter) return false;
       if (healthFilter !== "all" && campaignHealth(c) !== healthFilter) return false;
       return true;
     });
-  }, [data, search, channelFilter, healthFilter]);
+  }, [data, search, healthFilter]);
 
   const totalSpend = data?.campaigns.reduce((s, c) => s + c.spend, 0) ?? 0;
   const totalConv = data?.campaigns.reduce((s, c) => s + c.conversions, 0) ?? 0;
@@ -1430,7 +1429,7 @@ export default function AccountStructureTree({
       </header>
 
       {/* Body */}
-      <main className="px-4 sm:px-6 py-6">
+      <main className="px-4 sm:px-6 py-3">
         {loading && (
           <div className="flex items-center justify-center py-20">
             <div className="flex items-center gap-3 text-gray-400">
@@ -1466,26 +1465,14 @@ export default function AccountStructureTree({
           <div className="w-full">
             <div className="w-full min-w-0">
               {/* Toolbar */}
-              <div className="mb-4 flex items-center gap-2 flex-wrap">
+              <div className="mb-2 flex items-center gap-2 flex-wrap">
                 <input
                   type="text"
                   placeholder="Filter campaigns…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="flex-1 min-w-[200px] px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+                  className="w-56 min-w-[180px] px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
                 />
-                <select
-                  value={channelFilter}
-                  onChange={(e) => setChannelFilter(e.target.value)}
-                  className="px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100"
-                >
-                  <option value="all">All channels</option>
-                  {channels.map((ch) => (
-                    <option key={ch} value={ch}>
-                      {ch}
-                    </option>
-                  ))}
-                </select>
                 <select
                   value={healthFilter}
                   onChange={(e) => setHealthFilter(e.target.value as Health | "all")}
@@ -1527,14 +1514,15 @@ export default function AccountStructureTree({
                   type="button"
                   onClick={() => setKeywordMode((m) => (m === "compact" ? "all" : "compact"))}
                   disabled={!showKeywords || !showAdGroups}
-                  className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`h-[34px] px-3 rounded-md border text-xs font-medium inline-flex items-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                     keywordMode === "all"
                       ? "border-blue-500 bg-blue-600 text-white"
                       : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                   }`}
                   title={keywordMode === "compact" ? "Show every spending keyword returned by the API" : "Show curated top keywords only"}
+                  aria-label={keywordMode === "compact" ? "Show extra keywords" : "Hide extra keywords"}
                 >
-                  {keywordMode === "compact" ? "⊕ Show extra keywords" : "⊖ Hide extra keywords"}
+                  {keywordMode === "compact" ? "+KW" : "−KW"}
                 </button>
                 <button
                   type="button"
@@ -1549,7 +1537,7 @@ export default function AccountStructureTree({
                 >
                   {showAds ? "▣ Hide ads + landing page" : "▣ Show ads + landing page"}
                 </button>
-                <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 flex items-center gap-3 flex-wrap">
+                <div className="ml-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-3 flex-wrap">
                   <span>
                     Showing <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{filtered.length}</span> of{" "}
                     <span className="font-mono">{data.campaignCount}</span> campaigns
