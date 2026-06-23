@@ -1,12 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import {
   CHAT_PICKER_MODELS,
   DEFAULT_CHAT_MODEL,
   isCanonicalModel,
 } from '@/lib/agents/_shared/llm/registry'
-import VoiceField from './VoiceField'
 
 /**
  * Gmail draft flow for the OptiMate launcher panel.
@@ -73,6 +72,7 @@ function replySubject(subject: string): string {
 interface EmailChatResponse {
   reply?: string
   stagedEmailReply?: { subject?: string; body?: string }
+  gmailDraft?: { gmailUrl?: string; draftId?: string; messageId?: string; subject?: string; to?: string }
   runId?: string
   modelRequested?: string
   modelUsed?: string
@@ -90,6 +90,13 @@ function replaceActiveRecipient(value: string, suggestion: ContactSuggestion): s
   const prefix = parts.slice(0, -1).map((part) => part.trim()).filter(Boolean)
   const formatted = suggestion.name ? `${suggestion.name} <${suggestion.email}>` : suggestion.email
   return [...prefix, formatted].join(', ')
+}
+
+function assistantMessageText(data: EmailChatResponse, stagedBody?: string): string {
+  const parts = [data.reply || (stagedBody ? 'I’ve drafted the email below.' : 'No response received.')]
+  if (stagedBody) parts.push(`Draft preview:\n\n${stagedBody}`)
+  if (data.gmailDraft?.gmailUrl) parts.push(`Open in Gmail: ${data.gmailDraft.gmailUrl}`)
+  return parts.filter((part) => part.trim()).join('\n\n')
 }
 
 export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyChatProps): React.ReactElement {
@@ -124,7 +131,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
   const [saving, setSaving] = useState(false)
   const [savedUrl, setSavedUrl] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [draftPreviewOpen, setDraftPreviewOpen] = useState(false)
+  const [originalEmailCollapsed, setOriginalEmailCollapsed] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -224,7 +231,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setSaveError(null)
     setChatInput('')
     setChatMessages([])
-    setDraftPreviewOpen(false)
+    setOriginalEmailCollapsed(false)
     setContactSuggestions([])
     setContactsOpen(false)
   }, [])
@@ -280,7 +287,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setChatMessages([])
     setSavedUrl(null)
     setSaveError(null)
-    setDraftPreviewOpen(false)
+    setOriginalEmailCollapsed(false)
     try {
       const res = await fetch(`/api/gmail/message/${encodeURIComponent(r.messageId)}`, {
         credentials: 'include',
@@ -309,7 +316,6 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setReplyError(null)
     setSavedUrl(null)
     setSaveError(null)
-    setDraftPreviewOpen(false)
     try {
       const res = await fetch('/api/optimate/email/chat', {
         method: 'POST',
@@ -333,8 +339,9 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
         return
       }
       const stagedBody = data.stagedEmailReply?.body?.trim()
-      const assistantText = data.reply || (stagedBody ? 'I’ve staged the latest draft below.' : 'No response received.')
+      const assistantText = assistantMessageText(data, stagedBody)
       if (stagedBody) setReplyText(stagedBody)
+      if (data.gmailDraft?.gmailUrl) setSavedUrl(data.gmailDraft.gmailUrl)
       if (data.stagedEmailReply?.subject && !composeSubject.trim()) setComposeSubject(data.stagedEmailReply.subject)
       setChatMessages((prev) => [
         ...prev,
@@ -394,8 +401,9 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
         return
       }
       const stagedBody = data.stagedEmailReply?.body?.trim()
-      const assistantText = data.reply || (stagedBody ? 'I’ve staged the latest draft below.' : 'No response received.')
+      const assistantText = assistantMessageText(data, stagedBody)
       if (stagedBody) setReplyText(stagedBody)
+      if (data.gmailDraft?.gmailUrl) setSavedUrl(data.gmailDraft.gmailUrl)
       setChatMessages((prev) => [
         ...prev,
         {
@@ -595,7 +603,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
             <div style={{ ...chatPanel, flex: 1, minHeight: 150, overflowY: 'auto' }}>
               {chatMessages.length === 0 && !draftingReply && (
                 <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '18px 8px' }}>
-                  Chat with GmailMate about the email. Ask for drafts, changes, tone edits, then preview and save when ready.
+                  Chat with GmailMate about the email. Ask for drafts, changes, and tone edits, then create a Gmail draft when ready.
                 </div>
               )}
               {chatMessages.map((msg, index) => (
@@ -608,42 +616,25 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                 </div>
               )}
             </div>
-            <DraftPreviewPanel
+            <DraftActionRow
               replyText={replyText}
-              setReplyText={setReplyText}
               saving={saving}
               saveError={saveError}
               savedUrl={savedUrl}
               onSave={saveNewDraft}
-              open={draftPreviewOpen}
-              setOpen={setDraftPreviewOpen}
-              summary={[composeTo.trim(), composeSubject.trim()].filter(Boolean).join(' · ')}
             />
-            <div style={composerBlockStyle}>
-              <div style={voiceWrapper}>
-                <VoiceField
-                  value={instructions}
-                  onChange={setInstructions}
-                  multiline
-                  placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the email…'}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={draftNewEmail}
-                disabled={draftingReply || !instructions.trim()}
-                style={{ ...primaryButton, opacity: draftingReply || !instructions.trim() ? 0.6 : 1 }}
-              >
-                {draftingReply ? 'Thinking…' : 'Send to GmailMate'}
-              </button>
-              <ModelSelector
-                selectedModel={selectedModel}
-                onChange={(model) => {
-                  modelManuallyChangedRef.current = true
-                  setSelectedModel(model)
-                }}
-              />
-            </div>
+            <GmailChatComposer
+              value={instructions}
+              onChange={setInstructions}
+              onSend={draftNewEmail}
+              disabled={draftingReply}
+              placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the email…'}
+              selectedModel={selectedModel}
+              onModelChange={(model) => {
+                modelManuallyChangedRef.current = true
+                setSelectedModel(model)
+              }}
+            />
           </div>
         )}
 
@@ -723,27 +714,16 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
 
             {message && (
               <>
-                <div style={{ background: 'var(--theme-elevation-50, #f3f4f6)', borderRadius: 8, padding: 10, flexShrink: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{message.subject || '(no subject)'}</div>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>From: {message.from}</div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: '#374151',
-                      marginTop: 8,
-                      whiteSpace: 'pre-wrap',
-                      maxHeight: 96,
-                      overflowY: 'auto',
-                    }}
-                  >
-                    {message.body || '(empty body)'}
-                  </div>
-                </div>
+                <OriginalEmailCard
+                  message={message}
+                  collapsed={originalEmailCollapsed}
+                  onToggle={() => setOriginalEmailCollapsed((value) => !value)}
+                />
 
                 <div style={{ ...chatPanel, flex: 1, minHeight: 150, overflowY: 'auto' }}>
                   {chatMessages.length === 0 && !draftingReply && (
                     <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '18px 8px' }}>
-                      Chat with GmailMate about the reply. Ask for edits until it sounds right, then open the draft preview to save.
+                      Chat with GmailMate about the reply. Ask for edits until it sounds right, then create a Gmail draft when ready.
                     </div>
                   )}
                   {chatMessages.map((msg, index) => (
@@ -757,48 +737,52 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                   )}
                 </div>
 
-                <DraftPreviewPanel
+                <DraftActionRow
                   replyText={replyText}
-                  setReplyText={setReplyText}
                   saving={saving}
                   saveError={saveError}
                   savedUrl={savedUrl}
                   onSave={saveDraft}
-                  open={draftPreviewOpen}
-                  setOpen={setDraftPreviewOpen}
-                  summary={message ? `${replySubject(message.subject)} · ${parseFromAddress(message.from)}` : undefined}
                 />
-                <div style={composerBlockStyle}>
-                  <div style={voiceWrapper}>
-                    <VoiceField
-                      value={chatInput}
-                      onChange={setChatInput}
-                      multiline
-                      placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the reply…'}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={sendReplyChatMessage}
-                    disabled={draftingReply || !chatInput.trim()}
-                    style={{ ...primaryButton, opacity: draftingReply || !chatInput.trim() ? 0.6 : 1 }}
-                  >
-                    {draftingReply ? 'Thinking…' : 'Send to GmailMate'}
-                  </button>
-                  <ModelSelector
-                    selectedModel={selectedModel}
-                    onChange={(model) => {
-                      modelManuallyChangedRef.current = true
-                      setSelectedModel(model)
-                    }}
-                  />
-                </div>
+                <GmailChatComposer
+                  value={chatInput}
+                  onChange={setChatInput}
+                  onSend={sendReplyChatMessage}
+                  disabled={draftingReply}
+                  placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the reply…'}
+                  selectedModel={selectedModel}
+                  onModelChange={(model) => {
+                    modelManuallyChangedRef.current = true
+                    setSelectedModel(model)
+                  }}
+                />
               </>
             )}
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+function LinkifiedText({ text }: { text: string }): React.ReactElement {
+  const parts = text.split(/(https?:\/\/\S+)/g)
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (!/^https?:\/\//.test(part)) return <Fragment key={`${index}-${part}`}>{part}</Fragment>
+        const href = part.replace(/[).,]+$/, '')
+        const suffix = part.slice(href.length)
+        return (
+          <Fragment key={`${index}-${part}`}>
+            <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+              Open in Gmail
+            </a>
+            {suffix}
+          </Fragment>
+        )
+      })}
+    </>
   )
 }
 
@@ -813,7 +797,7 @@ function ChatBubble({ msg }: { msg: ChatMessage }): React.ReactElement {
       <div style={bubbleLabel}>
         {msg.role === 'user' ? 'You' : msg.role === 'error' ? 'Error' : 'GmailMate'}
       </div>
-      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+      <div style={{ whiteSpace: 'pre-wrap' }}><LinkifiedText text={msg.content} /></div>
       {msg.role === 'assistant' && (msg.modelUsed || msg.modelRequested) && (
         <div style={modelBadgeStyle}>
           {msg.modelRequested && msg.modelUsed && msg.modelRequested !== msg.modelUsed
@@ -825,73 +809,37 @@ function ChatBubble({ msg }: { msg: ChatMessage }): React.ReactElement {
   )
 }
 
-function DraftPreviewPanel({
+function DraftActionRow({
   replyText,
-  setReplyText,
   saving,
   saveError,
   savedUrl,
   onSave,
-  open,
-  setOpen,
-  summary,
 }: {
   replyText: string
-  setReplyText: (value: string) => void
   saving: boolean
   saveError: string | null
   savedUrl: string | null
   onSave: () => void
-  open: boolean
-  setOpen: (open: boolean) => void
-  summary?: string
 }): React.ReactElement | null {
   const hasDraft = replyText.trim().length > 0
-  if (!hasDraft) return null
-
-  if (!open) {
-    return (
-      <div style={draftStripStyle}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#166534' }}>Draft ready</div>
-          <div style={{ fontSize: 11, color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {summary || 'Open preview when you are ready to review and save.'}
-          </div>
-        </div>
-        <button type="button" onClick={() => setOpen(true)} style={smallPreviewButton}>
-          Preview & save
-        </button>
-      </div>
-    )
-  }
-
+  if (!hasDraft && !saveError && !savedUrl) return null
   return (
-    <div style={draftPanelStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Draft preview</div>
-          {summary && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{summary}</div>}
-        </div>
-        <button type="button" onClick={() => setOpen(false)} style={ghostLink}>
-          Collapse
+    <div style={draftActionRowStyle}>
+      {hasDraft && !savedUrl && (
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          style={{ ...createDraftButtonStyle, opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? 'Creating…' : 'Create Gmail draft'}
         </button>
+      )}
+      <div style={{ minWidth: 0, flex: 1 }}>
+        {saveError && <div style={inlineErrorStyle}>{saveError}</div>}
+        {savedUrl && <SavedDraftLink savedUrl={savedUrl} />}
       </div>
-      <textarea
-        value={replyText}
-        onChange={(e) => setReplyText(e.target.value)}
-        rows={8}
-        style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.45 }}
-      />
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={saving || !replyText.trim()}
-        style={{ ...primaryButton, background: '#059669', opacity: saving || !replyText.trim() ? 0.6 : 1 }}
-      >
-        {saving ? 'Saving…' : 'Save latest draft to Gmail Drafts'}
-      </button>
-      {saveError && <div style={errorBox}>{saveError}</div>}
-      {savedUrl && <SavedDraftLink savedUrl={savedUrl} />}
     </div>
   )
 }
@@ -907,37 +855,113 @@ function SavedDraftLink({ savedUrl }: { savedUrl: string }): React.ReactElement 
   )
 }
 
-function ModelSelector({
-  selectedModel,
+function GmailChatComposer({
+  value,
   onChange,
+  onSend,
+  disabled,
+  placeholder,
+  selectedModel,
+  onModelChange,
 }: {
+  value: string
+  onChange: (value: string) => void
+  onSend: () => void
+  disabled: boolean
+  placeholder: string
   selectedModel: string
-  onChange: (model: string) => void
+  onModelChange: (model: string) => void
 }): React.ReactElement {
+  const canSend = !disabled && value.trim().length > 0
   return (
-    <div style={modelSelectorWrap}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: '#6b7280' }}>Model</span>
-      <select
-        value={selectedModel}
-        onChange={(e) => onChange(e.target.value)}
-        title="Model used for the next GmailMate turn"
-        style={modelSelectStyle}
-      >
-        {CHAT_PICKER_MODELS.map((m) => (
-          <option key={m.canonical} value={m.canonical}>
-            {m.label}
-          </option>
-        ))}
-      </select>
+    <div style={gmailComposerWrapStyle}>
+      <div style={googleMateComposerBoxStyle}>
+        <textarea
+          rows={1}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              if (canSend) onSend()
+            }
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          style={googleMateTextareaStyle}
+        />
+        <button
+          type="button"
+          onClick={onSend}
+          disabled={!canSend}
+          title="Send"
+          aria-label="Send"
+          style={{
+            ...sendIconButtonStyle,
+            background: canSend ? '#2563eb' : '#9ca3af',
+            cursor: canSend ? 'pointer' : 'not-allowed',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M12 19V5M5 12l7-7 7 7"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+      <div style={modelSelectorRowStyle}>
+        <select
+          value={selectedModel}
+          onChange={(e) => onModelChange(e.target.value)}
+          disabled={disabled}
+          title="Model used for the next GmailMate turn"
+          style={modelSelectGoogleMateStyle}
+        >
+          {CHAT_PICKER_MODELS.map((m) => (
+            <option key={m.canonical} value={m.canonical}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   )
 }
 
-// Constrain VoiceField to the compact launcher width and reserve room so the
-// mic button (absolutely positioned at the textarea's top-right) never overlaps text.
-const voiceWrapper: React.CSSProperties = {
-  width: '100%',
-  minWidth: 0,
+function OriginalEmailCard({
+  message,
+  collapsed,
+  onToggle,
+}: {
+  message: MessageBody
+  collapsed: boolean
+  onToggle: () => void
+}): React.ReactElement {
+  return (
+    <div style={originalEmailCardStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {message.subject || '(no subject)'}
+          </div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>From: {message.from}</div>
+        </div>
+        <button type="button" onClick={onToggle} style={minimalButtonStyle}>
+          {collapsed ? 'Show original email' : 'Collapse original email'}
+        </button>
+      </div>
+      {!collapsed && (
+        <div style={originalEmailBodyStyle}>
+          {message.body || '(empty body)'}
+        </div>
+      )}
+    </div>
+  )
 }
 
 const fillColumn: React.CSSProperties = {
@@ -1070,29 +1094,16 @@ const modelBadgeStyle: React.CSSProperties = {
   color: '#6b7280',
 }
 
-const draftStripStyle: React.CSSProperties = {
+const draftActionRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
   gap: 10,
-  padding: '8px 10px',
-  borderRadius: 10,
-  border: '1px solid #bbf7d0',
-  background: '#f0fdf4',
+  flexWrap: 'wrap',
+  flexShrink: 0,
 }
 
-const draftPanelStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  padding: 10,
-  borderRadius: 10,
-  border: '1px solid var(--theme-border-color, #e5e7eb)',
-  background: 'var(--theme-input-bg, #fff)',
-}
-
-const smallPreviewButton: React.CSSProperties = {
-  padding: '6px 10px',
+const createDraftButtonStyle: React.CSSProperties = {
+  padding: '7px 11px',
   background: '#059669',
   color: '#fff',
   border: 'none',
@@ -1103,11 +1114,52 @@ const smallPreviewButton: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-const composerBlockStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
+const inlineErrorStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: '#b91c1c',
+}
+
+const gmailComposerWrapStyle: React.CSSProperties = {
   flexShrink: 0,
+}
+
+const googleMateComposerBoxStyle: React.CSSProperties = {
+  position: 'relative',
+  minHeight: 104,
+  border: '1px solid var(--theme-border-color, #e5e7eb)',
+  borderRadius: 14,
+  background: 'var(--theme-input-bg, #fff)',
+  padding: '12px 14px 46px',
+}
+
+const googleMateTextareaStyle: React.CSSProperties = {
+  width: '100%',
+  minHeight: 36,
+  padding: 0,
+  border: 'none',
+  fontSize: 13,
+  lineHeight: '20px',
+  background: 'transparent',
+  color: 'var(--theme-text, #1f2937)',
+  outline: 'none',
+  resize: 'none',
+  fontFamily: 'inherit',
+  overflowY: 'auto',
+}
+
+const sendIconButtonStyle: React.CSSProperties = {
+  position: 'absolute',
+  right: 14,
+  bottom: 8,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 29,
+  height: 29,
+  color: '#fff',
+  border: 'none',
+  borderRadius: 8,
+  transition: 'background 0.15s',
 }
 
 const chatFirstPane: React.CSSProperties = {
@@ -1129,22 +1181,48 @@ const compactInputStyle: React.CSSProperties = {
   fontSize: 12,
 }
 
-const modelSelectorWrap: React.CSSProperties = {
+const modelSelectorRowStyle: React.CSSProperties = {
   display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  padding: '2px 0 4px',
+  justifyContent: 'flex-end',
+  marginTop: 6,
+  marginBottom: 18,
 }
 
-const modelSelectStyle: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  padding: '5px 7px',
+const modelSelectGoogleMateStyle: React.CSSProperties = {
+  fontSize: 11,
+  padding: '4px 8px',
   border: '1px solid var(--theme-border-color, #e5e7eb)',
   borderRadius: 6,
   background: 'var(--theme-input-bg, #fff)',
   color: 'var(--theme-text, #1f2937)',
+  width: 270,
+  maxWidth: '100%',
+}
+
+const originalEmailCardStyle: React.CSSProperties = {
+  background: 'var(--theme-elevation-50, #f3f4f6)',
+  borderRadius: 8,
+  padding: 10,
+  flexShrink: 0,
+}
+
+const originalEmailBodyStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: '#374151',
+  marginTop: 8,
+  whiteSpace: 'pre-wrap',
+  maxHeight: 96,
+  overflowY: 'auto',
+}
+
+const minimalButtonStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: '#2563eb',
   fontSize: 11,
+  cursor: 'pointer',
+  padding: 0,
+  whiteSpace: 'nowrap',
 }
 
 const resultRow: React.CSSProperties = {

@@ -96,6 +96,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       reply: result.reply,
       stagedEmailReply: result.stagedEmailReply,
+      gmailDraft: result.gmailDraft,
       runId: result.runId,
       modelRequested: result.modelRequested,
       modelUsed: result.modelUsed,
@@ -138,7 +139,7 @@ function buildUserMessage(args: {
   email: EmailContext;
 }): string {
   const parts: string[] = [
-    "You are GmailMate in text chat. Work back-and-forth with the user until they are happy with the email. If the user asks you to draft, write, respond, or reply to an email, call stage_email_reply with the finished customer-facing email body so the editable draft box updates. Gmail is draft-only; never claim to send mail. Never put chat-only process notes like 'Draft is in the review box', 'I've covered', or 'Want me to adjust' into the staged email body.",
+    "You are GmailMate in text chat. Work back-and-forth with the user until they are happy with the email. By default, treat the user's words as rough instructions or notes to improve, not copy to paste. If they type a direct request or blunt response, rewrite it into a clear, polished, customer-facing email that preserves their intent. Preserve specific wording when the user frames a point as wording to include, for example 'say it this way', 'word it like', or quoted text they ask you to add. If the user asks you to draft, write, respond, or reply to an email, call stage_email_reply with the finished customer-facing email body so the editable draft box updates. Gmail is draft-only; never claim to send mail. Never put chat-only process notes like 'Draft is in the review box', 'I've covered', or 'Want me to adjust' into the staged email body.",
   ];
 
   if (args.mode === "reply") {
