@@ -179,13 +179,27 @@ export async function getPrimaryGmailSignature(accessToken: string): Promise<str
   return typeof primary?.signature === "string" ? primary.signature.trim() : "";
 }
 
-const GMAIL_DRAFT_FONT_STYLE = "font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;";
+const GMAIL_DRAFT_FONT_STYLE = "font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;margin:0;padding:0;";
+const GMAIL_DRAFT_PARAGRAPH_STYLE = "margin:0 0 12px 0;";
+
+function normaliseParagraphSpacing(html: string): string {
+  return html.replace(/<p\b([^>]*)>/gi, (match, attrs: string) => {
+    const styleMatch = attrs.match(/\sstyle=(["'])(.*?)\1/i);
+    if (!styleMatch) return `<p${attrs} style="${GMAIL_DRAFT_PARAGRAPH_STYLE}">`;
+
+    const [, quote, styleValue] = styleMatch;
+    const nextStyle = /margin\s*:/i.test(styleValue)
+      ? styleValue.replace(/margin\s*:\s*[^;"']+;?/gi, GMAIL_DRAFT_PARAGRAPH_STYLE)
+      : `${GMAIL_DRAFT_PARAGRAPH_STYLE}${styleValue}`;
+    return match.replace(styleMatch[0], ` style=${quote}${nextStyle}${quote}`);
+  });
+}
 
 export function formatGmailDraftHtml(htmlBody: string): string {
   const trimmed = htmlBody.trim();
   if (!trimmed) return `<div style="${GMAIL_DRAFT_FONT_STYLE}"></div>`;
   if (trimmed.includes("data-optimate-gmail-draft-font")) return trimmed;
-  const normalised = trimmed
+  const normalised = normaliseParagraphSpacing(trimmed)
     .replace(/font-family\s*:\s*[^;"']+;?/gi, "font-family:Verdana,Geneva,sans-serif;")
     .replace(/font-size\s*:\s*[^;"']+;?/gi, "font-size:13px;");
   return `<div data-optimate-gmail-draft-font="true" style="${GMAIL_DRAFT_FONT_STYLE}">${normalised}</div>`;
