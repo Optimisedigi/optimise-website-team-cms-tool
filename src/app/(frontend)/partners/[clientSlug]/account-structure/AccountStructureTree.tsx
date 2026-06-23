@@ -131,7 +131,10 @@ interface DateRange {
 }
 
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function computeRange(preset: Exclude<RangePreset, "custom">): DateRange {
@@ -158,10 +161,35 @@ function computeRange(preset: Exclude<RangePreset, "custom">): DateRange {
   return { preset, from: isoDate(lastStart), to: isoDate(lastEnd) };
 }
 
-function presetFromDashboardRange(dashboardRange?: string): Exclude<RangePreset, "custom"> | null {
-  if (dashboardRange === "this_month") return "this_month";
-  if (dashboardRange === "last_month") return "last_month";
-  if (dashboardRange === "last_30_days") return "30d";
+function rangeFromDashboardRange(dashboardRange?: string): DateRange | null {
+  if (!dashboardRange) return null;
+  if (dashboardRange.startsWith("custom:")) {
+    const [from, to] = dashboardRange.slice("custom:".length).split(",");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return { preset: "custom", from, to };
+    }
+  }
+
+  const today = new Date();
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  const custom = (from: Date, to: Date = end): DateRange => ({ preset: "custom", from: isoDate(from), to: isoDate(to) });
+
+  if (dashboardRange === "this_month") return computeRange("this_month");
+  if (dashboardRange === "last_month") return computeRange("last_month");
+  if (dashboardRange === "last_30_days") return computeRange("30d");
+  if (dashboardRange === "last_60_days") return custom(new Date(end.getFullYear(), end.getMonth(), end.getDate() - 60));
+  if (dashboardRange === "last_3_months") return custom(new Date(end.getFullYear(), end.getMonth() - 3, end.getDate()));
+  if (dashboardRange === "last_6_months") return custom(new Date(end.getFullYear(), end.getMonth() - 6, end.getDate()));
+  if (dashboardRange === "this_year") return custom(new Date(end.getFullYear(), 0, 1));
+  if (dashboardRange === "last_year") return custom(new Date(end.getFullYear() - 1, 0, 1), new Date(end.getFullYear() - 1, 11, 31));
+  if (dashboardRange === "last_week") {
+    const day = end.getDay();
+    const daysSinceMonday = (day + 6) % 7;
+    const thisMonday = new Date(end.getFullYear(), end.getMonth(), end.getDate() - daysSinceMonday);
+    const lastMonday = new Date(thisMonday.getFullYear(), thisMonday.getMonth(), thisMonday.getDate() - 7);
+    const lastSunday = new Date(lastMonday.getFullYear(), lastMonday.getMonth(), lastMonday.getDate() + 6);
+    return custom(lastMonday, lastSunday);
+  }
   return null;
 }
 
@@ -1206,10 +1234,7 @@ export default function AccountStructureTree({
     });
 
   // Date range — follows the host dashboard when embedded there.
-  const [range, setRange] = useState<DateRange>(() => {
-    const dashboardPreset = presetFromDashboardRange(dashboardRange);
-    return computeRange(dashboardPreset ?? "30d");
-  });
+  const [range, setRange] = useState<DateRange>(() => rangeFromDashboardRange(dashboardRange) ?? computeRange("30d"));
   const [customFrom, setCustomFrom] = useState<string>(range.from);
   const [customTo, setCustomTo] = useState<string>(range.to);
 
@@ -1240,13 +1265,13 @@ export default function AccountStructureTree({
   };
 
   useEffect(() => {
-    const dashboardPreset = presetFromDashboardRange(dashboardRange);
-    if (!dashboardPreset || dashboardPreset === range.preset) return;
-    const next = computeRange(dashboardPreset);
+    const next = rangeFromDashboardRange(dashboardRange);
+    if (!next) return;
+    if (next.preset === range.preset && next.from === range.from && next.to === range.to) return;
     setCustomFrom(next.from);
     setCustomTo(next.to);
     setRange(next);
-  }, [dashboardRange, range.preset]);
+  }, [dashboardRange, range.from, range.preset, range.to]);
 
   useEffect(() => {
     fetchData(range);
@@ -1331,20 +1356,22 @@ export default function AccountStructureTree({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={range.preset}
-              onChange={(e) => applyPreset(e.target.value as RangePreset)}
-              className="px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-gray-100"
-              aria-label="Date range preset"
-            >
-              <option value="7d">Last 7 days</option>
-              <option value="30d">Last 30 days</option>
-              <option value="90d">Last 90 days</option>
-              <option value="this_month">This month</option>
-              <option value="last_month">Last month</option>
-              <option value="custom">Custom…</option>
-            </select>
-            {range.preset === "custom" && (
+            {!dashboardRange && (
+              <select
+                value={range.preset}
+                onChange={(e) => applyPreset(e.target.value as RangePreset)}
+                className="px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-gray-100"
+                aria-label="Date range preset"
+              >
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+                <option value="this_month">This month</option>
+                <option value="last_month">Last month</option>
+                <option value="custom">Custom…</option>
+              </select>
+            )}
+            {!dashboardRange && range.preset === "custom" && (
               <div className="flex items-center gap-1">
                 <input
                   type="date"
