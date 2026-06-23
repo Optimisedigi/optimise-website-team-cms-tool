@@ -3,6 +3,11 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 
+function monthlyNegativeKeywordsEnabled(client: unknown): boolean {
+  return (client as { gadsAuto?: { monthlyNegativeKeywordsEnabled?: boolean | number | null } } | null)?.gadsAuto?.monthlyNegativeKeywordsEnabled === true
+    || (client as { gadsAuto?: { monthlyNegativeKeywordsEnabled?: boolean | number | null } } | null)?.gadsAuto?.monthlyNegativeKeywordsEnabled === 1
+}
+
 export async function POST(req: NextRequest) {
   const payload = await getPayload({ config })
   const { user } = await payload.auth({ headers: req.headers })
@@ -14,6 +19,17 @@ export async function POST(req: NextRequest) {
   const clientId = Number(body?.clientId)
   if (!Number.isInteger(clientId)) {
     return NextResponse.json({ error: 'Invalid clientId' }, { status: 400 })
+  }
+
+  const client = await payload.findByID({
+    collection: 'clients',
+    id: clientId,
+    depth: 0,
+    overrideAccess: true,
+  }).catch(() => null)
+
+  if (!monthlyNegativeKeywordsEnabled(client)) {
+    return NextResponse.json({ error: 'Monthly negative KWs is disabled for this client' }, { status: 403 })
   }
 
   const result = await payload.delete({

@@ -16,6 +16,16 @@ export type SuppressionNegative = {
   establishedMonth: string | null
 }
 
+type IndexedSuppressionNegative = {
+  negative: SuppressionNegative
+  order: number
+}
+
+export type SuppressionIndex = {
+  exactByTerm: Map<string, IndexedSuppressionNegative>
+  phraseByToken: Map<string, IndexedSuppressionNegative[]>
+}
+
 // Minimal shape of an NKL needed to derive suppression negatives. Mirrors the
 // `depth=0` payload from /api/negative-keyword-lists.
 export type SuppressionNkl = {
@@ -111,6 +121,53 @@ export function buildSuppressionNegatives(
 }
 
 /**
+ * Build an index that keeps the same final exact/phrase match semantics as
+ * `termMatchesNegative`, while avoiding a scan across every negative for every
+ * search term. The index only narrows candidates; every candidate is still
+ * verified with the real match-type check before suppression.
+ */
+export function buildSuppressionIndex(negatives: SuppressionNegative[]): SuppressionIndex {
+  const exactByTerm = new Map<string, IndexedSuppressionNegative>()
+  const phraseByToken = new Map<string, IndexedSuppressionNegative[]>()
+
+  negatives.forEach((negative, order) => {
+    const indexed = { negative, order }
+    if (negative.matchType === 'exact') {
+      const key = normalizeTermText(negative.keyword)
+      if (key && !exactByTerm.has(key)) exactByTerm.set(key, indexed)
+      return
+    }
+
+    const tokens = Array.from(new Set(tokenize(negative.keyword)))
+    for (const token of tokens) {
+      const bucket = phraseByToken.get(token) || []
+      bucket.push(indexed)
+      phraseByToken.set(token, bucket)
+    }
+  })
+
+  return { exactByTerm, phraseByToken }
+}
+
+function findIndexedSuppressionMatch(term: string, index: SuppressionIndex): SuppressionNegative | undefined {
+  let best: IndexedSuppressionNegative | undefined = index.exactByTerm.get(normalizeTermText(term))
+  const phraseCandidates = new Map<number, IndexedSuppressionNegative>()
+
+  for (const token of tokenize(term)) {
+    for (const candidate of index.phraseByToken.get(token) || []) {
+      phraseCandidates.set(candidate.order, candidate)
+    }
+  }
+
+  for (const candidate of phraseCandidates.values()) {
+    if (best && best.order < candidate.order) continue
+    if (termMatchesNegative(term, candidate.negative)) best = candidate
+  }
+
+  return best?.negative
+}
+
+/**
  * Split a review month's terms into still-visible terms and ones already
  * covered by a selected suppression negative. A live negative suppresses EVERY
  * review month — past and future — because once a term is negated there's nothing
@@ -121,12 +178,13 @@ export function buildSuppressionNegatives(
 export function partitionTermsByNegation<T extends { term: string }>(
   _reviewMonth: string,
   terms: T[],
-  negatives: SuppressionNegative[],
+  suppression: SuppressionNegative[] | SuppressionIndex,
 ): { visible: T[]; negated: Array<{ term: T; negative: SuppressionNegative }> } {
+  const index = Array.isArray(suppression) ? buildSuppressionIndex(suppression) : suppression
   const visible: T[] = []
   const negated: Array<{ term: T; negative: SuppressionNegative }> = []
   for (const term of terms) {
-    const match = negatives.find((negative) => termMatchesNegative(term.term, negative))
+    const match = findIndexedSuppressionMatch(term.term, index)
     if (match) negated.push({ term, negative: match })
     else visible.push(term)
   }

@@ -566,7 +566,8 @@ describe('monthly keyword selection API routes', () => {
     expect(res.status).toBe(401)
   })
 
-  it('clear is admin-only and wipes the client terms cache', async () => {
+  it('clear is admin-only and wipes the client terms cache when Monthly negative KWs is enabled', async () => {
+    mockPayload.findByID.mockResolvedValue({ id: 7, gadsAuto: { monthlyNegativeKeywordsEnabled: true } })
     mockPayload.delete.mockResolvedValue({ docs: [{ id: 1 }, { id: 2 }] })
 
     const res = await clearPOST(request('/api/monthly-keyword-selection/clear', { clientId: 7 }))
@@ -578,5 +579,16 @@ describe('monthly keyword selection API routes', () => {
       collection: 'monthly-keyword-terms-cache',
       where: { client: { equals: 7 } },
     }))
+  })
+
+  it('clear refuses to wipe the cache when Monthly negative KWs is disabled', async () => {
+    mockPayload.findByID.mockResolvedValue({ id: 7, gadsAuto: { monthlyNegativeKeywordsEnabled: false } })
+
+    const res = await clearPOST(request('/api/monthly-keyword-selection/clear', { clientId: 7 }))
+    const json = await res.json()
+
+    expect(res.status).toBe(403)
+    expect(json.error).toBe('Monthly negative KWs is disabled for this client')
+    expect(mockPayload.delete).not.toHaveBeenCalled()
   })
 })

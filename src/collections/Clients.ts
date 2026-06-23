@@ -2359,7 +2359,7 @@ export const Clients: CollectionConfig = {
               name: "monthlyNegativeKeywords",
               type: "ui",
               admin: {
-                condition: (data: any) => !!data?.googleAdsCustomerId && !!data?.slug,
+                condition: (data: any) => !!data?.googleAdsCustomerId && !!data?.slug && data?.gadsAuto?.monthlyNegativeKeywordsEnabled === true,
                 components: {
                   Field: "./components/MonthlyNegativeKeywordsLink",
                 },
@@ -2428,6 +2428,15 @@ export const Clients: CollectionConfig = {
                   type: "ui",
                   admin: {
                     components: { Field: "./components/ViewGoogleDashboardButton" },
+                  },
+                },
+                // Monthly Negative KWs
+                {
+                  name: "monthlyNegativeKeywordsEnabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable Monthly negative KWs review and its monthly search-term cache pulls for this Google Ads retainer client.",
                   },
                 },
                 // Negative Keyword Sweep

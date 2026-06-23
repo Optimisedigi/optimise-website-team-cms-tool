@@ -1,4 +1,5 @@
 import {
+  buildSuppressionIndex,
   buildSuppressionNegatives,
   isQualifyingListName,
   normalizeTermText,
@@ -94,6 +95,41 @@ describe('partitionTermsByNegation', () => {
     expect(after.visible.map((t) => t.term)).toEqual(['blue socks'])
     expect(after.negated).toHaveLength(1)
     expect(after.negated[0]?.negative.listName).toBe('Competitor')
+  })
+  it('keeps indexed suppression results identical while avoiding a full negative scan per term', () => {
+    const manyNonCandidates: SuppressionNegative[] = Array.from({ length: 3000 }, (_, index) => ({
+      keyword: `unrelated-${index}`,
+      matchType: 'phrase' as const,
+      listName: 'Huge account wide list',
+      establishedMonth: null,
+    }))
+    const suppressionNegatives: SuppressionNegative[] = [
+      ...manyNonCandidates,
+      { keyword: 'what is', matchType: 'phrase', listName: 'Huge account wide list', establishedMonth: null },
+    ]
+    const terms = [{ term: 'what is outsourcing in business' }, { term: 'blue socks' }]
+    const indexed = partitionTermsByNegation('2024-11', terms, buildSuppressionIndex(suppressionNegatives))
+    const unindexed = partitionTermsByNegation('2024-11', terms, suppressionNegatives)
+
+    expect(indexed).toEqual(unindexed)
+    expect(indexed.visible.map((term) => term.term)).toEqual(['blue socks'])
+    expect(indexed.negated[0]?.negative.keyword).toBe('what is')
+  })
+  it('finds phrase negatives even when the search term has extra indexed words', () => {
+    const suppressionNegatives: SuppressionNegative[] = [
+      { keyword: 'what is', matchType: 'phrase', listName: 'Account wide', establishedMonth: null },
+      { keyword: 'outsourcing', matchType: 'phrase', listName: 'Other list', establishedMonth: null },
+    ]
+    const after = partitionTermsByNegation('2024-11', [{ term: 'what is outsourcing in business' }], buildSuppressionIndex(suppressionNegatives))
+    expect(after.negated[0]?.negative.keyword).toBe('what is')
+  })
+  it('preserves first-match priority across exact and phrase negatives', () => {
+    const suppressionNegatives: SuppressionNegative[] = [
+      { keyword: 'blue shoes', matchType: 'phrase', listName: 'First phrase', establishedMonth: null },
+      { keyword: 'cheap blue shoes', matchType: 'exact', listName: 'Later exact', establishedMonth: null },
+    ]
+    const after = partitionTermsByNegation('2024-11', [{ term: 'cheap blue shoes' }], buildSuppressionIndex(suppressionNegatives))
+    expect(after.negated[0]?.negative.listName).toBe('First phrase')
   })
   it('hides a search term covered by a selected Account wide phrase negative', () => {
     const suppressionNegatives = buildSuppressionNegatives(

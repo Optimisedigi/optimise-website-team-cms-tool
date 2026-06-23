@@ -8,6 +8,7 @@ type ClientLinkData = {
   clientId: string
   slug: string
   customerId: string
+  monthlyNegativeKeywordsEnabled: boolean
 }
 
 export default function MonthlyNegativeKeywordsLink() {
@@ -21,13 +22,14 @@ export default function MonthlyNegativeKeywordsLink() {
   const directSlug = fields?.slug?.value ? String(fields.slug.value) : ''
   const directCustomerId = fields?.googleAdsCustomerId?.value ? String(fields.googleAdsCustomerId.value) : ''
   const directClientId = id ? String(id) : ''
+  const directMonthlyNegativeKeywordsEnabled = fields?.['gadsAuto.monthlyNegativeKeywordsEnabled']?.value === true
   const clientRel = fields?.client?.value as string | number | { id?: string | number } | undefined
   const linkedClientId = typeof clientRel === 'object' ? clientRel?.id : clientRel
 
   useEffect(() => {
     if (!id) return
     if (directSlug && directCustomerId) {
-      setResolvedClient({ clientId: directClientId, slug: directSlug, customerId: directCustomerId })
+      setResolvedClient({ clientId: directClientId, slug: directSlug, customerId: directCustomerId, monthlyNegativeKeywordsEnabled: directMonthlyNegativeKeywordsEnabled })
       return
     }
 
@@ -41,6 +43,7 @@ export default function MonthlyNegativeKeywordsLink() {
             clientId: String(client.id || clientId),
             slug: String(client.slug),
             customerId: String(client.googleAdsCustomerId),
+            monthlyNegativeKeywordsEnabled: client?.gadsAuto?.monthlyNegativeKeywordsEnabled === true,
           })
         }
       } catch {
@@ -73,7 +76,7 @@ export default function MonthlyNegativeKeywordsLink() {
     } else {
       void resolveFromAudit()
     }
-  }, [id, directSlug, directCustomerId, directClientId, linkedClientId])
+  }, [id, directSlug, directCustomerId, directClientId, directMonthlyNegativeKeywordsEnabled, linkedClientId])
 
   // Load the @-taggable teammate list via the gated endpoint (the Users read is
   // admin-only, so the embedded panel can't hit /api/users directly). If it
@@ -100,6 +103,14 @@ export default function MonthlyNegativeKeywordsLink() {
     return (
       <div style={{ margin: '12px 0 20px', padding: 14, border: '1px solid #fde68a', borderRadius: 8, background: '#fffbeb', color: '#92400e', fontSize: 13 }}>
         {loading ? 'Loading monthly negative KWs…' : 'Monthly negative KWs needs a linked client with a slug and Google Ads customer ID.'}
+      </div>
+    )
+  }
+
+  if (!resolvedClient.monthlyNegativeKeywordsEnabled) {
+    return (
+      <div style={{ margin: '12px 0 20px', padding: 14, border: '1px solid var(--theme-elevation-150)', borderRadius: 8, background: 'var(--theme-elevation-50)', color: 'var(--theme-elevation-700)', fontSize: 13 }}>
+        Monthly negative KWs is disabled for this client. Enable it under the linked Client → Automation & Policy → Google Ads Automations.
       </div>
     )
   }

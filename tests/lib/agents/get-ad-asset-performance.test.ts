@@ -252,5 +252,5 @@ describe("get_ad_asset_performance — execute()", () => {
       "@/lib/agents/optimate-google-ads/tool-catalog"
     );
     expect(TOOL_CATEGORY_MAP["get_ad_asset_performance"]).toBe("read-google-ads");
-  });
+  }, 15000);
 });

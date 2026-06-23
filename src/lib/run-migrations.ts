@@ -132,6 +132,7 @@ export async function runMigrations(
     await run("clients.target_location", "ALTER TABLE `clients` ADD `target_location` text");
     await run("clients.client_goals", "ALTER TABLE `clients` ADD `client_goals` text");
     await run("clients.client_type", "ALTER TABLE `clients` ADD `client_type` text DEFAULT 'recurring'");
+    await run("clients.client_start_date", "ALTER TABLE `clients` ADD `client_start_date` text");
     await run("clients_services", `CREATE TABLE IF NOT EXISTS \`clients_services\` (
       \`order\` integer NOT NULL,
       \`parent_id\` integer NOT NULL,
@@ -1129,6 +1130,7 @@ export async function runMigrations(
     // Payload registry migration (20260616), never in this sweep — so prod
     // lacked the column and the OptiMate accounts route could not filter on it.
     await run("clients.gads_auto_is_managed_google_ads_account", "ALTER TABLE `clients` ADD `gads_auto_is_managed_google_ads_account` integer DEFAULT true");
+    await run("clients.gads_auto_monthly_negative_keywords_enabled", "ALTER TABLE `clients` ADD `gads_auto_monthly_negative_keywords_enabled` integer DEFAULT false");
     // Client logo (upload FK → media). Only shipped in the registry migration
     // (20260617), never in this sweep — so prod lacked the `logo_id` column and
     // creating/saving ANY client 500'd (Payload's insert + read-back reference
@@ -4035,6 +4037,9 @@ export async function runMigrations(
       \`default_autonomous_model\` text DEFAULT 'kimi-k2.6',
       \`blog_prompter_model\` text,
       \`invoice_assistant_model\` text,
+      \`email_assistant_model\` text,
+      \`voice_realtime_model\` text DEFAULT 'gpt-realtime-mini',
+      \`chat_history_token_limit\` numeric DEFAULT 6000,
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`);
@@ -4047,6 +4052,14 @@ export async function runMigrations(
     await run(
       "optimate_settings.invoice_assistant_model",
       "ALTER TABLE `optimate_settings` ADD `invoice_assistant_model` text",
+    );
+    await run(
+      "optimate_settings.email_assistant_model",
+      "ALTER TABLE `optimate_settings` ADD `email_assistant_model` text",
+    );
+    await run(
+      "optimate_settings.voice_realtime_model",
+      "ALTER TABLE `optimate_settings` ADD `voice_realtime_model` text DEFAULT 'gpt-realtime-mini'",
     );
     // Chat history token budget (2026-06-29). Added to the global config after
     // the table was first created, so existing prod tables lack the column and
@@ -4109,6 +4122,19 @@ export async function runMigrations(
       ) seed
       WHERE NOT EXISTS (
         SELECT 1 FROM \`optimate_settings_google_mate_portfolio_starter_questions\` existing
+        WHERE existing.\`_parent_id\` = os.id
+      )`);
+    await run("optimate_settings_invoice_mate_starter_questions_seed_defaults", `INSERT INTO \`optimate_settings_invoice_mate_starter_questions\` (\`_order\`, \`_parent_id\`, \`id\`, \`question\`)
+      SELECT seed._order, os.id, seed.idPrefix || os.id, seed.question
+      FROM \`optimate_settings\` os
+      JOIN (
+        SELECT 1 AS _order, 'invoice-mate-starter-default-1-' AS idPrefix, 'Show me overdue invoices' AS question
+        UNION ALL SELECT 2, 'invoice-mate-starter-default-2-', 'Summarise outstanding invoices'
+        UNION ALL SELECT 3, 'invoice-mate-starter-default-3-', 'What invoices are scheduled to send?'
+        UNION ALL SELECT 4, 'invoice-mate-starter-default-4-', 'Create this month’s retainer'
+      ) seed
+      WHERE NOT EXISTS (
+        SELECT 1 FROM \`optimate_settings_invoice_mate_starter_questions\` existing
         WHERE existing.\`_parent_id\` = os.id
       )`);
 
@@ -4553,6 +4579,7 @@ export async function runMigrations(
     await run("monthly_keyword_terms_cache_client_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_idx` ON `monthly_keyword_terms_cache` (`client_id`)");
     await run("monthly_keyword_terms_cache_year_month_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_year_month_idx` ON `monthly_keyword_terms_cache` (`year_month`)");
     await run("monthly_keyword_terms_cache_client_month_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_month_idx` ON `monthly_keyword_terms_cache` (`client_id`, `year_month`)");
+    await run("clients.monthly_negative_keywords_enabled_backfill", "UPDATE `clients` SET `gads_auto_monthly_negative_keywords_enabled` = true WHERE `id` IN (SELECT DISTINCT `client_id` FROM `monthly_keyword_terms_cache` UNION SELECT DISTINCT `client_id` FROM `monthly_keyword_selections`)");
     await run("locked_docs_rels.monthly_keyword_selections_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_selections_id` integer REFERENCES `monthly_keyword_selections`(`id`) ON DELETE cascade");
     await run("locked_docs_rels.monthly_keyword_terms_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_terms_cache_id` integer REFERENCES `monthly_keyword_terms_cache`(`id`) ON DELETE cascade");
 

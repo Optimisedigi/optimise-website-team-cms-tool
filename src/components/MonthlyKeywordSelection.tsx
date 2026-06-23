@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parseNegativeKeywordInput } from '../lib/parse-negative-keywords'
-import { buildSuppressionNegatives, isQualifyingListName, partitionTermsByNegation, type SuppressionNegative } from '../lib/negative-keyword-suppression'
+import { buildSuppressionIndex, buildSuppressionNegatives, isQualifyingListName, partitionTermsByNegation, type SuppressionNegative } from '../lib/negative-keyword-suppression'
 
 type MatchType = 'exact' | 'phrase' | 'broad'
 type Decision = 'pending' | 'approved' | 'skipped' | 'watch' | 'needs_review'
@@ -183,6 +183,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     () => buildSuppressionNegatives(suppressionNkls, establishedMonthByKey),
     [suppressionNkls, establishedMonthByKey],
   )
+  const suppressionIndex = useMemo(
+    () => buildSuppressionIndex(suppressionNegatives),
+    [suppressionNegatives],
+  )
 
   const visibleMonths = useMemo(() => {
     const previouslyReviewedTerms = new Set<string>()
@@ -205,10 +209,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       // Hide terms already covered by a phrase/exact negative on a selected
       // suppression NKL, and surface them in the collapsed "Already negated"
       // section instead.
-      const { visible, negated } = partitionTermsByNegation(month.month, terms, suppressionNegatives)
+      const { visible, negated } = partitionTermsByNegation(month.month, terms, suppressionIndex)
       return { ...month, terms: visible, alreadyNegated: negated }
     })
-  }, [cmsExistingByKeyword, months, selections, suppressionNegatives])
+  }, [cmsExistingByKeyword, months, selections, suppressionIndex])
 
   useEffect(() => {
     if (loading || visibleMonths.length === 0 || hasAutoScrolledRef.current) return
@@ -460,7 +464,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
 
   const rebuild = async () => {
     const confirmed = window.confirm(
-      'Warning: Rebuild clears the cached monthly search-term data for this client and then re-pulls every complete month from Google Ads. This can take longer and should only be used if the cached data looks wrong. Continue?',
+      'Warning: Rebuild deletes this client’s cached Monthly negative KWs search-term months, then immediately re-pulls all complete months from Growth Tools / Google Ads. It does not delete your review decisions, NKLs, or negative keywords. This can take longer and should only be used if cached search-term data looks wrong. Continue?',
     )
     if (!confirmed) return
     const res = await fetch('/api/monthly-keyword-selection/clear', {
@@ -936,7 +940,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             <button
               type="button"
               onClick={rebuild}
-              title="Admin only: clears this client's cached complete-month terms and re-pulls all complete months. Use only if cached data looks wrong."
+              title="Admin only: deletes cached Monthly negative KWs search-term months, then re-pulls all complete months from Growth Tools / Google Ads. Does not delete review decisions, NKLs, or negative keywords."
               aria-label="Rebuild monthly keyword cache"
               style={{
                 padding: '4px 8px',

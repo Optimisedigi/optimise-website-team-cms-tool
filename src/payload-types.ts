@@ -912,6 +912,10 @@ export interface Client {
      */
     dashboardEnabled?: boolean | null;
     /**
+     * Enable Monthly negative KWs review and its monthly search-term cache pulls for this Google Ads retainer client.
+     */
+    monthlyNegativeKeywordsEnabled?: boolean | null;
+    /**
      * Enable weekly negative keyword sweeps
      */
     negativeSweepEnabled?: boolean | null;
@@ -9124,6 +9128,7 @@ export interface ClientsSelect<T extends boolean = true> {
     | {
         isManagedGoogleAdsAccount?: T;
         dashboardEnabled?: T;
+        monthlyNegativeKeywordsEnabled?: T;
         negativeSweepEnabled?: T;
         negativeSweepMode?: T;
         negativeSweepWeekday?: T;
