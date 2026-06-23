@@ -4,7 +4,7 @@ import { formatGmailDraftHtml } from "@/lib/gmail-service";
 describe("formatGmailDraftHtml", () => {
   it("wraps draft HTML in Verdana normal-size Gmail styling", () => {
     expect(formatGmailDraftHtml("<p>Hello</p>")).toBe(
-      '<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;margin:0;padding:0;"><p style="margin:0 0 12px 0;">Hello</p></div>',
+      '<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;margin:0;padding:0;">Hello</div>',
     );
   });
 
@@ -16,12 +16,17 @@ describe("formatGmailDraftHtml", () => {
     expect(html).toContain("font-family:Verdana,Geneva,sans-serif;");
     expect(html).toContain("font-size:13px;");
     expect(html).not.toContain("font-family:Arial");
-    expect(html).toContain("margin:0 0 12px 0;");
     expect(html).not.toContain("font-size:14px");
   });
 
+  it("turns paragraph blocks into editable Gmail blank lines", () => {
+    expect(formatGmailDraftHtml("<p>Hi Jane,</p><p>Thanks,</p><p>Peter</p>")).toBe(
+      '<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;margin:0;padding:0;">Hi Jane,<br><br>Thanks,<br><br>Peter</div>',
+    );
+  });
+
   it("does not double-wrap already normalised drafts", () => {
-    const html = '<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;margin:0;padding:0;"><p style="margin:0 0 12px 0;">Hello</p></div>';
+    const html = '<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;margin:0;padding:0;">Hello<br><br>World</div>';
 
     expect(formatGmailDraftHtml(html)).toBe(html);
   });
