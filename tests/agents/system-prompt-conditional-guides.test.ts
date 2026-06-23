@@ -2,11 +2,11 @@
  * buildSystemPromptForAudit \u2014 conditional guide inclusion.
  *
  * Covers the windowed keyword check that decides whether to inject
- * SCHEDULED_TASKS_GUIDE and DECK_GUIDE into the system prompt.
+ * SCHEDULED_TASKS_GUIDE, DECK_GUIDE, and GEO_WALKTHROUGH into the system prompt.
  *
  * Back-compat: calling without `recentMessages` keeps the old behaviour
- * (both guides included). Passing an explicit array opts INTO conditional
- * inclusion \u2014 empty array means neither guide loads.
+ * (heavy guides included). Passing an explicit array opts INTO conditional
+ * inclusion — empty array means no heavy workflow guide loads.
  */
 
 import { describe, it, expect } from "vitest";
@@ -17,8 +17,10 @@ import type { Message } from "@/lib/agents/_shared/llm/types";
 // inclusion without relying on the full block.
 const SCHEDULED_TASKS_SIGNATURE = "Never fabricate cron expressions";
 const DECK_SIGNATURE = "you MUST have:";
+const GEO_SIGNATURE = "INCREMENTAL ADDITIONS";
 // One-off Gmail draft guide — always loaded regardless of keywords.
 const GMAIL_DRAFT_SIGNATURE = "ONE-OFF Gmail drafts";
+const ATTACHED_EMAIL_REPLY_SIGNATURE = "Selecting a Google Ads account does not by itself make an attached-email reply request a Google Ads data request";
 
 const AUDIT = {
   id: 999,
@@ -33,10 +35,11 @@ function userMsg(text: string): Message {
 }
 
 describe("buildSystemPromptForAudit conditional guide inclusion", () => {
-  it("includes BOTH guides for back-compat when recentMessages is omitted", () => {
+  it("includes heavy guides for back-compat when recentMessages is omitted", () => {
     const prompt = buildSystemPromptForAudit(AUDIT, null);
     expect(prompt).toContain(SCHEDULED_TASKS_SIGNATURE);
     expect(prompt).toContain(DECK_SIGNATURE);
+    expect(prompt).toContain(GEO_SIGNATURE);
   });
 
   it("ALWAYS includes the one-off Gmail draft guide, regardless of recentMessages", () => {
@@ -62,18 +65,20 @@ describe("buildSystemPromptForAudit conditional guide inclusion", () => {
     ).toContain(GMAIL_DRAFT_SIGNATURE);
   });
 
-  it("includes BOTH guides when recentMessages is omitted via the options object", () => {
+  it("includes heavy guides when recentMessages is omitted via the options object", () => {
     const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {});
     expect(prompt).toContain(SCHEDULED_TASKS_SIGNATURE);
     expect(prompt).toContain(DECK_SIGNATURE);
+    expect(prompt).toContain(GEO_SIGNATURE);
   });
 
-  it("excludes BOTH guides when recentMessages is an empty array", () => {
+  it("excludes heavy guides when recentMessages is an empty array", () => {
     const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
       recentMessages: [],
     });
     expect(prompt).not.toContain(SCHEDULED_TASKS_SIGNATURE);
     expect(prompt).not.toContain(DECK_SIGNATURE);
+    expect(prompt).not.toContain(GEO_SIGNATURE);
   });
 
   it("includes SCHEDULED_TASKS_GUIDE when 'weekly recap' appears in the last message", () => {
@@ -97,12 +102,20 @@ describe("buildSystemPromptForAudit conditional guide inclusion", () => {
     expect(prompt).toContain(DECK_SIGNATURE);
   });
 
-  it("excludes both guides for a generic CPA question", () => {
+  it("includes GEO_WALKTHROUGH when campaign structure keywords appear", () => {
+    const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
+      recentMessages: [userMsg("build a new campaign structure based on the website")],
+    });
+    expect(prompt).toContain(GEO_SIGNATURE);
+  });
+
+  it("excludes heavy workflow guides for a generic CPA question", () => {
     const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
       recentMessages: [userMsg("what is our CPA this week")],
     });
     expect(prompt).not.toContain(SCHEDULED_TASKS_SIGNATURE);
     expect(prompt).not.toContain(DECK_SIGNATURE);
+    expect(prompt).not.toContain(GEO_SIGNATURE);
   });
 
   it("still accepts the legacy 4th-arg string form (pinnedMemoryBlock)", () => {
@@ -113,9 +126,10 @@ describe("buildSystemPromptForAudit conditional guide inclusion", () => {
       "PINNED FACT: client hates PMax",
     );
     expect(prompt).toContain("PINNED FACT: client hates PMax");
-    // No recentMessages \u2014 back-compat keeps both guides.
+    // No recentMessages, back-compat keeps heavy guides.
     expect(prompt).toContain(SCHEDULED_TASKS_SIGNATURE);
     expect(prompt).toContain(DECK_SIGNATURE);
+    expect(prompt).toContain(GEO_SIGNATURE);
   });
 
   it("always includes the confirm-gate rule in guardrails", () => {
@@ -132,6 +146,15 @@ describe("buildSystemPromptForAudit conditional guide inclusion", () => {
       recentMessages: [userMsg("hello")],
     });
     expect(prompt).toContain("NO EM DASHES OR EN DASHES");
+  });
+
+  it("includes the attached-email reply rule without requiring Google Ads data", () => {
+    const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
+      recentMessages: [userMsg("respond to this email thanking her for GA4 access")],
+    });
+    expect(prompt).toContain(ATTACHED_EMAIL_REPLY_SIGNATURE);
+    expect(prompt).toContain("produce customer-facing email copy");
+    expect(prompt).toContain("Do not fetch or cite Google Ads account data unless the user explicitly asks");
   });
 
   it("includes the NO ARITHMETIC SHOWN guardrail", () => {

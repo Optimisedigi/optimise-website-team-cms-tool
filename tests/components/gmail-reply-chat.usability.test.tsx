@@ -75,6 +75,65 @@ describe('GmailReplyChat usability smoke', () => {
     })
   })
 
+  it('does not turn chat-only status text into a customer-facing Gmail draft', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url.startsWith('/api/gmail/search')) {
+        return jsonResponse({
+          results: [
+            {
+              messageId: 'msg-1',
+              threadId: 'thread-1',
+              subject: 'GA4 access',
+              from: 'Client <client@example.com>',
+              date: 'today',
+              snippet: 'I added GA4 access and answered below.',
+            },
+          ],
+        })
+      }
+      if (url === '/api/gmail/message/msg-1') {
+        return jsonResponse({
+          messageId: 'msg-1',
+          threadId: 'thread-1',
+          rfcMessageId: '<msg-1@example.com>',
+          subject: 'GA4 access',
+          from: 'Client <client@example.com>',
+          to: 'user@example.com',
+          date: 'today',
+          body: 'I added GA4 access and answered below.',
+        })
+      }
+      if (url === '/api/optimate/email/chat') {
+        expect(JSON.parse(String(init?.body)).message).toContain('thank her for GA4 access')
+        return jsonResponse({
+          reply: "Draft is in the review box. I've covered GA4 access and the dashboard note.",
+          modelUsed: 'claude-sonnet-4.6',
+        })
+      }
+      if (url === '/api/gmail/draft') throw new Error('Meta reply should never be saved as a Gmail draft')
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="search" />)
+
+    fireEvent.change(await screen.findByPlaceholderText('Search inbox (Gmail syntax)…'), {
+      target: { value: 'from:client' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    fireEvent.click(await screen.findByText('GA4 access'))
+
+    fireEvent.change(await screen.findByPlaceholderText('Message GmailMate about the reply…'), {
+      target: { value: 'Please thank her for GA4 access.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send to GmailMate' }))
+
+    expect(await screen.findByText("Draft is in the review box. I've covered GA4 access and the dashboard note.")).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Preview & save' })).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/gmail/draft')).toBe(false)
+  })
+
   it('supports search → pick email → chat through reply → save threaded draft', async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === '/api/optimate/default-model') {

@@ -335,7 +335,6 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
       const stagedBody = data.stagedEmailReply?.body?.trim()
       const assistantText = data.reply || (stagedBody ? 'I’ve staged the latest draft below.' : 'No response received.')
       if (stagedBody) setReplyText(stagedBody)
-      else if (!replyText.trim() && data.reply?.trim()) setReplyText(data.reply.trim())
       if (data.stagedEmailReply?.subject && !composeSubject.trim()) setComposeSubject(data.stagedEmailReply.subject)
       setChatMessages((prev) => [
         ...prev,
@@ -397,7 +396,6 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
       const stagedBody = data.stagedEmailReply?.body?.trim()
       const assistantText = data.reply || (stagedBody ? 'I’ve staged the latest draft below.' : 'No response received.')
       if (stagedBody) setReplyText(stagedBody)
-      else if (!replyText.trim() && data.reply?.trim()) setReplyText(data.reply.trim())
       setChatMessages((prev) => [
         ...prev,
         {

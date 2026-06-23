@@ -447,7 +447,7 @@ export function detectBudgetEmailWithoutTemplate(
   return {
     reason: "budget_email_without_template",
     correctionNote:
-      "The user asked for a Budget Management email. You must call get_budget_management_email with mode='this_month' and use its returned canonical HTML/template. If the user asked for a Gmail draft, then call create_gmail_draft with that HTML. If they only asked to see/give the email, return the canonical email content with any requested short summary prepended. Do not hand-write a plain-text replacement.",
+      "The user asked for a Budget Management email. You must call get_budget_management_email with mode='this_month' to verify the canonical HTML/template is available. If the user asked for a Gmail draft, then call create_gmail_draft with that HTML. If they only asked to see/give the email, reply with the subject and requested short summary, then ask if they want it saved as a Gmail draft. Never paste raw HTML in chat.",
   };
 }
 

@@ -5,10 +5,9 @@
  * Pure helper, no payload/Next dependencies — kept in its own module so the
  * unit tests can exercise it without bootstrapping payload.config.
  *
- * Used by `buildSystemPromptForAudit` to conditionally inject the
- * SCHEDULED_TASKS_GUIDE and DECK_GUIDE blocks (~1,800 tokens combined). The
- * 90% of turns that don't mention scheduled tasks or decks shrink the prompt
- * by that much; the 10% that do still get the full guide.
+ * Used by `buildSystemPromptForAudit` to conditionally inject heavy workflow
+ * guides. Most turns that don't mention those workflows shrink the prompt;
+ * turns that do still get the full guide.
  *
  * Matching is:
  *   - case-insensitive
@@ -91,6 +90,39 @@ export const DECK_TRIGGERS: readonly string[] = [
   "90-day review",
   "show the owner",
   "show the client",
+];
+
+/**
+ * Trigger phrases for the GEO_WALKTHROUGH campaign-structure workflow.
+ */
+export const GEO_WALKTHROUGH_TRIGGERS: readonly string[] = [
+  "near-me",
+  "near me",
+  "geo",
+  "location",
+  "locations",
+  "city",
+  "cities",
+  "suburb",
+  "suburbs",
+  "split campaign",
+  "split campaigns",
+  "geo split",
+  "campaign split",
+  "campaign structure",
+  "structure campaign",
+  "structure campaigns",
+  "restructure",
+  "rebuild campaign",
+  "rebuild campaigns",
+  "build campaign",
+  "build campaigns",
+  "new campaign",
+  "new ad group",
+  "add ad group",
+  "add keywords",
+  "campaign build",
+  "campaign proposal",
 ];
 
 function extractText(message: Message): string {

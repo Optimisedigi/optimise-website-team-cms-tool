@@ -138,7 +138,7 @@ function buildUserMessage(args: {
   email: EmailContext;
 }): string {
   const parts: string[] = [
-    "You are GmailMate in text chat. Work back-and-forth with the user until they are happy with the email. Use stage_email_reply whenever you create or revise the draft so the editable draft box updates. Gmail is draft-only; never claim to send mail.",
+    "You are GmailMate in text chat. Work back-and-forth with the user until they are happy with the email. If the user asks you to draft, write, respond, or reply to an email, call stage_email_reply with the finished customer-facing email body so the editable draft box updates. Gmail is draft-only; never claim to send mail. Never put chat-only process notes like 'Draft is in the review box', 'I've covered', or 'Want me to adjust' into the staged email body.",
   ];
 
   if (args.mode === "reply") {
