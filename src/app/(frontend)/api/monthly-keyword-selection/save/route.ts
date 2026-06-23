@@ -116,11 +116,19 @@ export async function POST(req: NextRequest) {
     byTerm.delete(rowKey(d.yearMonth, d.searchTerm, d.rowIndex))
   }
 
-  const selections = Array.from(byTerm.values()).sort((a, b) =>
-    String(a.yearMonth).localeCompare(String(b.yearMonth))
-    || String(a.searchTerm).localeCompare(String(b.searchTerm))
-    || Number(a.rowIndex ?? 0) - Number(b.rowIndex ?? 0),
-  )
+  const selections = Array.from(byTerm.values())
+    // Drop the array sub-row `id`. Payload's SQLite adapter re-inserts the whole
+    // array on update; if any stored row carries a duplicate id (from an earlier
+    // partial write), keeping it triggers `UNIQUE constraint failed:
+    // monthly_keyword_selections_selections.id` and the save fails. Letting
+    // Payload assign fresh ids each write keeps the logical row key
+    // (yearMonth|searchTerm|rowIndex) as the source of truth and avoids collisions.
+    .map(({ id, ...rest }) => rest)
+    .sort((a, b) =>
+      String(a.yearMonth).localeCompare(String(b.yearMonth))
+      || String(a.searchTerm).localeCompare(String(b.searchTerm))
+      || Number(a.rowIndex ?? 0) - Number(b.rowIndex ?? 0),
+    )
 
   // Guard 1: never shrink a populated array to empty. An autosave should never
   // legitimately clear every row — if the merge produced nothing while the

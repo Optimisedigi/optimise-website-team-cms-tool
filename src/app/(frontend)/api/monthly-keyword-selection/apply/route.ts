@@ -209,6 +209,10 @@ export async function POST(req: NextRequest) {
       }
       return next
     })
+      // Drop the array sub-row `id` so Payload's SQLite array re-insert assigns
+      // fresh unique ids. Preserving a stored duplicate id triggers
+      // `UNIQUE constraint failed: monthly_keyword_selections_selections.id`.
+      .map(({ id, ...rest }: { id?: unknown }) => rest)
     await payload.update({
       collection: 'monthly-keyword-selections',
       id: doc.id,

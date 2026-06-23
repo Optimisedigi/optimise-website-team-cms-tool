@@ -84,6 +84,33 @@ describe('monthly keyword selection API routes', () => {
     ]))
   })
 
+  it('save strips stored sub-row ids so a duplicate id cannot break the array re-insert', async () => {
+    // Two stored rows carry the SAME sub-row id (corruption from an earlier
+    // partial write). Persisting them as-is throws UNIQUE constraint failed on
+    // monthly_keyword_selections_selections.id. The save must write rows without
+    // ids so Payload assigns fresh unique ones.
+    mockPayload.find.mockResolvedValue({
+      docs: [{
+        id: 22,
+        selections: [
+          { id: 'dup-1', yearMonth: '2024-11', searchTerm: 'outsourcing', rowIndex: 0, negativeKeyword: 'outsourcing', matchType: 'exact', decision: 'skipped' },
+          { id: 'dup-1', yearMonth: '2024-12', searchTerm: 'offshoring', rowIndex: 0, negativeKeyword: 'offshoring', matchType: 'exact', decision: 'skipped' },
+        ],
+      }],
+    })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+
+    const res = await savePOST(request('/api/monthly-keyword-selection/save', {
+      clientId: 7,
+      selections: [{ yearMonth: '2024-11', searchTerm: 'outsourcing', rowIndex: 0, negativeKeyword: 'outsourcing', matchType: 'exact', decision: 'skipped' }],
+    }))
+
+    expect(res.status).toBe(200)
+    const saved = mockPayload.update.mock.calls[0][0].data.selections
+    expect(saved).toHaveLength(2)
+    expect(saved.every((s: { id?: unknown }) => s.id === undefined)).toBe(true)
+  })
+
   it('save prunes a removed sub-row via deletions', async () => {
     mockPayload.find.mockResolvedValue({
       docs: [{
