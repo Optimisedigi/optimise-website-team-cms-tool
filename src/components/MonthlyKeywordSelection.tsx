@@ -201,9 +201,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       for (const term of month.terms) {
         const selection = selections[selectionKey(month.month, term.term)]
         const searchTermAlreadyExactNegative = cmsExistingByKeyword.has(`${term.term.trim().toLowerCase()}|exact`)
-        // 'watch' terms intentionally stay visible across months so their
-        // performance can keep being re-checked until the horizon passes.
-        const suppresses = selection?.decision === 'pending' || selection?.decision === 'approved' || selection?.decision === 'skipped' || selection?.decision === 'needs_review'
+        // Reviewed terms hide in older/later duplicate months once a client-wide
+        // decision exists for that exact search term.
+        const activeWatch = selection?.decision === 'watch' && !isWatchDue(selection)
+        const suppresses = selection?.decision === 'pending' || selection?.decision === 'approved' || selection?.decision === 'skipped' || activeWatch || selection?.decision === 'needs_review'
         if (suppresses || searchTermAlreadyExactNegative) {
           previouslyReviewedTerms.add(term.term.trim().toLowerCase())
         }
@@ -364,17 +365,29 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     void saveSelections(next, [{ yearMonth: month, searchTerm: term, rowIndex }])
   }
 
+  const matchingVisibleMonthTerms = (term: string): Array<{ month: string; term: string }> => {
+    const termKey = term.trim().toLowerCase()
+    return months.flatMap((month) => month.terms
+      .filter((candidate) => candidate.term.trim().toLowerCase() === termKey)
+      .map((candidate) => ({ month: month.month, term: candidate.term })))
+  }
+
   const markTermHandled = (month: string, term: string, decision: Extract<Decision, 'approved' | 'skipped' | 'needs_review'>) => {
     const key = selectionKey(month, term)
     const selection = selections[key]
     const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
     const alreadySelected = selection?.decision === decision && !selection.appliedToNKL
-    const next = {
-      ...selections,
-      [key]: {
-        ...(selection || {}),
-        yearMonth: month,
-        searchTerm: term,
+    const next = { ...selections }
+    const targets = decision === 'skipped' ? matchingVisibleMonthTerms(term) : [{ month, term }]
+
+    for (const target of targets) {
+      const targetKey = selectionKey(target.month, target.term)
+      const existing = selections[targetKey]
+      if (alreadySelected && existing?.decision !== decision) continue
+      next[targetKey] = {
+        ...(existing || {}),
+        yearMonth: target.month,
+        searchTerm: target.term,
         rowIndex: 0,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
@@ -382,26 +395,30 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         watchHorizonMonths: null,
         watchUntil: null,
         appliedToNKL: null,
-      },
+      }
     }
     setSelections(next)
     queueSave(next)
   }
 
-  // Toggle a term into/out of the "watch" state. Watched terms are never added
-  // to an NKL and keep appearing across months until the horizon passes, at
-  // which point the team re-checks conversion performance.
+  // Toggle a term into/out of the "watch" state. Watch is a client-wide review
+  // decision for this exact search term + negative keyword + match type, so the
+  // duplicate term disappears from every loaded month immediately.
   const setWatch = (month: string, term: string, horizon: WatchHorizon | null) => {
     const key = selectionKey(month, term)
     const selection = selections[key]
     const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
     const clearing = horizon === null
-    const next = {
-      ...selections,
-      [key]: {
-        ...(selection || {}),
-        yearMonth: month,
-        searchTerm: term,
+    const next = { ...selections }
+    const targets = clearing ? matchingVisibleMonthTerms(term).filter((target) => selections[selectionKey(target.month, target.term)]?.decision === 'watch') : matchingVisibleMonthTerms(term)
+
+    for (const target of targets) {
+      const targetKey = selectionKey(target.month, target.term)
+      const existing = selections[targetKey]
+      next[targetKey] = {
+        ...(existing || {}),
+        yearMonth: target.month,
+        searchTerm: target.term,
         rowIndex: 0,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
@@ -409,7 +426,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         watchHorizonMonths: clearing ? null : horizon,
         watchUntil: clearing ? null : addMonthsIso(new Date(), horizon),
         appliedToNKL: null,
-      },
+      }
     }
     setSelections(next)
     queueSave(next)
