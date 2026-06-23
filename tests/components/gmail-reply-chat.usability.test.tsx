@@ -199,6 +199,7 @@ describe('GmailReplyChat usability smoke', () => {
 
     const link = await screen.findByRole('link', { name: 'Open in Gmail' })
     expect(link).toHaveAttribute('href', 'https://mail.google.com/mail/u/0/#drafts/msg-123')
+    expect(screen.queryByRole('button', { name: 'Create Gmail draft' })).not.toBeInTheDocument()
   })
 
   it('supports search → pick email → chat through reply → save threaded draft', async () => {
@@ -259,10 +260,12 @@ describe('GmailReplyChat usability smoke', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
 
     fireEvent.click(await screen.findByText('Proposal question'))
+    expect(await screen.findByRole('button', { name: 'Show original email' })).toBeInTheDocument()
+    expect(screen.queryByText('Can you clarify the next steps?')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show original email' }))
     expect(await screen.findByText('Can you clarify the next steps?')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Collapse original email' }))
     expect(screen.queryByText('Can you clarify the next steps?')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show original email' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Message GmailMate about the reply…'), {
       target: { value: 'Be warm and explain the next step.' },

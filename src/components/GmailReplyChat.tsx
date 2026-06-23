@@ -287,7 +287,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setChatMessages([])
     setSavedUrl(null)
     setSaveError(null)
-    setOriginalEmailCollapsed(false)
+    setOriginalEmailCollapsed(true)
     try {
       const res = await fetch(`/api/gmail/message/${encodeURIComponent(r.messageId)}`, {
         credentials: 'include',
@@ -875,22 +875,24 @@ function GmailChatComposer({
   const canSend = !disabled && value.trim().length > 0
   return (
     <div style={gmailComposerWrapStyle}>
-      <div style={googleMateComposerBoxStyle}>
-        <textarea
-          rows={1}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              if (canSend) onSend()
-            }
-          }}
-          placeholder={placeholder}
-          disabled={disabled}
-          style={googleMateTextareaStyle}
-        />
+      <div style={composerInputRowStyle}>
+        <div style={googleMateComposerBoxStyle}>
+          <textarea
+            rows={3}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                if (canSend) onSend()
+              }
+            }}
+            placeholder={placeholder}
+            disabled={disabled}
+            style={googleMateTextareaStyle}
+          />
+        </div>
         <button
           type="button"
           onClick={onSend}
@@ -1123,18 +1125,26 @@ const gmailComposerWrapStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
+const composerInputRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'stretch',
+  gap: 8,
+}
+
 const googleMateComposerBoxStyle: React.CSSProperties = {
-  position: 'relative',
+  flex: 1,
+  minWidth: 0,
   minHeight: 104,
   border: '1px solid var(--theme-border-color, #e5e7eb)',
   borderRadius: 14,
   background: 'var(--theme-input-bg, #fff)',
-  padding: '12px 14px 46px',
+  padding: '12px 14px',
 }
 
 const googleMateTextareaStyle: React.CSSProperties = {
   width: '100%',
-  minHeight: 36,
+  minHeight: 80,
+  height: '100%',
   padding: 0,
   border: 'none',
   fontSize: 13,
@@ -1148,9 +1158,8 @@ const googleMateTextareaStyle: React.CSSProperties = {
 }
 
 const sendIconButtonStyle: React.CSSProperties = {
-  position: 'absolute',
-  right: 14,
-  bottom: 8,
+  alignSelf: 'flex-end',
+  marginBottom: 14,
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
