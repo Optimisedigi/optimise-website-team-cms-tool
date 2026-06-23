@@ -828,7 +828,8 @@ $svg-close: "%3C/svg%3E";
 // Payload renders document controls as a sticky top strip by default. Make every
 // collection/global edit view use the same bottom save treatment as the Clients
 // screen so pages like OptiMate Settings no longer keep the old top Save button.
-.collection-edit {
+.collection-edit,
+.global-edit {
   .doc-controls {
     display: contents;
     pointer-events: none;
@@ -1010,6 +1011,38 @@ body:has(:is(
   }
 }
 
+// OptiMate Settings is a Global edit screen. Hide Payload's native title/header
+// strip so the tabs start cleanly below the breadcrumb and no fuzzy header panel
+// remains above the form.
+body:has(.global-edit--optimate-settings) {
+  .template-default__wrap,
+  .collection-edit__main-wrapper,
+  .collection-edit__main,
+  .collection-edit__form {
+    background: #f5f6f8;
+  }
+
+  .doc-header__title,
+  .doc-header__after-header,
+  .doc-tabs {
+    display: none !important;
+  }
+
+  .doc-header {
+    margin-top: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 0 !important;
+  }
+
+  .global-edit--optimate-settings .document-fields,
+  .global-edit--optimate-settings .document-fields__main > .gutter {
+    padding-top: 0;
+  }
+
+  .global-edit--optimate-settings .tabs-field {
+    margin-top: 30px;
+  }
+}
 
 // Sidebar Dashboard link — sits below logo, above nav groups
 .sidebar-dashboard-link {
