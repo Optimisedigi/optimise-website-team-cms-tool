@@ -12,6 +12,7 @@ import {
   getRealtimeToolDefinitions,
   getVoiceToolNames,
 } from '@/lib/agents/optimate-google-ads/realtime-tools'
+import { memoryToolRoutingPrompt } from '@/lib/agents/_shared/memory-tool-routing'
 import { readClientConnectionFlags } from '@/lib/agents/optimate-google-ads/tools/_client-tokens'
 import { loadPinnedMemoryBlock } from '@/lib/agents/optimate-google-ads/memory-loader'
 import { getValidGmailToken } from '@/lib/agents/_shared/user-gmail-tokens'
@@ -53,11 +54,14 @@ export async function GET(request: Request) {
     const attachedEmailMessageId = url.searchParams.get('attachedEmailMessageId')
 
     let basePrompt = ''
+    let memoryBlock = ''
     let tools: unknown[] = []
     if (mode === 'portfolio') {
       const pinnedMemory = await loadPinnedMemoryBlock([], { soulAgentKeys: ['google-ads'] })
+      memoryBlock = pinnedMemory.text.trim()
+        ? `\n\n${pinnedMemory.text}\n\nThe soul rules in this memory block are ABSOLUTE. If any example or rule elsewhere in this prompt conflicts with a soul rule, the soul rule wins. This applies especially to formatting, tone, and what to show vs hide in user-visible replies.`
+        : ''
       basePrompt = buildSystemPromptForPortfolio({
-        pinnedMemoryBlock: pinnedMemory.text,
         recentMessages: [],
       }) + buildSelectedAccountsVoiceScope(selectedAccountRefs)
       tools = getPortfolioRealtimeToolDefinitions(getPortfolioVoiceToolNames())
@@ -74,8 +78,10 @@ export async function GET(request: Request) {
         clientId !== undefined && clientId !== null ? [clientId] : [],
         { soulAgentKeys: ['google-ads'] },
       )
+      memoryBlock = pinnedMemory.text.trim()
+        ? `\n\n${pinnedMemory.text}\n\nThe soul rules in this memory block are ABSOLUTE. If any example or rule elsewhere in this prompt conflicts with a soul rule, the soul rule wins. This applies especially to formatting, tone, and what to show vs hide in user-visible replies.`
+        : ''
       basePrompt = buildSystemPromptForAudit(audit as never, client as never, connectionFlags, {
-        pinnedMemoryBlock: pinnedMemory.text,
         recentMessages: [],
       })
       tools = getRealtimeToolDefinitions(getVoiceToolNames())
@@ -135,7 +141,7 @@ export async function GET(request: Request) {
       'or communication-style correction.'
 
     return NextResponse.json({
-      instructions: basePrompt + attachedEmailContext + voiceGuardrail,
+      instructions: basePrompt + memoryBlock + memoryToolRoutingPrompt('GoogleMate') + attachedEmailContext + voiceGuardrail,
       tools,
     })
   } catch (err) {

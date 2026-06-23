@@ -75,6 +75,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [message, setMessage] = useState<string | null>(null)
   const [lastLoadSummary, setLastLoadSummary] = useState<{ misses?: number; missingMonths?: string[]; error?: string; diagnostics?: { customerId?: string; startDate?: string; endDate?: string; totalRows?: number; matchedRows?: number } } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveRequestId = useRef(0)
   const monthsScrollerRef = useRef<HTMLDivElement | null>(null)
   const hasAutoScrolledRef = useRef(false)
   const titleBarRef = useRef<HTMLDivElement | null>(null)
@@ -250,6 +251,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   }, [])
 
   const saveSelections = useCallback(async (next: Record<string, Selection>, deletions?: Array<{ yearMonth: string; searchTerm: string; rowIndex: number }>) => {
+    const requestId = saveRequestId.current + 1
+    saveRequestId.current = requestId
     setSaving(true)
     try {
       const res = await fetch('/api/monthly-keyword-selection/save', {
@@ -259,14 +262,18 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         body: JSON.stringify({ clientId: Number(clientId), selections: Object.values(next), ...(deletions && deletions.length ? { deletions } : {}) }),
       })
       if (!res.ok) throw new Error('Auto-save failed')
-      // Clear a stale auto-save error once a later save succeeds. Without this the
-      // banner from a single aborted/superseded request in a rapid skip burst
-      // would stick forever even though every subsequent save returns 200.
-      setMessage((current) => (current === 'Auto-save failed' ? null : current))
+      // Only the latest save may change the status banner. Older requests can
+      // finish late during rapid Skip/Watch clicks; their stale failures should
+      // not put "Auto-save failed" back after a newer request has saved.
+      if (saveRequestId.current === requestId) {
+        setMessage((current) => (current === 'Auto-save failed' ? null : current))
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Auto-save failed')
+      if (saveRequestId.current === requestId) {
+        setMessage(error instanceof Error ? error.message : 'Auto-save failed')
+      }
     } finally {
-      setSaving(false)
+      if (saveRequestId.current === requestId) setSaving(false)
     }
   }, [clientId])
 

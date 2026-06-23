@@ -4,12 +4,18 @@ import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 import { callLLM } from "@/lib/agents/_shared/llm";
+import { memoryToolRoutingPrompt, shouldAttachMemoryToolsForText } from "@/lib/agents/_shared/memory-tool-routing";
+import { toToolDef, type CanonicalTool } from "@/lib/agents/_shared/tool";
 import { loadPinnedMemoryBlock } from "@/lib/agents/optimate-google-ads/memory-loader";
+import { SYSTEM_PROMPT } from "@/lib/agents/optimate-invoice/system-prompt";
 import {
   CHAT_PICKER_MODELS,
   isCanonicalModel,
 } from "@/lib/agents/_shared/llm/registry";
 import type { Message, ToolDef } from "@/lib/agents/_shared/llm/types";
+import { memorySearch } from "@/lib/agents/optimate-google-ads/tools/memory-search";
+import { remember } from "@/lib/agents/optimate-google-ads/tools/remember";
+import { soulSet } from "@/lib/agents/optimate-google-ads/tools/soul-set";
 
 /** Resolve a client-requested model to a usable canonical name, or undefined
  *  when the value is missing/unknown/not offered in the chat picker. Mirrors
@@ -72,6 +78,9 @@ function pickAllowedFields(
 }
 
 // ─── Tool definitions (OpenAI format) ─────────────────────
+
+export const MEMORY_TOOLS = [memorySearch, remember, soulSet] as unknown as CanonicalTool<unknown>[];
+export const MEMORY_TOOL_NAMES = new Set(MEMORY_TOOLS.map((tool) => tool.name));
 
 export const tools: ToolDef[] = [
   {
@@ -293,30 +302,32 @@ export const tools: ToolDef[] = [
   },
 ];
 
-// ─── System prompt ─────────────────────────────────────────
+function getInvoiceToolsForPrompt(text: string): ToolDef[] {
+  return shouldAttachMemoryToolsForText(text)
+    ? getInvoiceRealtimeTools()
+    : tools;
+}
 
-export const SYSTEM_PROMPT = `You are an invoice assistant for Optimise Digital, a digital marketing agency. You help manage Xero invoices — creating, approving, sending, and scheduling them.
+export function getInvoiceRealtimeTools(): ToolDef[] {
+  return [...tools, ...MEMORY_TOOLS.map(toToolDef)];
+}
 
-You have access to the following tools to interact with Xero:
-- listContacts: Search for clients/contacts
-- listInvoices: List invoices with filters
-- getInvoiceSummary: Get outstanding/overdue summary
-- createInvoice: Create a new invoice
-- createRecurringDrafts: Create draft invoices from configured recurring invoice templates
-- updateInvoice: Update an existing invoice
-- approveInvoice: Approve a draft invoice
-- sendInvoice: Send an invoice via email
-- scheduleSend: Schedule an invoice for future sending
-- getScheduledSends: List scheduled sends
-
-Guidelines:
-- Before creating an invoice, always look up the contact first using listContacts to get the correct contactId.
-- When creating invoices, default the account code to "200" (Sales) unless told otherwise.
-- For "this month's retainer", use the current month and year in the description.
-- Before performing destructive, bulk, or modifying actions (creating recurring drafts, updating, sending, approving), confirm with the user first. Creating a single draft invoice is safe and doesn't need confirmation.
-- Format currency amounts in AUD.
-- Be concise and actionable in your responses. Use ✅ for successful actions and ⚠️ for warnings.
-- Today's date is ${new Date().toISOString().split("T")[0]}.`;
+export async function executeMemoryTool(name: string, args: Record<string, unknown>, userId: string | number): Promise<unknown> {
+  const tool = MEMORY_TOOLS.find((candidate) => candidate.name === name);
+  if (!tool) return { error: `Unknown memory tool: ${name}` };
+  try {
+    const validatedArgs = tool.validate ? tool.validate(args) : args;
+    const result = await tool.execute(validatedArgs, {
+      agentName: "invoicemate",
+      agentRunId: `invoice-${Date.now().toString(36)}`,
+      context: { mode: "invoice", userId },
+      log: (message, meta) => console.log(`[invoicemate] ${message}`, meta ?? ""),
+    });
+    return result.ok ? (result.data ?? { ok: true }) : { ok: false, error: result.error ?? "Memory tool returned ok=false" };
+  } catch (err) {
+    return { ok: false, error: `Memory tool failed: ${(err as Error).message}` };
+  }
+}
 
 // ─── Tool execution → Growth Tools proxy ──────────────────
 
@@ -491,7 +502,9 @@ export async function POST(req: NextRequest) {
     const memoryBlock = pinnedMemory.text.trim()
       ? `\n\n${pinnedMemory.text}\n\nThe soul rules above are ABSOLUTE for InvoiceMate. If any invoice prompt, example, or draft text conflicts with a soul rule, the soul rule wins. Agent-specific soul rows for other agents, such as google-ads-*, are intentionally not loaded here.`
       : "";
-    const systemPrompt = SYSTEM_PROMPT + memoryBlock;
+    const selectedTools = getInvoiceToolsForPrompt(body.message);
+    const hasMemoryTools = selectedTools.some((tool) => MEMORY_TOOL_NAMES.has(tool.name));
+    const systemPrompt = SYSTEM_PROMPT + memoryBlock + (hasMemoryTools ? memoryToolRoutingPrompt("InvoiceMate") : "");
 
     const messages: Message[] = [];
 
@@ -528,7 +541,7 @@ export async function POST(req: NextRequest) {
         model: selectedModel,
         system: systemPrompt,
         messages,
-        tools,
+        tools: selectedTools,
         temperature: 0.3,
         maxTokens: 2000,
       });
@@ -541,12 +554,14 @@ export async function POST(req: NextRequest) {
 
       if (response.stopReason === "tool_use" && toolUses.length > 0) {
         for (const toolUse of toolUses) {
-          const result = await executeTool(
-            toolUse.name,
-            toolUse.input,
-            GROWTH_TOOLS_URL,
-            INTERNAL_API_KEY
-          );
+          const result = MEMORY_TOOL_NAMES.has(toolUse.name)
+            ? await executeMemoryTool(toolUse.name, toolUse.input, user.id)
+            : await executeTool(
+                toolUse.name,
+                toolUse.input,
+                GROWTH_TOOLS_URL,
+                INTERNAL_API_KEY
+              );
 
           actions.push({ tool: toolUse.name, result });
 

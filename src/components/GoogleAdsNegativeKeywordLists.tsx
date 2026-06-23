@@ -182,8 +182,9 @@ const GoogleAdsNegativeKeywordLists = () => {
 
       {lists.map(list => {
         const campaignNames = Array.from(new Set(list.campaigns?.map(c => c.campaignName).filter(Boolean) || []))
-        const activeCampaignCount = campaignNames.length
-        const showCampaigns = activeCampaignCount > 0 && campaignNames.length > 0
+        const savedCampaignCount = Number(list.campaignCount)
+        const activeCampaignCount = Number.isFinite(savedCampaignCount) ? savedCampaignCount : campaignNames.length
+        const showCampaigns = campaignNames.length > 0
         const campaignsOpen = Boolean(openCampaignLists[list.id])
         const scopeDetail = list.scope === 'account' && list.campaignRegex
           ? `Regex: ${list.campaignRegex}`
