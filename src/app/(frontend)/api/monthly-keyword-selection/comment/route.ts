@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
+import { patchSelectionRow } from '@/lib/monthly-keyword-selection-rows'
 
 const NOTIFICATIONS = 'notifications' as never
 
@@ -38,44 +39,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'clientId, yearMonth and searchTerm are required' }, { status: 400 })
   }
 
-  const existing = await payload.find({
-    collection: 'monthly-keyword-selections',
-    where: { client: { equals: clientId } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  const doc = existing.docs[0] as { id: number | string; selections?: Array<Record<string, unknown>> } | undefined
-  if (!doc) return NextResponse.json({ error: 'No selections found for client' }, { status: 404 })
-
   const authorName = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || 'A reviewer'
   const now = new Date().toISOString()
   const taggedCsv = taggedUserIds.join(',')
 
-  let matched = false
-  const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection) => {
-    const sameTerm = String(selection.yearMonth) === yearMonth
-      && String(selection.searchTerm || '').toLowerCase() === searchTerm.toLowerCase()
-      && (rowIndex === null || Number(selection.rowIndex ?? 0) === rowIndex)
-    if (!sameTerm) return selection
-    matched = true
-    return {
-      ...selection,
-      reviewComment: comment,
-      reviewCommentBy: authorName,
-      reviewCommentAt: now,
-      reviewCommentTaggedUserIds: taggedCsv,
-    }
+  const patched = await patchSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex, {
+    reviewComment: comment,
+    reviewCommentBy: authorName,
+    reviewCommentAt: now,
+    reviewCommentTaggedUserIds: taggedCsv,
   })
 
-  if (!matched) return NextResponse.json({ error: 'Matching term not found' }, { status: 404 })
-
-  await payload.update({
-    collection: 'monthly-keyword-selections',
-    id: doc.id,
-    data: { selections },
-    overrideAccess: true,
-  })
+  if (!patched) return NextResponse.json({ error: 'Matching term not found' }, { status: 404 })
 
   // Fan out a bell notification to each tagged teammate (skip self).
   let notified = 0

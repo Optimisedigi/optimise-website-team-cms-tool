@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
+import { findSelectionRow, patchSelectionRow } from '@/lib/monthly-keyword-selection-rows'
 
 const NOTIFICATIONS = 'notifications' as never
 
@@ -104,31 +105,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-  const existing = await payload.find({
-    collection: 'monthly-keyword-selections',
-    where: { client: { equals: clientId } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  // selections is intentionally loose (any[]) so the typed payload.update call
-  // accepts the spread-and-patch rows, mirroring the bulk /save route.
-  const doc = existing.docs[0] as { id: number | string; selections?: any[] } | undefined
-  if (!doc) return NextResponse.json({ error: 'No selections found for client' }, { status: 404 })
-
-  // Sanitize every row's appliedToNKL up front. A previous bug persisted numeric
-  // *string* ids on some rows; since each write path re-saves the whole array,
-  // one bad sibling row would fail validation ('field is invalid') and block an
-  // unrelated edit. Coercing here keeps the whole array writable.
-  const selectionsArr = (Array.isArray(doc.selections) ? doc.selections : []).map((selection) => {
-    const id = nklIdOf(selection.appliedToNKL)
-    return id ? { ...selection, appliedToNKL: asNklId(id) } : selection
-  })
-  const target = selectionsArr.find((selection) =>
-    String(selection.yearMonth) === yearMonth
-    && String(selection.searchTerm || '').toLowerCase() === searchTerm.toLowerCase()
-    && (rowIndex === null || Number(selection.rowIndex ?? 0) === rowIndex),
-  )
+  const target = await findSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex)
   if (!target) return NextResponse.json({ error: 'Matching term not found' }, { status: 404 })
 
   const nklId = nklIdOf(target.appliedToNKL)
@@ -171,25 +148,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const appliedByUserId = target.appliedByUserId ? String(target.appliedByUserId) : ''
     // Keep the original submitter (appliedBy/appliedByUserId) intact so the
     // "Removed negatives explained" tab can attribute who first submitted it.
-    const selections = selectionsArr.map((selection) =>
-      selection === target
-        ? {
-            ...selection,
-            decision: 'skipped',
-            appliedToNKL: null,
-            appliedAt: null,
-            removedComment: comment || selection.removedComment || null,
-            removedBy: removerName,
-            removedByUserId: String(user.id),
-            removedAt: now,
-          }
-        : selection,
-    )
-    await payload.update({
-      collection: 'monthly-keyword-selections',
-      id: doc.id,
-      data: { selections },
-      overrideAccess: true,
+    await patchSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex, {
+      decision: 'skipped',
+      appliedToNKL: null,
+      appliedAt: null,
+      removedComment: comment || target.removedComment || null,
+      removedBy: removerName,
+      removedByUserId: String(user.id),
+      removedAt: now,
     })
 
     // Notify the original submitter so new team members understand why a
@@ -274,29 +240,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (oldKeyword.toLowerCase() !== newKeyword.toLowerCase()) moveKwParts.push(`${oldKeyword} → ${newKeyword}`)
     if (oldMatchType !== newMatchType) moveKwParts.push(`${oldMatchType} → ${newMatchType}`)
     const moveDetail = `${oldNklName} → ${newNklName}${moveKwParts.length ? ` · ${moveKwParts.join(' · ')}` : ''}`
-    const movedSelections = selectionsArr.map((selection) =>
-      selection === target
-        ? {
-            ...selection,
-            negativeKeyword: newKeyword,
-            matchType: newMatchType,
-            decision: 'approved',
-            appliedToNKL: asNklId(newNklId),
-            appliedAt: now,
-            outcomeType: 'moved',
-            outcomeDetail: moveDetail,
-            outcomeComment: comment || null,
-            outcomeBy: actorName,
-            outcomeByUserId: actorUserId,
-            outcomeAt: now,
-          }
-        : selection,
-    )
-    await payload.update({
-      collection: 'monthly-keyword-selections',
-      id: doc.id,
-      data: { selections: movedSelections },
-      overrideAccess: true,
+    await patchSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex, {
+      negativeKeyword: newKeyword,
+      matchType: newMatchType,
+      decision: 'approved',
+      appliedToNKL: asNklId(newNklId),
+      appliedAt: now,
+      outcomeType: 'moved',
+      outcomeDetail: moveDetail,
+      outcomeComment: comment || null,
+      outcomeBy: actorName,
+      outcomeByUserId: actorUserId,
+      outcomeAt: now,
     })
 
     let notified = false
@@ -350,27 +305,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (oldMatchType !== newMatchType) updateParts.push(`${oldMatchType} → ${newMatchType}`)
   const updateDetail = updateParts.length > 0 ? updateParts.join(' · ') : `${newKeyword} (${newMatchType})`
 
-  const selections = selectionsArr.map((selection) =>
-    selection === target
-      ? {
-          ...selection,
-          negativeKeyword: newKeyword,
-          matchType: newMatchType,
-          appliedAt: now,
-          outcomeType: 'updated',
-          outcomeDetail: updateDetail,
-          outcomeComment: comment || null,
-          outcomeBy: actorName,
-          outcomeByUserId: actorUserId,
-          outcomeAt: now,
-        }
-      : selection,
-  )
-  await payload.update({
-    collection: 'monthly-keyword-selections',
-    id: doc.id,
-    data: { selections },
-    overrideAccess: true,
+  await patchSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex, {
+    negativeKeyword: newKeyword,
+    matchType: newMatchType,
+    appliedAt: now,
+    outcomeType: 'updated',
+    outcomeDetail: updateDetail,
+    outcomeComment: comment || null,
+    outcomeBy: actorName,
+    outcomeByUserId: actorUserId,
+    outcomeAt: now,
   })
 
   let notified = false

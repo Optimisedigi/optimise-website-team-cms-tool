@@ -3,6 +3,7 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import { logActivity } from '@/lib/activity-log'
+import { findSelectionRows, findSelectionRowsByKeys, keywordKey as selectionKeywordKey, selectionRowKey, upsertSelectionRows } from '@/lib/monthly-keyword-selection-rows'
 
 type MatchType = 'exact' | 'broad' | 'phrase'
 
@@ -145,102 +146,120 @@ export async function POST(req: NextRequest) {
     depth: 0,
     overrideAccess: true,
   })
-  const doc = selectionDoc.docs[0] as any
-  if (doc) {
-    const appliedSelectionKeys = new Map(
-      keywords
-        .filter((keyword) => keyword.yearMonth && keyword.searchTerm)
-        .map((keyword) => [`${keyword.yearMonth}|${String(keyword.searchTerm).toLowerCase()}|${Number(keyword.rowIndex ?? 0)}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
-    )
-    const appliedKeywordKeys = new Map(
-      keywords.map((keyword) => [keywordMatchKey(keyword.keyword, keyword.matchType), keyword.appliedToNKL] as [string, number | string | null | undefined]),
-    )
-    // Collect the flaggers we need to notify (a needs-review term applied here
-    // is an "Added" teaching moment for whoever flagged it).
-    const addedNotifications: { recipient: string; term: string; yearMonth: string; detail: string }[] = []
-    // Tally the original reviewers (decidedBy — whoever first made the
-    // add/skip decision in the monthly review) so the activity entry credits
-    // them alongside the applier.
-    const reviewerCounts = new Map<string, number>()
-    const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection: any) => {
-      const selectionKey = `${String(selection.yearMonth)}|${String(selection.searchTerm || '').toLowerCase()}|${Number(selection.rowIndex ?? 0)}`
-      const keywordKey = keywordMatchKey(String(selection.negativeKeyword || ''), String(selection.matchType || ''))
-      const appliedToNKL = appliedSelectionKeys.get(selectionKey) || appliedKeywordKeys.get(keywordKey)
-      if (!appliedToNKL) {
-        // Untouched row: still coerce any legacy numeric-string id so a corrupted
-        // sibling can't fail the whole-array re-validation.
-        const existingId = asNklId(selection.appliedToNKL ?? null)
-        return existingId === selection.appliedToNKL ? selection : { ...selection, appliedToNKL: existingId }
-      }
-      // Preserve the original submitter: only stamp appliedBy/appliedByUserId
-      // when not already set on a previously-applied selection.
-      const appliedBy = selection.appliedByUserId ? selection.appliedBy : applierName
-      const appliedByUserId = selection.appliedByUserId ? selection.appliedByUserId : applierUserId
-      const reviewer = typeof selection.decidedBy === 'string' && selection.decidedBy ? selection.decidedBy : 'Unknown reviewer'
-      reviewerCounts.set(reviewer, (reviewerCounts.get(reviewer) || 0) + 1)
-      const wasNeedsReview = selection.decision === 'needs_review'
-      const next: any = {
-        ...selection,
-        decision: 'approved',
-        appliedToNKL: asNklId(appliedToNKL),
-        appliedAt: now,
-        appliedBy,
-        appliedByUserId,
-      }
-      if (wasNeedsReview) {
-        // Record an "added" outcome so the original flagger can see what happened.
-        const nklName = nklNameById.get(String(appliedToNKL)) || `List ${appliedToNKL}`
-        const detail = `added to ${nklName} (${selection.matchType})`
-        next.outcomeType = 'added'
-        next.outcomeDetail = detail
-        next.outcomeComment = comment || null
-        next.outcomeBy = applierName
-        next.outcomeByUserId = applierUserId
-        next.outcomeAt = now
-        const flaggerId = selection.decidedByUserId ? String(selection.decidedByUserId) : ''
-        if (flaggerId && flaggerId !== applierUserId) {
-          addedNotifications.push({
-            recipient: flaggerId,
-            term: String(selection.searchTerm || selection.negativeKeyword || ''),
-            yearMonth: String(selection.yearMonth || ''),
-            detail,
-          })
-        }
-      }
-      return next
-    })
-      // Drop the array sub-row `id` so Payload's SQLite array re-insert assigns
-      // fresh unique ids. Preserving a stored duplicate id triggers
-      // `UNIQUE constraint failed: monthly_keyword_selections_selections.id`.
-      .map(({ id, ...rest }: { id?: unknown }) => rest)
-    await payload.update({
+  const doc = selectionDoc.docs[0] as { id: string | number } | undefined
+  if (!doc) {
+    await payload.create({
       collection: 'monthly-keyword-selections',
-      id: doc.id,
-      data: { selections },
+      data: { client: clientId, status: 'active' },
       overrideAccess: true,
     })
+  }
 
-    // One change-history entry per apply: who pressed Apply, which lists, and
-    // who originally reviewed the terms (so credit isn't lost to the applier).
-    try {
-      const listNames = Array.from(nklNameById.values()).join(', ')
-      const reviewedBy = Array.from(reviewerCounts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([name, count]) => `${name} (${count})`)
-        .join(', ')
-      await logActivity(payload, {
-        type: 'monthly_negative_applied',
-        title: `Applied ${applied} monthly negative${applied === 1 ? '' : 's'} (${skipped} already on list)`,
-        description: `Lists: ${listNames || '—'}. Reviewed by: ${reviewedBy || '—'}. Applied by: ${applierName}.`,
-        user: typeof user.id === 'object' ? (user.id as { id: string | number }).id : user.id,
-        client: clientId,
-      })
-    } catch (err) {
-      payload.logger?.warn?.(`[monthly-keyword-apply] activity log failed: ${err}`)
+  const rowKeys = keywords
+    .filter((keyword) => keyword.yearMonth && keyword.searchTerm)
+    .map((keyword) => selectionRowKey(clientId, String(keyword.yearMonth), String(keyword.searchTerm), Number(keyword.rowIndex ?? 0)))
+  let rows = await findSelectionRowsByKeys(payload, clientId, rowKeys)
+  const rowsByKey = new Map(rows.map((row) => [row.rowKey, row]))
+  const missingSelections = keywords
+    .filter((keyword) => keyword.yearMonth && keyword.searchTerm)
+    .filter((keyword) => !rowsByKey.has(selectionRowKey(clientId, String(keyword.yearMonth), String(keyword.searchTerm), Number(keyword.rowIndex ?? 0))))
+    .map((keyword) => ({
+      yearMonth: String(keyword.yearMonth),
+      searchTerm: String(keyword.searchTerm),
+      rowIndex: Number(keyword.rowIndex ?? 0),
+      negativeKeyword: keyword.keyword,
+      matchType: keyword.matchType,
+      decision: 'approved' as const,
+      appliedToNKL: asNklId(keyword.appliedToNKL),
+    }))
+  if (missingSelections.length > 0) {
+    const created = await upsertSelectionRows(payload, clientId, missingSelections, user)
+    rows = [...rows, ...created]
+  }
+  if (rows.length === 0) {
+    const allRows = await findSelectionRows(payload, clientId)
+    const appliedKeywordKeys = new Set(keywords.map((keyword) => selectionKeywordKey(keyword.keyword, keyword.matchType)))
+    rows = allRows.filter((row) => row.keywordKey && appliedKeywordKeys.has(row.keywordKey))
+  }
+
+  // Collect the flaggers we need to notify (a needs-review term applied here
+  // is an "Added" teaching moment for whoever flagged it).
+  const addedNotifications: { recipient: string; term: string; yearMonth: string; detail: string }[] = []
+  // Tally the original reviewers (decidedBy — whoever first made the
+  // add/skip decision in the monthly review) so the activity entry credits
+  // them alongside the applier.
+  const reviewerCounts = new Map<string, number>()
+
+  for (const row of rows) {
+    if (!row.id) continue
+    const matchingKeyword = keywords.find((keyword) => {
+      const exactRowKey = keyword.yearMonth && keyword.searchTerm
+        ? selectionRowKey(clientId, String(keyword.yearMonth), String(keyword.searchTerm), Number(keyword.rowIndex ?? 0))
+        : ''
+      return exactRowKey === row.rowKey || selectionKeywordKey(keyword.keyword, keyword.matchType) === row.keywordKey
+    })
+    if (!matchingKeyword) continue
+    const appliedToNKL = matchingKeyword.appliedToNKL
+    const appliedBy = row.appliedByUserId ? row.appliedBy : applierName
+    const appliedByUserId = row.appliedByUserId ? row.appliedByUserId : applierUserId
+    const reviewer = typeof row.decidedBy === 'string' && row.decidedBy ? row.decidedBy : 'Unknown reviewer'
+    reviewerCounts.set(reviewer, (reviewerCounts.get(reviewer) || 0) + 1)
+    const wasNeedsReview = row.decision === 'needs_review'
+    const next: any = {
+      decision: 'approved',
+      appliedToNKL: asNklId(appliedToNKL),
+      appliedAt: now,
+      appliedBy,
+      appliedByUserId,
     }
+    if (wasNeedsReview) {
+      const nklName = nklNameById.get(String(appliedToNKL)) || `List ${appliedToNKL}`
+      const detail = `added to ${nklName} (${row.matchType})`
+      next.outcomeType = 'added'
+      next.outcomeDetail = detail
+      next.outcomeComment = comment || null
+      next.outcomeBy = applierName
+      next.outcomeByUserId = applierUserId
+      next.outcomeAt = now
+      const flaggerId = row.decidedByUserId ? String(row.decidedByUserId) : ''
+      if (flaggerId && flaggerId !== applierUserId) {
+        addedNotifications.push({
+          recipient: flaggerId,
+          term: String(row.searchTerm || row.negativeKeyword || ''),
+          yearMonth: String(row.yearMonth || ''),
+          detail,
+        })
+      }
+    }
+    await payload.update({
+      collection: 'monthly-keyword-selection-rows',
+      id: row.id,
+      data: next,
+      overrideAccess: true,
+    } as never)
+  }
 
-    // Notify each flagger that the negative they flagged was added to a list.
-    if (addedNotifications.length > 0) {
+  // One change-history entry per apply: who pressed Apply, which lists, and
+  // who originally reviewed the terms (so credit isn't lost to the applier).
+  try {
+    const listNames = Array.from(nklNameById.values()).join(', ')
+    const reviewedBy = Array.from(reviewerCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => `${name} (${count})`)
+      .join(', ')
+    await logActivity(payload, {
+      type: 'monthly_negative_applied',
+      title: `Applied ${applied} monthly negative${applied === 1 ? '' : 's'} (${skipped} already on list)`,
+      description: `Lists: ${listNames || '—'}. Reviewed by: ${reviewedBy || '—'}. Applied by: ${applierName}.`,
+      user: typeof user.id === 'object' ? (user.id as { id: string | number }).id : user.id,
+      client: clientId,
+    })
+  } catch (err) {
+    payload.logger?.warn?.(`[monthly-keyword-apply] activity log failed: ${err}`)
+  }
+
+  // Notify each flagger that the negative they flagged was added to a list.
+  if (addedNotifications.length > 0) {
       const client = await payload
         .findByID({ collection: 'clients', id: clientId, depth: 0, overrideAccess: true })
         .catch(() => null) as { name?: string } | null
@@ -265,7 +284,6 @@ export async function POST(req: NextRequest) {
         }
       }
     }
-  }
 
   return NextResponse.json({
     success: true,

@@ -128,11 +128,13 @@ export interface Config {
     'gsc-snapshots': GscSnapshot;
     'gsc-daily': GscDaily;
     'google-ads-snapshots': GoogleAdsSnapshot;
+    'google-ads-account-structure-snapshots': GoogleAdsAccountStructureSnapshot;
     'google-ads-change-trackers': GoogleAdsChangeTracker;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
     'google-ads-ad-extensions': GoogleAdsAdExtension;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCache;
+    'monthly-keyword-selection-rows': MonthlyKeywordSelectionRow;
     'monthly-keyword-terms-cache': MonthlyKeywordTermsCache;
     'client-pulse-history': ClientPulseHistory;
     'agent-credentials': AgentCredential;
@@ -225,11 +227,13 @@ export interface Config {
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
     'google-ads-snapshots': GoogleAdsSnapshotsSelect<false> | GoogleAdsSnapshotsSelect<true>;
+    'google-ads-account-structure-snapshots': GoogleAdsAccountStructureSnapshotsSelect<false> | GoogleAdsAccountStructureSnapshotsSelect<true>;
     'google-ads-change-trackers': GoogleAdsChangeTrackersSelect<false> | GoogleAdsChangeTrackersSelect<true>;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
     'google-ads-ad-extensions': GoogleAdsAdExtensionsSelect<false> | GoogleAdsAdExtensionsSelect<true>;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCacheSelect<false> | NegativeKeywordMonthlyWasteRelevancyCacheSelect<true>;
+    'monthly-keyword-selection-rows': MonthlyKeywordSelectionRowsSelect<false> | MonthlyKeywordSelectionRowsSelect<true>;
     'monthly-keyword-terms-cache': MonthlyKeywordTermsCacheSelect<false> | MonthlyKeywordTermsCacheSelect<true>;
     'client-pulse-history': ClientPulseHistorySelect<false> | ClientPulseHistorySelect<true>;
     'agent-credentials': AgentCredentialsSelect<false> | AgentCredentialsSelect<true>;
@@ -7712,6 +7716,46 @@ export interface GoogleAdsSnapshot {
   createdAt: string;
 }
 /**
+ * Latest full Account Structure Explorer payload per client. Used to avoid live Growth Tools calls on every page load.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-account-structure-snapshots".
+ */
+export interface GoogleAdsAccountStructureSnapshot {
+  id: number;
+  client: number | Client;
+  clientSlug: string;
+  customerId: string;
+  capturedAt: string;
+  /**
+   * Window start date (YYYY-MM-DD).
+   */
+  dateRangeStart?: string | null;
+  /**
+   * Window end date (YYYY-MM-DD).
+   */
+  dateRangeEnd?: string | null;
+  source: 'cron' | 'manual_refresh';
+  /**
+   * Full AccountStructureResponse JSON from Growth Tools.
+   */
+  payload:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Last refresh error, if any. Successful snapshots keep this empty.
+   */
+  error?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Saved Google Ads change-tracker workspaces shared by the internal admin team.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -8061,6 +8105,74 @@ export interface NegativeKeywordMonthlyWasteRelevancyCache {
    * ISO timestamp of the last fetch from Growth Tools.
    */
   fetchedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "monthly-keyword-selection-rows".
+ */
+export interface MonthlyKeywordSelectionRow {
+  id: number;
+  client: number | Client;
+  /**
+   * Month in YYYY-MM format.
+   */
+  yearMonth: string;
+  searchTerm: string;
+  /**
+   * Lowercase/trimmed search term for indexed lookup.
+   */
+  searchTermKey: string;
+  /**
+   * Sub-row index for this search term. 0 is the primary negative.
+   */
+  rowIndex: number;
+  /**
+   * Durable unique key: client|yearMonth|searchTermKey|rowIndex.
+   */
+  rowKey: string;
+  /**
+   * Lowercase negative keyword + match type for indexed fallback matching.
+   */
+  keywordKey?: string | null;
+  negativeKeyword: string;
+  matchType: 'broad' | 'phrase' | 'exact';
+  decision: 'pending' | 'approved' | 'skipped' | 'watch' | 'needs_review';
+  appliedToNKL?: (number | null) | NegativeKeywordList;
+  appliedAt?: string | null;
+  watchHorizonMonths?: number | null;
+  watchUntil?: string | null;
+  appliedBy?: string | null;
+  appliedByUserId?: string | null;
+  removedComment?: string | null;
+  removedBy?: string | null;
+  removedByUserId?: string | null;
+  removedAt?: string | null;
+  decidedBy?: string | null;
+  decidedByUserId?: string | null;
+  reviewDismissedAt?: string | null;
+  reviewDismissedBy?: string | null;
+  reviewComment?: string | null;
+  reviewCommentBy?: string | null;
+  reviewCommentAt?: string | null;
+  reviewCommentTaggedUserIds?: string | null;
+  outcomeType?: string | null;
+  outcomeDetail?: string | null;
+  outcomeComment?: string | null;
+  outcomeBy?: string | null;
+  outcomeByUserId?: string | null;
+  outcomeAt?: string | null;
+  outcomeFollowUpComments?:
+    | {
+        comment: string;
+        by?: string | null;
+        byUserId?: string | null;
+        at?: string | null;
+        taggedUserIds?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -8832,6 +8944,10 @@ export interface PayloadLockedDocument {
         value: number | GoogleAdsSnapshot;
       } | null)
     | ({
+        relationTo: 'google-ads-account-structure-snapshots';
+        value: number | GoogleAdsAccountStructureSnapshot;
+      } | null)
+    | ({
         relationTo: 'google-ads-change-trackers';
         value: number | GoogleAdsChangeTracker;
       } | null)
@@ -8850,6 +8966,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'negative-keyword-monthly-waste-relevancy-cache';
         value: number | NegativeKeywordMonthlyWasteRelevancyCache;
+      } | null)
+    | ({
+        relationTo: 'monthly-keyword-selection-rows';
+        value: number | MonthlyKeywordSelectionRow;
       } | null)
     | ({
         relationTo: 'monthly-keyword-terms-cache';
@@ -11414,6 +11534,23 @@ export interface GoogleAdsSnapshotsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-account-structure-snapshots_select".
+ */
+export interface GoogleAdsAccountStructureSnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  clientSlug?: T;
+  customerId?: T;
+  capturedAt?: T;
+  dateRangeStart?: T;
+  dateRangeEnd?: T;
+  source?: T;
+  payload?: T;
+  error?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "google-ads-change-trackers_select".
  */
 export interface GoogleAdsChangeTrackersSelect<T extends boolean = true> {
@@ -11538,6 +11675,58 @@ export interface NegativeKeywordMonthlyWasteRelevancyCacheSelect<T extends boole
   brandSpend?: T;
   isFinal?: T;
   fetchedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "monthly-keyword-selection-rows_select".
+ */
+export interface MonthlyKeywordSelectionRowsSelect<T extends boolean = true> {
+  client?: T;
+  yearMonth?: T;
+  searchTerm?: T;
+  searchTermKey?: T;
+  rowIndex?: T;
+  rowKey?: T;
+  keywordKey?: T;
+  negativeKeyword?: T;
+  matchType?: T;
+  decision?: T;
+  appliedToNKL?: T;
+  appliedAt?: T;
+  watchHorizonMonths?: T;
+  watchUntil?: T;
+  appliedBy?: T;
+  appliedByUserId?: T;
+  removedComment?: T;
+  removedBy?: T;
+  removedByUserId?: T;
+  removedAt?: T;
+  decidedBy?: T;
+  decidedByUserId?: T;
+  reviewDismissedAt?: T;
+  reviewDismissedBy?: T;
+  reviewComment?: T;
+  reviewCommentBy?: T;
+  reviewCommentAt?: T;
+  reviewCommentTaggedUserIds?: T;
+  outcomeType?: T;
+  outcomeDetail?: T;
+  outcomeComment?: T;
+  outcomeBy?: T;
+  outcomeByUserId?: T;
+  outcomeAt?: T;
+  outcomeFollowUpComments?:
+    | T
+    | {
+        comment?: T;
+        by?: T;
+        byUserId?: T;
+        at?: T;
+        taggedUserIds?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

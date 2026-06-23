@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
+import { findSelectionRow, patchSelectionRow } from '@/lib/monthly-keyword-selection-rows'
 
 const NOTIFICATIONS = 'notifications' as never
 
@@ -39,50 +40,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // A comment is optional: dismissing resolves the term and still notifies the
   // flagger even when no reason text is supplied.
 
-  const existing = await payload.find({
-    collection: 'monthly-keyword-selections',
-    where: { client: { equals: clientId } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  const doc = existing.docs[0] as { id: number | string; selections?: Array<Record<string, unknown>> } | undefined
-  if (!doc) return NextResponse.json({ error: 'No selections found for client' }, { status: 404 })
-
   const authorName = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || 'A reviewer'
   const now = new Date().toISOString()
   const taggedCsv = taggedUserIds.join(',')
 
-  let matched = false
-  let originalHandlerId: string | null = null
-  const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection) => {
-    const sameTerm = String(selection.yearMonth) === yearMonth
-      && String(selection.searchTerm || '').toLowerCase() === searchTerm.toLowerCase()
-      && (rowIndex === null || Number(selection.rowIndex ?? 0) === rowIndex)
-    if (!sameTerm) return selection
-    matched = true
-    const decidedBy = selection.decidedByUserId
-    originalHandlerId = decidedBy ? String(decidedBy) : null
-    return {
-      ...selection,
-      decision: 'skipped' as const,
-      reviewComment: comment,
-      reviewCommentBy: authorName,
-      reviewCommentAt: now,
-      reviewCommentTaggedUserIds: taggedCsv,
-      reviewDismissedAt: now,
-      reviewDismissedBy: authorName,
-    }
+  const existingRow = rowIndex === null ? null : await findSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex)
+  const patched = await patchSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex, {
+    decision: 'skipped',
+    reviewComment: comment,
+    reviewCommentBy: authorName,
+    reviewCommentAt: now,
+    reviewCommentTaggedUserIds: taggedCsv,
+    reviewDismissedAt: now,
+    reviewDismissedBy: authorName,
   })
+  const originalHandlerId = existingRow?.decidedByUserId ? String(existingRow.decidedByUserId) : patched?.decidedByUserId ? String(patched.decidedByUserId) : null
 
-  if (!matched) return NextResponse.json({ error: 'Matching term not found' }, { status: 404 })
-
-  await payload.update({
-    collection: 'monthly-keyword-selections',
-    id: doc.id,
-    data: { selections },
-    overrideAccess: true,
-  })
+  if (!patched) return NextResponse.json({ error: 'Matching term not found' }, { status: 404 })
 
   // Recipients: the auto-tracked original handler plus any manual tags,
   // de-duplicated and excluding the current user.

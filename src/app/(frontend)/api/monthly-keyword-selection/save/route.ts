@@ -3,16 +3,12 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import type { MonthlyKeywordSelectionRow } from '@/lib/monthly-keyword-terms-warmer'
+import { countSelectionRows, deleteSelectionRows, upsertSelectionRows } from '@/lib/monthly-keyword-selection-rows'
 
 const VALID_MATCH_TYPES = new Set(['broad', 'phrase', 'exact'])
 const VALID_DECISIONS = new Set(['pending', 'approved', 'skipped', 'watch', 'needs_review'])
 const VALID_WATCH_HORIZONS = new Set([1, 2, 3, 6])
 const DEFAULT_WATCH_HORIZON = 3
-
-function addMonthsIso(from: Date, months: number): string {
-  const next = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + months, from.getUTCDate()))
-  return next.toISOString()
-}
 
 function normaliseSelection(value: any): MonthlyKeywordSelectionRow | null {
   const yearMonth = typeof value?.yearMonth === 'string' ? value.yearMonth.trim() : ''
@@ -78,85 +74,24 @@ export async function POST(req: NextRequest) {
     depth: 0,
     overrideAccess: true,
   })
-  const existingDoc = existingResult.docs[0] as any
-  const existingSelections = Array.isArray(existingDoc?.selections) ? existingDoc.selections : []
-  const byTerm = new Map<string, any>()
+  const existingDoc = existingResult.docs[0] as { id: string | number } | undefined
+  const doc = existingDoc || (await payload.create({
+    collection: 'monthly-keyword-selections',
+    data: { client: clientId, status: 'active' },
+    overrideAccess: true,
+  }) as { id: string | number })
 
-  const rowKey = (yearMonth: string, searchTerm: string, rowIndex: number): string =>
-    `${yearMonth}|${String(searchTerm).toLowerCase()}|${rowIndex}`
-
-  for (const selection of existingSelections) {
-    byTerm.set(rowKey(selection.yearMonth, selection.searchTerm, Number(selection.rowIndex ?? 0)), selection)
-  }
-  const now = new Date()
-  for (const selection of incoming) {
-    const key = rowKey(selection.yearMonth, selection.searchTerm, Number(selection.rowIndex ?? 0))
-    const prev = byTerm.get(key) || {}
-    const merged: any = { ...prev, ...selection }
-    // Auto-track who set the decision so the original handler can be notified
-    // when a needs-review term is later dismissed as feedback. Stamped from the
-    // authenticated session only — never trusted from the request body.
-    if (merged.decision !== 'pending' && (prev.decision !== merged.decision || !prev.decidedByUserId)) {
-      merged.decidedByUserId = String(user.id)
-      merged.decidedBy = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || null
+  const rowsToSave = incoming.map((selection) => {
+    if (selection.decision === 'watch') {
+      const horizon = VALID_WATCH_HORIZONS.has(Number(selection.watchHorizonMonths)) ? Number(selection.watchHorizonMonths) : DEFAULT_WATCH_HORIZON
+      return { ...selection, watchHorizonMonths: horizon }
     }
-    if (merged.decision === 'watch') {
-      const horizon = VALID_WATCH_HORIZONS.has(Number(merged.watchHorizonMonths)) ? Number(merged.watchHorizonMonths) : DEFAULT_WATCH_HORIZON
-      merged.watchHorizonMonths = horizon
-      const horizonChanged = Number(prev.watchHorizonMonths) !== horizon
-      merged.watchUntil = prev.decision === 'watch' && prev.watchUntil && !horizonChanged ? prev.watchUntil : addMonthsIso(now, horizon)
-    } else {
-      merged.watchHorizonMonths = null
-      merged.watchUntil = null
-    }
-    byTerm.set(key, merged)
-  }
+    return { ...selection, watchHorizonMonths: null, watchUntil: null }
+  })
 
-  for (const d of deletions) {
-    byTerm.delete(rowKey(d.yearMonth, d.searchTerm, d.rowIndex))
-  }
+  await upsertSelectionRows(payload, clientId, rowsToSave, user)
+  await deleteSelectionRows(payload, clientId, deletions)
+  const selectionCount = await countSelectionRows(payload, clientId)
 
-  const selections = Array.from(byTerm.values())
-    // Drop the array sub-row `id`. Payload's SQLite adapter re-inserts the whole
-    // array on update; if any stored row carries a duplicate id (from an earlier
-    // partial write), keeping it triggers `UNIQUE constraint failed:
-    // monthly_keyword_selections_selections.id` and the save fails. Letting
-    // Payload assign fresh ids each write keeps the logical row key
-    // (yearMonth|searchTerm|rowIndex) as the source of truth and avoids collisions.
-    .map(({ id, ...rest }) => rest)
-    .sort((a, b) =>
-      String(a.yearMonth).localeCompare(String(b.yearMonth))
-      || String(a.searchTerm).localeCompare(String(b.searchTerm))
-      || Number(a.rowIndex ?? 0) - Number(b.rowIndex ?? 0),
-    )
-
-  // Guard 1: never shrink a populated array to empty. An autosave should never
-  // legitimately clear every row — if the merge produced nothing while the
-  // stored doc still has rows, treat it as a corrupt/partial read and abort
-  // rather than overwriting good data. (A genuine wipe would still happen one
-  // explicit deletion at a time, never as a single empty write.)
-  if (selections.length === 0 && existingSelections.length > 0) {
-    payload.logger?.warn?.(
-      `[monthly-keyword-save] refused to clear ${existingSelections.length} selection(s) for client ${clientId}; aborting empty write.`,
-    )
-    return NextResponse.json(
-      { error: 'Refused to clear all selections — no rows to save against existing data.' },
-      { status: 409 },
-    )
-  }
-
-  const doc = existingDoc
-    ? await payload.update({
-        collection: 'monthly-keyword-selections',
-        id: existingDoc.id,
-        data: { selections },
-        overrideAccess: true,
-      })
-    : await payload.create({
-        collection: 'monthly-keyword-selections',
-        data: { client: clientId, status: 'active', selections },
-        overrideAccess: true,
-      })
-
-  return NextResponse.json({ success: true, selectionCount: selections.length, docId: doc.id })
+  return NextResponse.json({ success: true, selectionCount, docId: doc.id })
 }

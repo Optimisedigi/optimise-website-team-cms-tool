@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { findSelectionRows, rowDocToSelection } from './monthly-keyword-selection-rows'
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL
 const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY
@@ -178,16 +179,19 @@ async function fetchSelectionConfig(payload: Payload, clientId: number): Promise
   suppressionNklIdsConfigured: boolean | number
   suppressionNklIds: string | null
 }> {
-  const result = await payload.find({
-    collection: 'monthly-keyword-selections',
-    where: { client: { equals: clientId } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  const doc = result.docs[0] as { selections?: MonthlyKeywordSelectionRow[]; suppressionNklIdsConfigured?: boolean | number; suppressionNklIds?: string | null } | undefined
+  const [settingsResult, rowDocs] = await Promise.all([
+    payload.find({
+      collection: 'monthly-keyword-selections',
+      where: { client: { equals: clientId } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    }),
+    findSelectionRows(payload, clientId),
+  ])
+  const doc = settingsResult.docs[0] as { selections?: MonthlyKeywordSelectionRow[]; suppressionNklIdsConfigured?: boolean | number; suppressionNklIds?: string | null } | undefined
   return {
-    selections: Array.isArray(doc?.selections) ? doc.selections : [],
+    selections: rowDocs.length > 0 ? rowDocs.map(rowDocToSelection) : Array.isArray(doc?.selections) ? doc.selections : [],
     suppressionNklIdsConfigured: doc?.suppressionNklIdsConfigured ?? false,
     suppressionNklIds: typeof doc?.suppressionNklIds === 'string' ? doc.suppressionNklIds : null,
   }

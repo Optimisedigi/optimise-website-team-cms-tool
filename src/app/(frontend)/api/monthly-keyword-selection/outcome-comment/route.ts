@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
+import { findSelectionRow, patchSelectionRow } from '@/lib/monthly-keyword-selection-rows'
 
 const SOURCE_FIELD = {
   outcome: 'outcomeComment',
@@ -49,45 +50,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'source must be one of outcome, removed, dismissed' }, { status: 400 })
   }
 
-  const existing = await payload.find({
-    collection: 'monthly-keyword-selections',
-    where: { client: { equals: clientId } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  const doc = existing.docs[0] as { id: number | string; selections?: Array<Record<string, unknown>> } | undefined
-  if (!doc) return NextResponse.json({ error: 'No selections found for client' }, { status: 404 })
-
   const field = SOURCE_FIELD[source]
   const authorName = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || 'A reviewer'
   const now = new Date().toISOString()
-  let matched = false
   let followUps: Array<Record<string, unknown>> = []
-  const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection) => {
-    const sameRow = String(selection.yearMonth) === yearMonth
-      && String(selection.searchTerm || '').toLowerCase() === searchTerm.toLowerCase()
-      && Number(selection.rowIndex ?? 0) === rowIndex
-    if (!sameRow) return selection
-    matched = true
-    if (mode === 'append') {
-      followUps = [
-        ...(Array.isArray(selection.outcomeFollowUpComments) ? selection.outcomeFollowUpComments as Array<Record<string, unknown>> : []),
-        { comment, by: authorName, byUserId: String(user.id), at: now, taggedUserIds: taggedUserIds.join(',') },
-      ]
-      return { ...selection, outcomeFollowUpComments: followUps }
-    }
-    return { ...selection, [field]: comment }
-  })
+  const existingRow = await findSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex)
+  if (!existingRow) return NextResponse.json({ error: 'Matching outcome not found' }, { status: 404 })
 
-  if (!matched) return NextResponse.json({ error: 'Matching outcome not found' }, { status: 404 })
+  if (mode === 'append') {
+    followUps = [
+      ...(Array.isArray(existingRow.outcomeFollowUpComments) ? existingRow.outcomeFollowUpComments as Array<Record<string, unknown>> : []),
+      { comment, by: authorName, byUserId: String(user.id), at: now, taggedUserIds: taggedUserIds.join(',') },
+    ]
+  }
 
-  await payload.update({
-    collection: 'monthly-keyword-selections',
-    id: doc.id,
-    data: { selections },
-    overrideAccess: true,
-  })
+  const patched = await patchSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex, mode === 'append'
+    ? { outcomeFollowUpComments: followUps }
+    : { [field]: comment })
+
+  if (!patched) return NextResponse.json({ error: 'Matching outcome not found' }, { status: 404 })
 
   let notified = 0
   if (mode === 'append' && taggedUserIds.length > 0 && comment.trim()) {
