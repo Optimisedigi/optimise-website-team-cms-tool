@@ -76,6 +76,7 @@ import { readClientConnectionFlags } from "./tools/_client-tokens";
 import { loadPinnedMemoryBlock } from "./memory-loader";
 import { checkRunForCorrection, type CorrectionRequest } from "./post-run-checks";
 import { logAgentStep } from "../_shared/activity-log";
+import { memoryToolRoutingPrompt, shouldAttachMemoryTools } from "../_shared/memory-tool-routing";
 import { getPayload } from "payload";
 import payloadConfig from "@/payload.config";
 
@@ -109,8 +110,71 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "propose_deck_from_template",
 ]);
 
-export function getTools(options?: { restrictExternalContextActions?: boolean }): CanonicalTool<unknown>[] {
-  const tools = [
+const TOOL_BUNDLE_NAMES = [
+  "performance",
+  "negative_keywords",
+  "budget_email",
+  "ad_copy",
+  "seo_organic",
+  "campaign_build",
+  "goals",
+  "scheduled_tasks",
+  "decks",
+  "memory",
+] as const;
+
+type GoogleMateToolBundleName = (typeof TOOL_BUNDLE_NAMES)[number];
+
+const GOOGLEMATE_TOOL_ROUTER_PROMPT = `
+
+Tool routing: you are starting with a lean GoogleMate tool set. If the user asks for specialist work and the needed tool is not visible, first call request_googlemate_tool_bundle with one or more bundles, then use the newly attached tools on the next turn. Available bundles: performance, negative_keywords, budget_email, ad_copy, seo_organic, campaign_build, goals, scheduled_tasks, decks, memory.${memoryToolRoutingPrompt("GoogleMate")}`;
+
+const requestGoogleMateToolBundle: CanonicalTool<{ bundles: GoogleMateToolBundleName[]; reason?: string }> = {
+  name: "request_googlemate_tool_bundle",
+  description:
+    "Attach specialist GoogleMate tool schemas for this run. Use before specialist Google Ads, SEO, budget email, proposal, goal, schedule, deck, or explicit memory/soul work when the required tool is not already available.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      bundles: {
+        type: "array",
+        minItems: 1,
+        items: { type: "string", enum: [...TOOL_BUNDLE_NAMES] },
+        description: "Specialist bundles to attach before the next assistant turn.",
+      },
+      reason: { type: "string", description: "Brief reason these bundles are needed." },
+    },
+    required: ["bundles"],
+    additionalProperties: false,
+  },
+  validate(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error("Expected an object with bundles.");
+    }
+    const input = raw as Record<string, unknown>;
+    if (!Array.isArray(input.bundles)) throw new Error("bundles must be an array.");
+    const bundles = input.bundles.filter((b): b is GoogleMateToolBundleName =>
+      typeof b === "string" && (TOOL_BUNDLE_NAMES as readonly string[]).includes(b),
+    );
+    if (bundles.length === 0) throw new Error("At least one valid bundle is required.");
+    return {
+      bundles: Array.from(new Set(bundles)),
+      ...(typeof input.reason === "string" ? { reason: input.reason } : {}),
+    };
+  },
+  async execute(args) {
+    return {
+      ok: true,
+      data: {
+        attachedBundles: args.bundles,
+        message: "Specialist GoogleMate tools are attached for the next turn. Continue using the newly available tools.",
+      },
+    };
+  },
+};
+
+function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool<unknown>[] {
+  return [
     getAccountOverview as unknown as CanonicalTool<unknown>,
     getCampaignPerformance as unknown as CanonicalTool<unknown>,
     getAdGroupPerformance as unknown as CanonicalTool<unknown>,
@@ -158,19 +222,106 @@ export function getTools(options?: { restrictExternalContextActions?: boolean })
     proposeStakeholderDeck as unknown as CanonicalTool<unknown>,
     proposeDeckFromTemplateTool as unknown as CanonicalTool<unknown>,
     requestConfirmTool as unknown as CanonicalTool<unknown>,
-    remember as unknown as CanonicalTool<unknown>,
-    memorySearch as unknown as CanonicalTool<unknown>,
-    soulSet as unknown as CanonicalTool<unknown>,
+    ...(options?.attachMemoryTools
+      ? [
+          memorySearch as unknown as CanonicalTool<unknown>,
+          remember as unknown as CanonicalTool<unknown>,
+          soulSet as unknown as CanonicalTool<unknown>,
+        ]
+      : []),
   ];
+}
 
-  if (!options?.restrictExternalContextActions) {
-    return tools;
-  }
+export function getTools(options?: { restrictExternalContextActions?: boolean; attachMemoryTools?: boolean }): CanonicalTool<unknown>[] {
+  return applyToolRestrictions(allAuditTools(options), options);
+}
 
+function applyToolRestrictions(
+  tools: CanonicalTool<unknown>[],
+  options?: { restrictExternalContextActions?: boolean },
+): CanonicalTool<unknown>[] {
+  if (!options?.restrictExternalContextActions) return tools;
   return tools.filter((tool) => !EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES.has(tool.name));
 }
 
-export function getPortfolioTools(options?: { restrictExternalContextActions?: boolean }): CanonicalTool<unknown>[] {
+const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown>[]> = {
+  performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
+  negative_keywords: [getSearchTerms, getNegativeKeywordLists, proposeNegativeKeywords, proposeNklCreate, proposeNklUpdate, proposeNklPushLive] as unknown as CanonicalTool<unknown>[],
+  budget_email: [getBudgetManagementEmail, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool, proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
+  ad_copy: [getAdAssetPerformance, proposeAdCopyGenerate, proposeAdCopyDeploy] as unknown as CanonicalTool<unknown>[],
+  seo_organic: [getGa4Overview, getGscOverview, getGscBrandedSplit, getGscIndexingStatus, getSerpDisplacement, getSerpDisplacementAlerts, getAiVisibility] as unknown as CanonicalTool<unknown>[],
+  campaign_build: [proposeCampaignRestructure, proposeCampaignBuild, proposeGeoCampaignSplit, proposeCampaignStatusChange, proposeAdGroupCreate, proposeAdGroupStatusChange, proposeKeywordsAdd, getCampaignProposalStatus, requestConfirmTool] as unknown as CanonicalTool<unknown>[],
+  goals: [listGoalRuns, getGoalRun, getGoalProgressSummary, createGoalRun, createAccountEfficiencyGoalRun] as unknown as CanonicalTool<unknown>[],
+  scheduled_tasks: [proposeScheduledTask, listScheduledTasks, proposeScheduledTaskUpdate] as unknown as CanonicalTool<unknown>[],
+  decks: [proposeStakeholderDeck, proposeDeckFromTemplateTool] as unknown as CanonicalTool<unknown>[],
+  memory: [memorySearch, remember, soulSet] as unknown as CanonicalTool<unknown>[],
+};
+
+export function getGoogleMateInitialTools(messages: Message[], options?: { restrictExternalContextActions?: boolean }): CanonicalTool<unknown>[] {
+  const baseTools = [
+    requestGoogleMateToolBundle,
+    getAccountOverview,
+    getClientDetails,
+  ] as unknown as CanonicalTool<unknown>[];
+  const bundles = detectInitialToolBundles(messages);
+  if (shouldAttachMemoryTools(messages)) bundles.push("memory");
+  return dedupeTools([
+    ...baseTools,
+    ...toolsForBundles(bundles),
+  ], options);
+}
+
+function toolsForBundles(bundleNames: GoogleMateToolBundleName[]): CanonicalTool<unknown>[] {
+  return bundleNames.flatMap((bundleName) => AUDIT_TOOL_BUNDLES[bundleName] ?? []);
+}
+
+function dedupeTools(
+  tools: CanonicalTool<unknown>[],
+  options?: { restrictExternalContextActions?: boolean },
+): CanonicalTool<unknown>[] {
+  return applyToolRestrictions(
+    Array.from(new Map(tools.map((tool) => [tool.name, tool])).values()),
+    options,
+  );
+}
+
+function detectInitialToolBundles(messages: Message[]): GoogleMateToolBundleName[] {
+  const text = extractConversationText(messages).toLowerCase();
+  const bundles = new Set<GoogleMateToolBundleName>();
+  const addIf = (bundle: GoogleMateToolBundleName, pattern: RegExp) => {
+    if (pattern.test(text)) bundles.add(bundle);
+  };
+  addIf("negative_keywords", /negative|nkl|search term|wast(e|ed)|irrelevant quer|exclude/);
+  addIf("budget_email", /budget|spend|pacing|draft|email|gmail|push live|allocation/);
+  addIf("ad_copy", /ad copy|rsa|headline|description|asset|creative/);
+  addIf("seo_organic", /ga4|gsc|search console|organic|seo|serp|index|branded|ai visibility|overlap/);
+  addIf("campaign_build", /campaign build|restructure|geo|location|status|pause|enable|ad group|keyword|proposal/);
+  addIf("goals", /goal|objective|progress|goal run|efficiency/);
+  addIf("scheduled_tasks", /schedule|scheduled task|remind|recurring|cron/);
+  addIf("decks", /deck|slides|stakeholder|presentation|template/);
+  addIf("performance", /performance|campaign|ad group|metric|cpa|roas|conversion|click|impression|ctr|cpc|weekly|monthly|trend/);
+  return Array.from(bundles);
+}
+
+function resolveGoogleMateToolBundles(
+  event: { toolName: string; input: unknown },
+  options?: { restrictExternalContextActions?: boolean },
+): CanonicalTool<unknown>[] {
+  if (event.toolName !== requestGoogleMateToolBundle.name) return [];
+  const rawBundles = event.input && typeof event.input === "object" && !Array.isArray(event.input)
+    ? (event.input as Record<string, unknown>).bundles
+    : null;
+  const bundles = Array.isArray(rawBundles)
+    ? rawBundles.filter((b): b is GoogleMateToolBundleName => typeof b === "string" && (TOOL_BUNDLE_NAMES as readonly string[]).includes(b))
+    : [];
+  return dedupeTools(toolsForBundles(Array.from(new Set(bundles))), options);
+}
+
+function withGoogleMateToolRouterPrompt(systemPrompt: string): string {
+  return `${systemPrompt}${GOOGLEMATE_TOOL_ROUTER_PROMPT}`;
+}
+
+export function getPortfolioTools(options?: { restrictExternalContextActions?: boolean; attachMemoryTools?: boolean }): CanonicalTool<unknown>[] {
   const tools = [
     getPortfolioAccountInventory as unknown as CanonicalTool<unknown>,
     getPortfolioPerformanceSummary as unknown as CanonicalTool<unknown>,
@@ -181,9 +332,13 @@ export function getPortfolioTools(options?: { restrictExternalContextActions?: b
     getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
     requestConfirmTool as unknown as CanonicalTool<unknown>,
-    memorySearch as unknown as CanonicalTool<unknown>,
-    remember as unknown as CanonicalTool<unknown>,
-    soulSet as unknown as CanonicalTool<unknown>,
+    ...(options?.attachMemoryTools
+      ? [
+          memorySearch as unknown as CanonicalTool<unknown>,
+          remember as unknown as CanonicalTool<unknown>,
+          soulSet as unknown as CanonicalTool<unknown>,
+        ]
+      : []),
   ];
   if (!options?.restrictExternalContextActions) return tools;
   return tools.filter((tool) => !EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES.has(tool.name));
@@ -320,7 +475,10 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
   const result = await runAgent({
     agentName: AGENT_NAME,
     systemPrompt,
-    tools: getPortfolioTools({ restrictExternalContextActions }),
+    tools: getPortfolioTools({
+      restrictExternalContextActions,
+      attachMemoryTools: shouldAttachMemoryTools(messages),
+    }),
     initialMessages: messages,
     model: modelRequested,
     fallbackModels: DEFAULT_FALLBACKS,
@@ -362,10 +520,10 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     client?.id !== undefined && client?.id !== null ? [client.id] : [],
     { soulAgentKeys: ["google-ads"] },
   );
-  const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags, {
+  const systemPrompt = withGoogleMateToolRouterPrompt(buildSystemPromptForAudit(audit, client, connectionFlags, {
     pinnedMemoryBlock: pinnedMemory.text,
     recentMessages: messages,
-  });
+  }));
   const conversionActions = conversionActionsForClient(client);
   const conversionActionCategories = conversionActionCategoriesForClient(client);
 
@@ -392,13 +550,14 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   let result = await runAgent({
     agentName: AGENT_NAME,
     systemPrompt,
-    tools: getTools({ restrictExternalContextActions }),
+    tools: getGoogleMateInitialTools(messages, { restrictExternalContextActions }),
     initialMessages: messages,
     model: modelRequested,
     fallbackModels: disableFallbacks ? [] : DEFAULT_FALLBACKS,
     maxTokens: CHAT_MAX_TOKENS,
     reasoningMode,
     context: agentContext,
+    resolveToolBundles: (event) => resolveGoogleMateToolBundles(event, { restrictExternalContextActions }),
   });
 
   let reply = extractReplyText(result.finalMessage);
@@ -446,13 +605,14 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     result = await runAgent({
       agentName: AGENT_NAME,
       systemPrompt,
-      tools: getTools({ restrictExternalContextActions }),
+      tools: getGoogleMateInitialTools(retryMessages, { restrictExternalContextActions }),
       initialMessages: retryMessages,
       model: modelRequested,
       fallbackModels: disableFallbacks ? [] : DEFAULT_FALLBACKS,
       maxTokens: CHAT_MAX_TOKENS,
       reasoningMode,
       context: agentContext,
+      resolveToolBundles: (event) => resolveGoogleMateToolBundles(event, { restrictExternalContextActions }),
       // Reuse the original runId so the activity-log timeline shows the
       // retry as a continuation, not a fresh run.
       runId: result.runId,
@@ -513,13 +673,21 @@ function extractLastUserText(messages: Message[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (!m || m.role !== "user") continue;
-    const text = m.content
-      .filter((p): p is { type: "text"; text: string } => p.type === "text")
-      .map((p) => p.text)
-      .join("\n");
+    const text = messageText(m);
     if (text.trim().length > 0) return text;
   }
   return "";
+}
+
+function extractConversationText(messages: Message[]): string {
+  return messages.map(messageText).join("\n");
+}
+
+function messageText(message: Message): string {
+  return message.content
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("\n");
 }
 
 /**
