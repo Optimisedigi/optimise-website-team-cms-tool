@@ -132,6 +132,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
   const [savedUrl, setSavedUrl] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [originalEmailCollapsed, setOriginalEmailCollapsed] = useState(false)
+  const [readThread, setReadThread] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -232,6 +233,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setChatInput('')
     setChatMessages([])
     setOriginalEmailCollapsed(false)
+    setReadThread(false)
     setContactSuggestions([])
     setContactsOpen(false)
   }, [])
@@ -288,6 +290,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setSavedUrl(null)
     setSaveError(null)
     setOriginalEmailCollapsed(true)
+    setReadThread(false)
     try {
       const res = await fetch(`/api/gmail/message/${encodeURIComponent(r.messageId)}`, {
         credentials: 'include',
@@ -393,6 +396,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
             body: replyText || undefined,
           },
           email: message,
+          readThread,
         }),
       })
       const data = (await res.json()) as EmailChatResponse
@@ -422,7 +426,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     } finally {
       setDraftingReply(false)
     }
-  }, [message, draftingReply, chatInput, chatMessages, selectedModel, replyText])
+  }, [message, draftingReply, chatInput, chatMessages, selectedModel, replyText, readThread])
 
   const saveNewDraft = useCallback(async () => {
     if (!replyText.trim()) return
@@ -720,6 +724,16 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                   onToggle={() => setOriginalEmailCollapsed((value) => !value)}
                 />
 
+                <label style={threadToggleStyle}>
+                  <input
+                    type="checkbox"
+                    checked={readThread}
+                    disabled={draftingReply}
+                    onChange={(e) => setReadThread(e.target.checked)}
+                  />
+                  <span>Read full thread for more context</span>
+                </label>
+
                 <div style={{ ...chatPanel, flex: 1, minHeight: 150, overflowY: 'auto' }}>
                   {chatMessages.length === 0 && !draftingReply && (
                     <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '18px 8px' }}>
@@ -1011,6 +1025,15 @@ const errorBox: React.CSSProperties = {
   borderRadius: 6,
   padding: '8px 10px',
   fontSize: 12,
+}
+
+const threadToggleStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 7,
+  fontSize: 12,
+  color: '#4b5563',
+  userSelect: 'none',
 }
 
 const contactMenu: React.CSSProperties = {

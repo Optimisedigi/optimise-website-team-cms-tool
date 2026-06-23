@@ -32,6 +32,11 @@ export interface GmailMessageBody {
   body: string; // plain text
 }
 
+export interface GmailThreadContext {
+  threadId: string;
+  messages: GmailMessageBody[];
+}
+
 export interface GmailContactSuggestion {
   name: string;
   email: string;
@@ -234,6 +239,33 @@ function htmlToText(html: string): string {
  * text/plain part; falls back to a stripped text/html. Attachments are
  * ignored.
  */
+function decodeMessageBody(msg: gmail_v1.Schema$Message): string {
+  let body = collectBodyByMime(msg.payload, "text/plain").trim();
+  if (!body) {
+    const html = collectBodyByMime(msg.payload, "text/html");
+    if (html) body = htmlToText(html);
+  }
+  // Last-ditch: top-level body when there are no parts.
+  if (!body && msg.payload?.body?.data) {
+    body = Buffer.from(msg.payload.body.data, "base64url").toString("utf-8");
+  }
+  return body;
+}
+
+function messageToBody(msg: gmail_v1.Schema$Message, fallbackMessageId: string): GmailMessageBody {
+  const headers = msg.payload?.headers;
+  return {
+    messageId: msg.id ?? fallbackMessageId,
+    threadId: msg.threadId ?? "",
+    rfcMessageId: getHeader(headers, "Message-ID"),
+    subject: getHeader(headers, "Subject"),
+    from: getHeader(headers, "From"),
+    to: getHeader(headers, "To"),
+    date: parseDateHeader(getHeader(headers, "Date")),
+    body: decodeMessageBody(msg),
+  };
+}
+
 export async function fetchMessageBody(
   accessToken: string,
   messageId: string,
@@ -244,27 +276,26 @@ export async function fetchMessageBody(
     id: messageId,
     format: "full",
   });
-  const msg = res.data;
-  const headers = msg.payload?.headers;
+  return messageToBody(res.data, messageId);
+}
 
-  let body = collectBodyByMime(msg.payload, "text/plain").trim();
-  if (!body) {
-    const html = collectBodyByMime(msg.payload, "text/html");
-    if (html) body = htmlToText(html);
-  }
-  // Last-ditch: top-level body when there are no parts.
-  if (!body && msg.payload?.body?.data) {
-    body = Buffer.from(msg.payload.body.data, "base64url").toString("utf-8");
-  }
+export async function fetchThreadContext(
+  accessToken: string,
+  threadId: string,
+  maxMessages = 20,
+): Promise<GmailThreadContext> {
+  const gmail = gmailClient(accessToken);
+  const res = await gmail.users.threads.get({
+    userId: "me",
+    id: threadId,
+    format: "full",
+  });
+  const messages = (res.data.messages ?? [])
+    .slice(-Math.min(Math.max(1, maxMessages), 50))
+    .map((msg, index) => messageToBody(msg, msg.id ?? `${threadId}-${index}`));
 
   return {
-    messageId: msg.id ?? messageId,
-    threadId: msg.threadId ?? "",
-    rfcMessageId: getHeader(headers, "Message-ID"),
-    subject: getHeader(headers, "Subject"),
-    from: getHeader(headers, "From"),
-    to: getHeader(headers, "To"),
-    date: parseDateHeader(getHeader(headers, "Date")),
-    body,
+    threadId: res.data.id ?? threadId,
+    messages,
   };
 }
