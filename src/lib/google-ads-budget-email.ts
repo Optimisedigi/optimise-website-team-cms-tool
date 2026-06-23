@@ -256,8 +256,8 @@ export function generateBudgetEmailHtml(
     const mtd = c.mtdSpend || 0;
     const splitCell = c.standalone ? 'Standalone' : `${c.budgetPercentage}%`;
     return `<tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px">${c.campaignName}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${splitCell}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;min-width:240px;max-width:380px;white-space:normal;word-break:break-word">${c.campaignName}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;white-space:nowrap">${splitCell}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${c.calculatedDailyBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600">$${mtd.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.impressions || 0).toLocaleString()}</td>
@@ -270,14 +270,14 @@ export function generateBudgetEmailHtml(
 
   const dashboardUrl = clientSlug ? `https://cms.optimisedigital.online/google-dashboard/${clientSlug}` : '';
 
-  return `<div style="font-family:Arial,sans-serif;max-width:700px;color:#1e293b">
+  return `<div style="font-family:Arial,sans-serif;max-width:100%;width:100%;color:#1e293b">
   <p style="margin:0 0 20px;color:#64748b;font-size:14px">${month} (Month-to-Date)</p>
 
   <!-- Budget Progress + Time Tracking side by side -->
-  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+  <table style="width:100%;max-width:760px;border-collapse:collapse;margin-bottom:20px">
     <tr>
       <td style="width:55%;vertical-align:top;padding-right:8px">
-        <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};height:100%">
+        <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};height:100%;box-sizing:border-box">
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
               <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText}<div style="margin-top:2px;font-size:12px;color:${statusColor};font-weight:600">${pacingContext}</div></td>
@@ -334,7 +334,7 @@ export function generateBudgetEmailHtml(
         </div>
       </td>
       <td style="width:45%;vertical-align:top;padding-left:8px">
-        <div style="padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%">
+        <div style="padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%;box-sizing:border-box">
           <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Time Tracking</div>
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
@@ -372,9 +372,9 @@ export function generateBudgetEmailHtml(
   </table>
 
   <h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3>
-  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+  <table style="width:100%;max-width:900px;border-collapse:collapse;margin-bottom:20px;table-layout:auto">
     <tr style="background:#f1f5f9">
-      <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
+      <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;min-width:240px">Campaign</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Split</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Adjusted Daily Budget</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">MTD Spend</th>
@@ -519,14 +519,14 @@ export function generateLastMonthRecapEmailHtml(
     </table>
   </div>` : '';
 
-  return `<div style="font-family:Arial,sans-serif;max-width:700px;color:#1e293b">
+  return `<div style="font-family:Arial,sans-serif;max-width:100%;width:100%;color:#1e293b">
   <p style="margin:0 0 4px;color:#64748b;font-size:14px">${recap.monthLabel} Recap</p>
   <p style="margin:0 0 20px;color:#94a3b8;font-size:12px">Performance summary for ${recap.monthLabel} with action items for ${thisMonthLabel}.</p>
 
   ${budgetBlock}
 
   <!-- Headline metrics -->
-  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+  <table style="width:100%;max-width:760px;border-collapse:collapse;margin-bottom:20px">
     <tr>
       <td style="width:25%;padding:14px;background:#f8fafc;border-radius:8px 0 0 8px;border:1px solid #e2e8f0;text-align:center">
         <div style="font-size:11px;color:#64748b;margin-bottom:4px">Total Spend</div>
@@ -553,9 +553,9 @@ export function generateLastMonthRecapEmailHtml(
   ` : ''}
 
   <h3 style="margin:0 0 8px;font-size:15px">Campaign Performance</h3>
-  <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+  <table style="width:100%;max-width:900px;border-collapse:collapse;margin-bottom:24px;table-layout:auto">
     <tr style="background:#f1f5f9">
-      <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
+      <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;min-width:240px">Campaign</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Spend</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Impr.</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Clicks</th>
