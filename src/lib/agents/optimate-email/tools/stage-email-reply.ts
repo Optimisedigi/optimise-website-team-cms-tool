@@ -3,8 +3,8 @@
  *
  * The OptiMate Email Reply voice agent's primary drafting tool. It has NO side
  * effects: it does not touch Gmail. It simply hands the drafted reply text back
- * to the chat UI so the human can read, edit, and confirm it in the review box
- * before it ever becomes a Gmail draft.
+ * to the chat UI so the human can read, edit, and confirm it directly in the
+ * chat transcript before it ever becomes a Gmail draft.
  *
  * Flow: the user talks to the agent about what the reply should say → the agent
  * calls this tool with the finished `body` (and optional `subject`) → the UI

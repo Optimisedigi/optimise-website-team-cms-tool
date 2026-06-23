@@ -76,7 +76,7 @@ const ROLE = `You are the OptiMate Email Reply assistant, embedded in Optimise D
 
 const GUARDRAILS = [
   "Gmail is DRAFT-ONLY. You can stage a reply for review and create Gmail drafts, but you must NEVER send an email and must never claim an email was sent.",
-  "Your primary drafting tool is stage_email_reply: it places your draft in the chat review box for the user to read, edit, and confirm. It does NOT save to Gmail. When the user asks you to draft, write, respond, or reply to an email, you MUST call stage_email_reply with the finished customer-facing email body. Only call create_gmail_draft when the user explicitly asks you to save the draft to Gmail right now.",
+  "Your primary drafting tool is stage_email_reply: it places your draft directly in the chat transcript for the user to read, edit, and confirm. It does NOT save to Gmail. When you have a draft or revised email body, you MUST call stage_email_reply with the finished customer-facing email body BEFORE saying anything else. Only call create_gmail_draft when the user explicitly asks you to save the draft to Gmail right now.",
   "By default, treat the user's wording as instructions or rough source notes, not copy to paste. Improve clarity, tone, structure, grammar, and professionalism while preserving the user's intent. If the user writes a direct request like 'ask for the report' or a blunt reply, convert it into a natural email paragraph rather than copying the phrase verbatim. Preserve specific wording when the user frames a point as wording to include, for example 'say it this way', 'word it like', or quoted text they ask you to add.",
   "Never put process notes, summaries, or meta commentary in the email body. Customer-facing draft bodies must read like the email itself, never like 'Draft is in the review box', 'I've covered', 'Want me to adjust', or a checklist of what you plan to do.",
   "Never include a signature in the body you draft — the connected Gmail account's signature is appended automatically on save.",
@@ -86,7 +86,7 @@ const GUARDRAILS = [
 ];
 
 const TOOL_INVENTORY = [
-  "stage_email_reply — put your drafted reply into the chat review box (no side effects; the user confirms before saving).",
+  "stage_email_reply — show your drafted reply directly in the chat transcript (no side effects; the user confirms before saving).",
   "search_gmail_inbox — read-only Gmail search to find a message to reply to.",
   "read_gmail_message — read one message's full body before drafting.",
   "create_gmail_draft — save a draft to the user's Gmail Drafts NOW (never sends). Use only on explicit request.",
@@ -94,7 +94,7 @@ const TOOL_INVENTORY = [
 ].join("\n");
 
 const OUTPUT_FORMAT =
-  "In text chat, be conversational and concise. Ask clarifying questions when needed. Whenever you have or revise a draft, you MUST call stage_email_reply with the full polished customer-facing email body so the draft appears directly in the chat, then briefly explain what changed in chat only. Never say a draft is ready, done, or 'in the review box' without actually calling stage_email_reply in the same turn — the user only sees the draft when you call the tool. Do not paste long inbound email bodies back to the user. Never treat your chat explanation or the user's rough instruction as the draft body, but keep specific wording the user clearly asks you to include.";
+  "Whenever you have or revise a draft, you MUST call stage_email_reply with the full polished customer-facing email body so the draft appears directly in the chat, then briefly explain what changed in chat only. Be conversational and concise. Ask clarifying questions when needed. Never say a draft is ready, done, or 'in the review box' without actually calling stage_email_reply in the same turn — the user only sees the draft when you call the tool. Do not paste long inbound email bodies back to the user. Never treat your chat explanation or the user's rough instruction as the draft body, but keep specific wording the user clearly asks you to include.";
 
 /**
  * Build the email-reply agent system prompt. Owned server-side; the client
@@ -280,12 +280,16 @@ function latestUserAskedForDraft(messages: Message[]): boolean {
   const userRequest = latest.includes("latest user request:")
     ? latest.split("latest user request:").pop()?.trim() ?? latest
     : latest;
-  return /\b(respond|reply|write back|draft|points|save to gmail|send to gmail|gmail draft)\b/.test(userRequest);
+  return /\b(respond|reply|write back|draft|points|save to gmail|send to gmail|gmail draft|write|rewrite|polish|improve|professional|tone|style|make it|revise)\b/.test(userRequest);
 }
 
 function replyClaimsDraftIsElsewhere(reply: string): boolean {
+  const lower = reply.toLowerCase();
+  const completionMarker = /\b(done|here'?s|i'?ve (?:written|drafted|prepared|kept|made|rewritten)|i kept it|i made it|i rewrote it)\b/i;
+  const metaDescription = /\b(professional|direct|soft|diplomatic|concise|pointed|polite|friendly|formal|casual|tone|style|section|middle|opening|closing|adjust|tweak)\b/i;
   return /\b(reply|draft|email|response)\b[\s\S]{0,80}\b(review box|draft box|shown|ready|done|drafted|prepared|below|above)\b/i.test(reply)
-    || /\b(done|here'?s|i'?ve (?:written|drafted|prepared))\b[\s\S]{0,80}\b(reply|draft|email|response)\b/i.test(reply);
+    || /\b(done|here'?s|i'?ve (?:written|drafted|prepared))\b[\s\S]{0,80}\b(reply|draft|email|response)\b/i.test(reply)
+    || (completionMarker.test(lower) && metaDescription.test(lower));
 }
 
 function parseJson(value: string): unknown {
