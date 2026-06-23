@@ -128,6 +128,8 @@ import * as migration_20260719_120000_add_team_task_comments from './20260719_12
 import * as migration_20260720_120000_add_negative_keyword_campaign_count from './20260720_120000_add_negative_keyword_campaign_count';
 import * as migration_20260720_130000_refresh_negative_keyword_campaign_counts from './20260720_130000_refresh_negative_keyword_campaign_counts';
 import * as migration_20260721_120000_add_optimate_email_assistant_model from './20260721_120000_add_optimate_email_assistant_model';
+import * as migration_20260722_120000_add_missing_client_business_fields from './20260722_120000_add_missing_client_business_fields';
+import * as migration_20260723_120000_add_soul_rows_from_tone_md from './20260723_120000_add_soul_rows_from_tone_md';
 
 export const migrations = [
   {
@@ -779,5 +781,15 @@ export const migrations = [
     up: migration_20260720_130000_refresh_negative_keyword_campaign_counts.up,
     down: migration_20260720_130000_refresh_negative_keyword_campaign_counts.down,
     name: '20260720_130000_refresh_negative_keyword_campaign_counts'
+  },
+  {
+    up: migration_20260722_120000_add_missing_client_business_fields.up,
+    down: migration_20260722_120000_add_missing_client_business_fields.down,
+    name: '20260722_120000_add_missing_client_business_fields'
+  },
+  {
+    up: migration_20260723_120000_add_soul_rows_from_tone_md.up,
+    down: migration_20260723_120000_add_soul_rows_from_tone_md.down,
+    name: '20260723_120000_add_soul_rows_from_tone_md'
   },
 ];
