@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "domain": "optimate-google-ads",
+  "benchmarks": [
+    {
+      "id": "eight-week-performance-story",
+      "description": "Eight-week weekly performance table with clicks, cost, conversions and CPA.",
+      "goldModel": "claude-sonnet-4.6",
+      "files": {
+        "prompt": "eight-week-performance-story/prompt.md",
+        "canonical": "eight-week-performance-story/canonical-tool-output.json",
+        "goldAnswer": "eight-week-performance-story/gold-answer.md",
+        "scoringNotes": "eight-week-performance-story/scoring-notes.md"
+      }
+    },
+    {
+      "id": "may-converting-search-terms-top-10",
+      "description": "Top 10 May 2026 converting search terms table.",
+      "goldModel": "gpt-5.4",
+      "files": {
+        "prompt": "may-converting-search-terms-top-10/prompt.md",
+        "canonical": "may-converting-search-terms-top-10/canonical-tool-output.json",
+        "goldAnswer": "may-converting-search-terms-top-10/gold-answer.md",
+        "scoringNotes": "may-converting-search-terms-top-10/scoring-notes.md"
+      }
+    }
+  ]
+}

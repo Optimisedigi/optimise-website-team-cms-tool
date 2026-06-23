@@ -1,0 +1,122 @@
+{
+  "tool": "get_weekly_metric_table",
+  "account": "161-303-8647",
+  "output": {
+    "html": "<div style=\"font-family:Verdana,sans-serif;color:#222;font-size:13px\">\n  <p style=\"margin:0 0 8px;font-family:Verdana,sans-serif;font-size:14px;color:#222\"><strong>Weekly Performance Trend</strong></p>\n  <table style=\"border-collapse:collapse;width:auto;max-width:680px;table-layout:auto;font-family:Verdana,sans-serif;color:#222\">\n    <tr>\n      <th style=\"padding:6px 10px;border-bottom:2px solid #cbd5e1;font-size:13px;font-family:Verdana,sans-serif;color:#222;font-weight:600;white-space:nowrap;text-align:left\">Week</th>\n      <th style=\"padding:6px 10px;border-bottom:2px solid #cbd5e1;font-size:13px;font-family:Verdana,sans-serif;color:#222;font-weight:600;white-space:nowrap;text-align:right\">Clicks</th>\n      <th style=\"padding:6px 10px;border-bottom:2px solid #cbd5e1;font-size:13px;font-family:Verdana,sans-serif;color:#222;font-weight:600;white-space:nowrap;text-align:right\">Spend</th>\n      <th style=\"padding:6px 10px;border-bottom:2px solid #cbd5e1;font-size:13px;font-family:Verdana,sans-serif;color:#222;font-weight:600;white-space:nowrap;text-align:right\">Conversions</th>\n      <th style=\"padding:6px 10px;border-bottom:2px solid #cbd5e1;font-size:13px;font-family:Verdana,sans-serif;color:#222;font-weight:600;white-space:nowrap;text-align:right\">CPA</th>\n    </tr>\n    <tr><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:left\">Apr 20 - Apr 26</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">617</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">$263</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">35</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;color:#059669;font-weight:700;text-align:right\">$7</td></tr><tr><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:left\">Apr 27 - May 3</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">762</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">$318</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">35</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;color:#059669;font-weight:700;text-align:right\">$9</td></tr><tr><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:left\">May 4 - May 10</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">751</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">$319</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">20</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;color:#059669;font-weight:700;text-align:right\">$16</td></tr><tr><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:left\">May 11 - May 17</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">767</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">$323</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">29</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;color:#059669;font-weight:700;text-align:right\">$11</td></tr><tr><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:left\">May 18 - May 24</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">718</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">$306</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">59</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;color:#059669;font-weight:700;text-align:right\">$5</td></tr><tr><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:left\">May 25 - May 31</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">871</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">$377</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">30</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;color:#059669;font-weight:700;text-align:right\">$13</td></tr><tr><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:left\">Jun 1 - Jun 7</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">466</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">$194</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">25</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;color:#059669;font-weight:700;text-align:right\">$8</td></tr><tr><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:left\">Jun 8 - Jun 14</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">669</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">$278</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;text-align:right\">6</td><td style=\"padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap;color:#059669;font-weight:700;text-align:right\">$46</td></tr>\n  </table>\n</div>",
+    "rows": [
+      {
+        "weekStart": "2026-04-20",
+        "weekEnd": "2026-04-26",
+        "label": "Apr 20 - Apr 26",
+        "partial": false,
+        "totals": {
+          "spend": 262.65,
+          "clicks": 617,
+          "impressions": 47365,
+          "conversions": 35.355961,
+          "googleCtr": 1.3026
+        }
+      },
+      {
+        "weekStart": "2026-04-27",
+        "weekEnd": "2026-05-03",
+        "label": "Apr 27 - May 3",
+        "partial": false,
+        "totals": {
+          "spend": 318.32,
+          "clicks": 762,
+          "impressions": 60537,
+          "conversions": 35,
+          "googleCtr": 1.2587
+        }
+      },
+      {
+        "weekStart": "2026-05-04",
+        "weekEnd": "2026-05-10",
+        "label": "May 4 - May 10",
+        "partial": false,
+        "totals": {
+          "spend": 319.25,
+          "clicks": 751,
+          "impressions": 57416,
+          "conversions": 20,
+          "googleCtr": 1.308
+        }
+      },
+      {
+        "weekStart": "2026-05-11",
+        "weekEnd": "2026-05-17",
+        "label": "May 11 - May 17",
+        "partial": false,
+        "totals": {
+          "spend": 323.4,
+          "clicks": 767,
+          "impressions": 57818,
+          "conversions": 28.741907,
+          "googleCtr": 1.3266082154346397
+        }
+      },
+      {
+        "weekStart": "2026-05-18",
+        "weekEnd": "2026-05-24",
+        "label": "May 18 - May 24",
+        "partial": false,
+        "totals": {
+          "spend": 305.97,
+          "clicks": 718,
+          "impressions": 55007,
+          "conversions": 59.030168,
+          "googleCtr": 1.3053
+        }
+      },
+      {
+        "weekStart": "2026-05-25",
+        "weekEnd": "2026-05-31",
+        "label": "May 25 - May 31",
+        "partial": false,
+        "totals": {
+          "spend": 377.39,
+          "clicks": 871,
+          "impressions": 74684,
+          "conversions": 29.84682,
+          "googleCtr": 1.1662
+        }
+      },
+      {
+        "weekStart": "2026-06-01",
+        "weekEnd": "2026-06-07",
+        "label": "Jun 1 - Jun 7",
+        "partial": false,
+        "totals": {
+          "spend": 193.58,
+          "clicks": 466,
+          "impressions": 37940,
+          "conversions": 25.381105,
+          "googleCtr": 1.2283
+        }
+      },
+      {
+        "weekStart": "2026-06-08",
+        "weekEnd": "2026-06-14",
+        "label": "Jun 8 - Jun 14",
+        "partial": false,
+        "totals": {
+          "spend": 277.58,
+          "clicks": 669,
+          "impressions": 59524,
+          "conversions": 6,
+          "googleCtr": 1.1238811185404205
+        }
+      }
+    ],
+    "metrics": [
+      "clicks",
+      "spend",
+      "conversions",
+      "cpa"
+    ],
+    "endDate": "2026-06-14",
+    "weeks": 8,
+    "warnings": []
+  }
+}

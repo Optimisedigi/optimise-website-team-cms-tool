@@ -15,6 +15,7 @@
     "test:coverage": "vitest run --coverage",
     "optimate:evaluate": "node --env-file=.env --import tsx scripts/optimate-google-ads-eval.ts",
     "blog:evaluate": "node --env-file=.env --import tsx scripts/blog-content-model-eval.ts",
+    "benchmark:golden": "node --import tsx scripts/golden-benchmark.ts",
     "prepare": "husky"
   },
   "dependencies": {

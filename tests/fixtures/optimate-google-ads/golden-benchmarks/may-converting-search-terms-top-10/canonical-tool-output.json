@@ -1,0 +1,1816 @@
+{
+  "tool": "get_search_terms",
+  "account": "161-303-8647",
+  "output": {
+    "dateRange": "CUSTOM",
+    "rangeLabel": "May 1 – May 31 2026",
+    "startDate": "2026-05-01",
+    "endDate": "2026-05-31",
+    "segmentation": null,
+    "conversionActionsApplied": null,
+    "conversionScopeNote": "No CMS default conversion actions were configured, so Growth Tools returned its default conversion scope.",
+    "count": 200,
+    "terms": [
+      {
+        "term": "ice cream cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 8596,
+        "clicks": 99,
+        "spend": 44.94,
+        "conversions": 6,
+        "cpa": 7.49
+      },
+      {
+        "term": "tiramisu cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 2028,
+        "clicks": 55,
+        "spend": 17.46,
+        "conversions": 7,
+        "cpa": 2.49
+      },
+      {
+        "term": "biscoff cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1346,
+        "clicks": 35,
+        "spend": 14.45,
+        "conversions": 2,
+        "cpa": 7.23
+      },
+      {
+        "term": "dubai chocolate cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1423,
+        "clicks": 41,
+        "spend": 13.43,
+        "conversions": 8,
+        "cpa": 1.68
+      },
+      {
+        "term": "red velvet cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 2117,
+        "clicks": 34,
+        "spend": 11.97,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "birthday cakes sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1019,
+        "clicks": 16,
+        "spend": 11.32,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "ferrero rocher cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 930,
+        "clicks": 22,
+        "spend": 9.31,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "chocolate mousse cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1364,
+        "clicks": 21,
+        "spend": 9.23,
+        "conversions": 1,
+        "cpa": 9.23
+      },
+      {
+        "term": "cakes sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1576,
+        "clicks": 18,
+        "spend": 8.86,
+        "conversions": 1,
+        "cpa": 8.86
+      },
+      {
+        "term": "birthday cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 932,
+        "clicks": 12,
+        "spend": 8.74,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "pistachio cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1234,
+        "clicks": 21,
+        "spend": 8.39,
+        "conversions": 1,
+        "cpa": 8.39
+      },
+      {
+        "term": "fruit cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1250,
+        "clicks": 23,
+        "spend": 8.37,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "tiramisu cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 427,
+        "clicks": 18,
+        "spend": 7.66,
+        "conversions": 5,
+        "cpa": 1.53
+      },
+      {
+        "term": "cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 795,
+        "clicks": 13,
+        "spend": 7.41,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "mothers day cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1268,
+        "clicks": 15,
+        "spend": 6.79,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "gelato cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 792,
+        "clicks": 11,
+        "spend": 6.12,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best cakes in sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 450,
+        "clicks": 13,
+        "spend": 5.99,
+        "conversions": 2,
+        "cpa": 3
+      },
+      {
+        "term": "ricotta cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 733,
+        "clicks": 21,
+        "spend": 5.72,
+        "conversions": 4,
+        "cpa": 1.43
+      },
+      {
+        "term": "cannoli",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 582,
+        "clicks": 21,
+        "spend": 5.51,
+        "conversions": 1,
+        "cpa": 5.51
+      },
+      {
+        "term": "hazelnut cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 330,
+        "clicks": 7,
+        "spend": 5.15,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes penrith",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 639,
+        "clicks": 12,
+        "spend": 4.93,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes delivered sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 213,
+        "clicks": 7,
+        "spend": 4.8,
+        "conversions": 1,
+        "cpa": 4.8
+      },
+      {
+        "term": "cake delivery sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1050,
+        "clicks": 7,
+        "spend": 4.33,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best birthday cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 290,
+        "clicks": 7,
+        "spend": 4.26,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "dubai chocolate",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1105,
+        "clicks": 9,
+        "spend": 4.13,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes parramatta",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 477,
+        "clicks": 8,
+        "spend": 4.08,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "ice cream cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 974,
+        "clicks": 9,
+        "spend": 4.05,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best chocolate cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 928,
+        "clicks": 8,
+        "spend": 3.96,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "chocolate cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 710,
+        "clicks": 10,
+        "spend": 3.92,
+        "conversions": 3,
+        "cpa": 1.31
+      },
+      {
+        "term": "best cake in sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 598,
+        "clicks": 8,
+        "spend": 3.87,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best cakes sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1269,
+        "clicks": 10,
+        "spend": 3.68,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "euro cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 77,
+        "clicks": 10,
+        "spend": 3.66,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "mother's day cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 624,
+        "clicks": 8,
+        "spend": 3.57,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cheesecake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 438,
+        "clicks": 5,
+        "spend": 3.24,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "oreo cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 414,
+        "clicks": 8,
+        "spend": 3.22,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "gelato cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 209,
+        "clicks": 5,
+        "spend": 3.21,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "ice cream cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 486,
+        "clicks": 6,
+        "spend": 3.18,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "ice cream cakes sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 300,
+        "clicks": 6,
+        "spend": 3.17,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "blueberry cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 406,
+        "clicks": 12,
+        "spend": 3.1,
+        "conversions": 1,
+        "cpa": 3.1
+      },
+      {
+        "term": "sydney cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 361,
+        "clicks": 5,
+        "spend": 3.02,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "sydney cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 403,
+        "clicks": 5,
+        "spend": 3,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cheesecake birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 313,
+        "clicks": 7,
+        "spend": 2.97,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake in sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 182,
+        "clicks": 4,
+        "spend": 2.91,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 387,
+        "clicks": 5,
+        "spend": 2.9,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "vanilla cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 397,
+        "clicks": 6,
+        "spend": 2.9,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "buy cake online",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 36,
+        "clicks": 3,
+        "spend": 2.84,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best birthday cakes in sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 490,
+        "clicks": 8,
+        "spend": 2.77,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes bankstown",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 87,
+        "clicks": 5,
+        "spend": 2.75,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "la royale patisserie",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 103,
+        "clicks": 7,
+        "spend": 2.7,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "nut free cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 93,
+        "clicks": 7,
+        "spend": 2.7,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best tiramisu cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 143,
+        "clicks": 5,
+        "spend": 2.68,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "happy birthday",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 1113,
+        "clicks": 13,
+        "spend": 2.63,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "sydney birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 135,
+        "clicks": 5,
+        "spend": 2.62,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake hurstville",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 125,
+        "clicks": 4,
+        "spend": 2.58,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "dolcettini",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 262,
+        "clicks": 4,
+        "spend": 2.49,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes blacktown",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 268,
+        "clicks": 4,
+        "spend": 2.45,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "mango cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 127,
+        "clicks": 6,
+        "spend": 2.42,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes online sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 64,
+        "clicks": 3,
+        "spend": 2.39,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "sydney cake delivery",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 92,
+        "clicks": 2,
+        "spend": 2.36,
+        "conversions": 2,
+        "cpa": 1.18
+      },
+      {
+        "term": "strawberry cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 267,
+        "clicks": 6,
+        "spend": 2.31,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "passionfruit cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 227,
+        "clicks": 7,
+        "spend": 2.24,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "dark chocolate cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 304,
+        "clicks": 5,
+        "spend": 2.21,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "baked ricotta cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 292,
+        "clicks": 7,
+        "spend": 2.17,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "chocolate fudge cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 165,
+        "clicks": 5,
+        "spend": 2.17,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "tiramisu cake delivery",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 83,
+        "clicks": 4,
+        "spend": 2.12,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake order sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 67,
+        "clicks": 3,
+        "spend": 2.1,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes newtown",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 182,
+        "clicks": 3,
+        "spend": 2.04,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "birthday cakes sydney inner west",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 4,
+        "clicks": 2,
+        "spend": 2.02,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "st honore cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 40,
+        "clicks": 2,
+        "spend": 2,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cookie mousse cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 4,
+        "clicks": 2,
+        "spend": 1.89,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "ferrero rocher cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 111,
+        "clicks": 4,
+        "spend": 1.87,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "baked cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 21,
+        "clicks": 2,
+        "spend": 1.84,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake parramatta",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 312,
+        "clicks": 3,
+        "spend": 1.8,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "protein chocolate cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 24,
+        "clicks": 3,
+        "spend": 1.79,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best birthday cakes sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 224,
+        "clicks": 4,
+        "spend": 1.73,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "enzy cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 55,
+        "clicks": 4,
+        "spend": 1.71,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes shop",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 97,
+        "clicks": 3,
+        "spend": 1.67,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "franky & co cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 42,
+        "clicks": 2,
+        "spend": 1.62,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes delivered",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 186,
+        "clicks": 3,
+        "spend": 1.6,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes inner west",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 109,
+        "clicks": 3,
+        "spend": 1.6,
+        "conversions": 4.82,
+        "cpa": 0.33
+      },
+      {
+        "term": "ferrero cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 128,
+        "clicks": 5,
+        "spend": 1.6,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "oreo birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 44,
+        "clicks": 3,
+        "spend": 1.59,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best chocolate cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 182,
+        "clicks": 4,
+        "spend": 1.57,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes to try",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 10,
+        "clicks": 3,
+        "spend": 1.57,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "honey cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 107,
+        "clicks": 4,
+        "spend": 1.57,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "birthday fruit cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 46,
+        "clicks": 2,
+        "spend": 1.56,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "buy tiramisu",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 44,
+        "clicks": 2,
+        "spend": 1.56,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes rouse hill",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 155,
+        "clicks": 5,
+        "spend": 1.56,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "birthday cake delivery",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 175,
+        "clicks": 2,
+        "spend": 1.53,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "mousse cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 336,
+        "clicks": 3,
+        "spend": 1.53,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best cakes inner west",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 27,
+        "clicks": 2,
+        "spend": 1.52,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "patisserie sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 181,
+        "clicks": 2,
+        "spend": 1.51,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "كيك المستطيل",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 9,
+        "clicks": 4,
+        "spend": 1.49,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "sydney cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 77,
+        "clicks": 2,
+        "spend": 1.47,
+        "conversions": 2,
+        "cpa": 0.74
+      },
+      {
+        "term": "birthday cakes baulkham hills",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 53,
+        "clicks": 3,
+        "spend": 1.45,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "dubai chocolate cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 204,
+        "clicks": 3,
+        "spend": 1.45,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "chocolate cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 282,
+        "clicks": 5,
+        "spend": 1.43,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "mothers day cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 233,
+        "clicks": 3,
+        "spend": 1.43,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "ice cream cake parramatta",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 89,
+        "clicks": 3,
+        "spend": 1.42,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "number cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 196,
+        "clicks": 4,
+        "spend": 1.42,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "oreo cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 231,
+        "clicks": 7,
+        "spend": 1.42,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 116,
+        "clicks": 4,
+        "spend": 1.41,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "biscoff tiramisu",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 14,
+        "clicks": 3,
+        "spend": 1.41,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes maroubra",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 69,
+        "clicks": 2,
+        "spend": 1.4,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "50 birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 46,
+        "clicks": 3,
+        "spend": 1.37,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cheesecake penrith",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 77,
+        "clicks": 3,
+        "spend": 1.37,
+        "conversions": 3.88,
+        "cpa": 0.35
+      },
+      {
+        "term": "cheesecake delivered",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 26,
+        "clicks": 2,
+        "spend": 1.35,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "fruit tart",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 70,
+        "clicks": 3,
+        "spend": 1.35,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "ice cream cake delivery sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 24,
+        "clicks": 2,
+        "spend": 1.35,
+        "conversions": 1,
+        "cpa": 1.35
+      },
+      {
+        "term": "birthday cake nearby",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 80,
+        "clicks": 1,
+        "spend": 1.34,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "chocolate mousse cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 159,
+        "clicks": 2,
+        "spend": 1.34,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "protein cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 73,
+        "clicks": 2,
+        "spend": 1.34,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "chocolate birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 442,
+        "clicks": 2,
+        "spend": 1.32,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "eid cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 24,
+        "clicks": 3,
+        "spend": 1.31,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "happy birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 308,
+        "clicks": 3,
+        "spend": 1.31,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "same day cake delivery",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 158,
+        "clicks": 2,
+        "spend": 1.31,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "tiramisu sydney where to buy",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 48,
+        "clicks": 3,
+        "spend": 1.31,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "40th birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 259,
+        "clicks": 5,
+        "spend": 1.29,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes in balmain",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 17,
+        "clicks": 2,
+        "spend": 1.29,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "tart cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 15,
+        "clicks": 1,
+        "spend": 1.29,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best cakes parramatta",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 166,
+        "clicks": 3,
+        "spend": 1.28,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "birthday cakes randwick",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 33,
+        "clicks": 2,
+        "spend": 1.26,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake penrith",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 191,
+        "clicks": 3,
+        "spend": 1.25,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "tiramisu sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 264,
+        "clicks": 3,
+        "spend": 1.25,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "walnut cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 45,
+        "clicks": 3,
+        "spend": 1.25,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "18th birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 127,
+        "clicks": 2,
+        "spend": 1.24,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best cakes delivery sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 9,
+        "clicks": 1,
+        "spend": 1.24,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cremorne st bakers",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 2,
+        "clicks": 1,
+        "spend": 1.24,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best birthday cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 74,
+        "clicks": 2,
+        "spend": 1.23,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake birthday",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 277,
+        "clicks": 2,
+        "spend": 1.23,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "same day delivery cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 28,
+        "clicks": 1,
+        "spend": 1.23,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes for girls",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 14,
+        "clicks": 2,
+        "spend": 1.22,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "chocolate cake delivery",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 52,
+        "clicks": 2,
+        "spend": 1.22,
+        "conversions": 2,
+        "cpa": 0.61
+      },
+      {
+        "term": "gold cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 477,
+        "clicks": 2,
+        "spend": 1.22,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "biscoff birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 49,
+        "clicks": 2,
+        "spend": 1.21,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes for large groups",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 34,
+        "clicks": 2,
+        "spend": 1.2,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "nice looking cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 11,
+        "clicks": 2,
+        "spend": 1.2,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "biscoff cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 136,
+        "clicks": 2,
+        "spend": 1.19,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake 7 inch",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 10,
+        "clicks": 2,
+        "spend": 1.19,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "the cake man",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 20,
+        "clicks": 1,
+        "spend": 1.19,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes leichhardt",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 94,
+        "clicks": 2,
+        "spend": 1.18,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "simple birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 19,
+        "clicks": 2,
+        "spend": 1.18,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "birthday ice cream cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 73,
+        "clicks": 3,
+        "spend": 1.16,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "free cake delivery sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 5,
+        "clicks": 1,
+        "spend": 1.16,
+        "conversions": 1,
+        "cpa": 1.16
+      },
+      {
+        "term": "top ryde cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 45,
+        "clicks": 1,
+        "spend": 1.16,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "احلي تورتة عيد ميلاد بالصور",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 9,
+        "clicks": 2,
+        "spend": 1.16,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake sample boxes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 22,
+        "clicks": 3,
+        "spend": 1.15,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "fresh fruit cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 114,
+        "clicks": 1,
+        "spend": 1.15,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes for birthdays",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 11,
+        "clicks": 1,
+        "spend": 1.14,
+        "conversions": 2,
+        "cpa": 0.57
+      },
+      {
+        "term": "where to buy a cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 15,
+        "clicks": 1,
+        "spend": 1.14,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake mail delivery",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 3,
+        "clicks": 1,
+        "spend": 1.12,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes kellyville",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 93,
+        "clicks": 3,
+        "spend": 1.12,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "online cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 25,
+        "clicks": 2,
+        "spend": 1.12,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "悉尼 生日 蛋糕",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 11,
+        "clicks": 1,
+        "spend": 1.12,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "birthday cake newtown",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 40,
+        "clicks": 2,
+        "spend": 1.11,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes in blacktown",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 90,
+        "clicks": 2,
+        "spend": 1.1,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "coffee cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 155,
+        "clicks": 4,
+        "spend": 1.1,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "burwood cakes",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 78,
+        "clicks": 1,
+        "spend": 1.09,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake deliver",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 13,
+        "clicks": 1,
+        "spend": 1.09,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "hole cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 6,
+        "clicks": 2,
+        "spend": 1.09,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "passionfruit cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 100,
+        "clicks": 3,
+        "spend": 1.09,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "birthday cake parramatta",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 166,
+        "clicks": 2,
+        "spend": 1.08,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes to order",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 58,
+        "clicks": 2,
+        "spend": 1.08,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cannoli order",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 4,
+        "clicks": 2,
+        "spend": 1.08,
+        "conversions": 1,
+        "cpa": 1.08
+      },
+      {
+        "term": "ramadan sweets",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 19,
+        "clicks": 3,
+        "spend": 1.08,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "white cake with red drip",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 5,
+        "clicks": 2,
+        "spend": 1.08,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes in liverpool",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 51,
+        "clicks": 2,
+        "spend": 1.07,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "order birthday cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 91,
+        "clicks": 2,
+        "spend": 1.07,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "black sesame cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 11,
+        "clicks": 1,
+        "spend": 1.06,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "pistachio cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 130,
+        "clicks": 3,
+        "spend": 1.06,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes for birthday",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 41,
+        "clicks": 1,
+        "spend": 1.05,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "marble cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 202,
+        "clicks": 3,
+        "spend": 1.05,
+        "conversions": 2,
+        "cpa": 0.53
+      },
+      {
+        "term": "papa's baked ricotta cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 4,
+        "clicks": 1,
+        "spend": 1.05,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake idea",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 22,
+        "clicks": 1,
+        "spend": 1.04,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "coffee cake order",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 8,
+        "clicks": 2,
+        "spend": 1.04,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best ice cream cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 57,
+        "clicks": 1,
+        "spend": 1.03,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake order",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 219,
+        "clicks": 2,
+        "spend": 1.03,
+        "conversions": 2,
+        "cpa": 0.52
+      },
+      {
+        "term": "gelato cake delivery sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 18,
+        "clicks": 1,
+        "spend": 1.03,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "mother day cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 96,
+        "clicks": 1,
+        "spend": 1.03,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "uber eats cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 9,
+        "clicks": 1,
+        "spend": 1.03,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "strawberry cream cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 81,
+        "clicks": 2,
+        "spend": 1.02,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "sydney cake stores",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 22,
+        "clicks": 1,
+        "spend": 1.02,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes marrickville",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 92,
+        "clicks": 1,
+        "spend": 1.01,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "sea sweets",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 7,
+        "clicks": 2,
+        "spend": 1.01,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "a large cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 6,
+        "clicks": 1,
+        "spend": 1,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "best pistachio cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 6,
+        "clicks": 2,
+        "spend": 1,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake pop sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 3,
+        "clicks": 1,
+        "spend": 1,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cakes liverpool",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 77,
+        "clicks": 3,
+        "spend": 1,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "strawberry cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 627,
+        "clicks": 3,
+        "spend": 0.99,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "sweet gift",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 5,
+        "clicks": 2,
+        "spend": 0.99,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "baked cheesecake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 550,
+        "clicks": 3,
+        "spend": 0.98,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cake with raspberries on top",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 6,
+        "clicks": 1,
+        "spend": 0.98,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "cheese cake birthday",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 8,
+        "clicks": 2,
+        "spend": 0.98,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "liquor cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 15,
+        "clicks": 2,
+        "spend": 0.98,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "order chocolate mousse cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 5,
+        "clicks": 2,
+        "spend": 0.98,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "vanilla cupcakery",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 46,
+        "clicks": 1,
+        "spend": 0.98,
+        "conversions": 1,
+        "cpa": 0.98
+      },
+      {
+        "term": "kids birthday cake sydney",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 5,
+        "clicks": 1,
+        "spend": 0.97,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "snickers cake",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 61,
+        "clicks": 2,
+        "spend": 0.97,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "afternoon tea",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 8,
+        "clicks": 2,
+        "spend": 0.96,
+        "conversions": 0,
+        "cpa": null
+      },
+      {
+        "term": "ice cream cake nearby",
+        "campaignName": "shopping_sydney_product",
+        "impressions": 47,
+        "clicks": 2,
+        "spend": 0.96,
+        "conversions": 0,
+        "cpa": null
+      }
+    ]
+  }
+}

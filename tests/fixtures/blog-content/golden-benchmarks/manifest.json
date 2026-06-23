@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "domain": "blog-content",
+  "benchmarks": [
+    {
+      "id": "growth-systems",
+      "description": "Blog content benchmark for growth-systems.",
+      "goldModel": "gpt-5.4",
+      "files": {
+        "prompt": "growth-systems/prompt.md",
+        "baseline": "growth-systems/baseline-live.md",
+        "goldAnswer": "growth-systems/gold-answer.md",
+        "scoringNotes": "growth-systems/scoring-notes.md"
+      }
+    },
+    {
+      "id": "time-vs-money",
+      "description": "Blog content benchmark for time-vs-money.",
+      "goldModel": "gpt-5.4-mini",
+      "files": {
+        "prompt": "time-vs-money/prompt.md",
+        "baseline": "time-vs-money/baseline-live.md",
+        "goldAnswer": "time-vs-money/gold-answer.md",
+        "scoringNotes": "time-vs-money/scoring-notes.md"
+      }
+    }
+  ]
+}
