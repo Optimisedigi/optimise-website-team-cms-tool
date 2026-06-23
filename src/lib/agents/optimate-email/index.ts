@@ -228,13 +228,11 @@ export function extractLatestStagedEmailReply(steps: AgentStep[]): StagedEmailRe
   let latest: StagedEmailReply | undefined;
   for (const step of steps) {
     if (step.type !== "tool-call" || step.toolName !== "stage_email_reply") continue;
-    const output = typeof step.output === "string" ? parseJson(step.output) : step.output;
-    if (!output || typeof output !== "object") continue;
-    const data = (output as { data?: unknown }).data;
-    if (!data || typeof data !== "object") continue;
-    const body = (data as { body?: unknown }).body;
+    const data = toolOutputData(step.output);
+    if (!data) continue;
+    const body = data.body;
     if (typeof body !== "string" || !body.trim()) continue;
-    const subject = (data as { subject?: unknown }).subject;
+    const subject = data.subject;
     latest = {
       body: body.trim(),
       ...(typeof subject === "string" && subject.trim() ? { subject: subject.trim() } : {}),
@@ -247,16 +245,14 @@ export function extractLatestGmailDraft(steps: AgentStep[]): GmailDraftResult | 
   let latest: GmailDraftResult | undefined;
   for (const step of steps) {
     if (step.type !== "tool-call" || step.toolName !== "create_gmail_draft") continue;
-    const output = typeof step.output === "string" ? parseJson(step.output) : step.output;
-    if (!output || typeof output !== "object") continue;
-    const data = (output as { data?: unknown }).data;
-    if (!data || typeof data !== "object") continue;
-    const gmailUrl = (data as { gmailUrl?: unknown }).gmailUrl;
+    const data = toolOutputData(step.output);
+    if (!data) continue;
+    const gmailUrl = data.gmailUrl;
     if (typeof gmailUrl !== "string" || !gmailUrl.trim()) continue;
-    const draftId = (data as { draftId?: unknown }).draftId;
-    const messageId = (data as { messageId?: unknown }).messageId;
-    const subject = (data as { subject?: unknown }).subject;
-    const to = (data as { to?: unknown }).to;
+    const draftId = data.draftId;
+    const messageId = data.messageId;
+    const subject = data.subject;
+    const to = data.to;
     latest = {
       gmailUrl: gmailUrl.trim(),
       ...(typeof draftId === "string" && draftId.trim() ? { draftId: draftId.trim() } : {}),
@@ -292,6 +288,19 @@ function replyClaimsDraftIsElsewhere(reply: string): boolean {
   return /\b(reply|draft|email|response)\b[\s\S]{0,80}\b(review box|draft box|shown|ready|done|drafted|prepared|staged|below|above)\b/i.test(reply)
     || /\b(done|here'?s|i('?ve)? (?:written|drafted|prepared|staged))\b[\s\S]{0,80}\b(reply|draft|email|response)\b/i.test(reply)
     || (completionMarker.test(lower) && metaDescription.test(lower));
+}
+
+function toolOutputData(output: unknown): Record<string, unknown> | null {
+  const parsed = typeof output === "string" ? parseJson(output) : output;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const record = parsed as Record<string, unknown>;
+  // runAgent stores successful tool output as result.data directly. Keep the
+  // nested fallback for older tests/log rows that captured { data: ... }.
+  const nested = record.data;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    return nested as Record<string, unknown>;
+  }
+  return record;
 }
 
 function parseJson(value: string): unknown {
