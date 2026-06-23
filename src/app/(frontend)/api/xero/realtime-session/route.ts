@@ -3,8 +3,10 @@ import { getPayload } from "payload";
 import { headers as nextHeaders } from "next/headers";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
+import { memoryToolRoutingPrompt } from "@/lib/agents/_shared/memory-tool-routing";
 import { loadPinnedMemoryBlock } from "@/lib/agents/optimate-google-ads/memory-loader";
-import { SYSTEM_PROMPT, tools } from "../chat/route";
+import { SYSTEM_PROMPT } from "@/lib/agents/optimate-invoice/system-prompt";
+import { getInvoiceRealtimeTools } from "../chat/route";
 
 export const runtime = "nodejs";
 
@@ -43,8 +45,8 @@ export async function GET(): Promise<NextResponse> {
       "When a tool succeeds, summarize the outcome in one short sentence. When a tool fails, say the problem plainly and do not claim the action was completed.";
 
     return NextResponse.json({
-      instructions: SYSTEM_PROMPT + memoryBlock + voiceGuardrail,
-      tools: tools.map((tool) => ({
+      instructions: SYSTEM_PROMPT + memoryBlock + memoryToolRoutingPrompt("InvoiceMate") + voiceGuardrail,
+      tools: getInvoiceRealtimeTools().map((tool) => ({
         type: "function" as const,
         name: tool.name,
         description: tool.description,
