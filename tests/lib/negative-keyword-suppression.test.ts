@@ -9,8 +9,9 @@ import {
 } from '@/lib/negative-keyword-suppression'
 
 describe('isQualifyingListName', () => {
-  it('matches account-wide, competitor, and brand regardless of case', () => {
+  it('matches account-wide/account wide, competitor, and brand regardless of case', () => {
     expect(isQualifyingListName('Account-wide negatives')).toBe(true)
+    expect(isQualifyingListName('[OD] Account wide negatives')).toBe(true)
     expect(isQualifyingListName('COMPETITOR terms')).toBe(true)
     expect(isQualifyingListName('Brand protection')).toBe(true)
   })
@@ -47,7 +48,7 @@ describe('termMatchesNegative', () => {
 })
 
 describe('buildSuppressionNegatives', () => {
-  it('includes only qualifying lists, ignores broad keywords, and resolves established months', () => {
+  it('includes selected lists, ignores broad keywords, and resolves established months', () => {
     const established = new Map<string, string>([['blue shoes|phrase', '2024-01']])
     const negatives = buildSuppressionNegatives(
       [
@@ -66,12 +67,13 @@ describe('buildSuppressionNegatives', () => {
       ],
       established,
     )
-    expect(negatives).toHaveLength(2)
+    expect(negatives).toHaveLength(3)
     const phrase = negatives.find((n) => n.keyword === 'Blue Shoes')
     expect(phrase).toMatchObject({ matchType: 'phrase', listName: 'Competitor list', establishedMonth: '2024-01' })
     const exact = negatives.find((n) => n.keyword === 'green cap')
     // Falls back to the negatedAt month when no applied selection exists.
     expect(exact).toMatchObject({ matchType: 'exact', establishedMonth: '2024-03' })
+    expect(negatives.find((n) => n.keyword === 'ignored')).toMatchObject({ matchType: 'exact', listName: 'General waste' })
   })
   it('leaves establishedMonth null when no applied month and no negatedAt', () => {
     const negatives = buildSuppressionNegatives(
@@ -92,6 +94,21 @@ describe('partitionTermsByNegation', () => {
     expect(after.visible.map((t) => t.term)).toEqual(['blue socks'])
     expect(after.negated).toHaveLength(1)
     expect(after.negated[0]?.negative.listName).toBe('Competitor')
+  })
+  it('hides a search term covered by a selected Account wide phrase negative', () => {
+    const suppressionNegatives = buildSuppressionNegatives(
+      [{ name: '[OD] Account wide negatives', keywords: [{ keyword: 'what is', matchType: 'phrase' }] }],
+      new Map(),
+    )
+    const after = partitionTermsByNegation('2024-11', [{ term: 'what is outsourcing in business' }], suppressionNegatives)
+    expect(after.visible).toHaveLength(0)
+    expect(after.negated[0]?.negative.listName).toBe('[OD] Account wide negatives')
+  })
+  it('does not hide a search term when the matching NKL is not selected', () => {
+    const suppressionNegatives = buildSuppressionNegatives([], new Map())
+    const after = partitionTermsByNegation('2024-11', [{ term: 'what is outsourcing in business' }], suppressionNegatives)
+    expect(after.visible.map((term) => term.term)).toEqual(['what is outsourcing in business'])
+    expect(after.negated).toHaveLength(0)
   })
   it('hides in the establishment month and earlier too — a live negative covers all months', () => {
     const terms = [{ term: 'cheap blue shoes' }]

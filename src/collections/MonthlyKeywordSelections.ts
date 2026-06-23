@@ -46,6 +46,21 @@ export const MonthlyKeywordSelections: CollectionConfig = {
       },
     },
     {
+      name: 'suppressionNklIdsConfigured',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Whether this client has explicitly saved which NKLs suppress Monthly negative KWs rows.',
+      },
+    },
+    {
+      name: 'suppressionNklIds',
+      type: 'text',
+      admin: {
+        description: 'Comma-separated active Negative Keyword List IDs used to suppress already-negated monthly search terms.',
+      },
+    },
+    {
       name: 'selections',
       type: 'array',
       admin: {

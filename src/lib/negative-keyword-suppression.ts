@@ -1,7 +1,7 @@
 // Pure helpers for auto-hiding monthly search terms that are already covered by
-// a phrase/exact negative on a qualifying NKL (account-wide / competitor /
-// brand). Kept dependency-free and side-effect-free so the matching semantics
-// are unit-testable in isolation from the React component and Payload.
+// a phrase/exact negative on a selected suppression NKL. Kept dependency-free
+// and side-effect-free so the matching semantics are unit-testable in isolation
+// from the React component and Payload.
 
 export type SuppressionMatchType = 'exact' | 'phrase'
 
@@ -23,16 +23,17 @@ export type SuppressionNkl = {
   keywords?: Array<{ keyword?: string | null; matchType?: string | null; negatedAt?: string | null }> | null
 }
 
-const QUALIFYING_NAME_FRAGMENTS = ['account-wide', 'competitor', 'brand'] as const
+const QUALIFYING_NAME_FRAGMENTS = ['accountwide', 'competitor', 'brand'] as const
 
 /**
- * A list participates in suppression only when its name contains one of the
- * qualifying fragments. Detection is purely by name substring because the lists
- * are not otherwise standardised.
+ * Until a client saves an explicit suppression-list selection, these name
+ * fragments preserve the previous default suppression behaviour. Spaces/hyphens
+ * are ignored so both "Account-wide negatives" and "Account wide negatives"
+ * qualify.
  */
 export function isQualifyingListName(name: string | null | undefined): boolean {
   if (!name) return false
-  const lower = name.toLowerCase()
+  const lower = name.toLowerCase().replace(/[\s-]+/g, '')
   return QUALIFYING_NAME_FRAGMENTS.some((fragment) => lower.includes(fragment))
 }
 
@@ -82,7 +83,7 @@ function establishedMonthFor(
 }
 
 /**
- * Flatten qualifying NKLs into suppression negatives. Only `phrase` and `exact`
+ * Flatten selected NKLs into suppression negatives. Only `phrase` and `exact`
  * keywords participate (broad is ignored). Each negative's establishment month
  * is taken from `establishedMonthByKey` (the earliest review month it was
  * applied in via this tool) and falls back to the keyword's `negatedAt` month.
@@ -93,7 +94,6 @@ export function buildSuppressionNegatives(
 ): SuppressionNegative[] {
   const negatives: SuppressionNegative[] = []
   for (const nkl of nkls) {
-    if (!isQualifyingListName(nkl.name)) continue
     const listName = nkl.name || 'Unnamed NKL'
     for (const kw of Array.isArray(nkl.keywords) ? nkl.keywords : []) {
       const keyword = typeof kw?.keyword === 'string' ? kw.keyword : ''
@@ -112,8 +112,8 @@ export function buildSuppressionNegatives(
 
 /**
  * Split a review month's terms into still-visible terms and ones already
- * covered by a qualifying negative. A live negative suppresses EVERY review
- * month — past and future — because once a term is negated there's nothing
+ * covered by a selected suppression negative. A live negative suppresses EVERY
+ * review month — past and future — because once a term is negated there's nothing
  * left to decide about it; the review exists to catch irrelevant terms, not
  * already-handled ones. (`reviewMonth` is kept for call-site symmetry and the
  * "Already negated" panel's context.)

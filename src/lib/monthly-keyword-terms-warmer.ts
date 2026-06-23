@@ -53,6 +53,8 @@ export type WarmMonthlyKeywordTermsResult = {
   durationMs: number
   error?: string
   diagnostics?: { customerId?: string; startDate?: string; endDate?: string; totalRows?: number; matchedRows?: number }
+  suppressionNklIdsConfigured?: boolean | number
+  suppressionNklIds?: string | null
   months: Array<{
     month: string
     terms: MonthlyKeywordTerm[]
@@ -171,7 +173,11 @@ function normaliseTerms(value: unknown): MonthlyKeywordTerm[] {
   return parseCachedTerms(value).terms
 }
 
-async function fetchSelections(payload: Payload, clientId: number): Promise<MonthlyKeywordSelectionRow[]> {
+async function fetchSelectionConfig(payload: Payload, clientId: number): Promise<{
+  selections: MonthlyKeywordSelectionRow[]
+  suppressionNklIdsConfigured: boolean | number
+  suppressionNklIds: string | null
+}> {
   const result = await payload.find({
     collection: 'monthly-keyword-selections',
     where: { client: { equals: clientId } },
@@ -179,8 +185,12 @@ async function fetchSelections(payload: Payload, clientId: number): Promise<Mont
     depth: 0,
     overrideAccess: true,
   })
-  const doc = result.docs[0] as { selections?: MonthlyKeywordSelectionRow[] } | undefined
-  return Array.isArray(doc?.selections) ? doc.selections : []
+  const doc = result.docs[0] as { selections?: MonthlyKeywordSelectionRow[]; suppressionNklIdsConfigured?: boolean | number; suppressionNklIds?: string | null } | undefined
+  return {
+    selections: Array.isArray(doc?.selections) ? doc.selections : [],
+    suppressionNklIdsConfigured: doc?.suppressionNklIdsConfigured ?? false,
+    suppressionNklIds: typeof doc?.suppressionNklIds === 'string' ? doc.suppressionNklIds : null,
+  }
 }
 
 export async function warmMonthlyKeywordTermsForClient(
@@ -325,13 +335,17 @@ export async function warmMonthlyKeywordTermsForClient(
   const firstMonthWithTerms = cachedMonths.findIndex((month) => month.terms.length > 0)
   const months = firstMonthWithTerms >= 0 ? cachedMonths.slice(firstMonthWithTerms) : cachedMonths
 
+  const selectionConfig = await fetchSelectionConfig(payload, clientId)
+
   return {
     misses,
     durationMs: Date.now() - startedAt,
     error,
     diagnostics,
     months,
-    selections: await fetchSelections(payload, clientId),
+    selections: selectionConfig.selections,
+    suppressionNklIdsConfigured: selectionConfig.suppressionNklIdsConfigured,
+    suppressionNklIds: selectionConfig.suppressionNklIds,
     missingMonths: remainingMissingMonths,
   }
 }

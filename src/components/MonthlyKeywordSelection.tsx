@@ -61,6 +61,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [selections, setSelections] = useState<Record<string, Selection>>({})
   const [nkls, setNkls] = useState<Nkl[]>([])
   const [hiddenNklIds, setHiddenNklIds] = useState<Set<string>>(new Set())
+  const [suppressionNklIdsConfigured, setSuppressionNklIdsConfigured] = useState(false)
+  const [selectedSuppressionNklIds, setSelectedSuppressionNklIds] = useState<Set<string>>(new Set())
+  const [suppressionPanelOpen, setSuppressionPanelOpen] = useState(false)
+  const [suppressionSaving, setSuppressionSaving] = useState(false)
   const [activeMonth, setActiveMonth] = useState<string | null>(null)
   const [showAlreadyNegated, setShowAlreadyNegated] = useState(false)
   const [activeTab, setActiveTab] = useState<'months' | 'review' | 'submitted' | 'removed'>('months')
@@ -101,6 +105,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         nextSelections[selectionKey(selection.yearMonth, selection.searchTerm, rowIndex)] = { ...selection, rowIndex }
       }
       setSelections(nextSelections)
+      setSuppressionNklIdsConfigured(data.suppressionNklIdsConfigured === true)
+      setSelectedSuppressionNklIds(new Set(Array.isArray(data.suppressionNklIds) ? data.suppressionNklIds.map((id: string | number) => String(id)) : []))
       if (data.error) setMessage(data.error)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to load')
@@ -122,6 +128,11 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   }, [clientId])
 
   useEffect(() => { void load(); void loadNkls() }, [load, loadNkls])
+
+  useEffect(() => {
+    if (suppressionNklIdsConfigured || nkls.length === 0) return
+    setSelectedSuppressionNklIds(new Set(nkls.filter((nkl) => isQualifyingListName(nkl.name)).map((nkl) => String(nkl.id))))
+  }, [nkls, suppressionNklIdsConfigured])
 
   const scrollToFirstIncompleteMonth = useCallback((nextMonths: Month[], behavior: ScrollBehavior = 'smooth') => {
     const scroller = monthsScrollerRef.current
@@ -145,29 +156,32 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     return map
   }, [nkls])
 
+  const suppressionNkls = useMemo(
+    () => nkls.filter((nkl) => selectedSuppressionNklIds.has(String(nkl.id))),
+    [nkls, selectedSuppressionNklIds],
+  )
+
   // Earliest review month a negative (keyword|matchType) was applied in via this
-  // tool, targeting a qualifying list. Used as the establishment month so a
-  // negative only suppresses search terms in *later* review months.
+  // tool, targeting a selected suppression list. Used as informational context
+  // in the already-negated panel.
   const establishedMonthByKey = useMemo(() => {
-    const qualifyingNklIds = new Set(
-      nkls.filter((nkl) => isQualifyingListName(nkl.name)).map((nkl) => String(nkl.id)),
-    )
+    const suppressionIds = new Set(suppressionNkls.map((nkl) => String(nkl.id)))
     const map = new Map<string, string>()
     for (const selection of Object.values(selections)) {
       if (!selection.appliedAt || !selection.appliedToNKL) continue
       const nklId = typeof selection.appliedToNKL === 'object' ? selection.appliedToNKL?.id : selection.appliedToNKL
-      if (!qualifyingNklIds.has(String(nklId))) continue
+      if (!suppressionIds.has(String(nklId))) continue
       if (selection.matchType !== 'exact' && selection.matchType !== 'phrase') continue
       const key = `${selection.negativeKeyword.toLowerCase()}|${selection.matchType}`
       const current = map.get(key)
       if (!current || selection.yearMonth < current) map.set(key, selection.yearMonth)
     }
     return map
-  }, [nkls, selections])
+  }, [selections, suppressionNkls])
 
   const suppressionNegatives = useMemo<SuppressionNegative[]>(
-    () => buildSuppressionNegatives(nkls, establishedMonthByKey),
-    [nkls, establishedMonthByKey],
+    () => buildSuppressionNegatives(suppressionNkls, establishedMonthByKey),
+    [suppressionNkls, establishedMonthByKey],
   )
 
   const visibleMonths = useMemo(() => {
@@ -188,9 +202,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           previouslyReviewedTerms.add(term.term.trim().toLowerCase())
         }
       }
-      // Hide terms already covered by a phrase/exact negative on a qualifying
-      // list, established in an earlier review month, and surface them in the
-      // collapsed "Already negated" section instead.
+      // Hide terms already covered by a phrase/exact negative on a selected
+      // suppression NKL, and surface them in the collapsed "Already negated"
+      // section instead.
       const { visible, negated } = partitionTermsByNegation(month.month, terms, suppressionNegatives)
       return { ...month, terms: visible, alreadyNegated: negated }
     })
@@ -458,6 +472,37 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     if (res.ok) await load()
     else setMessage('Rebuild failed')
   }
+
+  const toggleSuppressionNkl = useCallback((id: string | number) => {
+    const key = String(id)
+    setSelectedSuppressionNklIds((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
+  const saveSuppressionNkls = useCallback(async () => {
+    setSuppressionSaving(true)
+    try {
+      const res = await fetch('/api/monthly-keyword-selection/suppression-lists', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ clientId: Number(clientId), suppressionNklIds: Array.from(selectedSuppressionNklIds) }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Failed to save suppression NKLs')
+      setSuppressionNklIdsConfigured(true)
+      setSelectedSuppressionNklIds(new Set(Array.isArray(data.suppressionNklIds) ? data.suppressionNklIds.map((id: string | number) => String(id)) : []))
+      setMessage(`Saved ${Array.isArray(data.suppressionNklIds) ? data.suppressionNklIds.length : 0} suppression NKL${Array.isArray(data.suppressionNklIds) && data.suppressionNklIds.length === 1 ? '' : 's'}.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to save suppression NKLs')
+    } finally {
+      setSuppressionSaving(false)
+    }
+  }, [clientId, selectedSuppressionNklIds])
 
   const visibleNkls = useMemo(() => nkls.filter((nkl) => !hiddenNklIds.has(String(nkl.id))), [hiddenNklIds, nkls])
   const hiddenNkls = useMemo(() => nkls.filter((nkl) => hiddenNklIds.has(String(nkl.id))), [hiddenNklIds, nkls])
@@ -908,12 +953,52 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, padding: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 8 }}>
-        <button type="button" onClick={applyApproved} disabled={approvedCount === 0} style={{ padding: '8px 12px' }}>Apply {approvedCount} added negative{approvedCount === 1 ? '' : 's'}</button>
-        <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>{saving ? 'Saving…' : 'Auto-saved'} · Open a month, then tick the NKL column for each search term you want to add.</span>
-        {hiddenNkls.length > 0 && (
-          <button type="button" onClick={() => setHiddenNklIds(new Set())} style={{ padding: '6px 10px', fontSize: 12 }}>Show {hiddenNkls.length} hidden NKL{hiddenNkls.length === 1 ? '' : 's'}</button>
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) minmax(360px, 0.9fr)', gap: 12, alignItems: 'start', marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', minHeight: 66, padding: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 8 }}>
+          <button type="button" onClick={applyApproved} disabled={approvedCount === 0} style={{ padding: '8px 12px' }}>Apply {approvedCount} added negative{approvedCount === 1 ? '' : 's'}</button>
+          <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>{saving ? 'Saving…' : 'Auto-saved'} · Open a month, then tick the NKL column for each search term you want to add.</span>
+          {hiddenNkls.length > 0 && (
+            <button type="button" onClick={() => setHiddenNklIds(new Set())} style={{ padding: '6px 10px', fontSize: 12 }}>Show {hiddenNkls.length} hidden NKL{hiddenNkls.length === 1 ? '' : 's'}</button>
+          )}
+        </div>
+
+        <section style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 8, background: 'var(--theme-bg)', overflow: 'hidden' }}>
+          <button
+            type="button"
+            onClick={() => setSuppressionPanelOpen((current) => !current)}
+            style={{ width: '100%', minHeight: 66, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 12px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <span style={{ display: 'grid', gap: 2 }}>
+              <strong>Suppression NKLs</strong>
+              <span style={{ fontSize: 12, color: 'var(--theme-elevation-600)' }}>Selected NKLs hide matching search terms from the monthly review list based on match type.</span>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--theme-elevation-600)', whiteSpace: 'nowrap' }}>
+              {selectedSuppressionNklIds.size}/{nkls.length} selected {suppressionPanelOpen ? '▴' : '▾'}
+            </span>
+          </button>
+          {suppressionPanelOpen && (
+            <div style={{ display: 'grid', gap: 10, padding: 12, borderTop: '1px solid var(--theme-elevation-150)', background: 'var(--theme-elevation-50)' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {nkls.map((nkl) => {
+                  const checked = selectedSuppressionNklIds.has(String(nkl.id))
+                  return (
+                    <label key={nkl.id} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '6px 8px', borderRadius: 6, border: checked ? '1px solid #4f46e5' : '1px solid var(--theme-elevation-150)', background: checked ? '#eef2ff' : 'var(--theme-bg)', cursor: 'pointer', fontSize: 12 }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleSuppressionNkl(nkl.id)} />
+                      {nkl.name || 'Unnamed NKL'}
+                    </label>
+                  )
+                })}
+                {nkls.length === 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>No active NKLs found for this client.</span>}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>{suppressionNklIdsConfigured ? 'Saved custom suppression NKLs for this client.' : 'Defaulting to account-wide, competitor, and brand NKLs until saved.'}</span>
+                <button type="button" onClick={saveSuppressionNkls} disabled={suppressionSaving} style={{ padding: '7px 12px', fontSize: 12 }}>
+                  {suppressionSaving ? 'Saving…' : 'Save suppression NKLs'}
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--theme-elevation-150)' }}>
@@ -1172,7 +1257,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     <button
                       type="button"
                       onClick={() => setShowAlreadyNegated((current) => !current)}
-                      title="Show search terms already covered by a brand / competitor / account-wide negative added in an earlier month"
+                      title="Show search terms already covered by a selected suppression NKL"
                       style={{ padding: '4px 8px', fontSize: 12, whiteSpace: 'nowrap', color: showAlreadyNegated ? '#3730a3' : undefined, borderColor: showAlreadyNegated ? '#a5b4fc' : undefined, background: showAlreadyNegated ? '#e0e7ff' : undefined }}
                     >{showAlreadyNegated ? 'Hide' : 'Show'} already negated ({month.alreadyNegated.length})</button>
                   )}
@@ -1212,8 +1297,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               {isFocused && showAlreadyNegated && month.alreadyNegated.length > 0 && (
                 <div style={{ border: '1px solid #c7d2fe', borderRadius: 8, background: '#eef2ff', display: 'grid', gap: 4, padding: 10 }}>
                   <p style={{ margin: '0 0 4px', fontSize: 11, color: '#3730a3' }}>
-                    <strong>Already negated ({month.alreadyNegated.length})</strong> — filtered out because an earlier-month negative on a
-                    brand / competitor / account-wide list already covers them. The terms below are the refined list still needing review.
+                    <strong>Already negated ({month.alreadyNegated.length})</strong> — filtered out because a negative on a selected suppression NKL
+                    already covers them. The terms below are the refined list still needing review.
                   </p>
                   {month.alreadyNegated.map(({ term, negative }) => (
                     <div key={`${term.term}|${negative.keyword}|${negative.matchType}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>

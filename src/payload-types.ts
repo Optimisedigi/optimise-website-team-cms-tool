@@ -6667,6 +6667,14 @@ export interface MonthlyKeywordSelection {
   client: number | Client;
   status: 'active' | 'archived';
   /**
+   * Whether this client has explicitly saved which NKLs suppress Monthly negative KWs rows.
+   */
+  suppressionNklIdsConfigured?: boolean | null;
+  /**
+   * Comma-separated active Negative Keyword List IDs used to suppress already-negated monthly search terms.
+   */
+  suppressionNklIds?: string | null;
+  /**
    * Human decisions for raw monthly search terms.
    */
   selections?:
@@ -10682,6 +10690,8 @@ export interface KeywordDeepDiveSessionsSelect<T extends boolean = true> {
 export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
   client?: T;
   status?: T;
+  suppressionNklIdsConfigured?: T;
+  suppressionNklIds?: T;
   selections?:
     | T
     | {

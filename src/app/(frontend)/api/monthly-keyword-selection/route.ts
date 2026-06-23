@@ -4,6 +4,11 @@ import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import { warmMonthlyKeywordTermsForClient } from '@/lib/monthly-keyword-terms-warmer'
 
+function parseSuppressionNklIds(value: string | null | undefined): string[] {
+  if (!value) return []
+  return value.split(',').map((id) => id.trim()).filter(Boolean)
+}
+
 export async function GET(req: NextRequest) {
   const payload = await getPayload({ config })
   const { user } = await payload.auth({ headers: req.headers })
@@ -29,6 +34,8 @@ export async function GET(req: NextRequest) {
     success: !result.error,
     months: result.months,
     selections: result.selections,
+    suppressionNklIdsConfigured: result.suppressionNklIdsConfigured === true || result.suppressionNklIdsConfigured === 1,
+    suppressionNklIds: parseSuppressionNklIds(result.suppressionNklIds),
     misses: result.misses,
     missingMonths: result.missingMonths,
     diagnostics: result.diagnostics,
