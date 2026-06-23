@@ -210,6 +210,39 @@ describe('monthly keyword selection API routes', () => {
     }))
   })
 
+  it('apply skips an existing same-keyword same-match-type negative without saving a duplicate', async () => {
+    mockPayload.findByID.mockResolvedValue({
+      id: 3,
+      client: 7,
+      keywords: [{ keyword: ' Cheap Widgets ', matchType: 'exact', flaggedForRemoval: false }],
+    })
+    mockPayload.find.mockResolvedValue({
+      docs: [{
+        id: 22,
+        selections: [{ yearMonth: '2026-05', searchTerm: 'cheap widgets', negativeKeyword: 'cheap widgets', matchType: 'exact', decision: 'approved' }],
+      }],
+    })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+
+    const res = await applyPOST(request('/api/monthly-keyword-selection/apply', {
+      clientId: 7,
+      nklId: 3,
+      selections: [{ negativeKeyword: 'cheap widgets', matchType: 'exact' }],
+    }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json).toMatchObject({ success: true, applied: 0, skipped: 1 })
+    expect(mockPayload.update).not.toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'negative-keyword-lists',
+    }))
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'monthly-keyword-selections',
+      id: 22,
+      data: { selections: [expect.objectContaining({ appliedToNKL: 3, decision: 'approved', appliedAt: expect.any(String) })] },
+    }))
+  })
+
   it('apply stamps an "added" outcome and notifies the flagger for a needs-review term', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 9, role: 'admin', name: 'Adder Amy' } })
     mockPayload.findByID.mockImplementation(({ collection, id }: { collection: string; id: number | string }) => {

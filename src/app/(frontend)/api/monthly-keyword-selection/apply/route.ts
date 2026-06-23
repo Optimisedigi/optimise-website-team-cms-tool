@@ -28,6 +28,10 @@ function asNklId(value: number | string | null | undefined): number | string | n
   return /^\d+$/.test(value) ? Number(value) : value
 }
 
+function keywordMatchKey(keyword: string, matchType: string): string {
+  return `${keyword.trim().toLowerCase()}|${matchType.trim().toLowerCase()}`
+}
+
 function monthLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split('-').map(Number)
   if (!year || !month) return yearMonth
@@ -106,14 +110,14 @@ export async function POST(req: NextRequest) {
     }
 
     const currentKeywords = Array.isArray(nkl.keywords) ? nkl.keywords : []
-    const existingSet = new Set(currentKeywords.map((kw: any) => `${String(kw.keyword || '').toLowerCase()}|${kw.matchType}`))
+    const existingSet = new Set(currentKeywords.map((kw: any) => keywordMatchKey(String(kw.keyword || ''), String(kw.matchType || ''))))
     const dedupIncoming = new Map<string, { keyword: string; matchType: MatchType }>()
     for (const keyword of nklKeywords) {
-      dedupIncoming.set(`${keyword.keyword.toLowerCase()}|${keyword.matchType}`, keyword)
+      dedupIncoming.set(keywordMatchKey(keyword.keyword, keyword.matchType), keyword)
     }
 
     const newKeywords = Array.from(dedupIncoming.values())
-      .filter((kw) => !existingSet.has(`${kw.keyword.toLowerCase()}|${kw.matchType}`))
+      .filter((kw) => !existingSet.has(keywordMatchKey(kw.keyword, kw.matchType)))
       .map((kw) => ({
         keyword: kw.keyword,
         matchType: kw.matchType,
@@ -149,7 +153,7 @@ export async function POST(req: NextRequest) {
         .map((keyword) => [`${keyword.yearMonth}|${String(keyword.searchTerm).toLowerCase()}|${Number(keyword.rowIndex ?? 0)}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
     )
     const appliedKeywordKeys = new Map(
-      keywords.map((keyword) => [`${keyword.keyword.toLowerCase()}|${keyword.matchType}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
+      keywords.map((keyword) => [keywordMatchKey(keyword.keyword, keyword.matchType), keyword.appliedToNKL] as [string, number | string | null | undefined]),
     )
     // Collect the flaggers we need to notify (a needs-review term applied here
     // is an "Added" teaching moment for whoever flagged it).
@@ -160,7 +164,7 @@ export async function POST(req: NextRequest) {
     const reviewerCounts = new Map<string, number>()
     const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection: any) => {
       const selectionKey = `${String(selection.yearMonth)}|${String(selection.searchTerm || '').toLowerCase()}|${Number(selection.rowIndex ?? 0)}`
-      const keywordKey = `${String(selection.negativeKeyword || '').toLowerCase()}|${selection.matchType}`
+      const keywordKey = keywordMatchKey(String(selection.negativeKeyword || ''), String(selection.matchType || ''))
       const appliedToNKL = appliedSelectionKeys.get(selectionKey) || appliedKeywordKeys.get(keywordKey)
       if (!appliedToNKL) {
         // Untouched row: still coerce any legacy numeric-string id so a corrupted
