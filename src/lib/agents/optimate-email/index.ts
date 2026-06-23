@@ -94,7 +94,7 @@ const TOOL_INVENTORY = [
 ].join("\n");
 
 const OUTPUT_FORMAT =
-  "In text chat, be conversational and concise. Ask clarifying questions when needed. When you have or revise a draft, call stage_email_reply with the full polished customer-facing email body so it appears in the review box, then briefly explain what changed in chat only. Do not paste long inbound email bodies back to the user. Never treat your chat explanation or the user's rough instruction as the draft body, but keep specific wording the user clearly asks you to include.";
+  "In text chat, be conversational and concise. Ask clarifying questions when needed. Whenever you have or revise a draft, you MUST call stage_email_reply with the full polished customer-facing email body so the draft appears directly in the chat, then briefly explain what changed in chat only. Never say a draft is ready, done, or 'in the review box' without actually calling stage_email_reply in the same turn — the user only sees the draft when you call the tool. Do not paste long inbound email bodies back to the user. Never treat your chat explanation or the user's rough instruction as the draft body, but keep specific wording the user clearly asks you to include.";
 
 /**
  * Build the email-reply agent system prompt. Owned server-side; the client
@@ -186,7 +186,7 @@ export async function runEmailChatTurn(input: RunEmailChatTurnInput): Promise<Ru
             {
               type: "text",
               text:
-                "Correction: the user asked for an email draft or reply, but no draft body was staged. Your previous answer may have claimed the reply was in a review box; that is not acceptable unless stage_email_reply is actually called. Call stage_email_reply now with the full finished customer-facing email body. Do not include process notes, bullet summaries about what you covered, or questions about tweaks inside the draft body.",
+                "Correction: the user asked for an email draft or reply, but no draft body was staged. Your previous answer claimed or implied the reply was ready/in a review box without calling stage_email_reply. The user CANNOT see any draft until you call stage_email_reply. Call stage_email_reply now with the full finished customer-facing email body. Do not include process notes, bullet summaries about what you covered, or questions about tweaks inside the draft body.",
             },
           ],
         },
@@ -284,7 +284,8 @@ function latestUserAskedForDraft(messages: Message[]): boolean {
 }
 
 function replyClaimsDraftIsElsewhere(reply: string): boolean {
-  return /\b(reply|draft|email)\b[\s\S]{0,80}\b(review box|draft box|shown|ready)\b/i.test(reply);
+  return /\b(reply|draft|email|response)\b[\s\S]{0,80}\b(review box|draft box|shown|ready|done|drafted|prepared|below|above)\b/i.test(reply)
+    || /\b(done|here'?s|i'?ve (?:written|drafted|prepared))\b[\s\S]{0,80}\b(reply|draft|email|response)\b/i.test(reply);
 }
 
 function parseJson(value: string): unknown {
