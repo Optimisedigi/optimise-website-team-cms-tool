@@ -53,7 +53,7 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
   }
 
   if (agent === 'gmail') {
-    return <OptimatePopoutClient agent="gmail" phase={phase === 'reply' ? 'reply' : 'compose'} />
+    return <OptimatePopoutClient agent="gmail" phase={phase === 'reply' ? 'reply' : phase === 'summarise' ? 'summarise' : 'compose'} />
   }
 
   const portfolioMode = mode === 'portfolio' || portfolio === '1'

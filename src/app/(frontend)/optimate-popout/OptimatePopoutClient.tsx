@@ -8,7 +8,7 @@ import GmailReplyChat from '@/components/GmailReplyChat'
 type Props =
   | { agent?: 'google-ads'; targets: OptiMateChatTarget[] }
   | { agent: 'invoices'; targets?: undefined }
-  | { agent: 'gmail'; phase?: 'compose' | 'reply'; targets?: undefined }
+  | { agent: 'gmail'; phase?: 'compose' | 'reply' | 'summarise'; targets?: undefined }
 
 interface AccountOption {
   id: string | number
@@ -146,7 +146,7 @@ export default function OptimatePopoutClient(props: Props) {
         {isInvoices ? (
           <InvoiceAssistantChat />
         ) : isGmail ? (
-          <GmailReplyChat initialPhase={props.phase === 'reply' ? 'search' : 'compose'} />
+          <GmailReplyChat initialPhase={props.phase === 'reply' ? 'search' : props.phase === 'summarise' ? 'search' : 'compose'} initialSummariseMode={props.phase === 'summarise'} />
         ) : (
           <OptiMateMultiChat targets={targets} fluid />
         )}

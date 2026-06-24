@@ -32,7 +32,7 @@ interface AuditOption {
   customerId: string
 }
 
-type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'gmail' | 'email-reply' | 'pomodoro'
+type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'gmail' | 'email-reply' | 'email-summarise' | 'pomodoro'
 
 const PILL_RIGHT = 20 // pixels — pomodoro pill is gone, sit bottom-right alone
 const PILL_BOTTOM = 20
@@ -334,7 +334,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 ← Accounts
               </button>
             )}
-            {(step === 'invoice-chat' || step === 'gmail' || step === 'email-reply') && (
+            {(step === 'invoice-chat' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise') && (
               <button
                 type="button"
                 onClick={() => {
@@ -355,7 +355,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 ← Agents
               </button>
             )}
-            {(step === 'invoice-chat' || step === 'gmail' || step === 'email-reply') && (
+            {(step === 'invoice-chat' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise') && (
               <button
                 type="button"
                 onClick={() => {
@@ -374,8 +374,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   const url =
                     step === 'invoice-chat'
                       ? '/optimate-popout?agent=invoices'
-                      : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : 'compose'}`
-                  const name = step === 'invoice-chat' ? 'invoices' : `gmail-${step === 'email-reply' ? 'reply' : 'compose'}`
+                      : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
+                  const name = step === 'invoice-chat' ? 'invoices' : `gmail-${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
                   window.open(url, `optimate-popout-${name}`, features)
                   setOpen(false)
                 }}
@@ -541,11 +541,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               flex: 1,
               padding: step === 'pomodoro' ? 0 : 14,
               overflowY:
-                step === 'chat' || step === 'invoice-chat' || step === 'gmail' || step === 'email-reply'
+                step === 'chat' || step === 'invoice-chat' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
                   ? 'hidden'
                   : 'auto',
               display:
-                step === 'chat' || step === 'invoice-chat' || step === 'gmail' || step === 'email-reply'
+                step === 'chat' || step === 'invoice-chat' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
                   ? 'flex'
                   : 'block',
               flexDirection: 'column',
@@ -632,15 +632,14 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   More agents coming soon.
                 </p>
 
-                {/* Persistent Gmail shortcuts: left drafts a new email; right
-                    starts the reply flow by searching for an existing email. */}
+                {/* Persistent Gmail shortcuts: draft, reply, summarise. */}
                 <div
                   style={{
                     marginTop: 16,
                     paddingTop: 12,
                     borderTop: '1px solid var(--theme-border-color, #e5e7eb)',
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
+                    gridTemplateColumns: '1fr 1fr 1fr',
                     gap: 10,
                   }}
                 >
@@ -715,6 +714,38 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                       <path d="M14 12l3 3-3 3" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     Reply to an email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep('email-summarise')}
+                    title="Summarise an email"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '12px 8px',
+                      border: '1px solid var(--theme-border-color, #e5e7eb)',
+                      borderRadius: 10,
+                      background: 'var(--theme-input-bg, #fff)',
+                      color: 'var(--theme-text, #1f2937)',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#f9fafb'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
+                    }}
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M4 4h16v16H4z" fill="#F9AB00" opacity="0.22" />
+                      <path d="M8 9h8M8 13h5" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" stroke="#34A853" strokeWidth="2" />
+                    </svg>
+                    Summarise an email
                   </button>
                 </div>
               </div>
@@ -921,6 +952,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             {step === 'gmail' && <GmailReplyChat initialPhase="compose" />}
 
             {step === 'email-reply' && <GmailReplyChat initialPhase="search" />}
+
+            {step === 'email-summarise' && <GmailReplyChat initialPhase="search" initialSummariseMode />}
           </div>
         </div>
       )}

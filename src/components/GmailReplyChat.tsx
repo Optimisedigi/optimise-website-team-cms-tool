@@ -10,9 +10,10 @@ import {
 /**
  * Gmail draft flow for the OptiMate launcher panel.
  *
- * Supports two entry points:
+ * Supports three entry points:
  *   - draft a brand-new outbound email
  *   - search Gmail, pick a message, then work with a chat-style reply drafter
+ *   - search Gmail, pick a message, then get a thread summary before replying
  *
  * We save to Gmail Drafts only. Nothing is sent automatically.
  */
@@ -55,9 +56,46 @@ interface ChatMessage {
 
 interface GmailReplyChatProps {
   initialPhase?: Phase
+  initialSummariseMode?: boolean
 }
 
 const DEFAULT_QUERY = ''
+const GMAIL_REPLY_CHAT_STORAGE_PREFIX = 'optimate:gmail-reply-chat:'
+
+interface PersistedGmailReplyChatState {
+  phase?: Phase
+  query?: string
+  results?: SearchResult[]
+  searched?: boolean
+  message?: MessageBody | null
+  instructions?: string
+  composeSubject?: string
+  composeTo?: string
+  replyText?: string
+  chatInput?: string
+  chatMessages?: ChatMessage[]
+  selectedModel?: string
+  savedUrl?: string | null
+  originalEmailCollapsed?: boolean
+  readThread?: boolean
+  summariseMode?: boolean
+}
+
+function gmailReplyChatStorageKey(initialPhase: Phase): string {
+  return `${GMAIL_REPLY_CHAT_STORAGE_PREFIX}${initialPhase}`
+}
+
+function readPersistedGmailReplyChatState(initialPhase: Phase): PersistedGmailReplyChatState | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(gmailReplyChatStorageKey(initialPhase))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PersistedGmailReplyChatState
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
 
 function parseFromAddress(from: string): string {
   // "Name <email@x.com>" → "email@x.com"; bare addresses pass through.
@@ -93,48 +131,91 @@ function replaceActiveRecipient(value: string, suggestion: ContactSuggestion): s
 }
 
 function assistantMessageText(data: EmailChatResponse, stagedBody?: string): string {
-  const parts = [data.reply || (stagedBody ? 'I’ve drafted the email below.' : 'No response received.')]
+  const parts = [data.reply || (stagedBody ? 'I\u2019ve drafted the email below.' : 'No response received.')]
   if (stagedBody) parts.push(`Draft preview:\n\n${stagedBody}`)
   if (data.gmailDraft?.gmailUrl) parts.push(`Open in Gmail: ${data.gmailDraft.gmailUrl}`)
   return parts.filter((part) => part.trim()).join('\n\n')
 }
 
-export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyChatProps): React.ReactElement {
+export default function GmailReplyChat({ initialPhase = 'compose', initialSummariseMode = false }: GmailReplyChatProps): React.ReactElement {
+  const persistedState = readPersistedGmailReplyChatState(initialPhase)
   const [connected, setConnected] = useState<boolean | null>(null)
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null)
   const [statusError, setStatusError] = useState<string | null>(null)
 
-  const [phase, setPhase] = useState<Phase>(initialPhase)
-  const [query, setQuery] = useState(DEFAULT_QUERY)
-  const [results, setResults] = useState<SearchResult[]>([])
+  const [phase, setPhase] = useState<Phase>(persistedState?.phase ?? initialPhase)
+  const [query, setQuery] = useState(persistedState?.query ?? DEFAULT_QUERY)
+  const [results, setResults] = useState<SearchResult[]>(persistedState?.results ?? [])
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
-  const [searched, setSearched] = useState(false)
+  const [searched, setSearched] = useState(Boolean(persistedState?.searched))
 
-  const [message, setMessage] = useState<MessageBody | null>(null)
+  const [message, setMessage] = useState<MessageBody | null>(persistedState?.message ?? null)
   const [loadingMessage, setLoadingMessage] = useState(false)
 
-  const [instructions, setInstructions] = useState('')
-  const [composeSubject, setComposeSubject] = useState('')
-  const [composeTo, setComposeTo] = useState('')
+  const [instructions, setInstructions] = useState(persistedState?.instructions ?? '')
+  const [composeSubject, setComposeSubject] = useState(persistedState?.composeSubject ?? '')
+  const [composeTo, setComposeTo] = useState(persistedState?.composeTo ?? '')
   const [contactSuggestions, setContactSuggestions] = useState<ContactSuggestion[]>([])
   const [contactsOpen, setContactsOpen] = useState(false)
   const [draftingReply, setDraftingReply] = useState(false)
-  const [replyText, setReplyText] = useState('')
+  const [replyText, setReplyText] = useState(persistedState?.replyText ?? '')
   const [replyError, setReplyError] = useState<string | null>(null)
 
-  const [chatInput, setChatInput] = useState('')
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
-  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_CHAT_MODEL)
-  const modelManuallyChangedRef = useRef(false)
+  const [chatInput, setChatInput] = useState(persistedState?.chatInput ?? '')
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(persistedState?.chatMessages ?? [])
+  const [selectedModel, setSelectedModel] = useState<string>(persistedState?.selectedModel ?? DEFAULT_CHAT_MODEL)
+  const modelManuallyChangedRef = useRef(Boolean(persistedState?.selectedModel))
 
   const [saving, setSaving] = useState(false)
-  const [savedUrl, setSavedUrl] = useState<string | null>(null)
+  const [savedUrl, setSavedUrl] = useState<string | null>(persistedState?.savedUrl ?? null)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [originalEmailCollapsed, setOriginalEmailCollapsed] = useState(false)
-  const [readThread, setReadThread] = useState(false)
+  const [originalEmailCollapsed, setOriginalEmailCollapsed] = useState(Boolean(persistedState?.originalEmailCollapsed))
+  const [readThread, setReadThread] = useState(Boolean(persistedState?.readThread))
+  const [summariseMode, setSummariseMode] = useState(Boolean(persistedState?.summariseMode ?? initialSummariseMode))
 
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const state: PersistedGmailReplyChatState = {
+      phase,
+      query,
+      results,
+      searched,
+      message,
+      instructions,
+      composeSubject,
+      composeTo,
+      replyText,
+      chatInput,
+      chatMessages,
+      selectedModel,
+      savedUrl,
+      originalEmailCollapsed,
+      readThread,
+      summariseMode,
+    }
+    window.sessionStorage.setItem(gmailReplyChatStorageKey(initialPhase), JSON.stringify(state))
+  }, [
+    initialPhase,
+    phase,
+    query,
+    results,
+    searched,
+    message,
+    instructions,
+    composeSubject,
+    composeTo,
+    replyText,
+    chatInput,
+    chatMessages,
+    selectedModel,
+    savedUrl,
+    originalEmailCollapsed,
+    readThread,
+    summariseMode,
+  ])
 
   useEffect(() => {
     let cancelled = false
@@ -236,6 +317,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     setReadThread(false)
     setContactSuggestions([])
     setContactsOpen(false)
+    setSummariseMode(false)
   }, [])
 
   const switchToCompose = useCallback(() => {
@@ -386,7 +468,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          mode: 'reply',
+          mode: summariseMode ? 'summarise' : 'reply',
           message: request,
           history: history.filter((msg) => msg.role !== 'error').map(({ role, content }) => ({ role, content })),
           model: selectedModel,
@@ -426,7 +508,7 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
     } finally {
       setDraftingReply(false)
     }
-  }, [message, draftingReply, chatInput, chatMessages, selectedModel, replyText, readThread])
+  }, [message, draftingReply, chatInput, chatMessages, selectedModel, replyText, readThread, summariseMode])
 
   const saveNewDraft = useCallback(async () => {
     if (!replyText.trim()) return
@@ -722,22 +804,42 @@ export default function GmailReplyChat({ initialPhase = 'compose' }: GmailReplyC
                   message={message}
                   collapsed={originalEmailCollapsed}
                   onToggle={() => setOriginalEmailCollapsed((value) => !value)}
+                  summariseMode={summariseMode}
                 />
 
-                <label style={threadToggleStyle}>
-                  <input
-                    type="checkbox"
-                    checked={readThread}
-                    disabled={draftingReply}
-                    onChange={(e) => setReadThread(e.target.checked)}
-                  />
-                  <span>Read full thread for more context</span>
-                </label>
+                {!summariseMode && (
+                  <label style={threadToggleStyle}>
+                    <input
+                      type="checkbox"
+                      checked={readThread}
+                      disabled={draftingReply}
+                      onChange={(e) => setReadThread(e.target.checked)}
+                    />
+                    <span>Read full thread for more context</span>
+                  </label>
+                )}
+
+                {summariseMode && (
+                  <button
+                    type="button"
+                    onClick={() => setSummariseMode(false)}
+                    style={{
+                      ...primaryButton,
+                      width: '100%',
+                      marginTop: 4,
+                      fontSize: 12,
+                    }}
+                  >
+                    Reply to this
+                  </button>
+                )}
 
                 <div style={{ ...chatPanel, flex: 1, minHeight: 150, overflowY: 'auto' }}>
                   {chatMessages.length === 0 && !draftingReply && (
                     <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '18px 8px' }}>
-                      Chat with GmailMate about the reply. Ask for edits until it sounds right, then create a Gmail draft when ready.
+                      {summariseMode
+                        ? 'Chat with GmailMate to summarise the thread. Ask for a summary, key points, or action items.'
+                        : 'Chat with GmailMate about the reply. Ask for edits until it sounds right, then create a Gmail draft when ready.'}
                     </div>
                   )}
                   {chatMessages.map((msg, index) => (
@@ -953,10 +1055,12 @@ function OriginalEmailCard({
   message,
   collapsed,
   onToggle,
+  summariseMode,
 }: {
   message: MessageBody
   collapsed: boolean
   onToggle: () => void
+  summariseMode?: boolean
 }): React.ReactElement {
   return (
     <div style={originalEmailCardStyle}>
@@ -968,7 +1072,7 @@ function OriginalEmailCard({
           <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>From: {message.from}</div>
         </div>
         <button type="button" onClick={onToggle} style={minimalButtonStyle}>
-          {collapsed ? 'Show original email' : 'Collapse original email'}
+          {collapsed ? (summariseMode ? 'Show thread' : 'Show original email') : (summariseMode ? 'Collapse thread' : 'Collapse original email')}
         </button>
       </div>
       {!collapsed && (
