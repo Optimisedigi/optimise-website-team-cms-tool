@@ -37,8 +37,27 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const apiKey = process.env.OPENAI_API_KEY?.trim()
     if (!apiKey) {
+      const diag = describeEnvScope()
+      const rawPresent = typeof process.env.OPENAI_API_KEY === 'string'
+      // `present-but-blank` means the var IS injected but its value is empty or
+      // whitespace (e.g. a stray newline pasted into the Vercel field); a fully
+      // absent var means it was never injected into THIS deployment/scope.
+      const reason = rawPresent
+        ? 'OPENAI_API_KEY is present but blank (empty or whitespace-only value).'
+        : 'OPENAI_API_KEY is not set in this deployment.'
+      console.error(
+        `[optimate-realtime-secret] missing key — ${reason} ${diag.log}`,
+      )
       return NextResponse.json(
-        { error: 'OPENAI_API_KEY is not configured on the server.' },
+        {
+          error: `${reason} Active env: ${diag.env}. Set OPENAI_API_KEY for this environment in Vercel, then redeploy (env vars are baked at build time).`,
+          diagnostic: {
+            reason: rawPresent ? 'present-but-blank' : 'absent',
+            vercelEnv: diag.env,
+            commit: diag.commit,
+            deploymentUrl: diag.url,
+          },
+        },
         { status: 500 },
       )
     }
@@ -110,6 +129,24 @@ export async function POST(request: Request): Promise<NextResponse> {
       { error: (err as Error).message || 'Failed to mint Realtime secret' },
       { status: 500 },
     )
+  }
+}
+
+/**
+ * Summarise which Vercel environment is actually executing this request, so a
+ * missing-key error points at the right place to fix. `VERCEL_ENV` is
+ * `production` | `preview` | `development`; the git/url fields are absent
+ * outside Vercel (e.g. local `next dev`), in which case we report `local`.
+ */
+function describeEnvScope(): { env: string; commit: string | null; url: string | null; log: string } {
+  const env = process.env.VERCEL_ENV ?? (process.env.VERCEL ? 'vercel-unknown' : 'local')
+  const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null
+  const url = process.env.VERCEL_URL ?? null
+  return {
+    env,
+    commit,
+    url,
+    log: `env=${env} commit=${commit ?? 'n/a'} url=${url ?? 'n/a'}`,
   }
 }
 
