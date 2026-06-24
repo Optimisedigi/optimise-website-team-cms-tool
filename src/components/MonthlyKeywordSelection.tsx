@@ -191,15 +191,16 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     [suppressionNegatives],
   )
 
-  // For each search term (by normalized text) the set of review months it has a
-  // standing decision in. A decided term shows ONLY in the month(s) it was
-  // decided in and disappears from every other month, so the team never
-  // re-reviews it. Derived once from selections (cheap, memoized) instead of
-  // re-scanning per month — this is what keeps the editor fast and avoids the
-  // old per-month, order-dependent dedup that made Skip behave differently
-  // between earlier and later months.
-  const decidedMonthsByTerm = useMemo(() => {
-    const map = new Map<string, Set<string>>()
+  // For each search term (by normalized text) the single canonical review month
+  // it should display in — the EARLIEST month it has a standing decision in —
+  // plus the decision held there. A decided term shows red in that one month and
+  // is hidden from every other month (even ones that also hold a decision row,
+  // e.g. legacy data the old fan-out wrote across all months), giving the team
+  // one clean place to see it rather than the same skip repeated down every
+  // column. Derived once from selections (cheap, memoized) instead of
+  // re-scanning per month.
+  const decidedCanonicalByTerm = useMemo(() => {
+    const map = new Map<string, { month: string; decision: Decision }>()
     for (const selection of Object.values(selections)) {
       if (Number(selection.rowIndex ?? 0) !== 0) continue
       const activeWatch = selection.decision === 'watch' && !isWatchDue(selection)
@@ -208,25 +209,23 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       const reviewed = selection.decision === 'approved' || selection.decision === 'skipped' || selection.decision === 'needs_review' || activeWatch
       if (!reviewed) continue
       const key = selection.searchTerm.trim().toLowerCase()
-      let set = map.get(key)
-      if (!set) {
-        set = new Set()
-        map.set(key, set)
-      }
-      set.add(selection.yearMonth)
+      const current = map.get(key)
+      if (!current || selection.yearMonth < current.month) map.set(key, { month: selection.yearMonth, decision: selection.decision })
     }
     return map
   }, [selections])
 
   // Count of terms skipped per review month, surfaced in each month's header.
+  // Counted by each term's canonical month so the figure matches the single red
+  // row shown there and doesn't double-count legacy rows fanned across months.
   const skippedCountByMonth = useMemo(() => {
     const map = new Map<string, number>()
-    for (const selection of Object.values(selections)) {
-      if (Number(selection.rowIndex ?? 0) !== 0 || selection.decision !== 'skipped') continue
-      map.set(selection.yearMonth, (map.get(selection.yearMonth) || 0) + 1)
+    for (const { month, decision } of decidedCanonicalByTerm.values()) {
+      if (decision !== 'skipped') continue
+      map.set(month, (map.get(month) || 0) + 1)
     }
     return map
-  }, [selections])
+  }, [decidedCanonicalByTerm])
 
   const visibleMonths = useMemo(() => {
     return months.map((month) => {
@@ -234,9 +233,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         const key = term.term.trim().toLowerCase()
         // A live exact negative on any active NKL covers this term everywhere.
         if (cmsExistingByKeyword.has(`${key}|exact`)) return false
-        const decidedMonths = decidedMonthsByTerm.get(key)
-        // Decided in another month, not this one → hide here so it isn't reviewed twice.
-        if (decidedMonths && decidedMonths.size > 0 && !decidedMonths.has(month.month)) return false
+        // Decided elsewhere → show only in its canonical (earliest decided)
+        // month and hide it from every other month.
+        const canonical = decidedCanonicalByTerm.get(key)
+        if (canonical && canonical.month !== month.month) return false
         return true
       })
       // Hide terms already covered by a phrase/exact negative on a selected
@@ -245,7 +245,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       const { visible, negated } = partitionTermsByNegation(month.month, terms, suppressionIndex)
       return { ...month, terms: visible, alreadyNegated: negated }
     })
-  }, [cmsExistingByKeyword, months, decidedMonthsByTerm, suppressionIndex])
+  }, [cmsExistingByKeyword, months, decidedCanonicalByTerm, suppressionIndex])
 
   useEffect(() => {
     if (loading || visibleMonths.length === 0 || hasAutoScrolledRef.current) return
