@@ -76,6 +76,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [lastLoadSummary, setLastLoadSummary] = useState<{ misses?: number; missingMonths?: string[]; error?: string; diagnostics?: { customerId?: string; startDate?: string; endDate?: string; totalRows?: number; matchedRows?: number } } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveRequestId = useRef(0)
+  // Latest selections, mirrored into a ref so the debounced flush reads current
+  // values without being re-created on every keystroke.
+  const selectionsRef = useRef<Record<string, Selection>>({})
+  // Keys changed since the last flush. Only these rows are sent, so a single
+  // Skip/Watch/Approve click no longer resends (and rewrites) the client's
+  // entire decision set — the O(n)-per-click cost that caused save timeouts.
+  const pendingKeysRef = useRef<Set<string>>(new Set())
   const monthsScrollerRef = useRef<HTMLDivElement | null>(null)
   const hasAutoScrolledRef = useRef(false)
   const titleBarRef = useRef<HTMLDivElement | null>(null)
@@ -131,6 +138,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   }, [clientId])
 
   useEffect(() => { void load(); void loadNkls() }, [load, loadNkls])
+
+  // Mirror selections into a ref so the debounced flush and retry path always
+  // read current row values without re-creating the save callbacks.
+  useEffect(() => { selectionsRef.current = selections }, [selections])
 
   useEffect(() => {
     if (suppressionNklIdsConfigured || nkls.length === 0) return
@@ -279,7 +290,18 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     return () => { observer.disconnect(); window.removeEventListener('resize', measure) }
   }, [])
 
-  const saveSelections = useCallback(async (next: Record<string, Selection>, deletions?: Array<{ yearMonth: string; searchTerm: string; rowIndex: number }>) => {
+  // Persist a small set of changed rows (and optional deletions). `keys` are the
+  // selection keys backing `rows`; on failure they are returned to the pending
+  // set and retried so a transient timeout never silently drops a decision — the
+  // bug that lost skipped keywords for whole months.
+  const saveSelections = useCallback(async (
+    rows: Selection[],
+    options?: { deletions?: Array<{ yearMonth: string; searchTerm: string; rowIndex: number }>; keys?: string[]; attempt?: number },
+  ) => {
+    const deletions = options?.deletions
+    const keys = options?.keys ?? []
+    const attempt = options?.attempt ?? 0
+    if (rows.length === 0 && !(deletions && deletions.length)) return
     const requestId = saveRequestId.current + 1
     saveRequestId.current = requestId
     setSaving(true)
@@ -288,7 +310,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ clientId: Number(clientId), selections: Object.values(next), ...(deletions && deletions.length ? { deletions } : {}) }),
+        body: JSON.stringify({ clientId: Number(clientId), selections: rows, ...(deletions && deletions.length ? { deletions } : {}) }),
       })
       if (!res.ok) throw new Error('Auto-save failed')
       // Only the latest save may change the status banner. Older requests can
@@ -298,7 +320,17 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         setMessage((current) => (current === 'Auto-save failed' ? null : current))
       }
     } catch (error) {
-      if (saveRequestId.current === requestId) {
+      // Re-queue the changed keys so the decision is not lost, then retry once
+      // automatically after a short backoff. If it still fails the keys stay
+      // pending and the next interaction (or flush) will carry them again.
+      for (const key of keys) pendingKeysRef.current.add(key)
+      if (attempt < 2) {
+        window.setTimeout(() => {
+          const retryRows = keys.map((key) => selectionsRef.current[key]).filter(Boolean) as Selection[]
+          for (const key of keys) pendingKeysRef.current.delete(key)
+          void saveSelections(retryRows, { deletions, keys, attempt: attempt + 1 })
+        }, 1500 * (attempt + 1))
+      } else if (saveRequestId.current === requestId) {
         setMessage(error instanceof Error ? error.message : 'Auto-save failed')
       }
     } finally {
@@ -306,9 +338,17 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     }
   }, [clientId])
 
-  const queueSave = useCallback((next: Record<string, Selection>) => {
+  // Accumulate changed keys across the debounce window, then flush only those
+  // rows (read from the latest selections) in a single request.
+  const queueSave = useCallback((changedKeys: string[]) => {
+    for (const key of changedKeys) pendingKeysRef.current.add(key)
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => { void saveSelections(next) }, 600)
+    saveTimer.current = setTimeout(() => {
+      const keys = Array.from(pendingKeysRef.current)
+      pendingKeysRef.current = new Set()
+      const rows = keys.map((key) => selectionsRef.current[key]).filter(Boolean) as Selection[]
+      void saveSelections(rows, { keys })
+    }, 300)
   }, [saveSelections])
 
   // All row indexes (primary 0 plus any added sub-rows) currently held for a
@@ -340,15 +380,17 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       },
     }
     setSelections(next)
-    queueSave(next)
+    queueSave([key])
   }
 
   // The NKL target is a single choice shared across every sub-row of a search
   // term, so setting it fans the same NKL (or null) out to all rows.
   const setTargetListForTerm = (month: string, term: string, nklId: number | string | null) => {
     const next = { ...selections }
+    const changedKeys: string[] = []
     for (const rowIndex of rowIndexesForTerm(month, term)) {
       const key = selectionKey(month, term, rowIndex)
+      changedKeys.push(key)
       const existing = selections[key]
       const parsed = parseNegativeKeywordInput(inputFromSelection(existing, term)) || { keyword: term, matchType: 'exact' as MatchType }
       next[key] = {
@@ -363,7 +405,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       }
     }
     setSelections(next)
-    queueSave(next)
+    queueSave(changedKeys)
   }
 
   // Append an empty additional negative-keyword row beneath a search term. It
@@ -387,7 +429,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       },
     }
     setSelections(next)
-    queueSave(next)
+    queueSave([key])
   }
 
   // Delete an additional sub-row (index > 0). The primary row (0) is never
@@ -398,7 +440,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     const next = { ...selections }
     delete next[key]
     setSelections(next)
-    void saveSelections(next, [{ yearMonth: month, searchTerm: term, rowIndex }])
+    void saveSelections([], { deletions: [{ yearMonth: month, searchTerm: term, rowIndex }] })
   }
 
   const markTermHandled = (month: string, term: string, decision: Extract<Decision, 'approved' | 'skipped' | 'needs_review'>) => {
@@ -427,7 +469,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       },
     }
     setSelections(next)
-    queueSave(next)
+    queueSave([key])
   }
 
   // Toggle a term into/out of the "watch" state. Like skip, the decision is
@@ -455,7 +497,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       },
     }
     setSelections(next)
-    queueSave(next)
+    queueSave([key])
   }
 
   const toggleComplete = async (month: string, complete: boolean) => {

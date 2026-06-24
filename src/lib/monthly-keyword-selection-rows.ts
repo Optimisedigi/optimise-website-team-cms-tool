@@ -192,6 +192,33 @@ function stripServerManagedFields<T extends MonthlyKeywordSelectionRowDoc>(row: 
   return rest as T
 }
 
+// Fields the merge writes back. Comparing only these against the existing row
+// lets an unchanged row skip its UPDATE, so a save that resends a client's whole
+// set (or a row touched but not actually altered) does not issue a needless
+// round-trip to Turso per row — the write amplification behind save timeouts.
+const COMPARED_FIELDS: Array<keyof MonthlyKeywordSelectionRowDoc> = [
+  'yearMonth', 'searchTerm', 'searchTermKey', 'rowIndex', 'rowKey', 'keywordKey',
+  'negativeKeyword', 'matchType', 'decision', 'appliedToNKL', 'appliedAt',
+  'watchHorizonMonths', 'watchUntil', 'appliedBy', 'appliedByUserId',
+  'removedComment', 'removedBy', 'removedByUserId', 'removedAt',
+  'decidedBy', 'decidedByUserId', 'reviewDismissedAt', 'reviewDismissedBy',
+  'reviewComment', 'reviewCommentBy', 'reviewCommentAt', 'reviewCommentTaggedUserIds',
+  'outcomeType', 'outcomeDetail', 'outcomeComment', 'outcomeBy', 'outcomeByUserId', 'outcomeAt',
+]
+
+function rowUnchanged(prev: MonthlyKeywordSelectionRowDoc, merged: MonthlyKeywordSelectionRowDoc): boolean {
+  for (const field of COMPARED_FIELDS) {
+    const a = prev[field] ?? null
+    const b = merged[field] ?? null
+    if (a instanceof Date || b instanceof Date) {
+      if (new Date(a as never).getTime() !== new Date(b as never).getTime()) return false
+      continue
+    }
+    if (a !== b) return false
+  }
+  return true
+}
+
 export async function upsertSelectionRows(
   payload: Payload,
   clientId: number,
@@ -208,6 +235,12 @@ export async function upsertSelectionRows(
     const prev = existingByKey.get(row.rowKey)
     const data = mergeRow(prev, row, user)
     if (prev?.id !== undefined) {
+      // No-op write guard: if nothing the merge controls actually changed, keep
+      // the existing row and skip the UPDATE entirely.
+      if (rowUnchanged(prev, data)) {
+        saved.push(prev)
+        continue
+      }
       const updated = await payload.update({
         collection: ROWS_COLLECTION,
         id: prev.id,
