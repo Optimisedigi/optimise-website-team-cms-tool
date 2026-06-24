@@ -89,7 +89,6 @@ describe('monthly keyword selection API routes', () => {
   it('save preserves unrelated existing rows when one incoming row is saved', async () => {
     mockPayload.find
       .mockResolvedValueOnce({ docs: [{ id: 22 }] })
-      .mockResolvedValueOnce({ docs: [] })
       .mockResolvedValueOnce({ docs: [{ id: 88, rowKey: '7|2024-11|outsourcing|0', yearMonth: '2024-11', searchTerm: 'outsourcing', rowIndex: 0, negativeKeyword: 'outsourcing', matchType: 'exact', decision: 'pending' }] })
       .mockResolvedValueOnce({ docs: [], totalDocs: 2 })
     mockPayload.update.mockResolvedValue({ id: 88 })
@@ -107,39 +106,33 @@ describe('monthly keyword selection API routes', () => {
     }))
   })
 
-  it('save expands skip and watch decisions to matching cached months for the same client term', async () => {
+  it('save persists a skip only for its own month without fanning it across cached months', async () => {
     mockPayload.find
       .mockResolvedValueOnce({ docs: [{ id: 22 }] })
-      .mockResolvedValueOnce({ docs: [
-        { yearMonth: '2026-08', terms: JSON.stringify({ terms: [{ term: 'outsourcing' }] }) },
-        { yearMonth: '2026-07', terms: JSON.stringify({ terms: [{ term: 'Outsourcing' }, { term: 'another query' }] }) },
-      ] })
-      .mockResolvedValueOnce({ docs: [{ id: 88, rowKey: '7|2026-08|outsourcing|0', yearMonth: '2026-08', searchTerm: 'outsourcing', rowIndex: 0, negativeKeyword: 'outsourcing', matchType: 'exact', decision: 'pending' }] })
-      .mockResolvedValueOnce({ docs: [], totalDocs: 2 })
-    mockPayload.update.mockResolvedValue({ id: 88 })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [], totalDocs: 1 })
     mockPayload.create.mockResolvedValue({ id: 89 })
 
     const res = await savePOST(request('/api/monthly-keyword-selection/save', {
       clientId: 7,
-      selections: [{ yearMonth: '2026-08', searchTerm: 'outsourcing', rowIndex: 0, negativeKeyword: 'outsourcing', matchType: 'exact', decision: 'watch', watchHorizonMonths: 3 }],
+      selections: [{ yearMonth: '2026-08', searchTerm: 'outsourcing', rowIndex: 0, negativeKeyword: 'outsourcing', matchType: 'exact', decision: 'skipped' }],
     }))
 
     expect(res.status).toBe(200)
+    // No terms-cache lookup and exactly one row written — the cross-month fan-out
+    // is gone; the editor hides the term from other months client-side instead.
+    const cacheFinds = mockPayload.find.mock.calls.filter((c: any[]) => c[0].collection === 'monthly-keyword-terms-cache')
+    expect(cacheFinds).toHaveLength(0)
     const rowCreates = mockPayload.create.mock.calls.filter((c: any[]) => c[0].collection === 'monthly-keyword-selection-rows')
     expect(rowCreates).toHaveLength(1)
     expect(rowCreates[0][0].data).toMatchObject({
-      yearMonth: '2026-07',
-      searchTerm: 'Outsourcing',
-      rowKey: '7|2026-07|outsourcing|0',
-      decision: 'watch',
+      yearMonth: '2026-08',
+      searchTerm: 'outsourcing',
+      rowKey: '7|2026-08|outsourcing|0',
+      decision: 'skipped',
       negativeKeyword: 'outsourcing',
       matchType: 'exact',
     })
-    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
-      collection: 'monthly-keyword-selection-rows',
-      id: 88,
-      data: expect.objectContaining({ yearMonth: '2026-08', decision: 'watch' }),
-    }))
   })
 
   it('save prunes a removed sub-row via deletions', async () => {

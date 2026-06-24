@@ -191,32 +191,61 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     [suppressionNegatives],
   )
 
+  // For each search term (by normalized text) the set of review months it has a
+  // standing decision in. A decided term shows ONLY in the month(s) it was
+  // decided in and disappears from every other month, so the team never
+  // re-reviews it. Derived once from selections (cheap, memoized) instead of
+  // re-scanning per month — this is what keeps the editor fast and avoids the
+  // old per-month, order-dependent dedup that made Skip behave differently
+  // between earlier and later months.
+  const decidedMonthsByTerm = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    for (const selection of Object.values(selections)) {
+      if (Number(selection.rowIndex ?? 0) !== 0) continue
+      const activeWatch = selection.decision === 'watch' && !isWatchDue(selection)
+      // 'pending' is intentionally excluded so un-skipping a term (which resets
+      // it to pending) makes it reappear in the other months again.
+      const reviewed = selection.decision === 'approved' || selection.decision === 'skipped' || selection.decision === 'needs_review' || activeWatch
+      if (!reviewed) continue
+      const key = selection.searchTerm.trim().toLowerCase()
+      let set = map.get(key)
+      if (!set) {
+        set = new Set()
+        map.set(key, set)
+      }
+      set.add(selection.yearMonth)
+    }
+    return map
+  }, [selections])
+
+  // Count of terms skipped per review month, surfaced in each month's header.
+  const skippedCountByMonth = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const selection of Object.values(selections)) {
+      if (Number(selection.rowIndex ?? 0) !== 0 || selection.decision !== 'skipped') continue
+      map.set(selection.yearMonth, (map.get(selection.yearMonth) || 0) + 1)
+    }
+    return map
+  }, [selections])
+
   const visibleMonths = useMemo(() => {
-    const previouslyReviewedTerms = new Set<string>()
     return months.map((month) => {
       const terms = month.terms.filter((term) => {
-        const exactTermKey = term.term.trim().toLowerCase()
-        if (previouslyReviewedTerms.has(exactTermKey)) return false
+        const key = term.term.trim().toLowerCase()
+        // A live exact negative on any active NKL covers this term everywhere.
+        if (cmsExistingByKeyword.has(`${key}|exact`)) return false
+        const decidedMonths = decidedMonthsByTerm.get(key)
+        // Decided in another month, not this one → hide here so it isn't reviewed twice.
+        if (decidedMonths && decidedMonths.size > 0 && !decidedMonths.has(month.month)) return false
         return true
       })
-      for (const term of month.terms) {
-        const selection = selections[selectionKey(month.month, term.term)]
-        const searchTermAlreadyExactNegative = cmsExistingByKeyword.has(`${term.term.trim().toLowerCase()}|exact`)
-        // Reviewed terms hide in older/later duplicate months once a client-wide
-        // decision exists for that exact search term.
-        const activeWatch = selection?.decision === 'watch' && !isWatchDue(selection)
-        const suppresses = selection?.decision === 'pending' || selection?.decision === 'approved' || selection?.decision === 'skipped' || activeWatch || selection?.decision === 'needs_review'
-        if (suppresses || searchTermAlreadyExactNegative) {
-          previouslyReviewedTerms.add(term.term.trim().toLowerCase())
-        }
-      }
       // Hide terms already covered by a phrase/exact negative on a selected
       // suppression NKL, and surface them in the collapsed "Already negated"
       // section instead.
       const { visible, negated } = partitionTermsByNegation(month.month, terms, suppressionIndex)
       return { ...month, terms: visible, alreadyNegated: negated }
     })
-  }, [cmsExistingByKeyword, months, selections, suppressionIndex])
+  }, [cmsExistingByKeyword, months, decidedMonthsByTerm, suppressionIndex])
 
   useEffect(() => {
     if (loading || visibleMonths.length === 0 || hasAutoScrolledRef.current) return
@@ -372,29 +401,22 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     void saveSelections(next, [{ yearMonth: month, searchTerm: term, rowIndex }])
   }
 
-  const matchingVisibleMonthTerms = (term: string): Array<{ month: string; term: string }> => {
-    const termKey = term.trim().toLowerCase()
-    return months.flatMap((month) => month.terms
-      .filter((candidate) => candidate.term.trim().toLowerCase() === termKey)
-      .map((candidate) => ({ month: month.month, term: candidate.term })))
-  }
-
   const markTermHandled = (month: string, term: string, decision: Extract<Decision, 'approved' | 'skipped' | 'needs_review'>) => {
     const key = selectionKey(month, term)
     const selection = selections[key]
     const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
     const alreadySelected = selection?.decision === decision && !selection.appliedToNKL
-    const next = { ...selections }
-    const targets = decision === 'skipped' ? matchingVisibleMonthTerms(term) : [{ month, term }]
-
-    for (const target of targets) {
-      const targetKey = selectionKey(target.month, target.term)
-      const existing = selections[targetKey]
-      if (alreadySelected && existing?.decision !== decision) continue
-      next[targetKey] = {
-        ...(existing || {}),
-        yearMonth: target.month,
-        searchTerm: target.term,
+    // Write the decision only to the clicked month. The editor hides a decided
+    // term from every other month via decidedMonthsByTerm, so a skip no longer
+    // needs to be fanned across all months (which previously made it vanish
+    // from later months instead of highlighting red). Clicking the same
+    // decision again toggles the term back to pending so it reappears.
+    const next = {
+      ...selections,
+      [key]: {
+        ...(selection || {}),
+        yearMonth: month,
+        searchTerm: term,
         rowIndex: 0,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
@@ -402,30 +424,27 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         watchHorizonMonths: null,
         watchUntil: null,
         appliedToNKL: null,
-      }
+      },
     }
     setSelections(next)
     queueSave(next)
   }
 
-  // Toggle a term into/out of the "watch" state. Watch is a client-wide review
-  // decision for this exact search term + negative keyword + match type, so the
-  // duplicate term disappears from every loaded month immediately.
+  // Toggle a term into/out of the "watch" state. Like skip, the decision is
+  // written only for the clicked month; the term is hidden from every other
+  // month via decidedMonthsByTerm (active watch counts as decided), so it shows
+  // once — in the month it was watched — rather than across every month.
   const setWatch = (month: string, term: string, horizon: WatchHorizon | null) => {
     const key = selectionKey(month, term)
     const selection = selections[key]
     const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
     const clearing = horizon === null
-    const next = { ...selections }
-    const targets = clearing ? matchingVisibleMonthTerms(term).filter((target) => selections[selectionKey(target.month, target.term)]?.decision === 'watch') : matchingVisibleMonthTerms(term)
-
-    for (const target of targets) {
-      const targetKey = selectionKey(target.month, target.term)
-      const existing = selections[targetKey]
-      next[targetKey] = {
-        ...(existing || {}),
-        yearMonth: target.month,
-        searchTerm: target.term,
+    const next = {
+      ...selections,
+      [key]: {
+        ...(selection || {}),
+        yearMonth: month,
+        searchTerm: term,
         rowIndex: 0,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
@@ -433,7 +452,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         watchHorizonMonths: clearing ? null : horizon,
         watchUntil: clearing ? null : addMonthsIso(new Date(), horizon),
         appliedToNKL: null,
-      }
+      },
     }
     setSelections(next)
     queueSave(next)
@@ -1317,6 +1336,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', marginTop: 4 }}>
                 {month.terms.length} qualifying term{month.terms.length === 1 ? '' : 's'}
                 {month.alreadyNegated.length > 0 ? ` · refined list (${month.alreadyNegated.length} already-negated hidden)` : ''}
+                {(skippedCountByMonth.get(month.month) || 0) > 0 ? ` · ${skippedCountByMonth.get(month.month)} skipped` : ''}
                 {month.reviewComplete ? ' · Locked until unchecked' : ''}
               </div>
             </div>
