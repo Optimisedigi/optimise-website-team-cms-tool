@@ -94,11 +94,25 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
   const pendingSaveRef = useRef(false)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [justSaved, setJustSaved] = useState(false)
+  // Mirrors an external autosave (e.g. the Monthly negative KWs view) so this
+  // bottom button shows "Saving…" in step with that view's top status line.
+  const [externalSaving, setExternalSaving] = useState(false)
 
   const defaultLabel = labelProp || t('general:save')
 
   useEffect(() => {
     ensureStyles()
+  }, [])
+
+  // Listen for external autosave state broadcast by custom views mounted inside
+  // the edit form. Other collections never dispatch this, so it is a no-op there.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ saving?: boolean }>).detail
+      setExternalSaving(Boolean(detail?.saving))
+    }
+    window.addEventListener('cms:external-save-state', handler)
+    return () => window.removeEventListener('cms:external-save-state', handler)
   }, [])
 
   // Detect a completed, successful save: processing fell from true → false and
@@ -138,9 +152,10 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
     void submit({ disableSuccessStatus: true })
   }
 
-  // While this button's submit is in flight, surface a "Saving…" label so the
-  // user gets immediate feedback between pressing Save and the "Saved" pulse.
-  const isSaving = processing && pendingSaveRef.current
+  // While this button's submit is in flight — or while an external autosave is
+  // running — surface a "Saving…" label so the user gets immediate feedback
+  // between pressing Save and the "Saved" pulse.
+  const isSaving = (processing && pendingSaveRef.current) || externalSaving
   const label = isSaving ? 'Saving…' : justSaved ? 'Saved' : defaultLabel
 
   return (

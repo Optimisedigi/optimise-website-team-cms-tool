@@ -143,6 +143,18 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   // read current row values without re-creating the save callbacks.
   useEffect(() => { selectionsRef.current = selections }, [selections])
 
+  // Broadcast autosave state so Payload's bottom Save button (GlimmerSaveButton,
+  // a separate React tree) can mirror "Saving…" while our autosave is in flight.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('cms:external-save-state', { detail: { saving } }))
+  }, [saving])
+
+  // Clear the bottom button's mirrored state if this view unmounts mid-save so
+  // it never gets stuck showing "Saving…".
+  useEffect(() => () => {
+    window.dispatchEvent(new CustomEvent('cms:external-save-state', { detail: { saving: false } }))
+  }, [])
+
   useEffect(() => {
     if (suppressionNklIdsConfigured || nkls.length === 0) return
     setSelectedSuppressionNklIds(new Set(nkls.filter((nkl) => isQualifyingListName(nkl.name)).map((nkl) => String(nkl.id))))
