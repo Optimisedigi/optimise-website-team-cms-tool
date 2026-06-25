@@ -4750,6 +4750,46 @@ export async function runMigrations(
       "ALTER TABLE `match_type_violation_candidates` ADD `added_as_keyword_outcome` text",
     );
 
+    // ── Editable match-type synonym rules (2026-07-25) ──
+    await run("match_type_synonym_rules", `CREATE TABLE IF NOT EXISTS \`match_type_synonym_rules\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`term_a\` text NOT NULL,
+      \`term_b\` text NOT NULL,
+      \`context_terms\` text,
+      \`active\` integer DEFAULT true,
+      \`source_search_term\` text,
+      \`source_triggering_keyword\` text,
+      \`notes\` text,
+      \`created_by_id\` integer,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`created_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("match_type_synonym_rules_created_by_idx", "CREATE INDEX IF NOT EXISTS `match_type_synonym_rules_created_by_idx` ON `match_type_synonym_rules` (`created_by_id`)");
+    await run("match_type_synonym_rules_updated_at_idx", "CREATE INDEX IF NOT EXISTS `match_type_synonym_rules_updated_at_idx` ON `match_type_synonym_rules` (`updated_at`)");
+    await run("match_type_synonym_rules_created_at_idx", "CREATE INDEX IF NOT EXISTS `match_type_synonym_rules_created_at_idx` ON `match_type_synonym_rules` (`created_at`)");
+    await run("payload_locked_documents_rels.match_type_synonym_rules_id", "ALTER TABLE `payload_locked_documents_rels` ADD `match_type_synonym_rules_id` integer REFERENCES `match_type_synonym_rules`(`id`) ON DELETE CASCADE");
+
+    // ── Editable match-type allow-list terms (2026-07-26) ──
+    await run("match_type_allow_list_terms", `CREATE TABLE IF NOT EXISTS \`match_type_allow_list_terms\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`term\` text NOT NULL,
+      \`category\` text DEFAULT 'acronym' NOT NULL,
+      \`active\` integer DEFAULT true,
+      \`notes\` text,
+      \`source_search_term\` text,
+      \`source_triggering_keyword\` text,
+      \`created_by_id\` integer,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`created_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("match_type_allow_list_terms_term_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `match_type_allow_list_terms_term_idx` ON `match_type_allow_list_terms` (`term`)");
+    await run("match_type_allow_list_terms_created_by_idx", "CREATE INDEX IF NOT EXISTS `match_type_allow_list_terms_created_by_idx` ON `match_type_allow_list_terms` (`created_by_id`)");
+    await run("match_type_allow_list_terms_updated_at_idx", "CREATE INDEX IF NOT EXISTS `match_type_allow_list_terms_updated_at_idx` ON `match_type_allow_list_terms` (`updated_at`)");
+    await run("match_type_allow_list_terms_created_at_idx", "CREATE INDEX IF NOT EXISTS `match_type_allow_list_terms_created_at_idx` ON `match_type_allow_list_terms` (`created_at`)");
+    await run("payload_locked_documents_rels.match_type_allow_list_terms_id", "ALTER TABLE `payload_locked_documents_rels` ADD `match_type_allow_list_terms_id` integer REFERENCES `match_type_allow_list_terms`(`id`) ON DELETE CASCADE");
+
     // ── Match-type monitor per-client scope controls (2026-06-09) ──
     await run("clients.gadsAuto_matchTypeMonitorExact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");
     await run("clients.gadsAuto_matchTypeMonitorPhrase", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_phrase` integer DEFAULT true");

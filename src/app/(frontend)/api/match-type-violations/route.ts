@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
     where: whereClauses.length > 0 ? { and: whereClauses } : {},
     limit,
     page,
+    sort: "-clicks,-impressions,-lastSeenAt",
     depth: 1,
     overrideAccess: true,
   });

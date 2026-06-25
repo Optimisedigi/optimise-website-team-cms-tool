@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parseNegativeKeywordInput } from '../lib/parse-negative-keywords'
 import { buildSuppressionIndex, buildSuppressionNegatives, isQualifyingListName, partitionTermsByNegation, type SuppressionNegative } from '../lib/negative-keyword-suppression'
 
@@ -1421,14 +1421,29 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     <strong>Already negated ({month.alreadyNegated.length})</strong> — filtered out because a negative on a selected suppression NKL
                     already covers them. The terms below are the refined list still needing review.
                   </p>
-                  {month.alreadyNegated.map(({ term, negative }) => (
-                    <div key={`${term.term}|${negative.keyword}|${negative.matchType}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{term.term}</span>
-                      <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
-                        {negative.keyword} ({matchTypeLabel(negative.matchType)}) · {negative.listName}
-                      </span>
-                    </div>
-                  ))}
+                  {[...month.alreadyNegated]
+                    .sort((a, b) =>
+                      `${a.negative.listName} ${a.negative.keyword} ${a.term.term}`.localeCompare(`${b.negative.listName} ${b.negative.keyword} ${b.term.term}`),
+                    )
+                    .map(({ term, negative }, index, sorted) => {
+                      const previous = sorted[index - 1]
+                      const startsListGroup = !previous || previous.negative.listName !== negative.listName
+                      return (
+                        <Fragment key={`${term.term}|${negative.keyword}|${negative.matchType}|${negative.listName}`}>
+                          {startsListGroup && (
+                            <div style={{ marginTop: index === 0 ? 0 : 6, padding: '6px 8px 2px', fontSize: 11, fontWeight: 700, color: '#3730a3' }}>
+                              {negative.listName}
+                            </div>
+                          )}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 360px) minmax(280px, 520px)', justifyContent: 'start', gap: 18, alignItems: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
+                            <span style={{ fontSize: 12, fontWeight: 600 }}>{term.term}</span>
+                            <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)', textAlign: 'left' }}>
+                              {negative.keyword} ({matchTypeLabel(negative.matchType)})
+                            </span>
+                          </div>
+                        </Fragment>
+                      )
+                    })}
                 </div>
               )}
               {month.terms.map((term) => {

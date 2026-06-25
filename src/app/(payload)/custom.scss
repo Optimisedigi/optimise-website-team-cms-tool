@@ -1099,12 +1099,35 @@ body:has(.global-edit--optimate-settings) {
   gap: 6px;
 }
 
-// TAM rich text field — white background with border
-#field-tam .rich-text-lexical {
+// Rich text fields that need a distinct writing surface.
+#field-tam .rich-text-lexical,
+#field-clientOverview .rich-text-lexical {
   background: #fff;
   border: 1px solid var(--theme-elevation-150, #ddd);
   border-radius: 6px;
   color: #111;
+}
+
+.collection-edit--clients .od-client-overview-field {
+  background: #fff !important;
+  border: 1px solid var(--theme-elevation-150, #ddd);
+  border-radius: 10px;
+  padding: 18px 18px 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.collection-edit--clients .od-client-overview-field .rich-text-lexical,
+.collection-edit--clients .od-client-overview-field .editor-container,
+.collection-edit--clients .od-client-overview-field .editor-scroller,
+.collection-edit--clients .od-client-overview-field .editor,
+.collection-edit--clients .od-client-overview-field .ContentEditable__root,
+.collection-edit--clients .od-client-overview-field [contenteditable='true'] {
+  background: #fff !important;
+}
+
+.collection-edit--clients .od-client-overview-field .ContentEditable__root {
+  min-height: 160px;
+  padding: 18px 24px;
 }
 
 // ============================================================
@@ -6439,6 +6462,88 @@ body:has(:is(
   }
 }
 
+.od-client-head__overview {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.od-client-head__overview-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(44, 151, 201, 0.32);
+  background: rgba(56, 189, 248, 0.12);
+  color: #1f7fad;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: help;
+}
+
+.od-client-head__overview-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 30;
+  display: none;
+  width: min(420px, calc(100vw - 48px));
+  max-height: min(420px, 70vh);
+  overflow: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--ode-border);
+  border-radius: 14px;
+  background: var(--ode-card);
+  color: var(--ode-t2);
+  box-shadow: 0 18px 50px rgba(16, 24, 40, 0.18);
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+.od-client-head__overview-popover strong {
+  color: var(--ode-t1);
+}
+
+.od-client-head__overview-popover > strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.od-client-head__overview-popover p,
+.od-client-head__overview-popover ul,
+.od-client-head__overview-popover ol {
+  margin: 0 0 8px;
+}
+
+.od-client-head__overview-popover ul,
+.od-client-head__overview-popover ol {
+  padding-left: 18px;
+}
+
+.od-client-head__overview-popover li {
+  margin-bottom: 4px;
+}
+
+.od-client-head__overview-popover p:last-child,
+.od-client-head__overview-popover ul:last-child,
+.od-client-head__overview-popover ol:last-child,
+.od-client-head__overview-popover li:last-child {
+  margin-bottom: 0;
+}
+
+.od-client-head__overview:hover .od-client-head__overview-popover,
+.od-client-head__overview:focus .od-client-head__overview-popover,
+.od-client-head__overview:focus-within .od-client-head__overview-popover {
+  display: block;
+}
+
 // ── Mobile: compact client header ──
 // Hide the round logo/avatar on the client edit page (mobile only) and let the
 // body span the full card width. This reclaims ~54px (38px logo + 16px gap) so
@@ -6513,6 +6618,26 @@ body:has(:is(
 
   .render-fields > .field-type:has(.od-client-head) {
     margin-bottom: 5px;
+  }
+
+  .document-fields__fields > .tabs-field:not(.tabs-field--within-collapsible) > .tabs-field__tabs {
+    box-sizing: border-box;
+    width: calc(100vw - 48px);
+    max-width: none;
+    margin-left: calc(50% - 50vw + 24px);
+    margin-right: calc(50% - 50vw + 24px);
+    padding-left: 0;
+    padding-right: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .document-fields__fields > .tabs-field:not(.tabs-field--within-collapsible) > .tabs-field__tabs::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .document-fields__fields > .tabs-field:not(.tabs-field--within-collapsible) > .tabs-field__tabs::-webkit-scrollbar-thumb {
+    border-radius: 999px;
   }
 
   .od-client-head {
@@ -6694,6 +6819,18 @@ body:has(:is(
     font-size: 13px;
     font-weight: 800;
     color: var(--ode-t1);
+  }
+}
+
+@media (max-width: 768px) {
+  .collection-edit--google-ads-audits:has(.od-client-head) {
+    .document-fields__fields > .tabs-field:not(.tabs-field--within-collapsible) > .tabs-field__tabs {
+      width: auto;
+      margin-left: 0;
+      margin-right: 0;
+      padding-left: 0;
+      padding-right: 0;
+    }
   }
 }
 
@@ -7383,12 +7520,25 @@ body.od-client-record {
   // Pull left to cancel the field's gutter (default 30px on client edit) so the
   // content sits close to the sidebar in both collapsed and expanded states.
   margin-left: calc(-1 * var(--gutter-h, 30px));
-  // Existing rightward breakout into the empty right-hand gutter.
+  // Size from the real viewport/sidebar rather than Payload's centred document
+  // column, leaving only the normal 24px page gutter on the right. This lets the
+  // month overview reveal the next month card instead of clipping it while grey
+  // canvas remains unused.
   margin-right: calc(50% - 50vw + 24px);
+  width: calc(100vw - var(--od-fullbleed-left, 84px) - 24px);
+  max-width: none;
   box-sizing: border-box;
   // Clip any left overflow at the padding so scrolled month cards never render
   // under the fixed sidebar; vertical stays visible for sticky headers.
   overflow-x: clip;
+}
+
+.template-default--nav-open .od-fullbleed-tool {
+  --od-fullbleed-left: 276px;
+}
+
+.template-default:not(.template-default--nav-open) .od-fullbleed-tool {
+  --od-fullbleed-left: 84px;
 }
 
 @media (max-width: 768px) {
@@ -7397,6 +7547,7 @@ body.od-client-record {
   .od-fullbleed-tool {
     margin-left: 0;
     margin-right: 0;
+    width: auto;
     padding: 16px 12px;
     max-width: 100%;
   }

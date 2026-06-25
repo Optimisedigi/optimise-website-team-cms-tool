@@ -131,6 +131,9 @@ import * as migration_20260721_120000_add_optimate_email_assistant_model from '.
 import * as migration_20260722_120000_add_missing_client_business_fields from './20260722_120000_add_missing_client_business_fields';
 import * as migration_20260723_120000_add_soul_rows_from_tone_md from './20260723_120000_add_soul_rows_from_tone_md';
 import * as migration_20260724_120000_add_monthly_keyword_selection_rows from './20260724_120000_add_monthly_keyword_selection_rows';
+import * as migration_20260725_120000_add_match_type_synonym_rules from './20260725_120000_add_match_type_synonym_rules';
+import * as migration_20260726_120000_add_match_type_allow_list_terms from './20260726_120000_add_match_type_allow_list_terms';
+import * as migration_20260727_120000_add_client_overview from './20260727_120000_add_client_overview';
 
 export const migrations = [
   {
@@ -797,5 +800,20 @@ export const migrations = [
     up: migration_20260724_120000_add_monthly_keyword_selection_rows.up,
     down: migration_20260724_120000_add_monthly_keyword_selection_rows.down,
     name: '20260724_120000_add_monthly_keyword_selection_rows'
+  },
+  {
+    up: migration_20260725_120000_add_match_type_synonym_rules.up,
+    down: migration_20260725_120000_add_match_type_synonym_rules.down,
+    name: '20260725_120000_add_match_type_synonym_rules'
+  },
+  {
+    up: migration_20260726_120000_add_match_type_allow_list_terms.up,
+    down: migration_20260726_120000_add_match_type_allow_list_terms.down,
+    name: '20260726_120000_add_match_type_allow_list_terms'
+  },
+  {
+    up: migration_20260727_120000_add_client_overview.up,
+    down: migration_20260727_120000_add_client_overview.down,
+    name: '20260727_120000_add_client_overview'
   },
 ];

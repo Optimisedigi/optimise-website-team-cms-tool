@@ -17,6 +17,7 @@ describe('GmailReplyChat usability smoke', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
+    window.sessionStorage.clear()
     vi.stubGlobal('fetch', fetchMock)
   })
 

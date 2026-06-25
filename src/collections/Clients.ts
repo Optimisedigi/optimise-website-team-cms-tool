@@ -1835,6 +1835,16 @@ export const Clients: CollectionConfig = {
             },
               ],
             },
+            {
+              name: "clientOverview",
+              label: "Who is this client?",
+              type: "richText",
+              admin: {
+                className: "od-client-overview-field",
+                description:
+                  "Internal onboarding summary. Use bold, bullets and pasted markdown-style notes; it appears behind the ? icon in the client and Google Ads headers.",
+              },
+            },
           ],
         },
         {

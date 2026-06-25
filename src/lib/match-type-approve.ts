@@ -89,11 +89,13 @@ export async function resolveTargetList(
     String(candidate.campaignName ?? "").trim() ||
     "Match Type Negatives";
 
+  const listName = `[OD] ${adGroupName} NKL`;
+
   const createdList = (await (payload.create as any)({
     collection: "negative-keyword-lists",
     data: {
       client: clientId,
-      name: adGroupName,
+      name: listName,
       scope: "ad_group",
       adGroupName,
       campaignRegex: adGroupName,

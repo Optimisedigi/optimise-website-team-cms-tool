@@ -142,6 +142,8 @@ export interface Config {
     notifications: Notification;
     'pin-rate-limits': PinRateLimit;
     'match-type-violation-candidates': MatchTypeViolationCandidate;
+    'match-type-synonym-rules': MatchTypeSynonymRule;
+    'match-type-allow-list-terms': MatchTypeAllowListTerm;
     'match-type-sync-state': MatchTypeSyncState;
     'consolidation-candidates': ConsolidationCandidate;
     'goal-runs': GoalRun;
@@ -241,6 +243,8 @@ export interface Config {
     notifications: NotificationsSelect<false> | NotificationsSelect<true>;
     'pin-rate-limits': PinRateLimitsSelect<false> | PinRateLimitsSelect<true>;
     'match-type-violation-candidates': MatchTypeViolationCandidatesSelect<false> | MatchTypeViolationCandidatesSelect<true>;
+    'match-type-synonym-rules': MatchTypeSynonymRulesSelect<false> | MatchTypeSynonymRulesSelect<true>;
+    'match-type-allow-list-terms': MatchTypeAllowListTermsSelect<false> | MatchTypeAllowListTermsSelect<true>;
     'match-type-sync-state': MatchTypeSyncStateSelect<false> | MatchTypeSyncStateSelect<true>;
     'consolidation-candidates': ConsolidationCandidatesSelect<false> | ConsolidationCandidatesSelect<true>;
     'goal-runs': GoalRunsSelect<false> | GoalRunsSelect<true>;
@@ -713,6 +717,24 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Internal onboarding summary. Use bold, bullets and pasted markdown-style notes; it appears behind the ? icon in the client and Google Ads headers.
+   */
+  clientOverview?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   clientNotes?:
     | {
         category?: ('general' | 'meeting' | 'strategy' | 'issue' | 'win' | 'feedback' | 'internal') | null;
@@ -6005,6 +6027,8 @@ export interface ActivityLog {
     | 'match_type_violation_approved'
     | 'match_type_violation_rejected'
     | 'match_type_violation_keyword_added'
+    | 'match_type_synonym_rule_created'
+    | 'match_type_allow_list_term_created'
     | 'monthly_negative_needs_review'
     | 'monthly_negative_applied'
     | 'team_task_ready_for_review'
@@ -8567,6 +8591,79 @@ export interface MatchTypeViolationCandidate {
   createdAt: string;
 }
 /**
+ * Reviewer-taught synonym pairs used by Match Type Violations confidence categorization. These rules affect review confidence only, not Google Ads detection.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "match-type-synonym-rules".
+ */
+export interface MatchTypeSynonymRule {
+  id: number;
+  /**
+   * One side of the synonym pair, e.g. support, help, ea, virtual.
+   */
+  termA: string;
+  /**
+   * The other side, e.g. services, personal assistant, outsourcing.
+   */
+  termB: string;
+  /**
+   * Optional comma/newline terms that must appear in the search term, triggering keyword, campaign, or ad group for this rule to apply. Leave blank for global rules.
+   */
+  contextTerms?: string | null;
+  /**
+   * Disable to keep the rule for history without using it in confidence scoring.
+   */
+  active?: boolean | null;
+  /**
+   * Search term that prompted this rule.
+   */
+  sourceSearchTerm?: string | null;
+  /**
+   * Triggering keyword that prompted this rule.
+   */
+  sourceTriggeringKeyword?: string | null;
+  /**
+   * Optional reviewer notes explaining why this synonym is valid.
+   */
+  notes?: string | null;
+  /**
+   * Reviewer who created the rule.
+   */
+  createdBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Words/acronyms that should never be treated as unknown brand/person/company-name drift in Match Type Violations confidence scoring.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "match-type-allow-list-terms".
+ */
+export interface MatchTypeAllowListTerm {
+  id: number;
+  /**
+   * Single word/acronym to allow, e.g. it, hr, seo, ea, va, cpa.
+   */
+  term: string;
+  category: 'acronym' | 'job_title' | 'industry_term' | 'client_jargon' | 'other';
+  /**
+   * Disable to keep the term for history without using it in confidence scoring.
+   */
+  active?: boolean | null;
+  /**
+   * Optional notes explaining why this term should be allowed.
+   */
+  notes?: string | null;
+  sourceSearchTerm?: string | null;
+  sourceTriggeringKeyword?: string | null;
+  /**
+   * Reviewer who created the allow-list term.
+   */
+  createdBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "match-type-sync-state".
  */
@@ -9000,6 +9097,14 @@ export interface PayloadLockedDocument {
         value: number | MatchTypeViolationCandidate;
       } | null)
     | ({
+        relationTo: 'match-type-synonym-rules';
+        value: number | MatchTypeSynonymRule;
+      } | null)
+    | ({
+        relationTo: 'match-type-allow-list-terms';
+        value: number | MatchTypeAllowListTerm;
+      } | null)
+    | ({
         relationTo: 'match-type-sync-state';
         value: number | MatchTypeSyncState;
       } | null)
@@ -9193,6 +9298,7 @@ export interface ClientsSelect<T extends boolean = true> {
         changedBy?: T;
         id?: T;
       };
+  clientOverview?: T;
   clientNotes?:
     | T
     | {
@@ -11852,6 +11958,37 @@ export interface MatchTypeViolationCandidatesSelect<T extends boolean = true> {
   lastSeenAt?: T;
   firstSeenAt?: T;
   runDate?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "match-type-synonym-rules_select".
+ */
+export interface MatchTypeSynonymRulesSelect<T extends boolean = true> {
+  termA?: T;
+  termB?: T;
+  contextTerms?: T;
+  active?: T;
+  sourceSearchTerm?: T;
+  sourceTriggeringKeyword?: T;
+  notes?: T;
+  createdBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "match-type-allow-list-terms_select".
+ */
+export interface MatchTypeAllowListTermsSelect<T extends boolean = true> {
+  term?: T;
+  category?: T;
+  active?: T;
+  notes?: T;
+  sourceSearchTerm?: T;
+  sourceTriggeringKeyword?: T;
+  createdBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }

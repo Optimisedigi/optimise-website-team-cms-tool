@@ -15,6 +15,7 @@ interface AdGroupRow {
   adGroupId?: string;
   adGroupName?: string;
   campaignName?: string;
+  status?: string;
 }
 
 interface KeywordsAddResult {
@@ -183,6 +184,23 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     ? (listRes.data as any).adGroups
     : [];
 
+  function campaignLooksExact(name: string): boolean {
+    const normalised = name.toLowerCase();
+    return /\bexact\b/.test(normalised) || /\bem\b/.test(normalised);
+  }
+
+  function campaignLooksPhrase(name: string): boolean {
+    const normalised = name.toLowerCase();
+    return /\bphrase\b/.test(normalised) || /\bpm\b/.test(normalised);
+  }
+
+  function exactCampaignEquivalent(name: string): string {
+    return name
+      .replace(/\bphrase\b/gi, "Exact")
+      .replace(/\bpm\b/g, "EM")
+      .replace(/\bPM\b/g, "EM");
+  }
+
   if (explicitIds.length > 0) {
     const byId = new Map(adGroups.map((g) => [String(g.adGroupId ?? ""), g]));
     targets = explicitIds.map((agid) => {
@@ -201,14 +219,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
     const nameMatches = adGroups.filter(
-      (g) => String(g.adGroupName ?? "").toLowerCase() === adGroupName.toLowerCase(),
+      (g) => g.adGroupId && String(g.adGroupName ?? "").toLowerCase() === adGroupName.toLowerCase(),
     );
-    // Prefer a campaign-name match when the same ad-group name exists in
-    // multiple campaigns.
+    const enabledMatches = nameMatches.filter((g) => String(g.status ?? "ENABLED").toUpperCase() !== "REMOVED");
+    const matches = enabledMatches.length > 0 ? enabledMatches : nameMatches;
+    const exactEquivalent = exactCampaignEquivalent(campaignName).toLowerCase();
     const adGroup =
-      nameMatches.find(
-        (g) => String(g.campaignName ?? "").toLowerCase() === campaignName.toLowerCase(),
-      ) ?? nameMatches[0];
+      matches.find((g) => String(g.campaignName ?? "").toLowerCase() === exactEquivalent) ??
+      matches.find((g) => campaignLooksExact(String(g.campaignName ?? "")) && !campaignLooksPhrase(String(g.campaignName ?? ""))) ??
+      matches.find((g) => String(g.campaignName ?? "").toLowerCase() === campaignName.toLowerCase()) ??
+      matches[0];
 
     if (!adGroup?.adGroupId) {
       return NextResponse.json(

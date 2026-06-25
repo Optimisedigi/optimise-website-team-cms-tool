@@ -77,6 +77,7 @@ async function postGrowthTools(
  *   candidateIds: (string|number)[],
  *   adGroupIds?: string[],        // explicit targets
  *   allAdGroups?: boolean,        // or: every ENABLED ad group
+ *   autoExactFromCandidates?: boolean, // target each candidate's matching exact campaign/ad group
  *   negateSource?: boolean,       // default true
  *   overrides?: Record<string, string>,  // candidateId -> keyword text
  * }
@@ -94,6 +95,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     candidateIds?: Array<string | number>;
     adGroupIds?: Array<string | number>;
     allAdGroups?: boolean;
+    autoExactFromCandidates?: boolean;
     negateSource?: boolean;
     overrides?: Record<string, string>;
   };
@@ -105,13 +107,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const explicitIds = Array.isArray(body.adGroupIds)
     ? body.adGroupIds.map((v) => String(v).trim()).filter(Boolean)
     : [];
-  if (!body.allAdGroups && explicitIds.length === 0) {
-    return NextResponse.json({ error: "adGroupIds or allAdGroups is required" }, { status: 400 });
+  const autoExactFromCandidates = body.autoExactFromCandidates === true;
+  if (!body.allAdGroups && explicitIds.length === 0 && !autoExactFromCandidates) {
+    return NextResponse.json({ error: "adGroupIds, allAdGroups, or autoExactFromCandidates is required" }, { status: 400 });
   }
   const negateSource = body.negateSource !== false;
   const overrides = body.overrides ?? {};
 
-  // ── Load candidates (rejected + not yet actioned only) ────────────────────
+  // ── Load candidates (pending review opportunities or dismissed rows) ───────
   const candidates: any[] = [];
   for (const id of candidateIds) {
     const c = await (payload.findByID as any)({
@@ -120,10 +123,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       depth: 1,
       overrideAccess: true,
     }).catch(() => null);
-    if (c && c.status === "rejected" && !c.addedAsKeywordAt) candidates.push(c);
+    if (c && (c.status === "pending" || c.status === "rejected") && !c.addedAsKeywordAt) candidates.push(c);
   }
   if (candidates.length === 0) {
-    return NextResponse.json({ error: "No eligible dismissed candidates found" }, { status: 400 });
+    return NextResponse.json({ error: "No eligible candidates found" }, { status: 400 });
   }
 
   // ── Resolve customer ID (all candidates share the view's client) ──────────
@@ -152,35 +155,91 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     ? (listRes.data as any).adGroups
     : [];
 
-  let targets: Array<{ adGroupId: string; adGroupName: string }>;
-  if (body.allAdGroups) {
-    targets = adGroups
-      .filter((g) => g.adGroupId && String(g.status ?? "").toUpperCase() === "ENABLED")
-      .map((g) => ({ adGroupId: String(g.adGroupId), adGroupName: String(g.adGroupName ?? "") }));
-  } else {
-    const byId = new Map(adGroups.map((g) => [String(g.adGroupId ?? ""), g]));
-    targets = explicitIds.map((agid) => ({
-      adGroupId: agid,
-      adGroupName: String(byId.get(agid)?.adGroupName ?? agid),
-    }));
+  const keywordOf = (c: any): string =>
+    String(overrides[String(c.id)] ?? c.searchTerm ?? "").trim();
+
+  function campaignLooksExact(name: string): boolean {
+    const normalised = name.toLowerCase();
+    return /\bexact\b/.test(normalised) || /\bem\b/.test(normalised);
   }
-  if (targets.length === 0) {
+
+  function campaignLooksPhrase(name: string): boolean {
+    const normalised = name.toLowerCase();
+    return /\bphrase\b/.test(normalised) || /\bpm\b/.test(normalised);
+  }
+
+  function exactCampaignEquivalent(name: string): string {
+    return name
+      .replace(/\bphrase\b/gi, "Exact")
+      .replace(/\bpm\b/g, "EM")
+      .replace(/\bPM\b/g, "EM");
+  }
+
+  function chooseExactTarget(candidate: any): { adGroupId: string; adGroupName: string } | null {
+    const adGroupName = String(candidate.adGroupName ?? "").trim();
+    const campaignName = String(candidate.campaignName ?? "").trim();
+    if (!adGroupName) return null;
+    const nameMatches = adGroups.filter(
+      (g) => g.adGroupId && String(g.adGroupName ?? "").toLowerCase() === adGroupName.toLowerCase(),
+    );
+    const enabledMatches = nameMatches.filter((g) => String(g.status ?? "ENABLED").toUpperCase() !== "REMOVED");
+    const matches = enabledMatches.length > 0 ? enabledMatches : nameMatches;
+    const exactEquivalent = exactCampaignEquivalent(campaignName).toLowerCase();
+    const target =
+      matches.find((g) => String(g.campaignName ?? "").toLowerCase() === exactEquivalent) ??
+      matches.find((g) => campaignLooksExact(String(g.campaignName ?? "")) && !campaignLooksPhrase(String(g.campaignName ?? ""))) ??
+      matches.find((g) => String(g.campaignName ?? "").toLowerCase() === campaignName.toLowerCase()) ??
+      matches[0];
+    return target?.adGroupId
+      ? { adGroupId: String(target.adGroupId), adGroupName: String(target.adGroupName ?? adGroupName) }
+      : null;
+  }
+
+  const candidateTargets = new Map<string, Array<{ adGroupId: string; adGroupName: string }>>();
+  if (autoExactFromCandidates) {
+    for (const candidate of candidates) {
+      const target = chooseExactTarget(candidate);
+      if (target) candidateTargets.set(String(candidate.id), [target]);
+    }
+  } else {
+    let targets: Array<{ adGroupId: string; adGroupName: string }>;
+    if (body.allAdGroups) {
+      targets = adGroups
+        .filter((g) => g.adGroupId && String(g.status ?? "").toUpperCase() === "ENABLED")
+        .map((g) => ({ adGroupId: String(g.adGroupId), adGroupName: String(g.adGroupName ?? "") }));
+    } else {
+      const byId = new Map(adGroups.map((g) => [String(g.adGroupId ?? ""), g]));
+      targets = explicitIds.map((agid) => ({
+        adGroupId: agid,
+        adGroupName: String(byId.get(agid)?.adGroupName ?? agid),
+      }));
+    }
+    for (const candidate of candidates) candidateTargets.set(String(candidate.id), targets);
+  }
+  if (![...candidateTargets.values()].some((targets) => targets.length > 0)) {
     return NextResponse.json({ error: "No target ad groups resolved" }, { status: 400 });
   }
 
-  // ── Push: one Growth Tools call per target ad group, all terms batched ─────
-  const keywordOf = (c: any): string =>
-    String(overrides[String(c.id)] ?? c.searchTerm ?? "").trim();
-  const texts = Array.from(new Set(candidates.map(keywordOf).filter(Boolean)));
+  // ── Push: batch candidate terms by resolved target ad group ─────────────────
+  const targetBatches = new Map<string, { target: { adGroupId: string; adGroupName: string }; texts: Set<string> }>();
+  for (const candidate of candidates) {
+    const text = keywordOf(candidate);
+    if (!text) continue;
+    for (const target of candidateTargets.get(String(candidate.id)) ?? []) {
+      const targetKey = target.adGroupId;
+      if (!targetBatches.has(targetKey)) targetBatches.set(targetKey, { target, texts: new Set() });
+      targetBatches.get(targetKey)!.texts.add(text);
+    }
+  }
 
-  // text -> was it added in at least one ad group / duplicate somewhere
-  const addedTexts = new Set<string>();
-  const duplicateTexts = new Set<string>();
+  const addedByTextTarget = new Set<string>();
+  const duplicateByTextTarget = new Set<string>();
   const groupErrors: Array<{ adGroupName: string; error: string }> = [];
 
-  for (const target of targets) {
-    for (let i = 0; i < texts.length; i += MAX_KEYWORDS_PER_REQUEST) {
-      const chunk = texts.slice(i, i + MAX_KEYWORDS_PER_REQUEST);
+  for (const { target, texts } of targetBatches.values()) {
+    const textList = Array.from(texts);
+    for (let i = 0; i < textList.length; i += MAX_KEYWORDS_PER_REQUEST) {
+      const chunk = textList.slice(i, i + MAX_KEYWORDS_PER_REQUEST);
       const addRes = await postGrowthTools(
         `/api/google-ads/ad-groups/${encodeURIComponent(target.adGroupId)}/keywords/add`,
         {
@@ -202,11 +261,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
       for (const text of chunk) {
         const key = text.toLowerCase();
-        if (dupSet.has(key)) duplicateTexts.add(key);
-        else if (!errSet.has(key)) addedTexts.add(key);
+        if (dupSet.has(key)) duplicateByTextTarget.add(`${key}\u0000${target.adGroupId}`);
+        else if (!errSet.has(key)) addedByTextTarget.add(`${key}\u0000${target.adGroupId}`);
       }
     }
   }
+
+  const addedTexts = new Set([...addedByTextTarget].map((key) => key.split("\u0000")[0]));
+  const duplicateTexts = new Set([...duplicateByTextTarget].map((key) => key.split("\u0000")[0]));
 
   // ── Negate each term in its candidate's own ad-group list ─────────────────
   const now = new Date().toISOString();
@@ -218,9 +280,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   for (const c of candidates) {
     const text = keywordOf(c);
     const key = text.toLowerCase();
-    const outcome = addedTexts.has(key)
+    const targets = candidateTargets.get(String(c.id)) ?? [];
+    const succeededForCandidate = targets.some((target) => addedByTextTarget.has(`${key}\u0000${target.adGroupId}`));
+    const duplicatedForCandidate = targets.length > 0 && targets.every((target) => duplicateByTextTarget.has(`${key}\u0000${target.adGroupId}`));
+    const outcome = succeededForCandidate
       ? "added"
-      : duplicateTexts.has(key)
+      : duplicatedForCandidate
         ? "already_exists"
         : null;
     if (!outcome) {
@@ -237,10 +302,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     }
 
+    const updateData: Record<string, unknown> = {
+      addedAsKeywordAt: now,
+      addedAsKeywordOutcome: outcome,
+    };
+    if (c.status === "pending") {
+      updateData.status = "approved";
+      updateData.approvedAt = now;
+      updateData.approvedBy = userId;
+    }
     await (payload.update as any)({
       collection: "match-type-violation-candidates",
       id: c.id,
-      data: { addedAsKeywordAt: now, addedAsKeywordOutcome: outcome },
+      data: updateData,
       overrideAccess: true,
     });
     results.push({ id: c.id, outcome });
@@ -250,10 +324,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (actioned > 0) {
     await logActivity(payload, {
       type: "match_type_violation_keyword_added",
-      title: `Bulk pushed ${actioned} dismissed term${actioned === 1 ? "" : "s"} as exact keywords`,
+      title: `Bulk pushed ${actioned} selected term${actioned === 1 ? "" : "s"} as exact keywords`,
       description:
-        `Targets: ${body.allAdGroups ? `all ${targets.length} enabled ad groups` : `${targets.length} selected ad group${targets.length === 1 ? "" : "s"}`}. ` +
-        `${addedTexts.size} added (paused, matched URLs/CPC/labels), ${duplicateTexts.size} already existed.` +
+        `Targets: ${autoExactFromCandidates ? "matching exact campaign/ad group per candidate" : body.allAdGroups ? `all ${targetBatches.size} enabled ad groups` : `${targetBatches.size} selected ad group${targetBatches.size === 1 ? "" : "s"}`}. ` +
+        `${addedTexts.size} added (EXACT, paused, matched URLs/CPC/labels), ${duplicateTexts.size} already existed.` +
         (negateSource ? ` ${negated} exact negatives added to source ad-group lists.` : "") +
         (groupErrors.length ? ` ${groupErrors.length} ad-group error(s).` : "") +
         (negateErrors.length ? ` ${negateErrors.length} negate error(s).` : ""),

@@ -22,9 +22,9 @@ describe('API endpoint inventory', () => {
     expect(existsSync('docs/api-endpoint-inventory.md')).toBe(true)
     const doc = readFileSync('docs/api-endpoint-inventory.md', 'utf8')
 
-    expect(doc).toContain('CMS route files inventoried: 279')
-    expect(doc).toContain('Growth Tools route registrations inventoried: 258')
-    expect(doc).toContain('CMS → Growth Tools calls detected: 42')
+    expect(doc).toContain('CMS route files inventoried: 284')
+    expect(doc).toContain('Growth Tools route registrations inventoried: 260')
+    expect(doc).toContain('CMS → Growth Tools calls detected: 43')
     expect(doc).toContain('`/api/dashboard`')
     expect(doc).toContain('`/api/proposals/[id]/run-audits`')
     expect(doc).toContain('CMS → Growth Tools calls')
@@ -49,7 +49,7 @@ describe('API endpoint inventory', () => {
   it('maps CMS outbound Growth Tools calls to Growth Tools route registrations', () => {
     const inventory = readInventoryJson()
     expect(inventory.growthToolsCallRows).toEqual(expect.any(Array))
-    expect(inventory.growthToolsCallRows.length).toBe(42)
+    expect(inventory.growthToolsCallRows.length).toBe(43)
 
     expect(inventory.growthToolsCallRows).toEqual(
       expect.arrayContaining([
@@ -86,6 +86,7 @@ describe('API endpoint inventory', () => {
     expect(inventory.unmatchedGrowthToolsCalls).toEqual([
       expect.objectContaining({ cmsRoute: '/api/consolidation-candidates/[id]/approve', method: 'POST', path: '/api/google-ads/consolidation-apply' }),
       expect.objectContaining({ cmsRoute: '/api/match-type-violations/cron', method: 'POST', path: '/api/google-ads/consolidation-candidates' }),
+      expect.objectContaining({ cmsRoute: '/api/match-type-violations/cron', method: 'POST', path: '/api/google-ads/keywords/list' }),
       expect.objectContaining({ cmsRoute: '/api/proposals/[id]/run-ai-visibility', method: 'POST', path: '/api/ai-visibility/run-once' }),
       expect.objectContaining({ cmsRoute: '/api/proposals/[id]/run-serp-displacement', method: 'POST', path: '/api/serp-displacement/run-once' }),
     ])

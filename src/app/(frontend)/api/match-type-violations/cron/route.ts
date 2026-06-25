@@ -202,6 +202,8 @@ interface Violation {
   violationType: "exact_close_variant" | "phrase_missing_word";
   impressions: number;
   clicks: number;
+  conversions?: number;
+  allConversions?: number;
   campaignName: string;
   adGroupName: string;
   nearestKeyword?: string;
@@ -212,6 +214,80 @@ interface Violation {
 
 interface GrowthToolsResponse {
   violations: Violation[];
+}
+
+interface ExistingKeywordRow {
+  text: string;
+  campaignName: string;
+  matchType: string;
+}
+
+function normaliseKeywordText(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normaliseCampaignName(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function collectKeywordRows(value: unknown, rows: ExistingKeywordRow[] = []): ExistingKeywordRow[] {
+  if (Array.isArray(value)) {
+    for (const item of value) collectKeywordRows(item, rows);
+    return rows;
+  }
+  if (!value || typeof value !== "object") return rows;
+  const obj = value as Record<string, unknown>;
+  const text = normaliseKeywordText(obj.keywordText ?? obj.keyword ?? obj.text);
+  const campaignName = normaliseCampaignName(obj.campaignName ?? obj.campaign);
+  const matchType = String(obj.matchType ?? obj.keywordMatchType ?? obj.keyword_match_type ?? "").trim().toUpperCase();
+  if (text && campaignName) rows.push({ text, campaignName, matchType });
+  for (const key of ["keywords", "results", "rows", "data"] as const) {
+    if (obj[key]) collectKeywordRows(obj[key], rows);
+  }
+  return rows;
+}
+
+async function fetchExistingKeywordSet(customerId: string): Promise<Set<string>> {
+  if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) return new Set();
+  try {
+    const res = await fetch(`${GROWTH_TOOLS_URL}/api/google-ads/keywords/list`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-key": INTERNAL_API_KEY,
+      },
+      body: JSON.stringify({ customerId }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!isEndpointReady(res) || !res.ok) return new Set();
+    const data = await res.json().catch(() => null);
+    return new Set(
+      collectKeywordRows(data)
+        .filter((row) => row.matchType === "EXACT")
+        .map((row) => `${row.campaignName}\u0000${row.text}`),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function buildExistingKeywordSet(...sources: unknown[]): Set<string> {
+  const existing = new Set<string>();
+  for (const source of sources) {
+    if (source instanceof Set) {
+      for (const key of source) existing.add(String(key));
+      continue;
+    }
+    for (const row of collectKeywordRows(source)) {
+      if (row.matchType === "EXACT") existing.add(`${row.campaignName}\u0000${row.text}`);
+    }
+  }
+  return existing;
+}
+
+function alreadyExistsInCampaign(v: Violation, existingKeywords: Set<string>): boolean {
+  if (existingKeywords.size === 0) return false;
+  return existingKeywords.has(`${normaliseCampaignName(v.campaignName)}\u0000${normaliseKeywordText(v.searchTerm)}`);
 }
 
 async function authCron(req: NextRequest): Promise<boolean> {
@@ -260,6 +336,25 @@ function esc(s: unknown): string {
   return `'${String(s).replace(/'/g, "''")}'`;
 }
 
+async function hideExistingKeywordCandidate(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  clientId: number,
+  v: Violation,
+  now: string,
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = ((payload as any).db as { client: { execute: (sql: string) => Promise<unknown> } }).client;
+  const result = await db.execute(
+    `UPDATE match_type_violation_candidates
+     SET status = 'rejected', rejected_at = COALESCE(rejected_at, ${esc(now)}), last_seen_at = ${esc(now)}
+     WHERE client_id = ${Number(clientId)}
+       AND search_term = ${esc(v.searchTerm)}
+       AND triggering_keyword = ${esc(v.triggeringKeyword)}
+       AND status = 'pending';`,
+  ) as { rowsAffected?: number };
+  return Number(result.rowsAffected ?? 0) > 0;
+}
+
 async function upsertViolation(
   payload: Awaited<ReturnType<typeof getPayload>>,
   clientId: number,
@@ -277,13 +372,10 @@ async function upsertViolation(
   // Approve/Dismiss. Empty must be SQL NULL, never ''.
   const recommendedMatchTypeSql = v.recommendedMatchType ? esc(v.recommendedMatchType) : 'NULL';
   const nearestKeyword = v.nearestKeyword ?? '';
+  const conversions = Number(v.conversions ?? v.allConversions ?? 0) || 0;
 
-  // Skip if already negated in any active NKL
-  if (await isAlreadyNegated(payload, clientId, v.searchTerm)) {
-    return false;
-  }
-
-  // Check for existing candidate
+  // Check for an existing candidate before skip guards so previously-visible
+  // pending rows can be hidden when the detector later reports conversions.
   const existing = await db.execute(
     `SELECT id, status FROM match_type_violation_candidates
      WHERE client_id = ${Number(clientId)}
@@ -294,6 +386,30 @@ async function upsertViolation(
 
   if (existing.rows.length > 0) {
     const doc = existing.rows[0];
+    if (conversions > 0) {
+      if (doc.status === 'pending') {
+        await db.execute(
+          `UPDATE match_type_violation_candidates SET
+             impressions = ${v.impressions ?? 0},
+             clicks = ${v.clicks ?? 0},
+             status = 'rejected',
+             rejected_at = COALESCE(rejected_at, ${esc(now)}),
+             last_seen_at = ${esc(now)},
+             run_date = ${esc(today)}
+           WHERE id = ${doc.id};`,
+        );
+      } else {
+        await db.execute(
+          `UPDATE match_type_violation_candidates SET
+             impressions = ${v.impressions ?? 0},
+             clicks = ${v.clicks ?? 0},
+             last_seen_at = ${esc(now)},
+             run_date = ${esc(today)}
+           WHERE id = ${doc.id};`,
+        );
+      }
+      return false;
+    }
     if (doc.status === 'pending') {
       await db.execute(
         `UPDATE match_type_violation_candidates SET
@@ -321,6 +437,9 @@ async function upsertViolation(
       );
     }
   } else {
+    if (conversions > 0) return false;
+    if (await isAlreadyNegated(payload, clientId, v.searchTerm)) return false;
+
     // Insert new candidate — use raw SQL to bypass Payload ORM id=null bug
     await db.execute(
       `INSERT INTO match_type_violation_candidates
@@ -390,9 +509,19 @@ async function syncClient(
     throw new Error(`Failed to parse Growth Tools response as JSON: ${err?.message ?? err}`);
   });
   const allViolations: Violation[] = Array.isArray(data?.violations) ? data.violations : [];
-  // Keep only violations the client actually polices (match-type gate + allow-list).
-  const violations = filterViolations(allViolations, scope);
+  const existingKeywords = buildExistingKeywordSet(data, await fetchExistingKeywordSet(customerId.replace(/-/g, "")));
+  const scopedViolations = filterViolations(allViolations, scope);
   const now = new Date().toISOString();
+  // Keep only violations the client actually polices (match-type gate + allow-list),
+  // and suppress rows where the search term already exists as a keyword in that campaign.
+  const violations: Violation[] = [];
+  for (const v of scopedViolations) {
+    if (alreadyExistsInCampaign(v, existingKeywords)) {
+      await hideExistingKeywordCandidate(payload, clientId as number, v, now);
+    } else {
+      violations.push(v);
+    }
+  }
 
   let createdOrUpdated = 0;
   let skippedNegated = 0;
