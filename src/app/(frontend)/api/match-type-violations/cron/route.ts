@@ -643,7 +643,6 @@ export async function GET(req: NextRequest) {
     let processed = 0;
     let errors = 0;
     let skipped = 0;
-    const now = new Date().toISOString();
 
     // Build lookup map so checkConsolidation can access client data without re-fetching
     const clientIdMap = new Map<string | number, any>();
@@ -690,30 +689,6 @@ export async function GET(req: NextRequest) {
         const cause = (err as any)?.cause?.message ?? '';
         console.error(`[match-type-violations/cron] Client ${clientId} error:`, msg, cause ? `Cause: ${cause}` : '');
         errors++;
-      }
-    } else {
-      // Not the configured sync hour — touch sync state so the 25-min guard doesn't block the next run
-      const syncStateResult = await (payload.find as any)({
-        collection: "match-type-sync-state",
-        where: { client: { equals: clientId } },
-        limit: 1,
-        depth: 0,
-        overrideAccess: true,
-      });
-
-      if (syncStateResult.docs.length > 0) {
-        await (payload.update as any)({
-          collection: "match-type-sync-state",
-          id: (syncStateResult.docs[0] as any).id,
-          data: { lastRunAt: now },
-          overrideAccess: true,
-        });
-      } else {
-        await (payload.create as any)({
-          collection: "match-type-sync-state",
-          data: { client: clientId, lastRunAt: now },
-          overrideAccess: true,
-        });
       }
     }
   }
