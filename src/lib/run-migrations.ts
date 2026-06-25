@@ -4790,6 +4790,9 @@ export async function runMigrations(
     await run("match_type_allow_list_terms_created_at_idx", "CREATE INDEX IF NOT EXISTS `match_type_allow_list_terms_created_at_idx` ON `match_type_allow_list_terms` (`created_at`)");
     await run("payload_locked_documents_rels.match_type_allow_list_terms_id", "ALTER TABLE `payload_locked_documents_rels` ADD `match_type_allow_list_terms_id` integer REFERENCES `match_type_allow_list_terms`(`id`) ON DELETE CASCADE");
 
+    // ── Client overview rich text field (2026-07-27) ──
+    await run("clients.client_overview", "ALTER TABLE `clients` ADD `client_overview` text");
+
     // ── Match-type monitor per-client scope controls (2026-06-09) ──
     await run("clients.gadsAuto_matchTypeMonitorExact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");
     await run("clients.gadsAuto_matchTypeMonitorPhrase", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_phrase` integer DEFAULT true");
