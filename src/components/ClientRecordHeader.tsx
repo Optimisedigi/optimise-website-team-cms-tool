@@ -1,7 +1,7 @@
 'use client'
 
 import { useAllFormFields, useDocumentInfo, useField, useFormFields } from '@payloadcms/ui'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   firstMonthProrationFactor,
   historicalRevenueTotal,
@@ -59,6 +59,7 @@ type SavedData = {
   logoThumbUrl: string
   clientPin: string
   services: ServiceValue[]
+  clientOverview: unknown
   // Billing inputs for the revenue strip.
   monthlyRetainer: number
   setupFee: number
@@ -167,6 +168,134 @@ function relationshipId(value: RelationshipValue): string | null {
   return null
 }
 
+const CLIENT_HEADER_SELECT =
+  '?depth=0&select[name]=true&select[websiteUrl]=true&select[slug]=true&select[isActive]=true&select[isAgency]=true&select[logoThumbUrl]=true&select[clientPin]=true&select[services]=true&select[clientOverview]=true&select[monthlyRetainer]=true&select[setupFee]=true&select[revenueSharePercent]=true&select[clientStartDate]=true&select[retainerStartDate]=true&select[oneOffProjects]=true&select[retainerHistory]=true&select[referralCommissions]=true&select[historicalRevenueByYear]=true'
+
+const CLIENT_HEADER_SELECT_LEGACY = CLIENT_HEADER_SELECT.replace('&select[clientOverview]=true', '')
+
+async function fetchClientHeader(clientId: string | number): Promise<SavedData | null> {
+  const encodedId = encodeURIComponent(String(clientId))
+  const urls = [
+    `/api/clients/${encodedId}${CLIENT_HEADER_SELECT}`,
+    `/api/clients/${encodedId}${CLIENT_HEADER_SELECT_LEGACY}`,
+  ]
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) continue
+      return normalizeClient(await res.json())
+    } catch {
+      // Try the legacy field list below. This keeps the header visible before
+      // the clientOverview migration has been applied locally/production-side.
+    }
+  }
+
+  return null
+}
+
+type LexicalNode = {
+  type?: string
+  text?: string
+  format?: number | string
+  tag?: string
+  listType?: string
+  children?: LexicalNode[]
+}
+
+const LEXICAL_FORMAT = {
+  bold: 1,
+  italic: 2,
+  strikethrough: 4,
+  underline: 8,
+  code: 16,
+} as const
+
+function hasFormat(format: LexicalNode['format'], bit: number, name: string): boolean {
+  if (typeof format === 'number') return (format & bit) !== 0
+  return typeof format === 'string' && format.split(' ').includes(name)
+}
+
+function renderLexicalChildren(nodes: LexicalNode[] | undefined, keyPrefix: string): ReactNode[] {
+  if (!Array.isArray(nodes)) return []
+  return nodes.map((node, index) => renderLexicalNode(node, `${keyPrefix}-${index}`))
+}
+
+function renderTextNode(node: LexicalNode, key: string): ReactNode {
+  let content: ReactNode = node.text ?? ''
+  if (hasFormat(node.format, LEXICAL_FORMAT.code, 'code')) content = <code>{content}</code>
+  if (hasFormat(node.format, LEXICAL_FORMAT.underline, 'underline')) content = <u>{content}</u>
+  if (hasFormat(node.format, LEXICAL_FORMAT.strikethrough, 'strikethrough')) content = <s>{content}</s>
+  if (hasFormat(node.format, LEXICAL_FORMAT.italic, 'italic')) content = <em>{content}</em>
+  if (hasFormat(node.format, LEXICAL_FORMAT.bold, 'bold')) content = <strong>{content}</strong>
+  return <span key={key}>{content}</span>
+}
+
+function renderLexicalNode(node: LexicalNode, key: string): ReactNode {
+  if (node.type === 'text') return renderTextNode(node, key)
+
+  const children = renderLexicalChildren(node.children, key)
+
+  if (node.type === 'list') {
+    const Tag = node.listType === 'number' || node.tag === 'ol' ? 'ol' : 'ul'
+    return <Tag key={key}>{children}</Tag>
+  }
+
+  if (node.type === 'listitem') return <li key={key}>{children}</li>
+  if (node.type === 'heading') {
+    const Tag = node.tag === 'h3' ? 'h3' : node.tag === 'h2' ? 'h2' : 'h4'
+    return <Tag key={key}>{children}</Tag>
+  }
+  if (node.type === 'paragraph') return <p key={key}>{children}</p>
+  if (node.type === 'linebreak') return <br key={key} />
+
+  return <span key={key}>{children}</span>
+}
+
+function lexicalTextContent(node: LexicalNode | undefined): string {
+  if (!node) return ''
+  if (typeof node.text === 'string') return node.text
+  return Array.isArray(node.children)
+    ? node.children.map((child) => lexicalTextContent(child)).join('')
+    : ''
+}
+
+function renderPlainTextOverview(text: string): ReactNode {
+  const lines = text.trim().split('\n')
+  const allBullets = lines.length > 1 && lines.every((line) => /^\s*[-*]\s+/.test(line) || !line.trim())
+
+  if (allBullets) {
+    return (
+      <ul>
+        {lines
+          .filter((line) => line.trim())
+          .map((line, index) => (
+            <li key={index}>{line.replace(/^\s*[-*]\s+/, '')}</li>
+          ))}
+      </ul>
+    )
+  }
+
+  return text.trim().split(/\n{2,}/).map((paragraph, index) => (
+    <p key={index}>{paragraph}</p>
+  ))
+}
+
+function renderClientOverview(value: unknown): ReactNode {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed ? renderPlainTextOverview(trimmed) : null
+  }
+
+  if (!value || typeof value !== 'object') return null
+
+  const root = (value as { root?: LexicalNode }).root
+  if (!lexicalTextContent(root).trim()) return null
+
+  const rendered = renderLexicalChildren(root?.children, 'overview')
+  return rendered.length ? rendered : null
+}
+
 function normalizeClient(doc: any): SavedData {
   return {
     name: typeof doc.name === 'string' ? doc.name : '',
@@ -181,6 +310,7 @@ function normalizeClient(doc: any): SavedData {
           SERVICE_OPTIONS.some((option) => option.value === value),
         )
       : [],
+    clientOverview: doc.clientOverview ?? null,
     monthlyRetainer: Number(doc.monthlyRetainer ?? 0),
     setupFee: Number(doc.setupFee ?? 0),
     revenueSharePercent: Number(doc.revenueSharePercent ?? 100),
@@ -226,13 +356,14 @@ function ClientRecordHeaderForClient() {
   useEffect(() => {
     if (!id) return
     let cancelled = false
-    fetch(`/api/clients/${id}?depth=0`)
-      .then((res) => res.json())
-      .then((doc) => {
+    fetchClientHeader(id)
+      .then((client) => {
         if (cancelled) return
-        setData(normalizeClient(doc))
+        setData(client)
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setData(null)
+      })
     return () => {
       cancelled = true
     }
@@ -293,6 +424,7 @@ function ClientHeaderCard({
 }) {
   const { name, websiteUrl, slug, isActive, logoThumbUrl } = data
   const domain = displayDomain(websiteUrl)
+  const clientOverview = renderClientOverview(data.clientOverview)
   const isRecurring = isActive && data.monthlyRetainer > 0
   const revenue = computeRevenue(data)
   const clientSinceLabel = revenue.clientSince
@@ -349,6 +481,17 @@ function ClientHeaderCard({
               }`}
             >
               {isActive ? 'Active' : 'Inactive'}
+            </span>
+            <span className="od-client-head__overview" tabIndex={0} aria-label="Who is this client?">
+              <span className="od-client-head__overview-icon" aria-hidden>
+                ?
+              </span>
+              <span className="od-client-head__overview-popover" role="tooltip">
+                <strong>Who is this client?</strong>
+                <span>
+                  {clientOverview ?? 'No client overview added yet. Add it in the Business tab under “Who is this client?”.'}
+                </span>
+              </span>
             </span>
             {data.isAgency && (
               <span className="od-client-head__pill od-client-head__pill--agency">
@@ -459,11 +602,10 @@ function GoogleAdsLinkedClientHeader() {
       return
     }
     let cancelled = false
-    fetch(`/api/clients/${clientId}?depth=0`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((doc) => {
+    fetchClientHeader(clientId)
+      .then((client) => {
         if (cancelled) return
-        setData(doc ? normalizeClient(doc) : null)
+        setData(client)
       })
       .catch(() => {
         if (!cancelled) setData(null)
