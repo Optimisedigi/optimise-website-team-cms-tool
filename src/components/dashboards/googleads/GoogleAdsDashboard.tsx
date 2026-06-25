@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData, GoogleAdsDashboardAvoidedSpend, GoogleAdsDashboardMonthlyWasteRelevancy } from "@/lib/dashboard-types";
-import { DASHBOARD_MONTHLY_WINDOW, padMonthlySeries } from "@/lib/dashboard-types";
+import { padMonthlySeries } from "@/lib/dashboard-types";
 import { KpiRow } from "./KpiRow";
 import { MonthlyChart } from "./MonthlyChart";
 import { CategoryBreakdown } from "./CategoryBreakdown";
@@ -15,6 +15,8 @@ import { ActivityStats } from "./ActivityStats";
 import { QualityScoreTab } from "./QualityScoreTab";
 import { ProgressTab } from "./ProgressTab";
 import { AccountStructureTab } from "./AccountStructureTab";
+
+const GOOGLE_ADS_MONTHLY_TREND_WINDOW = 18;
 
 interface GoogleAdsDashboardProps {
   data: GoogleAdsDashboardData;
@@ -102,7 +104,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const [qualityLoading, setQualityLoading] = useState(false);
   const [qualityError, setQualityError] = useState("");
   const qualityFetched = useRef(!!initialQualityData || !!mockQualityData);
-  // Chart always shows last 13 months, fetched once on mount with all_time range
+  // Chart always shows the fixed monthly trend window, fetched once on mount with all_time range.
   const [chartMonthlyTrend, setChartMonthlyTrend] = useState(initialData.monthlyTrend);
   // Search-term lists scoped to a fixed lookback (last_6_months) for the
   // Progress tab's Monthly Trend chart. The chart's wasteRate / relevancy
@@ -138,9 +140,8 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       slug: initialData.slug,
       clientId,
       customerId: initialData.customerId,
-      // 14 months gives the chart a slightly longer trend than the standard
-      // 12-month rolling window — the extra two months help spot seasonality
-      // changes year-over-year without the cost of a full 24-month pull.
+      // Keep negative-keyword value tracking on its existing 14-month window;
+      // the temporary 18-month trial only applies to monthly trend graphs.
       monthsBack: "14",
     });
     fetch(`/api/dashboard/avoided-spend?${params}`, { credentials: "include", cache: "no-store" })
@@ -241,18 +242,18 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords, activeConversionActions]);
 
   // True per-month historical waste/relevancy fetch. Heavier than the
-  // last_6_months overlay fetch — pulls 14 months of search-term data
-  // from Google Ads — so it's gated on having a clientId + customerId.
+  // last_6_months overlay fetch — pulls the monthly trend window of search-term
+  // data from Google Ads — so it's gated on having a clientId + customerId.
   // Runs once on mount; the Progress tab gracefully shows the projected
-  // overlay numbers in the meantime. 14 months matches the avoided-spend
-  // window so both charts share the same x-axis range.
+  // overlay numbers in the meantime. Keep this aligned with the Monthly Trend
+  // x-axis so the overlay lines cover the full temporary lookback.
   useEffect(() => {
     if (!clientId || !initialData.customerId || !initialData.slug) return;
     const params = new URLSearchParams({
       slug: initialData.slug,
       clientId,
       customerId: initialData.customerId,
-      monthsBack: "14",
+      monthsBack: String(GOOGLE_ADS_MONTHLY_TREND_WINDOW),
     });
     fetch(`/api/dashboard/monthly-waste-relevancy?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
@@ -513,13 +514,13 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       ? (deepDiveData?.dateRangeLabel || deepDiveRangeLabel)
       : (data.dateRangeLabel || rangeLabel);
 
-  // Monthly chart always shows the last DASHBOARD_MONTHLY_WINDOW months
-  // ending at the current month, unaffected by the global date-range
-  // selector. Pad with zeros so missing months still appear on the X-axis
-  // and so May 2026 lines up with April 2025 across all tabs.
+  // Monthly chart always shows the last GOOGLE_ADS_MONTHLY_TREND_WINDOW months
+  // ending at the current month, unaffected by the global date-range selector.
+  // Pad with zeros so missing months still appear on the X-axis across Overview
+  // and Progress while we trial the longer lookback.
   const paddedTrend = padMonthlySeries(
     chartMonthlyTrend,
-    DASHBOARD_MONTHLY_WINDOW,
+    GOOGLE_ADS_MONTHLY_TREND_WINDOW,
     (month) => ({ month, spend: 0, conversions: 0, brandSpend: 0, genericSpend: 0 }),
   );
 
@@ -528,7 +529,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // the search-term data (cost on terms containing any brand keyword)
   // and applied to the campaign-level total spend so non-search channels
   // (Display / PMax / Video) roll into "generic" by default.
-  const chart14Months = paddedTrend.map((m) => {
+  const chartTrendMonths = paddedTrend.map((m) => {
     const wr = monthlyWasteRelevancy?.find((w) => w.month === m.month);
     if (!wr || !wr.totalSpend || !wr.brandSpend) return m;
     const ratio = Math.max(0, Math.min(1, wr.brandSpend / wr.totalSpend));
@@ -852,7 +853,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 conversionActionLabels={conversionActionLabels}
               />
               <div className="mt-6">
-                <MonthlyChart data={chart14Months} />
+                <MonthlyChart data={chartTrendMonths} />
               </div>
               {data.conversionSplit && (
                 <div className="mt-6">
@@ -888,14 +889,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
           )}
 
           {activeTab === "progress" && (
-            // Pass the always-13-month trend (fetched once on mount with
+            // Pass the fixed-window trend (fetched once on mount with
             // range=all_time) instead of the range-scoped data.monthlyTrend.
             // The Progress tab's Monthly Trend chart should always show the
             // full historical view regardless of which date range the user
             // picks at the top of the dashboard — otherwise selecting
             // "This month" on the 1st collapses the chart to a single point.
             <ProgressTab
-              monthlyTrend={chart14Months}
+              monthlyTrend={chartTrendMonths}
               budgetWasters={data.budgetWasters}
               irrelevantTerms={data.irrelevantTerms}
               kpis={data.kpis}
