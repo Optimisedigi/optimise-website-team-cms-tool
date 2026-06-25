@@ -1,10 +1,19 @@
-import type { CollectionConfig } from "payload";
+import type { Access, CollectionConfig } from "payload";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { hasValidApiKey } from "./api-key-access";
 import { matchesPattern } from "../lib/nkl-routing";
 import { parseNegativeKeywords } from "../lib/parse-negative-keywords";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+
+function serviceKeyOrFeature(feature: "negative-keyword-lists"): Access {
+  const featureAccess = canAccess(feature);
+  return (args) => {
+    if (hasValidApiKey(args.req)) return true;
+    return featureAccess(args);
+  };
+}
 
 function relationID(value: unknown): string | number | null {
   if (!value) return null;
@@ -80,9 +89,9 @@ export const NegativeKeywordLists: CollectionConfig = {
   },
   defaultSort: "client",
   access: {
-    read: canAccess("negative-keyword-lists"),
-    create: canAccess("negative-keyword-lists"),
-    update: canAccess("negative-keyword-lists"),
+    read: serviceKeyOrFeature("negative-keyword-lists"),
+    create: serviceKeyOrFeature("negative-keyword-lists"),
+    update: serviceKeyOrFeature("negative-keyword-lists"),
     delete: adminOnlyDelete,
   },
   hooks: {
