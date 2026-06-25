@@ -86,6 +86,8 @@ export const ActivityLog: CollectionConfig = {
         { label: "Match Type Violation Approved", value: "match_type_violation_approved" },
         { label: "Match Type Violation Rejected", value: "match_type_violation_rejected" },
         { label: "Match Type Violation Keyword Added", value: "match_type_violation_keyword_added" },
+        { label: "Match Type Synonym Rule Created", value: "match_type_synonym_rule_created" },
+        { label: "Match Type Allow List Term Created", value: "match_type_allow_list_term_created" },
         { label: "Monthly Negatives Need Review", value: "monthly_negative_needs_review" },
         { label: "Monthly Negatives Applied", value: "monthly_negative_applied" },
         { label: "Team Task Ready for Review", value: "team_task_ready_for_review" },
