@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const client = searchParams.get("client");
+  const clientId = client && /^\d+$/.test(client) ? Number(client) : client;
   const status = searchParams.get("status");
   const matchType = searchParams.get("matchType");
   const violationType = searchParams.get("violationType");
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   const page = parseInt(searchParams.get("page") ?? "1", 10);
 
   const whereClauses: Where[] = [];
-  if (client) whereClauses.push({ client: { equals: client } } as Where);
+  if (clientId) whereClauses.push({ client: { equals: clientId } } as Where);
   if (status) whereClauses.push({ status: { equals: status } } as Where);
   if (matchType) whereClauses.push({ matchType: { equals: matchType } } as Where);
   if (violationType) whereClauses.push({ violationType: { equals: violationType } } as Where);
