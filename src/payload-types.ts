@@ -70,6 +70,7 @@ export interface Config {
     clients: Client;
     'client-wishlist-items': ClientWishlistItem;
     'client-proposals': ClientProposal;
+    'client-proposal-keyword-research-jobs': ClientProposalKeywordResearchJob;
     'client-discovery-briefings': ClientDiscoveryBriefing;
     contracts: Contract;
     'sales-leads': SalesLead;
@@ -172,6 +173,7 @@ export interface Config {
     clients: ClientsSelect<false> | ClientsSelect<true>;
     'client-wishlist-items': ClientWishlistItemsSelect<false> | ClientWishlistItemsSelect<true>;
     'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
+    'client-proposal-keyword-research-jobs': ClientProposalKeywordResearchJobsSelect<false> | ClientProposalKeywordResearchJobsSelect<true>;
     'client-discovery-briefings': ClientDiscoveryBriefingsSelect<false> | ClientDiscoveryBriefingsSelect<true>;
     contracts: ContractsSelect<false> | ContractsSelect<true>;
     'sales-leads': SalesLeadsSelect<false> | SalesLeadsSelect<true>;
@@ -5271,6 +5273,29 @@ export interface ClientWishlistItem {
   createdAt: string;
 }
 /**
+ * Durable background job records for client proposal keyword research polling.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-proposal-keyword-research-jobs".
+ */
+export interface ClientProposalKeywordResearchJob {
+  id: number;
+  status: 'running' | 'completed' | 'failed';
+  completedAt?: string | null;
+  result?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  error?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Pre-meeting client discovery questionnaire (website & SEO strategy). Stores the structured answers plus a canonical rendered markdown blob.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -8830,6 +8855,10 @@ export interface PayloadLockedDocument {
         value: number | ClientProposal;
       } | null)
     | ({
+        relationTo: 'client-proposal-keyword-research-jobs';
+        value: number | ClientProposalKeywordResearchJob;
+      } | null)
+    | ({
         relationTo: 'client-discovery-briefings';
         value: number | ClientDiscoveryBriefing;
       } | null)
@@ -9852,6 +9881,18 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   convertToClient?: T;
   client?: T;
   proposalPin?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-proposal-keyword-research-jobs_select".
+ */
+export interface ClientProposalKeywordResearchJobsSelect<T extends boolean = true> {
+  status?: T;
+  completedAt?: T;
+  result?: T;
+  error?: T;
   updatedAt?: T;
   createdAt?: T;
 }

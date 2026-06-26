@@ -13,6 +13,14 @@ export const maxDuration = 300;
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+const AUXILIARY_FETCH_TIMEOUT_MS = 20_000;
+
+async function withTimeout<T>(work: Promise<T>, ms = AUXILIARY_FETCH_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timed out after ${ms / 1000}s`)), ms)),
+  ]);
+}
 
 // SimilarWeb only tracks root domains, not subdomains.
 // e.g. "my.clevelandclinic.org" → "clevelandclinic.org"
@@ -492,7 +500,10 @@ export async function POST(
             allDomains.map(async (domain: string) => {
               const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
               const opts = cleanDomain === yourDomainClean ? screenshotOpts : undefined;
-              const screenshot = await captureAndUploadScreenshot(`https://${cleanDomain}`, opts);
+              const screenshot = await withTimeout(
+                captureAndUploadScreenshot(`https://${cleanDomain}`, opts),
+                AUXILIARY_FETCH_TIMEOUT_MS,
+              );
               return { domain, screenshot };
             })
           );
@@ -546,13 +557,19 @@ export async function POST(
             allCompetitorDomains.map(async (domain: string) => {
               const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
               // Step 1: Extract social links
-              const socialLinks = await extractSocialLinks(domain);
+              const socialLinks = await withTimeout(
+                extractSocialLinks(domain),
+                AUXILIARY_FETCH_TIMEOUT_MS,
+              ).catch(() => null);
               // Step 2: Use Facebook handle for Meta Ad Library (or fall back to domain)
               const searchTerm = socialLinks?.facebook || cleanDomain;
               if (socialLinks?.facebook) {
                 console.log(`[meta-ads] Using Facebook handle "${socialLinks.facebook}" for ${cleanDomain}`);
               }
-              const result = await checkMetaAdsViaScrapling(searchTerm);
+              const result = await withTimeout(
+                checkMetaAdsViaScrapling(searchTerm),
+                AUXILIARY_FETCH_TIMEOUT_MS,
+              );
               // Upload base64 ad screenshots to Vercel Blob
               if (result.adScreenshots.length > 0) {
                 const uploadedUrls: string[] = [];
@@ -596,6 +613,7 @@ export async function POST(
                 const rootDomain = extractRootDomain(domain);
                 const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
                   headers: { "x-internal-key": INTERNAL_API_KEY! },
+                  signal: AbortSignal.timeout(AUXILIARY_FETCH_TIMEOUT_MS),
                 });
                 if (!res.ok) return { domain, trafficData: null };
                 const trafficData = await res.json();
@@ -633,6 +651,7 @@ export async function POST(
                 const rootDomain = extractRootDomain(comp.domain || "");
                 const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
                   headers: { "x-internal-key": INTERNAL_API_KEY! },
+                  signal: AbortSignal.timeout(AUXILIARY_FETCH_TIMEOUT_MS),
                 });
                 if (!res.ok) return { domain: comp.domain, trafficData: null };
                 const trafficData = await res.json();
@@ -664,6 +683,7 @@ export async function POST(
               const rootDomain = extractRootDomain(enrichedYourProfile.domain || yourDomain);
               const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
                 headers: { "x-internal-key": INTERNAL_API_KEY! },
+                signal: AbortSignal.timeout(AUXILIARY_FETCH_TIMEOUT_MS),
               });
               if (res.ok) {
                 const td = await res.json();
@@ -709,6 +729,7 @@ export async function POST(
                   method: "POST",
                   headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY! },
                   body: JSON.stringify({ name: cmsComp.name, location: targetLocation || undefined }),
+                  signal: AbortSignal.timeout(AUXILIARY_FETCH_TIMEOUT_MS),
                 });
                 if (!res.ok) return { domain, cmsComp, gbp: null };
                 const gbp = await res.json();

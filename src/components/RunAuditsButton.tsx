@@ -12,6 +12,7 @@ const RunAuditsButton = () => {
   const [stage, setStage] = useState('')
   const [percent, setPercent] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const startedAtRef = useRef<number | null>(null)
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -32,6 +33,13 @@ const RunAuditsButton = () => {
 
         if (data.stage) setStage(data.stage)
         if (typeof data.percent === 'number') setPercent(data.percent)
+
+        if (startedAtRef.current && Date.now() - startedAtRef.current > 20 * 60 * 1000) {
+          stopPolling()
+          setLoading(false)
+          setError('Audit has been running for over 20 minutes. It is probably stuck — refresh, then safely re-run audits.')
+          return
+        }
 
         if (data.status === 'completed') {
           stopPolling()
@@ -87,6 +95,7 @@ const RunAuditsButton = () => {
     setError(null)
     setStage('Starting...')
     setPercent(0)
+    startedAtRef.current = Date.now()
 
     try {
       const res = await fetch(`/api/proposals/${id}/run-audits`, {

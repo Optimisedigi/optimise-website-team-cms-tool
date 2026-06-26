@@ -1,24 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import {
+  completeKeywordResearchJob,
+  createKeywordResearchJob,
+  failKeywordResearchJob,
+  pruneKeywordResearchJobs,
+} from "./jobs";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const GROWTH_TOOLS_INTERNAL_KEY = process.env.GROWTH_TOOLS_INTERNAL_KEY || process.env.INTERNAL_API_KEY;
 
-export async function POST(req: NextRequest) {
+async function getAuthorizedPayload(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
   const { user } = await payload.auth({ headers: req.headers });
+  return user ? payload : null;
+}
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+async function runKeywordResearch(input: { websiteUrl: string; businessName?: string; location: string }) {
+  if (!GROWTH_TOOLS_URL || !GROWTH_TOOLS_INTERNAL_KEY) {
+    throw new Error("Server misconfigured: missing GROWTH_TOOLS_URL or GROWTH_TOOLS_INTERNAL_KEY");
   }
 
-  if (!GROWTH_TOOLS_URL || !GROWTH_TOOLS_INTERNAL_KEY) {
-    return NextResponse.json(
-      { error: "Server misconfigured: missing GROWTH_TOOLS_URL or GROWTH_TOOLS_INTERNAL_KEY" },
-      { status: 500 },
-    );
+  const res = await fetch(`${GROWTH_TOOLS_URL.replace(/\/+$/, "")}/api/google-ads/page-build-keyword-research`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-internal-key": GROWTH_TOOLS_INTERNAL_KEY,
+    },
+    body: JSON.stringify({
+      websiteUrl: input.websiteUrl,
+      businessName: input.businessName,
+      location: input.location,
+      maxCategories: 12,
+      maxKeywordsPerCategory: 30,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data?.message || data?.error || `Keyword research failed (${res.status})`);
+  }
+
+  return data;
+}
+
+export async function POST(req: NextRequest) {
+  const payload = await getAuthorizedPayload(req);
+  if (!payload) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await req.json().catch(() => null);
@@ -39,36 +71,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid website URL" }, { status: 400 });
   }
 
-  try {
-    const res = await fetch(`${GROWTH_TOOLS_URL.replace(/\/+$/, "")}/api/google-ads/page-build-keyword-research`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-internal-key": GROWTH_TOOLS_INTERNAL_KEY,
-      },
-      body: JSON.stringify({
-        websiteUrl,
-        businessName,
-        location,
-        maxCategories: 12,
-        maxKeywordsPerCategory: 30,
-      }),
-    });
+  await pruneKeywordResearchJobs(payload);
+  const job = await createKeywordResearchJob(payload);
 
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      const status = res.status >= 400 && res.status <= 599 ? res.status : 502;
-      return NextResponse.json(
-        { error: data?.message || data?.error || `Keyword research failed (${res.status})` },
-        { status },
-      );
+  after(async () => {
+    try {
+      const result = await runKeywordResearch({ websiteUrl, businessName, location });
+      await completeKeywordResearchJob(payload, job.id, result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[ClientProposalKeywordResearch] Job failed:", message);
+      await failKeywordResearchJob(payload, job.id, message || "Keyword research failed");
     }
+  });
 
-    return NextResponse.json(data);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[ClientProposalKeywordResearch] Error:", message);
-    return NextResponse.json({ error: "Keyword research failed" }, { status: 500 });
-  }
+  return NextResponse.json({ jobId: job.id, status: job.status }, { status: 202 });
 }

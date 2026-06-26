@@ -81,6 +81,34 @@ export default function KeywordResearchAutofill() {
     setTimeout(() => setCopied(null), 1500)
   }
 
+  function loadResearchResult(data: ResearchResult) {
+    const categories = Array.isArray(data.categories) ? data.categories : []
+    const topSix = new Set<string>(categories.slice(0, 6).map((category: CategoryResult) => category.categoryName))
+    const keywordSelections: Record<string, Set<string>> = {}
+    for (const category of categories) {
+      keywordSelections[category.categoryName] = new Set(category.keywords.map((kw: KeywordResult) => kw.keyword))
+    }
+    setResult(data)
+    setSelectedCategories(topSix)
+    setSelectedKeywords(keywordSelections)
+    setExpanded(new Set(categories.slice(0, 6).map((category: CategoryResult) => category.categoryName)))
+  }
+
+  async function pollJob(jobId: string) {
+    for (let attempt = 0; attempt < 120; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+      const res = await fetch(`/api/client-proposals/keyword-research/${jobId}`, { credentials: 'include' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || `Keyword research status failed (${res.status})`)
+      if (data.status === 'completed') {
+        loadResearchResult(data.result)
+        return
+      }
+      if (data.status === 'failed') throw new Error(data.error || 'Keyword research failed')
+    }
+    throw new Error('Keyword research is still running. Try again in a moment.')
+  }
+
   async function research() {
     setLoading(true)
     setError(null)
@@ -95,17 +123,8 @@ export default function KeywordResearchAutofill() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || `Keyword research failed (${res.status})`)
-
-      const categories = Array.isArray(data.categories) ? data.categories : []
-      const topSix = new Set<string>(categories.slice(0, 6).map((category: CategoryResult) => category.categoryName))
-      const keywordSelections: Record<string, Set<string>> = {}
-      for (const category of categories) {
-        keywordSelections[category.categoryName] = new Set(category.keywords.map((kw: KeywordResult) => kw.keyword))
-      }
-      setResult(data)
-      setSelectedCategories(topSix)
-      setSelectedKeywords(keywordSelections)
-      setExpanded(new Set(categories.slice(0, 6).map((category: CategoryResult) => category.categoryName)))
+      if (!data.jobId) throw new Error('Keyword research did not return a job ID')
+      await pollJob(data.jobId)
     } catch (err: any) {
       setError(err.message || 'Keyword research failed')
     } finally {
@@ -163,7 +182,7 @@ export default function KeywordResearchAutofill() {
       </div>
 
       {!websiteUrl && <p style={{ color: '#b45309' }}>Add a website URL first.</p>}
-      {loading && <p>This can take 1–3 minutes while Growth Tools crawls the site and checks Google Ads volume.</p>}
+      {loading && <p>Research started in the background. This can take 1–3 minutes while Growth Tools crawls the site and checks Google Ads volume.</p>}
       {error && <p style={{ color: '#dc2626' }}>{error}</p>}
 
       {result && (

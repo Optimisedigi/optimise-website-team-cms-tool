@@ -23,7 +23,7 @@ export interface ScreenshotOptions {
  * Extracts the "final-screenshot" audit from Lighthouse results.
  * Free, no API key required (but rate-limited without one).
  */
-export async function captureWebsiteScreenshot(url: string): Promise<string | null> {
+export async function captureWebsiteScreenshot(url: string, maxAttempts = 8): Promise<string | null> {
   const apiKey = process.env.GOOGLE_PAGESPEED_API_KEY || ''
   const keyParam = apiKey ? `&key=${apiKey}` : ''
 
@@ -40,11 +40,14 @@ export async function captureWebsiteScreenshot(url: string): Promise<string | nu
     // Invalid URL — just try the original
   }
 
+  let attempts = 0
   for (const strategy of ['desktop', 'mobile'] as const) {
     for (const variant of urlVariants) {
       const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(variant)}&category=performance&strategy=${strategy}${keyParam}`
 
       for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempts >= maxAttempts) return null
+        attempts++
         try {
           const res = await fetch(apiUrl, { signal: AbortSignal.timeout(45000) })
           if (!res.ok) {
@@ -174,11 +177,15 @@ export async function captureAndUploadScreenshot(
   url: string,
   opts?: ScreenshotOptions,
 ): Promise<string | null> {
+  const startedAt = Date.now()
+  console.log(`[screenshots] Starting capture for ${url}`)
+
   // Tier 1: Scrapling service → Vercel Blob
   const buffer = await captureScreenshotViaScrapling(url, {
     clickSelector: opts?.clickSelector,
   })
   if (buffer) {
+    console.log(`[screenshots] Scrapling captured ${url} in ${Date.now() - startedAt}ms`)
     const blobUrl = await uploadScreenshotToBlob(buffer, url)
     if (blobUrl) return blobUrl
     // Blob upload failed — fall through to base64 fallback but convert this buffer
@@ -186,7 +193,10 @@ export async function captureAndUploadScreenshot(
     return buffer.toString('base64')
   }
 
-  // Tier 2: PageSpeed (free, returns base64)
+  // Tier 2: PageSpeed (free, returns base64).
+  console.log(`[screenshots] Scrapling unavailable for ${url}; trying PageSpeed fallback`)
   const base64 = await captureWebsiteScreenshot(url)
+  if (base64) console.log(`[screenshots] PageSpeed captured ${url} in ${Date.now() - startedAt}ms`)
+  else console.error(`[screenshots] Failed to capture ${url} in ${Date.now() - startedAt}ms`)
   return base64
 }
