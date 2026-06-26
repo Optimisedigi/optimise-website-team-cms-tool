@@ -8,6 +8,8 @@ import {
   pruneKeywordResearchJobs,
 } from "./jobs";
 
+export const maxDuration = 300;
+
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const GROWTH_TOOLS_INTERNAL_KEY = process.env.GROWTH_TOOLS_INTERNAL_KEY || process.env.INTERNAL_API_KEY;
 
