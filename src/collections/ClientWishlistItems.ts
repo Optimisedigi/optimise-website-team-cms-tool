@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { hideUnlessAnyFeature } from "../lib/access";
 
 export const ClientWishlistItems: CollectionConfig = {
   slug: "client-wishlist-items",
@@ -9,7 +10,7 @@ export const ClientWishlistItems: CollectionConfig = {
   admin: {
     useAsTitle: "idealClient",
     group: "Clients",
-    hidden: true,
+    hidden: hideUnlessAnyFeature("clients", "clients-basic"),
     description: "Ideal clients the team would like to work with.",
     defaultColumns: ["idealClient", "addedBy"],
   },
