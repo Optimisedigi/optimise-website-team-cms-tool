@@ -11,7 +11,7 @@ import {
   canAccess,
   canAccessAnyOrApiKey,
   adminOnlyDelete,
-  hideUnlessFeature,
+  hideUnlessAnyFeature,
   conditionRequiresFeature,
   sensitiveFieldAccess,
 } from "../lib/access";
@@ -155,8 +155,9 @@ export const Clients: CollectionConfig = {
       "monthsActive",
       "billingSummary",
     ],
-    hidden: hideUnlessFeature("clients"),
+    hidden: hideUnlessAnyFeature("clients", "clients-basic"),
     components: {
+      beforeList: ["./components/ClientWishlistLink"],
       // Renders the "Active only / Show inactive" toggle above the list table
       // (flips ?showInactive, read by the baseListFilter below).
       beforeListTable: [

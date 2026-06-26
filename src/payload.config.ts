@@ -11,6 +11,7 @@ import sharp from "sharp";
 import { Users } from "./collections/Users";
 import { Media } from "./collections/Media";
 import { Clients } from "./collections/Clients";
+import { ClientWishlistItems } from "./collections/ClientWishlistItems";
 import { ClientProposals } from "./collections/ClientProposals";
 import { ClientDiscoveryBriefings } from "./collections/ClientDiscoveryBriefings";
 import { BlogPosts } from "./collections/BlogPosts";
@@ -135,7 +136,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientProposals, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
+    Clients, ClientWishlistItems, ClientProposals, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO

@@ -3,11 +3,18 @@ import { getPayload } from "payload";
 import { headers as nextHeaders } from "next/headers";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
-import { executeTool, tools } from "../chat/route";
+import { executeMemoryTool, executeTool, getInvoiceRealtimeTools, MEMORY_TOOL_NAMES } from "../chat/route";
 
 export const runtime = "nodejs";
 
-const INVOICE_VOICE_TOOL_NAMES = new Set(tools.map((tool) => tool.name));
+const INVOICE_VOICE_TOOL_NAMES = new Set(getInvoiceRealtimeTools().map((tool) => tool.name));
+
+async function executeInvoiceGrowthTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  const growthUrl = process.env.GROWTH_TOOLS_URL;
+  const apiKey = process.env.INTERNAL_API_KEY;
+  if (!growthUrl || !apiKey) return { error: "Growth Tools not configured" };
+  return executeTool(name, args, growthUrl, apiKey);
+}
 
 /**
  * POST /api/xero/realtime-tool
@@ -26,15 +33,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
     if (!userHasFeature(user, "nav:invoices")) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
-    }
-
-    const growthUrl = process.env.GROWTH_TOOLS_URL;
-    const apiKey = process.env.INTERNAL_API_KEY;
-    if (!growthUrl || !apiKey) {
-      return NextResponse.json(
-        { ok: false, error: "Growth Tools not configured" },
-        { status: 500 },
-      );
     }
 
     const body = (await request.json().catch(() => null)) as {
@@ -57,7 +55,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         ? (body.arguments as Record<string, unknown>)
         : {};
 
-    const result = await executeTool(name, args, growthUrl, apiKey);
+    const result = MEMORY_TOOL_NAMES.has(name)
+      ? await executeMemoryTool(name, args, user.id)
+      : await executeInvoiceGrowthTool(name, args);
     if (result && typeof result === "object" && "error" in result) {
       return NextResponse.json({ ok: false, error: String((result as { error: unknown }).error), data: result });
     }

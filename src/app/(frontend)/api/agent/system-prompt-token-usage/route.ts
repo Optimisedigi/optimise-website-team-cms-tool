@@ -41,7 +41,6 @@ const SAMPLE_FLAGS = {
 const GOOGLEMATE_PROMPT_SOURCE_PATHS = [
   "src/lib/agents/optimate-google-ads/config.ts",
   "src/lib/agents/_shared/system-prompt-builder.ts",
-  "src/lib/agents/_shared/tone-of-voice.md",
   "src/lib/agents/optimate-google-ads/memory-loader.ts",
 ];
 
@@ -58,8 +57,6 @@ const INVOICE_TOOL_SOURCE_PATHS = [
 ];
 const GMAIL_PROMPT_SOURCE_PATHS = [
   "src/lib/agents/optimate-email/index.ts",
-  "src/lib/agents/_shared/system-prompt-builder.ts",
-  "src/lib/agents/_shared/tone-of-voice.md",
 ];
 const GMAIL_TOOL_SOURCE_PATHS = [
   "src/lib/agents/optimate-email/index.ts",
@@ -144,34 +141,34 @@ export async function GET() {
         "Approximate visible system-prompt tokens only. Real request input also includes current user text, selected chat history, runtime memory/client context, and the enabled tool schema JSON. Tool schemas are sent as extra request input so the model knows callable tool names/parameters; they are separate from tool result payloads returned after a tool runs.",
       prompts: [
         summarisePrompt(
-          "GoogleMate generic audit chat",
-          "Normal GoogleMate audit prompt with always-on guides and no heavy workflow triggers.",
+          "GoogleMate normal chat",
+          "Normal GoogleMate prompt for routine chat with no heavy workflow triggers.",
           genericAuditPrompt,
           GOOGLEMATE_PROMPT_SOURCE_PATHS,
         ),
         summarisePrompt(
           "GoogleMate geo/campaign workflow",
-          "GoogleMate audit prompt when campaign structure or geo workflow keywords trigger GEO_WALKTHROUGH.",
+          "GoogleMate prompt when campaign structure or geo workflow keywords trigger GEO_WALKTHROUGH.",
           geoAuditPrompt,
-          GOOGLEMATE_PROMPT_SOURCE_PATHS,
+          [],
         ),
         summarisePrompt(
           "GoogleMate scheduled/deck workflow",
-          "GoogleMate audit prompt when recurring report/deck-style keywords trigger scheduled and deck guides.",
+          "GoogleMate prompt when recurring report/deck-style keywords trigger scheduled and deck guides.",
           scheduledAuditPrompt,
-          GOOGLEMATE_PROMPT_SOURCE_PATHS,
+          [],
         ),
         summarisePrompt(
           "GoogleMate all guides legacy",
           "Back-compat GoogleMate prompt when callers omit recentMessages, includes every heavy guide.",
           allGuidesAuditPrompt,
-          GOOGLEMATE_PROMPT_SOURCE_PATHS,
+          [],
         ),
         summarisePrompt(
           "GoogleMate portfolio chat",
           "Portfolio-mode GoogleMate prompt for cross-account Google Ads questions.",
           portfolioPrompt,
-          GOOGLEMATE_PROMPT_SOURCE_PATHS,
+          [],
         ),
         summarisePrompt(
           "InvoiceMate base prompt",
@@ -188,8 +185,8 @@ export async function GET() {
       ],
       toolSchemas: [
         summariseToolSchemas(
-          "GoogleMate generic audit initial tool schemas",
-          "Lean JSON definitions attached to a blank generic GoogleMate audit chat before any specialist bundle is requested.",
+          "GoogleMate normal chat initial tool schemas",
+          "Lean JSON definitions attached to a blank normal GoogleMate chat before any specialist bundle is requested. This is the default text-chat starting point.",
           getGoogleMateInitialTools([]),
           GOOGLEMATE_TOOL_SOURCE_PATHS,
         ),
@@ -197,25 +194,25 @@ export async function GET() {
           "GoogleMate geo/campaign initial tool schemas",
           "Initial JSON definitions attached when geo or campaign-structure keywords pre-load only the campaign_build bundle.",
           getGoogleMateInitialTools([userMessage("geo split")]),
-          GOOGLEMATE_TOOL_SOURCE_PATHS,
+          [],
         ),
         summariseToolSchemas(
           "GoogleMate scheduled/deck initial tool schemas",
           "Initial JSON definitions attached when scheduled report and deck keywords pre-load only those bundles.",
           getGoogleMateInitialTools([userMessage("schedule a stakeholder deck")]),
-          GOOGLEMATE_TOOL_SOURCE_PATHS,
+          [],
         ),
         summariseToolSchemas(
           "GoogleMate full audit tool schemas",
           "Legacy JSON definitions for the complete audit-mode GoogleMate tool set, including names, descriptions, and input schemas. This is larger than the blank-chat initial route set and excludes any later tool results.",
           getTools({ attachMemoryTools: true }),
-          GOOGLEMATE_TOOL_SOURCE_PATHS,
+          [],
         ),
         summariseToolSchemas(
           "GoogleMate portfolio tool schemas",
           "JSON definitions for portfolio-mode GoogleMate tools. Added as request input for portfolio chats; excludes any later tool results.",
           getPortfolioTools({ attachMemoryTools: true }),
-          GOOGLEMATE_TOOL_SOURCE_PATHS,
+          [],
         ),
         summariseToolSchemas(
           "InvoiceMate tool schemas",

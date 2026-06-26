@@ -11,6 +11,19 @@ interface Usage {
   soulAspectCount: number;
 }
 
+const panelShellStyle: React.CSSProperties = {
+  position: "relative",
+  zIndex: 0,
+  isolation: "isolate",
+  contain: "layout paint",
+  boxSizing: "border-box",
+  width: "100%",
+  clear: "both",
+  overflow: "hidden",
+  filter: "none",
+  backdropFilter: "none",
+};
+
 /**
  * Read-only panel on the OptiMate Settings page showing the estimated token
  * cost the agent-memory + agent-soul block adds to EVERY OptiMate prompt
@@ -65,8 +78,11 @@ const MemoryTokenUsagePanel: React.FC = () => {
   );
 
   return (
-    <div
+    <section
+      role="region"
+      aria-label="Memory and soul prompt cost"
       style={{
+        ...panelShellStyle,
         border: "1px solid var(--theme-elevation-150)",
         borderRadius: 6,
         padding: 16,
@@ -100,7 +116,7 @@ const MemoryTokenUsagePanel: React.FC = () => {
           {row("Total added per prompt", "Soul + pinned memory", usage.totalTokens, true)}
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

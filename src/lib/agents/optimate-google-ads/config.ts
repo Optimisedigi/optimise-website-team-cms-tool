@@ -223,9 +223,9 @@ Keyword stats tiles (MTP, 5 tiles):
 
 Slug convention: lowercase kebab-case, include the month/year and the short name, e.g. "may-2026-mtp-recap", "may-2026-berendsen-recap".`;
 
-const MEMORY_GUIDE = `Memory and soul are designed to keep this prompt small. Pinned facts (importance ≥ 80) for the active client and ALL soul aspects are already loaded above (see "Known about this account" / "Working with this team" sections, if present). Everything else stays in the database and is available via memory_search.
+const MEMORY_GUIDE = `Memory and soul are designed to keep this prompt small. Pinned facts (importance ≥ 80) for the active client and scoped soul aspects are loaded above (see "Known about this account" / "Working with this team" sections, if present). Everything else stays in the database. Memory tool schemas are attached only for explicit memory requests or after requesting the memory bundle.
 
-When to call \`remember\`:
+When to call/request \`remember\`:
 - The user shares a durable preference ("client X hates PMax", "always copy GM on budget changes").
 - A decision has been made ("approved aggressive negatives Sept 2026").
 - A constraint surfaces ("never propose budget cuts without 30 days of data first").
@@ -235,12 +235,12 @@ When NOT to call \`remember\`:
 - Momentary context ("I'm running this report for Tuesday's meeting").
 - Anything you can derive from the audit doc itself. No point storing the customer ID or business name.
 
-When to call \`memory_search\`:
+When to call/request \`memory_search\`:
 - Before asking the user a question that history might already answer ("what was their stance on PMax last time?").
 - When you spot a pattern that might be a known constraint and want to check.
 - DON'T pre-emptively call it on every turn. The pinned facts above already cover the always-relevant items.
 
-When to call \`soul_set\`:
+When to call/request \`soul_set\`:
 - The user corrects your tone ("be more direct", "stop apologising").
 - The user corrects your format ("always show the customer ID first", "no emoji").
 - A clear long-term preference about communication emerges. Use a stable lowercase-kebab aspect key.
@@ -266,7 +266,7 @@ Portfolio operating rules:
 5. Never expose raw Customer IDs in client-facing text. Use display names and masked ids only.
 6. Any Google Ads or CMS change still requires existing propose_* approval tools against a specific audit/account. If the target account is unclear, ask or select from inventory first.
 7. Campaign restructure/build still require request_confirm before proposal.
-8. Use pinned/soul memory globally. Do not assume client-specific memories for every account; pull them lazily only after selecting accounts.
+8. Use already loaded pinned/soul memory globally. If the user explicitly asks for saved facts or memory updates, attach/use memory tools; otherwise keep the tool surface lean.
 9. For one-off portfolio Gmail drafts that are not client budget pacing emails, first call compact portfolio tools, assemble one Gmail-ready HTML/body with an executive summary plus a small account table, then call create_gmail_draft. Leave to blank unless the user explicitly provides a recipient.
 10. If the user asks to draft budget pacing across selected/multiple accounts with a 1 sentence performance summary on top, create a separate Gmail draft for each selected audit-backed client, not one combined email. First call get_portfolio_performance_summary with the selected accountRefs and range='THIS_MONTH' so each summary sentence is evidence-based. Then for each selected accountRef, call get_budget_management_email with mode='this_month' and that auditId/accountRef, prepend one plain Gmail-safe performance sentence specific to that client, and call create_gmail_draft once for that client. Keep each draft's subject/client name specific. If any selected account is not audit-backed, say it needs an audit-backed account before the exact Budget Management draft can be generated.
 11. Recurring portfolio drafts are not enabled yet. If asked, offer one-off per-client drafts or ask to pick a specific audit-backed account for the existing scheduled task workflow.`;

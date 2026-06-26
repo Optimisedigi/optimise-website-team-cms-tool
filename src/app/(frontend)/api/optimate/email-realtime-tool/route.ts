@@ -52,7 +52,7 @@ export async function POST(request: Request) {
         ? (body.arguments as Record<string, unknown>)
         : {}
 
-    const tool = getEmailTools().find((t) => t.name === name) as
+    const tool = getEmailTools({ attachMemoryTools: true }).find((t) => t.name === name) as
       | CanonicalTool<unknown>
       | undefined
     if (!tool || !isEmailVoiceTool(tool.name)) {

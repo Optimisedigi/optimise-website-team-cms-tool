@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@payloadcms/ui'
 import { userHasFeature } from '../lib/access'
 
@@ -55,16 +55,39 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 12h4l3 8 4-16 3 8h4"/><circle cx="12" cy="12" r="10" opacity="0.25"/></svg>',
 }
 
+function useStickyFeature(user: any, feature: string): boolean {
+  const [seen, setSeen] = useState<{ userId: string | number | null; hasFeature: boolean }>({
+    userId: null,
+    hasFeature: false,
+  })
+  const userId = user?.id ?? null
+  const hasFeature = userHasFeature(user, feature)
+
+  useEffect(() => {
+    setSeen((current) => {
+      if (userId == null) return current
+      if (current.userId !== userId) return { userId, hasFeature }
+      if (hasFeature && !current.hasFeature) return { userId, hasFeature: true }
+      return current
+    })
+  }, [hasFeature, userId])
+
+  if (userId == null) return seen.hasFeature
+  return seen.userId === userId && (seen.hasFeature || hasFeature)
+}
+
 const SidebarNavExtras = () => {
   const { user } = useAuth()
-  const canIntegrations = userHasFeature(user, 'nav:integrations')
-  const canDeployments = userHasFeature(user, 'nav:deployments')
-  const canIndexingHelper = userHasFeature(user, 'nav:indexing-helper')
-  const canInvoices = userHasFeature(user, 'nav:invoices')
-  const canGoogleAds = userHasFeature(user, 'nav:google-ads')
-  const canSeo = userHasFeature(user, 'nav:seo')
-  const canContractorCosts = userHasFeature(user, 'nav:contractor-costs') || userHasFeature(user, 'contractors')
-  const canClientPulse = userHasFeature(user, 'nav:client-pulse')
+  const canIntegrations = useStickyFeature(user, 'nav:integrations')
+  const canDeployments = useStickyFeature(user, 'nav:deployments')
+  const canIndexingHelper = useStickyFeature(user, 'nav:indexing-helper')
+  const canInvoices = useStickyFeature(user, 'nav:invoices')
+  const canGoogleAds = useStickyFeature(user, 'nav:google-ads')
+  const canSeo = useStickyFeature(user, 'nav:seo')
+  const canContractorCostsNav = useStickyFeature(user, 'nav:contractor-costs')
+  const canContractorsCollection = useStickyFeature(user, 'contractors')
+  const canContractorCosts = canContractorCostsNav || canContractorsCollection
+  const canClientPulse = useStickyFeature(user, 'nav:client-pulse')
 
   // Watch for active nav link and apply highlight + keep icon visible
   useEffect(() => {
@@ -106,75 +129,136 @@ const SidebarNavExtras = () => {
   }, [])
 
   useEffect(() => {
-    if (canIntegrations) {
+    const injectCustomNavLinks = () => {
+      if (canIntegrations) {
+        injectLink(
+          '#nav-group-Settings .nav-group__content',
+          'integrations',
+          '/admin/settings/integrations',
+          ICONS.integrations,
+          'Integrations',
+          'append',
+        )
+      }
+
+      if (canDeployments) {
+        injectLink(
+          '#nav-group-Settings .nav-group__content',
+          'deployments',
+          '/admin/deployments',
+          ICONS.deployments,
+          'Deployments',
+          'append',
+        )
+      }
+
+      if (canIndexingHelper) {
+        injectLink(
+          '#nav-group-Growth\\ Tools .nav-group__content',
+          'indexing-helper',
+          '/admin/growth-tools/indexing-helper',
+          ICONS.indexingHelper,
+          'Indexing Helper',
+          'append',
+        )
+      }
+
+      if (canClientPulse) {
+        injectLink(
+          '#nav-group-Clients .nav-group__content',
+          'client-pulse',
+          '/admin/clients/pulse',
+          ICONS.clientPulse,
+          'Client Pulse',
+          'prepend',
+        )
+      }
+
+      // Growth Tools hub links sit at the top of the group, ordered:
+      //   Google Ads → SEO → (auto collection links below).
+      // Both prepend to index 0, so inject SEO FIRST, then Google Ads, so
+      // Google Ads lands on top and SEO directly beneath it.
+      if (canSeo) {
+        injectLink(
+          '#nav-group-Growth\\ Tools .nav-group__content',
+          'seo-hub',
+          '/admin/growth-tools/seo',
+          ICONS.seo,
+          'SEO',
+          'prepend',
+        )
+      }
+
+      if (canGoogleAds) {
+        injectLink(
+          '#nav-group-Growth\\ Tools .nav-group__content',
+          'google-ads-hub',
+          '/admin/google-ads',
+          ICONS.googleAds,
+          'Google Ads',
+          'prepend',
+        )
+      }
+
+      // Finance sidebar order:
+      //   Invoices → Invoice Statements → Contractors → [auto] Contractor Time Entries
+      //
+      // Each prepend goes to index 0, so we inject bottom-up: Contractors first
+      // (sits above the auto contractor-time-entries link), then Invoice
+      // Statements, then Invoices (which lands at the very top).
+      if (canContractorCosts) {
+        injectLink(
+          '#nav-group-Finance .nav-group__content',
+          'contractor-costs',
+          '/admin/contractor-costs',
+          ICONS.contractorCosts,
+          'Contractors',
+          'prepend',
+        )
+      }
+
+      if (canInvoices) {
+        injectLink(
+          '#nav-group-Finance .nav-group__content',
+          'invoice-statements',
+          '/admin/finance/invoice-statements',
+          ICONS.invoiceStatements,
+          'Invoice Statements',
+          'prepend',
+        )
+        injectLink(
+          '#nav-group-Finance .nav-group__content',
+          'invoices',
+          '/admin/finance/invoices',
+          ICONS.invoices,
+          'Invoices',
+          'prepend',
+        )
+      }
+
+      // Agent fleet — surfaced under the Agent group for any logged-in user. The
+      // approvals queue and auth setup pages live under /admin and render inside
+      // the admin shell, doing their own auth checks.
       injectLink(
-        '#nav-group-Settings .nav-group__content',
-        'integrations',
-        '/admin/settings/integrations',
-        ICONS.integrations,
-        'Integrations',
+        '#nav-group-Agent .nav-group__content',
+        'agent-approvals',
+        '/admin/agent-approvals',
+        ICONS.agentApprovals,
+        'Agent Approvals',
+        'append',
+      )
+      injectLink(
+        '#nav-group-Agent .nav-group__content',
+        'agent-auth',
+        '/admin/agent-auth',
+        ICONS.agentAuth,
+        'Agent Auth',
         'append',
       )
     }
 
-    if (canDeployments) {
-      injectLink(
-        '#nav-group-Settings .nav-group__content',
-        'deployments',
-        '/admin/deployments',
-        ICONS.deployments,
-        'Deployments',
-        'append',
-      )
-    }
-
-    if (canIndexingHelper) {
-      injectLink(
-        '#nav-group-Growth\\ Tools .nav-group__content',
-        'indexing-helper',
-        '/admin/growth-tools/indexing-helper',
-        ICONS.indexingHelper,
-        'Indexing Helper',
-        'append',
-      )
-    }
-
-    if (canClientPulse) {
-      injectLink(
-        '#nav-group-Clients .nav-group__content',
-        'client-pulse',
-        '/admin/clients/pulse',
-        ICONS.clientPulse,
-        'Client Pulse',
-        'prepend',
-      )
-    }
-
-    // Growth Tools hub links sit at the top of the group, ordered:
-    //   Google Ads → SEO → (auto collection links below).
-    // Both prepend to index 0, so inject SEO FIRST, then Google Ads, so
-    // Google Ads lands on top and SEO directly beneath it.
-    if (canSeo) {
-      injectLink(
-        '#nav-group-Growth\\ Tools .nav-group__content',
-        'seo-hub',
-        '/admin/growth-tools/seo',
-        ICONS.seo,
-        'SEO',
-        'prepend',
-      )
-    }
-
-    if (canGoogleAds) {
-      injectLink(
-        '#nav-group-Growth\\ Tools .nav-group__content',
-        'google-ads-hub',
-        '/admin/google-ads',
-        ICONS.googleAds,
-        'Google Ads',
-        'prepend',
-      )
-    }
+    injectCustomNavLinks()
+    const injectInterval = setInterval(injectCustomNavLinks, 500)
 
     // Hide auto-generated collection links that already have a custom hub
     // page injected above them. The records remain reachable by URL — the
@@ -198,6 +282,7 @@ const SidebarNavExtras = () => {
       '/admin/collections/serp-displacement-alerts',
       '/admin/collections/contractors',
       '/admin/collections/contractor-payments',
+      '/admin/collections/invoice-statement-drafts',
     ]
     const hideAutoCollectionLinks = () => {
       for (const href of HIDDEN_COLLECTION_HREFS) {
@@ -215,70 +300,10 @@ const SidebarNavExtras = () => {
     hideAutoCollectionLinks()
     const hideInterval = setInterval(hideAutoCollectionLinks, 500)
 
-    // Finance sidebar order:
-    //   Invoices → Invoice Statements → Contractors → [auto] Contractor Time Entries
-    //
-    // Each prepend goes to index 0, so we inject bottom-up: Contractors first
-    // (sits above the auto contractor-time-entries link), then Invoice
-    // Statements, then Invoices (which lands at the very top).
-    if (canContractorCosts) {
-      injectLink(
-        '#nav-group-Finance .nav-group__content',
-        'contractor-costs',
-        '/admin/contractor-costs',
-        ICONS.contractorCosts,
-        'Contractors',
-        'prepend',
-      )
-    }
-
-    if (canInvoices) {
-      injectLink(
-        '#nav-group-Finance .nav-group__content',
-        'invoice-statements',
-        '/admin/finance/invoice-statements',
-        ICONS.invoiceStatements,
-        'Invoice Statements',
-        'prepend',
-      )
-      injectLink(
-        '#nav-group-Finance .nav-group__content',
-        'invoices',
-        '/admin/finance/invoices',
-        ICONS.invoices,
-        'Invoices',
-        'prepend',
-      )
-      // Hide the auto-generated collection link — we have a custom page.
-      const autoLink = document.querySelector(
-        'a.nav__link[href="/admin/collections/invoice-statement-drafts"]',
-      ) as HTMLElement | null
-      if (autoLink) autoLink.style.display = 'none'
-    }
-
-    // Agent fleet — surfaced under the Agent group for any logged-in user. The
-    // approvals queue and auth setup pages live under /admin and render inside
-    // the admin shell, doing their own auth checks.
-    injectLink(
-      '#nav-group-Agent .nav-group__content',
-      'agent-approvals',
-      '/admin/agent-approvals',
-      ICONS.agentApprovals,
-      'Agent Approvals',
-      'append',
-    )
-    injectLink(
-      '#nav-group-Agent .nav-group__content',
-      'agent-auth',
-      '/admin/agent-auth',
-      ICONS.agentAuth,
-      'Agent Auth',
-      'append',
-    )
-
     // Icons for collection/global nav links are now handled via CSS ::before in custom.scss
 
     return () => {
+      clearInterval(injectInterval)
       clearInterval(hideInterval)
     }
   }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts, canClientPulse])

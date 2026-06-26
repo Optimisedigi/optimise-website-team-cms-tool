@@ -4793,6 +4793,20 @@ export async function runMigrations(
     // ── Client overview rich text field (2026-07-27) ──
     await run("clients.client_overview", "ALTER TABLE `clients` ADD `client_overview` text");
 
+    // ── Client wishlist (2026-07-28) ──
+    await run("client_wishlist_items", `CREATE TABLE IF NOT EXISTS \`client_wishlist_items\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`ideal_client\` text NOT NULL,
+      \`added_by_id\` integer,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`added_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("client_wishlist_items_added_by_idx", "CREATE INDEX IF NOT EXISTS `client_wishlist_items_added_by_idx` ON `client_wishlist_items` (`added_by_id`)");
+    await run("client_wishlist_items_updated_at_idx", "CREATE INDEX IF NOT EXISTS `client_wishlist_items_updated_at_idx` ON `client_wishlist_items` (`updated_at`)");
+    await run("client_wishlist_items_created_at_idx", "CREATE INDEX IF NOT EXISTS `client_wishlist_items_created_at_idx` ON `client_wishlist_items` (`created_at`)");
+    await run("payload_locked_documents_rels.client_wishlist_items_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_wishlist_items_id` integer REFERENCES `client_wishlist_items`(`id`) ON DELETE CASCADE");
+
     // ── Match-type monitor per-client scope controls (2026-06-09) ──
     await run("clients.gadsAuto_matchTypeMonitorExact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");
     await run("clients.gadsAuto_matchTypeMonitorPhrase", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_phrase` integer DEFAULT true");

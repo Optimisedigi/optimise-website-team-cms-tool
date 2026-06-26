@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAuth } from "@payloadcms/ui";
 import { usePathname } from "next/navigation";
 import { userHasFeature } from "../lib/access";
@@ -18,13 +19,34 @@ const IconSearch = () => (
   </svg>
 )
 
+function useStickyFeature(user: any, feature: string): boolean {
+  const [seen, setSeen] = useState<{ userId: string | number | null; hasFeature: boolean }>({
+    userId: null,
+    hasFeature: false,
+  })
+  const userId = user?.id ?? null
+  const hasFeature = userHasFeature(user, feature)
+
+  useEffect(() => {
+    setSeen((current) => {
+      if (userId == null) return current
+      if (current.userId !== userId) return { userId, hasFeature }
+      if (hasFeature && !current.hasFeature) return { userId, hasFeature: true }
+      return current
+    })
+  }, [hasFeature, userId])
+
+  if (userId == null) return seen.hasFeature
+  return seen.userId === userId && (seen.hasFeature || hasFeature)
+}
+
 const SidebarLogo = () => {
   const { user } = useAuth();
   const pathname = usePathname();
-  const showDashboard = userHasFeature(user, "nav:dashboard");
+  const showDashboard = useStickyFeature(user, "nav:dashboard");
   const dashboardActive = pathname === "/admin";
-  const showAnalytics = userHasFeature(user, "nav:google-analytics");
-  const showSearchConsole = userHasFeature(user, "nav:search-console");
+  const showAnalytics = useStickyFeature(user, "nav:google-analytics");
+  const showSearchConsole = useStickyFeature(user, "nav:search-console");
   // Hide the entire Performance group if the user has none of the items.
   const showPerfGroup = showAnalytics || showSearchConsole;
 

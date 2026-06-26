@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       ) {
         args = { ...args, accountRefs: selectedAccountRefs }
       }
-      const tool = getPortfolioTools().find((t) => t.name === name) as CanonicalTool<unknown> | undefined
+      const tool = getPortfolioTools({ attachMemoryTools: true }).find((t) => t.name === name) as CanonicalTool<unknown> | undefined
       if (!tool || !isPortfolioVoiceTool(tool.name)) {
         return NextResponse.json(
           { ok: false, error: `Unknown or disallowed tool: ${name}` },
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
 
     // Find the registered tool. It must exist AND still pass the voice gate
     // (defence in depth against a free-text `name`).
-    const tool = getTools().find((t) => t.name === name) as CanonicalTool<unknown> | undefined
+    const tool = getTools({ attachMemoryTools: true }).find((t) => t.name === name) as CanonicalTool<unknown> | undefined
     if (!tool || !isVoiceTool(tool.name)) {
       return NextResponse.json(
         { ok: false, error: `Unknown or disallowed tool: ${name}` },

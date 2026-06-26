@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { hasValidApiKey } from "@/collections/api-key-access";
+import { isCampaignLifecycleActive } from "@/lib/google-ads-budget-email";
 
 // Collection slug type (use 'as any' to bypass strict type checking for new collections)
 const BUDGETS_COLLECTION = "google-ads-campaign-budgets" as any;
@@ -264,8 +265,14 @@ export async function GET(
         return map[raw] || map[raw?.toUpperCase()] || "manual_cpc";
       }
 
-      // Store/update each campaign budget in CMS
-      const isActive = (status: string) => status !== 'PAUSED' && status !== 'REMOVED';
+      // Store/update each campaign budget in CMS. Google Ads experiments can stay
+      // ENABLED after their end date, so lifecycle active means status + dates.
+      const isActive = (campaign: any) => isCampaignLifecycleActive({
+        campaignName: campaign.campaignName,
+        campaignStatus: campaign.campaignStatus,
+        campaignStartDate: campaign.campaignStartDate ?? campaign.campaign_start_date ?? null,
+        campaignEndDate: campaign.campaignEndDate ?? campaign.campaign_end_date ?? null,
+      });
 
       for (const campaign of campaigns) {
         const cmsData: Record<string, any> = {
@@ -301,7 +308,7 @@ export async function GET(
             const { audit: _a, customerId: _c, campaignId: _ci, campaignName: _cn, ...updateData } = cmsData;
             // If user hasn't configured this campaign (no budget %), sync enabled from Google Ads status
             if (!doc.budgetPercentage || doc.budgetPercentage === 0) {
-              updateData.enabled = isActive(campaign.campaignStatus);
+              updateData.enabled = isActive(campaign);
             }
             await payload.update({
               collection: BUDGETS_COLLECTION,
@@ -310,8 +317,8 @@ export async function GET(
               overrideAccess: true,
             });
           } else {
-            // New record: set enabled from Google Ads campaign status
-            (cmsData as any).enabled = isActive(campaign.campaignStatus);
+            // New record: set enabled from Google Ads campaign status and active dates
+            (cmsData as any).enabled = isActive(campaign);
             await payload.create({
               collection: BUDGETS_COLLECTION,
               data: cmsData as any,
@@ -363,6 +370,7 @@ export async function GET(
           c.searchBudgetLostIS ??
           c.search_budget_lost_impression_share ??
           c.budgetLostImpressionShare;
+        const lifecycleActive = isActive(c);
         return {
           campaignId: c.campaignId,
           campaignName: c.campaignName,
@@ -373,9 +381,9 @@ export async function GET(
           actualDailyBudget: c.dailyBudget || 0,
           bidStrategy: mapBidStrategy(c.biddingStrategyType || c.bidStrategy || ""),
           bidStrategyId: c.biddingStrategyId || c.bidStrategyId || null,
-          enabled: saved
+          enabled: lifecycleActive && (saved
             ? (saved.enabled !== undefined ? saved.enabled : (saved.budgetPercentage > 0))
-            : (c.campaignStatus !== 'PAUSED' && c.campaignStatus !== 'REMOVED'),
+            : true),
           standalone: saved?.standalone ?? false,
           standaloneBudget: saved?.standaloneBudget ?? 0,
           standaloneStartDate: saved?.standaloneStartDate ?? null,

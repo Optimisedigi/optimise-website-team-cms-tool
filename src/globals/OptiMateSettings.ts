@@ -269,6 +269,15 @@ export const OptiMateSettings: GlobalConfig = {
                 },
               },
             },
+            {
+              name: "systemPromptTokenUsage",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/agent/SystemPromptTokenUsagePanel",
+                },
+              },
+            },
           ],
         },
       ],

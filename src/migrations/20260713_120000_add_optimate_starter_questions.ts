@@ -12,7 +12,7 @@ async function createStarterQuestionTable(db: MigrateUpArgs["db"], tableName: st
   await db.run(sql.raw(`CREATE INDEX IF NOT EXISTS \`${tableName}_parent_id_idx\` ON \`${tableName}\` (\`_parent_id\`);`));
 }
 
-async function seedGoogleMateStarterQuestions(db: MigrateUpArgs["db"]): Promise<void> {
+async function seedStarterQuestions(db: MigrateUpArgs["db"]): Promise<void> {
   await db.run(sql.raw(`INSERT INTO \`optimate_settings_google_mate_starter_questions\` (\`_order\`, \`_parent_id\`, \`id\`, \`question\`)
     SELECT seed._order, os.id, seed.idPrefix || os.id, seed.question
     FROM \`optimate_settings\` os
@@ -40,6 +40,20 @@ async function seedGoogleMateStarterQuestions(db: MigrateUpArgs["db"]): Promise<
       SELECT 1 FROM \`optimate_settings_google_mate_portfolio_starter_questions\` existing
       WHERE existing.\`_parent_id\` = os.id
     );`));
+
+  await db.run(sql.raw(`INSERT INTO \`optimate_settings_invoice_mate_starter_questions\` (\`_order\`, \`_parent_id\`, \`id\`, \`question\`)
+    SELECT seed._order, os.id, seed.idPrefix || os.id, seed.question
+    FROM \`optimate_settings\` os
+    JOIN (
+      SELECT 1 AS _order, 'invoice-mate-starter-default-1-' AS idPrefix, 'Show me overdue invoices' AS question
+      UNION ALL SELECT 2, 'invoice-mate-starter-default-2-', 'Summarise outstanding invoices'
+      UNION ALL SELECT 3, 'invoice-mate-starter-default-3-', 'What invoices are scheduled to send?'
+      UNION ALL SELECT 4, 'invoice-mate-starter-default-4-', 'Create this month’s retainer'
+    ) seed
+    WHERE NOT EXISTS (
+      SELECT 1 FROM \`optimate_settings_invoice_mate_starter_questions\` existing
+      WHERE existing.\`_parent_id\` = os.id
+    );`));
 }
 
 /**
@@ -50,7 +64,7 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   await createStarterQuestionTable(db, "optimate_settings_google_mate_starter_questions");
   await createStarterQuestionTable(db, "optimate_settings_google_mate_portfolio_starter_questions");
   await createStarterQuestionTable(db, "optimate_settings_invoice_mate_starter_questions");
-  await seedGoogleMateStarterQuestions(db);
+  await seedStarterQuestions(db);
 }
 
 export async function down({ db }: MigrateDownArgs): Promise<void> {

@@ -134,6 +134,7 @@ import * as migration_20260724_120000_add_monthly_keyword_selection_rows from '.
 import * as migration_20260725_120000_add_match_type_synonym_rules from './20260725_120000_add_match_type_synonym_rules';
 import * as migration_20260726_120000_add_match_type_allow_list_terms from './20260726_120000_add_match_type_allow_list_terms';
 import * as migration_20260727_120000_add_client_overview from './20260727_120000_add_client_overview';
+import * as migration_20260728_120000_add_client_wishlist_items from './20260728_120000_add_client_wishlist_items';
 
 export const migrations = [
   {
@@ -815,5 +816,10 @@ export const migrations = [
     up: migration_20260727_120000_add_client_overview.up,
     down: migration_20260727_120000_add_client_overview.down,
     name: '20260727_120000_add_client_overview'
+  },
+  {
+    up: migration_20260728_120000_add_client_wishlist_items.up,
+    down: migration_20260728_120000_add_client_wishlist_items.down,
+    name: '20260728_120000_add_client_wishlist_items'
   },
 ];

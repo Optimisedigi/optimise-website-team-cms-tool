@@ -1289,7 +1289,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               Campaign Budget Allocation
             </h3>
             <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>
-              {activeCampaignCount} campaign{activeCampaignCount === 1 ? '' : 's'} active in Google Ads
+              {activeCampaignCount} campaign{activeCampaignCount === 1 ? '' : 's'} active now in Google Ads
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1312,9 +1312,9 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 4 }}>
             {([
-              { key: 'enabled' as CampaignFilter, label: 'Enabled', count: campaigns.filter(isBudgetIncludedCampaign).length, title: 'Active/configured campaigns plus ended, paused, or removed campaigns that have data in this period.' },
-              { key: 'paused' as CampaignFilter, label: 'Paused', count: campaigns.filter(c => !c.enabled).length, title: 'Paused here means excluded from budget allocation.' },
-              { key: 'all' as CampaignFilter, label: 'All', count: campaigns.length, title: 'All campaigns returned by the latest Google Ads sync, including ended campaigns.' },
+              { key: 'enabled' as CampaignFilter, label: 'Active', count: campaigns.filter(isBudgetIncludedCampaign).length, title: 'Campaigns active now: not paused/removed and not before start date or past end date.' },
+              { key: 'paused' as CampaignFilter, label: 'Hidden', count: campaigns.filter(c => !isBudgetIncludedCampaign(c)).length, title: 'Excluded from active budget allocation, including paused, removed, future, and ended experiment campaigns.' },
+              { key: 'all' as CampaignFilter, label: 'All', count: campaigns.length, title: 'All campaigns returned by the latest Google Ads sync, including ended experiments.' },
             ]).map(tab => (
               <button
                 key={tab.key}
@@ -1436,7 +1436,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               .filter(c =>
                 campaignFilter === 'all' ? true :
                 campaignFilter === 'enabled' ? isBudgetIncludedCampaign(c) :
-                !c.enabled
+                !isBudgetIncludedCampaign(c)
               )
               .slice()
               .sort((a, b) => {
@@ -1453,8 +1453,8 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                 <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748b' }}>
                   {loading ? 'Loading...' :
                     campaigns.length === 0 ? <>No campaigns found. <button onClick={handleSync} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit' }}>Click here to sync from Google Ads.</button></> :
-                    campaignFilter === 'enabled' ? 'No active/configured campaigns or ended campaigns with data. Switch to "All" to review every campaign.' :
-                    'No paused campaigns.'}
+                    campaignFilter === 'enabled' ? 'No active campaigns. Switch to "All" to review ended experiments and historical campaigns.' :
+                    'No hidden campaigns.'}
                 </div>
               );
             }

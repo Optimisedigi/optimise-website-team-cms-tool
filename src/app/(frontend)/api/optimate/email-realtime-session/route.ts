@@ -6,6 +6,7 @@ import {
   buildEmailReplySystemPrompt,
   getEmailRealtimeToolDefinitions,
 } from '@/lib/agents/optimate-email'
+import { memoryToolRoutingPrompt } from '@/lib/agents/_shared/memory-tool-routing'
 import { getValidGmailToken } from '@/lib/agents/_shared/user-gmail-tokens'
 import { loadPinnedMemoryBlock } from '@/lib/agents/optimate-google-ads/memory-loader'
 import { fetchMessageBody } from '@/lib/gmail-search'
@@ -84,7 +85,7 @@ export async function GET(request: Request) {
       'Only use memory tools when the user explicitly asks you to remember a durable preference or communication-style correction.'
 
     return NextResponse.json({
-      instructions: basePrompt + memoryBlock + attachedEmailContext + voiceGuardrail,
+      instructions: basePrompt + memoryBlock + memoryToolRoutingPrompt('GmailMate') + attachedEmailContext + voiceGuardrail,
       tools,
     })
   } catch (err) {

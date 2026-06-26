@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { type CSSProperties, useEffect, useState } from 'react'
 
 interface UsageSummaryRow {
   model: 'gpt-realtime-mini' | 'gpt-realtime-2'
@@ -41,6 +41,19 @@ const MODEL_LABELS: Record<UsageSummaryRow['model'], string> = {
   'gpt-realtime-2': 'GPT Realtime 2',
 }
 
+const panelShellStyle: CSSProperties = {
+  position: 'relative',
+  zIndex: 0,
+  isolation: 'isolate',
+  contain: 'layout paint',
+  boxSizing: 'border-box',
+  width: '100%',
+  clear: 'both',
+  overflow: 'hidden',
+  filter: 'none',
+  backdropFilter: 'none',
+}
+
 export default function RealtimeVoiceUsagePanel() {
   const [summary, setSummary] = useState<UsageSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -72,8 +85,11 @@ export default function RealtimeVoiceUsagePanel() {
   }, [])
 
   return (
-    <div
+    <section
+      role="region"
+      aria-label="Realtime voice cost tracker"
       style={{
+        ...panelShellStyle,
         border: '1px solid var(--theme-elevation-150, #d1d5db)',
         borderRadius: 8,
         padding: 14,
@@ -126,6 +142,6 @@ export default function RealtimeVoiceUsagePanel() {
           ))}
         </div>
       )}
-    </div>
+    </section>
   )
 }

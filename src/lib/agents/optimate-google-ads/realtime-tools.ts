@@ -27,13 +27,13 @@ export interface RealtimeFunctionTool {
  * can never sneak in.
  */
 export function getVoiceToolNames(): Set<string> {
-  return new Set(getTools().map((tool) => tool.name))
+  return new Set(getTools({ attachMemoryTools: true }).map((tool) => tool.name))
 }
 
 export const getVoiceReadToolNames = getVoiceToolNames
 
 export function getPortfolioVoiceToolNames(): Set<string> {
-  return new Set(getPortfolioTools().map((tool) => tool.name))
+  return new Set(getPortfolioTools({ attachMemoryTools: true }).map((tool) => tool.name))
 }
 
 /** True when the name belongs to the registered OptiMate tool set. */
@@ -49,13 +49,13 @@ export const isVoiceReadTool = isVoiceTool
 
 /** Build the Realtime `tools` array for the allowed voice set. */
 export function getRealtimeToolDefinitions(allowed: Set<string>): RealtimeFunctionTool[] {
-  return getTools()
+  return getTools({ attachMemoryTools: true })
     .filter((tool) => allowed.has(tool.name))
     .map(toRealtimeFunctionTool)
 }
 
 export function getPortfolioRealtimeToolDefinitions(allowed: Set<string>): RealtimeFunctionTool[] {
-  return getPortfolioTools()
+  return getPortfolioTools({ attachMemoryTools: true })
     .filter((tool) => allowed.has(tool.name))
     .map(toRealtimeFunctionTool)
 }

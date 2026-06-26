@@ -143,16 +143,52 @@ export function campaignHasPeriodData(c: Pick<BudgetCampaign, 'mtdSpend' | 'spen
   return Number(c.mtdSpend ?? c.spend ?? 0) > 0 || Number(c.impressions || 0) > 0 || Number(c.clicks || 0) > 0 || Number(c.conversions || 0) > 0;
 }
 
-export function shouldShowBudgetCampaign(c: Pick<BudgetCampaign, 'enabled' | 'standalone' | 'budgetPercentage' | 'mtdSpend' | 'spend' | 'impressions' | 'clicks' | 'conversions'>): boolean {
-  return Boolean(c.enabled || c.standalone || Number(c.budgetPercentage || 0) > 0 || campaignHasPeriodData(c));
+function googleDateKey(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = String(value).trim().match(/^(\d{4})-?(\d{2})-?(\d{2})$/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
 }
 
-export function isBudgetAllocationCampaign(c: Pick<BudgetCampaign, 'enabled' | 'standalone' | 'budgetPercentage'>): boolean {
-  return Boolean(c.enabled && !c.standalone && Number(c.budgetPercentage || 0) > 0);
+function todayGoogleDateKey(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
-export function isBudgetPushEligible(c: Pick<BudgetCampaign, 'enabled' | 'campaignStatus'>): boolean {
-  return c.enabled && c.campaignStatus !== 'REMOVED';
+export function isExperimentCloneCampaignName(campaignName: string | null | undefined): boolean {
+  const name = String(campaignName ?? '').trim();
+  if (!name) return false;
+
+  // Google Ads / Growth Tools currently returns old experiment clone campaigns as
+  // ENABLED with no end-date metadata. In this account those clones are named as
+  // suffix variants of the base campaign, e.g. `: Exp - ...`, `: mCPC Exp`,
+  // `: Geo-Agnostic ad copy`, or `- exp`. Keep this narrow so normal campaigns
+  // with words like "experience" are not hidden.
+  return /(?:^|\s)(?:-|:)\s*(?:exp\b|.*\bexp\b|geo-agnostic ad copy\b)/i.test(name);
+}
+
+export function isCampaignLifecycleActive(c: Pick<BudgetCampaign, 'campaignName' | 'campaignStatus' | 'campaignStartDate' | 'campaignEndDate'>): boolean {
+  const status = String(c.campaignStatus ?? '').toUpperCase();
+  if (status === 'PAUSED' || status === 'REMOVED') return false;
+  if (isExperimentCloneCampaignName(c.campaignName)) return false;
+
+  const today = todayGoogleDateKey();
+  const start = googleDateKey(c.campaignStartDate);
+  const end = googleDateKey(c.campaignEndDate);
+  if (start && start > today) return false;
+  if (end && end < today) return false;
+
+  return true;
+}
+
+export function shouldShowBudgetCampaign(c: Pick<BudgetCampaign, 'enabled' | 'standalone' | 'budgetPercentage' | 'campaignName' | 'campaignStatus' | 'campaignStartDate' | 'campaignEndDate'>): boolean {
+  return Boolean(isCampaignLifecycleActive(c) && (c.enabled || c.standalone || Number(c.budgetPercentage || 0) > 0));
+}
+
+export function isBudgetAllocationCampaign(c: Pick<BudgetCampaign, 'enabled' | 'standalone' | 'budgetPercentage' | 'campaignName' | 'campaignStatus' | 'campaignStartDate' | 'campaignEndDate'>): boolean {
+  return Boolean(isCampaignLifecycleActive(c) && c.enabled && !c.standalone && Number(c.budgetPercentage || 0) > 0);
+}
+
+export function isBudgetPushEligible(c: Pick<BudgetCampaign, 'enabled' | 'campaignName' | 'campaignStatus' | 'campaignStartDate' | 'campaignEndDate'>): boolean {
+  return c.enabled && isCampaignLifecycleActive(c);
 }
 
 export function getTotalMtdSpend(campaigns: BudgetCampaign[]): number {
@@ -245,9 +281,8 @@ export function generateBudgetEmailHtml(
     : isAheadOfPace
       ? `Ahead of expected pace by ${formatWholeCurrency(absPacingDelta)}`
       : 'Within $1 of expected spend-to-date';
-  // Show active/configured campaigns and any ended/paused/removed campaigns that
-  // still have data in the selected period. This keeps the email honest without
-  // depending on campaign start/end date fields from Google Ads.
+  // Show campaigns that are active now for budget allocation. Ended Google Ads
+  // experiments can remain ENABLED, so campaign end dates are part of the gate.
   const enabledCampaigns = campaigns
     .filter(shouldShowBudgetCampaign)
     .sort((a, b) => (b.clicks || 0) - (a.clicks || 0));

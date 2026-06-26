@@ -30,7 +30,7 @@ import { getTools } from '@/lib/agents/optimate-google-ads'
 describe('getVoiceToolNames', () => {
   const allowed = getVoiceToolNames()
 
-  it('includes read, draft, approval, goal, and memory tools from text OptiMate', () => {
+  it('includes read, draft, approval, goal, and memory tools from text OptiMate for live voice requests', () => {
     expect(allowed.has('get_campaign_performance')).toBe(true)
     expect(allowed.has('get_account_overview')).toBe(true)
     expect(allowed.has('memory_search')).toBe(true)
@@ -44,8 +44,8 @@ describe('getVoiceToolNames', () => {
     expect(allowed.has('soul_set')).toBe(true)
   })
 
-  it('matches the registered tool set exactly', () => {
-    const registered = new Set(getTools().map((t) => t.name))
+  it('matches the registered voice tool set exactly', () => {
+    const registered = new Set(getTools({ attachMemoryTools: true }).map((t) => t.name))
     expect(allowed).toEqual(registered)
     expect(getVoiceReadToolNames()).toEqual(registered)
   })

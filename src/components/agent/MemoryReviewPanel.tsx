@@ -15,6 +15,19 @@ interface MemoryReviewSummary {
   expired: number;
 }
 
+const panelShellStyle: React.CSSProperties = {
+  position: "relative",
+  zIndex: 0,
+  isolation: "isolate",
+  contain: "layout paint",
+  boxSizing: "border-box",
+  width: "100%",
+  clear: "both",
+  overflow: "hidden",
+  filter: "none",
+  backdropFilter: "none",
+};
+
 const cardStyle: React.CSSProperties = {
   border: "1px solid var(--theme-elevation-150)",
   borderRadius: 6,
@@ -58,8 +71,11 @@ const MemoryReviewPanel: React.FC = () => {
   );
 
   return (
-    <div
+    <section
+      role="region"
+      aria-label="Memory review"
       style={{
+        ...panelShellStyle,
         border: "1px solid var(--theme-elevation-150)",
         borderRadius: 6,
         padding: 16,
@@ -92,7 +108,7 @@ const MemoryReviewPanel: React.FC = () => {
           </p>
         </>
       )}
-    </div>
+    </section>
   );
 };
 

@@ -41,7 +41,7 @@ describe("system-prompt-token-usage route", () => {
 
     const body = (await response.json()) as TokenUsageResponse;
 
-    const generic = rowByLabel(body.prompts, "GoogleMate generic audit chat");
+    const generic = rowByLabel(body.prompts, "GoogleMate normal chat");
     const geo = rowByLabel(body.prompts, "GoogleMate geo/campaign workflow");
     const scheduled = rowByLabel(body.prompts, "GoogleMate scheduled/deck workflow");
     const legacy = rowByLabel(body.prompts, "GoogleMate all guides legacy");
@@ -57,7 +57,7 @@ describe("system-prompt-token-usage route", () => {
     const response = await GET();
     const body = (await response.json()) as TokenUsageResponse;
 
-    const blankInitial = rowByLabel(body.toolSchemas, "GoogleMate generic audit initial tool schemas");
+    const blankInitial = rowByLabel(body.toolSchemas, "GoogleMate normal chat initial tool schemas");
     const geoInitial = rowByLabel(body.toolSchemas, "GoogleMate geo/campaign initial tool schemas");
     const scheduledDeckInitial = rowByLabel(body.toolSchemas, "GoogleMate scheduled/deck initial tool schemas");
     const fullAudit = rowByLabel(body.toolSchemas, "GoogleMate full audit tool schemas");

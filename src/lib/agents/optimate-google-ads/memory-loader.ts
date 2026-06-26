@@ -161,8 +161,7 @@ export async function computeMemoryTokenUsage(
         });
         memoryText =
           "## Known about this account\n\n" +
-          "Pinned facts loaded from memory. Use `memory_search` if you need more, " +
-          "and `remember` when you learn something new worth keeping.\n\n" +
+          "Pinned facts loaded from memory. More memory tools are attached only for explicit memory requests.\n\n" +
           lines.join("\n");
       }
     } catch (err) {
@@ -190,8 +189,7 @@ export async function computeMemoryTokenUsage(
       soulText = lines.length === 0
         ? ""
         : "## Working with this team\n\n" +
-          "Communication lessons. Use `soul_set` if the user corrects how you " +
-          "communicate.\n\n" +
+          "Communication lessons loaded from soul. Soul update tools are attached only for explicit communication-style corrections.\n\n" +
           lines.join("\n");
     }
   } catch (err) {

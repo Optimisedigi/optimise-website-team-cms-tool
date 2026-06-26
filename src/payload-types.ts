@@ -68,6 +68,7 @@ export interface Config {
   blocks: {};
   collections: {
     clients: Client;
+    'client-wishlist-items': ClientWishlistItem;
     'client-proposals': ClientProposal;
     'client-discovery-briefings': ClientDiscoveryBriefing;
     contracts: Contract;
@@ -169,6 +170,7 @@ export interface Config {
   };
   collectionsSelect: {
     clients: ClientsSelect<false> | ClientsSelect<true>;
+    'client-wishlist-items': ClientWishlistItemsSelect<false> | ClientWishlistItemsSelect<true>;
     'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
     'client-discovery-briefings': ClientDiscoveryBriefingsSelect<false> | ClientDiscoveryBriefingsSelect<true>;
     contracts: ContractsSelect<false> | ContractsSelect<true>;
@@ -5250,6 +5252,25 @@ export interface DeckTemplate {
   createdAt: string;
 }
 /**
+ * Ideal clients the team would like to work with.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-wishlist-items".
+ */
+export interface ClientWishlistItem {
+  id: number;
+  /**
+   * The business, brand or client type you would love Optimise Digital to work with.
+   */
+  idealClient: string;
+  /**
+   * Automatically set to the logged-in team member who created this wishlist item.
+   */
+  addedBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Pre-meeting client discovery questionnaire (website & SEO strategy). Stores the structured answers plus a canonical rendered markdown blob.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -8801,6 +8822,10 @@ export interface PayloadLockedDocument {
         value: number | Client;
       } | null)
     | ({
+        relationTo: 'client-wishlist-items';
+        value: number | ClientWishlistItem;
+      } | null)
+    | ({
         relationTo: 'client-proposals';
         value: number | ClientProposal;
       } | null)
@@ -9585,6 +9610,16 @@ export interface ClientsSelect<T extends boolean = true> {
         id?: T;
       };
   metaAdAccountId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-wishlist-items_select".
+ */
+export interface ClientWishlistItemsSelect<T extends boolean = true> {
+  idealClient?: T;
+  addedBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }

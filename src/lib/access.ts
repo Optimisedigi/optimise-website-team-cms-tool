@@ -386,6 +386,13 @@ export function hideUnlessFeature(slug: FeatureSlug) {
   };
 }
 
+export function hideUnlessAnyFeature(...slugs: FeatureSlug[]) {
+  return ({ user }: { user: any }) => {
+    if (!user) return true;
+    return !slugs.some((slug) => hasFeature(user, slug));
+  };
+}
+
 /**
  * Convenience: build the standard `access` block for a Global, gated by a
  * feature key. Read = anyone with the feature. Update = admin only.

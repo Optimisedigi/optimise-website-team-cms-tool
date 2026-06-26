@@ -13,11 +13,6 @@ import { default as default_b01924fac7c8fdeb53e1e3279533a6b2 } from '../../../co
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
 import { default as default_6a5b1e7effb81eb770bec93b1614e740 } from '../../../components/FirstMonthRetainerField'
 import { default as default_c5ea9fe7cd59f6fed2f187082f64a9ed } from '../../../components/ClientSignedContractButton'
-import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
-import { default as default_9ac394c54993eebab40c6ee07594e90a } from '../../../components/admin/DiscoveryBriefingPanel'
-import { default as default_30019ca76d88f22be3a9fab3c840976c } from '../../../components/AccountTimelineTable'
-import { default as default_1a2b8d9a179321ad34f0f546c6575e98 } from '../../../components/StartProcessButton'
-import { default as default_b625d4fd2a78fb543eb54574c50e62fc } from '../../../components/LinkedProcesses'
 import { RscEntryLexicalCell as RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { RscEntryLexicalField as RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { LexicalDiffComponent as LexicalDiffComponent_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
@@ -42,6 +37,11 @@ import { StrikethroughFeatureClient as StrikethroughFeatureClient_e70f5e05f09f93
 import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
+import { default as default_9ac394c54993eebab40c6ee07594e90a } from '../../../components/admin/DiscoveryBriefingPanel'
+import { default as default_30019ca76d88f22be3a9fab3c840976c } from '../../../components/AccountTimelineTable'
+import { default as default_1a2b8d9a179321ad34f0f546c6575e98 } from '../../../components/StartProcessButton'
+import { default as default_b625d4fd2a78fb543eb54574c50e62fc } from '../../../components/LinkedProcesses'
 import { default as default_ed9e6f0fa5e336ee3e07aafd28c2179a } from '../../../components/WideDocumentLayout'
 import { default as default_f27ec21ed5917413961c1954b63a7552 } from '../../../components/GoogleAdsConversionActionPicker'
 import { default as default_fb5d37b90851b3851c29f4b754a04aca } from '../../../components/RunGoogleAdsAuditFromClientButton'
@@ -63,6 +63,7 @@ import { default as default_c8dab20425f2b2eab04984a9a36002da } from '../../../co
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
+import { default as default_d1caac617b36c18c78bd0a0c14911f8f } from '../../../components/ClientWishlistLink'
 import { default as default_a78435ccde604fd147bece248584301d } from '../../../components/ClientsShowInactiveToggle'
 import { default as default_72d189b1b13bf8e4b8caa39292a6941b } from '../../../components/ClientsBulkAssignManager'
 import { GlimmerSaveButton as GlimmerSaveButton_8b8a72c580a11ddd0bbaa823ddd7ff94 } from '../../../components/GlimmerSaveButton'
@@ -162,6 +163,7 @@ import { Banner as Banner_3817bf644402e67bfe6577f60ef982de } from '@payloadcms/u
 import { default as default_c23633038a6cad04468f22666fdf02d6 } from '../../../components/agent/RealtimeVoiceUsagePanel'
 import { default as default_b1bb90f08c5df85caf24dc08a7b957cf } from '../../../components/agent/MemoryTokenUsagePanel'
 import { default as default_3d0ad3af79773fa3e0e884a28989ff85 } from '../../../components/agent/MemoryReviewPanel'
+import { default as default_a82602a1f42713b7065c509fd7e4e34f } from '../../../components/agent/SystemPromptTokenUsagePanel'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_2539ed3128925d1e4131db1b637125cd } from '../../../components/NotificationsBell'
@@ -201,11 +203,6 @@ export const importMap = {
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
   "./components/FirstMonthRetainerField#default": default_6a5b1e7effb81eb770bec93b1614e740,
   "./components/ClientSignedContractButton#default": default_c5ea9fe7cd59f6fed2f187082f64a9ed,
-  "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
-  "./components/admin/DiscoveryBriefingPanel#default": default_9ac394c54993eebab40c6ee07594e90a,
-  "./components/AccountTimelineTable#default": default_30019ca76d88f22be3a9fab3c840976c,
-  "./components/StartProcessButton#default": default_1a2b8d9a179321ad34f0f546c6575e98,
-  "./components/LinkedProcesses#default": default_b625d4fd2a78fb543eb54574c50e62fc,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalCell": RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalField": RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e,
   "@payloadcms/richtext-lexical/rsc#LexicalDiffComponent": LexicalDiffComponent_44fe37237e0ebf4470c9990d8cb7b07e,
@@ -230,6 +227,11 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UnderlineFeatureClient": UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#BoldFeatureClient": BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
+  "./components/admin/DiscoveryBriefingPanel#default": default_9ac394c54993eebab40c6ee07594e90a,
+  "./components/AccountTimelineTable#default": default_30019ca76d88f22be3a9fab3c840976c,
+  "./components/StartProcessButton#default": default_1a2b8d9a179321ad34f0f546c6575e98,
+  "./components/LinkedProcesses#default": default_b625d4fd2a78fb543eb54574c50e62fc,
   "./components/WideDocumentLayout#default": default_ed9e6f0fa5e336ee3e07aafd28c2179a,
   "./components/GoogleAdsConversionActionPicker#default": default_f27ec21ed5917413961c1954b63a7552,
   "./components/RunGoogleAdsAuditFromClientButton#default": default_fb5d37b90851b3851c29f4b754a04aca,
@@ -251,6 +253,7 @@ export const importMap = {
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
+  "./components/ClientWishlistLink#default": default_d1caac617b36c18c78bd0a0c14911f8f,
   "./components/ClientsShowInactiveToggle#default": default_a78435ccde604fd147bece248584301d,
   "./components/ClientsBulkAssignManager#default": default_72d189b1b13bf8e4b8caa39292a6941b,
   "./components/GlimmerSaveButton#GlimmerSaveButton": GlimmerSaveButton_8b8a72c580a11ddd0bbaa823ddd7ff94,
@@ -350,6 +353,7 @@ export const importMap = {
   "./components/agent/RealtimeVoiceUsagePanel#default": default_c23633038a6cad04468f22666fdf02d6,
   "./components/agent/MemoryTokenUsagePanel#default": default_b1bb90f08c5df85caf24dc08a7b957cf,
   "./components/agent/MemoryReviewPanel#default": default_3d0ad3af79773fa3e0e884a28989ff85,
+  "./components/agent/SystemPromptTokenUsagePanel#default": default_a82602a1f42713b7065c509fd7e4e34f,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/NotificationsBell#default": default_2539ed3128925d1e4131db1b637125cd,
