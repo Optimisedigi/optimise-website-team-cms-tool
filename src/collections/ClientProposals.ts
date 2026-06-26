@@ -1141,6 +1141,15 @@ export const ClientProposals: CollectionConfig = {
           label: "Audit Inputs",
           fields: [
             {
+              name: "keywordResearchAutofill",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/KeywordResearchAutofill",
+                },
+              },
+            },
+            {
               name: "keywordCategories",
               type: "array",
               maxRows: 6,
