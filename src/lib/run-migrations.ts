@@ -4802,6 +4802,10 @@ export async function runMigrations(
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
       FOREIGN KEY (\`added_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
     )`);
+    await run("client_wishlist_items.ideal_client", "ALTER TABLE `client_wishlist_items` ADD `ideal_client` text");
+    await run("client_wishlist_items.added_by_id", "ALTER TABLE `client_wishlist_items` ADD `added_by_id` integer REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null");
+    await run("client_wishlist_items.updated_at", "ALTER TABLE `client_wishlist_items` ADD `updated_at` text");
+    await run("client_wishlist_items.created_at", "ALTER TABLE `client_wishlist_items` ADD `created_at` text");
     await run("client_wishlist_items_added_by_idx", "CREATE INDEX IF NOT EXISTS `client_wishlist_items_added_by_idx` ON `client_wishlist_items` (`added_by_id`)");
     await run("client_wishlist_items_updated_at_idx", "CREATE INDEX IF NOT EXISTS `client_wishlist_items_updated_at_idx` ON `client_wishlist_items` (`updated_at`)");
     await run("client_wishlist_items_created_at_idx", "CREATE INDEX IF NOT EXISTS `client_wishlist_items_created_at_idx` ON `client_wishlist_items` (`created_at`)");

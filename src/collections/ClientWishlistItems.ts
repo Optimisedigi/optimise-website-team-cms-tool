@@ -9,6 +9,7 @@ export const ClientWishlistItems: CollectionConfig = {
   admin: {
     useAsTitle: "idealClient",
     group: "Clients",
+    hidden: true,
     description: "Ideal clients the team would like to work with.",
     defaultColumns: ["idealClient", "addedBy"],
   },
