@@ -5266,7 +5266,15 @@ export interface ClientWishlistItem {
    */
   idealClient: string;
   /**
-   * Automatically set to the logged-in team member who created this wishlist item.
+   * The client or brand website.
+   */
+  website?: string | null;
+  /**
+   * Why this business would be a great fit for Optimise Digital.
+   */
+  why?: string | null;
+  /**
+   * The team member who added this wishlist item.
    */
   addedBy?: (number | null) | User;
   updatedAt: string;
@@ -9648,6 +9656,8 @@ export interface ClientsSelect<T extends boolean = true> {
  */
 export interface ClientWishlistItemsSelect<T extends boolean = true> {
   idealClient?: T;
+  website?: T;
+  why?: T;
   addedBy?: T;
   updatedAt?: T;
   createdAt?: T;

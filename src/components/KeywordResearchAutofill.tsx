@@ -168,10 +168,14 @@ export default function KeywordResearchAutofill() {
   }
 
   return (
-    <div style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+    <section
+      className="od-admin-form-section"
+      aria-labelledby="keyword-research-autofill-title"
+      style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 16, marginBottom: 16 }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <div>
-          <strong>Keyword research autofill</strong>
+          <strong id="keyword-research-autofill-title">Keyword research autofill</strong>
           <p style={{ margin: '4px 0 0', color: 'var(--theme-elevation-600)' }}>
             Pulls website-based keyword categories from Growth Tools, then lets you choose the 6 to use.
           </p>
@@ -255,6 +259,6 @@ export default function KeywordResearchAutofill() {
           </div>
         </div>
       )}
-    </div>
+    </section>
   )
 }

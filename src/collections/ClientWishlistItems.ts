@@ -12,7 +12,14 @@ export const ClientWishlistItems: CollectionConfig = {
     group: "Clients",
     hidden: hideUnlessAnyFeature("clients", "clients-basic"),
     description: "Ideal clients the team would like to work with.",
-    defaultColumns: ["idealClient", "addedBy"],
+    defaultColumns: ["idealClient", "website", "addedBy", "why"],
+    components: {
+      views: {
+        list: {
+          Component: "./components/ClientWishlistGrid",
+        },
+      },
+    },
   },
   access: {
     read: ({ req }) => !!req.user,
@@ -23,7 +30,7 @@ export const ClientWishlistItems: CollectionConfig = {
   fields: [
     {
       name: "idealClient",
-      label: "Ideal Client",
+      label: "Name",
       type: "text",
       required: true,
       admin: {
@@ -31,18 +38,33 @@ export const ClientWishlistItems: CollectionConfig = {
       },
     },
     {
+      name: "website",
+      label: "Website",
+      type: "text",
+      admin: {
+        description: "The client or brand website.",
+      },
+    },
+    {
+      name: "why",
+      label: "Why",
+      type: "textarea",
+      admin: {
+        description: "Why this business would be a great fit for Optimise Digital.",
+      },
+    },
+    {
       name: "addedBy",
-      label: "Who Added It",
+      label: "Person Adding It",
       type: "relationship",
       relationTo: "users",
       admin: {
-        readOnly: true,
-        description: "Automatically set to the logged-in team member who created this wishlist item.",
+        description: "The team member who added this wishlist item.",
       },
       hooks: {
         beforeChange: [
           ({ req, value, operation }) => {
-            if (operation === "create" && req.user?.id) return req.user.id;
+            if (operation === "create" && !value && req.user?.id) return req.user.id;
             return value;
           },
         ],

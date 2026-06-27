@@ -436,12 +436,16 @@ function DiscoveryBriefingPanel() {
 
   if (!id) {
     return (
-      <div style={containerStyle}>
-        <strong style={headingStyle}>Discovery Briefing</strong>
+      <section
+        className="od-admin-form-section"
+        aria-labelledby="discovery-briefing-title"
+        style={containerStyle}
+      >
+        <strong id="discovery-briefing-title" style={headingStyle}>Discovery Briefing</strong>
         <p style={hintStyle}>
           Save this record first to open its discovery briefing.
         </p>
-      </div>
+      </section>
     )
   }
 
@@ -461,9 +465,13 @@ function DiscoveryBriefingPanel() {
   const { preview, truncated } = trimMarkdownPreview(summary?.markdown ?? null)
 
   return (
-    <div style={containerStyle}>
+    <section
+      className="od-admin-form-section"
+      aria-labelledby="discovery-briefing-title"
+      style={containerStyle}
+    >
       <div style={headerRowStyle}>
-        <strong style={headingStyle}>Discovery Briefing</strong>
+        <strong id="discovery-briefing-title" style={headingStyle}>Discovery Briefing</strong>
         <a
           href={href}
           target="_blank"
@@ -618,7 +626,7 @@ function DiscoveryBriefingPanel() {
           No briefing yet — open the form to start.
         </p>
       )}
-    </div>
+    </section>
   )
 }
 

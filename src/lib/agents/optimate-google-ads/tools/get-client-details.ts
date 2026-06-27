@@ -13,6 +13,11 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import {
+  buildOptimateClientProfile,
+  type OptimateClientProfile,
+  type OptimateClientProfileFieldGroup,
+} from "@/lib/optimate-client-profile";
 import { getPayload } from "payload";
 import payloadConfig from "@/payload.config";
 
@@ -37,6 +42,9 @@ const VALID_GROUPS = new Set<FieldGroup>([
   "all",
 ]);
 
+const DEFAULT_GROUPS: FieldGroup[] = ["contact", "commercial", "goals"];
+const ALL_GROUPS: FieldGroup[] = ["contact", "commercial", "notes", "timeline", "business", "locations", "goals"];
+
 interface GetClientDetailsArgs {
   fields?: FieldGroup[];
   /**
@@ -44,55 +52,6 @@ interface GetClientDetailsArgs {
    * to the most recent N. Default 10. Max 50.
    */
   limit?: number;
-}
-
-interface ClientNote {
-  category?: string | null;
-  date?: string | null;
-  author?: string | null;
-  content?: string | null;
-}
-
-interface AccountTimelineEntry {
-  date?: string | null;
-  serviceArea?: string | null;
-  actionType?: string | null;
-  description?: string | null;
-}
-
-interface AccountManager {
-  name?: string | null;
-  email?: string | null;
-}
-
-interface GoogleMapsUrl {
-  url?: string | null;
-  label?: string | null;
-}
-
-interface ClientDoc {
-  id: number;
-  name?: string | null;
-  slug?: string | null;
-  isActive?: boolean | null;
-  websiteUrl?: string | null;
-  websiteType?: string | null;
-  businessType?: string | null;
-  targetLocation?: string | null;
-  clientGoals?: string | null;
-  contactName?: string | null;
-  contactEmail?: string | null;
-  accountManagers?: AccountManager[] | null;
-  hasPhysicalLocations?: boolean | null;
-  numberOfLocations?: number | null;
-  googleMapsUrls?: GoogleMapsUrl[] | null;
-  conversionGoal?: string | null;
-  secondaryConversionGoal?: string | null;
-  clientStartDate?: string | null;
-  monthlyRetainer?: number | null;
-  googleAdsCustomerId?: string | null;
-  clientNotes?: ClientNote[] | null;
-  accountTimeline?: AccountTimelineEntry[] | null;
 }
 
 export const getClientDetails: CanonicalTool<GetClientDetailsArgs> = {
@@ -148,134 +107,118 @@ export const getClientDetails: CanonicalTool<GetClientDetailsArgs> = {
       return { ok: false, error: "No linked client; this tool needs a client-scoped chat." };
     }
 
+    const groups = normaliseRequestedGroups(args.fields, DEFAULT_GROUPS);
     const cfg = await payloadConfig;
     const payload = await getPayload({ config: cfg });
 
-    let client: ClientDoc;
     try {
-      client = (await payload.findByID({
-        collection: "clients",
-        id: clientId as never,
-        depth: 0,
-        overrideAccess: true,
-      })) as unknown as ClientDoc;
+      const profile = await buildOptimateClientProfile(payload, {
+        id: clientId,
+        fields: mapToProfileGroups(groups),
+        limit: args.limit,
+      });
+
+      if (!profile) {
+        return { ok: false, error: `Failed to load client ${clientId}: client not found` };
+      }
+
+      return {
+        ok: true,
+        data: {
+          groupsReturned: groups.includes("all") ? ["all"] : groups,
+          client: projectConciseClient(profile, groups),
+        },
+      };
     } catch (err) {
       return {
         ok: false,
         error: `Failed to load client ${clientId}: ${(err as Error).message}`,
       };
     }
-
-    const groups: FieldGroup[] = args.fields && args.fields.length > 0
-      ? args.fields
-      : ["contact", "commercial", "goals"];
-    const all = groups.includes("all");
-    const want = (g: FieldGroup) => all || groups.includes(g);
-    const limit = args.limit ?? 10;
-
-    const out: Record<string, unknown> = {
-      id: client.id,
-      name: client.name ?? null,
-      slug: client.slug ?? null,
-      isActive: client.isActive ?? null,
-    };
-
-    if (want("contact")) {
-      out.contact = {
-        contactName: client.contactName ?? null,
-        contactEmail: client.contactEmail ?? null,
-        accountManagers: Array.isArray(client.accountManagers)
-          ? client.accountManagers.map((m) => ({
-              name: m.name ?? null,
-              email: m.email ?? null,
-            }))
-          : [],
-      };
-    }
-
-    if (want("commercial")) {
-      out.commercial = {
-        clientStartDate: client.clientStartDate ?? null,
-        monthlyRetainer: client.monthlyRetainer ?? null,
-        googleAdsCustomerId: client.googleAdsCustomerId ?? null,
-      };
-    }
-
-    if (want("business")) {
-      out.business = {
-        websiteUrl: client.websiteUrl ?? null,
-        websiteType: client.websiteType ?? null,
-        businessType: client.businessType ?? null,
-        targetLocation: client.targetLocation ?? null,
-      };
-    }
-
-    if (want("locations")) {
-      out.locations = {
-        hasPhysicalLocations: client.hasPhysicalLocations ?? null,
-        numberOfLocations: client.numberOfLocations ?? null,
-        googleMapsUrls: Array.isArray(client.googleMapsUrls)
-          ? client.googleMapsUrls.map((u) => ({
-              url: u.url ?? null,
-              label: u.label ?? null,
-            }))
-          : [],
-      };
-    }
-
-    if (want("goals")) {
-      out.goals = {
-        conversionGoal: client.conversionGoal ?? null,
-        secondaryConversionGoal: client.secondaryConversionGoal ?? null,
-        clientGoals: client.clientGoals ?? null,
-      };
-    }
-
-    if (want("notes")) {
-      const notes = Array.isArray(client.clientNotes) ? client.clientNotes : [];
-      // Most recent first by date string (ISO). Empty / invalid dates sort last.
-      const sorted = notes.slice().sort((a, b) => {
-        const ta = a.date ? Date.parse(a.date) : 0;
-        const tb = b.date ? Date.parse(b.date) : 0;
-        return tb - ta;
-      });
-      out.notes = {
-        totalCount: notes.length,
-        returned: Math.min(sorted.length, limit),
-        items: sorted.slice(0, limit).map((n) => ({
-          date: n.date ?? null,
-          author: n.author ?? null,
-          category: n.category ?? null,
-          content: n.content ?? null,
-        })),
-      };
-    }
-
-    if (want("timeline")) {
-      const timeline = Array.isArray(client.accountTimeline) ? client.accountTimeline : [];
-      const sorted = timeline.slice().sort((a, b) => {
-        const ta = a.date ? Date.parse(a.date) : 0;
-        const tb = b.date ? Date.parse(b.date) : 0;
-        return tb - ta;
-      });
-      out.timeline = {
-        totalCount: timeline.length,
-        returned: Math.min(sorted.length, limit),
-        entries: sorted.slice(0, limit).map((e) => ({
-          date: e.date ?? null,
-          serviceArea: e.serviceArea ?? null,
-          actionType: e.actionType ?? null,
-          description: e.description ?? null,
-        })),
-      };
-    }
-
-    return {
-      ok: true,
-      data: {
-        groupsReturned: all ? ["all"] : groups,
-        client: out,
-      },
-    };
   },
 };
+
+function normaliseRequestedGroups(fields: FieldGroup[] | undefined, fallback: FieldGroup[]): FieldGroup[] {
+  return fields && fields.length > 0 ? Array.from(new Set(fields)) : fallback;
+}
+
+function mapToProfileGroups(groups: FieldGroup[]): OptimateClientProfileFieldGroup[] {
+  const requested = groups.includes("all") ? ALL_GROUPS : groups;
+  const mapped = new Set<OptimateClientProfileFieldGroup>();
+
+  for (const group of requested) {
+    if (group === "all") continue;
+    if (group === "commercial") {
+      mapped.add("commercial");
+      mapped.add("tracking");
+      continue;
+    }
+    if (group === "business") {
+      mapped.add("identity");
+      mapped.add("business");
+      continue;
+    }
+    mapped.add(group);
+  }
+
+  return [...mapped];
+}
+
+function projectConciseClient(profile: OptimateClientProfile, groups: FieldGroup[]): Record<string, unknown> {
+  const all = groups.includes("all");
+  const want = (group: FieldGroup): boolean => all || groups.includes(group);
+  const out: Record<string, unknown> = {
+    id: profile.id,
+    name: profile.name,
+    slug: profile.slug,
+    isActive: profile.isActive,
+  };
+
+  if (want("contact")) {
+    out.contact = profile.contact
+      ? {
+          contactName: profile.contact.contactName,
+          contactEmail: profile.contact.contactEmail,
+          accountManagers: profile.contact.accountManagers,
+        }
+      : { contactName: null, contactEmail: null, accountManagers: [] };
+  }
+
+  if (want("commercial")) {
+    out.commercial = {
+      clientStartDate: profile.commercial?.clientStartDate ?? null,
+      monthlyRetainer: profile.commercial?.monthlyRetainer ?? null,
+      googleAdsCustomerId: profile.tracking?.googleAdsCustomerId ?? null,
+    };
+  }
+
+  if (want("business")) {
+    out.business = {
+      websiteUrl: profile.identity?.websiteUrl ?? null,
+      websiteType: profile.identity?.websiteType ?? null,
+      businessType: profile.business?.businessType ?? null,
+      targetLocation: profile.business?.targetLocation ?? null,
+    };
+  }
+
+  if (want("locations")) {
+    out.locations = profile.locations ?? {
+      hasPhysicalLocations: null,
+      numberOfLocations: null,
+      googleMapsUrls: [],
+    };
+  }
+
+  if (want("goals")) {
+    out.goals = {
+      conversionGoal: profile.goals?.conversionGoal ?? null,
+      secondaryConversionGoal: profile.goals?.secondaryConversionGoal ?? null,
+      clientGoals: profile.goals?.clientGoals ?? null,
+    };
+  }
+
+  if (want("notes")) out.notes = profile.notes ?? { totalCount: 0, returned: 0, items: [] };
+  if (want("timeline")) out.timeline = profile.timeline ?? { totalCount: 0, returned: 0, entries: [] };
+
+  return out;
+}

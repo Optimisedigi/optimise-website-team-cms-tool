@@ -2,7 +2,7 @@
 
 export default function ClientWishlistLink() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', margin: '0 0 12px' }}>
+    <div className="client-wishlist-list-action" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', margin: '0 0 12px' }}>
       <a
         href="/admin/collections/client-wishlist-items"
         style={{

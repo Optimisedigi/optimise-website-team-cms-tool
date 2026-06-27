@@ -157,8 +157,8 @@ export const Clients: CollectionConfig = {
     ],
     hidden: hideUnlessAnyFeature("clients", "clients-basic"),
     components: {
-      // Renders the "Active only / Show inactive" toggle above the list table
-      // (flips ?showInactive, read by the baseListFilter below).
+      // Renders the client wishlist shortcut plus the "Active only / Show inactive"
+      // toggle above the list table (flips ?showInactive, read by the baseListFilter below).
       beforeListTable: [
         "./components/ClientWishlistLink",
         "./components/ClientsShowInactiveToggle",

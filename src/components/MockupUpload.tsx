@@ -52,18 +52,19 @@ const MockupUpload = () => {
   }
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <label
+    <section className="od-admin-form-section" aria-labelledby="mockup-upload-title" style={{ marginBottom: 16 }}>
+      <h2
+        id="mockup-upload-title"
         style={{
           display: 'block',
-          marginBottom: 6,
+          margin: '0 0 6px',
           fontSize: 13,
           fontWeight: 600,
           color: 'var(--theme-elevation-800)',
         }}
       >
         Upload HTML Mockup
-      </label>
+      </h2>
 
       {currentUrl && (
         <p style={{ fontSize: 13, color: 'var(--theme-elevation-600)', marginBottom: 8, wordBreak: 'break-all' }}>
@@ -94,7 +95,7 @@ const MockupUpload = () => {
       {error && (
         <p style={{ marginTop: 6, fontSize: 13, color: '#dc2626' }}>{error}</p>
       )}
-    </div>
+    </section>
   )
 }
 

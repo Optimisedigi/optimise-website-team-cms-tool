@@ -898,6 +898,15 @@ export const ClientProposals: CollectionConfig = {
   },
   fields: [
     {
+      name: "proposalHeader",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/ClientProposalHeader",
+        },
+      },
+    },
+    {
       type: "tabs",
       tabs: [
         {
@@ -1485,6 +1494,15 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 components: {
                   Field: "./components/RunAuditsButton",
+                },
+              },
+            },
+            {
+              name: "backfillReportData",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/BackfillProposalReportDataButton",
                 },
               },
             },

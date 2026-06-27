@@ -4803,6 +4803,8 @@ export async function runMigrations(
       FOREIGN KEY (\`added_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
     )`);
     await run("client_wishlist_items.ideal_client", "ALTER TABLE `client_wishlist_items` ADD `ideal_client` text");
+    await run("client_wishlist_items.website", "ALTER TABLE `client_wishlist_items` ADD `website` text");
+    await run("client_wishlist_items.why", "ALTER TABLE `client_wishlist_items` ADD `why` text");
     await run("client_wishlist_items.added_by_id", "ALTER TABLE `client_wishlist_items` ADD `added_by_id` integer REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null");
     await run("client_wishlist_items.updated_at", "ALTER TABLE `client_wishlist_items` ADD `updated_at` text");
     await run("client_wishlist_items.created_at", "ALTER TABLE `client_wishlist_items` ADD `created_at` text");
@@ -4810,6 +4812,27 @@ export async function runMigrations(
     await run("client_wishlist_items_updated_at_idx", "CREATE INDEX IF NOT EXISTS `client_wishlist_items_updated_at_idx` ON `client_wishlist_items` (`updated_at`)");
     await run("client_wishlist_items_created_at_idx", "CREATE INDEX IF NOT EXISTS `client_wishlist_items_created_at_idx` ON `client_wishlist_items` (`created_at`)");
     await run("payload_locked_documents_rels.client_wishlist_items_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_wishlist_items_id` integer REFERENCES `client_wishlist_items`(`id`) ON DELETE CASCADE");
+
+    // ── Client proposal keyword research jobs (2026-07-29) ──
+    await run("client_proposal_keyword_research_jobs", `CREATE TABLE IF NOT EXISTS \`client_proposal_keyword_research_jobs\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`status\` text DEFAULT 'running' NOT NULL,
+      \`completed_at\` text,
+      \`result\` text,
+      \`error\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+    )`);
+    await run("client_proposal_keyword_research_jobs.status", "ALTER TABLE `client_proposal_keyword_research_jobs` ADD `status` text DEFAULT 'running' NOT NULL");
+    await run("client_proposal_keyword_research_jobs.completed_at", "ALTER TABLE `client_proposal_keyword_research_jobs` ADD `completed_at` text");
+    await run("client_proposal_keyword_research_jobs.result", "ALTER TABLE `client_proposal_keyword_research_jobs` ADD `result` text");
+    await run("client_proposal_keyword_research_jobs.error", "ALTER TABLE `client_proposal_keyword_research_jobs` ADD `error` text");
+    await run("client_proposal_keyword_research_jobs.updated_at", "ALTER TABLE `client_proposal_keyword_research_jobs` ADD `updated_at` text");
+    await run("client_proposal_keyword_research_jobs.created_at", "ALTER TABLE `client_proposal_keyword_research_jobs` ADD `created_at` text");
+    await run("client_proposal_keyword_research_jobs_status_idx", "CREATE INDEX IF NOT EXISTS `client_proposal_keyword_research_jobs_status_idx` ON `client_proposal_keyword_research_jobs` (`status`)");
+    await run("client_proposal_keyword_research_jobs_updated_at_idx", "CREATE INDEX IF NOT EXISTS `client_proposal_keyword_research_jobs_updated_at_idx` ON `client_proposal_keyword_research_jobs` (`updated_at`)");
+    await run("client_proposal_keyword_research_jobs_created_at_idx", "CREATE INDEX IF NOT EXISTS `client_proposal_keyword_research_jobs_created_at_idx` ON `client_proposal_keyword_research_jobs` (`created_at`)");
+    await run("payload_locked_documents_rels.client_proposal_keyword_research_jobs_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_proposal_keyword_research_jobs_id` integer REFERENCES `client_proposal_keyword_research_jobs`(`id`) ON DELETE CASCADE");
 
     // ── Match-type monitor per-client scope controls (2026-06-09) ──
     await run("clients.gadsAuto_matchTypeMonitorExact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");
