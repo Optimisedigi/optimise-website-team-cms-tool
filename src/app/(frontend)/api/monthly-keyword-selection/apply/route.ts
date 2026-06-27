@@ -39,6 +39,18 @@ function monthLabel(yearMonth: string): string {
   return new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, 1)))
 }
 
+async function mapWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+  const queue = [...items]
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    for (;;) {
+      const item = queue.shift()
+      if (!item) return
+      await worker(item)
+    }
+  })
+  await Promise.all(workers)
+}
+
 function normaliseKeyword(value: any, fallbackNklId?: number | string | null): KeywordSelection | null {
   const keyword = typeof value?.negativeKeyword === 'string'
     ? value.negativeKeyword.trim()
@@ -190,6 +202,8 @@ export async function POST(req: NextRequest) {
   // them alongside the applier.
   const reviewerCounts = new Map<string, number>()
 
+  const rowUpdates: Array<{ id: string | number; data: Record<string, unknown> }> = []
+
   for (const row of rows) {
     if (!row.id) continue
     const matchingKeyword = keywords.find((keyword) => {
@@ -205,7 +219,7 @@ export async function POST(req: NextRequest) {
     const reviewer = typeof row.decidedBy === 'string' && row.decidedBy ? row.decidedBy : 'Unknown reviewer'
     reviewerCounts.set(reviewer, (reviewerCounts.get(reviewer) || 0) + 1)
     const wasNeedsReview = row.decision === 'needs_review'
-    const next: any = {
+    const next: Record<string, unknown> = {
       decision: 'approved',
       appliedToNKL: asNklId(appliedToNKL),
       appliedAt: now,
@@ -231,13 +245,21 @@ export async function POST(req: NextRequest) {
         })
       }
     }
+    rowUpdates.push({ id: row.id, data: next })
+  }
+
+  // Stamping hundreds of selection rows one-by-one took long enough for the
+  // serverless request to time out after the NKL rows had already been saved,
+  // which made the UI show "Apply failed" despite persisted negatives. Keep the
+  // write load bounded, but run it concurrently so the request can complete.
+  await mapWithConcurrency(rowUpdates, 20, async (rowUpdate) => {
     await payload.update({
       collection: 'monthly-keyword-selection-rows',
-      id: row.id,
-      data: next,
+      id: rowUpdate.id,
+      data: rowUpdate.data,
       overrideAccess: true,
     } as never)
-  }
+  })
 
   // One change-history entry per apply: who pressed Apply, which lists, and
   // who originally reviewed the terms (so credit isn't lost to the applier).
