@@ -133,7 +133,7 @@ describe("critical agency flows — E2E route contracts", () => {
   it("starts the proposal audit pipeline, fans out to growth tools, persists records, and links them back", async () => {
     const { POST } = await import("@/app/(frontend)/api/proposals/[id]/run-audits/route");
     mockPayload.auth.mockResolvedValue({ user: { id: 1, role: "admin" } });
-    mockPayload.findByID.mockResolvedValue({
+    const proposalRecord = {
       id: 99,
       websiteUrl: "https://example.com",
       businessType: "Dental clinic",
@@ -141,19 +141,34 @@ describe("critical agency flows — E2E route contracts", () => {
       targetLocation: "au:Sydney",
       keywordCategories: [{ categoryName: "Core", keywords: "dentist sydney\nteeth whitening" }],
       competitors: [],
+    };
+    const createdDocs = new Map<string, any>();
+    mockPayload.findByID.mockImplementation(async ({ collection, id }: { collection: string; id: number | string }) => {
+      if (collection === "client-proposals") return proposalRecord;
+      return createdDocs.get(`${collection}:${id}`) ?? null;
     });
     let nextId = 1000;
-    mockPayload.create.mockImplementation(async ({ collection, data }: { collection: string; data: Record<string, unknown> }) => ({
-      id: ++nextId,
-      collection,
-      ...data,
-    }));
-    mockPayload.update.mockResolvedValue({});
+    mockPayload.create.mockImplementation(async ({ collection, data }: { collection: string; data: Record<string, unknown> }) => {
+      const doc = { id: ++nextId, collection, ...data };
+      createdDocs.set(`${collection}:${doc.id}`, doc);
+      return doc;
+    });
+    mockPayload.update.mockImplementation(async ({ collection, id, data }: { collection: string; id: number | string; data: Record<string, unknown> }) => {
+      const key = `${collection}:${id}`;
+      const doc = { ...(createdDocs.get(key) ?? {}), id, collection, ...data };
+      createdDocs.set(key, doc);
+      return doc;
+    });
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/api/seo-audits")) {
-        return Response.json({ websiteUrl: "https://example.com", businessType: "Dental clinic", overallScore: 82 });
+        return Response.json({
+          websiteUrl: "https://example.com",
+          businessType: "Dental clinic",
+          overallScore: 82,
+          lighthouseScores: { performance: 88, accessibility: 92, bestPractices: 90, seo: 95 },
+        });
       }
       if (url.endsWith("/api/audits")) {
         return Response.json({ websiteUrl: "https://example.com", conversionGoal: "bookings", overallScore: 76 });
@@ -162,12 +177,23 @@ describe("critical agency flows — E2E route contracts", () => {
         return Response.json({ keywords: [{ keyword: "dentist sydney", position: 4, search_volume: 900, opportunity: "high" }] });
       }
       if (url.endsWith("/api/competitor-analysis")) {
-        return Response.json({ yourProfile: { domain: "example.com" }, competitors: [] });
+        return Response.json({
+          yourProfile: {
+            domain: "example.com",
+            traffic: { monthlyVisits: 1200, globalRank: null, categoryRank: null, sources: null, status: "available" },
+          },
+          competitors: [
+            {
+              domain: "competitor.example",
+              traffic: { monthlyVisits: 2400, globalRank: null, categoryRank: null, sources: null, status: "available" },
+            },
+          ],
+        });
       }
       if (url.endsWith("/api/content-research")) {
         return Response.json({ keyword: "dentist sydney", ideas: ["Implants guide"] });
       }
-      if (url.endsWith("/api/traffic")) {
+      if (url.includes("/api/traffic")) {
         return Response.json({ averageMonthlyVisits: 1200 });
       }
       return Response.json({}, { status: 404 });

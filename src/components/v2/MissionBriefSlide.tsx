@@ -26,7 +26,7 @@ type AuditLike = {
 
 type KeywordLike = { searchVolume?: number | null } | null
 type CompetitorLike = {
-  traffic?: { monthlyVisits?: number | string | null } | null
+  traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null
 } | null
 
 type KeywordSnapshotLike = { keywords?: KeywordLike[] | null } | null
@@ -204,10 +204,12 @@ export function MissionBriefSlide({
     (sum, k) => sum + (k?.searchVolume ?? 0),
     0,
   )
-  const competitorTraffic = (competitorAnalysis?.competitors ?? []).reduce(
+  const competitors = competitorAnalysis?.competitors ?? []
+  const competitorTraffic = competitors.reduce(
     (sum, c) => sum + normaliseVisits(c?.traffic?.monthlyVisits ?? null),
     0,
   )
+  const hasUnavailableCompetitorTraffic = competitors.some((c) => c?.traffic?.status === 'unavailable')
 
   // Strip protocol for nicer display of the website URL.
   const cleanUrl = websiteUrl
@@ -348,7 +350,11 @@ export function MissionBriefSlide({
                 Competitor traffic
               </div>
               <div className="val purple" style={{ fontSize: 64 }}>
-                {competitorTraffic > 0 ? formatBigNumber(competitorTraffic) : ''}
+                {competitorTraffic > 0
+                  ? formatBigNumber(competitorTraffic)
+                  : hasUnavailableCompetitorTraffic
+                    ? 'Traffic unavailable'
+                    : ''}
                 {competitorTraffic > 0 && (
                   <span
                     style={{

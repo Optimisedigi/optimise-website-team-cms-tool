@@ -5,6 +5,7 @@ import config from "@/payload.config";
 import { captureAndUploadScreenshot, type ScreenshotOptions } from "@/lib/screenshots";
 import { checkMetaAdsViaScrapling, extractSocialLinks } from "@/lib/scrapling-service";
 import { uploadScreenshotToBlob } from "@/lib/blob-upload";
+import { explicitUnavailableTraffic, extractRootDomain, hasValue, hasTrafficCoverage, formatTraffic, type FormattedTraffic } from "@/lib/proposal-audit-backfill";
 
 // Allow up to 300s for the background audit pipeline (Vercel Pro max).
 // Without this, the default ~15s timeout kills `after()` mid-execution,
@@ -22,42 +23,80 @@ async function withTimeout<T>(work: Promise<T>, ms = AUXILIARY_FETCH_TIMEOUT_MS)
   ]);
 }
 
-// SimilarWeb only tracks root domains, not subdomains.
-// e.g. "my.clevelandclinic.org" → "clevelandclinic.org"
-// Handles multi-part TLDs like .org.au, .co.uk, .com.au
-const MULTI_PART_TLDS = new Set([
-  'co.uk', 'org.uk', 'ac.uk', 'co.nz', 'co.za', 'com.au', 'org.au', 'net.au',
-  'co.in', 'co.jp', 'co.kr', 'com.br', 'com.mx', 'com.sg', 'com.hk', 'com.tw',
-  'co.il', 'co.th', 'or.jp', 'ne.jp', 'org.nz', 'com.ar', 'com.co', 'com.vn',
-]);
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function extractRootDomain(domain: string): string {
-  const clean = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-  const parts = clean.split('.');
-  if (parts.length <= 2) return clean;
+async function fetchTrafficRecoverable(rootDomain: string): Promise<FormattedTraffic> {
+  const backoffs = [1000, 3000, 7000];
+  let lastReason = "failed";
 
-  // Check if the last two parts form a multi-part TLD
-  const lastTwo = parts.slice(-2).join('.');
-  if (MULTI_PART_TLDS.has(lastTwo)) {
-    // root domain = name + multi-part TLD (e.g. tg.org.au)
-    return parts.slice(-3).join('.');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
+        headers: { "x-internal-key": INTERNAL_API_KEY! },
+        signal: AbortSignal.timeout(AUXILIARY_FETCH_TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`Traffic API failed: ${res.status}`);
+      const data = await res.json();
+      if (data?.status === "unavailable") {
+        lastReason = data.unavailableReason ?? "failed";
+        if (["blocked", "failed"].includes(lastReason) && attempt < 2) throw new Error(`Traffic unavailable: ${lastReason}`);
+      }
+      return formatTraffic(data);
+    } catch (err: any) {
+      lastReason = err?.name === "TimeoutError" || err?.name === "AbortError" ? "timeout" : lastReason;
+      if (attempt < 2) await sleep(backoffs[attempt] + Math.floor(Math.random() * 500));
+    }
   }
-  // Standard TLD: root domain = name + TLD (e.g. clevelandclinic.org)
-  return parts.slice(-2).join('.');
+
+  return explicitUnavailableTraffic(lastReason);
 }
 
-// Traffic endpoint returns monthlyVisits as an array of {month, visits} objects.
-// Extract the latest month's visits, or fall back to averageMonthlyVisits.
-function extractMonthlyVisits(td: any): number | null {
-  if (!td) return null;
-  if (typeof td.averageMonthlyVisits === "number") return td.averageMonthlyVisits;
-  if (Array.isArray(td.monthlyVisits) && td.monthlyVisits.length > 0) {
-    const last = td.monthlyVisits[td.monthlyVisits.length - 1];
-    return typeof last === "number" ? last : last?.visits ?? null;
+async function validateProposalAuditReport(payload: any, proposalId: string, auditIds: Record<string, number | string | number[] | null>) {
+  const missing: string[] = [];
+
+  if (!auditIds.seoAudit) {
+    missing.push("seoAudit record");
+  } else {
+    try {
+      const seoAudit = await payload.findByID({
+        collection: "seo-audits",
+        id: auditIds.seoAudit as number,
+        overrideAccess: true,
+      });
+      if (!hasValue(seoAudit?.lighthouseScores)) {
+        missing.push("seoAudit.lighthouseScores");
+      }
+    } catch (e: any) {
+      missing.push(`seoAudit could not be loaded: ${e.message}`);
+    }
   }
-  if (typeof td.monthlyVisits === "number") return td.monthlyVisits;
-  if (typeof td.estimatedMonthlyVisits === "number") return td.estimatedMonthlyVisits;
-  return null;
+
+  if (!auditIds.competitorAnalysis) {
+    missing.push("competitorAnalysis record");
+  } else {
+    try {
+      const competitorAnalysis = await payload.findByID({
+        collection: "competitor-analyses",
+        id: auditIds.competitorAnalysis as number,
+        overrideAccess: true,
+      });
+      if (!hasValue(competitorAnalysis?.competitors)) {
+        missing.push("competitorAnalysis.competitors");
+      }
+      const competitors = Array.isArray(competitorAnalysis?.competitors) ? competitorAnalysis.competitors : [];
+      const profiles = [competitorAnalysis?.yourProfile, ...competitors].filter(Boolean);
+      const missingTrafficProfiles = profiles.filter((profile: any) => !hasTrafficCoverage(profile));
+      if (profiles.length === 0 || missingTrafficProfiles.length > 0) {
+        missing.push(
+          `profiles without traffic status (${missingTrafficProfiles.length || profiles.length}/${profiles.length || 1})`,
+        );
+      }
+    } catch (e: any) {
+      missing.push(`competitorAnalysis could not be loaded: ${e.message}`);
+    }
+  }
+
+  return missing.map((field) => `Missing required audit report section for proposal ${proposalId}: ${field}`);
 }
 
 export async function POST(
@@ -611,92 +650,59 @@ export async function POST(
             const cmsTrafficResults = await Promise.allSettled(
               cmsOnlyDomains.map(async (domain) => {
                 const rootDomain = extractRootDomain(domain);
-                const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
-                  headers: { "x-internal-key": INTERNAL_API_KEY! },
-                  signal: AbortSignal.timeout(AUXILIARY_FETCH_TIMEOUT_MS),
-                });
-                if (!res.ok) return { domain, trafficData: null };
-                const trafficData = await res.json();
-                return { domain, trafficData };
+                const traffic = rootDomain ? await fetchTrafficRecoverable(rootDomain) : explicitUnavailableTraffic("invalid_domain");
+                return { domain, traffic };
               })
             );
             for (const r of cmsTrafficResults) {
-              if (r.status !== "fulfilled" || !r.value.trafficData) continue;
-              const { domain, trafficData } = r.value;
+              if (r.status !== "fulfilled") continue;
+              const { domain, traffic } = r.value;
               const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
               const comp = enrichedCompetitors.find((c: any) => {
                 const k = (c.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
                 return k === cleanDomain;
               });
               if (comp) {
-                comp.traffic = {
-                  monthlyVisits: extractMonthlyVisits(trafficData),
-                  globalRank: trafficData.globalRank ?? null,
-                  categoryRank: trafficData.categoryRank ?? null,
-                  sources: trafficData.sources ?? trafficData.trafficSources ?? null,
-                };
+                comp.traffic = traffic;
               }
             }
           }
 
           // Backfill traffic via /api/traffic for any competitor missing valid traffic data
-          const noTrafficComps = enrichedCompetitors.filter((c: any) =>
-            !c.traffic || typeof c.traffic.monthlyVisits !== "number"
-          );
+          const noTrafficComps = enrichedCompetitors.filter((c: any) => !hasTrafficCoverage(c));
           if (noTrafficComps.length > 0) {
             await updateProgress("Backfilling traffic data", 85);
             console.log(`[traffic-backfill] Fetching traffic for ${noTrafficComps.length} competitors with null traffic`);
             const trafficResults = await Promise.allSettled(
               noTrafficComps.map(async (comp: any) => {
                 const rootDomain = extractRootDomain(comp.domain || "");
-                const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
-                  headers: { "x-internal-key": INTERNAL_API_KEY! },
-                  signal: AbortSignal.timeout(AUXILIARY_FETCH_TIMEOUT_MS),
-                });
-                if (!res.ok) return { domain: comp.domain, trafficData: null };
-                const trafficData = await res.json();
-                return { domain: comp.domain, trafficData };
+                const traffic = rootDomain ? await fetchTrafficRecoverable(rootDomain) : explicitUnavailableTraffic("invalid_domain");
+                return { domain: comp.domain, traffic };
               })
             );
-            const trafficMap = new Map<string, any>();
+            const trafficMap = new Map<string, FormattedTraffic>();
             for (const r of trafficResults) {
-              if (r.status === "fulfilled" && r.value.trafficData) {
-                trafficMap.set(r.value.domain, r.value.trafficData);
+              if (r.status === "fulfilled") {
+                trafficMap.set(r.value.domain, r.value.traffic);
               }
             }
             for (const comp of enrichedCompetitors) {
-              if ((!comp.traffic || typeof comp.traffic.monthlyVisits !== "number") && trafficMap.has(comp.domain)) {
-                const td = trafficMap.get(comp.domain);
-                comp.traffic = {
-                  monthlyVisits: extractMonthlyVisits(td),
-                  globalRank: td.globalRank ?? null,
-                  categoryRank: td.categoryRank ?? null,
-                  sources: td.sources ?? td.trafficSources ?? null,
-                };
+              if (!hasTrafficCoverage(comp) && trafficMap.has(comp.domain)) {
+                comp.traffic = trafficMap.get(comp.domain);
               }
             }
           }
 
           // Also backfill yourProfile traffic if missing or invalid
-          if (enrichedYourProfile && (!enrichedYourProfile.traffic || typeof enrichedYourProfile.traffic.monthlyVisits !== "number")) {
+          if (enrichedYourProfile && !hasTrafficCoverage(enrichedYourProfile)) {
             try {
               const rootDomain = extractRootDomain(enrichedYourProfile.domain || yourDomain);
-              const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
-                headers: { "x-internal-key": INTERNAL_API_KEY! },
-                signal: AbortSignal.timeout(AUXILIARY_FETCH_TIMEOUT_MS),
-              });
-              if (res.ok) {
-                const td = await res.json();
-                console.log(`[traffic-backfill] yourProfile ${rootDomain}:`, JSON.stringify(td).slice(0, 300));
-                enrichedYourProfile.traffic = {
-                  monthlyVisits: extractMonthlyVisits(td),
-                  globalRank: td.globalRank ?? null,
-                  categoryRank: td.categoryRank ?? null,
-                  sources: td.sources ?? td.trafficSources ?? null,
-                };
-              }
+              enrichedYourProfile.traffic = rootDomain
+                ? await fetchTrafficRecoverable(rootDomain)
+                : explicitUnavailableTraffic("invalid_domain");
             } catch (e: any) {
               console.error("[traffic-backfill] yourProfile failed:", e.message);
+              enrichedYourProfile.traffic = explicitUnavailableTraffic("failed");
             }
           }
 
@@ -850,20 +856,39 @@ export async function POST(
       errors.push(crResult.reason?.message || "Content research failed");
     }
 
-    // Determine final status
-    await updateProgress("Saving results", 95);
-    const anySucceeded = Object.values(auditIds).some((v) => v !== null);
+    // Determine final status. Required report sections are validated after all
+    // post-processing so incomplete client proposals never get marked completed.
+    await updateProgress("Validating report completeness", 95);
+    const validationErrors = await validateProposalAuditReport(payload, id, auditIds);
+    errors.push(...validationErrors);
+
+    await updateProgress("Saving results", 98);
     const allFailed = Object.values(auditIds).every((v) => v === null);
+    const reportIncomplete = validationErrors.length > 0;
+    const finalStatus = allFailed || reportIncomplete ? "failed" : "completed";
+    const finalProgress = allFailed
+      ? "Failed|100"
+      : reportIncomplete
+        ? "Report incomplete — retry required|100"
+        : "Complete|100";
+    const finalError = reportIncomplete
+      ? [
+          "Critical: required audit report sections are missing. Retry the audit before using this client proposal.",
+          ...errors,
+        ].join("\n")
+      : errors.length > 0
+        ? errors.join("\n")
+        : null;
 
     try {
       await payload.update({
         collection: "client-proposals",
         id,
         data: {
-          auditStatus: allFailed ? "failed" : "completed",
-          auditProgress: allFailed ? "Failed|100" : "Complete|100",
+          auditStatus: finalStatus,
+          auditProgress: finalProgress,
           auditCompletedAt: new Date().toISOString(),
-          auditError: errors.length > 0 ? errors.join("\n") : null,
+          auditError: finalError,
           ...(auditIds.seoAudit ? { seoAudit: auditIds.seoAudit } : {}),
           ...(auditIds.croAudit ? { croAudit: auditIds.croAudit } : {}),
           ...(auditIds.keywordSnapshot ? { keywordSnapshot: auditIds.keywordSnapshot } : {}),
@@ -878,11 +903,9 @@ export async function POST(
       try {
         const sqlClient = (payload.db as any).client;
         if (sqlClient) {
-          const status = allFailed ? "failed" : "completed";
-          const progress = allFailed ? "Failed|100" : "Complete|100";
           const completedAt = new Date().toISOString();
-          let sql = "UPDATE `client_proposals` SET `audit_status` = ?, `audit_progress` = ?, `audit_completed_at` = ?";
-          const params: any[] = [status, progress, completedAt];
+          let sql = "UPDATE `client_proposals` SET `audit_status` = ?, `audit_progress` = ?, `audit_completed_at` = ?, `audit_error` = ?";
+          const params: any[] = [finalStatus, finalProgress, completedAt, finalError];
           if (auditIds.seoAudit) { sql += ", `seo_audit_id` = ?"; params.push(auditIds.seoAudit); }
           if (auditIds.croAudit) { sql += ", `cro_audit_id` = ?"; params.push(auditIds.croAudit); }
           if (auditIds.keywordSnapshot) { sql += ", `keyword_snapshot_id` = ?"; params.push(auditIds.keywordSnapshot); }
@@ -896,7 +919,7 @@ export async function POST(
       }
     }
 
-    console.log(`[run-audits] Finished for proposal ${id}: ${allFailed ? "failed" : "completed"}`);
+    console.log(`[run-audits] Finished for proposal ${id}: ${finalStatus}${reportIncomplete ? " (report incomplete — retry required)" : ""}`);
   } catch (e: any) {
     // Unexpected error — mark as failed
     console.error("[run-audits] Unexpected error:", e.message);

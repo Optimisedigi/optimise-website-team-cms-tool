@@ -745,6 +745,8 @@ function formatMonthYear(date: string | Date | null | undefined): string {
 
 type TrafficData = {
   monthlyVisits?: number | string | number[] | null
+  status?: string | null
+  unavailableReason?: string | null
 } | null
 
 type RawCompetitorProfile = {
@@ -831,7 +833,7 @@ function normaliseVisits(raw: number | string | number[] | null | undefined): nu
 /** Fields MissionBriefSlide actually reads from competitorAnalysis. */
 export type CompetitorAnalysisMinimal = {
   yourProfile?: { domain?: string | null } | null
-  competitors?: Array<{ domain?: string | null; traffic?: { monthlyVisits?: number | string | null } | null }> | null
+  competitors?: Array<{ domain?: string | null; traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null }> | null
 }
 
 function buildCompetitorAnalysisMinimal(raw: CompetitorAnalysisMinimal): CompetitorAnalysisMinimal {
@@ -841,7 +843,11 @@ function buildCompetitorAnalysisMinimal(raw: CompetitorAnalysisMinimal): Competi
     domain: c?.domain ?? null,
     traffic:
       c?.traffic != null
-        ? { monthlyVisits: c.traffic.monthlyVisits != null ? c.traffic.monthlyVisits : null }
+        ? {
+            monthlyVisits: c.traffic.monthlyVisits != null ? c.traffic.monthlyVisits : null,
+            status: c.traffic.status ?? null,
+            unavailableReason: c.traffic.unavailableReason ?? null,
+          }
         : null,
   }))
   return { yourProfile: yourDomain ? { domain: yourDomain } : null, competitors }
@@ -854,7 +860,7 @@ export type CompetitorAnalysisForSlide = {
     avgPosition?: number | null
     averagePosition?: number | null
     keywordsFound?: number | null
-    traffic?: { monthlyVisits?: number | string | null } | null
+    traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null
     googleAds?: { isRunningAds?: boolean } | null
     metaAds?: { isRunningAds?: boolean } | null
     websiteScreenshot?: string | null
@@ -864,7 +870,7 @@ export type CompetitorAnalysisForSlide = {
     avgPosition?: number | null
     averagePosition?: number | null
     keywordsFound?: number | null
-    traffic?: { monthlyVisits?: number | string | null } | null
+    traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null
     googleAds?: { isRunningAds?: boolean } | null
     metaAds?: { isRunningAds?: boolean } | null
     websiteScreenshot?: string | null
@@ -884,7 +890,11 @@ function buildCompetitorAnalysisForSlide(
       averagePosition: p.averagePosition ?? null,
       keywordsFound: p.keywordsFound ?? null,
       traffic: p.traffic
-        ? { monthlyVisits: normaliseVisits(p.traffic.monthlyVisits ?? null) }
+        ? {
+            monthlyVisits: p.traffic.status === 'unavailable' ? null : normaliseVisits(p.traffic.monthlyVisits ?? null),
+            status: p.traffic.status ?? null,
+            unavailableReason: p.traffic.unavailableReason ?? null,
+          }
         : null,
       googleAds: p.googleAds ? { isRunningAds: p.googleAds.isRunningAds ?? undefined } : null,
       metaAds: p.metaAds ? { isRunningAds: p.metaAds.isRunningAds ?? undefined } : null,

@@ -12,6 +12,8 @@ import { normaliseDomain } from './competitorAdOverrides'
 
 type TrafficData = {
   monthlyVisits?: number | string | null
+  status?: string | null
+  unavailableReason?: string | null
 } | null
 
 type CompetitorProfile = {
@@ -55,8 +57,13 @@ function normaliseVisits(raw: number | string | null | undefined): number {
   return num
 }
 
-function formatVisits(n: number): string {
-  if (n <= 0) return ''
+function isTrafficUnavailable(traffic: TrafficData): boolean {
+  return !traffic || traffic.status === 'unavailable' || normaliseVisits(traffic.monthlyVisits ?? null) <= 0
+}
+
+function formatVisits(traffic: TrafficData): string {
+  if (isTrafficUnavailable(traffic)) return 'Traffic unavailable'
+  const n = normaliseVisits(traffic?.monthlyVisits ?? null)
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return n.toLocaleString()
@@ -178,7 +185,7 @@ export function CompetitorAnalysisSlide({
                 </span>
                 <span className="you-tag">You</span>
               </td>
-              <td className="num" style={{ textAlign: 'right' }}>{formatVisits(yourVisits)}</td>
+              <td className="num" style={{ textAlign: 'right' }}>{formatVisits(yourProfile.traffic ?? null)}</td>
               <td className="num" style={{ textAlign: 'right' }}>
                 {yourProfile.avgPosition != null
                   ? `#${yourProfile.avgPosition}`
@@ -225,7 +232,7 @@ export function CompetitorAnalysisSlide({
                   </span>
                 </td>
                 <td className="num" style={{ textAlign: 'right' }}>
-                  {formatVisits(c._visits)}
+                  {formatVisits(c.traffic ?? null)}
                 </td>
                 <td className="num" style={{ textAlign: 'right' }}>
                   {pos != null ? `#${pos}` : ''}
