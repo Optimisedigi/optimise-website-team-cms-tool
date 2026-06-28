@@ -10,14 +10,19 @@
 import type { ReactElement } from 'react'
 import { normaliseDomain } from './competitorAdOverrides'
 
+type MonthlyVisitPoint = number | { visits?: number | string | null }
+
 type TrafficData = {
-  monthlyVisits?: number | string | null
+  monthlyVisits?: number | string | MonthlyVisitPoint[] | null
+  averageMonthlyVisits?: number | string | null
+  estimatedMonthlyVisits?: number | string | null
   status?: string | null
   unavailableReason?: string | null
 } | null
 
 type CompetitorProfile = {
   domain?: string | null
+  manualMonthlyVisits?: number | string | null
   avgPosition?: number | null
   averagePosition?: number | null
   keywordsFound?: number | null
@@ -42,13 +47,19 @@ type CompetitorAnalysisLike = {
 type ProposalCompetitor = {
   name?: string | null
   websiteUrl?: string | null
+  manualMonthlyVisits?: number | string | null
   hasGoogleAds?: boolean | null
   hasMetaAds?: boolean | null
 }
 
-function normaliseVisits(raw: number | string | null | undefined): number {
+function normaliseVisits(raw: number | string | MonthlyVisitPoint[] | null | undefined): number {
   if (raw == null) return 0
   if (typeof raw === 'number') return raw
+  if (Array.isArray(raw)) {
+    const last = raw[raw.length - 1]
+    if (typeof last === 'number') return last
+    return normaliseVisits(last?.visits ?? null)
+  }
   const s = String(raw).trim().toUpperCase().replace(/,/g, '')
   const num = parseFloat(s)
   if (!Number.isFinite(num)) return 0
@@ -57,13 +68,22 @@ function normaliseVisits(raw: number | string | null | undefined): number {
   return num
 }
 
-function isTrafficUnavailable(traffic: TrafficData): boolean {
-  return !traffic || traffic.status === 'unavailable' || normaliseVisits(traffic.monthlyVisits ?? null) <= 0
+function normaliseTrafficVisits(traffic: TrafficData): number {
+  if (!traffic || traffic.status === 'unavailable') return 0
+  return normaliseVisits(
+    traffic.averageMonthlyVisits ?? traffic.estimatedMonthlyVisits ?? traffic.monthlyVisits ?? null,
+  )
 }
 
-function formatVisits(traffic: TrafficData): string {
-  if (isTrafficUnavailable(traffic)) return 'Traffic unavailable'
-  const n = normaliseVisits(traffic?.monthlyVisits ?? null)
+function profileMonthlyVisits(profile: CompetitorProfile | null | undefined): number {
+  const manual = normaliseVisits(profile?.manualMonthlyVisits ?? null)
+  if (manual > 0) return manual
+  return normaliseTrafficVisits(profile?.traffic ?? null)
+}
+
+function formatVisits(profile: CompetitorProfile | null | undefined): string {
+  const n = profileMonthlyVisits(profile)
+  if (n <= 0) return 'Traffic unavailable'
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return n.toLocaleString()
@@ -93,7 +113,7 @@ export function CompetitorAnalysisSlide({
 
   // Sort automated competitors by monthly visits descending.
   const sortedAutomated = [...competitors]
-    .map((c) => ({ ...c, _visits: normaliseVisits(c?.traffic?.monthlyVisits ?? null) }))
+    .map((c) => ({ ...c, _visits: profileMonthlyVisits(c) }))
     .sort((a, b) => b._visits - a._visits)
 
   // Track which domains are already shown (automated) so we don't duplicate
@@ -118,11 +138,12 @@ export function CompetitorAnalysisSlide({
         avgPosition: null,
         averagePosition: null,
         keywordsFound: null,
+        manualMonthlyVisits: m.manualMonthlyVisits ?? null,
         traffic: null,
         googleAds: m.hasGoogleAds ? { isRunningAds: true } : null,
         metaAds: m.hasMetaAds ? { isRunningAds: true } : null,
         websiteScreenshot: null,
-        _visits: 0,
+        _visits: normaliseVisits(m.manualMonthlyVisits ?? null),
       }
     })
     .filter((c): c is CompetitorProfile & { _visits: number } => c !== null)
@@ -130,8 +151,6 @@ export function CompetitorAnalysisSlide({
   const allCompetitors = [...sortedAutomated, ...manualOnly]
 
   const yourDomain = yourProfile?.domain || domainFromUrl(proposalWebsiteUrl)
-  const yourVisits = normaliseVisits(yourProfile?.traffic?.monthlyVisits ?? null)
-
   return (
     <section className="slide" data-label="09 Competitor Analysis">
       <div className="brand-tag">
@@ -185,7 +204,7 @@ export function CompetitorAnalysisSlide({
                 </span>
                 <span className="you-tag">You</span>
               </td>
-              <td className="num" style={{ textAlign: 'right' }}>{formatVisits(yourProfile.traffic ?? null)}</td>
+              <td className="num" style={{ textAlign: 'right' }}>{formatVisits(yourProfile)}</td>
               <td className="num" style={{ textAlign: 'right' }}>
                 {yourProfile.avgPosition != null
                   ? `#${yourProfile.avgPosition}`
@@ -232,7 +251,7 @@ export function CompetitorAnalysisSlide({
                   </span>
                 </td>
                 <td className="num" style={{ textAlign: 'right' }}>
-                  {formatVisits(c.traffic ?? null)}
+                  {formatVisits(c)}
                 </td>
                 <td className="num" style={{ textAlign: 'right' }}>
                   {pos != null ? `#${pos}` : ''}

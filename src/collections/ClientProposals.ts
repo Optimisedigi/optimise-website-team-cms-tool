@@ -1382,6 +1382,16 @@ export const ClientProposals: CollectionConfig = {
                   },
                 },
                 {
+                  name: "manualMonthlyVisits",
+                  label: "Monthly visits",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "Manual monthly visits for this competitor. Shown on Audit Results and proposal slides before fetched traffic.",
+                    step: 1,
+                  },
+                },
+                {
                   name: "googleMapsUrl",
                   type: "text",
                   admin: {
@@ -1512,6 +1522,15 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 components: {
                   Field: "./components/RefreshProposalCompetitorTrafficButton",
+                },
+              },
+            },
+            {
+              name: "manualCompetitorTraffic",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ManualCompetitorTrafficFields",
                 },
               },
             },

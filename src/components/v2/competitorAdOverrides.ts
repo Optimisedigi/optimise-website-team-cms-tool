@@ -14,6 +14,7 @@
  *     back to whatever the audit reported (no destructive override).
  *   - googleAdCountOverride: when set (number ≥ 0), wins over the audit count.
  *   - hasMetaAds / metaAdCountOverride: same behaviour for metaAds.
+ *   - manualMonthlyVisits: when set, wins over fetched traffic in slides.
  */
 
 export type AdsLike = {
@@ -27,6 +28,7 @@ export type CompetitorLike = {
   websiteUrl?: string | null
   googleAds?: AdsLike
   metaAds?: AdsLike
+  manualMonthlyVisits?: number | string | null
   /** Manual ad screenshot URLs, merged in from proposal-side overrides. */
   manualGoogleAdScreenshotUrls?: string[]
   manualMetaAdScreenshotUrls?: string[]
@@ -45,6 +47,7 @@ export type ProposalCompetitorOverride = {
   metaAdCountOverride?: number | null
   googleAdScreenshots?: ScreenshotRow[] | null
   metaAdScreenshots?: ScreenshotRow[] | null
+  manualMonthlyVisits?: number | string | null
 }
 
 /** Pull populated media URLs out of an array of `{ image: Media }` rows. */
@@ -119,6 +122,10 @@ export function applyAdOverrides<T extends CompetitorLike>(
         if (baseMeta.activeAdCount! > 0) baseMeta.isRunningAds = true
       }
       ;(next as CompetitorLike).metaAds = baseMeta
+    }
+
+    if ((override.manualMonthlyVisits ?? null) != null) {
+      next.manualMonthlyVisits = override.manualMonthlyVisits
     }
 
     // Manual ad screenshot uploads — populated via depth:2 fetch in page.tsx.

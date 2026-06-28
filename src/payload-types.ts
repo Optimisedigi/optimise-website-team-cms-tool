@@ -2201,6 +2201,10 @@ export interface ClientProposal {
          */
         websiteUrl?: string | null;
         /**
+         * Manual monthly visits for this competitor. Shown on Audit Results and proposal slides before fetched traffic.
+         */
+        manualMonthlyVisits?: number | null;
+        /**
          * Google Maps listing URL
          */
         googleMapsUrl?: string | null;

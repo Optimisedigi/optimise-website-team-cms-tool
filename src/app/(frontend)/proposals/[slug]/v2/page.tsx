@@ -743,14 +743,19 @@ function formatMonthYear(date: string | Date | null | undefined): string {
 // Security: traffic-only DTO for ReturnModellingSlide
 // ---------------------------------------------------------------------------
 
+type MonthlyVisitPoint = number | { visits?: number | string | null }
+
 type TrafficData = {
-  monthlyVisits?: number | string | number[] | null
+  monthlyVisits?: number | string | MonthlyVisitPoint[] | null
+  averageMonthlyVisits?: number | string | null
+  estimatedMonthlyVisits?: number | string | null
   status?: string | null
   unavailableReason?: string | null
 } | null
 
 type RawCompetitorProfile = {
   domain?: string | null
+  manualMonthlyVisits?: number | string | null
   traffic?: TrafficData
   googleAds?: { isRunningAds?: boolean } | null
   metaAds?: { isRunningAds?: boolean } | null
@@ -780,10 +785,11 @@ export type ReturnModellingTrafficModel = {
 function buildReturnModellingTrafficModel(
   raw: RawCompetitorAnalysis,
 ): ReturnModellingTrafficModel {
-  const yourVisits = normaliseVisits(raw?.yourProfile?.traffic?.monthlyVisits ?? null)
+  const yourVisits = normaliseTrafficVisits(raw?.yourProfile?.traffic ?? null)
   const competitors: ReturnModellingTrafficModel['competitors'] = []
   for (const c of raw?.competitors ?? []) {
-    const visits = normaliseVisits(c?.traffic?.monthlyVisits ?? null)
+    const manualVisits = normaliseVisits(c?.manualMonthlyVisits ?? null)
+    const visits = manualVisits > 0 ? manualVisits : normaliseTrafficVisits(c?.traffic ?? null)
     if (visits <= 0) continue
     const domain = c?.domain ?? ''
     const name = domain
@@ -802,12 +808,13 @@ function buildReturnModellingTrafficModel(
   return { yourMonthlyVisits: yourVisits, competitors }
 }
 
-function normaliseVisits(raw: number | string | number[] | null | undefined): number {
+function normaliseVisits(raw: number | string | MonthlyVisitPoint[] | null | undefined): number {
   if (raw == null) return 0
   if (typeof raw === 'number') return raw
   if (Array.isArray(raw)) {
     const last = raw[raw.length - 1]
-    return typeof last === 'number' ? last : 0
+    if (typeof last === 'number') return last
+    return normaliseVisits(last?.visits ?? null)
   }
   const s = String(raw).trim().toUpperCase().replace(/,/g, '')
   const num = parseFloat(s)
@@ -815,6 +822,13 @@ function normaliseVisits(raw: number | string | number[] | null | undefined): nu
   if (s.endsWith('M')) return num * 1_000_000
   if (s.endsWith('K')) return num * 1_000
   return num
+}
+
+function normaliseTrafficVisits(traffic: TrafficData): number {
+  if (!traffic || traffic.status === 'unavailable') return 0
+  return normaliseVisits(
+    traffic.averageMonthlyVisits ?? traffic.estimatedMonthlyVisits ?? traffic.monthlyVisits ?? null,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -833,7 +847,7 @@ function normaliseVisits(raw: number | string | number[] | null | undefined): nu
 /** Fields MissionBriefSlide actually reads from competitorAnalysis. */
 export type CompetitorAnalysisMinimal = {
   yourProfile?: { domain?: string | null } | null
-  competitors?: Array<{ domain?: string | null; traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null }> | null
+  competitors?: Array<{ domain?: string | null; manualMonthlyVisits?: number | string | null; traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null }> | null
 }
 
 function buildCompetitorAnalysisMinimal(raw: CompetitorAnalysisMinimal): CompetitorAnalysisMinimal {
@@ -841,6 +855,7 @@ function buildCompetitorAnalysisMinimal(raw: CompetitorAnalysisMinimal): Competi
   const yourDomain = raw?.yourProfile?.domain ?? null
   const competitors = (raw?.competitors ?? []).map((c) => ({
     domain: c?.domain ?? null,
+    manualMonthlyVisits: c?.manualMonthlyVisits ?? null,
     traffic:
       c?.traffic != null
         ? {
@@ -860,7 +875,8 @@ export type CompetitorAnalysisForSlide = {
     avgPosition?: number | null
     averagePosition?: number | null
     keywordsFound?: number | null
-    traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null
+    manualMonthlyVisits?: number | string | null
+    traffic?: { monthlyVisits?: number | string | MonthlyVisitPoint[] | null; averageMonthlyVisits?: number | string | null; estimatedMonthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null
     googleAds?: { isRunningAds?: boolean } | null
     metaAds?: { isRunningAds?: boolean } | null
     websiteScreenshot?: string | null
@@ -870,7 +886,8 @@ export type CompetitorAnalysisForSlide = {
     avgPosition?: number | null
     averagePosition?: number | null
     keywordsFound?: number | null
-    traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null
+    manualMonthlyVisits?: number | string | null
+    traffic?: { monthlyVisits?: number | string | MonthlyVisitPoint[] | null; averageMonthlyVisits?: number | string | null; estimatedMonthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null
     googleAds?: { isRunningAds?: boolean } | null
     metaAds?: { isRunningAds?: boolean } | null
     websiteScreenshot?: string | null
@@ -889,9 +906,10 @@ function buildCompetitorAnalysisForSlide(
       avgPosition: p.avgPosition ?? null,
       averagePosition: p.averagePosition ?? null,
       keywordsFound: p.keywordsFound ?? null,
+      manualMonthlyVisits: p.manualMonthlyVisits ?? null,
       traffic: p.traffic
         ? {
-            monthlyVisits: p.traffic.status === 'unavailable' ? null : normaliseVisits(p.traffic.monthlyVisits ?? null),
+            monthlyVisits: normaliseTrafficVisits(p.traffic),
             status: p.traffic.status ?? null,
             unavailableReason: p.traffic.unavailableReason ?? null,
           }
