@@ -357,7 +357,7 @@ export async function runMigrations(
     await run("client_proposals_competitors", `CREATE TABLE IF NOT EXISTS \`client_proposals_competitors\` (
       \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
       \`id\` text PRIMARY KEY NOT NULL, \`name\` text NOT NULL,
-      \`website_url\` text, \`google_maps_url\` text,
+      \`website_url\` text, \`google_maps_url\` text, \`manual_monthly_visits\` numeric,
       FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
     )`);
     await run("client_proposals_competitors_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_competitors_order_idx` ON `client_proposals_competitors` (`_order`)");
@@ -554,6 +554,7 @@ export async function runMigrations(
     await run("client_proposals_competitors.has_google_ads", "ALTER TABLE `client_proposals_competitors` ADD `has_google_ads` integer DEFAULT false");
     await run("client_proposals_competitors.google_ad_count_override", "ALTER TABLE `client_proposals_competitors` ADD `google_ad_count_override` integer");
     await run("client_proposals_competitors.meta_ad_count_override", "ALTER TABLE `client_proposals_competitors` ADD `meta_ad_count_override` integer");
+    await run("client_proposals_competitors.manual_monthly_visits", "ALTER TABLE `client_proposals_competitors` ADD `manual_monthly_visits` numeric");
   
     // --- Missing columns on client_proposals ---
     await run("client_proposals.convert_to_client", "ALTER TABLE `client_proposals` ADD `convert_to_client` integer DEFAULT false");
