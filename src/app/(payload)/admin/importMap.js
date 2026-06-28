@@ -76,7 +76,6 @@ import { default as default_56b28aa1b7f83ad9678320a990503af7 } from '../../../co
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
 import { default as default_9f498ec9f8b81bcfa099e8cb7b777007 } from '../../../components/BackfillProposalReportDataButton'
 import { default as default_62cba30eadd5a2962ed9c8cc86b16246 } from '../../../components/RefreshProposalCompetitorTrafficButton'
-import { default as default_a087138d05f6fdc79a220a1ae9afa2ee } from '../../../components/ManualCompetitorTrafficFields'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
 import { default as default_524269742a06f6b5480b96a4c642a8de } from '../../../components/RunGoogleAdsAuditFromProposalButton'
 import { default as default_6fd4378acdcb6cb05df32bae3ab16a5b } from '../../../components/RunSerpDisplacementFromProposalButton'
@@ -276,7 +275,6 @@ export const importMap = {
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
   "./components/BackfillProposalReportDataButton#default": default_9f498ec9f8b81bcfa099e8cb7b777007,
   "./components/RefreshProposalCompetitorTrafficButton#default": default_62cba30eadd5a2962ed9c8cc86b16246,
-  "./components/ManualCompetitorTrafficFields#default": default_a087138d05f6fdc79a220a1ae9afa2ee,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
   "./components/RunGoogleAdsAuditFromProposalButton#default": default_524269742a06f6b5480b96a4c642a8de,
   "./components/RunSerpDisplacementFromProposalButton#default": default_6fd4378acdcb6cb05df32bae3ab16a5b,
