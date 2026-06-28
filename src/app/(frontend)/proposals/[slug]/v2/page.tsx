@@ -127,6 +127,18 @@ export default async function ProposalReportV2Page({
 }: {
   params: Promise<{ slug: string }>
 }) {
+  return ProposalReportV2PageContent({ params })
+}
+
+export async function ProposalReportV2PageContent({
+  params,
+  slotPreview = false,
+  gateEnabled = true,
+}: {
+  params: Promise<{ slug: string }>
+  slotPreview?: boolean
+  gateEnabled?: boolean
+}) {
   const { slug } = await params
   const proposal = await findProposalBySlug(slug)
 
@@ -377,7 +389,7 @@ export default async function ProposalReportV2Page({
   const reportContent = (
     <RocketScroll>
       <div
-        className={`proposal-v2 ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
+        className={`proposal-v2${slotPreview ? ' proposal-v2--slot-preview' : ''} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
       >
         {/* Runs once on mount and seeds every .starfield element in the deck
             with random stars. Mirrors the artifact's inline <script>. */}
@@ -687,7 +699,7 @@ export default async function ProposalReportV2Page({
     </RocketScroll>
   )
 
-  if (proposalPin) {
+  if (proposalPin && gateEnabled) {
     return (
       <AuditPasswordGate
         auditSlug={proposal.slug}

@@ -1,0 +1,36 @@
+/*
+ * Proposal slot-preview route only.
+ *
+ * The live proposal deck keeps its existing transformed 1920×1080 slide stack.
+ * This preview wraps each slide in a real 100vh slot, like the Google Ads audit,
+ * then scales and centers the existing fixed artwork inside that slot.
+ */
+@media screen {
+  .proposal-v2.proposal-v2--slot-preview .deck-stage-wrap {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .proposal-v2.proposal-v2--slot-preview .proposal-slide-slot {
+    position: relative;
+    flex: 0 0 100vh;
+    width: 100%;
+    min-height: 100vh;
+    overflow: hidden;
+    background: var(--bg-paper);
+  }
+
+  .proposal-v2.proposal-v2--slot-preview .proposal-slide-slot:has(.dark),
+  .proposal-v2.proposal-v2--slot-preview .proposal-slide-slot:has(.cover) {
+    background: var(--bg-night);
+  }
+
+  .proposal-v2.proposal-v2--slot-preview .proposal-slide-slot > .slide {
+    position: absolute !important;
+    left: calc((100vw - (1920px * var(--deck-scale))) / 2) !important;
+    top: calc((100vh - (1080px * var(--deck-scale))) / 2) !important;
+    margin: 0 !important;
+    margin-right: 0 !important;
+    box-shadow: none !important;
+  }
+}

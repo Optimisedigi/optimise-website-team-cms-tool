@@ -3,10 +3,10 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Scales each 1920×1080 slide to fit the viewport. The artifact was
+ * Scales each 1920×1080 slide to fit the viewport width. The artifact was
  * authored for a fixed 1920×1080 canvas; we preserve that geometry
- * pixel-for-pixel and let CSS keep each slide's scroll slot at least one
- * viewport tall so alternate window sizes don't reveal the next slide.
+ * pixel-for-pixel and just scale the whole thing down to fit the user's
+ * window width.
  *
  * Dispatches 'deck-ready' once after the first measurement so
  * <RocketScroll> knows when it is safe to snap to the bottom.
@@ -17,62 +17,81 @@ export function DeckStage({ children }: { children: React.ReactNode }): React.Re
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const stage = el
+    let activeSlot: HTMLElement | null = null
 
-    function getCurrentSlideAnchor(): { slide: HTMLElement; offsetRatio: number } | null {
-      const slides = Array.from(stage.querySelectorAll<HTMLElement>('.slide'))
-      if (slides.length === 0) return null
-
-      const viewportMidpoint = window.scrollY + window.innerHeight / 2
-      const positionedSlides = slides
-        .map((slide) => ({
-          slide,
-          top: slide.getBoundingClientRect().top + window.scrollY,
-        }))
-        .sort((a, b) => a.top - b.top)
-
-      for (let i = 0; i < positionedSlides.length; i++) {
-        const current = positionedSlides[i]
-        const next = positionedSlides[i + 1]
-        const bottom = next?.top ?? current.top + window.innerHeight
-        if (viewportMidpoint >= current.top && viewportMidpoint < bottom) {
-          const slotHeight = Math.max(1, bottom - current.top)
-          return {
-            slide: current.slide,
-            offsetRatio: Math.min(1, Math.max(0, (window.scrollY - current.top) / slotHeight)),
-          }
-        }
-      }
-
-      const fallback = positionedSlides[positionedSlides.length - 1]
-      return fallback ? { slide: fallback.slide, offsetRatio: 0 } : null
+    function isSlotPreview(): boolean {
+      return Boolean(el?.closest('.proposal-v2--slot-preview'))
     }
 
-    function restoreSlideAnchor(anchor: { slide: HTMLElement; offsetRatio: number }): void {
-      const slideTop = anchor.slide.getBoundingClientRect().top + window.scrollY
-      const nextSlide = Array.from(stage.querySelectorAll<HTMLElement>('.slide'))
-        .map((slide) => ({
-          slide,
-          top: slide.getBoundingClientRect().top + window.scrollY,
-        }))
-        .filter(({ top }) => top > slideTop + 1)
-        .sort((a, b) => a.top - b.top)[0]
-      const slotHeight = Math.max(1, (nextSlide?.top ?? slideTop + window.innerHeight) - slideTop)
-      window.scrollTo({ top: slideTop + slotHeight * anchor.offsetRatio, behavior: 'instant' })
+    function prepareSlotPreview(): void {
+      const root = el?.closest('.proposal-v2--slot-preview')
+      if (!el || !root || el.dataset.slotPreviewReady === 'true') return
+
+      const slides = Array.from(el.querySelectorAll<HTMLElement>('.slide'))
+      for (const slide of slides) {
+        if (slide.parentElement?.classList.contains('proposal-slide-slot')) continue
+        const slot = document.createElement('div')
+        slot.className = 'proposal-slide-slot'
+        slide.parentNode?.insertBefore(slot, slide)
+        slot.appendChild(slide)
+      }
+
+      el.dataset.slotPreviewReady = 'true'
+    }
+
+    function getCurrentSlotAnchor(): HTMLElement | null {
+      if (!el || !isSlotPreview()) return null
+      const slots = Array.from(el.querySelectorAll<HTMLElement>('.proposal-slide-slot'))
+      if (slots.length === 0) return null
+
+      const viewportMidpoint = window.innerHeight / 2
+      const containingSlot = slots.find((slot) => {
+        const rect = slot.getBoundingClientRect()
+        return rect.top <= viewportMidpoint && rect.bottom >= viewportMidpoint
+      })
+      if (containingSlot) return containingSlot
+
+      return slots
+        .map((slot) => {
+          const rect = slot.getBoundingClientRect()
+          return {
+            slot,
+            distance: Math.abs((rect.top + rect.bottom) / 2 - viewportMidpoint),
+          }
+        })
+        .sort((a, b) => a.distance - b.distance)[0]
+        ?.slot ?? null
+    }
+
+    function updateActiveSlot(): void {
+      activeSlot = getCurrentSlotAnchor() ?? activeSlot
+    }
+
+    function restoreSlotAnchor(slot: HTMLElement): void {
+      const top = slot.getBoundingClientRect().top + window.scrollY
+      window.scrollTo({ top, behavior: 'instant' as ScrollBehavior })
     }
 
     function update(initial = false): void {
       if (!el) return
-      const anchor = initial ? null : getCurrentSlideAnchor()
-      // Fit the whole 1920×1080 slide inside the viewport, then let CSS make
-      // the slide's scroll slot at least viewport-tall. This keeps all content
-      // and the slide number inside the current slide without exposing the next
-      // slide on taller/narrower browser windows.
+      const slotAnchor = initial ? null : activeSlot
+      // Fit each 1920×1080 slide to BOTH the viewport's width and height —
+      // whichever dimension is the tighter constraint wins. We intentionally
+      // do NOT cap the scale at 1 because on viewports larger than 1920×1080
+      // (most modern monitors when the browser is maximised) the slide would
+      // otherwise stay at native size and leave a white/dark band above and
+      // below — the rocket-button would then skip a chunk of empty space
+      // before reaching the next slide. The artwork is built from large
+      // typography + SVG primitives so it scales up cleanly.
       const scaleByWidth = window.innerWidth / 1920
       const scaleByHeight = window.innerHeight / 1080
       const scale = Math.min(scaleByWidth, scaleByHeight)
       el.style.setProperty('--deck-scale', String(scale))
-      if (anchor) requestAnimationFrame(() => restoreSlideAnchor(anchor))
+      if (initial) prepareSlotPreview()
+      if (slotAnchor) requestAnimationFrame(() => {
+        restoreSlotAnchor(slotAnchor)
+        updateActiveSlot()
+      })
       if (initial) window.dispatchEvent(new CustomEvent('deck-ready'))
     }
 
@@ -81,8 +100,13 @@ export function DeckStage({ children }: { children: React.ReactNode }): React.Re
     })
 
     const onResize = (): void => update(false)
+    window.addEventListener('scroll', updateActiveSlot, { passive: true })
     window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    requestAnimationFrame(updateActiveSlot)
+    return () => {
+      window.removeEventListener('scroll', updateActiveSlot)
+      window.removeEventListener('resize', onResize)
+    }
   }, [])
 
   return (

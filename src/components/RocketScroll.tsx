@@ -13,6 +13,7 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
 
     const currentScroll = window.scrollY
     const isV2 = document.querySelector('.proposal-v2') !== null
+    const isSlotPreview = document.querySelector('.proposal-v2--slot-preview') !== null
 
     // Build a list of scroll targets by VISUAL position. Each target is the
     // exact pixel offset where, after window.scrollTo(top), the slide's top
@@ -20,7 +21,9 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
     const targets: number[] = []
     for (const slide of slides) {
       let el: HTMLElement = slide
-      if (!isV2) {
+      if (isSlotPreview) {
+        el = slide.closest<HTMLElement>('.proposal-slide-slot') ?? slide
+      } else if (!isV2) {
         // OLD deck: target the slide header so the chapter eyebrow sits at the top.
         const header =
           slide.querySelector<HTMLElement>('.slide-header') ??
@@ -115,7 +118,8 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
     function measureLastSlideHeight(): number {
       const firstSlide = document.querySelector<HTMLElement>('.proposal-v2 .slide')
       if (!firstSlide) return 900 // safe fallback
-      return firstSlide.getBoundingClientRect().height
+      const slot = firstSlide.closest<HTMLElement>('.proposal-slide-slot')
+      return (slot ?? firstSlide).getBoundingClientRect().height
     }
     let lastSlideHeight = measureLastSlideHeight()
     document.documentElement.style.setProperty('--last-slide-height', String(lastSlideHeight))
@@ -207,7 +211,7 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
       {/* Scroll hint — to the left of the rocket, first slide only */}
       {showHint && (
         <div className="rocket-hint" aria-hidden="true" onClick={scrollToNextSlide}>
-          <span className="rocket-hint-text">Click here to start</span>
+          <span className="rocket-hint-text">Click here to take off</span>
           <span className="rocket-hint-arrow">→</span>
         </div>
       )}
