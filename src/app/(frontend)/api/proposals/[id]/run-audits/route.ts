@@ -15,6 +15,8 @@ export const maxDuration = 300;
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 const AUXILIARY_FETCH_TIMEOUT_MS = 20_000;
+const AUDIT_TIMEOUT_SAFETY_MS = 45_000;
+const TRAFFIC_BATCH_BUDGET_MS = 70_000;
 
 async function withTimeout<T>(work: Promise<T>, ms = AUXILIARY_FETCH_TIMEOUT_MS): Promise<T> {
   return Promise.race([
@@ -38,8 +40,7 @@ async function fetchTrafficRecoverable(rootDomain: string): Promise<FormattedTra
       if (!res.ok) throw new Error(`Traffic API failed: ${res.status}`);
       const data = await res.json();
       if (data?.status === "unavailable") {
-        lastReason = data.unavailableReason ?? "failed";
-        if (["blocked", "failed"].includes(lastReason) && attempt < 2) throw new Error(`Traffic unavailable: ${lastReason}`);
+        return formatTraffic(data);
       }
       return formatTraffic(data);
     } catch (err: any) {
@@ -204,6 +205,9 @@ export async function POST(
   const auditWork = async () => {
 
   try {
+    const auditDeadlineAt = Date.now() + maxDuration * 1000 - AUDIT_TIMEOUT_SAFETY_MS;
+    const hasTimeForTrafficBatch = () => Date.now() + TRAFFIC_BATCH_BUDGET_MS < auditDeadlineAt;
+
     await updateProgress("Running SEO, CRO, keywords, competitors & content research", 5);
 
     // Track individual completions for progress updates
@@ -644,16 +648,23 @@ export async function POST(
             }
           }
 
-          // Fetch traffic for CMS-only competitors
+          // Fetch traffic for CMS-only competitors when there is enough runtime left.
+          // If the audit is close to Vercel's function limit, mark traffic unavailable
+          // so the proposal can still save instead of getting stranded at 87%.
           if (cmsOnlyDomains.length > 0) {
             await updateProgress("Fetching CMS competitor traffic data", 87);
-            const cmsTrafficResults = await Promise.allSettled(
-              cmsOnlyDomains.map(async (domain) => {
-                const rootDomain = extractRootDomain(domain);
-                const traffic = rootDomain ? await fetchTrafficRecoverable(rootDomain) : explicitUnavailableTraffic("invalid_domain");
-                return { domain, traffic };
-              })
-            );
+            const cmsTrafficResults = hasTimeForTrafficBatch()
+              ? await Promise.allSettled(
+                  cmsOnlyDomains.map(async (domain) => {
+                    const rootDomain = extractRootDomain(domain);
+                    const traffic = rootDomain ? await fetchTrafficRecoverable(rootDomain) : explicitUnavailableTraffic("invalid_domain");
+                    return { domain, traffic };
+                  })
+                )
+              : cmsOnlyDomains.map((domain) => ({
+                  status: "fulfilled" as const,
+                  value: { domain, traffic: explicitUnavailableTraffic("timeout") },
+                }));
             for (const r of cmsTrafficResults) {
               if (r.status !== "fulfilled") continue;
               const { domain, traffic } = r.value;
@@ -673,13 +684,18 @@ export async function POST(
           if (noTrafficComps.length > 0) {
             await updateProgress("Backfilling traffic data", 85);
             console.log(`[traffic-backfill] Fetching traffic for ${noTrafficComps.length} competitors with null traffic`);
-            const trafficResults = await Promise.allSettled(
-              noTrafficComps.map(async (comp: any) => {
-                const rootDomain = extractRootDomain(comp.domain || "");
-                const traffic = rootDomain ? await fetchTrafficRecoverable(rootDomain) : explicitUnavailableTraffic("invalid_domain");
-                return { domain: comp.domain, traffic };
-              })
-            );
+            const trafficResults = hasTimeForTrafficBatch()
+              ? await Promise.allSettled(
+                  noTrafficComps.map(async (comp: any) => {
+                    const rootDomain = extractRootDomain(comp.domain || "");
+                    const traffic = rootDomain ? await fetchTrafficRecoverable(rootDomain) : explicitUnavailableTraffic("invalid_domain");
+                    return { domain: comp.domain, traffic };
+                  })
+                )
+              : noTrafficComps.map((comp: any) => ({
+                  status: "fulfilled" as const,
+                  value: { domain: comp.domain, traffic: explicitUnavailableTraffic("timeout") },
+                }));
             const trafficMap = new Map<string, FormattedTraffic>();
             for (const r of trafficResults) {
               if (r.status === "fulfilled") {
@@ -696,10 +712,14 @@ export async function POST(
           // Also backfill yourProfile traffic if missing or invalid
           if (enrichedYourProfile && !hasTrafficCoverage(enrichedYourProfile)) {
             try {
-              const rootDomain = extractRootDomain(enrichedYourProfile.domain || yourDomain);
-              enrichedYourProfile.traffic = rootDomain
-                ? await fetchTrafficRecoverable(rootDomain)
-                : explicitUnavailableTraffic("invalid_domain");
+              if (!hasTimeForTrafficBatch()) {
+                enrichedYourProfile.traffic = explicitUnavailableTraffic("timeout");
+              } else {
+                const rootDomain = extractRootDomain(enrichedYourProfile.domain || yourDomain);
+                enrichedYourProfile.traffic = rootDomain
+                  ? await fetchTrafficRecoverable(rootDomain)
+                  : explicitUnavailableTraffic("invalid_domain");
+              }
             } catch (e: any) {
               console.error("[traffic-backfill] yourProfile failed:", e.message);
               enrichedYourProfile.traffic = explicitUnavailableTraffic("failed");
@@ -726,7 +746,7 @@ export async function POST(
             })
             .filter(({ comp }) => !comp?.googleBusinessProfile);
 
-          if (gbpLookups.length > 0) {
+          if (gbpLookups.length > 0 && hasTimeForTrafficBatch()) {
             await updateProgress("Fetching Google Business Profile data", 88);
             console.log(`[gbp-enrich] Looking up GBP for ${gbpLookups.length} competitors by name`);
             const gbpResults = await Promise.allSettled(
