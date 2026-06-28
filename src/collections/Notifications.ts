@@ -90,6 +90,10 @@ export const Notifications: CollectionConfig = {
           value: "google-ads-budget-review",
         },
         {
+          label: "Google Ads keyword cost finder usage",
+          value: "google-ads-keyword-cost-finder-usage",
+        },
+        {
           label: "Meeting attendee accepted",
           value: "meeting-response-accepted",
         },
