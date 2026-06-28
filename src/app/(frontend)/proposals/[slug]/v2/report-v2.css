@@ -84,6 +84,7 @@ min-height: 100vh;
   --deck-scale: 1;
   width: calc(1920px * var(--deck-scale));
   margin: 0 auto;
+
   /* Render slides in REVERSE order: Slide 01 (Cover) sits visually at the
      bottom, Slide 27 (Closing) at the top. <RocketScroll> jumps the page
      to the bottom on mount, landing the user on Slide 01, and progress=0
@@ -93,6 +94,13 @@ min-height: 100vh;
   /* Dark background — matches cover + closing. White slides paint their own
      white side-bands and gap-fills via box-shadow. */
   background: var(--bg-night);
+}
+
+@media screen {
+  html:has(.proposal-v2),
+  body:has(.proposal-v2) {
+    overflow-x: hidden;
+  }
 }
 
 /* NOTE: descendant selector (no `>`) is intentional. The static slides
@@ -107,8 +115,9 @@ min-height: 100vh;
   padding-right: calc(var(--pad-x) + 20px);
   transform: scale(var(--deck-scale));
   transform-origin: top left;
-  margin-bottom: calc(1080px * (var(--deck-scale) - 1));
+  margin-bottom: calc(max(100vh, 1080px * var(--deck-scale)) - 1080px);
   margin-right: calc(1920px * (var(--deck-scale) - 1));
+
   /* Extend the slide's own background outwards using a large box-shadow so the
      viewport's left/right bands (when the window is wider than the scaled deck)
      and the tiny sub-pixel gaps above/below each slide pick up the slide's own
