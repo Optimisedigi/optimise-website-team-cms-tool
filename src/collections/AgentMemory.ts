@@ -22,15 +22,16 @@ import type { CollectionConfig } from "payload";
 export const AgentMemory: CollectionConfig = {
   slug: "agent-memory" as any,
   labels: {
-    singular: "Agent Memory",
-    plural: "Agent Memory",
+    singular: "OptiMate Memory",
+    plural: "OptiMate Memory",
   },
   admin: {
-    group: "Agent",
+    group: "OptiMate",
+    hidden: true,
     useAsTitle: "subject",
     defaultColumns: ["scope", "client", "category", "subject", "importance", "status", "useCount", "lastAccessedAt"],
     description:
-      "Facts the agent has learned, scoped per-client or globally. Most rows stay search-only; only importance ≥ 80 active rows auto-load into the prompt.",
+      "Facts OptiMate has learned, scoped per-client or globally. Most rows stay search-only; only importance ≥ 80 active rows auto-load into the prompt. Open from OptiMate Settings → Memory."
   },
   access: {
     // Admin-only — facts contain client business intelligence.

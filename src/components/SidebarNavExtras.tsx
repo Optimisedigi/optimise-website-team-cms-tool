@@ -236,23 +236,15 @@ const SidebarNavExtras = () => {
         )
       }
 
-      // Agent fleet — surfaced under the Agent group for any logged-in user. The
-      // approvals queue and auth setup pages live under /admin and render inside
-      // the admin shell, doing their own auth checks.
+      // OptiMate fleet — surfaced under the OptiMate group for any logged-in user.
+      // The approvals queue page lives under /admin and renders inside the admin
+      // shell, doing its own auth checks. Auth now lives inside OptiMate Settings.
       injectLink(
-        '#nav-group-Agent .nav-group__content',
+        '#nav-group-OptiMate .nav-group__content',
         'agent-approvals',
         '/admin/agent-approvals',
         ICONS.agentApprovals,
-        'Agent Approvals',
-        'append',
-      )
-      injectLink(
-        '#nav-group-Agent .nav-group__content',
-        'agent-auth',
-        '/admin/agent-auth',
-        ICONS.agentAuth,
-        'Agent Auth',
+        'OptiMate Approvals',
         'append',
       )
     }

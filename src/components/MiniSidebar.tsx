@@ -12,7 +12,7 @@ type MiniIcon = {
   shortLabel: string
   href: string
   // Omit to show the entry for any logged-in user (used for nav links that
-  // aren't feature-gated, e.g. Agent Approvals).
+  // aren't feature-gated, e.g. OptiMate Approvals).
   feature?: FeatureSlug
   svg: React.ReactNode
 }
@@ -122,13 +122,13 @@ const icons: MiniIcon[] = [
     ),
   },
   {
-    label: 'Agent Approvals',
-    shortLabel: 'Agent',
+    label: 'OptiMate Approvals',
+    shortLabel: 'OptiMate',
     href: '/admin/agent-approvals',
     // No feature key — surfaced for any logged-in user, mirroring the
     // SidebarNavExtras pattern (the page itself does its own auth check).
     svg: (
-      // Clipboard-with-check — mirrors the agentApprovals icon in SidebarNavExtras.
+      // Clipboard-with-check — mirrors the OptiMate approvals icon in SidebarNavExtras.
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9 11l3 3 8-8" />
         <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />

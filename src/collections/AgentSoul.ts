@@ -19,15 +19,16 @@ import type { CollectionConfig } from "payload";
 export const AgentSoul: CollectionConfig = {
   slug: "agent-soul" as any,
   labels: {
-    singular: "Agent Soul Aspect",
-    plural: "Agent Soul",
+    singular: "OptiMate Soul Aspect",
+    plural: "OptiMate Soul",
   },
   admin: {
-    group: "Agent",
+    group: "OptiMate",
+    hidden: true,
     useAsTitle: "aspect",
     defaultColumns: ["appliesTo", "aspect", "content", "updatedAt"],
     description:
-      "How the agent should communicate with the agency team. Scope each row to all agents or one agent surface.",
+      "How OptiMate should communicate with the agency team. Scope each row to all agents or one agent surface. Open from OptiMate Settings → Soul."
   },
   access: {
     read: ({ req }) => (req.user as { role?: string } | null)?.role === "admin",

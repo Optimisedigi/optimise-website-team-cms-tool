@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Agent auth setup page (client body).
+ * OptiMate auth setup page (client body).
  *
  * One-time Anthropic OAuth connection (Claude Code client impersonation),
  * status panel showing per-provider credential state, and an emergency
@@ -393,9 +393,9 @@ export default function AgentAuthPage() {
 
   return (
     <div style={baseStyle}>
-      <h1 style={{ margin: "0 0 4px" }}>Optimate agent auth</h1>
+      <h1 style={{ margin: "0 0 4px" }}>OptiMate auth</h1>
       <p style={{ color: "#666", marginTop: 0 }}>
-        Per-provider credential status for the agent fleet. Claude uses Anthropic OAuth/API keys; Kimi is available through both API keys and Kimi For Coding OAuth; MiniMax uses API keys.
+        Per-provider credential status for OptiMate. Claude uses Anthropic OAuth/API keys; Kimi is available through both API keys and Kimi For Coding OAuth; MiniMax uses API keys.
         GPT-5.5 is exposed through the ChatGPT subscription Codex OAuth path (the <code>gpt-5.5-codex</code> model), and Grok through the SuperGrok subscription OAuth path (the <code>grok-build</code> / <code>grok-composer-2.5-fast</code> models) — connect subscription models below.
       </p>
 

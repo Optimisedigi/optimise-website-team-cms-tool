@@ -298,7 +298,7 @@ body:has(.login.template-minimal) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-// Reorder nav groups: Performance → Clients → Growth Tools → Content → Finance → Integrations → Agent → Settings → Admin
+// Reorder nav groups: Performance → Clients → Growth Tools → Content → Finance → Integrations → OptiMate → Settings → Admin
 #nav-group-Reports              { display: none !important; }
 #nav-group-Performance          { order: 1; }
 #nav-group-Clients              { order: 2; }
@@ -306,7 +306,7 @@ body:has(.login.template-minimal) {
 #nav-group-Content              { order: 4; }
 #nav-group-Finance              { order: 5; }
 #nav-group-Integrations         { order: 6; }
-#nav-group-Agent                { order: 7; }
+#nav-group-OptiMate             { order: 7; }
 #nav-group-Settings             { order: 8; }
 #nav-group-Admin                { order: 9; }
 .nav .nav__controls    { order: 99; }
@@ -492,22 +492,22 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpolyline points='9 12 11 14 15 10'/%3E#{$svg-close}");
 }
 
-// Agent Approval Queue — clipboard-with-check (review queue)
+// OptiMate Approval Queue — clipboard-with-check (review queue)
 .nav #nav-agent-approval-queue {
   @include nav-icon("#{$svg-open}%3Crect x='8' y='2' width='8' height='4' rx='1' ry='1'/%3E%3Cpath d='M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'/%3E%3Cpath d='m9 14 2 2 4-4'/%3E#{$svg-close}");
 }
 
-// Agent Memory — brain (long-term recall)
+// OptiMate Memory — brain (long-term recall)
 .nav #nav-agent-memory {
   @include nav-icon("#{$svg-open}%3Cpath d='M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2z'/%3E%3Cpath d='M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2z'/%3E#{$svg-close}");
 }
 
-// Agent Soul — sparkle (personality/identity)
+// OptiMate Soul — sparkle (personality/identity)
 .nav #nav-agent-soul {
   @include nav-icon("#{$svg-open}%3Cpath d='M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z'/%3E#{$svg-close}");
 }
 
-// Scheduled Agent Tasks — clock with arrow (scheduled recurring)
+// Scheduled OptiMate Tasks — clock with arrow (scheduled recurring)
 .nav #nav-scheduled-agent-tasks {
   @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E#{$svg-close}");
 }
@@ -517,7 +517,7 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Cpolyline points='17 1 21 5 17 9'/%3E%3Cpath d='M3 11V9a4 4 0 0 1 4-4h14'/%3E%3Cpolyline points='7 23 3 19 7 15'/%3E%3Cpath d='M21 13v2a4 4 0 0 1-4 4H3'/%3E#{$svg-close}");
 }
 
-// Optimate Settings (global) — sliders (agent configuration)
+// OptiMate Settings (global) — sliders (OptiMate configuration)
 .nav #nav-global-optimate-settings {
   @include nav-icon("#{$svg-open}%3Cline x1='4' y1='21' x2='4' y2='14'/%3E%3Cline x1='4' y1='10' x2='4' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12' y2='3'/%3E%3Cline x1='20' y1='21' x2='20' y2='16'/%3E%3Cline x1='20' y1='12' x2='20' y2='3'/%3E%3Cline x1='1' y1='14' x2='7' y2='14'/%3E%3Cline x1='9' y1='8' x2='15' y2='8'/%3E%3Cline x1='17' y1='16' x2='23' y2='16'/%3E#{$svg-close}");
 }
@@ -5679,17 +5679,16 @@ body:has(:is(
 }
 
 // ============================================================
-// Client/proposal edit (document) view — scoped card-based reskin
+// Client edit (document) view — scoped card-based reskin
 // ============================================================
 // Ported from mockups/4-client-record.html + _shared.css tokens. EVERY selector
-// is namespaced under Payload's client/proposal edit wrappers (emitted by
+// is namespaced under Payload's `.collection-edit--clients` wrapper (emitted by
 // @payloadcms/ui Edit view: `collection-edit collection-edit--<slug>`,
 // node_modules/@payloadcms/ui/dist/views/Edit/index.js:438) so NONE of it can
-// leak into unrelated collections' edit views. Reuses Payload's `--theme-*`
+// leak into other collections' edit views. Reuses Payload's `--theme-*`
 // variables where possible so dark mode still works. Visual/layout only — no
 // field, config, or data changes; the rocket loader is untouched.
-.collection-edit--clients,
-.collection-edit--client-proposals {
+.collection-edit--clients {
   // Prototype brand tokens, scoped so they never touch the global theme.
   --ode-border: var(--theme-elevation-100);
   --ode-border-soft: var(--theme-elevation-50);
@@ -6801,6 +6800,249 @@ body:has(:is(
       flex: 1 1 30%;
       min-width: 0;
     }
+  }
+}
+
+.collection-edit--client-proposals:has(.od-client-proposal-head) {
+  --ode-border: var(--theme-elevation-100);
+  --ode-card: var(--theme-elevation-0);
+  --ode-card-2: var(--theme-elevation-50);
+  --ode-t1: var(--theme-elevation-1000);
+  --ode-t2: var(--theme-elevation-500);
+  --ode-t3: var(--theme-elevation-400);
+  --ode-accent: #2c97c9;
+  --ode-accent-strong: #1f7fad;
+  --ode-radius: 12px;
+  --ode-shadow: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --ode-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+
+  .render-fields > .field-type:has(.od-client-proposal-head),
+  .render-fields > .field-type:has(.od-client-proposal-head) > .field-type__wrap,
+  .render-fields > .field-type:has(.od-client-proposal-head) > .field-type__wrap > .field-type__rendered-component {
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
+    display: block;
+    padding: 0;
+    background: transparent !important;
+    opacity: 1 !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .render-fields > .field-type:has(.od-client-proposal-head) {
+    margin-bottom: 5px;
+  }
+
+  .od-client-proposal-head {
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    background: var(--ode-card) !important;
+    color: var(--ode-t1);
+    opacity: 1 !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid var(--ode-border);
+    border-radius: var(--ode-radius);
+    box-shadow: var(--ode-shadow);
+    padding: 15.5px 18px 9px;
+    margin-top: 10px;
+    margin-bottom: 1px;
+  }
+
+  .od-client-proposal-head *,
+  .od-client-proposal-head *::before,
+  .od-client-proposal-head *::after {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .od-client-head__logo-btn {
+    position: relative;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: default;
+    border-radius: 50%;
+  }
+
+  .od-client-head__logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: contain;
+    background: #ffffff;
+    border: 1px solid var(--ode-border);
+    display: block;
+  }
+
+  .od-client-head__logo--initial {
+    display: grid;
+    place-items: center;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 16px;
+    border: none;
+    background: linear-gradient(135deg, var(--ode-accent), #468d8b);
+  }
+
+  .od-client-head__body {
+    flex: 1;
+    min-width: 0;
+    margin-top: 5px;
+  }
+
+  .od-client-head__topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .od-client-head__identity {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .od-client-head__name {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ode-t1);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .od-client-head__meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--ode-t2);
+    text-decoration: none;
+  }
+
+  .od-client-head__meta-item:hover {
+    color: var(--ode-accent);
+  }
+
+  .od-client-head__pill {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .od-client-head__pill--active {
+    background: #e8f6ee;
+    color: #157f3c;
+  }
+
+  .od-client-head__pin {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--ode-border);
+    background: var(--ode-card-2);
+    box-shadow: var(--ode-shadow-sm);
+  }
+
+  .od-client-head__pin-label {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--ode-t3);
+  }
+
+  .od-client-head__pin-value {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--ode-t1);
+  }
+
+  .od-client-head__overview {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #dff4fb;
+    border: 1px solid #9bd7ef;
+    color: #1b89bd;
+    font-weight: 800;
+    cursor: help;
+    outline: none;
+  }
+
+  .od-client-head__overview-popover {
+    display: none;
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 10px);
+    left: 50%;
+    width: min(360px, calc(100vw - 32px));
+    transform: translateX(-50%);
+    padding: 16px 18px;
+    border: 1px solid var(--ode-border);
+    border-radius: 16px;
+    background: var(--ode-card);
+    color: var(--ode-t2);
+    box-shadow: 0 22px 70px rgba(16, 24, 40, 0.2);
+    white-space: normal;
+    line-height: 1.55;
+    font-size: 14px;
+  }
+
+  .od-client-head__overview-popover strong {
+    color: var(--ode-t1);
+  }
+
+  .od-client-head__overview-popover > strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  .od-client-head__overview-popover ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  .od-client-head__overview-popover li {
+    margin-bottom: 4px;
+  }
+
+  .od-client-head__overview:hover .od-client-head__overview-popover,
+  .od-client-head__overview:focus .od-client-head__overview-popover,
+  .od-client-head__overview:focus-within .od-client-head__overview-popover {
+    display: block;
   }
 }
 

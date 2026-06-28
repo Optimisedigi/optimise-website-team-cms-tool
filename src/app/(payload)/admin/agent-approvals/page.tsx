@@ -1,5 +1,5 @@
 /**
- * Agent approvals list. Server component rendered inside the Payload admin
+ * OptiMate approvals list. Server component rendered inside the Payload admin
  * shell (sidebar + header). Defaults to pending; query string supports
  * filtering by status, agentName, and clientId.
  */
@@ -133,7 +133,7 @@ export default async function AgentApprovalsListPage({
       viewActions={getCustomViewActions(payload)}
       visibleEntities={getVisibleEntities(payload, user)}
     >
-      <AdminStepNavSetter items={[{ label: "Agent Approvals" }]} />
+      <AdminStepNavSetter items={[{ label: "OptiMate Approvals" }]} />
       <div className="gutter--left gutter--right">
         <div style={PAGE_STYLE}>
           <div
@@ -151,7 +151,7 @@ export default async function AgentApprovalsListPage({
                 <div style={{ color: CMS_GOLD, fontSize: 12, fontWeight: 700, letterSpacing: 0.7, textTransform: "uppercase" }}>
                   Optimise Digital CMS
                 </div>
-                <h1 style={{ fontSize: 28, margin: "4px 0 6px" }}>Agent approvals</h1>
+                <h1 style={{ fontSize: 28, margin: "4px 0 6px" }}>OptiMate approvals</h1>
                 <p style={{ fontSize: 13, color: "rgba(255,255,255,0.82)", margin: 0 }}>
                   Review OptiMate recommendations before anything changes in a client account.
                 </p>

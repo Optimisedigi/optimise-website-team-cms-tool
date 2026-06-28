@@ -104,12 +104,12 @@ const MemoryTokenUsagePanel: React.FC = () => {
       {usage && (
         <div>
           {row(
-            "Agent Soul",
+            "OptiMate Soul",
             `${usage.soulAspectCount} aspect${usage.soulAspectCount === 1 ? "" : "s"} (all loaded)`,
             usage.soulTokens,
           )}
           {row(
-            "Agent Memory (pinned)",
+            "OptiMate Memory (pinned)",
             `${usage.pinnedFactCount} global fact${usage.pinnedFactCount === 1 ? "" : "s"} (importance ≥ 80)`,
             usage.memoryTokens,
           )}

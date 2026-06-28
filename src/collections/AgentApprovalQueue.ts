@@ -18,11 +18,11 @@ import {
 export const AgentApprovalQueue: CollectionConfig = {
   slug: "agent-approval-queue" as any,
   labels: {
-    singular: "Agent Approval",
-    plural: "Agent Approvals",
+    singular: "OptiMate Approval",
+    plural: "OptiMate Approvals",
   },
   admin: {
-    group: "Agent",
+    group: "OptiMate",
     // Hidden from the nav/dashboard: the custom /admin/agent-approvals review
     // page is the front door for this queue. Records stay reachable by URL
     // (the custom page links into individual rows). Without this the auto
@@ -31,7 +31,7 @@ export const AgentApprovalQueue: CollectionConfig = {
     useAsTitle: "title",
     defaultColumns: ["agentName", "proposalType", "client", "status", "createdAt"],
     listSearchableFields: ["agentName", "proposalType", "title"],
-    description: "Drafts and proposed actions from the Optimate agents awaiting human review.",
+    description: "Drafts and proposed actions from OptiMate awaiting human review."
   },
   access: {
     read:   ({ req }) => Boolean(req.user) || hasValidApiKey(req),

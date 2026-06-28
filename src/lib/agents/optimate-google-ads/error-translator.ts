@@ -106,7 +106,7 @@ export function translateAgentError(err: unknown): TranslatedAgentError | null {
         kind: "auth_failure",
         userMessage:
           "I lost authentication to the model provider. " +
-          "Reconnect on the Agent Auth page and try again.",
+          "Reconnect in OptiMate Settings → Auth and try again.",
       };
     }
   }
@@ -119,7 +119,7 @@ export function translateAgentError(err: unknown): TranslatedAgentError | null {
       kind: "gmail_not_connected",
       userMessage:
         "I need Gmail access to do that. " +
-        "Connect Gmail from the Agent Auth page and try again.",
+        "Connect Gmail from OptiMate Settings → Auth and try again.",
     };
   }
 

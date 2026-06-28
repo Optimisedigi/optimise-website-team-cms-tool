@@ -96,7 +96,7 @@ export const OptiMateSettings: GlobalConfig = {
   slug: "optimate-settings",
   label: "OptiMate Settings",
   admin: {
-    group: "Agent",
+    group: "OptiMate",
     description:
       "Default models for the OptiMate Google Ads agent. The chat default seeds the model picker and is used when a request doesn't specify a model; the autonomous default is used for scheduled/cron runs.",
     hidden: hideGlobalUnlessFeature("optimate-settings"),
@@ -249,14 +249,14 @@ export const OptiMateSettings: GlobalConfig = {
           ],
         },
         {
-          label: "Memory",
+          label: "OptiMate Memory",
           fields: [
             {
-              name: "memoryTokenUsage",
+              name: "memorySettings",
               type: "ui",
               admin: {
                 components: {
-                  Field: "./components/agent/MemoryTokenUsagePanel",
+                  Field: "./components/agent/OptiMateMemorySettingsPanel",
                 },
               },
             },
@@ -269,12 +269,57 @@ export const OptiMateSettings: GlobalConfig = {
                 },
               },
             },
+          ],
+        },
+        {
+          label: "Token & Tool Cost",
+          fields: [
+            {
+              name: "memoryTokenUsage",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/agent/MemoryTokenUsagePanel",
+                },
+              },
+            },
             {
               name: "systemPromptTokenUsage",
               type: "ui",
               admin: {
                 components: {
                   Field: "./components/agent/SystemPromptTokenUsagePanel",
+                },
+              },
+            },
+          ],
+        },
+        {
+          label: "OptiMate Soul",
+          fields: [
+            {
+              name: "soulSettings",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/agent/OptiMateSoulSettingsPanel",
+                },
+              },
+            },
+          ],
+        },
+        {
+          label: "OptiMate Auth",
+          fields: [
+            {
+              name: "authLink",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: {
+                    path: "./components/agent/OptiMateSettingsLinksPanel",
+                    clientProps: { kind: "auth" },
+                  },
                 },
               },
             },

@@ -242,7 +242,7 @@ export default async function ApprovalReviewPage({
       viewActions={getCustomViewActions(payload)}
       visibleEntities={getVisibleEntities(payload, user)}
     >
-      <AdminStepNavSetter items={[{ label: "Agent Approvals", url: "/admin/agent-approvals" }, { label: "Review" }]} />
+      <AdminStepNavSetter items={[{ label: "OptiMate Approvals", url: "/admin/agent-approvals" }, { label: "Review" }]} />
       <div className="gutter--left gutter--right">
         <div style={PAGE_STYLE}>
           <div style={{ marginBottom: 12 }}>
@@ -266,7 +266,7 @@ export default async function ApprovalReviewPage({
           >
             <div style={{ minWidth: 0 }}>
               <div style={{ color: CMS_GOLD, fontSize: 12, fontWeight: 700, letterSpacing: 0.7, textTransform: "uppercase" }}>
-                Agent approval review
+                OptiMate approval review
               </div>
               <h1 style={{ fontSize: 24, margin: "4px 0 6px", lineHeight: 1.15 }}>{doc.title}</h1>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>

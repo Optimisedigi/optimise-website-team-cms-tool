@@ -7,7 +7,7 @@ export const RealtimeVoiceUsage: CollectionConfig = {
     plural: "Realtime Voice Usage",
   },
   admin: {
-    group: "Agent",
+    group: "OptiMate",
     hidden: true,
     useAsTitle: "sessionId",
     defaultColumns: ["agent", "model", "durationSeconds", "estimatedCostUsd", "user", "createdAt"],

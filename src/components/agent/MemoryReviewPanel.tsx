@@ -85,7 +85,7 @@ const MemoryReviewPanel: React.FC = () => {
     >
       <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Memory review</h3>
       <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--theme-elevation-500)", lineHeight: 1.5 }}>
-        Long-term memory is stored in <strong>Agent Memory</strong>, scoped per client by default. Keep most rows search-only. Only pin facts that would be harmful to omit because pinned rows add tokens to every matching OptiMate prompt.
+        Long-term memory is stored in <strong>OptiMate Memory</strong>, scoped per client by default. Keep most rows search-only. Only pin facts that would be harmful to omit because pinned rows add tokens to every matching OptiMate prompt.
       </p>
 
       {loading && <div style={{ fontSize: 13, color: "var(--theme-elevation-500)" }}>Loading…</div>}

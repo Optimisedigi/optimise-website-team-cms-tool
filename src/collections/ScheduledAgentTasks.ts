@@ -56,11 +56,11 @@ async function resolveCoveredClientIds(
 export const ScheduledAgentTasks: CollectionConfig = {
   slug: "scheduled-agent-tasks" as any,
   labels: {
-    singular: "Scheduled Agent Task",
-    plural: "Scheduled Agent Tasks",
+    singular: "Scheduled OptiMate Task",
+    plural: "Scheduled OptiMate Tasks",
   },
   admin: {
-    group: "Agent",
+    group: "OptiMate",
     useAsTitle: "title",
     defaultColumns: [
       "title",
@@ -75,7 +75,7 @@ export const ScheduledAgentTasks: CollectionConfig = {
     ],
     listSearchableFields: ["title", "agentName"],
     description:
-      "Recurring agent/system runs. Agent email tasks create Gmail drafts; monthly budget tasks queue Agent Approvals for budget pushes.",
+      "Recurring OptiMate/system runs. Email tasks create Gmail drafts; monthly budget tasks queue OptiMate Approvals for budget pushes."
   },
   access: {
     read: ({ req }) => {

@@ -1,5 +1,5 @@
 /**
- * Agent auth page (server shell).
+ * OptiMate auth page (server shell).
  *
  * Authenticates the CMS user, then renders the client-bodied AgentAuthPage
  * inside the Payload admin shell (sidebar + header). The agent-auth API
@@ -39,7 +39,7 @@ export default async function Page() {
       viewActions={getCustomViewActions(payload)}
       visibleEntities={getVisibleEntities(payload, user)}
     >
-      <AdminStepNavSetter items={[{ label: "Agent Auth" }]} />
+      <AdminStepNavSetter items={[{ label: "OptiMate Auth" }]} />
       <div className="gutter--left gutter--right">
         <AgentAuthPage />
       </div>
