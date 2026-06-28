@@ -75,6 +75,7 @@ import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../co
 import { default as default_56b28aa1b7f83ad9678320a990503af7 } from '../../../components/KeywordResearchAutofill'
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
 import { default as default_9f498ec9f8b81bcfa099e8cb7b777007 } from '../../../components/BackfillProposalReportDataButton'
+import { default as default_62cba30eadd5a2962ed9c8cc86b16246 } from '../../../components/RefreshProposalCompetitorTrafficButton'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
 import { default as default_524269742a06f6b5480b96a4c642a8de } from '../../../components/RunGoogleAdsAuditFromProposalButton'
 import { default as default_6fd4378acdcb6cb05df32bae3ab16a5b } from '../../../components/RunSerpDisplacementFromProposalButton'
@@ -130,6 +131,7 @@ import { default as default_909a54b4f02f1428884a878a4fce4a5f } from '../../../co
 import { default as default_10fccc7885acbd99c8b1f5d8e310047f } from '../../../components/RegenerateEmailButton'
 import { default as default_2eca85eea20f05062ddd72e60518b25f } from '../../../components/RunCampaignProposalButton'
 import { default as default_60c16b01b604a3bf2312f924f0ece75b } from '../../../components/CampaignProposalPreview'
+import { default as default_e52447bfa5fc6cde09e57d3c9412148e } from '../../../components/RunProposalCompetitorWorkflowButton'
 import { default as default_8880b203f284265c1c0872341a6ab1ef } from '../../../components/BuildCampaignsButton'
 import { default as default_2a5597b466c0be4a12bd7249716b4ee3 } from '../../../components/GenerateAdCopyButton'
 import { default as default_b012e7d9e2700288331e55f2919835cb } from '../../../components/AdCopyEditor'
@@ -269,6 +271,7 @@ export const importMap = {
   "./components/KeywordResearchAutofill#default": default_56b28aa1b7f83ad9678320a990503af7,
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
   "./components/BackfillProposalReportDataButton#default": default_9f498ec9f8b81bcfa099e8cb7b777007,
+  "./components/RefreshProposalCompetitorTrafficButton#default": default_62cba30eadd5a2962ed9c8cc86b16246,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
   "./components/RunGoogleAdsAuditFromProposalButton#default": default_524269742a06f6b5480b96a4c642a8de,
   "./components/RunSerpDisplacementFromProposalButton#default": default_6fd4378acdcb6cb05df32bae3ab16a5b,
@@ -324,6 +327,7 @@ export const importMap = {
   "./components/RegenerateEmailButton#default": default_10fccc7885acbd99c8b1f5d8e310047f,
   "./components/RunCampaignProposalButton#default": default_2eca85eea20f05062ddd72e60518b25f,
   "./components/CampaignProposalPreview#default": default_60c16b01b604a3bf2312f924f0ece75b,
+  "./components/RunProposalCompetitorWorkflowButton#default": default_e52447bfa5fc6cde09e57d3c9412148e,
   "./components/BuildCampaignsButton#default": default_8880b203f284265c1c0872341a6ab1ef,
   "./components/GenerateAdCopyButton#default": default_2a5597b466c0be4a12bd7249716b4ee3,
   "./components/AdCopyEditor#default": default_b012e7d9e2700288331e55f2919835cb,

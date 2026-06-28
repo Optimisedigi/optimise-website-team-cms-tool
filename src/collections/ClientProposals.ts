@@ -1507,6 +1507,15 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
+              name: "refreshCompetitorTraffic",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RefreshProposalCompetitorTrafficButton",
+                },
+              },
+            },
+            {
               name: "viewReport",
               type: "ui",
               admin: {
