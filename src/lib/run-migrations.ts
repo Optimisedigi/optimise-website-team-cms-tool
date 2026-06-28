@@ -937,6 +937,9 @@ export async function runMigrations(
       \`target_audience\` text,
       \`supporting_content\` text,
       \`generated_prompt\` text,
+      \`client_id\` integer,
+      \`workflow_status\` text DEFAULT 'idea_phase',
+      \`blog_post_id\` integer,
       \`status\` text DEFAULT 'draft',
       \`source\` text DEFAULT 'internal',
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
@@ -1240,6 +1243,12 @@ export async function runMigrations(
   
     // --- blog_prompts.gap_status column ---
     await run("blog_prompts.gap_status", "ALTER TABLE `blog_prompts` ADD `gap_status` text DEFAULT 'open'");
+    await run("blog_prompts.client_id", "ALTER TABLE `blog_prompts` ADD `client_id` integer REFERENCES `clients`(`id`) ON DELETE set null");
+    await run("blog_prompts.workflow_status", "ALTER TABLE `blog_prompts` ADD `workflow_status` text DEFAULT 'idea_phase'");
+    await run("blog_prompts.blog_post_id", "ALTER TABLE `blog_prompts` ADD `blog_post_id` integer REFERENCES `blog_posts`(`id`) ON DELETE set null");
+    await run("blog_prompts_workflow_status_backfill", "UPDATE `blog_prompts` SET `workflow_status` = 'idea_phase' WHERE `workflow_status` IS NULL");
+    await run("blog_prompts_client_idx", "CREATE INDEX IF NOT EXISTS `blog_prompts_client_idx` ON `blog_prompts` (`client_id`)");
+    await run("blog_prompts_blog_post_idx", "CREATE INDEX IF NOT EXISTS `blog_prompts_blog_post_idx` ON `blog_prompts` (`blog_post_id`)");
   
     // --- Blog Settings global + client blog tone fields ---
     await run("blog_settings", `CREATE TABLE IF NOT EXISTS \`blog_settings\` (
