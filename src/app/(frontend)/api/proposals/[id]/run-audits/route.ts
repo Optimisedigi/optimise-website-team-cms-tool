@@ -190,6 +190,7 @@ export async function POST(
     }).catch(() => {});
 
   const proposalId = Number(id);
+  const existingSeoAuditId = typeof proposal.seoAudit === "object" ? proposal.seoAudit?.id : proposal.seoAudit;
 
   // Parse keywords
   const keywordsList = keywordsRaw
@@ -373,7 +374,26 @@ export async function POST(
         errors.push(`SEO record creation failed: ${e.message}`);
       }
     } else {
-      errors.push(seoResult.reason?.message || "SEO audit failed");
+      const seoError = seoResult.reason?.message || "SEO audit failed";
+      if (existingSeoAuditId) {
+        try {
+          const existingSeoAudit = await payload.findByID({
+            collection: "seo-audits",
+            id: existingSeoAuditId,
+            overrideAccess: true,
+          });
+          if (hasValue(existingSeoAudit?.lighthouseScores)) {
+            auditIds.seoAudit = existingSeoAuditId;
+            errors.push(`${seoError}; reused existing SEO audit ${existingSeoAuditId}`);
+          } else {
+            errors.push(`${seoError}; existing SEO audit ${existingSeoAuditId} is incomplete`);
+          }
+        } catch (e: any) {
+          errors.push(`${seoError}; existing SEO audit ${existingSeoAuditId} could not be loaded: ${e.message}`);
+        }
+      } else {
+        errors.push(seoError);
+      }
     }
 
     // Create CRO audit record
