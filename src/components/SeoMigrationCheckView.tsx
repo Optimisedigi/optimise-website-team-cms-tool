@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
 /**
@@ -25,6 +26,7 @@ export interface MigrationAction {
 }
 
 export interface MigrationResult {
+  id?: number | string
   siteUrl?: string
   cutoverDate?: string
   isDomainMove?: boolean
@@ -50,6 +52,8 @@ export interface MigrationResult {
   nextEmailMilestoneDay?: number
   runAt?: string
 }
+
+const EMAIL_MILESTONE_DAYS = [1, 2, 3, 7, 10, 14, 21, 30]
 
 const STATUS_STYLE: Record<ChecklistItem['status'], { bg: string; fg: string; label: string }> = {
   pass: { bg: '#dcfce7', fg: '#166534', label: 'Pass' },
@@ -100,9 +104,26 @@ function formatDayLabel(iso: string): string {
   return `${ordinal(day)} ${MONTHS_SHORT[month - 1]}`
 }
 
+function customerSiteLabel(value?: string): string {
+  if (!value) return 'Migration review'
+  return value.replace(/^sc-domain:/, '').replace(/^https?:\/\//, '').replace(/\/+$/, '')
+}
+
+function elapsedDaysAfterMigration(cutoverDate?: string): number {
+  if (!cutoverDate) return 0
+  const cutover = new Date(`${cutoverDate.slice(0, 10)}T00:00:00Z`).getTime()
+  if (Number.isNaN(cutover)) return 0
+  const today = new Date()
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+  return Math.max(0, Math.floor((todayUtc - cutover) / 86400000))
+}
+
 function TrackingReport({ result }: { result: MigrationResult }) {
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
   const points = result.trackingSnapshots ?? []
   const latest = points[points.length - 1]
+  const hasSplitClickData = points.some((p) => p.brandClicks != null || p.genericClicks != null)
   const maxClicks = Math.max(1, ...points.map((p) => p.clicks))
   const maxImpressions = Math.max(1, ...points.map((p) => p.impressions))
   const w = 760
@@ -125,11 +146,50 @@ function TrackingReport({ result }: { result: MigrationResult }) {
   const maxSplitClicks = Math.max(1, ...points.flatMap((p) => [p.brandClicks ?? 0, p.genericClicks ?? 0]))
   const maxSplitImpressions = Math.max(1, ...points.flatMap((p) => [p.brandImpressions ?? 0, p.genericImpressions ?? 0]))
   const issueReport = result.trackingIssueReport ?? {}
+  const cutoverDay = result.cutoverDate?.slice(0, 10) || points.find((p) => p.daysSinceCutover === 1)?.date || ''
+  const currentMigrationDay = elapsedDaysAfterMigration(cutoverDay)
+  const completedMilestones = EMAIL_MILESTONE_DAYS.filter((day) => currentMigrationDay >= day)
+  const refreshTracking = async () => {
+    if (!result.id) return
+    setRefreshing(true)
+    setRefreshMessage(null)
+    try {
+      const res = await fetch('/api/gsc/migration-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewId: result.id, sendEmails: false }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Refresh failed')
+      setRefreshMessage('Refreshed. Reloading…')
+      window.location.reload()
+    } catch (err) {
+      setRefreshMessage(err instanceof Error ? err.message : 'Refresh failed')
+    } finally {
+      setRefreshing(false)
+    }
+  }
   return (
     <div className="od-box" style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={{ fontWeight: 700, color: '#0f172a' }}>Post-migration GSC tracking</div>
-        <div style={{ fontSize: 12, color: '#64748b' }}>Status: {result.trackingStatus || 'active'} · next email day {result.nextEmailMilestoneDay ?? '—'}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Status: {result.trackingStatus || 'active'} · next email day {result.nextEmailMilestoneDay ?? '—'}</div>
+          {result.id && <button type="button" onClick={refreshTracking} disabled={refreshing} style={{ ...smallButton, opacity: refreshing ? 0.65 : 1 }}>{refreshing ? 'Refreshing…' : 'Refresh GSC data'}</button>}
+        </div>
+      </div>
+      {refreshMessage && <div style={{ fontSize: 12, color: refreshMessage.includes('failed') || refreshMessage.includes('Failed') ? '#b91c1c' : '#15803d', marginBottom: 10 }}>{refreshMessage}</div>}
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#f8fafc', marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', fontSize: 12, color: '#475569', marginBottom: 8 }}>
+          <strong style={{ color: '#0f172a' }}>30-day migration review progress</strong>
+          <span>{completedMilestones.length} of {EMAIL_MILESTONE_DAYS.length} scheduled review days reached{cutoverDay ? ` from ${formatDayLabel(cutoverDay)}` : ''}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${EMAIL_MILESTONE_DAYS.length}, minmax(46px, 1fr))`, gap: 6 }}>
+          {EMAIL_MILESTONE_DAYS.map((day) => {
+            const reached = currentMigrationDay >= day
+            return <div key={day} style={{ textAlign: 'center', fontSize: 11, color: reached ? '#166534' : '#94a3b8' }}><span style={{ display: 'block', width: 12, height: 12, borderRadius: '50%', margin: '0 auto 4px', background: reached ? '#22c55e' : '#cbd5e1' }} />Day {day}</div>
+          })}
+        </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 14 }}>
         {[
@@ -152,8 +212,9 @@ function TrackingReport({ result }: { result: MigrationResult }) {
           : null)}
       </svg>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: '#475569' }}>
-        <span><span style={{ ...dot, background: '#2563eb' }} /> Clicks</span>
+        <span><span style={{ ...dot, background: '#2563eb' }} /> Total clicks</span>
         <span><span style={{ ...dot, background: '#8b5cf6' }} /> Impressions</span>
+        <span>{hasSplitClickData ? 'Total clicks are calculated from our brand-term classification, so they equal brand + generic clicks.' : 'Blue line shows total daily GSC clicks.'}</span>
       </div>
       <div style={{ marginTop: 14 }}>
         <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 6 }}>Brand vs generic clicks</div>
@@ -165,7 +226,7 @@ function TrackingReport({ result }: { result: MigrationResult }) {
         <div style={{ marginTop: 10, overflowX: 'auto', padding: '0 12px', border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, color: '#475569' }}>
             <thead>
-              <tr><th align="left">Date</th><th align="left">Brand clicks</th><th align="left">Brand impressions</th><th align="left">Generic clicks</th><th align="left">Generic impressions</th><th align="right">Impr. share</th></tr>
+              <tr><th align="left">Date</th><th align="left">Total clicks</th><th align="left">Brand clicks</th><th align="left">Brand impressions</th><th align="left">Generic clicks</th><th align="left">Generic impressions</th><th align="right">Impr. share</th></tr>
             </thead>
             <tbody>
               {points.map((p) => {
@@ -177,6 +238,7 @@ function TrackingReport({ result }: { result: MigrationResult }) {
                 const metricBar = (value: number, max: number, color: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}><span style={{ minWidth: 30, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(value)}</span><span style={{ display: 'inline-block', height: 7, width: `${Math.max(4, Math.min(100, (value / max) * 100))}%`, maxWidth: 70, background: color, borderRadius: 999 }} /></div>
                 return <tr key={p.date}>
                   <td style={{ padding: '4px 6px 4px 0', whiteSpace: 'nowrap' }}>{formatDayLabel(p.date)}{p.daysSinceCutover === 1 ? ' · migration' : p.daysSinceCutover < 1 ? ` · ${p.daysSinceCutover}d` : ` · +${p.daysSinceCutover - 1}d`}</td>
+                  <td style={{ padding: '4px 6px' }}>{metricBar(p.clicks, maxClicks, '#2563eb')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(brandClicks, maxSplitClicks, '#0ea5e9')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(brandImpressions, maxSplitImpressions, '#38bdf8')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(genericClicks, maxSplitClicks, '#22c55e')}</td>
@@ -240,7 +302,7 @@ const SeoMigrationCheckView = ({ result }: { result: MigrationResult | null }) =
         </div>
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ fontSize: 14, color: '#0f172a', fontWeight: 600 }}>
-            {result.siteUrl} {result.cutoverDate ? `· cutover ${result.cutoverDate}` : ''}
+            {customerSiteLabel(result.siteUrl)}{result.cutoverDate ? ` · migrated ${formatDayLabel(result.cutoverDate)}` : ''}
           </div>
           <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
             {result.isDomainMove ? 'Domain move' : 'Same-domain migration'}
@@ -354,6 +416,17 @@ const badge: CSSProperties = {
   fontSize: 11,
   whiteSpace: 'nowrap',
   flexShrink: 0,
+}
+
+const smallButton: CSSProperties = {
+  border: '1px solid #cbd5e1',
+  borderRadius: 999,
+  background: '#fff',
+  color: '#2563eb',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 600,
+  padding: '5px 10px',
 }
 
 export default SeoMigrationCheckView

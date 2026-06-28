@@ -24,6 +24,7 @@ const SeoMigrationCheckResults = () => {
   }
 
   const result: MigrationResult = {
+    id: data.id as number | string | undefined,
     siteUrl: data.siteUrl as string | undefined,
     cutoverDate: data.cutoverDate as string | undefined,
     isDomainMove: data.isDomainMove as boolean | undefined,

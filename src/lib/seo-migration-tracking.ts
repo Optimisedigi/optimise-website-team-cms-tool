@@ -9,6 +9,7 @@ import { buildSeoMigrationReportEmail } from "@/lib/seo-migration-report-email";
 export const POST_MIGRATION_EMAIL_MILESTONES = [1, 2, 3, 7, 10, 14, 21, 30] as const;
 export const GSC_DATA_LAG_DAYS = GSC_LAG_DAYS;
 export const PRE_MIGRATION_CHART_DAYS = 14;
+export const POST_MIGRATION_TRACKING_DAYS = 90;
 
 export type TrackingSeverity = "critical" | "warning" | "advisory" | "healthy";
 
@@ -112,6 +113,7 @@ export function buildPostMigrationTrackingSnapshots(input: {
   const brandByDate = rowMap(input.brand);
   const genericByDate = rowMap(input.nonBrand);
   const overallByDate = rowMap(input.overall);
+  const hasQuerySplitData = input.brand != null && input.nonBrand != null;
   const todayLaggedEnd = getAvailableGscEndDate(input.now ?? new Date());
   const startDate = input.startDate || input.cutoverDate;
   if (!isValidIsoDate(input.cutoverDate) || !isValidIsoDate(startDate) || !isValidIsoDate(input.availableEndDate) || input.availableEndDate < startDate) {
@@ -122,17 +124,19 @@ export function buildPostMigrationTrackingSnapshots(input: {
     const row = overallByDate.get(date) || { date, clicks: 0, impressions: 0, ctr: 0, position: 0 };
     const brand = brandByDate.get(date);
     const generic = genericByDate.get(date);
+    const splitClicks = (brand?.clicks ?? 0) + (generic?.clicks ?? 0);
+    const splitImpressions = (brand?.impressions ?? 0) + (generic?.impressions ?? 0);
     out.push({
       date,
       daysSinceCutover: daysSinceCutover(input.cutoverDate, dateOnly(date)),
-      clicks: row.clicks,
-      impressions: row.impressions,
-      ctr: row.ctr,
+      clicks: hasQuerySplitData ? splitClicks : row.clicks,
+      impressions: hasQuerySplitData ? splitImpressions : row.impressions,
+      ctr: hasQuerySplitData ? (splitImpressions ? Math.round((splitClicks / splitImpressions) * 10000) / 100 : 0) : row.ctr,
       position: row.position,
-      brandClicks: brand?.clicks ?? null,
-      brandImpressions: brand?.impressions ?? null,
-      genericClicks: generic?.clicks ?? null,
-      genericImpressions: generic?.impressions ?? null,
+      brandClicks: hasQuerySplitData ? (brand?.clicks ?? 0) : null,
+      brandImpressions: hasQuerySplitData ? (brand?.impressions ?? 0) : null,
+      genericClicks: hasQuerySplitData ? (generic?.clicks ?? 0) : null,
+      genericImpressions: hasQuerySplitData ? (generic?.impressions ?? 0) : null,
       sourceLagged: date > todayLaggedEnd,
       dataComplete: date <= todayLaggedEnd,
     });
@@ -271,9 +275,10 @@ function adminUrl(reviewId: string | number): string {
 
 export async function processSeoMigrationTracking(options: { reviewId?: string | number; limit?: number; sendEmails?: boolean } = {}) {
   const payload = await getPayload({ config: await config });
+  const activeTrackingCutoff = addDays(new Date(), -(POST_MIGRATION_TRACKING_DAYS - 1));
   const where: any = options.reviewId
     ? { id: { equals: options.reviewId } }
-    : { and: [{ status: { equals: "completed" } }, { trackingEnabled: { not_equals: false } }, { trackingStatus: { not_equals: "paused" } }, { trackingStatus: { not_equals: "complete" } }] };
+    : { and: [{ status: { equals: "completed" } }, { trackingEnabled: { not_equals: false } }, { trackingStatus: { not_equals: "paused" } }, { trackingStatus: { not_equals: "failed" } }, { cutoverDate: { greater_than_equal: activeTrackingCutoff } }] };
   const reviews = await payload.find({ collection: "seo-migration-checks", where, limit: options.limit ?? 10, depth: 1, overrideAccess: true });
   const results = [];
 
@@ -294,7 +299,7 @@ export async function processSeoMigrationTracking(options: { reviewId?: string |
       const cutoverDate = toDateOnly(review.cutoverDate);
       const availableEndDate = getAvailableGscEndDate();
       const fetchStartDate = addDays(cutoverDate, -PRE_MIGRATION_CHART_DAYS);
-      const fetchEndDate = minDate(availableEndDate, addDays(cutoverDate, 60));
+      const fetchEndDate = minDate(availableEndDate, addDays(cutoverDate, POST_MIGRATION_TRACKING_DAYS - 1));
       const hasAvailableRange = isValidIsoDate(cutoverDate) && fetchEndDate >= fetchStartDate;
       const overall = hasAvailableRange ? await fetchDailySearchAnalytics(accessToken, siteUrl, fetchStartDate, fetchEndDate) : [];
       const brandTerms = parseBrandTerms(client.brandKeywords);
@@ -314,7 +319,9 @@ export async function processSeoMigrationTracking(options: { reviewId?: string |
         lastTrackingRunAt: new Date().toISOString(),
         nextEmailMilestoneDay: nextMilestone,
       };
-      if (!['complete', 'failed'].includes(review.trackingStatus)) {
+      if (daysSinceCutover(cutoverDate) > POST_MIGRATION_TRACKING_DAYS) {
+        updateData.trackingStatus = 'complete';
+      } else if (!['paused', 'failed'].includes(review.trackingStatus)) {
         updateData.trackingStatus = 'active';
       }
 
@@ -343,7 +350,7 @@ export async function processSeoMigrationTracking(options: { reviewId?: string |
           }
           updateData.lastEmailSentAt = new Date().toISOString();
           updateData.lastEmailMilestoneDay = dueMilestone;
-          if (dueMilestone === 30) updateData.trackingStatus = "complete";
+          if (daysSinceCutover(cutoverDate) > POST_MIGRATION_TRACKING_DAYS) updateData.trackingStatus = "complete";
         }
       }
 

@@ -26,6 +26,11 @@ function buildBrandRegex(brandTerms: string[]): string {
     .join("|");
 }
 
+function buildBrandMatcher(brandTerms: string[]): RegExp | null {
+  const brandRegex = buildBrandRegex(brandTerms);
+  return brandRegex ? new RegExp(brandRegex, "i") : null;
+}
+
 /**
  * Generate the Google OAuth consent URL for GSC access.
  *
@@ -322,42 +327,61 @@ export async function fetchDailyBrandedAnalytics(
   endDate: string,
   brandTerms: string[]
 ): Promise<{ brand: DailySearchAnalyticsRow[] | null; nonBrand: DailySearchAnalyticsRow[] | null }> {
-  const brandRegex = buildBrandRegex(brandTerms);
-  if (!brandRegex) return { brand: null, nonBrand: null };
+  const brandMatcher = buildBrandMatcher(brandTerms);
+  if (!brandMatcher) return { brand: null, nonBrand: null };
 
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({ access_token: accessToken });
   const searchconsole = google.searchconsole({ version: "v1", auth: oauth2Client });
 
   try {
-    const [brandRes, nonBrandRes] = await Promise.all([
-      searchconsole.searchanalytics.query({
+    const rows: searchconsole_v1.Schema$ApiDataRow[] = [];
+    const pageSize = 25000;
+    for (let startRow = 0; ; startRow += pageSize) {
+      const res = await searchconsole.searchanalytics.query({
         siteUrl,
         requestBody: {
           startDate,
           endDate,
-          dimensions: ["date"],
-          dimensionFilterGroups: [
-            { filters: [{ dimension: "query", operator: "includingRegex", expression: brandRegex }] },
-          ],
-          rowLimit: 25000,
+          dimensions: ["date", "query"],
+          rowLimit: pageSize,
+          startRow,
         },
-      }),
-      searchconsole.searchanalytics.query({
-        siteUrl,
-        requestBody: {
-          startDate,
-          endDate,
-          dimensions: ["date"],
-          dimensionFilterGroups: [
-            { filters: [{ dimension: "query", operator: "excludingRegex", expression: brandRegex }] },
-          ],
-          rowLimit: 25000,
-        },
-      }),
-    ]);
+      });
+      const page = res.data.rows || [];
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
 
-    return { brand: dailyRows(brandRes.data.rows), nonBrand: dailyRows(nonBrandRes.data.rows) };
+    const brandByDate = new Map<string, { clicks: number; impressions: number; positionWeight: number }>();
+    const genericByDate = new Map<string, { clicks: number; impressions: number; positionWeight: number }>();
+
+    for (const row of rows) {
+      const date = row.keys?.[0];
+      const query = row.keys?.[1] || "";
+      if (!date) continue;
+      const bucket = brandMatcher.test(query) ? brandByDate : genericByDate;
+      const current = bucket.get(date) || { clicks: 0, impressions: 0, positionWeight: 0 };
+      const clicks = row.clicks || 0;
+      const impressions = row.impressions || 0;
+      current.clicks += clicks;
+      current.impressions += impressions;
+      current.positionWeight += (row.position || 0) * impressions;
+      bucket.set(date, current);
+    }
+
+    const toDailyRows = (source: Map<string, { clicks: number; impressions: number; positionWeight: number }>): DailySearchAnalyticsRow[] =>
+      Array.from(source.entries())
+        .map(([date, row]) => ({
+          date,
+          clicks: row.clicks,
+          impressions: row.impressions,
+          ctr: row.impressions ? Math.round((row.clicks / row.impressions) * 10000) / 100 : 0,
+          position: row.impressions ? Math.round((row.positionWeight / row.impressions) * 10) / 10 : 0,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    return { brand: toDailyRows(brandByDate), nonBrand: toDailyRows(genericByDate) };
   } catch (err) {
     console.error("[gsc-service] fetchDailyBrandedAnalytics error:", err);
     return { brand: null, nonBrand: null };

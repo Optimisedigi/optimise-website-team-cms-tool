@@ -23,8 +23,9 @@ describe("seo migration tracking", () => {
       now: new Date("2026-06-15T00:00:00Z"),
     });
     expect(snapshots).toHaveLength(3);
-    expect(snapshots[0]).toMatchObject({ date: "2026-06-09", daysSinceCutover: -1, clicks: 0 });
+    expect(snapshots[0]).toMatchObject({ date: "2026-06-09", daysSinceCutover: -1, clicks: 0, brandClicks: 0, genericClicks: 0 });
     expect(snapshots[1]).toMatchObject({ date: "2026-06-10", daysSinceCutover: 1, clicks: 10, brandClicks: 4, genericClicks: 6 });
+    expect(snapshots[2]).toMatchObject({ date: "2026-06-11", clicks: 0, brandClicks: 0, genericClicks: 0 });
   });
 
   it("accepts a full ISO datetime cutover (Payload date field format)", () => {
