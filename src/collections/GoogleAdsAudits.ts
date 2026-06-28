@@ -596,6 +596,15 @@ export const GoogleAdsAudits: CollectionConfig = {
               },
             },
             {
+              name: "campaignProposalCompetitorWorkflow",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunProposalCompetitorWorkflowButton",
+                },
+              },
+            },
+            {
               name: "campaignProposalStatus",
               type: "select",
               admin: {
@@ -615,6 +624,71 @@ export const GoogleAdsAudits: CollectionConfig = {
               type: "json",
               admin: {
                 hidden: true,
+              },
+            },
+            {
+              name: "campaignProposalCompetitorStatus",
+              type: "select",
+              admin: {
+                readOnly: true,
+                description: "Current post-proposal competitor workflow status",
+              },
+              options: [
+                { label: "Pending", value: "pending" },
+                { label: "Running", value: "running" },
+                { label: "Completed", value: "completed" },
+                { label: "Failed", value: "failed" },
+              ],
+            },
+            {
+              name: "campaignProposalCompetitors",
+              type: "json",
+              admin: {
+                readOnly: true,
+                description: "Combined generated and manual competitors from proposal keywords",
+              },
+            },
+            {
+              name: "campaignProposalGeneratedCompetitors",
+              type: "json",
+              admin: {
+                readOnly: true,
+                hidden: true,
+              },
+            },
+            {
+              name: "campaignProposalManualCompetitors",
+              type: "array",
+              admin: {
+                description: "Optional domains to append after generated competitors",
+              },
+              fields: [
+                { name: "domain", type: "text", required: true },
+                { name: "notes", type: "textarea" },
+              ],
+            },
+            {
+              name: "campaignProposalCompetitorKeywordsUsed",
+              type: "json",
+              admin: {
+                readOnly: true,
+                hidden: true,
+              },
+            },
+            {
+              name: "campaignProposalCompetitorsGeneratedAt",
+              type: "date",
+              admin: {
+                readOnly: true,
+                description: "When post-proposal competitors were generated",
+              },
+            },
+            {
+              name: "campaignProposalCompetitorError",
+              type: "textarea",
+              admin: {
+                readOnly: true,
+                description: "Last post-proposal competitor workflow error",
               },
             },
             {

@@ -3388,6 +3388,58 @@ export interface GoogleAdsAudit {
     | boolean
     | null;
   /**
+   * Current post-proposal competitor workflow status
+   */
+  campaignProposalCompetitorStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
+  /**
+   * Combined generated and manual competitors from proposal keywords
+   */
+  campaignProposalCompetitors?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  campaignProposalGeneratedCompetitors?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Optional domains to append after generated competitors
+   */
+  campaignProposalManualCompetitors?:
+    | {
+        domain: string;
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  campaignProposalCompetitorKeywordsUsed?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * When post-proposal competitors were generated
+   */
+  campaignProposalCompetitorsGeneratedAt?: string | null;
+  /**
+   * Last post-proposal competitor workflow error
+   */
+  campaignProposalCompetitorError?: string | null;
+  /**
    * Client-approved campaign structure imported from CSV
    */
   approvedCampaignStructure?:
@@ -5861,7 +5913,7 @@ export interface BlogPost {
    */
   client: number | Client;
   /**
-   * Confirm the selected client is correct before saving or publishing
+   * Review the generated draft, then confirm the selected client is correct before publishing
    */
   clientConfirmed?: boolean | null;
   /**
@@ -10584,6 +10636,19 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   teamNotes?: T;
   campaignProposalStatus?: T;
   campaignProposal?: T;
+  campaignProposalCompetitorStatus?: T;
+  campaignProposalCompetitors?: T;
+  campaignProposalGeneratedCompetitors?: T;
+  campaignProposalManualCompetitors?:
+    | T
+    | {
+        domain?: T;
+        notes?: T;
+        id?: T;
+      };
+  campaignProposalCompetitorKeywordsUsed?: T;
+  campaignProposalCompetitorsGeneratedAt?: T;
+  campaignProposalCompetitorError?: T;
   approvedCampaignStructure?: T;
   proposalBusinessType?: T;
   proposalConversionGoal?: T;

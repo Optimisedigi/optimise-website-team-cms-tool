@@ -69,6 +69,12 @@ interface ProposalCompetitor {
   averagePosition: number
   isRunningAds: boolean
   adCopyCount?: number
+  source?: 'generated' | 'manual'
+  traffic?: {
+    monthlyVisits?: number | null
+    status?: string | null
+    unavailableReason?: string | null
+  } | null
 }
 
 interface AccountMismatch {
@@ -222,6 +228,12 @@ function fmt(n: number): string {
   return n.toLocaleString('en-AU')
 }
 
+function formatMonthlyVisits(competitor: ProposalCompetitor): string {
+  const visits = competitor.traffic?.monthlyVisits
+  if (typeof visits === 'number') return fmt(visits)
+  return 'Traffic unavailable'
+}
+
 // ---------------------------------------------------------------------------
 // Tab bar
 // ---------------------------------------------------------------------------
@@ -294,6 +306,8 @@ const CampaignProposalPreviewInner = () => {
   const [editableHtml, setEditableHtml] = useState<string | null>(null)
 
   const proposalRaw = fields?.campaignProposal?.value
+  const proposalCompetitorsRaw = fields?.campaignProposalCompetitors?.value
+  const proposalCompetitorKeywordsRaw = fields?.campaignProposalCompetitorKeywordsUsed?.value
   const emailHtml = fields?.campaignProposalEmailHtml?.value as string | undefined
 
   // Parse proposal data
@@ -307,6 +321,13 @@ const CampaignProposalPreviewInner = () => {
       // invalid JSON
     }
   }
+
+  const proposalCompetitors = Array.isArray(proposalCompetitorsRaw)
+    ? (proposalCompetitorsRaw as ProposalCompetitor[])
+    : []
+  const proposalCompetitorKeywords = Array.isArray(proposalCompetitorKeywordsRaw)
+    ? (proposalCompetitorKeywordsRaw as Array<{ text: string; monthlySearchVolume: number }>)
+    : []
 
   // Selection state
   const [selection, setSelection] = useState<SelectionMap>(() =>
@@ -755,6 +776,8 @@ const CampaignProposalPreviewInner = () => {
           selection={selection}
           toggleCampaign={toggleCampaign}
           toggleAdGroup={toggleAdGroup}
+          proposalCompetitors={proposalCompetitors}
+          proposalCompetitorKeywords={proposalCompetitorKeywords}
         />
       )}
       {activeTab === 'summary' && <SummaryView proposal={proposal} selectedCampaigns={selectedCampaigns} stats={selectedStats} />}
@@ -777,11 +800,15 @@ function StructureView({
   selection,
   toggleCampaign,
   toggleAdGroup,
+  proposalCompetitors,
+  proposalCompetitorKeywords,
 }: {
   proposal: CampaignProposalData
   selection: SelectionMap
   toggleCampaign: (ci: number) => void
   toggleAdGroup: (ci: number, agi: number) => void
+  proposalCompetitors: ProposalCompetitor[]
+  proposalCompetitorKeywords: Array<{ text: string; monthlySearchVolume: number }>
 }) {
   return (
     <div style={styles.body}>
@@ -1029,6 +1056,47 @@ function StructureView({
             </details>
           )}
         </section>
+      )}
+
+      {/* Post-proposal competitors */}
+      {proposalCompetitors.length > 0 && (
+        <details style={{ marginTop: 20 }} open>
+          <summary style={{ ...styles.sectionHeader, cursor: 'pointer' }}>
+            Post-proposal competitors ({proposalCompetitors.length})
+          </summary>
+          {proposalCompetitorKeywords.length > 0 && (
+            <p style={styles.muted}>
+              Keywords used: {proposalCompetitorKeywords.map((kw) => `${kw.text} (${fmt(kw.monthlySearchVolume)})`).join(', ')}
+            </p>
+          )}
+          <table style={{ ...styles.table, marginTop: 8 }}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Domain</th>
+                <th style={styles.th}>Source</th>
+                <th style={styles.th}>Monthly Visits</th>
+                <th style={styles.th}>Overlapping KWs</th>
+                <th style={styles.th}>Avg Position</th>
+                <th style={styles.th}>Running Ads</th>
+              </tr>
+            </thead>
+            <tbody>
+              {proposalCompetitors.map((c, i) => (
+                <tr key={`${c.domain}-${i}`}>
+                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.domain}</td>
+                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.source || 'generated'}</td>
+                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{formatMonthlyVisits(c)}</td>
+                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.overlappingKeywords}</td>
+                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{Number(c.averagePosition || 0).toFixed(1)}</td>
+                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
+                    {c.isRunningAds ? 'Yes' : 'No'}
+                    {c.adCopyCount ? ` (${c.adCopyCount} ads)` : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
       )}
 
       {/* Competitor Landscape */}
