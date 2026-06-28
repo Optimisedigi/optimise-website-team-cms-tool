@@ -42,7 +42,7 @@ type MemoryDraft = {
   content: string
   importance: number
   confidence: number
-  status: 'active' | 'needs_review' | 'archived'
+  status: 'active' | 'needs_review'
 }
 
 const MEMORY_GRID_COLUMNS = '110px minmax(170px, 230px) minmax(140px, 170px) minmax(170px, 230px) minmax(360px, 1fr) 88px 92px 90px auto'
@@ -187,7 +187,7 @@ export default function OptiMateMemorySettingsPanel() {
       content: row.content || '',
       importance: Number(row.importance ?? 50),
       confidence: Number(row.confidence ?? 80),
-      status: row.status || 'active',
+      status: row.status === 'needs_review' ? 'needs_review' : 'active',
     })
     const validation = validateMemory(payload)
     if (validation) {
@@ -211,6 +211,24 @@ export default function OptiMateMemorySettingsPanel() {
     setMessage('Updated OptiMate Memory.')
   }
 
+  const deleteRow = async (row: MemoryRow) => {
+    const label = row.subject || 'this memory'
+    if (!window.confirm(`Delete “${label}”? This permanently removes the memory.`)) return
+
+    const res = await fetch(`/api/agent-memory/${row.id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setMessage(data?.message || data?.error || 'Could not delete OptiMate Memory.')
+      return
+    }
+
+    setRows((prev) => prev.filter((item) => item.id !== row.id))
+    setMessage('Deleted OptiMate Memory.')
+  }
+
   const categorySelect = (value: string, onChange: (value: string) => void) => (
     <select value={value || 'preference'} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
       {categoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -231,7 +249,7 @@ export default function OptiMateMemorySettingsPanel() {
         Use memory for durable facts about clients, accounts, preferences, decisions, or context. Use Soul for how OptiMate should communicate, such as tone, formatting, and writing style.
       </p>
       <p style={{ margin: '0 0 16px', color: 'var(--theme-elevation-500)', fontSize: 13, maxWidth: 980 }}>
-        Required: scope, category, subject, and memory. Client is required only for client-scoped rows. Importance 80+ pins a memory into matching prompts; lower scores stay searchable and are pulled only when relevant.
+        Required: scope, category, subject, and memory. Client is required only for client-scoped rows. Importance 80+ pins a memory into matching prompts; lower scores stay searchable and are pulled only when relevant. Use Delete to remove memories you no longer want.
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: MEMORY_GRID_COLUMNS, gap: 8, alignItems: 'end', marginBottom: 8, fontSize: 11, fontWeight: 700, color: 'var(--theme-elevation-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -260,7 +278,6 @@ export default function OptiMateMemorySettingsPanel() {
         <select value={draft.status} onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value as MemoryDraft['status'] }))} style={inputStyle}>
           <option value="active">Active</option>
           <option value="needs_review">Review</option>
-          <option value="archived">Archived</option>
         </select>
         <button type="button" onClick={createRow} style={buttonStyle}>Add</button>
       </div>
@@ -285,12 +302,14 @@ export default function OptiMateMemorySettingsPanel() {
                 <textarea value={row.content || ''} onChange={(e) => updateLocalRow(row.id, { content: e.target.value })} rows={4} style={{ ...inputStyle, minHeight: 104, resize: 'vertical' }} />
                 <input type="number" min={0} max={100} value={row.importance ?? 50} onChange={(e) => updateLocalRow(row.id, { importance: Number(e.target.value) })} title="0–100. Use 80+ to pin important facts into matching OptiMate prompts. Keep most memories around 50 so they stay searchable without always adding tokens." style={inputStyle} />
                 <input type="number" min={0} max={100} value={row.confidence ?? 80} onChange={(e) => updateLocalRow(row.id, { confidence: Number(e.target.value) })} title="0–100. How sure we are this memory is accurate. Low-confidence memories should be reviewed before relying on them." style={inputStyle} />
-                <select value={row.status || 'active'} onChange={(e) => updateLocalRow(row.id, { status: e.target.value as MemoryRow['status'] })} style={inputStyle}>
+                <select value={row.status === 'needs_review' ? 'needs_review' : 'active'} onChange={(e) => updateLocalRow(row.id, { status: e.target.value as MemoryRow['status'] })} style={inputStyle}>
                   <option value="active">Active</option>
                   <option value="needs_review">Review</option>
-                  <option value="archived">Archived</option>
                 </select>
-                <button type="button" onClick={() => saveRow(row)} style={buttonStyle}>Save</button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" onClick={() => saveRow(row)} style={buttonStyle}>Save</button>
+                  <button type="button" onClick={() => deleteRow(row)} style={{ ...buttonStyle, borderColor: '#fecaca', background: '#fef2f2', color: '#b91c1c' }}>Delete</button>
+                </div>
               </div>
             )
           })}
