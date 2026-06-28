@@ -158,7 +158,7 @@ const BlogPrompterPage = () => {
   const [selectedBrief, setSelectedBrief] = useState<SavedBrief | null>(null)
   const selectedBriefRef = useRef<HTMLDivElement>(null)
   const [deletingId, setDeletingId] = useState<string | number | null>(null)
-  const [showProposed, setShowProposed] = useState(true)
+  const [showProposed, setShowProposed] = useState(false)
   const [showPublishedProposed, setShowPublishedProposed] = useState(false)
   const [proposedTagFilter, setProposedTagFilter] = useState('')
   const [suggesting, setSuggesting] = useState(false)
@@ -457,7 +457,7 @@ const BlogPrompterPage = () => {
               cursor: 'pointer', color: 'inherit',
             }}
           >
-            Active blogs {activeBriefs.length > 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({activeBriefs.length})</span>}
+            Manual blog ideas {activeBriefs.length > 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({activeBriefs.length})</span>}
           </button>
           <button
             type="button"
@@ -469,7 +469,7 @@ const BlogPrompterPage = () => {
               cursor: 'pointer', color: 'inherit',
             }}
           >
-            Proposed {blogIdeaProposedBriefs.length > 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({blogIdeaProposedBriefs.length})</span>}
+            Proposed blog ideas {blogIdeaProposedBriefs.length > 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({blogIdeaProposedBriefs.length})</span>}
           </button>
         </div>
         {showProposed && (
