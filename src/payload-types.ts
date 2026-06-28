@@ -6347,6 +6347,10 @@ export interface MeetingScheduler {
  */
 export interface BlogPrompt {
   id: number;
+  /**
+   * Client this saved blog prompt belongs to.
+   */
+  client?: (number | null) | Client;
   blogIdea: string;
   titleIdea?: string | null;
   category?: string | null;
@@ -6359,6 +6363,14 @@ export interface BlogPrompt {
   targetAudience?: string | null;
   supportingContent?: string | null;
   generatedPrompt?: string | null;
+  /**
+   * Tracks the prompt from idea, to generated draft, to published blog post.
+   */
+  workflowStatus?: ('idea_phase' | 'in_progress' | 'published') | null;
+  /**
+   * Generated Blog Post draft created from this prompt.
+   */
+  blogPost?: (number | null) | BlogPost;
   status?: ('draft' | 'client-submitted' | 'ready') | null;
   source?: ('internal' | 'client' | 'topic-clusters') | null;
   archivedAt?: string | null;
@@ -10412,6 +10424,7 @@ export interface BlogPostsSelect<T extends boolean = true> {
  * via the `definition` "blog-prompts_select".
  */
 export interface BlogPromptsSelect<T extends boolean = true> {
+  client?: T;
   blogIdea?: T;
   titleIdea?: T;
   category?: T;
@@ -10424,6 +10437,8 @@ export interface BlogPromptsSelect<T extends boolean = true> {
   targetAudience?: T;
   supportingContent?: T;
   generatedPrompt?: T;
+  workflowStatus?: T;
+  blogPost?: T;
   status?: T;
   source?: T;
   archivedAt?: T;

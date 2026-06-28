@@ -8,7 +8,9 @@ vi.mock('next/headers', () => ({
 const mockPayload = {
   auth: vi.fn(),
   findGlobal: vi.fn(),
+  findByID: vi.fn(),
   create: vi.fn(),
+  update: vi.fn(),
 }
 
 vi.mock('payload', () => ({
@@ -62,7 +64,9 @@ describe('POST /api/blog-prompts/generate-blog', () => {
       blogPrompterModel: undefined,
     })
     mockCallLLM.mockResolvedValue(llmReply('# Blog\nContent'))
+    mockPayload.findByID.mockResolvedValue({ id: 42, authors: [{ name: 'Jane Smith' }] })
     mockPayload.create.mockResolvedValue({ id: 123, title: 'Blog' })
+    mockPayload.update.mockResolvedValue({ id: 'prompt-1', workflowStatus: 'in_progress', blogPost: 123 })
   })
 
   it('returns 401 unauthenticated', async () => {
@@ -125,27 +129,79 @@ describe('POST /api/blog-prompts/generate-blog', () => {
     expect(mockPayload.create).not.toHaveBeenCalled()
   })
 
-  it('creates a draft Blog Post with markdownSource for the selected client', async () => {
+  it('creates a normalised draft Blog Post with markdownSource for the selected client', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    mockCallLLM.mockResolvedValue(llmReply('# My Generated Blog\nContent'))
+    mockCallLLM.mockResolvedValue(llmReply([
+      '---',
+      'title: My Generated Blog',
+      'status: published',
+      '---',
+      '',
+      '# My Generated Blog',
+      '',
+      '## First section',
+      '',
+      'Opening paragraph.',
+      '',
+      'Second paragraph.',
+      '',
+      'Common issues include:',
+      '* One',
+      '* Two',
+      '',
+      'Follow-up paragraph.',
+    ].join('\n')))
 
-    const res = await POST(makeRequest({ prompt: 'Generated prompt text', clientId: 42, createDraft: true }))
+    const res = await POST(makeRequest({
+      prompt: 'Generated prompt text',
+      clientId: 42,
+      createDraft: true,
+      blogPromptId: 'prompt-1',
+      category: 'SEO',
+      tag: 'Technical SEO',
+    }))
     const json = await res.json()
 
+    const normalisedMarkdown = [
+      '---',
+      'title: My Generated Blog',
+      '---',
+      '# My Generated Blog',
+      '',
+      '## First section',
+      'Opening paragraph.',
+      'Second paragraph.',
+      'Common issues include:',
+      '* One',
+      '* Two',
+      '',
+      'Follow-up paragraph.',
+    ].join('\n')
+
     expect(res.status).toBe(200)
+    expect(json.markdown).toBe(normalisedMarkdown)
     expect(json.draft).toEqual({ id: 123, title: 'Blog', adminUrl: '/admin/collections/blog-posts/123' })
     expect(mockPayload.create).toHaveBeenCalledWith({
       collection: 'blog-posts',
       data: expect.objectContaining({
         client: 42,
-        clientConfirmed: true,
+        clientConfirmed: false,
         title: 'My Generated Blog',
         slug: 'my-generated-blog',
         status: 'draft',
-        markdownSource: '# My Generated Blog\nContent',
+        author: 'Jane Smith',
+        category: 'SEO',
+        tags: ['Technical SEO'],
+        markdownSource: normalisedMarkdown,
       }),
       overrideAccess: true,
       draft: true,
+    })
+    expect(mockPayload.update).toHaveBeenCalledWith({
+      collection: 'blog-prompts',
+      id: 'prompt-1',
+      data: { workflowStatus: 'in_progress', blogPost: 123 },
+      overrideAccess: true,
     })
   })
 

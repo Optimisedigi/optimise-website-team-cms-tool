@@ -73,20 +73,21 @@ describe('GET /api/blog-prompts', () => {
     expect(json.error).toBe('Unauthorized')
   })
 
-  it('returns all briefs', async () => {
+  it('returns briefs filtered by client when clientId is supplied', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    mockPayload.find.mockResolvedValue({ docs: [{ id: '1', title: 'Brief 1' }, { id: '2', source: 'topic-clusters' }] })
+    mockPayload.find.mockResolvedValue({ docs: [{ id: '1', title: 'Brief 1', client: 42 }] })
 
-    const res = await GET(makeGetRequest())
+    const res = await GET(makeGetRequest({ clientId: '42' }))
     const json = await res.json()
 
     expect(res.status).toBe(200)
-    expect(json.docs).toHaveLength(2)
+    expect(json.docs).toHaveLength(1)
 
     expect(mockPayload.find).toHaveBeenCalledWith({
       collection: 'blog-prompts',
       sort: '-createdAt',
       limit: 200,
+      where: { client: { equals: '42' } },
       overrideAccess: true,
     })
   })
@@ -128,29 +129,40 @@ describe('POST /api/blog-prompts', () => {
     expect(json.error).toBe('Unauthorized')
   })
 
-  it('creates a brief and returns the doc', async () => {
+  it('creates a client-scoped brief with idea-phase status and returns the doc', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    const briefData = { title: 'New Brief', content: 'Some content' }
-    mockPayload.create.mockResolvedValue({ id: '1', ...briefData })
+    const briefData = { client: 42, blogIdea: 'New Brief', generatedPrompt: 'Some content' }
+    mockPayload.create.mockResolvedValue({ id: '1', ...briefData, workflowStatus: 'idea_phase' })
 
     const res = await POST(makePostRequest(briefData))
     const json = await res.json()
 
     expect(res.status).toBe(200)
-    expect(json.doc).toEqual({ id: '1', ...briefData })
+    expect(json.doc).toEqual({ id: '1', ...briefData, workflowStatus: 'idea_phase' })
 
     expect(mockPayload.create).toHaveBeenCalledWith({
       collection: 'blog-prompts',
-      data: briefData,
+      data: { ...briefData, workflowStatus: 'idea_phase' },
       overrideAccess: true,
     })
+  })
+
+  it('returns 400 when client is missing', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+
+    const res = await POST(makePostRequest({ blogIdea: 'Test' }))
+    const json = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(json.error).toBe('client is required')
+    expect(mockPayload.create).not.toHaveBeenCalled()
   })
 
   it('returns 500 when create throws an error', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
     mockPayload.create.mockRejectedValue(new Error('DB error'))
 
-    const res = await POST(makePostRequest({ title: 'Test' }))
+    const res = await POST(makePostRequest({ client: 42, blogIdea: 'Test' }))
     const json = await res.json()
 
     expect(res.status).toBe(500)

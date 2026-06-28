@@ -12,10 +12,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const url = new URL(request.url);
+    const clientId = url.searchParams.get("clientId")?.trim();
+
     const result = await payload.find({
       collection: "blog-prompts",
       sort: "-createdAt",
       limit: 200,
+      ...(clientId ? { where: { client: { equals: clientId } } } : {}),
       overrideAccess: true,
     });
 
@@ -36,9 +40,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    if (!body?.client) {
+      return NextResponse.json({ error: "client is required" }, { status: 400 });
+    }
+
     const doc = await payload.create({
       collection: "blog-prompts",
-      data: body,
+      data: { ...body, workflowStatus: body.workflowStatus || "idea_phase" },
       overrideAccess: true,
     });
 

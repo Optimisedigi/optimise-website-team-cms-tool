@@ -42,16 +42,25 @@ interface BriefFields {
 
 interface SavedBrief extends BriefFields {
   id: string | number
+  client?: string | number | { id?: string | number } | null
   generatedPrompt?: string
   createdAt?: string
   archivedAt?: string
   source?: string
+  workflowStatus?: 'idea_phase' | 'in_progress' | 'published' | null
+  blogPost?: string | number | { id?: string | number } | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────
 
 function stripBlogPrefix(text: string): string {
   return text.replace(/^[A-Za-z][A-Za-z\s]{0,20}:\s*/, '')
+}
+
+function briefStatus(brief: SavedBrief): { label: string; color: string; background: string } {
+  if (brief.workflowStatus === 'published') return { label: 'Published', color: '#166534', background: '#dcfce7' }
+  if (brief.workflowStatus === 'in_progress') return { label: 'In progress', color: '#92400e', background: '#fef3c7' }
+  return { label: 'Idea phase', color: '#3730a3', background: '#e0e7ff' }
 }
 
 // ─── Compact prompt output box ────────────────────────────
@@ -149,7 +158,9 @@ const BlogPrompterPage = () => {
   const [selectedBrief, setSelectedBrief] = useState<SavedBrief | null>(null)
   const selectedBriefRef = useRef<HTMLDivElement>(null)
   const [deletingId, setDeletingId] = useState<string | number | null>(null)
-  const [showProposed, setShowProposed] = useState(false)
+  const [showProposed, setShowProposed] = useState(true)
+  const [showPublishedProposed, setShowPublishedProposed] = useState(false)
+  const [proposedTagFilter, setProposedTagFilter] = useState('')
   const [suggesting, setSuggesting] = useState(false)
   const [suggestMsg, setSuggestMsg] = useState('')
   const [blogSettings, setBlogSettings] = useState<BlogSettingsState | null>(null)
@@ -172,8 +183,14 @@ const BlogPrompterPage = () => {
     categoryBlogTone: findCategoryTone(selectedClient?.blogCategoryTones, nextFields.category),
   })
 
-  const activeBriefs = briefs.filter((b) => b.source !== 'topic-clusters')
-  const proposedBriefs = briefs.filter((b) => b.source === 'topic-clusters')
+  const activeBriefs = briefs.filter((b) => b.source !== 'topic-clusters' && !b.archivedAt)
+  const blogIdeaProposedBriefs = briefs.filter((b) => b.source === 'topic-clusters' && b.workflowStatus !== 'published')
+  const publishedProposedBriefs = briefs.filter((b) => b.source === 'topic-clusters' && b.workflowStatus === 'published')
+  const proposedBaseBriefs = showPublishedProposed ? publishedProposedBriefs : blogIdeaProposedBriefs
+  const proposedTagOptions = Array.from(new Set(proposedBaseBriefs.map((b) => b.tag?.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  const proposedBriefs = proposedTagFilter
+    ? proposedBaseBriefs.filter((b) => b.tag?.trim() === proposedTagFilter)
+    : proposedBaseBriefs
 
   const set = (key: keyof BriefFields) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -181,6 +198,12 @@ const BlogPrompterPage = () => {
 
   const handleClientChange = (id: string) => {
     setSelectedClientId(id)
+    setSelectedBrief(null)
+    setShowPublishedProposed(false)
+    setProposedTagFilter('')
+    setBriefs([])
+    setGeneratedBlogMarkdown('')
+    setGeneratedDraftUrl('')
     const client = clients.find((c) => String(c.id) === id) ?? null
     const cats = client ? parsePromptLines(client.blogCategories) : []
     const tags = client ? parsePromptLines(client.blogTags) : []
@@ -258,14 +281,16 @@ const BlogPrompterPage = () => {
     }
   }
 
-  const handleGenerateBlog = async () => {
+  const handleGenerateBlog = async (brief?: SavedBrief) => {
     if (!selectedClient) {
       setGenerateBlogMsg('Select the client this saved brief belongs to first.')
       setTimeout(() => setGenerateBlogMsg(''), 4000)
       return
     }
 
-    const generated = prompt || buildCurrentPrompt()
+    const generated = brief
+      ? brief.generatedPrompt || buildCurrentPrompt(brief)
+      : prompt || buildCurrentPrompt()
     setPrompt(generated)
     setGeneratingBlog(true)
     setGenerateBlogMsg('')
@@ -277,8 +302,10 @@ const BlogPrompterPage = () => {
         body: JSON.stringify({
           prompt: generated,
           clientId: selectedClient?.id,
-          blogPromptId: selectedBrief?.id,
+          blogPromptId: brief?.id || selectedBrief?.id,
           createDraft: true,
+          category: brief?.category || fields.category,
+          tag: brief?.tag || fields.tag,
         }),
       })
       const data = await res.json()
@@ -288,6 +315,11 @@ const BlogPrompterPage = () => {
       }
       setGeneratedBlogMarkdown(data.markdown)
       setGeneratedDraftUrl(typeof data.draft?.adminUrl === 'string' ? data.draft.adminUrl : '')
+      const updatedPromptId = brief?.id || selectedBrief?.id
+      if (updatedPromptId) {
+        setBriefs((prev) => prev.map((item) => item.id === updatedPromptId ? { ...item, workflowStatus: 'in_progress', blogPost: data.draft?.id } : item))
+        setSelectedBrief((prev) => prev && prev.id === updatedPromptId ? { ...prev, workflowStatus: 'in_progress', blogPost: data.draft?.id } : prev)
+      }
       setGenerateBlogMsg(data.warning ? `Generated with fallback. ${data.warning}` : 'Blog draft created with markdown in the import box.')
     } catch {
       setGenerateBlogMsg('Blog generation failed.')
@@ -303,13 +335,18 @@ const BlogPrompterPage = () => {
       setTimeout(() => setSaveMsg(''), 3000)
       return
     }
+    if (!selectedClient) {
+      setSaveMsg('Select a client before saving.')
+      setTimeout(() => setSaveMsg(''), 3000)
+      return
+    }
     setSaving(true)
     const generated = prompt || buildCurrentPrompt()
     try {
       const res = await fetch('/api/blog-prompts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...fields, generatedPrompt: generated }),
+        body: JSON.stringify({ ...fields, client: selectedClient.id, generatedPrompt: generated }),
       })
       const data = await res.json()
       if (data.doc) {
@@ -327,12 +364,6 @@ const BlogPrompterPage = () => {
   }
 
   useEffect(() => {
-    fetch('/api/blog-prompts')
-      .then((r) => r.json())
-      .then((d) => { if (d.docs) setBriefs(d.docs) })
-      .catch(() => {})
-      .finally(() => setLoadingBriefs(false))
-
     fetch('/api/clients/list')
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d)) setClients(d) })
@@ -347,6 +378,21 @@ const BlogPrompterPage = () => {
       })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!selectedClientId) {
+      setBriefs([])
+      setLoadingBriefs(false)
+      return
+    }
+
+    setLoadingBriefs(true)
+    fetch(`/api/blog-prompts?clientId=${encodeURIComponent(selectedClientId)}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.docs) setBriefs(d.docs) })
+      .catch(() => setBriefs([]))
+      .finally(() => setLoadingBriefs(false))
+  }, [selectedClientId])
 
   const handleSelectBrief = (brief: SavedBrief) => {
     setSelectedBrief(brief)
@@ -372,7 +418,9 @@ const BlogPrompterPage = () => {
   }
 
   const handleDeleteBrief = async (id: string | number) => {
-    if (!confirm('Delete this brief?')) return
+    const typed = window.prompt('Type delete to permanently remove this blog prompt.')
+    if (typed?.trim().toLowerCase() !== 'delete') return
+
     setDeletingId(id)
     try {
       await fetch(`/api/blog-prompts?id=${id}`, { method: 'DELETE' })
@@ -386,24 +434,148 @@ const BlogPrompterPage = () => {
     <div style={{ padding: '20px 0' }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 20px' }}>Blog Post Prompter</h1>
 
-      {/* 2-column layout: form + saved briefs sidebar */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20, alignItems: 'start' }}>
-
-        {/* ── Left: Form ── */}
-        <div style={{ background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 20 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 16px' }}>Brief Details</h2>
-
-          {/* Client selector */}
-          <div style={{ marginBottom: 16 }}>
-            <Field label="Client">
-              <select value={selectedClientId} onChange={(e) => handleClientChange(e.target.value)} style={selectStyle}>
-                <option value="">— Select a client —</option>
-                {clients.map((c) => (
-                  <option key={String(c.id)} value={String(c.id)}>{c.name}</option>
-                ))}
-              </select>
-            </Field>
+      {/* ── Top: Client-scoped saved briefs ── */}
+      <div style={{ background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>
+        <div style={{ padding: 16, borderBottom: '1px solid var(--theme-elevation-100)' }}>
+          <Field label="Client">
+            <select value={selectedClientId} onChange={(e) => handleClientChange(e.target.value)} style={selectStyle}>
+              <option value="">— Select a client —</option>
+              {clients.map((c) => (
+                <option key={String(c.id)} value={String(c.id)}>{c.name}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--theme-elevation-100)' }}>
+          <button
+            type="button"
+            onClick={() => { setShowProposed(false); setSelectedBrief(null) }}
+            style={{
+              flex: 1, padding: '12px 16px', fontSize: 13, fontWeight: showProposed ? 400 : 700,
+              background: showProposed ? 'transparent' : 'var(--theme-elevation-50)',
+              border: 'none', borderBottom: showProposed ? 'none' : '2px solid var(--theme-elevation-500)',
+              cursor: 'pointer', color: 'inherit',
+            }}
+          >
+            Active blogs {activeBriefs.length > 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({activeBriefs.length})</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowProposed(true); setShowPublishedProposed(false); setProposedTagFilter(''); setSelectedBrief(null) }}
+            style={{
+              flex: 1, padding: '12px 16px', fontSize: 13, fontWeight: showProposed ? 700 : 400,
+              background: showProposed ? 'var(--theme-elevation-50)' : 'transparent',
+              border: 'none', borderBottom: showProposed ? '2px solid var(--theme-elevation-500)' : 'none',
+              cursor: 'pointer', color: 'inherit',
+            }}
+          >
+            Proposed {blogIdeaProposedBriefs.length > 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({blogIdeaProposedBriefs.length})</span>}
+          </button>
+        </div>
+        {showProposed && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: '1px solid var(--theme-elevation-100)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>Show</span>
+            <select
+              value={showPublishedProposed ? 'published' : 'ideas'}
+              onChange={(e) => { setShowPublishedProposed(e.target.value === 'published'); setProposedTagFilter(''); setSelectedBrief(null) }}
+              style={{ ...selectStyle, width: 170, padding: '6px 8px', fontSize: 12 }}
+            >
+              <option value="ideas">Blog ideas</option>
+              <option value="published">Published</option>
+            </select>
+            <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>Tag</span>
+            <select
+              value={proposedTagFilter}
+              onChange={(e) => { setProposedTagFilter(e.target.value); setSelectedBrief(null) }}
+              style={{ ...selectStyle, width: 220, padding: '6px 8px', fontSize: 12 }}
+            >
+              <option value="">All tags</option>
+              {proposedTagOptions.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+            </select>
+            {publishedProposedBriefs.length > 0 && (
+              <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({publishedProposedBriefs.length} published)</span>
+            )}
           </div>
+        )}
+        <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+          {(() => {
+            const displayBriefs = showProposed ? proposedBriefs : activeBriefs
+
+            if (!selectedClient) {
+              return <div style={{ padding: '18px 16px', fontSize: 13, color: 'var(--theme-elevation-400)' }}>Select a client to see their saved blog prompts.</div>
+            }
+            if (loadingBriefs) {
+              return <div style={{ padding: '18px 16px', fontSize: 13, color: 'var(--theme-elevation-400)' }}>Loading prompts for {selectedClient.name}...</div>
+            }
+            if (displayBriefs.length === 0) {
+              const emptyMessage = showProposed
+                ? showPublishedProposed
+                  ? `No published proposed blogs saved for ${selectedClient.name}.`
+                  : `No blog ideas saved for ${selectedClient.name}.`
+                : `No active blog prompts saved for ${selectedClient.name}.`
+              return <div style={{ padding: '18px 16px', fontSize: 13, color: 'var(--theme-elevation-400)' }}>{emptyMessage}</div>
+            }
+            return displayBriefs.map((brief) => {
+              const status = briefStatus(brief)
+              return (
+                <div
+                  key={String(brief.id)}
+                  style={{
+                    display: 'grid', gridTemplateColumns: showProposed ? 'minmax(0, 1fr) minmax(120px, 180px) auto' : 'minmax(0, 1fr) auto auto', alignItems: 'center', gap: 10,
+                    borderBottom: '1px solid var(--theme-elevation-50)',
+                    background: selectedBrief?.id === brief.id ? 'var(--theme-elevation-100)' : 'transparent',
+                    paddingRight: 12,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleSelectBrief(brief)}
+                    style={{
+                      padding: '11px 16px', textAlign: 'left',
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      fontSize: 13, fontWeight: selectedBrief?.id === brief.id ? 700 : 500,
+                      color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}
+                    title={stripBlogPrefix(brief.blogIdea)}
+                  >
+                    {stripBlogPrefix(brief.blogIdea)}
+                  </button>
+                  {showProposed && (
+                    <span
+                      title={brief.tag || 'No tag'}
+                      style={{ fontSize: 12, color: 'var(--theme-elevation-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
+                      {brief.tag?.trim() || 'No tag'}
+                    </span>
+                  )}
+                  {!showProposed && (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: status.color, background: status.background, borderRadius: 999, padding: '4px 9px', whiteSpace: 'nowrap' }}>
+                      {status.label}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    title="Delete prompt"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteBrief(brief.id) }}
+                    disabled={deletingId === brief.id}
+                    style={{
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      fontSize: 13, padding: '4px 6px', color: 'var(--theme-elevation-400)',
+                      flexShrink: 0, opacity: deletingId === brief.id ? 0.4 : 1,
+                    }}
+                  >
+                    {deletingId === brief.id ? '...' : '\u2715'}
+                  </button>
+                </div>
+              )
+            })
+          })()}
+        </div>
+      </div>
+
+      {/* ── Brief form ── */}
+      <div style={{ background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 20 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 16px' }}>Brief Details</h2>
 
           {/* Blog Idea — full width, auto-growing, with AI Suggest button */}
           <div style={{ marginBottom: 16 }}>
@@ -553,6 +725,15 @@ const BlogPrompterPage = () => {
             <button type="button" onClick={handleSave} disabled={saving} style={btnStyle}>
               {saving ? 'Saving...' : 'Save Brief'}
             </button>
+            <button
+              type="button"
+              onClick={() => handleGenerateBlog()}
+              disabled={generatingBlog || !selectedClient}
+              title={selectedClient ? 'Generate the blog and create a draft for review' : 'Select a client before generating a blog draft'}
+              style={{ ...btnStyle, background: '#0f766e', color: '#fff', borderColor: '#0f766e', opacity: generatingBlog || !selectedClient ? 0.65 : 1, cursor: generatingBlog || !selectedClient ? 'not-allowed' : 'pointer' }}
+            >
+              {generatingBlog ? 'Generating Blog…' : 'Generate Blog Draft'}
+            </button>
             <button type="button" onClick={() => { setFields(emptyFields); setPrompt(''); setGeneratedBlogMarkdown(''); setGeneratedDraftUrl(''); setSelectedClientId('') }} style={{ ...btnStyle, color: 'var(--theme-elevation-400)' }}>
               Clear
             </button>
@@ -571,89 +752,6 @@ const BlogPrompterPage = () => {
           {prompt && <PromptBox prompt={prompt} />}
           {generatedBlogMarkdown && <MarkdownOutputBox markdown={generatedBlogMarkdown} draftUrl={generatedDraftUrl} />}
         </div>
-
-        {/* ── Right: Saved Briefs sidebar ── */}
-        <div style={{ position: 'sticky', top: 20 }}>
-          <div style={{ background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, overflow: 'hidden' }}>
-            {/* Tab toggle */}
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--theme-elevation-100)' }}>
-              <button
-                type="button"
-                onClick={() => { setShowProposed(false); setSelectedBrief(null) }}
-                style={{
-                  flex: 1, padding: '10px 14px', fontSize: 12, fontWeight: showProposed ? 400 : 600,
-                  background: showProposed ? 'transparent' : 'var(--theme-elevation-50)',
-                  border: 'none', borderBottom: showProposed ? 'none' : '2px solid var(--theme-elevation-500)',
-                  cursor: 'pointer', color: 'inherit',
-                }}
-              >
-                Active {activeBriefs.length > 0 && <span style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>({activeBriefs.length})</span>}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowProposed(true); setSelectedBrief(null) }}
-                style={{
-                  flex: 1, padding: '10px 14px', fontSize: 12, fontWeight: showProposed ? 600 : 400,
-                  background: showProposed ? 'var(--theme-elevation-50)' : 'transparent',
-                  border: 'none', borderBottom: showProposed ? '2px solid var(--theme-elevation-500)' : 'none',
-                  cursor: 'pointer', color: 'inherit',
-                }}
-              >
-                Proposed {proposedBriefs.length > 0 && <span style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>({proposedBriefs.length})</span>}
-              </button>
-            </div>
-            <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-              {(() => {
-                const displayBriefs = showProposed ? proposedBriefs : activeBriefs
-
-                if (loadingBriefs) {
-                  return <div style={{ padding: '16px 14px', fontSize: 12, color: 'var(--theme-elevation-400)' }}>Loading...</div>
-                }
-                if (displayBriefs.length === 0) {
-                  return <div style={{ padding: '16px 14px', fontSize: 12, color: 'var(--theme-elevation-400)' }}>{showProposed ? 'No proposed blogs yet.' : 'No saved briefs yet.'}</div>
-                }
-                return displayBriefs.map((brief) => (
-                  <div
-                    key={String(brief.id)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      borderBottom: '1px solid var(--theme-elevation-50)',
-                      background: selectedBrief?.id === brief.id ? 'var(--theme-elevation-100)' : 'transparent',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSelectBrief(brief)}
-                      style={{
-                        flex: 1, padding: '9px 14px', textAlign: 'left',
-                        background: 'transparent', border: 'none', cursor: 'pointer',
-                        fontSize: 12, fontWeight: selectedBrief?.id === brief.id ? 600 : 400,
-                        color: 'inherit',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {stripBlogPrefix(brief.blogIdea)}
-                    </button>
-                    <button
-                      type="button"
-                      title="Delete brief"
-                      onClick={(e) => { e.stopPropagation(); handleDeleteBrief(brief.id) }}
-                      disabled={deletingId === brief.id}
-                      style={{
-                        background: 'transparent', border: 'none', cursor: 'pointer',
-                        fontSize: 11, padding: '4px 8px', color: 'var(--theme-elevation-400)',
-                        flexShrink: 0, opacity: deletingId === brief.id ? 0.4 : 1,
-                      }}
-                    >
-                      {deletingId === brief.id ? '...' : '\u2715'}
-                    </button>
-                  </div>
-                ))
-              })()}
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* ── Selected Brief Detail ── */}
       {selectedBrief && (
@@ -676,7 +774,7 @@ const BlogPrompterPage = () => {
             </button>
             <button
               type="button"
-              onClick={handleGenerateBlog}
+              onClick={() => handleGenerateBlog(selectedBrief)}
               disabled={generatingBlog || !selectedClient}
               title={selectedClient ? 'Generate the blog and create a client draft' : 'Select the client this saved brief belongs to first'}
               style={{ ...smallBtnStyle, background: '#0f766e', color: '#fff', borderColor: '#0f766e', opacity: generatingBlog || !selectedClient ? 0.65 : 1 }}

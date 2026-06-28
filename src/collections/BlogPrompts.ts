@@ -57,6 +57,14 @@ export const BlogPrompts: CollectionConfig = {
   },
   fields: [
     {
+      name: "client",
+      type: "relationship",
+      relationTo: "clients",
+      admin: {
+        description: "Client this saved blog prompt belongs to.",
+      },
+    },
+    {
       name: "blogIdea",
       type: "text",
       required: true,
@@ -117,6 +125,28 @@ export const BlogPrompts: CollectionConfig = {
       type: "textarea",
       label: "Generated Prompt",
       admin: { readOnly: true },
+    },
+    {
+      name: "workflowStatus",
+      type: "select",
+      label: "Blog status",
+      defaultValue: "idea_phase",
+      options: [
+        { label: "Idea phase", value: "idea_phase" },
+        { label: "In progress", value: "in_progress" },
+        { label: "Published", value: "published" },
+      ],
+      admin: {
+        description: "Tracks the prompt from idea, to generated draft, to published blog post.",
+      },
+    },
+    {
+      name: "blogPost",
+      type: "relationship",
+      relationTo: "blog-posts",
+      admin: {
+        description: "Generated Blog Post draft created from this prompt.",
+      },
     },
     {
       name: "status",

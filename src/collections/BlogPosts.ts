@@ -87,6 +87,32 @@ export const BlogPosts: CollectionConfig = {
             });
           }
 
+          // Mark any Blog Prompter item linked to this post as published.
+          req.payload
+            .find({
+              collection: "blog-prompts",
+              where: {
+                blogPost: { equals: doc.id },
+              },
+              limit: 10,
+              overrideAccess: true,
+            })
+            .then((result) => {
+              return Promise.all(
+                result.docs.map((prompt) =>
+                  req.payload.update({
+                    collection: "blog-prompts",
+                    id: prompt.id,
+                    data: { workflowStatus: "published" } as any,
+                    overrideAccess: true,
+                  }),
+                ),
+              );
+            })
+            .catch((err) => {
+              console.error("[BlogPosts] Blog prompt status update failed:", (err as Error).message);
+            });
+
           // Auto-update matching blog prompt gap status to "published"
           req.payload
             .find({
@@ -115,10 +141,10 @@ export const BlogPosts: CollectionConfig = {
       },
     ],
     beforeValidate: [
-      ({ data, operation }) => {
-        if (operation === "create" && !data?.clientConfirmed) {
+      ({ data }) => {
+        if (data?.status === "published" && !data?.clientConfirmed) {
           throw new Error(
-            "Please confirm the selected client is correct before saving."
+            "Please confirm the selected client is correct before publishing."
           );
         }
         return data;
@@ -278,7 +304,7 @@ export const BlogPosts: CollectionConfig = {
       admin: {
         position: "sidebar",
         description:
-          "Confirm the selected client is correct before saving or publishing",
+          "Review the generated draft, then confirm the selected client is correct before publishing",
       },
     },
     {
