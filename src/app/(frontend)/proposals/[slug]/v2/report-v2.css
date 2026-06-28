@@ -126,7 +126,7 @@ min-height: 100vh;
      slides override below. */
   box-shadow:
     0 -4px 0 var(--bg-paper),
-    0  4px 0 var(--bg-paper),
+    0 5000px 0 var(--bg-paper),
     -5000px 0 0 var(--bg-paper),
      5000px 0 0 var(--bg-paper);
 }
@@ -135,7 +135,7 @@ min-height: 100vh;
 .deck-stage-wrap .slide.cover {
   box-shadow:
     0 -4px 0 var(--bg-night),
-    0  4px 0 var(--bg-night),
+    0 5000px 0 var(--bg-night),
     -5000px 0 0 var(--bg-night),
      5000px 0 0 var(--bg-night);
 }
