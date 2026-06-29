@@ -1748,7 +1748,10 @@ export const ClientProposals: CollectionConfig = {
               hasMany: true,
               admin: {
                 description:
-                  "Select slides to REMOVE from the report. Selected slides will be hidden. Leave empty to show all.",
+                  "Tick pages to REMOVE from the report. Checked pages will be hidden. Leave empty to show all.",
+                components: {
+                  Field: "./components/ProposalSlideRemovalPicker",
+                },
               },
               options: [
                 { label: "Page 01: Cover", value: "01 Cover" },

@@ -876,7 +876,9 @@ function buildReturnModellingTrafficModel(
   raw: RawCompetitorAnalysis,
   proposalCompetitors: ProposalCompetitorForTraffic[] | null,
 ): ReturnModellingTrafficModel {
-  const yourVisits = normaliseTrafficVisits(raw?.yourProfile?.traffic ?? null)
+  const yourManualVisits = normaliseVisits(raw?.yourProfile?.manualMonthlyVisits ?? null)
+  const yourVisits =
+    yourManualVisits > 0 ? yourManualVisits : normaliseTrafficVisits(raw?.yourProfile?.traffic ?? null)
   const competitors: ReturnModellingTrafficModel['competitors'] = []
   const seenDomains = new Set<string>()
 

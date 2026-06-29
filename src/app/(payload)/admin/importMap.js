@@ -81,6 +81,7 @@ import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../co
 import { default as default_524269742a06f6b5480b96a4c642a8de } from '../../../components/RunGoogleAdsAuditFromProposalButton'
 import { default as default_6fd4378acdcb6cb05df32bae3ab16a5b } from '../../../components/RunSerpDisplacementFromProposalButton'
 import { default as default_6f9f267498ebf96dc66363123e90c687 } from '../../../components/RunAiVisibilityFromProposalButton'
+import { default as default_5cf75e00fd5e4c218cc4b167917c6110 } from '../../../components/ProposalSlideRemovalPicker'
 import { default as default_00f2f68e89ac94a9115ac79e7355850c } from '../../../components/CompetitorExcluder'
 import { default as default_ee85e12563a2c76fb90347c827ce2e2c } from '../../../components/KeywordCategoryExcluder'
 import { default as default_0f5835a1721ce9d158589c56d0c0fb9d } from '../../../components/CreateContractButton'
@@ -281,6 +282,7 @@ export const importMap = {
   "./components/RunGoogleAdsAuditFromProposalButton#default": default_524269742a06f6b5480b96a4c642a8de,
   "./components/RunSerpDisplacementFromProposalButton#default": default_6fd4378acdcb6cb05df32bae3ab16a5b,
   "./components/RunAiVisibilityFromProposalButton#default": default_6f9f267498ebf96dc66363123e90c687,
+  "./components/ProposalSlideRemovalPicker#default": default_5cf75e00fd5e4c218cc4b167917c6110,
   "./components/CompetitorExcluder#default": default_00f2f68e89ac94a9115ac79e7355850c,
   "./components/KeywordCategoryExcluder#default": default_ee85e12563a2c76fb90347c827ce2e2c,
   "./components/CreateContractButton#default": default_0f5835a1721ce9d158589c56d0c0fb9d,
