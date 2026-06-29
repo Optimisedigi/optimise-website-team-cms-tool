@@ -175,7 +175,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .replace(/\bPM\b/g, "EM");
   }
 
-  function chooseExactTarget(candidate: any): { adGroupId: string; adGroupName: string } | null {
+  type KeywordTarget = { adGroupId: string; adGroupName: string; campaignName?: string };
+
+  function chooseExactTarget(candidate: any): KeywordTarget | null {
     const adGroupName = String(candidate.adGroupName ?? "").trim();
     const campaignName = String(candidate.campaignName ?? "").trim();
     if (!adGroupName) return null;
@@ -191,27 +193,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       matches.find((g) => String(g.campaignName ?? "").toLowerCase() === campaignName.toLowerCase()) ??
       matches[0];
     return target?.adGroupId
-      ? { adGroupId: String(target.adGroupId), adGroupName: String(target.adGroupName ?? adGroupName) }
+      ? {
+          adGroupId: String(target.adGroupId),
+          adGroupName: String(target.adGroupName ?? adGroupName),
+          campaignName: String(target.campaignName ?? ""),
+        }
       : null;
   }
 
-  const candidateTargets = new Map<string, Array<{ adGroupId: string; adGroupName: string }>>();
+  const candidateTargets = new Map<string, KeywordTarget[]>();
   if (autoExactFromCandidates) {
     for (const candidate of candidates) {
       const target = chooseExactTarget(candidate);
       if (target) candidateTargets.set(String(candidate.id), [target]);
     }
   } else {
-    let targets: Array<{ adGroupId: string; adGroupName: string }>;
+    let targets: KeywordTarget[];
     if (body.allAdGroups) {
       targets = adGroups
         .filter((g) => g.adGroupId && String(g.status ?? "").toUpperCase() === "ENABLED")
-        .map((g) => ({ adGroupId: String(g.adGroupId), adGroupName: String(g.adGroupName ?? "") }));
+        .map((g) => ({
+          adGroupId: String(g.adGroupId),
+          adGroupName: String(g.adGroupName ?? ""),
+          campaignName: String(g.campaignName ?? ""),
+        }));
     } else {
       const byId = new Map(adGroups.map((g) => [String(g.adGroupId ?? ""), g]));
       targets = explicitIds.map((agid) => ({
         adGroupId: agid,
         adGroupName: String(byId.get(agid)?.adGroupName ?? agid),
+        campaignName: String(byId.get(agid)?.campaignName ?? ""),
       }));
     }
     for (const candidate of candidates) candidateTargets.set(String(candidate.id), targets);
@@ -221,7 +232,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── Push: batch candidate terms by resolved target ad group ─────────────────
-  const targetBatches = new Map<string, { target: { adGroupId: string; adGroupName: string }; texts: Set<string> }>();
+  const targetBatches = new Map<string, { target: KeywordTarget; texts: Set<string> }>();
   for (const candidate of candidates) {
     const text = keywordOf(candidate);
     if (!text) continue;
@@ -269,12 +280,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const addedTexts = new Set([...addedByTextTarget].map((key) => key.split("\u0000")[0]));
   const duplicateTexts = new Set([...duplicateByTextTarget].map((key) => key.split("\u0000")[0]));
+  const targetSummaries = Array.from(targetBatches.values()).map(({ target, texts }) => {
+    const textList = Array.from(texts);
+    return {
+      adGroupId: target.adGroupId,
+      adGroupName: target.adGroupName,
+      campaignName: target.campaignName ?? "",
+      selected: textList.length,
+      added: textList.filter((text) => addedByTextTarget.has(`${text.toLowerCase()}\u0000${target.adGroupId}`)).length,
+      alreadyExists: textList.filter((text) => duplicateByTextTarget.has(`${text.toLowerCase()}\u0000${target.adGroupId}`)).length,
+    };
+  });
 
   // ── Negate each term in its candidate's own ad-group list ─────────────────
   const now = new Date().toISOString();
   const userId = typeof user.id === "object" ? (user.id as any).id : user.id;
   let negated = 0;
+  let skippedSourceNegatives = 0;
   const negateErrors: string[] = [];
+
+  function shouldNegateSource(candidate: any, targets: KeywordTarget[]): boolean {
+    const sourceCampaign = String(candidate.campaignName ?? "").trim().toLowerCase();
+    const sourceAdGroup = String(candidate.adGroupName ?? "").trim().toLowerCase();
+    if (!sourceCampaign || !sourceAdGroup) return false;
+    return targets.some((target) => {
+      const targetCampaign = String(target.campaignName ?? "").trim().toLowerCase();
+      const targetAdGroup = String(target.adGroupName ?? "").trim().toLowerCase();
+      return targetCampaign !== sourceCampaign || targetAdGroup !== sourceAdGroup;
+    });
+  }
 
   const results: Array<{ id: string | number; outcome: string }> = [];
   for (const c of candidates) {
@@ -294,11 +328,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     if (negateSource && text) {
-      try {
-        const neg = await negateExactInOwnList(payload, c, text);
-        if (!neg.alreadyPresent) negated++;
-      } catch (err) {
-        negateErrors.push(`"${text}": ${err instanceof Error ? err.message : String(err)}`);
+      if (shouldNegateSource(c, targets)) {
+        try {
+          const neg = await negateExactInOwnList(payload, c, text);
+          if (!neg.alreadyPresent) negated++;
+        } catch (err) {
+          negateErrors.push(`"${text}": ${err instanceof Error ? err.message : String(err)}`);
+        }
+      } else {
+        skippedSourceNegatives++;
       }
     }
 
@@ -330,7 +368,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         added: addedTexts.size,
         alreadyExists: duplicateTexts.size,
         negated,
+        skippedSourceNegatives,
         results,
+        targetSummaries,
         groupErrors,
         negateErrors,
       },
@@ -359,7 +399,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     added: addedTexts.size,
     alreadyExists: duplicateTexts.size,
     negated,
+    skippedSourceNegatives,
     results,
+    targetSummaries,
     groupErrors,
     negateErrors,
   });

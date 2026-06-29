@@ -51,6 +51,12 @@ type CandidateGroup = {
   maxClicks: number
 }
 
+type KeywordActionStatus = {
+  kind: 'loading' | 'success' | 'error'
+  title: string
+  lines: string[]
+}
+
 // Columns the user can show/hide. Search Term, Negative and Actions stay pinned.
 const HIDEABLE_COLUMNS = [
   { key: 'triggeringKeyword', label: 'Triggering Keyword' },
@@ -103,6 +109,14 @@ const REQUIRED_INTENT_QUALIFIER_TOKENS = new Set([
   'outsource', 'outsourcing', 'outsourced', 'service', 'servic', 'company', 'agency',
   'provider', 'consultant', 'staffing', 'hire', 'hiring',
 ])
+
+function cleanActionError(value: unknown): string {
+  const raw = typeof value === 'string' ? value : JSON.stringify(value ?? '')
+  return raw
+    .replace(/Failed query:[\s\S]*$/i, 'CMS negative-list save failed')
+    .replace(/Google Ads mutate failed \(\d+\):[\s\S]*$/i, (match) => match.split('\n')[0] ?? match)
+    .trim()
+}
 
 function hasLikelyCompetitorBrandDrift(searchWords: string[], keywordSet: Set<string>, allowListTerms: AllowListTermInput[]): boolean {
   const allowList = buildAllowListSet(allowListTerms)
@@ -535,6 +549,7 @@ export default function MatchTypeViolationReview({
   const [adGroupOptions, setAdGroupOptions] = useState<AdGroupOption[]>([])
   const [adGroupError, setAdGroupError] = useState<string | null>(null)
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [keywordActionStatus, setKeywordActionStatus] = useState<KeywordActionStatus | null>(null)
 
   // Per-row action loading
   const [actionLoading, setActionLoading] = useState<Set<string | number>>(new Set())
@@ -896,6 +911,7 @@ export default function MatchTypeViolationReview({
 
   const openKeywordTargetPicker = async () => {
     if (pendingSelected.length === 0) return
+    setKeywordActionStatus(null)
     await fetchAdGroups()
     setShowKeywordTargetPicker(true)
   }
@@ -904,10 +920,15 @@ export default function MatchTypeViolationReview({
     const ids = pendingSelected.map((candidate) => candidate.id)
     if (ids.length === 0) return
     if (target.mode === 'adGroup' && !target.adGroupId) {
-      alert('Select a target ad group first.')
+      setKeywordActionStatus({ kind: 'error', title: 'Choose a target ad group', lines: ['Select one ad group before adding exact keywords.'] })
       return
     }
     setBulkLoading(true)
+    setKeywordActionStatus({
+      kind: 'loading',
+      title: `Adding ${ids.length} exact keyword${ids.length !== 1 ? 's' : ''} to Google Ads…`,
+      lines: ['Creating paused EXACT keywords, matching URLs/CPC/labels, then adding source exact negatives where needed.'],
+    })
     try {
       const body = target.mode === 'adGroup'
         ? { candidateIds: ids, adGroupIds: [target.adGroupId], negateSource: true }
@@ -925,18 +946,37 @@ export default function MatchTypeViolationReview({
       const actionedIds = Array.isArray(data.results)
         ? data.results.filter((result: any) => result.outcome && result.outcome !== 'error').map((result: any) => result.id)
         : ids
+      const targetLines = Array.isArray(data.targetSummaries)
+        ? data.targetSummaries.slice(0, 5).map((target: any) => {
+            const campaign = target.campaignName ? `${target.campaignName} / ` : ''
+            return `Target: ${campaign}${target.adGroupName || target.adGroupId} — ${target.added ?? 0} added, ${target.alreadyExists ?? 0} skipped, ${target.selected ?? 0} selected`
+          })
+        : []
+      const warningLines = [
+        ...(Array.isArray(data.groupErrors) ? data.groupErrors.map((err: any) => `Ad-group error: ${err.adGroupName || 'unknown'} — ${cleanActionError(err.error)}`) : []),
+        ...(Array.isArray(data.negateErrors) ? data.negateErrors.map((err: any) => `Negative warning: ${cleanActionError(err)}`) : []),
+      ]
       setCandidates((prev) => prev.filter((candidate) => !actionedIds.includes(candidate.id)))
       setShowKeywordTargetPicker(false)
       setSelected(new Set())
       setTotalDocs((prev) => Math.max(0, prev - actionedIds.length))
-      if (data.groupErrors?.length || data.negateErrors?.length) {
-        const firstGroupError = data.groupErrors?.[0]?.error ? `\n\nFirst ad-group error: ${data.groupErrors[0].error}` : ''
-        const firstNegateError = data.negateErrors?.[0] ? `\n\nFirst negate error: ${data.negateErrors[0]}` : ''
-        alert(`Added ${data.actioned ?? actionedIds.length} keyword(s), with ${data.groupErrors?.length ?? 0} ad-group error(s) and ${data.negateErrors?.length ?? 0} negate error(s).${firstGroupError}${firstNegateError}`)
-      }
+      setKeywordActionStatus({
+        kind: warningLines.length ? 'error' : 'success',
+        title: `Added ${data.added ?? 0} exact keyword${Number(data.added ?? 0) !== 1 ? 's' : ''}`,
+        lines: [
+          `${data.actioned ?? actionedIds.length} selected term${Number(data.actioned ?? actionedIds.length) !== 1 ? 's' : ''} processed; ${data.alreadyExists ?? 0} skipped because they already existed.`,
+          ...targetLines,
+          `${data.negated ?? 0} source exact negative${Number(data.negated ?? 0) !== 1 ? 's' : ''} added to original ad-group negative lists; ${data.skippedSourceNegatives ?? 0} skipped because the exact keyword stayed in the same source ad group.`,
+          ...warningLines,
+        ],
+      })
       void fetchCandidates()
     } catch (e: any) {
-      alert(`Error: ${e.message}`)
+      setKeywordActionStatus({
+        kind: 'error',
+        title: 'Exact keyword upload failed',
+        lines: [cleanActionError(e.message)],
+      })
     } finally {
       setBulkLoading(false)
     }
@@ -1193,6 +1233,28 @@ export default function MatchTypeViolationReview({
         </div>
       </div>
       </div>
+
+      {keywordActionStatus && (
+        <div style={{
+          padding: '12px 16px',
+          background: keywordActionStatus.kind === 'success' ? '#f0fdf4' : keywordActionStatus.kind === 'loading' ? '#eff6ff' : '#fff7ed',
+          border: `1px solid ${keywordActionStatus.kind === 'success' ? '#bbf7d0' : keywordActionStatus.kind === 'loading' ? '#bfdbfe' : '#fed7aa'}`,
+          borderRadius: 8,
+          marginBottom: 16,
+          color: keywordActionStatus.kind === 'success' ? '#166534' : keywordActionStatus.kind === 'loading' ? '#1d4ed8' : '#9a3412',
+          fontSize: 13,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+            <strong>{keywordActionStatus.title}</strong>
+            {keywordActionStatus.kind !== 'loading' && (
+              <button type="button" onClick={() => setKeywordActionStatus(null)} style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}>Dismiss</button>
+            )}
+          </div>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+            {keywordActionStatus.lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}
+          </ul>
+        </div>
+      )}
 
       {/* Error */}
       {error && (

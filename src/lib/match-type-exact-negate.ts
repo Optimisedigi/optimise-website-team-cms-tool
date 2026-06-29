@@ -6,6 +6,7 @@
  * the same routing the approve flow uses), so traffic funnels to the new
  * exact keyword instead of the old match.
  */
+import { randomUUID } from "node:crypto";
 import type { getPayload } from "payload";
 import { resolveTargetList, type RoutingCandidate } from "@/lib/match-type-approve";
 
@@ -28,7 +29,7 @@ export async function negateExactInOwnList(
     routing: { mode: "auto" },
   });
 
-  type NklKeyword = { keyword?: string; matchType?: "exact" | "phrase" | "broad"; negatedAt?: string | null };
+  type NklKeyword = { id?: string | null; keyword?: string; matchType?: "exact" | "phrase" | "broad"; flaggedForRemoval?: boolean | null; negatedAt?: string | null };
   const nkl = (await payload.findByID({
     collection: "negative-keyword-lists",
     id: resolved.listId,
@@ -46,7 +47,7 @@ export async function negateExactInOwnList(
   if (!alreadyPresent) {
     const updated: NklKeyword[] = [
       ...existing,
-      { keyword: keywordText, matchType: "exact" as const, negatedAt: new Date().toISOString() },
+      { id: randomUUID(), keyword: keywordText, matchType: "exact" as const, flaggedForRemoval: false, negatedAt: new Date().toISOString() },
     ].sort((a, b) => (a.keyword ?? "").localeCompare(b.keyword ?? ""));
     await payload.update({
       collection: "negative-keyword-lists",
