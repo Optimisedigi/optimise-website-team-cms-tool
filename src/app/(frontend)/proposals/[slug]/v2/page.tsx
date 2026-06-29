@@ -147,7 +147,10 @@ export async function ProposalReportV2PageContent({
 
   // PIN gate — same field the existing route uses.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const proposalPin = (proposal as any).proposalPin as string | null
+  const p = proposal as any
+  const proposalPin = p.proposalPin as string | null
+  const hiddenSlideIds = buildHiddenSlideIds(normaliseStringList(p.visibleSlides))
+  const isSlideVisible = (id: string) => !hiddenSlideIds.has(normaliseSlideId(id))
 
   // Date label for the cover top-right (e.g. "MAY 2026").
   // Pulled from proposal.createdAt as requested.
@@ -156,7 +159,10 @@ export async function ProposalReportV2PageContent({
   // Read the static slide chunk (slides 02-27) once per request. The chunk
   // is split on SLOT:* marker pairs so we can render dynamic JSX slides in
   // between static chunks. Each dynamic slide owns one START/END marker pair.
-  const staticSlidesHtml = await readFile(SLIDES_STATIC_PATH, 'utf8')
+  const staticSlidesHtml = stripHiddenStaticSlides(
+    await readFile(SLIDES_STATIC_PATH, 'utf8'),
+    hiddenSlideIds,
+  )
 
   /**
    * Split a single string on multiple marker pairs in document order.
@@ -259,8 +265,6 @@ export async function ProposalReportV2PageContent({
 
   // Resolve relationships used by the dynamic Mission Brief slide. They come
   // back as either populated objects (depth: 2 above) or null when missing.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const p = proposal as any
   const seoAuditDoc = p.seoAudit && typeof p.seoAudit === 'object' ? p.seoAudit : null
   const croAuditDoc = p.croAudit && typeof p.croAudit === 'object' ? p.croAudit : null
   const rawKeywordSnapshotDoc =
@@ -402,7 +406,7 @@ export async function ProposalReportV2PageContent({
         {/* =========================================================
             NEW-01 — COVER  (JSX, dynamic data wired in)
             ========================================================= */}
-        <section className="slide dark cover" data-label="01 Cover">
+        {isSlideVisible('01') && <section className="slide dark cover" data-label="01 Cover">
           <div className="starfield" aria-hidden="true" />
 
           {/* Decorative orbit rings — pure CSS, behind everything. */}
@@ -482,7 +486,7 @@ export async function ProposalReportV2PageContent({
 
           {/* Spacer so the cover uses the same flex-between layout as the design. */}
           <div />
-        </section>
+        </section>}
 
         {/* Slides 02-05 (before the Mission Brief divider). */}
         <div
@@ -492,7 +496,7 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Chapter Two divider — dynamic so businessName is injected. */}
-        <section className="slide section-divider" data-label="05 Section 02">
+        {isSlideVisible('05') && <section className="slide section-divider" data-label="05 Section 02">
           <div className="starfield" id="sf-02" />
           <div className="num">02</div>
           <div className="meta">
@@ -503,7 +507,7 @@ export async function ProposalReportV2PageContent({
               do, and what the market around it looks like today.
             </div>
           </div>
-        </section>
+        </section>}
 
         {/* Gap between divider and Mission Brief — typically empty. */}
         <div
@@ -513,18 +517,20 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Slide 07 — Mission Brief (dynamic). */}
-        <MissionBriefSlide
-          businessName={proposal.businessName}
-          websiteUrl={p.websiteUrl ?? null}
-          businessType={p.businessType ?? null}
-          conversionGoal={p.conversionGoal ?? null}
-          businessGoals={p.businessGoals ?? null}
-          seoAudit={seoAuditDoc}
-          croAudit={croAuditDoc}
-          keywordSnapshot={keywordSnapshotDoc}
-          competitorAnalysis={buildCompetitorAnalysisMinimal(competitorAnalysisDoc)}
-          keywordCategories={filteredKeywordCategories}
-        />
+        {isSlideVisible('06') && (
+          <MissionBriefSlide
+            businessName={proposal.businessName}
+            websiteUrl={p.websiteUrl ?? null}
+            businessType={p.businessType ?? null}
+            conversionGoal={p.conversionGoal ?? null}
+            businessGoals={p.businessGoals ?? null}
+            seoAudit={seoAuditDoc}
+            croAudit={croAuditDoc}
+            keywordSnapshot={keywordSnapshotDoc}
+            competitorAnalysis={buildCompetitorAnalysisMinimal(competitorAnalysisDoc, filteredProposalCompetitors)}
+            keywordCategories={filteredKeywordCategories}
+          />
+        )}
 
         {/* Slide 08 (Section Divider 03) — static. */}
         <div
@@ -534,11 +540,13 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Slide 09 — Competitor analysis (dynamic). */}
-        <CompetitorAnalysisSlide
-          proposalWebsiteUrl={p.websiteUrl ?? null}
-          competitorAnalysis={buildCompetitorAnalysisForSlide(competitorAnalysisDoc)}
-          proposalCompetitors={filteredProposalCompetitors}
-        />
+        {isSlideVisible('09') && (
+          <CompetitorAnalysisSlide
+            proposalWebsiteUrl={p.websiteUrl ?? null}
+            competitorAnalysis={buildCompetitorAnalysisForSlide(competitorAnalysisDoc)}
+            proposalCompetitors={filteredProposalCompetitors}
+          />
+        )}
 
         {/* Static slides between competitor analysis and keyword landscape
            (empty by default — they sit back-to-back). */}
@@ -550,11 +558,13 @@ export async function ProposalReportV2PageContent({
 
         {/* Slide 10 — Keyword landscape (dynamic, one or more slides depending
             on the number of keyword categories defined on the proposal). */}
-        <KeywordLandscapeSlides
-          keywordCategories={filteredKeywordCategories}
-          keywordSnapshot={keywordSnapshotDoc}
-          location={p.targetLocation ?? null}
-        />
+        {isSlideVisible('10') && (
+          <KeywordLandscapeSlides
+            keywordCategories={filteredKeywordCategories}
+            keywordSnapshot={keywordSnapshotDoc}
+            location={p.targetLocation ?? null}
+          />
+        )}
 
         {/* Building-the-Ship divider — static. */}
         <div
@@ -564,7 +574,7 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* SEO Health score (dynamic). */}
-        <SeoHealthSlide seoAudit={seoAuditDoc} />
+        {isSlideVisible('14') && <SeoHealthSlide seoAudit={seoAuditDoc} />}
 
         {/* Between SEO Health and CRO Health — typically empty. */}
         <div
@@ -575,10 +585,12 @@ export async function ProposalReportV2PageContent({
 
         {/* CRO Health score (dynamic). The override array, when populated,
             replaces the auto-generated findings on the Key Findings card. */}
-        <CroHealthSlide
-          croAudit={croAuditDoc}
-          keyFindingsOverride={p.croKeyFindings ?? null}
-        />
+        {isSlideVisible('15') && (
+          <CroHealthSlide
+            croAudit={croAuditDoc}
+            keyFindingsOverride={p.croKeyFindings ?? null}
+          />
+        )}
 
         {/* Fueling-the-Ship divider — static. */}
         <div
@@ -588,11 +600,13 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Organic propulsion (dynamic). */}
-        <OrganicPropulsionSlide
-          contentResearches={contentResearchDocs}
-          keywordCategories={filteredKeywordCategories}
-          location={p.targetLocation ?? null}
-        />
+        {isSlideVisible('17') && (
+          <OrganicPropulsionSlide
+            contentResearches={contentResearchDocs}
+            keywordCategories={filteredKeywordCategories}
+            location={p.targetLocation ?? null}
+          />
+        )}
 
         {/* Sits back-to-back with Paid Burn — the slot gap is typically empty. */}
         <div
@@ -602,7 +616,7 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Paid burn (dynamic). */}
-        <PaidBurnSlide competitorAnalysis={buildCompetitorAnalysisForPaidBurn(competitorAnalysisDoc)} />
+        {isSlideVisible('18') && <PaidBurnSlide competitorAnalysis={buildCompetitorAnalysisForPaidBurn(competitorAnalysisDoc)} />}
 
         {/* Mission Control divider sits between Paid Burn and Return Modelling. */}
         <div
@@ -619,15 +633,17 @@ export async function ProposalReportV2PageContent({
             document (raw keywords, SERP data, ad screenshots, audit metadata,
             etc.) that the slide never displays. Project a minimal traffic-only
             DTO so only the numbers actually drawn on screen cross the wire. */}
-        <ReturnModellingSlide
-          businessName={proposal.businessName}
-          leadConversionRate={p.leadConversionRate ?? null}
-          leadToSaleConversionRate={p.leadToSaleConversionRate ?? null}
-          averageOrderValue={p.averageOrderValue ?? null}
-          annualPurchaseFrequency={p.annualPurchaseFrequency ?? null}
-          overrideMonthlyVisits={p.overrideMonthlyVisits ?? null}
-          trafficModel={buildReturnModellingTrafficModel(competitorAnalysisDoc)}
-        />
+        {isSlideVisible('20') && (
+          <ReturnModellingSlide
+            businessName={proposal.businessName}
+            leadConversionRate={p.leadConversionRate ?? null}
+            leadToSaleConversionRate={p.leadToSaleConversionRate ?? null}
+            averageOrderValue={p.averageOrderValue ?? null}
+            annualPurchaseFrequency={p.annualPurchaseFrequency ?? null}
+            overrideMonthlyVisits={p.overrideMonthlyVisits ?? null}
+            trafficModel={buildReturnModellingTrafficModel(competitorAnalysisDoc, filteredProposalCompetitors)}
+          />
+        )}
 
         {/* Mission Priorities divider sits between Return Modelling and the
            Mission Priorities content slide. */}
@@ -638,7 +654,7 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Mission priorities (dynamic, hidden when empty). */}
-        <MissionPrioritiesSlide priorities={p.missionPriorities ?? null} />
+        {isSlideVisible('12') && <MissionPrioritiesSlide priorities={p.missionPriorities ?? null} />}
 
         {/* Static between Mission Priorities and Roadmap (Flight Plan divider). */}
         <div
@@ -648,11 +664,13 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Roadmap (dynamic, hidden when empty). */}
-        <RoadmapSlide
-          cells={p.roadmapCells ?? null}
-          meta={p.roadmapMeta ?? null}
-          note={p.roadmapNote ?? null}
-        />
+        {isSlideVisible('22') && (
+          <RoadmapSlide
+            cells={p.roadmapCells ?? null}
+            meta={p.roadmapMeta ?? null}
+            note={p.roadmapNote ?? null}
+          />
+        )}
 
         {/* Static between Roadmap and Commercial Model (Mission Resources divider). */}
         <div
@@ -662,11 +680,13 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Commercial model (dynamic, hidden when empty). */}
-        <CommercialModelSlide
-          phases={p.commercialPhases ?? null}
-          meta={p.commercialMeta ?? null}
-          note={p.commercialNote ?? null}
-        />
+        {isSlideVisible('24') && (
+          <CommercialModelSlide
+            phases={p.commercialPhases ?? null}
+            meta={p.commercialMeta ?? null}
+            note={p.commercialNote ?? null}
+          />
+        )}
 
         {/* Static between Commercial Model and Closing (transition strip). */}
         <div
@@ -683,11 +703,13 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Closing (dynamic). */}
-        <ClosingSlide
-          businessName={proposal.businessName}
-          websiteUrl={p.websiteUrl ?? null}
-          presentedBy={p.presentedBy ?? null}
-        />
+        {isSlideVisible('27') && (
+          <ClosingSlide
+            businessName={proposal.businessName}
+            websiteUrl={p.websiteUrl ?? null}
+            presentedBy={p.presentedBy ?? null}
+          />
+        )}
 
         {/* Anything trailing the final SLOT marker. */}
         <div
@@ -742,6 +764,55 @@ function normaliseStringList(value: unknown): string[] {
   return []
 }
 
+function normaliseSlideId(value: string): string {
+  const raw = value.trim().toLowerCase()
+  if (!raw) return ''
+  const firstToken = raw.split(/\s+/)[0] ?? raw
+  if (/^\d+$/.test(firstToken)) return firstToken.padStart(2, '0')
+  const numericPrefix = firstToken.match(/^0?(\d+)([a-z])$/)
+  if (numericPrefix) return `${numericPrefix[1].padStart(2, '0')}${numericPrefix[2]}`
+  return firstToken
+}
+
+const LEGACY_VISIBLE_SLIDE_VALUE_TO_V2_ID: Record<string, string> = {
+  '1': '01',
+  '2': '02',
+  '3': '04',
+  '4': '04b',
+  '5': '06',
+  '6': '10',
+  '7': '09',
+  '8': '15',
+  '9': '15',
+  '10': '14',
+  '11': '14',
+  '12': '14',
+  '13': '17',
+  '14': '18',
+  '15': '20',
+  '16': '22',
+  '17': '24',
+  '18': '24',
+  '19': '27',
+}
+
+function buildHiddenSlideIds(values: string[]): Set<string> {
+  return new Set(
+    values
+      .map((value) => LEGACY_VISIBLE_SLIDE_VALUE_TO_V2_ID[value] ?? normaliseSlideId(value))
+      .filter(Boolean),
+  )
+}
+
+function stripHiddenStaticSlides(html: string, hiddenSlideIds: Set<string>): string {
+  if (hiddenSlideIds.size === 0) return html
+  return html.replace(
+    /<section\b[^>]*class="[^"]*\bslide\b[^"]*"[^>]*data-label="([^"]+)"[^>]*>[\s\S]*?<\/section>/g,
+    (match, label: string) =>
+      hiddenSlideIds.has(normaliseSlideId(label)) ? '' : match,
+  )
+}
+
 function formatMonthYear(date: string | Date | null | undefined): string {
   if (!date) return ''
   const d = typeof date === 'string' ? new Date(date) : date
@@ -778,6 +849,12 @@ type RawCompetitorProfile = {
   websiteScreenshot?: string | null
 } | null
 
+type ProposalCompetitorForTraffic = {
+  name?: string | null
+  websiteUrl?: string | null
+  manualMonthlyVisits?: number | string | null
+} | null
+
 type RawCompetitorAnalysis = {
   yourProfile?: (RawCompetitorProfile & { traffic?: TrafficData }) | null
   competitors?: RawCompetitorProfile[] | null
@@ -797,25 +874,30 @@ export type ReturnModellingTrafficModel = {
  */
 function buildReturnModellingTrafficModel(
   raw: RawCompetitorAnalysis,
+  proposalCompetitors: ProposalCompetitorForTraffic[] | null,
 ): ReturnModellingTrafficModel {
   const yourVisits = normaliseTrafficVisits(raw?.yourProfile?.traffic ?? null)
   const competitors: ReturnModellingTrafficModel['competitors'] = []
+  const seenDomains = new Set<string>()
+
   for (const c of raw?.competitors ?? []) {
     const manualVisits = normaliseVisits(c?.manualMonthlyVisits ?? null)
     const visits = manualVisits > 0 ? manualVisits : normaliseTrafficVisits(c?.traffic ?? null)
     if (visits <= 0) continue
-    const domain = c?.domain ?? ''
-    const name = domain
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .split('.')[0]!
-      .split(/[-_]/)
-      .map((w) =>
-        w.length > 0 ? w[0]!.toUpperCase() + w.slice(1).toLowerCase() : '',
-      )
-      .join(' ')
-    competitors.push({ name, monthlyVisits: visits })
+    const domain = normaliseDomain(c?.domain)
+    if (domain) seenDomains.add(domain)
+    competitors.push({ name: competitorDisplayName(domain), monthlyVisits: visits })
   }
+
+  for (const c of proposalCompetitors ?? []) {
+    const domain = normaliseDomain(c?.websiteUrl) || normaliseDomain(c?.name)
+    if (!domain || seenDomains.has(domain)) continue
+    const visits = normaliseVisits(c?.manualMonthlyVisits ?? null)
+    if (visits <= 0) continue
+    seenDomains.add(domain)
+    competitors.push({ name: c?.name?.trim() || competitorDisplayName(domain), monthlyVisits: visits })
+  }
+
   // Sort by traffic descending, client always first
   competitors.sort((a, b) => b.monthlyVisits - a.monthlyVisits)
   return { yourMonthlyVisits: yourVisits, competitors }
@@ -844,6 +926,18 @@ function normaliseTrafficVisits(traffic: TrafficData): number {
   )
 }
 
+function competitorDisplayName(domain: string): string {
+  return domain
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .split('.')[0]!
+    .split(/[-_]/)
+    .map((w) =>
+      w.length > 0 ? w[0]!.toUpperCase() + w.slice(1).toLowerCase() : '',
+    )
+    .join(' ')
+}
+
 // ---------------------------------------------------------------------------
 // Projection DTOs — ship only what each slide renders, not the full audit doc
 //
@@ -863,21 +957,41 @@ export type CompetitorAnalysisMinimal = {
   competitors?: Array<{ domain?: string | null; manualMonthlyVisits?: number | string | null; traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null }> | null
 }
 
-function buildCompetitorAnalysisMinimal(raw: CompetitorAnalysisMinimal): CompetitorAnalysisMinimal {
-  // Only serialise: domain + traffic.monthlyVisits. Nothing else.
+function buildCompetitorAnalysisMinimal(
+  raw: RawCompetitorAnalysis,
+  proposalCompetitors: ProposalCompetitorForTraffic[] | null,
+): CompetitorAnalysisMinimal {
+  // Only serialise: domain + traffic monthly-visits status. Nothing else.
   const yourDomain = raw?.yourProfile?.domain ?? null
-  const competitors = (raw?.competitors ?? []).map((c) => ({
-    domain: c?.domain ?? null,
-    manualMonthlyVisits: c?.manualMonthlyVisits ?? null,
-    traffic:
-      c?.traffic != null
-        ? {
-            monthlyVisits: c.traffic.monthlyVisits != null ? c.traffic.monthlyVisits : null,
-            status: c.traffic.status ?? null,
-            unavailableReason: c.traffic.unavailableReason ?? null,
-          }
-        : null,
-  }))
+  const seenDomains = new Set<string>()
+  const competitors = (raw?.competitors ?? []).map((c) => {
+    const domain = normaliseDomain(c?.domain)
+    if (domain) seenDomains.add(domain)
+    return {
+      domain: c?.domain ?? null,
+      manualMonthlyVisits: c?.manualMonthlyVisits ?? null,
+      traffic:
+        c?.traffic != null
+          ? {
+              monthlyVisits: normaliseTrafficVisits(c.traffic),
+              status: c.traffic.status ?? null,
+              unavailableReason: c.traffic.unavailableReason ?? null,
+            }
+          : null,
+    }
+  })
+
+  for (const c of proposalCompetitors ?? []) {
+    const domain = normaliseDomain(c?.websiteUrl) || normaliseDomain(c?.name)
+    if (!domain || seenDomains.has(domain)) continue
+    seenDomains.add(domain)
+    competitors.push({
+      domain,
+      manualMonthlyVisits: c?.manualMonthlyVisits ?? null,
+      traffic: null,
+    })
+  }
+
   return { yourProfile: yourDomain ? { domain: yourDomain } : null, competitors }
 }
 

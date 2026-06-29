@@ -25,8 +25,17 @@ type AuditLike = {
 } | null
 
 type KeywordLike = { searchVolume?: number | null } | null
+type MonthlyVisitPoint = number | { visits?: number | string | null }
+
 type CompetitorLike = {
-  traffic?: { monthlyVisits?: number | string | null; status?: string | null; unavailableReason?: string | null } | null
+  manualMonthlyVisits?: number | string | null
+  traffic?: {
+    monthlyVisits?: number | string | MonthlyVisitPoint[] | null
+    averageMonthlyVisits?: number | string | null
+    estimatedMonthlyVisits?: number | string | null
+    status?: string | null
+    unavailableReason?: string | null
+  } | null
 } | null
 
 type KeywordSnapshotLike = { keywords?: KeywordLike[] | null } | null
@@ -60,15 +69,33 @@ function formatBigNumber(value: number): string {
 }
 
 // Normalise a competitor's monthlyVisits — can be number or string like "500K".
-function normaliseVisits(raw: number | string | null | undefined): number {
+function normaliseVisits(raw: number | string | MonthlyVisitPoint[] | null | undefined): number {
   if (raw == null) return 0
   if (typeof raw === 'number') return raw
-  const s = String(raw).trim().toUpperCase()
+  if (Array.isArray(raw)) {
+    const last = raw[raw.length - 1]
+    if (typeof last === 'number') return last
+    return normaliseVisits(last?.visits ?? null)
+  }
+  const s = String(raw).trim().toUpperCase().replace(/,/g, '')
   const num = parseFloat(s)
   if (!Number.isFinite(num)) return 0
   if (s.endsWith('M')) return num * 1_000_000
   if (s.endsWith('K')) return num * 1_000
   return num
+}
+
+function normaliseTrafficVisits(traffic: NonNullable<CompetitorLike>['traffic']): number {
+  if (!traffic || traffic.status === 'unavailable') return 0
+  return normaliseVisits(
+    traffic.averageMonthlyVisits ?? traffic.estimatedMonthlyVisits ?? traffic.monthlyVisits ?? null,
+  )
+}
+
+function competitorMonthlyVisits(competitor: CompetitorLike): number {
+  const manual = normaliseVisits(competitor?.manualMonthlyVisits ?? null)
+  if (manual > 0) return manual
+  return normaliseTrafficVisits(competitor?.traffic ?? null)
 }
 
 // Convert a 0-10 score to a 0-100 score for display in the gauges.
@@ -206,7 +233,7 @@ export function MissionBriefSlide({
   )
   const competitors = competitorAnalysis?.competitors ?? []
   const competitorTraffic = competitors.reduce(
-    (sum, c) => sum + normaliseVisits(c?.traffic?.monthlyVisits ?? null),
+    (sum, c) => sum + competitorMonthlyVisits(c),
     0,
   )
   const hasUnavailableCompetitorTraffic = competitors.some((c) => c?.traffic?.status === 'unavailable')
