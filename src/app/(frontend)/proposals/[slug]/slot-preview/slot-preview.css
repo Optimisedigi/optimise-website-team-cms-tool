@@ -1,9 +1,9 @@
 /*
- * Proposal slot-preview route only.
+ * Shared proposal deck viewport-slot layout.
  *
- * The live proposal deck keeps its existing transformed 1920×1080 slide stack.
- * This preview wraps each slide in a real 100vh slot, like the Google Ads audit,
- * then scales and centers the existing fixed artwork inside that slot.
+ * All live client proposals use the same responsive 100vh slide slots as the
+ * Google Ads audit, then scale and center the existing fixed 1920×1080 artwork
+ * inside each slot.
  */
 @media screen {
   .proposal-v2.proposal-v2--slot-preview .deck-stage-wrap {

@@ -3,10 +3,9 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Scales each 1920×1080 slide to fit the viewport width. The artifact was
+ * Scales each 1920×1080 slide to fit the viewport. The artifact was
  * authored for a fixed 1920×1080 canvas; we preserve that geometry
- * pixel-for-pixel and just scale the whole thing down to fit the user's
- * window width.
+ * pixel-for-pixel and fit the whole thing inside the user's window.
  *
  * Dispatches 'deck-ready' once after the first measurement so
  * <RocketScroll> knows when it is safe to snap to the bottom.

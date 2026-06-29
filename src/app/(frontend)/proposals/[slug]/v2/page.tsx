@@ -41,6 +41,7 @@ import { ReturnModellingSlide } from '@/components/v2/ReturnModellingSlide'
 import { RoadmapSlide } from '@/components/v2/RoadmapSlide'
 import { StarfieldRunner } from '@/components/v2/StarfieldRunner'
 import './report-v2.css'
+import '../slot-preview/slot-preview.css'
 
 // Path to the static HTML chunk containing slides 02-27, lifted verbatim from
 // the Claude artifact so the visual is byte-identical. Slide 01 (Cover) is
@@ -132,7 +133,7 @@ export default async function ProposalReportV2Page({
 
 export async function ProposalReportV2PageContent({
   params,
-  slotPreview = false,
+  slotPreview = true,
   gateEnabled = true,
 }: {
   params: Promise<{ slug: string }>
