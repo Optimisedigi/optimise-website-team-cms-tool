@@ -108,6 +108,14 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const playDigitClick = usePinDigitClick();
 
+  const focusDigit = useCallback((index: number) => {
+    window.requestAnimationFrame(() => {
+      const input = inputRefs.current[index];
+      input?.focus();
+      input?.select();
+    });
+  }, []);
+
   const submit = useCallback(
     async (pin: string) => {
       setLoading(true);
@@ -139,10 +147,10 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
       } finally {
         setLoading(false);
         setDigits(["", "", "", ""]);
-        inputRefs.current[0]?.focus();
+        focusDigit(0);
       }
     },
-    [slug, onSuccess],
+    [slug, onSuccess, focusDigit],
   );
 
   const handleChange = useCallback(
@@ -158,23 +166,23 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
       }
 
       if (digit && index < 3) {
-        inputRefs.current[index + 1]?.focus();
+        focusDigit(index + 1);
       }
 
       if (digit && index === 3 && next.every((d) => d !== "")) {
         submit(next.join(""));
       }
     },
-    [digits, playDigitClick, submit],
+    [digits, playDigitClick, submit, focusDigit],
   );
 
   const handleKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Backspace" && !digits[index] && index > 0) {
-        inputRefs.current[index - 1]?.focus();
+        focusDigit(index - 1);
       }
     },
-    [digits],
+    [digits, focusDigit],
   );
 
   const handlePaste = useCallback(
@@ -196,15 +204,15 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
       if (pasted.length === 4) {
         submit(pasted);
       } else {
-        inputRefs.current[pasted.length]?.focus();
+        focusDigit(pasted.length);
       }
     },
-    [playDigitClick, submit],
+    [playDigitClick, submit, focusDigit],
   );
 
   useEffect(() => {
-    inputRefs.current[0]?.focus();
-  }, []);
+    focusDigit(0);
+  }, [focusDigit]);
 
   const mono = "var(--font-jetbrains-mono), ui-monospace, monospace";
   return (
@@ -222,6 +230,7 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             onFocus={(e) => {
+              e.currentTarget.select();
               Object.assign(e.currentTarget.style, pinGateFocusedInputStyle);
             }}
             onBlur={(e) => {
