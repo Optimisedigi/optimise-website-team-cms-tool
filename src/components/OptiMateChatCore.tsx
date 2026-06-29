@@ -609,13 +609,27 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const sessionIdRef = useRef<string>(
       initialSessionId ?? loadPersistedSessionId(storageScope) ?? crypto.randomUUID(),
     )
+    const activeStorageScopeRef = useRef(storageScope)
     // Persist the initial session id immediately so a reload before the first
     // message still attaches to the same thread.
     useEffect(() => {
+      if (activeStorageScopeRef.current !== storageScope) {
+        activeStorageScopeRef.current = storageScope
+        const nextSessionId = initialSessionId ?? loadPersistedSessionId(storageScope) ?? crypto.randomUUID()
+        sessionIdRef.current = nextSessionId
+        abortControllerRef.current?.abort('OptiMate client changed')
+        abortControllerRef.current = null
+        setMessages([])
+        setInput('')
+        setLoading(false)
+        setError(null)
+        setHistoryOpen(false)
+        setAttachedEmail(null)
+        setImageAttachments([])
+        setDraftState({})
+      }
       savePersistedSessionId(storageScope, sessionIdRef.current)
-      // We intentionally only run on mount / scope change — sessionIdRef
-      // mutations elsewhere call savePersistedSessionId themselves.
-    }, [storageScope])
+    }, [initialSessionId, storageScope])
     const [historyOpen, setHistoryOpen] = useState(false)
     const [sessions, setSessions] = useState<ChatSession[]>([])
     const [sessionsLoading, setSessionsLoading] = useState(false)
