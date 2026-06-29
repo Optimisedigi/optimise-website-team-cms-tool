@@ -32,10 +32,14 @@ const RefreshProposalCompetitorTrafficButton = () => {
         if (data.stage) setStage(data.stage)
         if (typeof data.percent === 'number') setPercent(data.percent)
 
+        if (startedAtRef.current && Date.now() - startedAtRef.current > 3 * 60 * 1000 && data.stage?.includes('Queued local')) {
+          setMessage('Waiting for local helper... run npm run similarweb:helper locally.')
+        }
+
         if (startedAtRef.current && Date.now() - startedAtRef.current > 20 * 60 * 1000) {
           stopPolling()
           setLoading(false)
-          setError('Monthly visits refresh has been running for over 20 minutes. Refresh, then retry.')
+          setError('Monthly visits fetch has been waiting for over 20 minutes. Run npm run similarweb:helper locally, then retry.')
           return
         }
 
@@ -44,7 +48,7 @@ const RefreshProposalCompetitorTrafficButton = () => {
           setLoading(false)
           setPercent(100)
           setStage('Complete')
-          setMessage('Monthly visits refreshed. Refresh the page, then view the proposal report.')
+          setMessage('Monthly visits refreshed. Refresh this page, then view the proposal report.')
         } else if (data.status === 'failed') {
           stopPolling()
           setLoading(false)
@@ -72,7 +76,7 @@ const RefreshProposalCompetitorTrafficButton = () => {
     setLoading(true)
     setMessage(null)
     setError(null)
-    setStage('Starting...')
+    setStage('Queueing local helper job...')
     setPercent(0)
     startedAtRef.current = Date.now()
 
@@ -89,6 +93,7 @@ const RefreshProposalCompetitorTrafficButton = () => {
         return
       }
 
+      setMessage('Queued. Keep the local SimilarWeb helper running, then refresh this page.')
       startPolling()
     } catch {
       setError('Network error — check your connection and try again.')
@@ -116,11 +121,11 @@ const RefreshProposalCompetitorTrafficButton = () => {
           cursor: loading || !hasCompetitorAnalysis ? 'not-allowed' : 'pointer',
         }}
       >
-        {loading ? 'Fetching monthly visits...' : 'Fetch competitor monthly visits'}
+        {loading ? 'Queued local monthly visits fetch...' : 'Queue local monthly visits fetch'}
       </button>
 
       <p style={{ marginTop: 8, fontSize: 13, color: '#6b7280' }}>
-        Updates monthly visits for the linked competitor analysis used by this proposal report. SEO, CRO, keywords, and content results are preserved.
+        Queues monthly visits for the linked competitor analysis. Keep npm run similarweb:helper running locally so SimilarWeb is fetched from your Mac/browser.
       </p>
 
       {!hasCompetitorAnalysis && (

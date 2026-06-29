@@ -16,6 +16,7 @@
     "optimate:evaluate": "node --env-file=.env --import tsx scripts/optimate-google-ads-eval.ts",
     "blog:evaluate": "node --env-file=.env --import tsx scripts/blog-content-model-eval.ts",
     "benchmark:golden": "node --import tsx scripts/golden-benchmark.ts",
+    "similarweb:helper": "node --env-file=.env --import tsx/esm scripts/run-local-similarweb-helper.ts",
     "prepare": "husky"
   },
   "dependencies": {

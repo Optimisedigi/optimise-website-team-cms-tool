@@ -1331,6 +1331,14 @@ export async function GET(request: NextRequest) {
   // ── Hidden keyword categories JSON column on client_proposals (2026-04-15) ──
   await run("client_proposals.hidden_keyword_categories", "ALTER TABLE `client_proposals` ADD `hidden_keyword_categories` text");
 
+  // ── Local SimilarWeb helper job coordination fields (2026-06-28) ──
+  await run("client_proposals.competitor_traffic_job_status", "ALTER TABLE `client_proposals` ADD `competitor_traffic_job_status` text DEFAULT 'idle'");
+  await run("client_proposals.competitor_traffic_job_id", "ALTER TABLE `client_proposals` ADD `competitor_traffic_job_id` text");
+  await run("client_proposals.competitor_traffic_job_domains", "ALTER TABLE `client_proposals` ADD `competitor_traffic_job_domains` text");
+  await run("client_proposals.competitor_traffic_job_results", "ALTER TABLE `client_proposals` ADD `competitor_traffic_job_results` text");
+  await run("client_proposals.competitor_traffic_job_error", "ALTER TABLE `client_proposals` ADD `competitor_traffic_job_error` text");
+  await run("client_proposals.competitor_traffic_job_updated_at", "ALTER TABLE `client_proposals` ADD `competitor_traffic_job_updated_at` text");
+
   // ── Deck URL columns on presentations (2026-05-14) ──
   await run("clients_presentations.deck_url", "ALTER TABLE `clients_presentations` ADD `deck_url` text");
   await run("client_proposals_presentations.deck_url", "ALTER TABLE `client_proposals_presentations` ADD `deck_url` text");

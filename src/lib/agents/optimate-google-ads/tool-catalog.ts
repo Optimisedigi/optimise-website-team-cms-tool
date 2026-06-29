@@ -98,8 +98,8 @@ export const TOOL_CATEGORIES: Record<ToolCategoryKey, CategoryMeta> = {
   },
   actions: {
     key: "actions",
-    label: "Actions \u2014 do-it-now",
-    blurb: "Tools that take immediate side-effecting action on your own account (Gmail drafts). No approval queue.",
+    label: "Execute via Growth Tools",
+    blurb: "Direct Google Ads, GA4, GTM, tracking review, Gmail, and goal actions. Live account changes run through Growth Tools with selected-client scoping.",
     color: "#0284c7",
     order: 55,
   },
@@ -206,10 +206,14 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   get_goal_run: "read-goals",
   get_goal_progress_summary: "read-goals",
 
-  // Actions — do-it-now
+  // Execute via Growth Tools / direct actions
   create_gmail_draft: "actions",
   create_goal_run: "actions",
   create_account_efficiency_goal_run: "actions",
+  execute_google_ads_action: "actions",
+  execute_ga4_action: "actions",
+  execute_gtm_action: "actions",
+  review_tracking_changes: "actions",
 
   // Confirm gate (sits between read tools and propose tools)
   request_confirm: "confirm-gate",
@@ -229,7 +233,9 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   propose_campaign_restructure: "propose-structure",
   propose_campaign_build: "propose-structure",
   propose_geo_campaign_split: "propose-structure",
+  propose_campaign_status_change: "propose-structure",
   propose_ad_group_create: "propose-structure",
+  propose_ad_group_status_change: "propose-structure",
   propose_keywords_add: "propose-structure",
 
   // Propose — ad copy

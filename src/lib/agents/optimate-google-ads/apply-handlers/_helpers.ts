@@ -10,16 +10,46 @@
 
 import type { Payload } from "payload";
 
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "";
-const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL || "";
-// Direct Railway URL — bypasses Vercel proxy 60s timeout for long-running calls.
-const GROWTH_TOOLS_DIRECT_URL = process.env.GROWTH_TOOLS_DIRECT_URL || GROWTH_TOOLS_URL;
+function internalApiKey(): string {
+  return process.env.INTERNAL_API_KEY || "";
+}
+
+function growthToolsUrl(): string {
+  return process.env.GROWTH_TOOLS_URL || "";
+}
+
+function growthToolsDirectUrl(): string {
+  return process.env.GROWTH_TOOLS_DIRECT_URL || growthToolsUrl();
+}
 
 export type MatchType = "exact" | "phrase" | "broad";
+
+type SqlClient = {
+  execute: (sql: string) => Promise<{ rows?: Array<Record<string, unknown>> }>;
+};
 
 export interface NklKeyword {
   keyword: string;
   matchType: MatchType;
+}
+
+async function resolveAuditViaSqlClient(
+  client: SqlClient,
+  numericAuditId: number,
+  auditId: string | number,
+): Promise<Record<string, unknown> & { customerId?: string; client?: unknown }> {
+  const result = await client.execute(
+    `SELECT id, customer_id, client_id, proposal_id FROM google_ads_audits WHERE id = ${numericAuditId} LIMIT 1`,
+  );
+  const row = result?.rows?.[0];
+  if (!row) throw new Error(`Google Ads audit #${auditId} not found`);
+
+  return {
+    id: row.id,
+    customerId: String(row.customer_id ?? ""),
+    client: row.client_id,
+    proposal: row.proposal_id,
+  };
 }
 
 /**
@@ -31,12 +61,31 @@ export async function resolveCustomerId(
   payload: Payload,
   auditId: string | number,
 ): Promise<{ customerId: string; auditDoc: Record<string, unknown> }> {
-  const audit = (await payload.findByID({
-    collection: "google-ads-audits",
-    id: auditId as any,
-    overrideAccess: true,
-    depth: 1,
-  })) as unknown as Record<string, unknown> & { customerId?: string; client?: unknown };
+  const numericAuditId = Number(auditId);
+  if (!Number.isFinite(numericAuditId)) {
+    throw new Error(`Invalid Google Ads audit ID: ${auditId}`);
+  }
+
+  // Keep this intentionally raw + narrow when the libSQL client is available.
+  // Payload findByID selects every column in google_ads_audits; when production
+  // schema drift leaves a newly-added proposal column missing, unrelated
+  // budget/NKL apply handlers fail before they can read the stable
+  // customer/client columns they actually need. Tests often mock Payload without
+  // payload.db.client, so fall back to findByID there.
+  const client = (payload as unknown as { db?: { client?: SqlClient } }).db?.client;
+  const audit: Record<string, unknown> & {
+    customerId?: string;
+    client?: unknown;
+  } = client
+    ? await resolveAuditViaSqlClient(client, numericAuditId, auditId)
+    : ((await payload.findByID({
+        collection: "google-ads-audits",
+        id: auditId as any,
+        overrideAccess: true,
+      })) as unknown as Record<string, unknown> & {
+        customerId?: string;
+        client?: unknown;
+      });
 
   let customerId = String(audit.customerId ?? "").trim();
   const directClient = audit.client as { id?: string | number; googleAdsCustomerId?: string } | string | number | null | undefined;
@@ -46,11 +95,22 @@ export async function resolveCustomerId(
       clientDoc = directClient as { googleAdsCustomerId?: string };
     } else {
       try {
-        clientDoc = (await payload.findByID({
-          collection: "clients",
-          id: directClient as any,
-          overrideAccess: true,
-        })) as { googleAdsCustomerId?: string };
+        const numericClientId = Number(directClient);
+        if (client && Number.isFinite(numericClientId)) {
+          const clientResult = await client.execute(
+            `SELECT google_ads_customer_id FROM clients WHERE id = ${numericClientId} LIMIT 1`,
+          );
+          const clientRow = clientResult?.rows?.[0];
+          clientDoc = clientRow
+            ? { googleAdsCustomerId: String(clientRow.google_ads_customer_id ?? "") }
+            : null;
+        } else {
+          clientDoc = (await payload.findByID({
+            collection: "clients",
+            id: directClient as any,
+            overrideAccess: true,
+          })) as { googleAdsCustomerId?: string };
+        }
       } catch {
         clientDoc = null;
       }
@@ -124,13 +184,15 @@ export function postGrowthToolsFireAndForget(
   pathFromRoot: string,
   body: Record<string, unknown>,
 ): void {
-  if (!INTERNAL_API_KEY || !GROWTH_TOOLS_DIRECT_URL) return;
-  const url = `${GROWTH_TOOLS_DIRECT_URL}${pathFromRoot}`;
+  const key = internalApiKey();
+  const baseUrl = growthToolsDirectUrl();
+  if (!key || !baseUrl) return;
+  const url = `${baseUrl}${pathFromRoot}`;
   fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-internal-key": INTERNAL_API_KEY,
+      "x-internal-key": key,
     },
     body: JSON.stringify(body),
   }).catch((err) => {
@@ -138,30 +200,48 @@ export function postGrowthToolsFireAndForget(
   });
 }
 
-export async function postGrowthTools(
-  pathFromRoot: string,
-  body: Record<string, unknown>,
-): Promise<{ ok: true; status: number; data: unknown } | { ok: false; status: number; error: string }> {
-  if (!INTERNAL_API_KEY) {
+export type GrowthToolsMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+export interface GrowthToolsActionMetadata {
+  agentRunId?: string;
+  clientId?: string | number;
+  auditId?: string | number;
+  userId?: string | number;
+  source?: "optimax";
+}
+
+export async function growthToolsRequest(options: {
+  method: GrowthToolsMethod;
+  pathFromRoot: string;
+  body?: Record<string, unknown>;
+  timeoutMs?: number;
+  metadata?: GrowthToolsActionMetadata;
+}): Promise<{ ok: true; status: number; data: unknown } | { ok: false; status: number; error: string }> {
+  const key = internalApiKey();
+  if (!key) {
     return { ok: false, status: 500, error: "INTERNAL_API_KEY is not configured" };
   }
-  if (!GROWTH_TOOLS_URL) {
+  const baseUrl = growthToolsUrl();
+  if (!baseUrl) {
     return { ok: false, status: 500, error: "GROWTH_TOOLS_URL is not configured" };
   }
-  const url = `${GROWTH_TOOLS_URL}${pathFromRoot}`;
+  const body = options.body && options.metadata
+    ? { ...options.body, ...options.metadata, source: options.metadata.source ?? "optimax" }
+    : options.body;
+  const url = `${baseUrl}${options.pathFromRoot}`;
   let res: Response;
   try {
     res = await fetch(url, {
-      method: "POST",
+      method: options.method,
       headers: {
-        "Content-Type": "application/json",
-        "x-internal-key": INTERNAL_API_KEY,
+        "x-internal-key": key,
+        ...(body ? { "Content-Type": "application/json" } : {}),
       },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(60_000),
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 60_000),
     });
   } catch (err) {
-    return { ok: false, status: 0, error: `Network error calling Growth Tools ${pathFromRoot}: ${(err as Error).message}` };
+    return { ok: false, status: 0, error: `Network error calling Growth Tools ${options.pathFromRoot}: ${(err as Error).message}` };
   }
   let parsed: unknown = null;
   try {
@@ -184,6 +264,13 @@ export async function postGrowthTools(
     return { ok: false, status: res.status, error: errMsg };
   }
   return { ok: true, status: res.status, data: parsed };
+}
+
+export async function postGrowthTools(
+  pathFromRoot: string,
+  body: Record<string, unknown>,
+): Promise<{ ok: true; status: number; data: unknown } | { ok: false; status: number; error: string }> {
+  return growthToolsRequest({ method: "POST", pathFromRoot, body });
 }
 
 /**

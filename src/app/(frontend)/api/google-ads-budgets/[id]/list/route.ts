@@ -132,14 +132,23 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Fetch the audit record
+  // Fetch only stable audit columns. Payload findByID selects every
+  // google_ads_audits field, so schema drift in unrelated proposal columns can
+  // break budget pacing before this route reads customer/budget data.
   let audit: any;
   try {
-    audit = await payload.findByID({
-      collection: "google-ads-audits",
-      id: auditId,
-      overrideAccess: true,
-    });
+    const dbClient = (payload.db as unknown as { client?: { execute: (sql: string) => Promise<{ rows?: Array<Record<string, unknown>> }> } }).client;
+    const result = await dbClient?.execute(
+      `SELECT id, customer_id, client_id, monthly_budget FROM google_ads_audits WHERE id = ${auditId} LIMIT 1`,
+    );
+    const row = result?.rows?.[0];
+    if (!row) throw new Error("Audit not found");
+    audit = {
+      id: row.id,
+      customerId: row.customer_id,
+      client: row.client_id,
+      monthlyBudget: row.monthly_budget,
+    };
   } catch {
     return NextResponse.json({ error: "Audit not found" }, { status: 404 });
   }
@@ -155,6 +164,7 @@ export async function GET(
         collection: "clients",
         id: clientId,
         overrideAccess: true,
+        depth: 0,
       });
       if (linkedClient?.googleAdsCustomerId) {
         customerId = linkedClient.googleAdsCustomerId;

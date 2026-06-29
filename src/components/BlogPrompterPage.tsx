@@ -158,6 +158,7 @@ const BlogPrompterPage = () => {
   const [selectedBrief, setSelectedBrief] = useState<SavedBrief | null>(null)
   const selectedBriefRef = useRef<HTMLDivElement>(null)
   const [deletingId, setDeletingId] = useState<string | number | null>(null)
+  const [publishingId, setPublishingId] = useState<string | number | null>(null)
   const [showProposed, setShowProposed] = useState(false)
   const [showPublishedProposed, setShowPublishedProposed] = useState(false)
   const [proposedTagFilter, setProposedTagFilter] = useState('')
@@ -183,7 +184,7 @@ const BlogPrompterPage = () => {
     categoryBlogTone: findCategoryTone(selectedClient?.blogCategoryTones, nextFields.category),
   })
 
-  const activeBriefs = briefs.filter((b) => b.source !== 'topic-clusters' && !b.archivedAt)
+  const activeBriefs = briefs.filter((b) => b.source !== 'topic-clusters' && !b.archivedAt && b.workflowStatus !== 'published')
   const blogIdeaProposedBriefs = briefs.filter((b) => b.source === 'topic-clusters' && b.workflowStatus !== 'published')
   const publishedProposedBriefs = briefs.filter((b) => b.source === 'topic-clusters' && b.workflowStatus === 'published')
   const proposedBaseBriefs = showPublishedProposed ? publishedProposedBriefs : blogIdeaProposedBriefs
@@ -417,6 +418,21 @@ const BlogPrompterPage = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const handleMarkBriefPublished = async (id: string | number) => {
+    setPublishingId(id)
+    try {
+      const res = await fetch(`/api/blog-prompts?id=${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflowStatus: 'published' }),
+      })
+      if (!res.ok) return
+      setBriefs((prev) => prev.map((b) => b.id === id ? { ...b, workflowStatus: 'published' } : b))
+      if (selectedBrief?.id === id) setSelectedBrief(null)
+    } catch { /* ignore */ }
+    finally { setPublishingId(null) }
+  }
+
   const handleDeleteBrief = async (id: string | number) => {
     const typed = window.prompt('Type delete to permanently remove this blog prompt.')
     if (typed?.trim().toLowerCase() !== 'delete') return
@@ -521,7 +537,7 @@ const BlogPrompterPage = () => {
                 <div
                   key={String(brief.id)}
                   style={{
-                    display: 'grid', gridTemplateColumns: showProposed ? 'minmax(0, 1fr) minmax(120px, 180px) auto' : 'minmax(0, 1fr) auto auto', alignItems: 'center', gap: 10,
+                    display: 'grid', gridTemplateColumns: showProposed ? 'minmax(0, 1fr) minmax(120px, 180px) auto' : 'minmax(0, 1fr) auto auto auto', alignItems: 'center', gap: 10,
                     borderBottom: '1px solid var(--theme-elevation-50)',
                     background: selectedBrief?.id === brief.id ? 'var(--theme-elevation-100)' : 'transparent',
                     paddingRight: 12,
@@ -552,6 +568,20 @@ const BlogPrompterPage = () => {
                     <span style={{ fontSize: 11, fontWeight: 700, color: status.color, background: status.background, borderRadius: 999, padding: '4px 9px', whiteSpace: 'nowrap' }}>
                       {status.label}
                     </span>
+                  )}
+                  {!showProposed && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleMarkBriefPublished(brief.id) }}
+                      disabled={publishingId === brief.id}
+                      style={{
+                        background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', borderRadius: 6,
+                        cursor: 'pointer', fontSize: 11, padding: '4px 8px', color: 'inherit', whiteSpace: 'nowrap',
+                        opacity: publishingId === brief.id ? 0.5 : 1,
+                      }}
+                    >
+                      {publishingId === brief.id ? 'Saving...' : 'Mark published'}
+                    </button>
                   )}
                   <button
                     type="button"

@@ -1590,6 +1590,53 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
+              name: "competitorTrafficJobStatus",
+              type: "select",
+              defaultValue: "idle",
+              admin: {
+                readOnly: true,
+                description: "Local SimilarWeb helper job status for competitor monthly visits.",
+              },
+              options: [
+                { label: "Idle", value: "idle" },
+                { label: "Queued", value: "queued" },
+                { label: "Running", value: "running" },
+                { label: "Completed", value: "completed" },
+                { label: "Failed", value: "failed" },
+              ],
+            },
+            {
+              name: "competitorTrafficJobId",
+              type: "text",
+              admin: { readOnly: true },
+            },
+            {
+              name: "competitorTrafficJobDomains",
+              type: "json",
+              admin: {
+                readOnly: true,
+                description: "Domain work items queued for the local SimilarWeb helper.",
+              },
+            },
+            {
+              name: "competitorTrafficJobResults",
+              type: "json",
+              admin: {
+                readOnly: true,
+                description: "Latest local SimilarWeb helper results keyed by profile key/domain.",
+              },
+            },
+            {
+              name: "competitorTrafficJobError",
+              type: "textarea",
+              admin: { readOnly: true },
+            },
+            {
+              name: "competitorTrafficJobUpdatedAt",
+              type: "date",
+              admin: { readOnly: true },
+            },
+            {
               type: "row",
               fields: [
                 {

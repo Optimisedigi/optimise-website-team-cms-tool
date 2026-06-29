@@ -4,8 +4,13 @@
  * each tool stays a thin wrapper.
  */
 
-const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL || "http://localhost:5000";
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "";
+function growthToolsUrl(): string {
+  return process.env.GROWTH_TOOLS_URL || "http://localhost:5000";
+}
+
+function internalApiKey(): string {
+  return process.env.INTERNAL_API_KEY || "";
+}
 
 export interface GrowthToolsResult<T> {
   ok: boolean;
@@ -22,11 +27,21 @@ export function ensureCustomerId(raw: unknown): string {
   return raw.replace(/-/g, "");
 }
 
+export type GrowthToolsMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+export interface GrowthToolsActionMetadata {
+  agentRunId?: string;
+  clientId?: string | number;
+  auditId?: string | number;
+  userId?: string | number;
+  source?: "optimax";
+}
+
 export async function growthToolsGet<T>(
   pathWithQuery: string,
   timeoutMs = 45_000,
 ): Promise<GrowthToolsResult<T>> {
-  return growthToolsRequest<T>("GET", pathWithQuery, undefined, timeoutMs);
+  return growthToolsRequest<T>({ method: "GET", path: pathWithQuery, timeoutMs });
 }
 
 export async function growthToolsPost<T>(
@@ -34,35 +49,47 @@ export async function growthToolsPost<T>(
   body: Record<string, unknown>,
   timeoutMs = 45_000,
 ): Promise<GrowthToolsResult<T>> {
-  return growthToolsRequest<T>("POST", path, body, timeoutMs);
+  return growthToolsRequest<T>({ method: "POST", path, body, timeoutMs });
 }
 
-async function growthToolsRequest<T>(
-  method: "GET" | "POST",
-  pathWithQuery: string,
-  body: Record<string, unknown> | undefined,
-  timeoutMs: number,
-): Promise<GrowthToolsResult<T>> {
-  if (!INTERNAL_API_KEY) {
+export async function growthToolsRequest<T>(options: {
+  method: GrowthToolsMethod;
+  path: string;
+  body?: Record<string, unknown>;
+  timeoutMs?: number;
+  metadata?: GrowthToolsActionMetadata;
+}): Promise<GrowthToolsResult<T>> {
+  const { method, path, timeoutMs = 45_000, metadata } = options;
+  const body = options.body && metadata
+    ? { ...options.body, ...metadata, source: metadata.source ?? "optimax" }
+    : options.body;
+  const key = internalApiKey();
+  if (!key) {
     return { ok: false, error: "INTERNAL_API_KEY is not configured on this CMS instance" };
   }
-  const url = `${GROWTH_TOOLS_URL}${pathWithQuery}`;
+  const url = `${growthToolsUrl()}${path}`;
   try {
     const r = await fetch(url, {
       method,
       headers: {
-        "x-internal-key": INTERNAL_API_KEY,
+        "x-internal-key": key,
         ...(body ? { "content-type": "application/json" } : {}),
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(timeoutMs),
     });
+    const text = await r.text().catch(() => "");
     if (!r.ok) {
-      const text = await r.text().catch(() => "");
       return { ok: false, error: `Growth Tools ${r.status}: ${text.slice(0, 400)}` };
     }
-    const json = (await r.json()) as T;
-    return { ok: true, data: json };
+    if (!text.trim()) {
+      return { ok: true, data: undefined as T };
+    }
+    try {
+      return { ok: true, data: JSON.parse(text) as T };
+    } catch {
+      return { ok: true, data: text as T };
+    }
   } catch (err) {
     return { ok: false, error: `Growth Tools request failed: ${(err as Error).message}` };
   }

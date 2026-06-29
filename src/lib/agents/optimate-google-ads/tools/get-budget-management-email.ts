@@ -176,17 +176,43 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
       };
     }
 
-    // Load audit + linked client server-side via getPayload (no HTTP).
+    // Load only stable audit/client columns. Payload findByID selects every
+    // google_ads_audits field, so schema drift in unrelated proposal/admin
+    // columns can break budget pacing before this tool reaches live spend data.
     let audit: AuditDoc;
+    let clientSlug = "";
+    let clientPin = "";
     try {
       const cfg = await payloadConfig;
       const payload = await getPayload({ config: cfg });
-      audit = (await payload.findByID({
-        collection: "google-ads-audits",
-        id: auditId as never,
-        depth: 1,
-        overrideAccess: true,
-      })) as unknown as AuditDoc;
+      const numericAuditId = Number(auditId);
+      if (!Number.isFinite(numericAuditId)) throw new Error(`Invalid audit id: ${auditId}`);
+      const dbClient = (payload as unknown as { db?: { client?: { execute: (sql: string) => Promise<{ rows?: Array<Record<string, unknown>> }> } } }).db?.client;
+      if (dbClient) {
+        const result = await dbClient.execute(
+          `SELECT a.id, a.business_name, a.monthly_budget, a.client_id, c.slug AS client_slug, c.client_pin AS client_pin FROM google_ads_audits a LEFT JOIN clients c ON c.id = a.client_id WHERE a.id = ${numericAuditId} LIMIT 1`,
+        );
+        const row = result?.rows?.[0];
+        if (!row) throw new Error(`Audit ${auditId} not found`);
+        audit = {
+          id: row.id as string | number,
+          businessName: String(row.business_name ?? ""),
+          monthlyBudget: typeof row.monthly_budget === "number" ? row.monthly_budget : Number(row.monthly_budget || 0),
+          client: row.client_id as string | number | null,
+        };
+        clientSlug = String(row.client_slug ?? "").trim();
+        clientPin = String(row.client_pin ?? "").trim();
+      } else {
+        audit = (await payload.findByID({
+          collection: "google-ads-audits",
+          id: auditId as any,
+          overrideAccess: true,
+          depth: 1,
+        })) as unknown as AuditDoc;
+        const linkedClient = audit.client as { slug?: string; clientPin?: string } | null | undefined;
+        clientSlug = typeof linkedClient === "object" ? String(linkedClient?.slug ?? "").trim() : "";
+        clientPin = typeof linkedClient === "object" ? String(linkedClient?.clientPin ?? "").trim() : "";
+      }
     } catch (err) {
       return {
         ok: false,
@@ -196,14 +222,6 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
 
     const businessName = audit.businessName?.trim() || "Client";
     const monthlyBudget = Number(audit.monthlyBudget || 0);
-
-    let clientSlug = "";
-    let clientPin = "";
-    if (audit.client && typeof audit.client === "object") {
-      const c = audit.client as ClientDoc;
-      clientSlug = c.slug?.trim() || "";
-      clientPin = c.clientPin?.trim() || "";
-    }
 
     const baseUrl = resolveBaseUrl();
 

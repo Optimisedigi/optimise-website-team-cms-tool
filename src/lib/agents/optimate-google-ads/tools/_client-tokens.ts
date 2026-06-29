@@ -52,6 +52,7 @@ async function loadClient(clientId: string | number): Promise<ClientDoc> {
     collection: "clients",
     id: clientId,
     overrideAccess: true,
+    depth: 0,
   })) as unknown as ClientDoc;
 }
 

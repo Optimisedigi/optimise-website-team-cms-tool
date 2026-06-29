@@ -1439,11 +1439,11 @@ export interface Client {
     totalDocs?: number;
   };
   /**
-   * Whether Google Analytics 4 is connected via OAuth
+   * Whether Google Analytics 4 is connected via OAuth with edit-capable access for OptiMax audience and key-event setup. Existing read-only connections may need reconnecting.
    */
   ga4Connected?: boolean | null;
   /**
-   * Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes here and by Growth Tools (AI Visibility Tracker, future GA4-powered tools). Set before connecting OAuth.
+   * Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes and Growth Tools, including OptiMax GA4 admin actions for audiences and key events. Set before connecting OAuth, and reconnect if the saved token only has read-only access.
    */
   ga4PropertyId?: string | null;
   ga4AccessToken?: string | null;
@@ -2277,6 +2277,37 @@ export interface ClientProposal {
    * Error details if audits failed
    */
   auditError?: string | null;
+  /**
+   * Local SimilarWeb helper job status for competitor monthly visits.
+   */
+  competitorTrafficJobStatus?: ('idle' | 'queued' | 'running' | 'completed' | 'failed') | null;
+  competitorTrafficJobId?: string | null;
+  /**
+   * Domain work items queued for the local SimilarWeb helper.
+   */
+  competitorTrafficJobDomains?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Latest local SimilarWeb helper results keyed by profile key/domain.
+   */
+  competitorTrafficJobResults?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  competitorTrafficJobError?: string | null;
+  competitorTrafficJobUpdatedAt?: string | null;
   /**
    * Linked SEO audit
    */
@@ -6019,7 +6050,7 @@ export interface BlogPost {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * Drafts and proposed actions from the Optimate agents awaiting human review.
+ * Drafts and proposed actions from OptiMate awaiting human review.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "agent-approval-queue".
@@ -7499,7 +7530,7 @@ export interface UsageReport {
   createdAt: string;
 }
 /**
- * Recurring agent/system runs. Agent email tasks create Gmail drafts; monthly budget tasks queue Agent Approvals for budget pushes.
+ * Recurring OptiMate/system runs. Email tasks create Gmail drafts; monthly budget tasks queue OptiMate Approvals for budget pushes.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "scheduled-agent-tasks".
@@ -7585,7 +7616,7 @@ export interface ScheduledAgentTask {
   createdAt: string;
 }
 /**
- * Facts the agent has learned, scoped per-client or globally. Most rows stay search-only; only importance ≥ 80 active rows auto-load into the prompt.
+ * Facts OptiMate has learned, scoped per-client or globally. Most rows stay search-only; only importance ≥ 80 active rows auto-load into the prompt. Open from OptiMate Settings → Memory.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "agent-memory".
@@ -7660,7 +7691,7 @@ export interface AgentMemory {
   createdAt: string;
 }
 /**
- * How the agent should communicate with the agency team. Scope each row to all agents or one agent surface.
+ * How OptiMate should communicate with the agency team. Scope each row to all agents or one agent surface. Open from OptiMate Settings → Soul.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "agent-soul".
@@ -8466,6 +8497,7 @@ export interface Notification {
     | 'negative-keywords-removed'
     | 'goal-run-escalation'
     | 'google-ads-budget-review'
+    | 'google-ads-keyword-cost-finder-usage'
     | 'meeting-response-accepted'
     | 'meeting-response-declined'
     | 'meeting-confirmed'
@@ -9783,6 +9815,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
     | {
         name?: T;
         websiteUrl?: T;
+        manualMonthlyVisits?: T;
         googleMapsUrl?: T;
         gbpRating?: T;
         gbpReviewCount?: T;
@@ -9810,6 +9843,12 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   auditStartedAt?: T;
   auditCompletedAt?: T;
   auditError?: T;
+  competitorTrafficJobStatus?: T;
+  competitorTrafficJobId?: T;
+  competitorTrafficJobDomains?: T;
+  competitorTrafficJobResults?: T;
+  competitorTrafficJobError?: T;
+  competitorTrafficJobUpdatedAt?: T;
   seoAudit?: T;
   croAudit?: T;
   keywordSnapshot?: T;

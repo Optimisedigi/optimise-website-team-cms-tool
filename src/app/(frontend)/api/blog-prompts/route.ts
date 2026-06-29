@@ -81,10 +81,23 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
+    let body: Record<string, unknown> = {};
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
+
+    const workflowStatus = body.workflowStatus;
+    const data: { workflowStatus: "idea_phase" | "in_progress" | "published" } | { archivedAt: string } =
+      workflowStatus === "idea_phase" || workflowStatus === "in_progress" || workflowStatus === "published"
+        ? { workflowStatus }
+        : { archivedAt: new Date().toISOString() };
+
     const doc = await payload.update({
       collection: "blog-prompts",
       id,
-      data: { archivedAt: new Date().toISOString() },
+      data,
       overrideAccess: true,
     });
 

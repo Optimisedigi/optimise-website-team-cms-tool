@@ -168,12 +168,7 @@ export async function POST(
       }
     }
 
-    const audit = await payload.findByID({
-      collection: "google-ads-audits",
-      id,
-      overrideAccess: true,
-      depth: 1,
-    });
+    const audit = await loadAuditForChat(payload, id);
     if (!audit) {
       return NextResponse.json({ error: "Audit not found" }, { status: 404 });
     }
@@ -440,6 +435,48 @@ function parseImageAttachments(input: unknown):
   return { ok: true, value: parsed };
 }
 
+async function loadAuditForChat(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  const numericAuditId = Number(id);
+  if (!Number.isFinite(numericAuditId)) return null;
+
+  // Payload findByID selects every google_ads_audits column. If production schema
+  // drift leaves a newly-added proposal/admin column missing, the chat should not
+  // fail before GoogleMate can answer routine read-only questions. Load only the
+  // stable context fields the agent prompt and tool context need.
+  const client = (payload as unknown as { db?: { client?: { execute: (sql: string) => Promise<{ rows?: Array<Record<string, unknown>> }> } } }).db?.client;
+  if (!client) {
+    try {
+      return (await payload.findByID({
+        collection: "google-ads-audits",
+        id,
+        overrideAccess: true,
+        depth: 1,
+      })) as unknown as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  const result = await client.execute(
+    `SELECT id, business_name, customer_id, monthly_spend, brand_terms, client_id, proposal_id FROM google_ads_audits WHERE id = ${numericAuditId} LIMIT 1`,
+  );
+  const row = result?.rows?.[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    businessName: row.business_name,
+    customerId: row.customer_id,
+    monthlySpend: row.monthly_spend,
+    brandTerms: row.brand_terms,
+    client: row.client_id,
+    proposal: row.proposal_id,
+  };
+}
+
 async function resolveLinkedClient(
   payload: Awaited<ReturnType<typeof getPayload>>,
   audit: unknown,
@@ -465,6 +502,36 @@ async function resolveLinkedClient(
       const pc = (proposal as { client?: unknown }).client;
       if (pc && typeof pc === "object") clientId = (pc as { id?: string | number }).id;
       else if (typeof pc === "string" || typeof pc === "number") clientId = pc;
+    } else if (typeof proposal === "string" || typeof proposal === "number") {
+      const proposalId = Number(proposal);
+      const client = (payload as unknown as { db?: { client?: { execute: (sql: string) => Promise<{ rows?: Array<Record<string, unknown>> }> } } }).db?.client;
+      if (client && Number.isFinite(proposalId)) {
+        const proposalResult = await client.execute(
+          `SELECT client_id FROM client_proposals WHERE id = ${proposalId} LIMIT 1`,
+        );
+        const proposalRow = proposalResult?.rows?.[0];
+        const proposalClientId = proposalRow?.client_id;
+        if (typeof proposalClientId === "string" || typeof proposalClientId === "number") {
+          clientId = proposalClientId;
+        }
+      } else {
+        try {
+          const proposalDoc = await payload.findByID({
+            collection: "client-proposals",
+            id: proposal,
+            overrideAccess: true,
+            depth: 0,
+          });
+          const proposalClient = (proposalDoc as { client?: unknown } | null)?.client;
+          if (typeof proposalClient === "string" || typeof proposalClient === "number") {
+            clientId = proposalClient;
+          } else if (proposalClient && typeof proposalClient === "object") {
+            clientId = (proposalClient as { id?: string | number }).id;
+          }
+        } catch {
+          clientId = undefined;
+        }
+      }
     }
   }
 
@@ -474,6 +541,7 @@ async function resolveLinkedClient(
       collection: "clients",
       id: clientId,
       overrideAccess: true,
+      depth: 0,
     });
     return c as any;
   } catch {

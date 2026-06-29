@@ -2,6 +2,7 @@ import { google } from "googleapis";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/analytics.readonly",
+  "https://www.googleapis.com/auth/analytics.edit",
 ];
 
 function getOAuth2Client() {

@@ -3763,7 +3763,7 @@ export const Clients: CollectionConfig = {
               defaultValue: false,
               admin: {
                 readOnly: true,
-                description: "Whether Google Analytics 4 is connected via OAuth",
+                description: "Whether Google Analytics 4 is connected via OAuth with edit-capable access for OptiMax audience and key-event setup. Existing read-only connections may need reconnecting."
               },
             },
             {
@@ -3771,7 +3771,7 @@ export const Clients: CollectionConfig = {
               type: "text",
               admin: {
                 description:
-                  "Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes here and by Growth Tools (AI Visibility Tracker, future GA4-powered tools). Set before connecting OAuth.",
+                  "Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes and Growth Tools, including OptiMax GA4 admin actions for audiences and key events. Set before connecting OAuth, and reconnect if the saved token only has read-only access.",
               },
             },
             {

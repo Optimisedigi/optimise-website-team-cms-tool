@@ -59,6 +59,10 @@ import { createAccountEfficiencyGoalRun } from "./tools/create-account-efficienc
 import { proposeScheduledTask } from "./tools/propose-scheduled-task";
 import { listScheduledTasks } from "./tools/list-scheduled-tasks";
 import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-update";
+import { executeGoogleAdsAction } from "./tools/execute-google-ads-action";
+import { executeGa4Action } from "./tools/execute-ga4-action";
+import { executeGtmAction } from "./tools/execute-gtm-action";
+import { reviewTrackingChanges } from "./tools/review-tracking-changes";
 import { proposeStakeholderDeck } from "./tools/propose-stakeholder-deck";
 import { proposeDeckFromTemplateTool } from "./tools/propose-deck-from-template";
 import { requestConfirmTool } from "./tools/request-confirm";
@@ -120,6 +124,7 @@ const TOOL_BUNDLE_NAMES = [
   "goals",
   "scheduled_tasks",
   "decks",
+  "actions",
   "memory",
 ] as const;
 
@@ -127,7 +132,7 @@ type GoogleMateToolBundleName = (typeof TOOL_BUNDLE_NAMES)[number];
 
 const GOOGLEMATE_TOOL_ROUTER_PROMPT = `
 
-Tool routing: you are starting with a lean GoogleMate tool set. If the user asks for specialist work and the needed tool is not visible, first call request_googlemate_tool_bundle with one or more bundles, then use the newly attached tools on the next turn. Available bundles: performance, negative_keywords, budget_email, ad_copy, seo_organic, campaign_build, goals, scheduled_tasks, decks, memory.${memoryToolRoutingPrompt("GoogleMate")}`;
+Tool routing: you are starting with a lean GoogleMate tool set. If the user asks for specialist work and the needed tool is not visible, first call request_googlemate_tool_bundle with one or more bundles, then use the newly attached tools on the next turn. Available bundles: performance, negative_keywords, budget_email, ad_copy, seo_organic, campaign_build, goals, scheduled_tasks, decks, actions, memory. Use actions when the user asks to apply, create, update, pause, enable, publish, deploy, push, or set up live changes via Growth Tools.${memoryToolRoutingPrompt("GoogleMate")}`;
 
 const requestGoogleMateToolBundle: CanonicalTool<{ bundles: GoogleMateToolBundleName[]; reason?: string }> = {
   name: "request_googlemate_tool_bundle",
@@ -221,6 +226,10 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
     proposeScheduledTaskUpdate as unknown as CanonicalTool<unknown>,
     proposeStakeholderDeck as unknown as CanonicalTool<unknown>,
     proposeDeckFromTemplateTool as unknown as CanonicalTool<unknown>,
+    executeGoogleAdsAction as unknown as CanonicalTool<unknown>,
+    executeGa4Action as unknown as CanonicalTool<unknown>,
+    executeGtmAction as unknown as CanonicalTool<unknown>,
+    reviewTrackingChanges as unknown as CanonicalTool<unknown>,
     requestConfirmTool as unknown as CanonicalTool<unknown>,
     ...(options?.attachMemoryTools
       ? [
@@ -254,6 +263,7 @@ const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown
   goals: [listGoalRuns, getGoalRun, getGoalProgressSummary, createGoalRun, createAccountEfficiencyGoalRun] as unknown as CanonicalTool<unknown>[],
   scheduled_tasks: [proposeScheduledTask, listScheduledTasks, proposeScheduledTaskUpdate] as unknown as CanonicalTool<unknown>[],
   decks: [proposeStakeholderDeck, proposeDeckFromTemplateTool] as unknown as CanonicalTool<unknown>[],
+  actions: [executeGoogleAdsAction, executeGa4Action, executeGtmAction, reviewTrackingChanges] as unknown as CanonicalTool<unknown>[],
   memory: [memorySearch, remember, soulSet] as unknown as CanonicalTool<unknown>[],
 };
 
@@ -299,6 +309,7 @@ function detectInitialToolBundles(messages: Message[]): GoogleMateToolBundleName
   addIf("goals", /goal|objective|progress|goal run|efficiency/);
   addIf("scheduled_tasks", /schedule|scheduled task|remind|recurring|cron/);
   addIf("decks", /deck|slides|stakeholder|presentation|template/);
+  addIf("actions", /\b(apply|execute|create|update|pause|enable|publish|deploy|push|set up|setup|make live|go live)\b|audience|key event|gtm|tag manager|tag|trigger|variable/);
   addIf("performance", /performance|campaign|ad group|metric|cpa|roas|conversion|click|impression|ctr|cpc|weekly|monthly|trend/);
   return Array.from(bundles);
 }
@@ -355,6 +366,11 @@ interface AuditDocLike {
 interface ClientDocLike {
   id?: string | number;
   name?: string | null;
+  googleAdsCustomerId?: string | null;
+  ga4PropertyId?: string | null;
+  ga4MeasurementId?: string | null;
+  gtmContainerId?: string | null;
+  expectedEvents?: string | null;
   dashboardConversionActions?: string | null;
   conversionActionCategories?: Array<{ label?: string; color?: string; actions?: string }> | null;
   phoneCallConversionActions?: string | null;
@@ -538,10 +554,16 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     modelRequested = autonomous ? defaults.defaultAutonomousModel : defaults.defaultChatModel;
   }
 
+  const effectiveCustomerId = String(client?.googleAdsCustomerId || audit.customerId).replace(/-/g, "");
   const agentContext = {
-    customerId: String(audit.customerId).replace(/-/g, ""),
+    customerId: effectiveCustomerId,
     clientId: client?.id,
     auditId: audit.id,
+    clientName: client?.name ?? audit.businessName ?? null,
+    ga4PropertyId: client?.ga4PropertyId ?? null,
+    ga4MeasurementId: client?.ga4MeasurementId ?? null,
+    gtmContainerId: client?.gtmContainerId ?? null,
+    expectedEvents: client?.expectedEvents ?? null,
     conversionActions,
     conversionActionCategories,
     ...(userId !== undefined ? { userId } : {}),

@@ -63,7 +63,7 @@ describe('Optimate Google Ads Growth Tools connector', () => {
     process.env.GROWTH_TOOLS_URL = 'https://growth-tools.test';
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
-      json: async () => ({ accounts: [{ customerId: '1234567890', name: 'Acme' }] }),
+      text: async () => JSON.stringify({ accounts: [{ customerId: '1234567890', name: 'Acme' }] }),
     } as Response);
 
     const { growthToolsGet } = await import('@/lib/agents/optimate-google-ads/tools/_growth-tools');
