@@ -25,6 +25,7 @@ import { getBudgetManagementEmail } from "./tools/get-budget-management-email";
 import { getWeeklyTrendNote } from "./tools/get-weekly-trend-note";
 import { getWeeklyMetricTable } from "./tools/get-weekly-metric-table";
 import { getMonthlyMetricTable } from "./tools/get-monthly-metric-table";
+import { growthToolsRead } from "./tools/growth-tools-read";
 import { createGmailDraftTool } from "./tools/create-gmail-draft";
 import { proposeNegativeKeywords } from "./tools/propose-negative-keywords";
 import { proposeNklCreate } from "./tools/propose-nkl-create";
@@ -112,6 +113,10 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "propose_scheduled_task_update",
   "propose_stakeholder_deck",
   "propose_deck_from_template",
+  "execute_google_ads_action",
+  "execute_ga4_action",
+  "execute_gtm_action",
+  "review_tracking_changes",
 ]);
 
 const TOOL_BUNDLE_NAMES = [
@@ -132,7 +137,7 @@ type GoogleMateToolBundleName = (typeof TOOL_BUNDLE_NAMES)[number];
 
 const GOOGLEMATE_TOOL_ROUTER_PROMPT = `
 
-Tool routing: you are starting with a lean GoogleMate tool set. If the user asks for specialist work and the needed tool is not visible, first call request_googlemate_tool_bundle with one or more bundles, then use the newly attached tools on the next turn. Available bundles: performance, negative_keywords, budget_email, ad_copy, seo_organic, campaign_build, goals, scheduled_tasks, decks, actions, memory. Use actions when the user asks to apply, create, update, pause, enable, publish, deploy, push, or set up live changes via Growth Tools.${memoryToolRoutingPrompt("GoogleMate")}`;
+Tool routing: you are starting with a lean GoogleMate tool set. If the user asks for specialist work and the needed tool is not visible, first call request_googlemate_tool_bundle with one or more bundles, then use the newly attached tools on the next turn. Available bundles: performance, negative_keywords, budget_email, ad_copy, seo_organic, campaign_build, goals, scheduled_tasks, decks, actions, memory. Use performance when the user asks a Google Ads/GA4/GSC data question and the exact built-in report is not visible; the performance bundle includes growth_tools_read as the future-proof read-only Growth Tools bridge. Use actions when the user asks to apply, create, update, pause, enable, publish, deploy, push, or set up live changes via Growth Tools.${memoryToolRoutingPrompt("GoogleMate")}`;
 
 const requestGoogleMateToolBundle: CanonicalTool<{ bundles: GoogleMateToolBundleName[]; reason?: string }> = {
   name: "request_googlemate_tool_bundle",
@@ -189,6 +194,7 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
     getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
     getWeeklyMetricTable as unknown as CanonicalTool<unknown>,
     getMonthlyMetricTable as unknown as CanonicalTool<unknown>,
+    growthToolsRead as unknown as CanonicalTool<unknown>,
     getWeeklyTrendNote as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
     proposeNegativeKeywords as unknown as CanonicalTool<unknown>,
@@ -254,7 +260,7 @@ function applyToolRestrictions(
 }
 
 const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown>[]> = {
-  performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
+  performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, growthToolsRead, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
   negative_keywords: [getSearchTerms, getNegativeKeywordLists, proposeNegativeKeywords, proposeNklCreate, proposeNklUpdate, proposeNklPushLive] as unknown as CanonicalTool<unknown>[],
   budget_email: [getBudgetManagementEmail, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool, proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
   ad_copy: [getAdAssetPerformance, proposeAdCopyGenerate, proposeAdCopyDeploy] as unknown as CanonicalTool<unknown>[],
@@ -271,6 +277,7 @@ export function getGoogleMateInitialTools(messages: Message[], options?: { restr
   const baseTools = [
     requestGoogleMateToolBundle,
     getAccountOverview,
+    growthToolsRead,
     getClientDetails,
   ] as unknown as CanonicalTool<unknown>[];
   const bundles = detectInitialToolBundles(messages);
