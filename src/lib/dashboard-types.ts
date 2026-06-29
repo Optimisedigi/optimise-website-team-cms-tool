@@ -179,6 +179,80 @@ export interface GoogleAdsDashboardActivityStats {
   customStats: Array<{ label: string; value: number }>;
 }
 
+export type HubSpotPostClickConfidence =
+  | "single_candidate"
+  | "multiple_candidates"
+  | "keyword_fallback"
+  | "hubspot_source_fallback";
+
+export interface HubSpotPostClickDashboardData {
+  clientName: string;
+  customerId: string;
+  slug: string;
+  range: string;
+  dateRangeLabel: string;
+  lastUpdated: string;
+  monthly: Array<{
+    month: string;
+    paidLeads: number;
+    meetings: number;
+    meetingRate: number | null;
+    qualifiedLeads: number;
+    qualifiedLeadRate: number | null;
+    calls: number;
+  }>;
+  attributionRows: Array<{
+    month: string;
+    searchTermEvidence: string;
+    searchTermConfidence: HubSpotPostClickConfidence;
+    campaignName: string;
+    adGroupName: string;
+    keywordText: string;
+    keywordMatchType?: string;
+    paidLeads: number;
+    meetings: number;
+    meetingRate: number | null;
+    qualifiedLeads: number;
+    qualifiedLeadRate: number | null;
+    calls: number;
+    spend?: number;
+    googleAdsConversions?: number;
+  }>;
+  leadDetails: Array<{
+    contactId: string;
+    createdAt: string;
+    month: string;
+    contactName: string;
+    company: string;
+    email?: string;
+    lifecycleStage?: string;
+    leadStatus?: string;
+    gclid?: string;
+    hubspotCampaign?: string;
+    hubspotKeyword?: string;
+    campaignName?: string;
+    adGroupName?: string;
+    keywordText?: string;
+    keywordMatchType?: string;
+    searchTermEvidence: string[];
+    searchTermConfidence: string;
+    meetings: number;
+    meetingDates: string[];
+    calls: number;
+    callDates: string[];
+    isQualifiedLead: boolean;
+  }>;
+  diagnostics: {
+    hubspotContactsScanned: number;
+    paidGoogleLeadsChecked: number;
+    contactsWithGclid: number;
+    gclidsMatchedToClickView: number;
+    searchTermRows: number;
+    clickViewLookbackLimited: boolean;
+    notes: string[];
+  };
+}
+
 export interface GoogleAdsDashboardData {
   clientName: string;
   customerId: string;

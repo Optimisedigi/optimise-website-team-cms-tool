@@ -62,7 +62,7 @@ describe("system-prompt-token-usage route", () => {
     const scheduledDeckInitial = rowByLabel(body.toolSchemas, "GoogleMate scheduled/deck initial tool schemas");
     const fullAudit = rowByLabel(body.toolSchemas, "GoogleMate full audit tool schemas");
 
-    expect(blankInitial.toolCount).toBe(3);
+    expect(blankInitial.toolCount).toBe(4);
     expect(blankInitial.sourcePaths).toContain("src/lib/agents/optimate-google-ads/index.ts");
     expect(blankInitial.estimatedTokens).toBeGreaterThan(0);
     expect(geoInitial.toolCount).toBeGreaterThan(blankInitial.toolCount);

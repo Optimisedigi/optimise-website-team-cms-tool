@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData, GoogleAdsDashboardAvoidedSpend, GoogleAdsDashboardMonthlyWasteRelevancy } from "@/lib/dashboard-types";
+import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData, GoogleAdsDashboardAvoidedSpend, GoogleAdsDashboardMonthlyWasteRelevancy, HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
 import { padMonthlySeries } from "@/lib/dashboard-types";
 import { KpiRow } from "./KpiRow";
 import { MonthlyChart } from "./MonthlyChart";
@@ -15,6 +15,7 @@ import { ActivityStats } from "./ActivityStats";
 import { QualityScoreTab } from "./QualityScoreTab";
 import { ProgressTab } from "./ProgressTab";
 import { AccountStructureTab } from "./AccountStructureTab";
+import { HubSpotPostClickTab } from "./HubSpotPostClickTab";
 
 const GOOGLE_ADS_MONTHLY_TREND_WINDOW = 18;
 
@@ -67,7 +68,7 @@ const DEEP_DIVE_RANGE_OPTIONS = [
   { value: "last_6_months", label: "Last 6 months" },
 ] as const;
 
-type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress" | "accountStructure";
+type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress" | "postClick" | "accountStructure";
 
 type ConversionActionCategoryConfig = {
   label?: string;
@@ -133,6 +134,11 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const [deepDiveData, setDeepDiveData] = useState<GoogleAdsDashboardData | null>(null);
   const [deepDiveLoading, setDeepDiveLoading] = useState(false);
   const deepDiveFetched = useRef(false);
+  const isAwayDigital = initialData.slug === "away-digital" || initialData.customerId === "3425353766";
+  const [postClickData, setPostClickData] = useState<HubSpotPostClickDashboardData | null>(null);
+  const [postClickLoading, setPostClickLoading] = useState(false);
+  const [postClickError, setPostClickError] = useState("");
+  const postClickFetched = useRef(false);
 
   useEffect(() => {
     if (!clientId || !initialData.customerId || !initialData.slug) return;
@@ -391,6 +397,36 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     [data.slug, data.customerId, data.clientName, brandKeywords, activeConversionActions, deepDiveRange],
   );
 
+  const fetchPostClickData = useCallback(
+    async (rangeOverride?: string) => {
+      if (!isAwayDigital || !data.slug || !data.customerId) return;
+      setPostClickLoading(true);
+      setPostClickError("");
+      try {
+        const params = new URLSearchParams({
+          slug: data.slug,
+          customerId: data.customerId,
+          range: rangeOverride || range,
+          clientName: data.clientName || "Away Digital Teams",
+        });
+        const res = await fetch(`/api/dashboard/hubspot-post-click?${params}`, { credentials: "include", cache: "no-store" });
+        if (res.ok) {
+          const result = await res.json();
+          setPostClickData(result);
+          postClickFetched.current = true;
+        } else {
+          setPostClickError(`Failed to load post-click quality data (${res.status})`);
+        }
+      } catch (err) {
+        console.error("[PostClick] Fetch error:", err);
+        setPostClickError("Failed to load post-click quality data. Please try again.");
+      } finally {
+        setPostClickLoading(false);
+      }
+    },
+    [isAwayDigital, data.slug, data.customerId, data.clientName, range],
+  );
+
   const handleTabChange = useCallback(
     async (tab: Tab) => {
       setActiveTab(tab);
@@ -400,8 +436,11 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       if (tab === "keywords" && !deepDiveFetched.current) {
         await fetchDeepDiveData();
       }
+      if (tab === "postClick" && !postClickFetched.current) {
+        await fetchPostClickData();
+      }
     },
-    [fetchQualityData, fetchDeepDiveData],
+    [fetchQualityData, fetchDeepDiveData, fetchPostClickData],
   );
 
   const changeDeepDiveRange = useCallback(
@@ -435,6 +474,12 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   useEffect(() => {
     if (!qualityFetched.current) return;
     fetchQualityData(range);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range]);
+
+  useEffect(() => {
+    if (!postClickFetched.current) return;
+    fetchPostClickData(range);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
 
@@ -800,6 +845,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             { key: "competitors" as Tab, label: "Competitor Analysis" },
             { key: "keywords" as Tab, label: "Keyword Deep Dive" },
             { key: "quality" as Tab, label: "Quality Score" },
+            ...(isAwayDigital ? [{ key: "postClick" as Tab, label: "Post-click Quality" }] : []),
             { key: "accountStructure" as Tab, label: "Account Structure View" },
           ]).map((tab) => (
             <button
@@ -817,7 +863,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         </div>
 
         {/* Loading overlay */}
-        {(loading || (deepDiveLoading && activeTab === "keywords")) && (
+        {(loading || (deepDiveLoading && activeTab === "keywords") || (postClickLoading && activeTab === "postClick")) && (
           <div className="flex items-center gap-2 mb-4 text-sm text-slate-500">
             <svg
               className="animate-spin h-4 w-4 text-blue-600"
@@ -843,7 +889,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
           </div>
         )}
 
-        <div className={(loading || (deepDiveLoading && activeTab === "keywords")) ? "opacity-50 pointer-events-none" : ""}>
+        <div className={(loading || (deepDiveLoading && activeTab === "keywords") || (postClickLoading && activeTab === "postClick")) ? "opacity-50 pointer-events-none" : ""}>
           {activeTab === "overview" && (
             <>
               <KpiRow
@@ -970,6 +1016,32 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               <p className="py-12 text-center text-sm text-slate-400">
                 Quality score data is not available yet.
               </p>
+            )
+          )}
+
+          {activeTab === "postClick" && isAwayDigital && (
+            postClickLoading ? (
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+                <svg className="h-4 w-4 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Loading post-click quality data...
+              </div>
+            ) : postClickError ? (
+              <div className="py-12 text-center">
+                <p className="mb-3 text-sm text-red-500">{postClickError}</p>
+                <button
+                  onClick={() => fetchPostClickData()}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : postClickData ? (
+              <HubSpotPostClickTab data={postClickData} />
+            ) : (
+              <p className="py-12 text-center text-sm text-slate-400">Post-click quality data is not available yet.</p>
             )
           )}
 

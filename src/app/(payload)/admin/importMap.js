@@ -76,13 +76,13 @@ import { default as default_56b28aa1b7f83ad9678320a990503af7 } from '../../../co
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
 import { default as default_9f498ec9f8b81bcfa099e8cb7b777007 } from '../../../components/BackfillProposalReportDataButton'
 import { default as default_62cba30eadd5a2962ed9c8cc86b16246 } from '../../../components/RefreshProposalCompetitorTrafficButton'
-import { default as default_7cd0db6eed542c76cc8cb638733d678f } from '../../../components/RunManualCompetitorSerpMetricsButton'
+import { default as default_2c89ed7a45cf9eb4c0ab6f8f79e1d8cb } from '../../../components/RunManualCompetitorSerpMetricsButton'
 import { default as default_a087138d05f6fdc79a220a1ae9afa2ee } from '../../../components/ManualCompetitorTrafficFields'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
 import { default as default_524269742a06f6b5480b96a4c642a8de } from '../../../components/RunGoogleAdsAuditFromProposalButton'
 import { default as default_6fd4378acdcb6cb05df32bae3ab16a5b } from '../../../components/RunSerpDisplacementFromProposalButton'
 import { default as default_6f9f267498ebf96dc66363123e90c687 } from '../../../components/RunAiVisibilityFromProposalButton'
-import { default as default_5cf75e00fd5e4c218cc4b167917c6110 } from '../../../components/ProposalSlideRemovalPicker'
+import { default as default_ff1f7e2a5c260c68ee659d6117e5331e } from '../../../components/ProposalSlideRemovalPicker'
 import { default as default_00f2f68e89ac94a9115ac79e7355850c } from '../../../components/CompetitorExcluder'
 import { default as default_ee85e12563a2c76fb90347c827ce2e2c } from '../../../components/KeywordCategoryExcluder'
 import { default as default_0f5835a1721ce9d158589c56d0c0fb9d } from '../../../components/CreateContractButton'
@@ -278,13 +278,13 @@ export const importMap = {
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
   "./components/BackfillProposalReportDataButton#default": default_9f498ec9f8b81bcfa099e8cb7b777007,
   "./components/RefreshProposalCompetitorTrafficButton#default": default_62cba30eadd5a2962ed9c8cc86b16246,
-  "./components/RunManualCompetitorSerpMetricsButton#default": default_7cd0db6eed542c76cc8cb638733d678f,
+  "./components/RunManualCompetitorSerpMetricsButton#default": default_2c89ed7a45cf9eb4c0ab6f8f79e1d8cb,
   "./components/ManualCompetitorTrafficFields#default": default_a087138d05f6fdc79a220a1ae9afa2ee,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
   "./components/RunGoogleAdsAuditFromProposalButton#default": default_524269742a06f6b5480b96a4c642a8de,
   "./components/RunSerpDisplacementFromProposalButton#default": default_6fd4378acdcb6cb05df32bae3ab16a5b,
   "./components/RunAiVisibilityFromProposalButton#default": default_6f9f267498ebf96dc66363123e90c687,
-  "./components/ProposalSlideRemovalPicker#default": default_5cf75e00fd5e4c218cc4b167917c6110,
+  "./components/ProposalSlideRemovalPicker#default": default_ff1f7e2a5c260c68ee659d6117e5331e,
   "./components/CompetitorExcluder#default": default_00f2f68e89ac94a9115ac79e7355850c,
   "./components/KeywordCategoryExcluder#default": default_ee85e12563a2c76fb90347c827ce2e2c,
   "./components/CreateContractButton#default": default_0f5835a1721ce9d158589c56d0c0fb9d,

@@ -98,11 +98,15 @@ const GMAIL_DRAFT_GUIDE = `BUDGET MANAGEMENT EMAILS AND ONE-OFF Gmail drafts (th
 
 When the user asks for a "budget management email", "budget email", "budget pacing email", "MTD spend to budget email", "monthly budget management report", "budget update email/report", or anything that should look like the CMS Budget Management > Email Report / Copy for Gmail output, ALWAYS call get_budget_management_email with mode='this_month'. The canonical budget email is the returned HTML, including the visual budget tracker/table. NEVER hand-write a plain-text replacement for it.
 
+Treat weekly budget management emails as a separate client report from monthly budget management emails. Weekly budget reports MUST include a 1 to 2 sentence plain Gmail-safe intro above the report with one positive data point from the weekly rows, and the Gmail subject MUST be "[Client Name] - Google Ads Weekly Report". Monthly/MTD budget emails keep the subject returned by get_budget_management_email.
+
 If the user asks to create/save/draft/send/drop it into Gmail, also call create_gmail_draft with the budget HTML. If the user only says "give me" or "show me" the budget management email, call get_budget_management_email to verify the template is available, then reply with the subject, the requested short summary, and ask if they want it saved to Gmail. NEVER paste raw HTML in chat. The visual template is for Gmail drafts / Copy for Gmail only, not the visible chat bubble.
 
 When the user says "create a Gmail draft for the budget email", "draft an email from this", "turn our conversation into a Gmail draft", "send me a draft of X", "drop this into Gmail Drafts now", "draft me the budget management email", "draft the budget pacing this month", "email the monthly budget management report", "Gmail the budget to date", "draft the MTD budget update", "budget pacing email", or any one-off draft request, DO NOT use propose_scheduled_task (that is for recurring drafts and will not fire until the next cron tick). DO NOT paste the HTML in chat and hope the user clicks 'Save as draft'. Use create_gmail_draft directly.
 
 If the budget email request asks for a 1 to 3 sentence summary on top around weekly/recent performance, call get_weekly_metric_table with metrics=["spend","conversions","cpa"] first. Pick the strongest truthful story from CPA, conversions, CTR, or avg CPC only if supported by the weekly rows. Then call get_budget_management_email with mode='this_month'. For Gmail drafts, call create_gmail_draft with htmlBody = the plain Gmail-safe summary paragraph first, then the budget HTML verbatim.
+
+If the request is specifically for a weekly budget report, call get_weekly_metric_table with metrics=["spend","conversions","cpa"], weeks=1, and endDate set to the previous Sunday in agency time (the completed Monday-Sunday week). Use the returned single row as evidence for the positive intro sentence. Then call get_budget_management_email with mode='this_month', and create the draft with subject "[Client Name] - Google Ads Weekly Report" and htmlBody = intro paragraph, weekly table HTML, then budget HTML.
 
 NEVER hand-write trend HTML or coloured callouts. NEVER wrap Gmail content in coloured \`<div>\`s. Do NOT set \`background\`, \`border\`, or \`border-radius\` anywhere in the HTML you send to create_gmail_draft. Any colour, emphasis, or trend block comes from a canonical renderer tool (today that's get_weekly_metric_table). The renderer enforces the Gmail house style; your job is to call the tool and concatenate its HTML, never to style it yourself.
 
@@ -131,15 +135,15 @@ const SCHEDULED_TASKS_GUIDE = `When the user asks for a RECURRING report (e.g. "
 
 Never fabricate cron expressions you're unsure of. The schedule field is validated against cron-parser and an invalid expression will reject the proposal.
 
-WORKED EXAMPLE. Weekly recurring budget management email with a 4-week trend on top.
+WORKED EXAMPLE. Weekly recurring budget management email for the previous completed week.
 
-User: "Every Monday at 9am draft me the budget management email with a 4-week trend on top."
+User: "Every Monday at 9am draft me the weekly budget management email."
 
 The right recurring \`prompt\` to save (it runs with NO chat history) is something like:
 
-  "Call get_weekly_metric_table with metrics=[\"spend\",\"conversions\",\"cpa\"] and weeks=4, with no compare field, to get the canonical Weekly Performance Trend HTML without WoW / delta columns. Then call get_budget_management_email with mode='this_month' to get the budget update HTML. Build the reply as: the trend html field verbatim, then on a new line the budget html field verbatim. Do not summarise or modify either, do not wrap them in any coloured div, do not add a custom callout. The canonical renderer already enforces the styling."
+  "Call get_weekly_metric_table with metrics=[\"spend\",\"conversions\",\"cpa\"], weeks=1, and endDate set to the previous Sunday in agency time so the row covers the completed previous Monday-Sunday week. Then call get_budget_management_email with mode='this_month' to get the budget update HTML. Pick one positive data point from the weekly row - for example conversions, CPA, spend momentum, or efficient CPC if available - and write 1 to 2 plain Gmail-safe sentences above the report. Build the reply as: the intro paragraph first, then the weekly table html field verbatim, then on a new line the budget html field verbatim. Do not wrap anything in a coloured div. The canonical renderer already enforces the table styling."
 
-Then call propose_scheduled_task with title="Weekly budget management email", that prompt, schedule="0 9 * * 1", and a 1-sentence summary. On each Monday firing, the agent runs that prompt, the reply is wrapped by the scheduled-task tick into a Gmail Draft on the proposing user's account. The trend table + budget table both render inline. The user reviews, edits the To: address, and hits Send.`;
+Then call propose_scheduled_task with title="Weekly budget management email", that prompt, schedule="0 9 * * 1", and a 1-sentence summary. On each Monday firing, the agent runs that prompt, and the scheduled-task tick saves a Gmail Draft with subject "[Client Name] - Google Ads Weekly Report". The user reviews, edits the To: address, and hits Send.`;
 
 const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plain English into one of these range inputs and pass it as the \`range\` arg:
 

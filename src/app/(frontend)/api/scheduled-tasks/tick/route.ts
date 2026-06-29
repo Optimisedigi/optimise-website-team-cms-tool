@@ -192,15 +192,21 @@ async function runOneTask(
     });
 
     // 4. Format and create the Gmail draft.
-    const subject = `[OptiMate] ${task.title}`;
-    const htmlBody = renderReplyAsHtml({
-      title: task.title,
-      prompt: task.prompt,
-      reply: turn.reply,
-      runId: turn.runId,
-      modelUsed: turn.modelUsed,
-      proposals: turn.proposals,
-    });
+    const isWeeklyBudgetReport = isWeeklyBudgetManagementTask(task);
+    const clientName = resolveReportClientName(audit, linkedClient);
+    const subject = isWeeklyBudgetReport
+      ? `${clientName} - Google Ads Weekly Report`
+      : `[OptiMate] ${task.title}`;
+    const htmlBody = isWeeklyBudgetReport
+      ? renderClientReportHtml(turn.reply)
+      : renderReplyAsHtml({
+        title: task.title,
+        prompt: task.prompt,
+        reply: turn.reply,
+        runId: turn.runId,
+        modelUsed: turn.modelUsed,
+        proposals: turn.proposals,
+      });
 
     const recipient = task.recipientEmail || tokenResult.userEmail || tokenResult.email;
     if (!recipient) throw new Error("No recipient email could be resolved");
@@ -267,6 +273,55 @@ function resolveClientFromAudit(audit: unknown): { id?: string | number; name?: 
   if (direct && typeof direct === "object") return direct as { id?: string | number; name?: string | null };
   if (typeof direct === "string" || typeof direct === "number") return { id: direct };
   return null;
+}
+
+function isWeeklyBudgetManagementTask(task: Pick<ScheduledTaskRow, "title" | "prompt">): boolean {
+  const haystack = `${task.title}\n${task.prompt}`.toLowerCase();
+  return haystack.includes("weekly") && haystack.includes("budget") && (
+    haystack.includes("management") ||
+    haystack.includes("report") ||
+    haystack.includes("email") ||
+    haystack.includes("pacing")
+  );
+}
+
+function resolveReportClientName(audit: unknown, client: { name?: string | null } | null): string {
+  const a = audit as Record<string, unknown>;
+  const auditName = typeof a.businessName === "string" ? a.businessName.trim() : "";
+  const clientName = typeof client?.name === "string" ? client.name.trim() : "";
+  return auditName || clientName || "Client";
+}
+
+function stripMarkdownCodeFence(value: string): string {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^```(?:html)?\s*\n([\s\S]*?)\n```$/i);
+  return match ? match[1].trim() : trimmed;
+}
+
+function renderClientReportHtml(reply: string): string {
+  const body = stripMarkdownCodeFence(reply);
+  const replyHtml = /<\/?(?:p|table|tbody|thead|tr|td|th|div|h[1-6]|br|ul|ol|li|strong|em|span)\b/i.test(body)
+    ? sanitizeReportHtml(body)
+    : markdownishToHtml(body);
+
+  return `<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif;color:#222;line-height:1.5;">
+  ${replyHtml}
+</body>
+</html>`;
+}
+
+function sanitizeReportHtml(html: string): string {
+  const allowedTags = new Set(["p", "table", "tbody", "thead", "tr", "td", "th", "div", "h1", "h2", "h3", "h4", "h5", "h6", "br", "ul", "ol", "li", "strong", "em", "span"]);
+  return html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\/?(?:script|style|iframe|object|embed|form|input|button|link|meta)[^>]*>/gi, "")
+    .replace(/<\/?([a-z][a-z0-9-]*)(?:\s[^>]*)?>/gi, (tag, rawName: string) => {
+      const name = rawName.toLowerCase();
+      if (!allowedTags.has(name)) return escapeHtml(tag);
+      return tag.startsWith("</") ? `</${name}>` : `<${name}>`;
+    });
 }
 
 /**

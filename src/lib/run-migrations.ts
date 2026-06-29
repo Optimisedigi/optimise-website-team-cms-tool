@@ -1685,6 +1685,22 @@ export async function runMigrations(
     await run("google_ads_audits.campaign_proposal", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal` text");
     await run("google_ads_audits.campaign_proposal_email_html", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_email_html` text");
     await run("google_ads_audits.campaign_proposal_generated_at", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_generated_at` text");
+    await run("google_ads_audits.campaign_proposal_competitor_status", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_competitor_status` text");
+    await run("google_ads_audits.campaign_proposal_competitors", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_competitors` text");
+    await run("google_ads_audits.campaign_proposal_generated_competitors", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_generated_competitors` text");
+    await run("google_ads_audits.campaign_proposal_competitor_keywords_used", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_competitor_keywords_used` text");
+    await run("google_ads_audits.campaign_proposal_competitors_generated_at", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_competitors_generated_at` text");
+    await run("google_ads_audits.campaign_proposal_competitor_error", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_competitor_error` text");
+    await run("google_ads_audits_campaign_proposal_manual_competitors", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_campaign_proposal_manual_competitors\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`domain\` text NOT NULL,
+      \`notes\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("gaa_manual_competitors_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_manual_competitors_order_idx` ON `google_ads_audits_campaign_proposal_manual_competitors` (`_order`)");
+    await run("gaa_manual_competitors_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_manual_competitors_parent_idx` ON `google_ads_audits_campaign_proposal_manual_competitors` (`_parent_id`)");
   
     // Campaign build (Google Ads push) fields
     await run("google_ads_audits.campaign_build_status", "ALTER TABLE `google_ads_audits` ADD `campaign_build_status` text");

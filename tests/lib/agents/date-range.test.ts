@@ -261,6 +261,15 @@ describe("resolveRange — LAST_WEEK_MON_SUN (agency-default 'last week')", () =
     expect(r.endDate).toBe("2026-05-17");
   });
 
+  it("uses the agency timezone so Monday morning Brisbane is not treated as Sunday UTC", () => {
+    // 2026-06-28 23:00 UTC is 2026-06-29 09:00 in Brisbane.
+    // Last week should be the completed Mon 22 to Sun 28 block, not Mon 15 to Sun 21.
+    const now = new Date("2026-06-28T23:00:00.000Z");
+    const r = resolveRange("LAST_WEEK", now);
+    expect(r.startDate).toBe("2026-06-22");
+    expect(r.endDate).toBe("2026-06-28");
+  });
+
   it("handles a Sunday correctly (last week ends YESTERDAY, not last Sunday a week ago)", () => {
     // Sun 2026-05-24 → last week is Mon 2026-05-11 to Sun 2026-05-17.
     // (The week-in-progress Mon 18 to today is NOT last week.)

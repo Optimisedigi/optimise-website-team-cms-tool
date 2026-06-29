@@ -14,6 +14,7 @@ function expectExactToolsFor(text: string, expectedNames: string[]) {
   expect(toolNamesFor(text)).toEqual([
     "request_googlemate_tool_bundle",
     "get_account_overview",
+    "growth_tools_read",
     "get_client_details",
     ...expectedNames,
   ]);
@@ -31,6 +32,7 @@ describe("GoogleMate tool routing", () => {
       expect(names).toEqual([
         "request_googlemate_tool_bundle",
         "get_account_overview",
+        "growth_tools_read",
         "get_client_details",
       ]);
       expect(names).not.toContain("get_campaign_performance");

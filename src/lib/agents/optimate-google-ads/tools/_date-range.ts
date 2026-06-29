@@ -20,6 +20,9 @@
  *   LAST_60_DAYS, LAST_90_DAYS, THIS_MONTH, LAST_MONTH,
  *   THIS_WEEK_MON_TODAY, LAST_WEEK_SUN_SAT
  *
+ * Relative custom ranges use the agency timezone (Australia/Brisbane). Vercel
+ * cron fires in UTC, so a Monday 9am Brisbane task can still be Sunday UTC.
+ *
  * Resolved to CUSTOM (with computed startDate/endDate):
  *   YEAR_TO_DATE / YTD
  *   THIS_QUARTER, LAST_QUARTER, QUARTER_TO_DATE / QTD
@@ -112,6 +115,21 @@ function toIso(d: Date): string {
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 }
 
+function agencyDateUtc(now: Date): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Brisbane",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (type: "year" | "month" | "day") => Number(parts.find((part) => part.type === type)?.value);
+  const year = get("year");
+  const month = get("month");
+  const day = get("day");
+  if (!year || !month || !day) return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 /** Friendly label for a span, e.g. "Jan 1 – Mar 31 2026". */
 function spanLabel(start: string, end: string): string {
   const s = new Date(`${start}T00:00:00Z`);
@@ -132,19 +150,16 @@ function spanLabel(start: string, end: string): string {
  * days ending the day before (a Sunday).
  */
 function lastWeekMonSun(now: Date): { start: string; end: string } {
-  // getUTCDay(): Sun=0, Mon=1, ..., Sat=6. We want days back to last Monday.
-  // - If today is Sun (0): last Mon is 6 days ago, last Sun is yesterday (1 day ago).
-  // - If today is Mon (1): last Mon is 7 days ago, last Sun is 1 day ago.
-  // - If today is Tue (2): last Mon is 8 days ago, last Sun is 2 days ago.
-  // - ...
-  // - If today is Sat (6): last Mon is 12 days ago, last Sun is 6 days ago.
-  const day = now.getUTCDay();
-  const daysSinceMonday = day === 0 ? 6 : day - 1; // days since most-recent Monday
-  const endOffset = daysSinceMonday + 1; // last Sunday is one day before that Monday
-  const startOffset = endOffset + 6; // 7-day Mon–Sun window
-  const end = new Date(now);
+  const agencyToday = agencyDateUtc(now);
+  // getUTCDay(): Sun=0, Mon=1, ..., Sat=6. We want the completed Mon-Sun
+  // block immediately before the agency-local week containing `now`.
+  const day = agencyToday.getUTCDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  const endOffset = daysSinceMonday + 1;
+  const startOffset = endOffset + 6;
+  const end = new Date(agencyToday);
   end.setUTCDate(end.getUTCDate() - endOffset);
-  const start = new Date(now);
+  const start = new Date(agencyToday);
   start.setUTCDate(start.getUTCDate() - startOffset);
   return { start: toIso(start), end: toIso(end) };
 }

@@ -113,10 +113,6 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "propose_scheduled_task_update",
   "propose_stakeholder_deck",
   "propose_deck_from_template",
-  "execute_google_ads_action",
-  "execute_ga4_action",
-  "execute_gtm_action",
-  "review_tracking_changes",
 ]);
 
 const TOOL_BUNDLE_NAMES = [

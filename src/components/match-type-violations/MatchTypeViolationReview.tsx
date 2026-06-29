@@ -917,8 +917,11 @@ export default function MatchTypeViolationReview({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error(await res.text())
-      const data = await res.json()
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        const message = data?.error ?? 'Failed to add exact keywords'
+        throw new Error(message)
+      }
       const actionedIds = Array.isArray(data.results)
         ? data.results.filter((result: any) => result.outcome && result.outcome !== 'error').map((result: any) => result.id)
         : ids
@@ -927,7 +930,9 @@ export default function MatchTypeViolationReview({
       setSelected(new Set())
       setTotalDocs((prev) => Math.max(0, prev - actionedIds.length))
       if (data.groupErrors?.length || data.negateErrors?.length) {
-        alert(`Added ${data.actioned ?? actionedIds.length} keyword(s), with ${data.groupErrors?.length ?? 0} ad-group error(s) and ${data.negateErrors?.length ?? 0} negate error(s).`)
+        const firstGroupError = data.groupErrors?.[0]?.error ? `\n\nFirst ad-group error: ${data.groupErrors[0].error}` : ''
+        const firstNegateError = data.negateErrors?.[0] ? `\n\nFirst negate error: ${data.negateErrors[0]}` : ''
+        alert(`Added ${data.actioned ?? actionedIds.length} keyword(s), with ${data.groupErrors?.length ?? 0} ad-group error(s) and ${data.negateErrors?.length ?? 0} negate error(s).${firstGroupError}${firstNegateError}`)
       }
       void fetchCandidates()
     } catch (e: any) {

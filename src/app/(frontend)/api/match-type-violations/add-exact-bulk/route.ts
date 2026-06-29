@@ -321,6 +321,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const actioned = results.filter((r) => r.outcome !== "error").length;
+  if (actioned === 0) {
+    const reason = groupErrors[0]?.error ?? negateErrors[0] ?? "Growth Tools reported no added or duplicate keywords";
+    return NextResponse.json(
+      {
+        error: `No exact keywords were added: ${reason}`,
+        actioned,
+        added: addedTexts.size,
+        alreadyExists: duplicateTexts.size,
+        negated,
+        results,
+        groupErrors,
+        negateErrors,
+      },
+      { status: 502 },
+    );
+  }
+
   if (actioned > 0) {
     await logActivity(payload, {
       type: "match_type_violation_keyword_added",
