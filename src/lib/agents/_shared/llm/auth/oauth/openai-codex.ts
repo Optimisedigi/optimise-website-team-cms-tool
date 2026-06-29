@@ -15,15 +15,15 @@
  * Codex CLI uses by default — NOT the device-code flow, which requires an
  * account-level "device code login" toggle most users don't have enabled.
  *
- * On Vercel there is no localhost callback, so we use gg-framework's
- * manual-paste fallback: the admin page opens the authorize URL, the user
- * signs in, and pastes back the resulting `code` / `code#state` / full
- * callback URL — exactly like our existing Anthropic flow. The PKCE
- * `code_verifier` is generated here and round-tripped via an httpOnly cookie.
+ * In the CMS, the authorize URL uses the app's callback route instead of
+ * gg-framework's localhost loopback. The PKCE `code_verifier` is generated here
+ * and round-tripped via an httpOnly cookie so the callback route can exchange
+ * the code automatically; the admin page still supports pasting a code as a
+ * fallback.
  *
  * Flow:
  *   1. GET  https://auth.openai.com/oauth/authorize?... (browser, user signs in)
- *   2. User pastes the returned code / code#state / callback URL.
+ *   2. OpenAI redirects to the CMS callback route (or user pastes the code as fallback).
  *   3. POST https://auth.openai.com/oauth/token  grant_type=authorization_code
  *        (+ code_verifier, redirect_uri) -> { id_token, access_token,
  *        refresh_token, expires_in }
@@ -37,10 +37,10 @@ import type { OAuthCredential } from "../types";
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";
 const TOKEN_URL = "https://auth.openai.com/oauth/token";
-/** The Codex CLI browser flow posts back here. We never bind it on Vercel —
- *  the user pastes the code instead — but it MUST be sent on the token
- *  exchange because OpenAI validates redirect_uri against the authorize call. */
-const REDIRECT_URI = "http://localhost:1455/auth/callback";
+/** Fallback loopback used by gg-framework's CLI flow. The CMS normally passes a
+ *  first-party callback route to begin/complete so browser login does not land
+ *  on localhost. */
+const DEFAULT_REDIRECT_URI = "http://localhost:1455/auth/callback";
 /** Exact scope string gg-framework requests. */
 const SCOPE =
   "openid profile email offline_access api.connectors.read api.connectors.invoke";
@@ -62,11 +62,12 @@ interface OAuthTokenResponse {
 }
 
 /** Output of beginCodexLogin — given to the admin page so it can render the
- *  consent link and remember the verifier + state across the paste step. */
+ *  consent link and remember the verifier + state across callback/paste. */
 export interface BeginCodexLoginResult {
   authorizeUrl: string;
   state: string;
   codeVerifier: string;
+  redirectUri: string;
 }
 
 /**
@@ -74,16 +75,18 @@ export interface BeginCodexLoginResult {
  * `loginOpenAI` query params exactly (including the codex-specific flags that
  * make OpenAI mint a Codex-capable token).
  */
-export function beginCodexLogin(): BeginCodexLoginResult {
+export function beginCodexLogin(opts: { redirectUri?: string } = {}): BeginCodexLoginResult {
   const { codeVerifier, codeChallenge } = generateChallenge();
   const state = Array.from(crypto.getRandomValues(new Uint8Array(16)))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
+  const redirectUri = opts.redirectUri ?? DEFAULT_REDIRECT_URI;
+
   const url = new URL(AUTHORIZE_URL);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", CLIENT_ID);
-  url.searchParams.set("redirect_uri", REDIRECT_URI);
+  url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("scope", SCOPE);
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
@@ -92,7 +95,7 @@ export function beginCodexLogin(): BeginCodexLoginResult {
   url.searchParams.set("codex_cli_simplified_flow", "true");
   url.searchParams.set("originator", "ggcoder");
 
-  return { authorizeUrl: url.toString(), state, codeVerifier };
+  return { authorizeUrl: url.toString(), state, codeVerifier, redirectUri };
 }
 
 /**
@@ -194,6 +197,7 @@ export async function completeCodexLogin(opts: {
   pasteString: string;
   expectedState: string;
   codeVerifier: string;
+  redirectUri?: string;
 }): Promise<OAuthCredential> {
   const parsed = parseAuthorizationInput(opts.pasteString);
   if (!parsed.code) {
@@ -202,7 +206,11 @@ export async function completeCodexLogin(opts: {
   if (parsed.state && parsed.state !== opts.expectedState) {
     throw new Error("State mismatch. Please retry the login flow.");
   }
-  return exchangeCodexCode({ authorizationCode: parsed.code, codeVerifier: opts.codeVerifier });
+  return exchangeCodexCode({
+    authorizationCode: parsed.code,
+    codeVerifier: opts.codeVerifier,
+    redirectUri: opts.redirectUri,
+  });
 }
 
 /** Exchange an authorization code for tokens at the OAuth token endpoint and
@@ -210,6 +218,7 @@ export async function completeCodexLogin(opts: {
 export async function exchangeCodexCode(opts: {
   authorizationCode: string;
   codeVerifier: string;
+  redirectUri?: string;
 }): Promise<OAuthCredential> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
@@ -218,7 +227,7 @@ export async function exchangeCodexCode(opts: {
       grant_type: "authorization_code",
       client_id: CLIENT_ID,
       code: opts.authorizationCode,
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: opts.redirectUri ?? DEFAULT_REDIRECT_URI,
       code_verifier: opts.codeVerifier,
     }).toString(),
   });
