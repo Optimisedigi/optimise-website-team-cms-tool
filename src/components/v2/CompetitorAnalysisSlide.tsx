@@ -48,6 +48,9 @@ type ProposalCompetitor = {
   name?: string | null
   websiteUrl?: string | null
   manualMonthlyVisits?: number | string | null
+  serpAveragePosition?: number | null
+  serpKeywordsFound?: number | null
+  serpKeywordPositions?: Array<{ keyword?: string; position?: number }> | null
   hasGoogleAds?: boolean | null
   hasMetaAds?: boolean | null
 }
@@ -126,8 +129,7 @@ export function CompetitorAnalysisSlide({
 
   // Append manual proposal competitors that aren't already in the automated
   // list. Build them as CompetitorProfile-shaped rows so they render through
-  // the same table cell logic. Manual rows have no traffic/keywords data so
-  // those columns render empty.
+  // the same table cell logic, including any saved manual SERP metrics.
   const manualOnly = (proposalCompetitors ?? [])
     .map((m): (CompetitorProfile & { _visits: number }) | null => {
       const key = normaliseDomain(m.websiteUrl) || normaliseDomain(m.name)
@@ -135,9 +137,9 @@ export function CompetitorAnalysisSlide({
       seenDomains.add(key)
       return {
         domain: key,
-        avgPosition: null,
-        averagePosition: null,
-        keywordsFound: null,
+        avgPosition: m.serpAveragePosition ?? null,
+        averagePosition: m.serpAveragePosition ?? null,
+        keywordsFound: m.serpKeywordsFound ?? null,
         manualMonthlyVisits: m.manualMonthlyVisits ?? null,
         traffic: null,
         googleAds: m.hasGoogleAds ? { isRunningAds: true } : null,

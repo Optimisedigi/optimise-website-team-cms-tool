@@ -22,9 +22,9 @@ describe('API endpoint inventory', () => {
     expect(existsSync('docs/api-endpoint-inventory.md')).toBe(true)
     const doc = readFileSync('docs/api-endpoint-inventory.md', 'utf8')
 
-    expect(doc).toContain('CMS route files inventoried: 295')
+    expect(doc).toContain('CMS route files inventoried: 296')
     expect(doc).toContain('Growth Tools route registrations inventoried: 263')
-    expect(doc).toContain('CMS → Growth Tools calls detected: 47')
+    expect(doc).toContain('CMS → Growth Tools calls detected: 48')
     expect(doc).toContain('`/api/dashboard`')
     expect(doc).toContain('`/api/proposals/[id]/run-audits`')
     expect(doc).toContain('CMS → Growth Tools calls')
@@ -49,7 +49,7 @@ describe('API endpoint inventory', () => {
   it('maps CMS outbound Growth Tools calls to Growth Tools route registrations', () => {
     const inventory = readInventoryJson()
     expect(inventory.growthToolsCallRows).toEqual(expect.any(Array))
-    expect(inventory.growthToolsCallRows.length).toBe(47)
+    expect(inventory.growthToolsCallRows.length).toBe(48)
 
     expect(inventory.growthToolsCallRows).toEqual(
       expect.arrayContaining([

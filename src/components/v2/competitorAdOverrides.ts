@@ -28,6 +28,10 @@ export type CompetitorLike = {
   websiteUrl?: string | null
   googleAds?: AdsLike
   metaAds?: AdsLike
+  avgPosition?: number | null
+  averagePosition?: number | null
+  keywordsFound?: number | null
+  keywordPositions?: unknown[] | null
   manualMonthlyVisits?: number | string | null
   /** Manual ad screenshot URLs, merged in from proposal-side overrides. */
   manualGoogleAdScreenshotUrls?: string[]
@@ -48,6 +52,9 @@ export type ProposalCompetitorOverride = {
   googleAdScreenshots?: ScreenshotRow[] | null
   metaAdScreenshots?: ScreenshotRow[] | null
   manualMonthlyVisits?: number | string | null
+  serpAveragePosition?: number | null
+  serpKeywordsFound?: number | null
+  serpKeywordPositions?: unknown[] | null
 }
 
 /** Pull populated media URLs out of an array of `{ image: Media }` rows. */
@@ -126,6 +133,19 @@ export function applyAdOverrides<T extends CompetitorLike>(
 
     if ((override.manualMonthlyVisits ?? null) != null) {
       next.manualMonthlyVisits = override.manualMonthlyVisits
+    }
+
+    if ((override.serpAveragePosition ?? null) != null) {
+      next.averagePosition = override.serpAveragePosition
+      next.avgPosition = override.serpAveragePosition
+    }
+
+    if ((override.serpKeywordsFound ?? null) != null) {
+      next.keywordsFound = override.serpKeywordsFound
+    }
+
+    if (Array.isArray(override.serpKeywordPositions) && override.serpKeywordPositions.length > 0) {
+      next.keywordPositions = override.serpKeywordPositions
     }
 
     // Manual ad screenshot uploads — populated via depth:2 fetch in page.tsx.

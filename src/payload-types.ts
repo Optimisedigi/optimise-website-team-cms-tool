@@ -2205,6 +2205,38 @@ export interface ClientProposal {
          */
         manualMonthlyVisits?: number | null;
         /**
+         * SERP-derived average organic position for this manual competitor.
+         */
+        serpAveragePosition?: number | null;
+        /**
+         * How many proposal keywords this manual competitor ranked for.
+         */
+        serpKeywordsFound?: number | null;
+        /**
+         * Optional keyword/position detail returned by Growth Tools.
+         */
+        serpKeywordPositions?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Latest manual competitor SERP metrics fetch status.
+         */
+        serpMetricsStatus?: ('idle' | 'running' | 'completed' | 'failed' | 'skipped') | null;
+        /**
+         * Latest error from manual competitor SERP metrics fetch.
+         */
+        serpMetricsError?: string | null;
+        /**
+         * When SERP metrics were last fetched for this competitor.
+         */
+        serpMetricsUpdatedAt?: string | null;
+        /**
          * Google Maps listing URL
          */
         googleMapsUrl?: string | null;
@@ -2359,29 +2391,37 @@ export interface ClientProposal {
    */
   latestAiVisibilitySnapshot?: (number | null) | AiVisibilitySnapshot;
   /**
-   * Select slides to REMOVE from the report. Selected slides will be hidden. Leave empty to show all.
+   * Tick pages to REMOVE from the report. Checked pages will be hidden. Leave empty to show all.
    */
   visibleSlides?:
     | (
-        | '1'
-        | '2'
-        | '3'
-        | '4'
-        | '5'
-        | '6'
-        | '7'
-        | '8'
-        | '9'
-        | '10'
-        | '11'
-        | '12'
-        | '13'
-        | '14'
-        | '15'
-        | '16'
-        | '17'
-        | '18'
-        | '19'
+        | '01 Cover'
+        | '02 What This Covers'
+        | '03 Section 01'
+        | '04 Philosophy'
+        | '04b Order of Operations'
+        | '05 Section 02'
+        | '06 Mission Brief'
+        | '08 Section 03'
+        | '09 Competitor Analysis'
+        | '10 Keywords'
+        | '11 Section 04'
+        | '14 SEO Health'
+        | '15 CRO Health'
+        | '13 Section 05'
+        | '13a Building the Ship'
+        | '13b Section 06'
+        | '17 Organic Propulsion'
+        | '18 Paid Activation'
+        | '16 Section 07'
+        | '20 Return Modelling'
+        | '19 Section 08'
+        | '12 Priorities'
+        | '21 Section 09'
+        | '22 Roadmap'
+        | '23 Section 10'
+        | '24 Commercial'
+        | '27 Closing'
       )[]
     | null;
   /**
@@ -9816,6 +9856,12 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         name?: T;
         websiteUrl?: T;
         manualMonthlyVisits?: T;
+        serpAveragePosition?: T;
+        serpKeywordsFound?: T;
+        serpKeywordPositions?: T;
+        serpMetricsStatus?: T;
+        serpMetricsError?: T;
+        serpMetricsUpdatedAt?: T;
         googleMapsUrl?: T;
         gbpRating?: T;
         gbpReviewCount?: T;

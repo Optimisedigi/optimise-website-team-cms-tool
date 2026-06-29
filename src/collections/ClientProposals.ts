@@ -1392,6 +1392,66 @@ export const ClientProposals: CollectionConfig = {
                   },
                 },
                 {
+                  name: "serpAveragePosition",
+                  label: "SERP avg. position",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "SERP-derived average organic position for this manual competitor.",
+                    step: 0.1,
+                  },
+                },
+                {
+                  name: "serpKeywordsFound",
+                  label: "SERP keywords found",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "How many proposal keywords this manual competitor ranked for.",
+                    step: 1,
+                  },
+                },
+                {
+                  name: "serpKeywordPositions",
+                  label: "SERP keyword positions",
+                  type: "json",
+                  admin: {
+                    description: "Optional keyword/position detail returned by Growth Tools.",
+                  },
+                },
+                {
+                  name: "serpMetricsStatus",
+                  label: "SERP metrics status",
+                  type: "select",
+                  defaultValue: "idle",
+                  options: [
+                    { label: "Idle", value: "idle" },
+                    { label: "Running", value: "running" },
+                    { label: "Completed", value: "completed" },
+                    { label: "Failed", value: "failed" },
+                    { label: "Skipped", value: "skipped" },
+                  ],
+                  admin: {
+                    description: "Latest manual competitor SERP metrics fetch status.",
+                  },
+                },
+                {
+                  name: "serpMetricsError",
+                  label: "SERP metrics error",
+                  type: "textarea",
+                  admin: {
+                    description: "Latest error from manual competitor SERP metrics fetch.",
+                  },
+                },
+                {
+                  name: "serpMetricsUpdatedAt",
+                  label: "SERP metrics updated at",
+                  type: "date",
+                  admin: {
+                    description: "When SERP metrics were last fetched for this competitor.",
+                  },
+                },
+                {
                   name: "googleMapsUrl",
                   type: "text",
                   admin: {
@@ -1522,6 +1582,15 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 components: {
                   Field: "./components/RefreshProposalCompetitorTrafficButton",
+                },
+              },
+            },
+            {
+              name: "manualCompetitorSerpMetrics",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunManualCompetitorSerpMetricsButton",
                 },
               },
             },
