@@ -28,6 +28,8 @@ type CodexInputContentPart =
   | { type: "input_image"; image_url: string }
   | { type: "output_text"; text: string; annotations: [] };
 
+type CodexReasoningInputItem = { type: "reasoning"; encrypted_content?: string; [key: string]: unknown };
+
 type CodexInputItem =
   | { role: "user"; content: CodexInputContentPart[] }
   | {
@@ -36,6 +38,7 @@ type CodexInputItem =
       content: CodexInputContentPart[];
       status: "completed";
     }
+  | CodexReasoningInputItem
   | { type: "function_call"; id: string; call_id: string; name: string; arguments: string }
   | { type: "function_call_output"; call_id: string; output: string };
 
@@ -64,18 +67,37 @@ export interface CodexRequestBody {
   prompt_cache_key?: string;
 }
 
+const CODEX_SAFE_ID = /^[a-zA-Z0-9_-]+$/;
+
 /**
- * Remap a tool-call id to the `fc_` prefix Codex requires. gg-framework's
- * `remapCodexId`: leave `fc_`/`fc-` ids alone; otherwise strip a leading
- * `toolu_` and prefix `fc_`. Deterministic via the shared idMap so a
- * function_call and its matching function_call_output keep the same id.
+ * Remap a tool-call id to the `fc_` prefix Codex requires.
+ *
+ * Mirrors current gg-ai hardening: split composite `callId|itemId` values,
+ * strip Anthropic's `toolu_` prefix, sanitize provider-specific characters,
+ * and avoid collisions after sanitization.
  */
-function remapCodexId(id: string, idMap: Map<string, string>): string {
-  if (id.startsWith("fc_") || id.startsWith("fc-")) return id;
+export function remapCodexId(id: string, idMap: Map<string, string>, usedIds: Set<string>): string {
   const existing = idMap.get(id);
   if (existing) return existing;
-  const mapped = `fc_${id.replace(/^toolu_/, "")}`;
+
+  const baseId = (typeof id === "string" && id.length > 0 ? id : "unknown").split("|")[0] || "unknown";
+  const withoutAnthropicPrefix = baseId.replace(/^toolu_/, "");
+  const withCodexPrefix =
+    withoutAnthropicPrefix.startsWith("fc_") || withoutAnthropicPrefix.startsWith("fc-")
+      ? withoutAnthropicPrefix
+      : `fc_${withoutAnthropicPrefix}`;
+  const sanitized = withCodexPrefix.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const fallback = CODEX_SAFE_ID.test(sanitized) ? sanitized : "fc_unknown";
+
+  let mapped = fallback;
+  let suffix = 2;
+  while (usedIds.has(mapped)) {
+    mapped = `${fallback}_${suffix}`;
+    suffix += 1;
+  }
+
   idMap.set(id, mapped);
+  usedIds.add(mapped);
   return mapped;
 }
 
@@ -86,6 +108,7 @@ export function toCodex(
 ): CodexRequestBody {
   const input: CodexInputItem[] = [];
   const idMap = new Map<string, string>();
+  const usedIds = new Set<string>();
 
   for (const m of opts.messages) {
     if (m.role === "system") {
@@ -108,7 +131,7 @@ export function toCodex(
           // tool_result on a user message -> standalone function_call_output.
           input.push({
             type: "function_call_output",
-            call_id: remapCodexId(part.toolUseId, idMap),
+            call_id: remapCodexId(part.toolUseId, idMap, usedIds),
             output: part.content,
           });
         }
@@ -126,8 +149,10 @@ export function toCodex(
             content: [{ type: "output_text", text: part.text, annotations: [] }],
             status: "completed",
           });
+        } else if (part.type === "raw" && part.provider === "openai-codex") {
+          input.push({ ...part.value, type: "reasoning" } as CodexReasoningInputItem);
         } else if (part.type === "tool_use") {
-          const mapped = remapCodexId(part.id, idMap);
+          const mapped = remapCodexId(part.id, idMap, usedIds);
           input.push({
             type: "function_call",
             id: mapped,
@@ -145,7 +170,7 @@ export function toCodex(
         if (part.type === "tool_result") {
           input.push({
             type: "function_call_output",
-            call_id: remapCodexId(part.toolUseId, idMap),
+            call_id: remapCodexId(part.toolUseId, idMap, usedIds),
             output: part.content,
           });
         }
@@ -170,11 +195,12 @@ export function toCodex(
     input,
     tool_choice: "auto",
     parallel_tool_calls: true,
+    include: ["reasoning.encrypted_content"],
+    reasoning: {
+      effort: config.reasoningMode === "off" ? "none" : config.reasoningMode,
+      summary: "auto",
+    },
   };
-  if (config.reasoningMode !== "off") {
-    body.include = ["reasoning.encrypted_content"];
-    body.reasoning = { effort: config.reasoningMode, summary: "auto" };
-  }
   // gg-framework drops temperature when a reasoning effort is set; keep the
   // existing no-temperature behaviour for Codex.
   if (opts.tools && opts.tools.length > 0) {

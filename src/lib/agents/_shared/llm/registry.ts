@@ -20,7 +20,7 @@
  * Responses backend. The Codex API takes this as a per-request
  * `reasoning.effort` value.
  */
-export type CodexEffort = "low" | "medium" | "high" | "xhigh";
+export type CodexEffort = "none" | "low" | "medium" | "high" | "xhigh";
 
 export const MODEL_REGISTRY = {
   // Anthropic (native API). All connect via OAuth (Claude Code client

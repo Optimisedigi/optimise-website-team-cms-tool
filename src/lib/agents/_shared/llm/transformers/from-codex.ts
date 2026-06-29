@@ -45,7 +45,13 @@ interface CodexFunctionCallItem {
   arguments?: string;
 }
 
-type CodexOutputItem = CodexMessageItem | CodexFunctionCallItem | { type: string };
+interface CodexReasoningItem {
+  type: "reasoning";
+  encrypted_content?: string;
+  [key: string]: unknown;
+}
+
+type CodexOutputItem = CodexMessageItem | CodexFunctionCallItem | CodexReasoningItem | { type: string };
 
 interface CodexUsage {
   input_tokens?: number;
@@ -67,6 +73,18 @@ function safeParseJson(s: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+function codexErrorMessage(prefix: string, message: string, requestId?: unknown): string {
+  const suffix = typeof requestId === "string" && requestId.length > 0 ? ` request_id=${requestId}` : "";
+  const lower = message.toLowerCase();
+  const usageHint = /usage|rate.?limit|quota|too many requests|capacity/.test(lower)
+    ? " ChatGPT subscription usage limit or rate limit reached; retry after the reset window or use a fallback model."
+    : "";
+  const modelHint = /model|not available|not found|unsupported|does not exist|not enabled/.test(lower)
+    ? " Codex model may be unavailable for this ChatGPT account; choose another GPT Codex model."
+    : "";
+  return `${prefix}: ${message}${usageHint}${modelHint}${suffix}`;
 }
 
 function mapStatus(status: string | undefined, hasToolUse: boolean): StopReason {
@@ -102,12 +120,12 @@ export function fromCodex(
   for (const ev of events) {
     if (ev.type === "error") {
       const message = (ev.message as string) || (ev.code as string) || "Codex stream error";
-      throw new Error(`Codex error: ${message}`);
+      throw new Error(codexErrorMessage("Codex error", message, ev.request_id));
     }
     if (ev.type === "response.failed") {
-      const resp = ev.response as { error?: { message?: string; code?: string } } | undefined;
+      const resp = ev.response as { error?: { message?: string; code?: string }; id?: string } | undefined;
       const message = resp?.error?.message || resp?.error?.code || "Codex response failed";
-      throw new Error(`Codex error: ${message}`);
+      throw new Error(codexErrorMessage("Codex error", message, resp?.id ?? ev.request_id));
     }
 
     if (ev.type === "response.output_item.done") {
@@ -119,6 +137,11 @@ export function fromCodex(
           .map((c) => (c.type === "output_text" ? c.text ?? "" : ""))
           .join("");
         if (text.length > 0) content.push({ type: "text", text });
+      } else if (item.type === "reasoning") {
+        const reasoning = item as CodexReasoningItem;
+        if (typeof reasoning.encrypted_content === "string" && reasoning.encrypted_content.length > 0) {
+          content.push({ type: "raw", provider: "openai-codex", value: { ...reasoning } });
+        }
       } else if (item.type === "function_call") {
         const fc = item as CodexFunctionCallItem;
         const rawId = fc.call_id ?? fc.id ?? "";

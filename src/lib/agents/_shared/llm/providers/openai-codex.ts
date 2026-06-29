@@ -49,6 +49,59 @@ const CODEX_CACHE_SCOPE = "ggcoder";
 const CODEX_RESPONSES_PATH = "/codex/responses";
 const DEFAULT_LLM_TIMEOUT_MS = 90_000;
 
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(text);
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getNestedString(value: unknown, path: string[]): string | undefined {
+  let current = value;
+  for (const key of path) {
+    if (typeof current !== "object" || current === null || !(key in current)) return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" && current.length > 0 ? current : undefined;
+}
+
+function codexRequestId(headers: Headers): string | undefined {
+  return (
+    headers.get("x-request-id") ??
+    headers.get("x-openai-request-id") ??
+    headers.get("cf-ray") ??
+    undefined
+  );
+}
+
+function describeCodexHttpError(status: number, bodyText: string, headers: Headers): string {
+  const parsed = parseJsonObject(bodyText);
+  const bodyMessage = bodyText.trim();
+  const rawMessage =
+    getNestedString(parsed, ["error", "message"]) ??
+    getNestedString(parsed, ["error", "code"]) ??
+    getNestedString(parsed, ["detail"]) ??
+    getNestedString(parsed, ["message"]) ??
+    (bodyMessage.length > 0 ? bodyMessage : `HTTP ${status}`);
+
+  const lower = rawMessage.toLowerCase();
+  const hints: string[] = [];
+  if (status === 429 || /usage|rate.?limit|quota|too many requests|capacity/.test(lower)) {
+    hints.push("ChatGPT subscription usage limit or rate limit reached; retry after the reset window or use a fallback model.");
+  }
+  if (status === 404 || /model|not available|not found|unsupported|does not exist|not enabled/.test(lower)) {
+    hints.push("Codex model may be unavailable for this ChatGPT account; choose another GPT Codex model in OptiMate settings.");
+  }
+  if (status === 401 || status === 403 || /unauthorized|forbidden|account|subscription/.test(lower)) {
+    hints.push("Reconnect ChatGPT OAuth or verify the account has Codex access.");
+  }
+
+  const requestId = codexRequestId(headers);
+  return [rawMessage, ...hints, requestId ? `request_id=${requestId}` : undefined].filter(Boolean).join(" ");
+}
+
 /**
  * Parse a Codex SSE stream body to a flat list of JSON events. Reads the
  * stream to completion (the agent loop sees a single response, not a stream).
@@ -128,7 +181,11 @@ export async function callOpenAICodex(
       signal: AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS),
     });
     if (!res.ok) {
-      throw new HttpError(res.status, await res.text(), { headers: res.headers });
+      const bodyText = await res.text();
+      throw new HttpError(res.status, bodyText, {
+        headers: res.headers,
+        message: describeCodexHttpError(res.status, bodyText, res.headers),
+      });
     }
     if (!res.body) {
       throw new HttpError(502, "Codex response had no body", { headers: res.headers });

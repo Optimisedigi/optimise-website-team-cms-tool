@@ -29,7 +29,15 @@ export type ContentPart =
    * `data`, we only round-trip it verbatim so the model's reasoning chain
    * stays valid across turns.
    */
-  | { type: "redacted_thinking"; data: string };
+  | { type: "redacted_thinking"; data: string }
+  /**
+   * Opaque provider-native content that must be round-tripped verbatim.
+   *
+   * Used for Codex Responses `reasoning` output items containing
+   * `encrypted_content`; the app must not inspect or mutate the payload, only
+   * replay it before the related function calls on later turns.
+   */
+  | { type: "raw"; provider: "openai-codex"; value: Record<string, unknown> };
 
 export interface Message {
   role: Role;

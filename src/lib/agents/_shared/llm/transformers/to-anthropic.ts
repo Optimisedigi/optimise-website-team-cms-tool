@@ -107,6 +107,7 @@ export function toAnthropic(
       .filter((part) => {
         if (part.type === "thinking" && !part.signature) return false;
         if (part.type === "text" && part.text === "") return false;
+        if (part.type === "raw") return false;
         return true;
       })
       .map((part): AnthropicMessage["content"][number] => {
@@ -131,13 +132,16 @@ export function toAnthropic(
         if (part.type === "redacted_thinking") {
           return { type: "redacted_thinking", data: part.data };
         }
-        // tool_result on non-tool message: treat as user content
-        return {
-          type: "tool_result",
-          tool_use_id: sanitizeToolUseId(part.toolUseId),
-          content: part.content,
-          ...(part.isError ? { is_error: true } : {}),
-        };
+        if (part.type === "tool_result") {
+          // tool_result on non-tool message: treat as user content
+          return {
+            type: "tool_result",
+            tool_use_id: sanitizeToolUseId(part.toolUseId),
+            content: part.content,
+            ...(part.isError ? { is_error: true } : {}),
+          };
+        }
+        throw new Error(`Unsupported Anthropic content part: ${part.type}`);
       });
 
     // An assistant turn whose only content was an unsigned thinking block (now
