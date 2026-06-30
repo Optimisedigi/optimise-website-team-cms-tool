@@ -4806,9 +4806,9 @@ export interface NegativeKeywordList {
    */
   isActive?: boolean | null;
   /**
-   * Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor' or 'brand' for negatives that block non-converting-but-not-irrelevant traffic (e.g. competitor brand terms) — their spend is kept out of the default relevancy % but can be toggled back on per-category in the dashboard. The keywords are still synced to Google Ads regardless.
+   * Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor' or 'brand' for negatives that block non-converting-but-not-irrelevant traffic and can be toggled back on per-category. Choose 'routing only' for fully relevant negatives used only to steer spend to the correct campaign/ad group. The keywords are still synced to Google Ads regardless.
    */
-  relevancyExclusion?: ('none' | 'competitor' | 'brand') | null;
+  relevancyExclusion?: ('none' | 'competitor' | 'brand' | 'routing_only') | null;
   /**
    * Where this list originated: 'nlb' (Negative List Builder) or 'deep_dive' (Keyword Deep Dive)
    */

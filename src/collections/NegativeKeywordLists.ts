@@ -492,11 +492,12 @@ export const NegativeKeywordLists: CollectionConfig = {
             { label: "Count against relevancy (default)", value: "none" },
             { label: "Exclude as competitor", value: "competitor" },
             { label: "Exclude as brand", value: "brand" },
+            { label: "Exclude from relevancy / routing only", value: "routing_only" },
           ],
           admin: {
             width: "50%",
             description:
-              "Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor' or 'brand' for negatives that block non-converting-but-not-irrelevant traffic (e.g. competitor brand terms) — their spend is kept out of the default relevancy % but can be toggled back on per-category in the dashboard. The keywords are still synced to Google Ads regardless.",
+              "Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor' or 'brand' for negatives that block non-converting-but-not-irrelevant traffic and can be toggled back on per-category. Choose 'routing only' for fully relevant negatives used only to steer spend to the correct campaign/ad group. The keywords are still synced to Google Ads regardless.",
           },
         },
       ],

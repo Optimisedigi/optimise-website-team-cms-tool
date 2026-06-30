@@ -45,6 +45,45 @@ export interface WarmMonthlyWasteRelevancyResult {
   slug: string;
 }
 
+type RelevancyNegativeKeyword = {
+  text: string;
+  matchType: "EXACT" | "PHRASE" | "BROAD";
+  exclusion: "none" | "competitor" | "brand";
+};
+
+export function collectRelevancyNegativeKeywords(nkls: any[]): RelevancyNegativeKeyword[] {
+  // Collect negatives with their match types intact. Each NKL keyword carries
+  // a structured matchType (exact/phrase/broad); forwarding it lets Growth
+  // Tools apply true Google Ads match semantics instead of substring-matching
+  // every term as BROAD (which over-credits irrelevant spend and craters the
+  // relevancy %). Dedup on (text|matchType|exclusion).
+  const seen = new Set<string>();
+  const irrelevantKeywords: RelevancyNegativeKeyword[] = [];
+  for (const list of nkls) {
+    // A list tagged competitor/brand has its keywords kept OUT of the default
+    // relevancy % (foldable back in via dashboard toggles). "none" lists
+    // count normally. "routing_only" lists are fully relevant negatives used
+    // only to steer spend to the correct campaign/ad group, so they are not
+    // sent to Growth Tools as relevancy negatives at all.
+    const ex = String(list?.relevancyExclusion ?? "").toLowerCase();
+    if (ex === "routing_only") continue;
+    const listExclusion: "none" | "competitor" | "brand" =
+      ex === "competitor" || ex === "brand" ? ex : "none";
+    for (const kw of list?.keywords ?? []) {
+      if (typeof kw?.keyword !== "string" || !kw.keyword.trim()) continue;
+      const text = kw.keyword.trim();
+      const mt = String(kw?.matchType ?? "").toUpperCase();
+      const matchType: "EXACT" | "PHRASE" | "BROAD" =
+        mt === "EXACT" || mt === "PHRASE" || mt === "BROAD" ? mt : "EXACT";
+      const dedupKey = `${text.toLowerCase()}|${matchType}|${listExclusion}`;
+      if (seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
+      irrelevantKeywords.push({ text, matchType, exclusion: listExclusion });
+    }
+  }
+  return irrelevantKeywords;
+}
+
 /**
  * Pull NKLs (the "currently irrelevant" term set), compute misses against
  * the cache, refresh missing months from Growth Tools, and return the
@@ -96,44 +135,7 @@ export async function warmMonthlyWasteRelevancyForClient(
     overrideAccess: true,
   });
 
-  // Collect negatives with their match types intact. Each NKL keyword carries
-  // a structured matchType (exact/phrase/broad); forwarding it lets Growth
-  // Tools apply true Google Ads match semantics instead of substring-matching
-  // every term as BROAD (which over-credits irrelevant spend and craters the
-  // relevancy %). Dedup on (text|matchType).
-  const seen = new Set<string>();
-  const irrelevantKeywords: Array<{
-    text: string;
-    matchType: "EXACT" | "PHRASE" | "BROAD";
-    exclusion: "none" | "competitor" | "brand";
-  }> = [];
-  for (const list of nkls.docs as any[]) {
-    // A list tagged competitor/brand has its keywords kept OUT of the default
-    // relevancy % (foldable back in via dashboard toggles). "none" lists
-    // count normally. Each keyword inherits its list's exclusion tag.
-    const ex = String(list?.relevancyExclusion ?? "").toLowerCase();
-    const listExclusion: "none" | "competitor" | "brand" =
-      ex === "competitor" || ex === "brand" ? ex : "none";
-    for (const kw of list?.keywords ?? []) {
-      if (typeof kw?.keyword !== "string" || !kw.keyword.trim()) continue;
-      const text = kw.keyword.trim();
-      // matchType is required on the NKL keyword schema (default "exact").
-      // Fall back to EXACT for any malformed value rather than BROAD — BROAD
-      // is the over-aggressive default that caused the original over-flagging
-      // bug, so we never want to silently widen a keyword's reach here.
-      const mt = String(kw?.matchType ?? "").toUpperCase();
-      const matchType: "EXACT" | "PHRASE" | "BROAD" =
-        mt === "EXACT" || mt === "PHRASE" || mt === "BROAD" ? mt : "EXACT";
-      // Dedup keeps the FIRST occurrence. Normal ("none") lists are processed
-      // the same as before; if the same keyword appears in both a normal and
-      // an excluded list, Growth Tools' priority logic (none > competitor >
-      // brand) ensures it still counts against relevancy.
-      const dedupKey = `${text.toLowerCase()}|${matchType}|${listExclusion}`;
-      if (seen.has(dedupKey)) continue;
-      seen.add(dedupKey);
-      irrelevantKeywords.push({ text, matchType, exclusion: listExclusion });
-    }
-  }
+  const irrelevantKeywords = collectRelevancyNegativeKeywords(nkls.docs as any[]);
   // Legacy bare-string list kept for the response's irrelevantTermCount and
   // for backward compatibility with older Growth Tools deploys.
   const irrelevantTerms = irrelevantKeywords.map((k) => k.text);
