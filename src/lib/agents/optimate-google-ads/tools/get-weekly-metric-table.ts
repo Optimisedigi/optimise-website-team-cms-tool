@@ -30,12 +30,10 @@
  * Data path:
  *   1. Build N empty week buckets via `buildWeeklyBuckets` so we know the
  *      bucket boundaries (weekStart..weekEnd).
- *   2. Issue ONE Growth Tools `campaign-budgets/get-metrics` call per bucket,
- *      summing cost / clicks / impressions / conversions across campaigns
- *      into a `WeeklyBucketTotals`.
- *   3. Re-call `buildWeeklyBuckets` with the per-bucket totals keyed on
- *      `weekStart` (renderer sums by date inside the bucket window; a single
- *      sample dated to `weekStart` covers the whole bucket).
+ *   2. Issue ONE Growth Tools `campaign-budgets/get-metrics` call for the full
+ *      requested range with `segment=week`.
+ *   3. Sum cost / clicks / impressions / conversions into the matching weekly
+ *      bucket from each returned segment row.
  *   4. Render via `generateWeeklyMetricTableHtml`.
  *
  *   The Growth Tools `avgCpc` field is intentionally ignored - it's
@@ -73,6 +71,7 @@ interface MetricRaw {
   conversions?: number;
   /** Google Ads CTR returned by Growth Tools as a percent, e.g. 1.42. */
   ctr?: number | string | null;
+  segment?: string | { week?: unknown; week_start?: unknown; date?: unknown; day?: unknown; segments?: { week?: unknown; date?: unknown } };
 }
 
 interface MetricsEnvelope {
@@ -243,7 +242,9 @@ export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
     }
 
     // Pre-build the week buckets with an empty perDay series so we know the
-    // bucket boundaries. Then issue one Growth Tools call per bucket.
+    // bucket boundaries. Then issue one segmented Growth Tools call for the
+    // entire requested span, regardless of whether the caller asked for 1, 4,
+    // 6, 8, or 12 weeks.
     const emptyRows = buildWeeklyBuckets({
       perDay: [],
       weeks: args.weeks,
@@ -253,29 +254,22 @@ export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
     const conversionActions =
       (ctx.context.conversionActions as string | undefined) ?? "";
 
-    const fetches = emptyRows.map((row) =>
-      fetchWeekTotals(customerId, row, conversionActions),
-    );
-    const results = await Promise.all(fetches);
-
-    // Any single failure short-circuits - we don't render half-empty trend
-    // tables and pretend they're complete.
-    for (const r of results) {
-      if (!r.ok) {
-        return { ok: false, error: r.error };
-      }
-    }
+    const result = await fetchSegmentedWeekTotals(customerId, emptyRows, conversionActions);
+    if (!result.ok) return { ok: false, error: result.error };
 
     // Compose a per-day series with one row per bucket dated to weekStart.
     // The renderer sums anything between weekStart and weekEnd inclusive.
-    const perDay = results.map((r, i) => ({
-      date: emptyRows[i].weekStart,
-      spend: r.ok ? r.totals.spend : 0,
-      clicks: r.ok ? r.totals.clicks : 0,
-      impressions: r.ok ? r.totals.impressions : 0,
-      conversions: r.ok ? r.totals.conversions : 0,
-      ...(r.ok && typeof r.totals.googleCtr === "number" ? { googleCtr: r.totals.googleCtr } : {}),
-    }));
+    const perDay = emptyRows.map((row) => {
+      const totals = result.totalsByWeekStart.get(row.weekStart) ?? emptyTotals();
+      return {
+        date: row.weekStart,
+        spend: totals.spend,
+        clicks: totals.clicks,
+        impressions: totals.impressions,
+        conversions: totals.conversions,
+        ...(typeof totals.googleCtr === "number" ? { googleCtr: totals.googleCtr } : {}),
+      };
+    });
 
     const rows: WeeklyBucketRow[] = buildWeeklyBuckets({
       perDay,
@@ -322,22 +316,35 @@ export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
   },
 };
 
-interface WeekTotalsOk {
+interface SegmentedWeekTotalsOk {
   ok: true;
-  totals: WeeklyBucketTotals;
+  totalsByWeekStart: Map<string, WeeklyBucketTotals>;
 }
-interface WeekTotalsErr {
+interface SegmentedWeekTotalsErr {
   ok: false;
   error: string;
 }
 
-async function fetchWeekTotals(
+function emptyTotals(): WeeklyBucketTotals {
+  return {
+    spend: 0,
+    clicks: 0,
+    impressions: 0,
+    conversions: 0,
+  };
+}
+
+async function fetchSegmentedWeekTotals(
   customerId: string,
-  row: WeeklyBucketRow,
+  rows: WeeklyBucketRow[],
   conversionActions: string,
-): Promise<WeekTotalsOk | WeekTotalsErr> {
-  const dateRangeParam = `${row.weekStart},${row.weekEnd}`;
-  const qs = new URLSearchParams({ customerId, dateRange: dateRangeParam });
+): Promise<SegmentedWeekTotalsOk | SegmentedWeekTotalsErr> {
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  if (!first || !last) return { ok: true, totalsByWeekStart: new Map() };
+
+  const dateRangeParam = `${first.weekStart},${last.weekEnd}`;
+  const qs = new URLSearchParams({ customerId, dateRange: dateRangeParam, segment: "week" });
   if (conversionActions) qs.set("conversionActions", conversionActions);
 
   const res = await growthToolsGet<MetricsEnvelope>(
@@ -346,13 +353,31 @@ async function fetchWeekTotals(
   );
   if (!res.ok) return { ok: false, error: res.error ?? "Growth Tools call failed" };
 
-  const totals: WeeklyBucketTotals = {
-    spend: 0,
-    clicks: 0,
-    impressions: 0,
-    conversions: 0,
-  };
-  const rows = res.data?.metrics ?? [];
+  const rawRows = res.data?.metrics ?? [];
+  const weekStarts = new Set(rows.map((row) => row.weekStart));
+  const grouped = new Map<string, MetricRaw[]>();
+  for (const row of rawRows) {
+    const weekStart = segmentWeekStart(row.segment);
+    if (!weekStart || !weekStarts.has(weekStart)) continue;
+    grouped.set(weekStart, [...(grouped.get(weekStart) ?? []), row]);
+  }
+
+  if (rawRows.length > 0 && grouped.size === 0) {
+    return {
+      ok: false,
+      error: "Growth Tools did not return week-segmented rows for this request. Expected segment.week values from /api/google-ads/campaign-budgets/get-metrics?segment=week.",
+    };
+  }
+
+  const totalsByWeekStart = new Map<string, WeeklyBucketTotals>();
+  for (const weekStart of weekStarts) {
+    totalsByWeekStart.set(weekStart, sumMetricRows(grouped.get(weekStart) ?? []));
+  }
+  return { ok: true, totalsByWeekStart };
+}
+
+function sumMetricRows(rows: MetricRaw[]): WeeklyBucketTotals {
+  const totals = emptyTotals();
   for (const m of rows) {
     totals.spend += Number(m.cost ?? m.spend ?? 0);
     totals.clicks += Number(m.clicks ?? 0);
@@ -361,7 +386,16 @@ async function fetchWeekTotals(
   }
   const googleCtr = weightedGoogleCtr(rows);
   if (typeof googleCtr === "number") totals.googleCtr = googleCtr;
-  return { ok: true, totals };
+  return totals;
+}
+
+function segmentWeekStart(segment: MetricRaw["segment"]): string | null {
+  if (!segment) return null;
+  if (typeof segment === "string") return segment.slice(0, 10) || null;
+  const raw = segment.week ?? segment.week_start ?? segment.segments?.week ?? segment.date ?? segment.day ?? segment.segments?.date;
+  if (raw === undefined || raw === null) return null;
+  const value = String(raw).slice(0, 10);
+  return ISO_DATE_RE.test(value) ? value : null;
 }
 
 function weightedGoogleCtr(rows: MetricRaw[]): number | null {

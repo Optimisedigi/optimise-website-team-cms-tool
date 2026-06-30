@@ -2,11 +2,11 @@
  * get_weekly_trend_note tool.
  *
  * Mocks `fetch` for the Growth Tools `campaign-budgets/get-metrics` call (one
- * per week bucket). Verifies:
+ * segmented request for the full weekly range). Verifies:
  *   - validate clamps weeks to [1, 12] and rejects malformed / future endDate
- *   - execute issues one call per week with the correct comma-span dateRange
+ *   - execute issues one segment=week call with the correct comma-span dateRange
  *   - execute returns ok:true with rows + the canonical HTML
- *   - execute returns ok:false when any underlying call fails
+ *   - execute returns ok:false when the segmented call fails
  *   - execute returns ok:false when customerId is missing from context
  */
 
@@ -33,13 +33,20 @@ const baseCtx = (extra: Partial<ToolContext["context"]> = {}): ToolContext => ({
   log: vi.fn(),
 });
 
-function metricsResponse(spend: number, conversions: number): Response {
+function metricsResponse(spend: number, conversions: number, week = "2026-05-11"): Response {
+  return segmentedMetricsResponse([{ spend, conversions, week }]);
+}
+
+function segmentedMetricsResponse(rows: Array<{ spend: number; conversions: number; week: string }>): Response {
   return new Response(
     JSON.stringify({
       success: true,
-      metrics: [
-        { campaignId: "c1", cost: spend, conversions },
-      ],
+      metrics: rows.map((row, index) => ({
+        campaignId: `c${index + 1}`,
+        cost: row.spend,
+        conversions: row.conversions,
+        segment: { week: row.week },
+      })),
     }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
@@ -109,7 +116,7 @@ describe("get_weekly_trend_note - validation", () => {
 });
 
 describe("get_weekly_trend_note - execute", () => {
-  it("issues one fetch per week with the correct comma-span dateRange and returns rendered HTML + rows", async () => {
+  it("issues one segmented fetch with the correct comma-span dateRange and returns rendered HTML + rows", async () => {
     // 4 weeks ending Sun 2026-05-17:
     //   - 2026-04-20..2026-04-26
     //   - 2026-04-27..2026-05-03
@@ -117,10 +124,12 @@ describe("get_weekly_trend_note - execute", () => {
     //   - 2026-05-11..2026-05-17
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(metricsResponse(700, 10)) // week 1: CPA $70 (green)
-      .mockResolvedValueOnce(metricsResponse(1500, 10)) // week 2: CPA $150 (amber)
-      .mockResolvedValueOnce(metricsResponse(2410, 5)) // week 3: CPA $482 (red)
-      .mockResolvedValueOnce(metricsResponse(800, 8)); // week 4: CPA $100 (amber)
+      .mockResolvedValueOnce(segmentedMetricsResponse([
+        { spend: 700, conversions: 10, week: "2026-04-20" }, // week 1: CPA $70 (green)
+        { spend: 1500, conversions: 10, week: "2026-04-27" }, // week 2: CPA $150 (amber)
+        { spend: 2410, conversions: 5, week: "2026-05-04" }, // week 3: CPA $482 (red)
+        { spend: 800, conversions: 8, week: "2026-05-11" }, // week 4: CPA $100 (amber)
+      ]));
     // @ts-expect-error - test override
     globalThis.fetch = fetchMock;
 
@@ -128,19 +137,19 @@ describe("get_weekly_trend_note - execute", () => {
     const result = await getWeeklyTrendNote.execute(args, baseCtx());
 
     expect(result.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // Spot-check the URL shape: each call hits the get-metrics endpoint with
-    // a comma-span dateRange covering one week.
-    const callUrls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(callUrls[0]).toContain(
+    // Spot-check the URL shape: one call hits the get-metrics endpoint with a
+    // comma-span dateRange covering the full requested range.
+    const callUrl = String(fetchMock.mock.calls[0][0]);
+    expect(callUrl).toContain(
       "/api/google-ads/campaign-budgets/get-metrics?",
     );
-    expect(callUrls[0]).toContain("customerId=1234567890");
-    expect(callUrls[0]).toContain("dateRange=2026-04-20%2C2026-04-26");
-    expect(callUrls[3]).toContain("dateRange=2026-05-11%2C2026-05-17");
+    expect(callUrl).toContain("customerId=1234567890");
+    expect(callUrl).toContain("dateRange=2026-04-20%2C2026-05-17");
+    expect(callUrl).toContain("segment=week");
     // conversionActions threaded through from context.
-    expect(callUrls[0]).toContain("conversionActions=Phone");
+    expect(callUrl).toContain("conversionActions=Phone");
 
     const data = result.data as {
       html: string;
@@ -173,8 +182,10 @@ describe("get_weekly_trend_note - execute", () => {
     // 2 weeks ending Thu 2026-05-21 → latest row 2026-05-18..2026-05-21 partial.
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(metricsResponse(700, 7))
-      .mockResolvedValueOnce(metricsResponse(400, 4));
+      .mockResolvedValueOnce(segmentedMetricsResponse([
+        { spend: 700, conversions: 7, week: "2026-05-11" },
+        { spend: 400, conversions: 4, week: "2026-05-18" },
+      ]));
     // @ts-expect-error - test override
     globalThis.fetch = fetchMock;
 
@@ -188,12 +199,10 @@ describe("get_weekly_trend_note - execute", () => {
     expect(data.html).toContain("background:#f0fdf4");
   });
 
-  it("returns ok:false when a Growth Tools call fails", async () => {
+  it("returns ok:false when the segmented Growth Tools call fails", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(metricsResponse(700, 7))
-      .mockResolvedValueOnce(new Response("upstream broken", { status: 500 }))
-      .mockResolvedValue(metricsResponse(0, 0));
+      .mockResolvedValueOnce(new Response("upstream broken", { status: 500 }));
     // @ts-expect-error - test override
     globalThis.fetch = fetchMock;
 

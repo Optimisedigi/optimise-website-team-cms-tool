@@ -2,14 +2,14 @@
  * get_weekly_metric_table tool.
  *
  * Mocks `fetch` for the Growth Tools `campaign-budgets/get-metrics` call (one
- * per week bucket). Verifies:
+ * segmented request for the full weekly range). Verifies:
  *   - validate enforces the closed metrics catalogue, dupes collapse, cap 6
  *   - validate rejects unknown `compare` values; "wow" is the only accepted
  *   - validate clamps weeks + endDate like the deprecated tool
- *   - execute issues one call per week and folds the response into
+ *   - execute issues one segment=week call and folds the response into
  *     WeeklyBucketTotals (spend / clicks / impressions / conversions)
  *   - execute returns ok:true with html + rows + metrics reflecting deduped order
- *   - execute returns ok:false when any underlying fetch fails
+ *   - execute returns ok:false when the segmented fetch fails
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -39,19 +39,29 @@ function metricsResponse(opts: {
   clicks: number;
   impressions: number;
   conversions: number;
+  week?: string;
 }): Response {
+  return segmentedMetricsResponse([{ ...opts, week: opts.week ?? "2026-05-11" }]);
+}
+
+function segmentedMetricsResponse(rows: Array<{
+  cost: number;
+  clicks: number;
+  impressions: number;
+  conversions: number;
+  week: string;
+}>): Response {
   return new Response(
     JSON.stringify({
       success: true,
-      metrics: [
-        {
-          campaignId: "c1",
-          cost: opts.cost,
-          clicks: opts.clicks,
-          impressions: opts.impressions,
-          conversions: opts.conversions,
-        },
-      ],
+      metrics: rows.map((row, index) => ({
+        campaignId: `c${index + 1}`,
+        cost: row.cost,
+        clicks: row.clicks,
+        impressions: row.impressions,
+        conversions: row.conversions,
+        segment: { week: row.week },
+      })),
     }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
@@ -167,21 +177,17 @@ describe("get_weekly_metric_table - validation", () => {
 });
 
 describe("get_weekly_metric_table - execute", () => {
-  it("issues one fetch per week, folds response into WeeklyBucketTotals, returns html + rows", async () => {
+  it("issues one segmented fetch, folds response into WeeklyBucketTotals, returns html + rows", async () => {
     // 4 weeks ending Sun 2026-05-17.
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        metricsResponse({ cost: 700, clicks: 350, impressions: 7000, conversions: 10 }),
-      )
-      .mockResolvedValueOnce(
-        metricsResponse({ cost: 1500, clicks: 600, impressions: 12_000, conversions: 10 }),
-      )
-      .mockResolvedValueOnce(
-        metricsResponse({ cost: 2410, clicks: 800, impressions: 16_000, conversions: 5 }),
-      )
-      .mockResolvedValueOnce(
-        metricsResponse({ cost: 800, clicks: 400, impressions: 8000, conversions: 8 }),
+        segmentedMetricsResponse([
+          { cost: 700, clicks: 350, impressions: 7000, conversions: 10, week: "2026-04-20" },
+          { cost: 1500, clicks: 600, impressions: 12_000, conversions: 10, week: "2026-04-27" },
+          { cost: 2410, clicks: 800, impressions: 16_000, conversions: 5, week: "2026-05-04" },
+          { cost: 800, clicks: 400, impressions: 8000, conversions: 8, week: "2026-05-11" },
+        ]),
       );
     // @ts-expect-error - test override
     globalThis.fetch = fetchMock;
@@ -194,15 +200,16 @@ describe("get_weekly_metric_table - execute", () => {
     const result = await getWeeklyMetricTable.execute(args, baseCtx());
 
     expect(result.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // Spot-check URL shape: each call hits the get-metrics endpoint with a
-    // comma-span dateRange covering one week, and threads conversionActions.
-    const callUrls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(callUrls[0]).toContain("/api/google-ads/campaign-budgets/get-metrics?");
-    expect(callUrls[0]).toContain("dateRange=2026-04-20%2C2026-04-26");
-    expect(callUrls[3]).toContain("dateRange=2026-05-11%2C2026-05-17");
-    expect(callUrls[0]).toContain("conversionActions=Phone");
+    // Spot-check URL shape: one call hits the get-metrics endpoint with a
+    // comma-span dateRange covering the full requested range, asks for weekly
+    // segmentation, and threads conversionActions.
+    const callUrl = String(fetchMock.mock.calls[0][0]);
+    expect(callUrl).toContain("/api/google-ads/campaign-budgets/get-metrics?");
+    expect(callUrl).toContain("dateRange=2026-04-20%2C2026-05-17");
+    expect(callUrl).toContain("segment=week");
+    expect(callUrl).toContain("conversionActions=Phone");
 
     const data = result.data as {
       html: string;
@@ -281,10 +288,10 @@ describe("get_weekly_metric_table - execute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        metricsResponse({ cost: 100, clicks: 100, impressions: 1000, conversions: 1 }),
-      )
-      .mockResolvedValueOnce(
-        metricsResponse({ cost: 100, clicks: 200, impressions: 1000, conversions: 1 }),
+        segmentedMetricsResponse([
+          { cost: 100, clicks: 100, impressions: 1000, conversions: 1, week: "2026-05-04" },
+          { cost: 100, clicks: 200, impressions: 1000, conversions: 1, week: "2026-05-11" },
+        ]),
       );
     // @ts-expect-error - test override
     globalThis.fetch = fetchMock;
@@ -304,16 +311,10 @@ describe("get_weekly_metric_table - execute", () => {
     expect(data.html).not.toMatch(/color:#(?:059669|dc2626)[^"]*">[+-]\d+\.0%/);
   });
 
-  it("returns ok:false when any underlying fetch fails", async () => {
+  it("returns ok:false when the segmented fetch fails", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        metricsResponse({ cost: 100, clicks: 50, impressions: 1000, conversions: 1 }),
-      )
-      .mockResolvedValueOnce(new Response("upstream broken", { status: 500 }))
-      .mockResolvedValue(
-        metricsResponse({ cost: 0, clicks: 0, impressions: 0, conversions: 0 }),
-      );
+      .mockResolvedValueOnce(new Response("upstream broken", { status: 500 }));
     // @ts-expect-error - test override
     globalThis.fetch = fetchMock;
 
