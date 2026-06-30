@@ -210,6 +210,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
 
   // Execute via Growth Tools / direct actions
   create_gmail_draft: "actions",
+  create_weekly_budget_gmail_draft: "actions",
   create_goal_run: "actions",
   create_account_efficiency_goal_run: "actions",
   execute_google_ads_action: "actions",

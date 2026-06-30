@@ -49,8 +49,15 @@ describe("GoogleMate tool routing", () => {
     expect(names).toContain("request_googlemate_tool_bundle");
     expect(names).toContain("get_search_terms");
     expect(names).toContain("propose_negative_keywords");
+    expect(names).toContain("create_weekly_budget_gmail_draft");
     expect(names).toContain("get_budget_management_email");
     expect(names).toContain("create_gmail_draft");
+  });
+
+  it("routes last-week weekly budget Gmail drafts to the deterministic shortcut", () => {
+    const names = toolNamesFor("Create a Gmail draft for the weekly Google Ads budget report for last week");
+
+    expect(names).toContain("create_weekly_budget_gmail_draft");
   });
 
   it("pre-attaches only the campaign-build bundle for geo keywords", () => {
@@ -96,6 +103,7 @@ describe("GoogleMate tool routing", () => {
     expect(fullNames).toContain("get_campaign_performance");
     expect(fullNames).toContain("propose_negative_keywords");
     expect(fullNames).toContain("create_gmail_draft");
+    expect(fullNames).toContain("create_weekly_budget_gmail_draft");
     expect(fullNames).toContain("propose_deck_from_template");
     expect(fullNames).not.toContain("remember");
   });
