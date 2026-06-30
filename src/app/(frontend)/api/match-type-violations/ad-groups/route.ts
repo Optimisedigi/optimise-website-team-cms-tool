@@ -11,6 +11,8 @@ interface AdGroupRow {
   campaignId?: string;
   campaignName?: string;
   status?: string;
+  campaignStatus?: string;
+  campaignEndDate?: string;
 }
 
 /**
@@ -86,14 +88,24 @@ export async function GET(req: NextRequest) {
     ? (data as any).adGroups
     : [];
 
+  const today = new Date().toISOString().slice(0, 10);
   return NextResponse.json({
     adGroups: adGroups
-      .filter((g) => g.adGroupId)
+      .filter((g) => {
+        if (!g.adGroupId) return false;
+        if (String(g.status ?? "").toUpperCase() !== "ENABLED") return false;
+        const campaignStatus = String(g.campaignStatus ?? "ENABLED").toUpperCase();
+        if (campaignStatus !== "ENABLED") return false;
+        const endDate = String(g.campaignEndDate ?? "").trim();
+        return !endDate || endDate >= today;
+      })
       .map((g) => ({
         adGroupId: String(g.adGroupId),
         adGroupName: String(g.adGroupName ?? ""),
         campaignName: String(g.campaignName ?? ""),
         status: String(g.status ?? ""),
+        campaignStatus: String(g.campaignStatus ?? ""),
+        campaignEndDate: String(g.campaignEndDate ?? ""),
       })),
   });
 }

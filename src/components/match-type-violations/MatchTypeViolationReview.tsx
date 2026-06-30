@@ -399,18 +399,29 @@ function KeywordTargetPickerModal({
         </label>
         {mode === 'adGroup' && (
           <>
-            <select
-              multiple
-              value={adGroupIds}
-              onChange={(e) => setAdGroupIds(Array.from(e.currentTarget.selectedOptions).map((option) => option.value))}
-              style={{ width: '100%', minHeight: 180, padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, marginBottom: 6 }}
-            >
-              {adGroups.map((group) => (
-                <option key={group.adGroupId} value={group.adGroupId}>{group.campaignName} / {group.adGroupName}</option>
-              ))}
-            </select>
+            <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 6, background: 'white' }}>
+              {adGroups.length === 0 ? (
+                <div style={{ padding: '10px 12px', color: '#6b7280', fontSize: 13 }}>No active ad groups found.</div>
+              ) : adGroups.map((group) => {
+                const checked = adGroupIds.includes(group.adGroupId)
+                return (
+                  <label key={group.adGroupId} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '8px 10px', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setAdGroupIds((prev) => checked ? prev.filter((id) => id !== group.adGroupId) : [...prev, group.adGroupId])}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span>
+                      <strong>{group.adGroupName || group.adGroupId}</strong>
+                      <span style={{ color: '#6b7280' }}> — {group.campaignName || 'Unknown campaign'}</span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
             <div style={{ marginBottom: 12, color: '#6b7280', fontSize: 12 }}>
-              Hold Cmd/Ctrl to select multiple ad groups. Selected: {adGroupIds.length}
+              Select one or more active ad groups. Selected: {adGroupIds.length}
             </div>
           </>
         )}
