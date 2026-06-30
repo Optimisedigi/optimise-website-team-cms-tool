@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let stateBlob: { provider?: string; state?: string; codeVerifier?: string; redirectUri?: string };
+  let stateBlob: { provider?: string; state?: string; codeVerifier?: string };
   try {
     stateBlob = JSON.parse(cookie.value);
   } catch {
@@ -72,7 +72,6 @@ export async function POST(req: NextRequest) {
         pasteString,
         expectedState: stateBlob.state,
         codeVerifier: stateBlob.codeVerifier,
-        redirectUri: stateBlob.redirectUri,
       });
       await setCredential("openai-codex", credential);
       await recordAuthEvent({

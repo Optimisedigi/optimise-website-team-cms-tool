@@ -153,36 +153,6 @@ export default function AgentAuthPage() {
 
   useEffect(() => {
     loadStatus();
-
-    function handleCodexConnected() {
-      setMessage("Connected to ChatGPT via Codex OAuth.");
-      setCodexPasteString("");
-      setCodexAuthorizeUrl(null);
-      void loadStatus();
-    }
-
-    function handleOAuthMessage(event: MessageEvent) {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.type !== "optimate-oauth-connected") return;
-      if (event.data.provider === "openai-codex" && event.data.ok) handleCodexConnected();
-    }
-
-    function handleOAuthStorage(event: StorageEvent) {
-      if (event.key !== "optimate-oauth-openai-codex" || !event.newValue) return;
-      try {
-        const data = JSON.parse(event.newValue) as { ok?: boolean };
-        if (data.ok) handleCodexConnected();
-      } catch {
-        // Ignore malformed storage notifications.
-      }
-    }
-
-    window.addEventListener("message", handleOAuthMessage);
-    window.addEventListener("storage", handleOAuthStorage);
-    return () => {
-      window.removeEventListener("message", handleOAuthMessage);
-      window.removeEventListener("storage", handleOAuthStorage);
-    };
   }, []);
 
   async function handleBegin() {
@@ -504,11 +474,11 @@ export default function AgentAuthPage() {
         )}
       </div>
 
-      {/* Connect ChatGPT via Codex OAuth (Authorization Code + PKCE callback flow) */}
+      {/* Connect ChatGPT via Codex OAuth (Authorization Code + PKCE, paste flow) */}
       <div style={cardStyle}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Connect ChatGPT (Codex OAuth)</h2>
         <p style={{ marginTop: 0, fontSize: 13, color: "#666" }}>
-          Opens ChatGPT sign-in in a new tab and returns to this CMS automatically. If the provider still shows a callback URL instead of completing, copy its full URL or <code>code</code> value and paste it below. Powers the <code>gpt-5.5-codex</code> model.
+          Opens ChatGPT sign-in in a new tab. After you approve, the browser lands on a localhost callback that won't load — copy its full URL from the address bar (or the <code>code</code> value) and paste it below. Powers the <code>gpt-5.5-codex</code> model.
         </p>
         <button onClick={handleCodexBegin} style={buttonStyle}>
           1. Begin login
@@ -520,14 +490,14 @@ export default function AgentAuthPage() {
         )}
         <div style={{ marginTop: 12 }}>
           <label htmlFor="codex-paste" style={labelStyle}>
-            Backup: paste the callback URL or code (<code>code</code>, <code>code#state</code>, or full URL)
+            2. Paste the callback URL or code (<code>code</code>, <code>code#state</code>, or full URL)
           </label>
           <input
             id="codex-paste"
             type="text"
             value={codexPasteString}
             onChange={(e) => setCodexPasteString(e.target.value)}
-            placeholder="https://cms.optimisedigital.online/api/agent-auth/callback/openai-codex?code=...&state=..."
+            placeholder="http://localhost:1455/auth/callback?code=...&state=..."
             style={inputStyle}
           />
           <button
@@ -535,7 +505,7 @@ export default function AgentAuthPage() {
             disabled={!codexPasteString || codexCompleting}
             style={{ ...buttonStyle, marginTop: 8, opacity: !codexPasteString || codexCompleting ? 0.5 : 1 }}
           >
-            {codexCompleting ? "Exchanging..." : "Complete login from pasted code"}
+            {codexCompleting ? "Exchanging..." : "3. Complete login"}
           </button>
         </div>
       </div>

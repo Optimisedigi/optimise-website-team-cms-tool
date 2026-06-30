@@ -5,33 +5,21 @@ import { beginAnthropicLogin } from "@/lib/agents/_shared/llm/auth/oauth/anthrop
 import { beginCodexLogin } from "@/lib/agents/_shared/llm/auth/oauth/openai-codex";
 
 const STATE_COOKIE = "agent-auth-state";
-const STATE_TTL_SECONDS = 600; // 10 minutes is plenty for the callback/paste flow
-
-function requestOrigin(req: NextRequest): string {
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const forwardedHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-  if (forwardedProto && forwardedHost) return `${forwardedProto}://${forwardedHost}`;
-  return req.nextUrl.origin;
-}
-
-function codexRedirectUri(req: NextRequest): string {
-  return (
-    process.env.OPENAI_CODEX_REDIRECT_URI ??
-    `${requestOrigin(req).replace(/\/+$/, "")}/api/agent-auth/callback/openai-codex`
-  );
-}
+const STATE_TTL_SECONDS = 600; // 10 minutes is plenty for the paste flow
 
 /**
  * POST /api/agent-auth/begin
  * Body: { provider?: "anthropic" | "openai-codex" }  (defaults to anthropic)
  *
- * Anthropic uses a paste flow. GPT/Codex uses this app's callback route instead
- * of the CLI localhost loopback, then falls back to paste if the provider cannot
- * redirect back. We persist verifier + state in an httpOnly cookie so the
- * matching callback or /complete call can validate the code.
+ * Both providers use the paste flow. We persist verifier + state in an
+ * httpOnly cookie so the matching /complete call can validate the code.
  *
  * The openai-codex flow is lifted from gg-framework's Codex OAuth — the same
- * standard browser PKCE flow the Codex CLI uses by default.
+ * standard browser PKCE flow the Codex CLI uses by default. The Codex CLI's
+ * `client_id` is registered for loopback redirects only, so we always send
+ * `http://localhost:1455/auth/callback` and rely on the user pasting the full
+ * URL (or `code#state`) back into the CMS — the same model as the Anthropic
+ * paste flow.
  *
  * Cookie expires after 10 minutes. Auth: requires a logged-in CMS user.
  */
@@ -53,20 +41,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const redirectUri = provider === "openai-codex" ? codexRedirectUri(req) : undefined;
-  const login = redirectUri ? beginCodexLogin({ redirectUri }) : beginAnthropicLogin();
+  const login = provider === "openai-codex" ? beginCodexLogin() : beginAnthropicLogin();
 
   const cookieValue = JSON.stringify({
     provider,
     state: login.state,
     codeVerifier: login.codeVerifier,
-    ...(redirectUri ? { redirectUri } : {}),
   });
   const res = NextResponse.json({
     provider,
     authorizeUrl: login.authorizeUrl,
     state: login.state,
-    ...(redirectUri ? { redirectUri } : {}),
   });
   res.cookies.set(STATE_COOKIE, cookieValue, {
     httpOnly: true,
