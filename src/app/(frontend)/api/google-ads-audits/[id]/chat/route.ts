@@ -32,6 +32,8 @@ const SUPPORTED_IMAGE_MEDIA_TYPES = new Set<SupportedImageMediaType>([
 const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_ATTACHMENTS = 3;
 
+export const maxDuration = 300;
+
 /**
  * POST /api/google-ads-audits/[id]/chat
  *
