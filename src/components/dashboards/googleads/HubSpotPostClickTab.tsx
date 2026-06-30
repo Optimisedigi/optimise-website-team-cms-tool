@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { GoogleAdsDashboardMonthlyWasteRelevancy, HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
 
 type MetricKey = "paidLeads" | "meetings" | "googleAdsConversions" | "meetingRate" | "disqualifiedRate";
 type MonthlyPoint = HubSpotPostClickDashboardData["monthly"][number];
+type MonthlySalesPoint = MonthlyPoint & { keywordRelevancy: number | null; mqls: number; sqls: number };
 type AttributionRow = HubSpotPostClickDashboardData["attributionRows"][number];
 
 const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; tooltip: string; color: string; kind: "bar" | "line"; unit?: "rate" | "currency" }> = [
@@ -23,10 +25,24 @@ const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; toolti
 ];
 
 const CONFIDENCE_LABELS: Record<string, string> = {
-  single_candidate: "Single search-term candidate",
-  multiple_candidates: "Multiple search-term candidates",
+  single_candidate: "Single candidate",
+  multiple_candidates: "Multiple candidates",
   keyword_fallback: "Keyword fallback",
-  hubspot_source_fallback: "HubSpot source fallback",
+  hubspot_source_fallback: "HubSpot fallback",
+};
+
+const CONFIDENCE_DESCRIPTIONS: Record<string, string> = {
+  single_candidate: "One possible Google Ads search term matched the lead date, campaign, ad group, and keyword.",
+  multiple_candidates: "Multiple possible Google Ads search terms matched. Google Ads does not expose exact contact-level search term by GCLID.",
+  keyword_fallback: "The GCLID/click matched Google Ads, but no search-term row matched, so this falls back to keyword evidence.",
+  hubspot_source_fallback: "No usable Google Ads click/search-term match was available, so this uses HubSpot paid-search source fields.",
+};
+
+const CONFIDENCE_STYLES: Record<string, string> = {
+  single_candidate: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+  multiple_candidates: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+  keyword_fallback: "bg-red-50 text-red-600 ring-1 ring-red-100",
+  hubspot_source_fallback: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
 };
 
 function buildMonthKeys(monthsBack: number): string[] {
@@ -54,6 +70,19 @@ function monthFull(yyyymm: string): string {
 function formatRate(value: number | null | undefined): string {
   if (value == null) return "—";
   return `${value.toFixed(1).replace(/\.0$/, "")}%`;
+}
+
+function formatCurrency(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
+}
+
+function keywordRelevancyFromMonthlyWaste(row: GoogleAdsDashboardMonthlyWasteRelevancy | undefined): number | null {
+  if (!row) return null;
+  const nonBrandSpend = Math.max(0, row.totalSpend - row.brandSpend);
+  const denominator = nonBrandSpend > 0 ? nonBrandSpend : row.totalSpend;
+  if (denominator <= 0) return null;
+  return Math.max(0, Math.min(100, 100 - (row.irrelevantSpend / denominator) * 100));
 }
 
 function formatDate(value: string): string {
@@ -99,15 +128,18 @@ function toggleMetricSelection(current: MetricKey[], key: MetricKey): MetricKey[
   return [...current, key];
 }
 
-function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotPostClickDashboardData["leadDetails"]): MonthlyPoint[] {
+function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotPostClickDashboardData["leadDetails"], monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[]): MonthlySalesPoint[] {
   return useMemo(() => {
     const byMonth = new Map(monthly.map((row) => [row.month, row]));
-    const leadStatsByMonth = new Map<string, { paidLeads: number; disqualifiedLeads: number; daysToFirstOutreach: Array<number | null>; daysToMql: Array<number | null>; daysToSql: Array<number | null> }>();
+    const relevancyByMonth = new Map((monthlyWasteRelevancy || []).map((row) => [row.month, row]));
+    const leadStatsByMonth = new Map<string, { paidLeads: number; disqualifiedLeads: number; mqls: number; sqls: number; daysToFirstOutreach: Array<number | null>; daysToMql: Array<number | null>; daysToSql: Array<number | null> }>();
     for (const lead of leadDetails || []) {
-      const stats = leadStatsByMonth.get(lead.month) || { paidLeads: 0, disqualifiedLeads: 0, daysToFirstOutreach: [], daysToMql: [], daysToSql: [] };
+      const stats = leadStatsByMonth.get(lead.month) || { paidLeads: 0, disqualifiedLeads: 0, mqls: 0, sqls: 0, daysToFirstOutreach: [], daysToMql: [], daysToSql: [] };
       const baseline = lead.firstConversionAt || lead.createdAt;
       stats.paidLeads += 1;
       stats.disqualifiedLeads += lead.isQualifiedLead ? 0 : 1;
+      stats.mqls += lead.mqlAt ? 1 : 0;
+      stats.sqls += lead.sqlAt ? 1 : 0;
       stats.daysToFirstOutreach.push(daysBetween(baseline, lead.firstOutreachAt));
       if (lead.isQualifiedLead) {
         stats.daysToMql.push(daysBetween(baseline, lead.mqlAt));
@@ -140,12 +172,15 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
         ...row,
         disqualifiedLeads,
         disqualifiedRate,
+        keywordRelevancy: keywordRelevancyFromMonthlyWaste(relevancyByMonth.get(month)),
+        mqls: leadStats?.mqls || 0,
+        sqls: leadStats?.sqls || 0,
         avgDaysToFirstOutreach: row.avgDaysToFirstOutreach ?? averageDays(leadStats?.daysToFirstOutreach || []),
         avgDaysToMql: row.avgDaysToMql ?? averageDays(leadStats?.daysToMql || []),
         avgDaysToSql: row.avgDaysToSql ?? averageDays(leadStats?.daysToSql || []),
       };
     });
-  }, [monthly, leadDetails]);
+  }, [monthly, leadDetails, monthlyWasteRelevancy]);
 }
 
 function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data: MonthlyPoint[]; selectedMetrics: MetricKey[]; onToggleMetric: (key: MetricKey) => void }) {
@@ -278,27 +313,124 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
   );
 }
 
-function InfoTooltip({ label, text }: { label: string; text: string }) {
+function HintIcon({ text }: { text: string }) {
+  const wrapperRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<"top" | "bottom">("top");
+  const [measured, setMeasured] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0, arrowLeft: 120 });
+  const tooltipWidth = 240;
+  const arrowGap = 6;
+  const safetyMargin = 8;
+
+  useEffect(() => {
+    if (!open) {
+      setMeasured(false);
+      return;
+    }
+    if (!wrapperRef.current || !tooltipRef.current) return;
+    const iconRect = wrapperRef.current.getBoundingClientRect();
+    const tooltipHeight = tooltipRef.current.offsetHeight;
+    const iconCenter = iconRect.left + iconRect.width / 2;
+    const viewportRight = window.innerWidth - safetyMargin;
+    const left = Math.min(Math.max(iconCenter - tooltipWidth / 2, safetyMargin), viewportRight - tooltipWidth);
+    const nextPlacement: "top" | "bottom" = iconRect.top >= tooltipHeight + arrowGap + safetyMargin ? "top" : "bottom";
+    setPlacement(nextPlacement);
+    setPosition({
+      left,
+      top: nextPlacement === "top" ? iconRect.top - tooltipHeight - arrowGap : iconRect.bottom + arrowGap,
+      arrowLeft: iconCenter - left,
+    });
+    setMeasured(true);
+  }, [open]);
+
   return (
-    <span className="inline-flex items-center justify-end gap-1">
-      {label}
-      <span className="group relative inline-flex">
-        <span className="flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-slate-300 text-[10px] font-semibold leading-none text-slate-500 transition-colors group-hover:border-blue-300 group-hover:bg-blue-50 group-hover:text-blue-600">i</span>
-        <span className="pointer-events-none absolute right-0 top-6 z-20 w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-normal leading-relaxed text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+    <span
+      ref={wrapperRef}
+      className="relative ml-1 inline-flex items-center"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-label={text}
+        className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-slate-300 bg-white p-0 text-[9px] leading-none text-slate-400 hover:border-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+        onClick={(e) => e.preventDefault()}
+      >
+        ?
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <span
+          ref={tooltipRef}
+          role="tooltip"
+          className="pointer-events-none fixed z-[9999] normal-case tracking-normal"
+          style={{
+            top: position.top,
+            left: position.left,
+            width: tooltipWidth,
+            background: "#0f172a",
+            color: "#f1f5f9",
+            padding: "6px 10px",
+            borderRadius: 6,
+            fontSize: 11,
+            fontWeight: 400,
+            lineHeight: 1.45,
+            boxShadow: "0 4px 12px rgba(15, 23, 42, 0.15)",
+            textAlign: "left",
+            whiteSpace: "normal",
+            opacity: measured ? 1 : 0,
+            transition: measured ? "opacity 80ms ease-out" : undefined,
+          }}
+        >
           {text}
-        </span>
-      </span>
+          <span
+            aria-hidden
+            className="absolute"
+            style={{
+              ...(placement === "top"
+                ? { top: "100%", borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: "5px solid #0f172a" }
+                : { bottom: "100%", borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderBottom: "5px solid #0f172a" }),
+              left: position.arrowLeft,
+              transform: "translateX(-50%)",
+              width: 0,
+              height: 0,
+            }}
+          />
+        </span>,
+        document.body,
+      )}
     </span>
   );
 }
 
-function MonthlySalesFollowUpMetrics({ data }: { data: MonthlyPoint[] }) {
+function InfoTooltip({ label, text }: { label: string; text: string }) {
+  return (
+    <span className="inline-flex items-center justify-end gap-1">
+      {label}
+      <HintIcon text={text} />
+    </span>
+  );
+}
+
+function MonthlySalesFollowUpMetrics({ data }: { data: MonthlySalesPoint[] }) {
   return (
     <div className="mt-4 overflow-x-auto rounded-lg border border-slate-100">
       <table className="min-w-full divide-y divide-slate-100 text-xs">
         <thead className="bg-slate-50 text-slate-500">
           <tr>
             <th className="px-3 py-2 text-left font-medium">Month</th>
+            <th className="px-3 py-2 text-right font-medium">Google Ads spend</th>
+            <th className="px-3 py-2 text-right font-medium">Google Ads conversions</th>
+            <th className="px-3 py-2 text-right font-medium">
+              <InfoTooltip label="Keyword relevancy" text="Share of non-brand Google Ads spend that reached relevant searches for that month, using the same source as the Progress tab relevancy line." />
+            </th>
+            <th className="px-3 py-2 text-right font-medium">Paid leads</th>
+            <th className="px-3 py-2 text-right font-medium">Meetings</th>
+            <th className="px-3 py-2 text-right font-medium">MQL</th>
+            <th className="px-3 py-2 text-right font-medium">SQL</th>
             <th className="px-3 py-2 text-right font-medium">
               <InfoTooltip label="Speed to first outreach" text="Average time from first conversion date when available, otherwise contact create date, to HubSpot first outreach date." />
             </th>
@@ -314,6 +446,13 @@ function MonthlySalesFollowUpMetrics({ data }: { data: MonthlyPoint[] }) {
           {data.map((row) => (
             <tr key={row.month}>
               <td className="px-3 py-2 font-medium text-slate-700">{monthFull(row.month)}</td>
+              <td className="px-3 py-2 text-right">{formatCurrency(row.googleAdsSpend)}</td>
+              <td className="px-3 py-2 text-right">{Math.round(row.googleAdsConversions || 0)}</td>
+              <td className="px-3 py-2 text-right">{formatRate(row.keywordRelevancy)}</td>
+              <td className="px-3 py-2 text-right">{row.paidLeads}</td>
+              <td className="px-3 py-2 text-right">{row.meetings}</td>
+              <td className="px-3 py-2 text-right">{row.mqls}</td>
+              <td className="px-3 py-2 text-right">{row.sqls}</td>
               <td className="px-3 py-2 text-right">{formatDurationFromDays(row.avgDaysToFirstOutreach)}</td>
               <td className="px-3 py-2 text-right">{formatDurationFromDays(row.avgDaysToMql)}</td>
               <td className="px-3 py-2 text-right">{formatDurationFromDays(row.avgDaysToSql)}</td>
@@ -329,46 +468,66 @@ function AttributionSection({ month, rows }: { month: string; rows: AttributionR
   const confidenceSummary = Array.from(new Set(rows.map((row) => CONFIDENCE_LABELS[row.searchTermConfidence] || row.searchTermConfidence))).join("; ");
   return (
     <section className="border-t border-slate-100 first:border-t-0">
-      <div className="bg-slate-50 px-5 py-3">
+      <div className="bg-slate-50 px-5 pb-3 pt-[15px]">
         <h4 className="text-sm font-semibold text-slate-800">{monthFull(month)}</h4>
         <p className="text-xs text-slate-400">Recent search-term evidence, meetings first.</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-100 text-sm">
+        <table className="w-[1700px] table-fixed divide-y divide-slate-100 text-sm">
+          <colgroup>
+            <col style={{ width: 520 }} />
+            <col style={{ width: 430 }} />
+            <col style={{ width: 300 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 170 }} />
+          </colgroup>
           <thead className="bg-white text-xs uppercase tracking-wider text-slate-500">
             <tr>
-              <th className="px-4 py-3 text-left font-medium">
-                Search term evidence
-                <span
-                  className="ml-1 cursor-help text-slate-400"
-                  title={`Best available evidence from Google Ads. Search terms are not contact-level exact because Google separates GCLID click data from search-term reporting. Confidence in this section: ${confidenceSummary || "No rows yet"}.`}
-                >
-                  ⓘ
-                </span>
+              <th className="px-3 py-2 text-left font-medium">
+                <InfoTooltip label="Search term evidence" text={`Best available evidence from Google Ads. Search terms are not contact-level exact because Google separates GCLID click data from search-term reporting. Confidence in this section: ${confidenceSummary || "No rows yet"}.`} />
               </th>
-              <th className="px-4 py-3 text-left font-medium">Campaign</th>
-              <th className="px-4 py-3 text-left font-medium">Keyword</th>
-              <th className="px-4 py-3 text-right font-medium">Meetings</th>
-              <th className="px-4 py-3 text-right font-medium" title="HubSpot meetings divided by paid leads. Can exceed 100% if one lead has multiple meetings.">Meeting rate ⓘ</th>
-              <th className="px-4 py-3 text-right font-medium" title="Qualified leads divided by paid leads. Unqualified means HubSpot status contains unqualified, dead, junk, spam, or not model aligned.">Lead quality ⓘ</th>
+              <th className="px-3 py-2 text-left font-medium">Campaign</th>
+              <th className="px-3 py-2 text-left font-medium">Keyword</th>
+              <th className="px-3 py-2 text-right font-medium">Meetings</th>
+              <th className="px-3 py-2 text-right font-medium">
+                <InfoTooltip label="Meeting rate" text="HubSpot meetings divided by paid leads. Can exceed 100% if one lead has multiple meetings." />
+              </th>
+              <th className="px-3 py-2 text-right font-medium">
+                <InfoTooltip label="Lead quality" text="Qualified leads divided by paid leads. Unqualified means HubSpot status contains unqualified, dead, junk, spam, or not model aligned." />
+              </th>
+              <th className="px-3 py-2 text-left font-medium">
+                <InfoTooltip label="Confidence" text="Single candidate = one possible matching search term. Multiple candidates = several possible search terms. Keyword fallback = keyword known, exact search term unavailable. HubSpot fallback = using HubSpot paid-search source fields only." />
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.length ? rows.map((row, index) => (
               <tr key={`${row.month}-${row.campaignName}-${row.keywordText}-${index}`} className="hover:bg-slate-50/70">
-                <td className="min-w-[260px] px-4 py-3 text-slate-800" title={CONFIDENCE_LABELS[row.searchTermConfidence] || row.searchTermConfidence}>{row.searchTermEvidence}</td>
-                <td className="min-w-[340px] whitespace-nowrap px-4 py-3 text-slate-600">{row.campaignName}</td>
-                <td className="min-w-[220px] whitespace-nowrap px-4 py-3 text-slate-600">
+                <td
+                  className={`truncate px-3 py-1.5 ${row.searchTermConfidence === "keyword_fallback" ? "text-red-400" : "text-slate-800"}`}
+                  title={row.searchTermConfidence === "keyword_fallback" ? `Keyword fallback: ${row.keywordText}` : row.searchTermEvidence}
+                >
+                  {row.searchTermConfidence === "keyword_fallback" ? row.keywordText : row.searchTermEvidence}
+                </td>
+                <td className="truncate whitespace-nowrap px-3 py-1.5 text-slate-600" title={row.campaignName}>{row.campaignName}</td>
+                <td className="truncate whitespace-nowrap px-3 py-1.5 text-slate-600" title={row.keywordText}>
                   {row.keywordText}
                   {row.keywordMatchType && <span className="ml-1 text-xs text-slate-400">({row.keywordMatchType})</span>}
                 </td>
-                <td className="px-4 py-3 text-right font-medium text-slate-800">{row.meetings}</td>
-                <td className="px-4 py-3 text-right text-slate-600">{formatRate(row.meetingRate)}</td>
-                <td className="px-4 py-3 text-right text-slate-600">{formatRate(row.qualifiedLeadRate)}</td>
+                <td className="px-3 py-1.5 text-right font-medium text-slate-800">{row.meetings}</td>
+                <td className="px-3 py-1.5 text-right text-slate-600">{formatRate(row.meetingRate)}</td>
+                <td className="px-3 py-1.5 text-right text-slate-600">{formatRate(row.qualifiedLeadRate)}</td>
+                <td className="px-3 py-1.5 text-left text-slate-500">
+                  <span className={`inline-flex whitespace-nowrap cursor-help rounded-full px-2 py-0 text-[10px] font-medium ${CONFIDENCE_STYLES[row.searchTermConfidence] || "bg-slate-100 text-slate-600 ring-1 ring-slate-200"}`} title={CONFIDENCE_DESCRIPTIONS[row.searchTermConfidence] || row.searchTermConfidence}>
+                    {CONFIDENCE_LABELS[row.searchTermConfidence] || row.searchTermConfidence}
+                  </span>
+                </td>
               </tr>
             )) : (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-400">No attribution rows for {monthFull(month)} yet.</td>
+                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400">No attribution rows for {monthFull(month)} yet.</td>
               </tr>
             )}
           </tbody>
@@ -378,11 +537,11 @@ function AttributionSection({ month, rows }: { month: string; rows: AttributionR
   );
 }
 
-export function HubSpotPostClickTab({ data }: { data: HubSpotPostClickDashboardData }) {
+export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: HubSpotPostClickDashboardData; monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[] }) {
   const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(["googleAdsConversions", "paidLeads", "meetings", "meetingRate"]);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
-  const monthlyChartData = usePostClickMonthlyData(data.monthly, data.leadDetails);
-  const recentMonths = useMemo(() => buildMonthKeys(3).reverse(), []);
+  const monthlyChartData = usePostClickMonthlyData(data.monthly, data.leadDetails, monthlyWasteRelevancy);
+  const recentMonths = useMemo(() => buildMonthKeys(6).reverse(), []);
   const rowsByMonth = useMemo(() => {
     const map = new Map<string, AttributionRow[]>();
     for (const month of recentMonths) map.set(month, []);
@@ -458,11 +617,20 @@ export function HubSpotPostClickTab({ data }: { data: HubSpotPostClickDashboardD
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-5 py-4">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Recent attribution by search evidence</h3>
-          <p className="mt-1 text-xs text-slate-400">Fresh HubSpot and Google Ads pull each time this tab loads or the dashboard range refreshes. Latest three months shown newest first.</p>
+          <p className="mt-1 text-xs text-slate-400">Fresh HubSpot and Google Ads pull each time this tab loads or the dashboard range refreshes. Latest six months shown newest first.</p>
         </div>
           {recentMonths.map((month) => (
             <AttributionSection key={month} month={month} rows={rowsByMonth.get(month) || []} />
           ))}
+          <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 text-xs leading-relaxed text-slate-500">
+            <p className="font-semibold text-slate-700">Confidence guide</p>
+            <p className="mt-1">
+              <span className="font-medium text-slate-600">Single candidate</span> = one possible matching search term. {" "}
+              <span className="font-medium text-slate-600">Multiple candidates</span> = several possible search terms. {" "}
+              <span className="font-medium text-slate-600">Keyword fallback</span> = matched Google Ads click/keyword but no search-term row. {" "}
+              <span className="font-medium text-slate-600">HubSpot fallback</span> = using HubSpot paid-search source fields only.
+            </p>
+          </div>
         </div>
       </div>
 

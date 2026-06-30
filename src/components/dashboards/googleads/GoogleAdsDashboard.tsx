@@ -1040,7 +1040,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 </button>
               </div>
             ) : postClickData ? (
-              <HubSpotPostClickTab data={postClickData} />
+              <HubSpotPostClickTab data={postClickData} monthlyWasteRelevancy={monthlyWasteRelevancy ?? undefined} />
             ) : (
               <p className="py-12 text-center text-sm text-slate-400">Post-click quality data is not available yet.</p>
             )
