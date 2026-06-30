@@ -385,7 +385,7 @@ function KeywordTargetPickerModal({
       <div style={{ background: 'white', borderRadius: 8, padding: 24, width: 520, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>Add {pendingCount} as exact keyword{pendingCount !== 1 ? 's' : ''}</h3>
         <p style={{ margin: '0 0 16px', color: '#6b7280', fontSize: 13 }}>
-          Add selected search terms as paused EXACT keywords. Choose the matching exact ad group automatically, or move them into one ad group you select.
+          Add selected search terms as enabled EXACT keywords. Choose the matching exact ad group automatically, or move them into one ad group you select.
         </p>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, cursor: 'pointer', fontSize: 13 }}>
           <input type="radio" checked={mode === 'auto'} onChange={() => setMode('auto')} style={{ marginTop: 3 }} />
@@ -927,7 +927,7 @@ export default function MatchTypeViolationReview({
     setKeywordActionStatus({
       kind: 'loading',
       title: `Adding ${ids.length} exact keyword${ids.length !== 1 ? 's' : ''} to Google Ads…`,
-      lines: ['Creating paused EXACT keywords, matching URLs/CPC/labels, then adding source exact negatives where needed.'],
+      lines: ['Creating enabled EXACT keywords, matching URLs/CPC/labels, then adding source exact negatives where needed.'],
     })
     try {
       const body = target.mode === 'adGroup'
@@ -1052,7 +1052,11 @@ export default function MatchTypeViolationReview({
       .filter((candidate) => candidate.status === 'pending')
       .map((candidate) => candidate.id)
     if (pendingIds.length === 0) return
-    setSelected(new Set(pendingIds))
+    const selectedInGroup = pendingIds.filter((id) => selected.has(id))
+    // If the reviewer selected the ad group then unchecked relevant terms, only
+    // approve the still-checked rows. If nothing is checked, keep the old shortcut
+    // behaviour and approve the whole ad group.
+    setSelected(new Set(selectedInGroup.length > 0 ? selectedInGroup : pendingIds))
     await fetchNklLists()
     setShowNklPicker(true)
   }
@@ -1141,7 +1145,7 @@ export default function MatchTypeViolationReview({
                 onClick={openKeywordTargetPicker}
                 disabled={bulkLoading}
                 style={{ ...btnStyle('primary'), display: 'flex', alignItems: 'center', gap: 6, background: bulkLoading ? '#d1d5db' : '#f59e0b' }}
-                title="Add selected rows as paused EXACT keywords in the matching exact ad group/campaign"
+                title="Add selected rows as enabled EXACT keywords in the matching exact ad group/campaign"
               >
                 Add {pendingSelected.length} as Exact Keyword{pendingSelected.length !== 1 ? 's' : ''}
               </button>
@@ -1299,7 +1303,7 @@ export default function MatchTypeViolationReview({
         </div>
       ) : (
         <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, background: 'white' }}>
+          <table style={{ width: '100%', minWidth: filterStatus === 'rejected' ? 1900 : 1600, borderCollapse: 'collapse', fontSize: 13, background: 'white' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
                 <th style={thStyle()}>
@@ -1347,7 +1351,8 @@ export default function MatchTypeViolationReview({
             <tbody>
               {groupedCandidates.map((group) => {
                 const groupPendingIds = group.candidates.filter((candidate) => candidate.status === 'pending').map((candidate) => candidate.id)
-                const groupAllSelected = groupPendingIds.length > 0 && groupPendingIds.every((id) => selected.has(id))
+                const groupSelectedCount = groupPendingIds.filter((id) => selected.has(id)).length
+                const groupAllSelected = groupPendingIds.length > 0 && groupSelectedCount === groupPendingIds.length
                 return (
                 <Fragment key={group.key}>
                   <tr style={{ background: '#f8fafc', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
@@ -1374,7 +1379,7 @@ export default function MatchTypeViolationReview({
                               disabled={bulkLoading}
                               style={{ ...btnStyle('primary', bulkLoading), fontSize: 11, padding: '5px 10px' }}
                             >
-                              Approve ad group
+                              {groupSelectedCount > 0 && !groupAllSelected ? `Approve ${groupSelectedCount} selected` : 'Approve ad group'}
                             </button>
                           </div>
                         )}
@@ -1393,13 +1398,13 @@ export default function MatchTypeViolationReview({
                         )}
                       </td>
                       <td style={tdStyle()}>
-                        <span title={c.searchTerm} style={{ maxWidth: 220, display: 'block', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                        <span title={c.searchTerm} style={{ minWidth: 280, maxWidth: 460, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.35 }}>
                           {c.searchTerm}
                         </span>
                       </td>
                       {isVisible('triggeringKeyword') && (
                         <td style={tdStyle()}>
-                          <span title={c.triggeringKeyword} style={{ maxWidth: 180, display: 'block', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                          <span title={c.triggeringKeyword} style={{ minWidth: 220, maxWidth: 360, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.35 }}>
                             {c.triggeringKeyword}
                           </span>
                         </td>
@@ -1475,7 +1480,7 @@ export default function MatchTypeViolationReview({
                       {isVisible('clicks') && <td style={{ ...tdStyle(), textAlign: 'right' }}>{formatNumber(c.clicks)}</td>}
                       {isVisible('campaign') && (
                         <td style={tdStyle()}>
-                          <span title={c.campaignName} style={{ maxWidth: 160, display: 'block', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                          <span title={c.campaignName} style={{ minWidth: 260, maxWidth: 380, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.35 }}>
                             {c.campaignName || '—'}
                           </span>
                         </td>

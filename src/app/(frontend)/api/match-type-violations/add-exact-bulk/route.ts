@@ -64,7 +64,7 @@ async function postGrowthTools(
  *
  * Bulk Dismissed-tab action: pushes many dismissed terms as EXACT positive
  * keywords to a set of ad groups (or every enabled ad group) in one pass.
- * Keywords are added PAUSED via Growth Tools with `matchExisting`, so each
+ * Keywords are added ENABLED via Growth Tools with `matchExisting`, so each
  * copies the final URLs, max CPC, and labels of an exemplar keyword in its
  * target ad group; server-side duplicates are skipped.
  *
@@ -256,6 +256,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         {
           customerId,
           keywords: chunk.map((text) => ({ text, matchType: "EXACT" })),
+          status: "ENABLED",
           matchExisting: true,
         },
       );

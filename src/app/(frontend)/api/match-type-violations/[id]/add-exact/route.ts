@@ -67,7 +67,7 @@ async function postGrowthTools(
  * Dismissed-tab action: adds a rejected candidate's search term as an EXACT
  * positive keyword via Growth Tools, with `matchExisting: true` so each new
  * keyword copies the final URLs, max CPC, and labels of an exemplar keyword
- * already in the target ad group (keywords land PAUSED; server-side
+ * already in the target ad group (keywords land ENABLED; server-side
  * duplicates are skipped).
  *
  * Body:
@@ -245,7 +245,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   // ── Add the keyword as EXACT to each target ad group ─────────────────────
   // matchExisting: Growth Tools copies the final URLs, max CPC, and labels of
-  // an exemplar keyword already in each ad group. Duplicates skipped, PAUSED.
+  // an exemplar keyword already in each ad group. Duplicates skipped, ENABLED.
   let added = 0;
   let skippedDuplicates = 0;
   const perGroup: Array<{ adGroupId: string; adGroupName: string; added: number; skippedDuplicates: number; error?: string }> = [];
@@ -253,7 +253,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   for (const target of targets) {
     const addRes = await postGrowthTools(
       `/api/google-ads/ad-groups/${encodeURIComponent(target.adGroupId)}/keywords/add`,
-      { customerId, keywords: [{ text: keywordText, matchType: "EXACT" }], matchExisting: true },
+      { customerId, keywords: [{ text: keywordText, matchType: "EXACT" }], status: "ENABLED", matchExisting: true },
     );
     if (!addRes.ok) {
       perGroup.push({ adGroupId: target.adGroupId, adGroupName: target.adGroupName, added: 0, skippedDuplicates: 0, error: addRes.error });
@@ -313,7 +313,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         ? `Dismissed term added as exact keyword: "${keywordText}"`
         : `Dismissed term already an exact keyword: "${keywordText}"`,
     description:
-      `Pushed PAUSED with matched URLs/CPC/labels to ${targets.length} ad group${targets.length === 1 ? "" : "s"}: ${targetSummary}.` +
+      `Pushed ENABLED with matched URLs/CPC/labels to ${targets.length} ad group${targets.length === 1 ? "" : "s"}: ${targetSummary}.` +
       (negatedInList ? ` Exact negative added to "${negatedInList}".` : "") +
       (negateError ? ` Negate failed: ${negateError}.` : ""),
     user: userId,
