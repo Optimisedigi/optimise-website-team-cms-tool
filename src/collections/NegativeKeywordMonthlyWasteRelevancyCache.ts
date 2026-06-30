@@ -101,6 +101,14 @@ export const NegativeKeywordMonthlyWasteRelevancyCache: CollectionConfig = {
       },
     },
     {
+      name: "lowRelevancyExcludedSpend",
+      type: "number",
+      defaultValue: 0,
+      admin: {
+        description: "Cost on terms blocked only by low-relevancy NKLs. Excluded from the default relevancy %; foldable in via the dashboard low-relevancy toggle.",
+      },
+    },
+    {
       name: "brandSpend",
       type: "number",
       defaultValue: 0,

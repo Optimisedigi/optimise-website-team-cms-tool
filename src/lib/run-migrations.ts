@@ -2829,8 +2829,9 @@ export async function runMigrations(
     await run("clients_conversion_action_categories_order_idx", "CREATE INDEX IF NOT EXISTS `clients_conversion_action_categories_order_idx` ON `clients_conversion_action_categories` (`_order`)");
     await run("clients_conversion_action_categories_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_conversion_action_categories_parent_idx` ON `clients_conversion_action_categories` (`_parent_id`)");
   
-    // ── Brand spend column on waste/relevancy cache (2026-05-06) ──
+    // ── Brand / low-relevancy spend columns on waste/relevancy cache ──
     await run("waste_relevancy_cache.brand_spend", "ALTER TABLE `negative_keyword_monthly_waste_relevancy_cache` ADD `brand_spend` numeric DEFAULT 0");
+    await run("waste_relevancy_cache.low_relevancy_excluded_spend", "ALTER TABLE `negative_keyword_monthly_waste_relevancy_cache` ADD `low_relevancy_excluded_spend` numeric DEFAULT 0");
   
     // ── Optimate agents Phase 0 (2026-05-07) ──
     // Two new collections + 9 new columns on activity_log so the agent loop can

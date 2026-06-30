@@ -585,12 +585,13 @@ export function ProgressTab({
   }, []);
 
   const [clearingCache, setClearingCache] = useState(false);
-  // Brand negatives are excluded from the relevancy % by default; competitor
-  // negatives are folded in by default (toggle off to exclude). Both block
-  // non-converting-but-not-irrelevant traffic — toggling fold them in/out of
-  // the metric, useful when showing a client the full picture.
+  // Brand / low-relevancy negatives are excluded from the relevancy % by
+  // default; competitor negatives are folded in by default (toggle off to
+  // exclude). Toggling folds each bucket in/out of the metric, useful when
+  // showing a client the full picture.
   const [includeCompetitor, setIncludeCompetitor] = useState(true);
   const [includeBrand, setIncludeBrand] = useState(false);
+  const [includeLowRelevancy, setIncludeLowRelevancy] = useState(false);
   const handleClearRelevancyCache = useCallback(async () => {
     if (!clientId) return;
     if (!window.confirm("Clear the historical Keyword Relevancy cache for this client? Past months will re-pull from Google Ads on the next dashboard load.")) {
@@ -719,11 +720,13 @@ export function ProgressTab({
         );
         const relevancyDenominator = nonBrandSpend > 0 ? nonBrandSpend : historical.totalSpend;
         // Default numerator counts only normal irrelevant spend. Optionally
-        // fold in competitor / brand excluded spend when the toggles are on.
+        // fold in competitor / brand / low-relevancy excluded spend when the
+        // toggles are on.
         const countedIrrelevant =
           historical.irrelevantSpend +
           (includeCompetitor ? historical.competitorExcludedSpend || 0 : 0) +
-          (includeBrand ? historical.brandExcludedSpend || 0 : 0);
+          (includeBrand ? historical.brandExcludedSpend || 0 : 0) +
+          (includeLowRelevancy ? historical.lowRelevancyExcludedSpend || 0 : 0);
         relevancy = Math.max(
           0,
           Math.min(100, 100 - (countedIrrelevant / relevancyDenominator) * 100),
@@ -753,16 +756,20 @@ export function ProgressTab({
         relevancy,
       };
     });
-  }, [monthlyTrend, wasteByMonth, trendWaste, trendIrrelevant, includeCompetitor, includeBrand]);
+  }, [monthlyTrend, wasteByMonth, trendWaste, trendIrrelevant, includeCompetitor, includeBrand, includeLowRelevancy]);
 
-  // Whether the client has any competitor / brand excluded spend in the
-  // trend window — only then is it worth showing the fold-in toggles.
+  // Whether the client has any competitor / brand / low-relevancy excluded
+  // spend in the trend window — only then is it worth showing the fold-in toggles.
   const hasCompetitorExcluded = useMemo(
     () => (monthlyWasteRelevancy || []).some((m) => (m.competitorExcludedSpend || 0) > 0),
     [monthlyWasteRelevancy],
   );
   const hasBrandExcluded = useMemo(
     () => (monthlyWasteRelevancy || []).some((m) => (m.brandExcludedSpend || 0) > 0),
+    [monthlyWasteRelevancy],
+  );
+  const hasLowRelevancyExcluded = useMemo(
+    () => (monthlyWasteRelevancy || []).some((m) => (m.lowRelevancyExcludedSpend || 0) > 0),
     [monthlyWasteRelevancy],
   );
 
@@ -896,6 +903,23 @@ export function ProgressTab({
               >
                 {includeBrand ? "✓ " : "+ "}Brand
               </button>
+            )}
+            {selectedMetrics.includes("relevancy") && hasLowRelevancyExcluded && (
+              <span className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIncludeLowRelevancy((v) => !v)}
+                  title="Fold low-relevancy spend back into Keyword Relevancy %. Off by default."
+                  className={`text-[11px] font-medium px-2 py-1 rounded border transition-colors ${
+                    includeLowRelevancy
+                      ? "bg-violet-50 text-violet-700 border-violet-300"
+                      : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  {includeLowRelevancy ? "✓ " : "+ "}Low relevancy
+                </button>
+                <HintIcon text="Low-relevancy negatives cover searches that can still convert, just at a weaker rate. Leave this off to give that traffic credit; turn it on to count that spend against Keyword Relevancy and show the stricter view." />
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">

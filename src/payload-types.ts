@@ -4806,9 +4806,9 @@ export interface NegativeKeywordList {
    */
   isActive?: boolean | null;
   /**
-   * Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor' or 'brand' for negatives that block non-converting-but-not-irrelevant traffic and can be toggled back on per-category. Choose 'routing only' for fully relevant negatives used only to steer spend to the correct campaign/ad group. The keywords are still synced to Google Ads regardless.
+   * Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor', 'brand', or 'low relevancy' for negatives that are excluded by default but can be toggled back on in the dashboard. Low relevancy means the traffic can convert, just at a lower rate. Choose 'routing only' for fully relevant negatives used only to steer spend to the correct campaign/ad group. The keywords are still synced to Google Ads regardless. Tip: use the dashboard '?' tooltip beside Low relevancy for the short client-facing explanation.
    */
-  relevancyExclusion?: ('none' | 'competitor' | 'brand' | 'routing_only') | null;
+  relevancyExclusion?: ('none' | 'competitor' | 'brand' | 'low_relevancy' | 'routing_only') | null;
   /**
    * Where this list originated: 'nlb' (Negative List Builder) or 'deep_dive' (Keyword Deep Dive)
    */
@@ -8310,6 +8310,10 @@ export interface NegativeKeywordMonthlyWasteRelevancyCache {
    * Cost on terms blocked only by brand-tagged NKLs. Excluded from the default relevancy %; foldable in via the dashboard brand toggle.
    */
   brandExcludedSpend?: number | null;
+  /**
+   * Cost on terms blocked only by low-relevancy NKLs. Excluded from the default relevancy %; foldable in via the dashboard low-relevancy toggle.
+   */
+  lowRelevancyExcludedSpend?: number | null;
   /**
    * Cost on search terms matching the client's brand keywords (substring match).
    */
@@ -12033,6 +12037,7 @@ export interface NegativeKeywordMonthlyWasteRelevancyCacheSelect<T extends boole
   irrelevantSpend?: T;
   competitorExcludedSpend?: T;
   brandExcludedSpend?: T;
+  lowRelevancyExcludedSpend?: T;
   brandSpend?: T;
   isFinal?: T;
   fetchedAt?: T;

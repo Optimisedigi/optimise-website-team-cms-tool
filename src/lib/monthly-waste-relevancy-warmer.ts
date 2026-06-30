@@ -17,6 +17,7 @@ export interface WasteRelevancyCacheRow {
   irrelevantSpend: number;
   competitorExcludedSpend?: number;
   brandExcludedSpend?: number;
+  lowRelevancyExcludedSpend?: number;
   brandSpend?: number;
   isFinal: boolean | number;
   fetchedAt: string;
@@ -29,6 +30,7 @@ export interface MonthlyWasteRelevancyEntry {
   irrelevantSpend: number;
   competitorExcludedSpend: number;
   brandExcludedSpend: number;
+  lowRelevancyExcludedSpend: number;
   brandSpend: number;
 }
 
@@ -48,7 +50,7 @@ export interface WarmMonthlyWasteRelevancyResult {
 type RelevancyNegativeKeyword = {
   text: string;
   matchType: "EXACT" | "PHRASE" | "BROAD";
-  exclusion: "none" | "competitor" | "brand";
+  exclusion: "none" | "competitor" | "brand" | "low_relevancy";
 };
 
 export function collectRelevancyNegativeKeywords(nkls: any[]): RelevancyNegativeKeyword[] {
@@ -60,15 +62,15 @@ export function collectRelevancyNegativeKeywords(nkls: any[]): RelevancyNegative
   const seen = new Set<string>();
   const irrelevantKeywords: RelevancyNegativeKeyword[] = [];
   for (const list of nkls) {
-    // A list tagged competitor/brand has its keywords kept OUT of the default
+    // Lists tagged competitor/brand/low_relevancy are kept OUT of the default
     // relevancy % (foldable back in via dashboard toggles). "none" lists
     // count normally. "routing_only" lists are fully relevant negatives used
     // only to steer spend to the correct campaign/ad group, so they are not
     // sent to Growth Tools as relevancy negatives at all.
     const ex = String(list?.relevancyExclusion ?? "").toLowerCase();
     if (ex === "routing_only") continue;
-    const listExclusion: "none" | "competitor" | "brand" =
-      ex === "competitor" || ex === "brand" ? ex : "none";
+    const listExclusion: "none" | "competitor" | "brand" | "low_relevancy" =
+      ex === "competitor" || ex === "brand" || ex === "low_relevancy" ? ex : "none";
     for (const kw of list?.keywords ?? []) {
       if (typeof kw?.keyword !== "string" || !kw.keyword.trim()) continue;
       const text = kw.keyword.trim();
@@ -262,6 +264,7 @@ export async function warmMonthlyWasteRelevancyForClient(
       irrelevantSpend?: number;
       competitorExcludedSpend?: number;
       brandExcludedSpend?: number;
+      lowRelevancyExcludedSpend?: number;
       brandSpend?: number;
     }> = Array.isArray(data?.monthly) ? data.monthly : [];
 
@@ -277,6 +280,7 @@ export async function warmMonthlyWasteRelevancyForClient(
             irrelevantSpend: number;
             competitorExcludedSpend: number;
             brandExcludedSpend: number;
+            lowRelevancyExcludedSpend: number;
             brandSpend: number;
             isFinal: boolean;
             fetchedAt: string;
@@ -292,6 +296,7 @@ export async function warmMonthlyWasteRelevancyForClient(
             irrelevantSpend: number;
             competitorExcludedSpend: number;
             brandExcludedSpend: number;
+            lowRelevancyExcludedSpend: number;
             brandSpend: number;
             isFinal: boolean;
             fetchedAt: string;
@@ -312,6 +317,7 @@ export async function warmMonthlyWasteRelevancyForClient(
       const irrelevantSpend = Number(entry.irrelevantSpend) || 0;
       const competitorExcludedSpend = Number(entry.competitorExcludedSpend) || 0;
       const brandExcludedSpend = Number(entry.brandExcludedSpend) || 0;
+      const lowRelevancyExcludedSpend = Number(entry.lowRelevancyExcludedSpend) || 0;
       const brandSpend = Number(entry.brandSpend) || 0;
       const isFinal = m < currentMonth;
 
@@ -326,6 +332,7 @@ export async function warmMonthlyWasteRelevancyForClient(
             irrelevantSpend,
             competitorExcludedSpend,
             brandExcludedSpend,
+            lowRelevancyExcludedSpend,
             brandSpend,
             isFinal,
             fetchedAt,
@@ -336,6 +343,7 @@ export async function warmMonthlyWasteRelevancyForClient(
         existing.irrelevantSpend = irrelevantSpend;
         existing.competitorExcludedSpend = competitorExcludedSpend;
         existing.brandExcludedSpend = brandExcludedSpend;
+        existing.lowRelevancyExcludedSpend = lowRelevancyExcludedSpend;
         existing.brandSpend = brandSpend;
         existing.isFinal = isFinal;
         existing.fetchedAt = fetchedAt;
@@ -350,6 +358,7 @@ export async function warmMonthlyWasteRelevancyForClient(
             irrelevantSpend,
             competitorExcludedSpend,
             brandExcludedSpend,
+            lowRelevancyExcludedSpend,
             brandSpend,
             isFinal,
             fetchedAt,
@@ -364,6 +373,7 @@ export async function warmMonthlyWasteRelevancyForClient(
           irrelevantSpend,
           competitorExcludedSpend,
           brandExcludedSpend,
+          lowRelevancyExcludedSpend,
           brandSpend,
           isFinal,
           fetchedAt,
@@ -446,6 +456,7 @@ export function buildMonthlyWasteRelevancyResponse(
       irrelevantSpend: row ? Number(row.irrelevantSpend) || 0 : 0,
       competitorExcludedSpend: row ? Number(row.competitorExcludedSpend) || 0 : 0,
       brandExcludedSpend: row ? Number(row.brandExcludedSpend) || 0 : 0,
+      lowRelevancyExcludedSpend: row ? Number(row.lowRelevancyExcludedSpend) || 0 : 0,
       brandSpend: row ? Number(row.brandSpend) || 0 : 0,
     };
   });

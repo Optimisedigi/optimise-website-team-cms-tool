@@ -1028,6 +1028,7 @@ export async function GET(request: NextRequest) {
   await run("negative_keyword_lists.relevancy_exclusion", "ALTER TABLE \`negative_keyword_lists\` ADD \`relevancy_exclusion\` text DEFAULT 'none'");
   await run("nkl_waste_relevancy_cache.competitor_excluded_spend", "ALTER TABLE \`negative_keyword_monthly_waste_relevancy_cache\` ADD \`competitor_excluded_spend\` numeric DEFAULT 0");
   await run("nkl_waste_relevancy_cache.brand_excluded_spend", "ALTER TABLE \`negative_keyword_monthly_waste_relevancy_cache\` ADD \`brand_excluded_spend\` numeric DEFAULT 0");
+  await run("nkl_waste_relevancy_cache.low_relevancy_excluded_spend", "ALTER TABLE \`negative_keyword_monthly_waste_relevancy_cache\` ADD \`low_relevancy_excluded_spend\` numeric DEFAULT 0");
 
   // Month-on-month keyword selection (2026-07-01). New per-client selection doc
   // plus immutable complete-month search-term cache. Kept in the GET fast-list

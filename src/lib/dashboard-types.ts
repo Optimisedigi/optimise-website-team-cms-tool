@@ -318,6 +318,9 @@ export interface GoogleAdsDashboardMonthlyWasteRelevancy {
   /** Spend blocked only by brand-tagged NKLs. Kept out of the default
    *  relevancy % — folded back in when the dashboard brand toggle is on. */
   brandExcludedSpend?: number;
+  /** Spend blocked only by low-relevancy NKLs. Kept out of the default
+   *  relevancy % — folded back in when the dashboard low-relevancy toggle is on. */
+  lowRelevancyExcludedSpend?: number;
   /** Spend on search terms matching the client's brand keywords (substring
    *  match). Drives the Overview tab's Monthly Performance brand/generic
    *  split. Zero when the client has no brand keywords configured. */
