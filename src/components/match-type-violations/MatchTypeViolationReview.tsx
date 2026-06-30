@@ -381,10 +381,16 @@ function KeywordTargetPickerModal({
 }) {
   const [mode, setMode] = useState<KeywordTargetMode>('auto')
   const [adGroupIds, setAdGroupIds] = useState<string[]>([])
+  const [adGroupSearch, setAdGroupSearch] = useState('')
+  const filteredAdGroups = useMemo(() => {
+    const query = adGroupSearch.trim().toLowerCase()
+    if (!query) return adGroups
+    return adGroups.filter((group) => `${group.campaignName ?? ''} ${group.adGroupName ?? ''} ${group.adGroupId}`.toLowerCase().includes(query))
+  }, [adGroupSearch, adGroups])
   const canConfirm = mode === 'auto' || adGroupIds.length > 0
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <div style={{ background: 'white', borderRadius: 8, padding: 24, width: 520, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+      <div style={{ background: 'white', borderRadius: 8, padding: 24, width: 760, maxWidth: '96vw', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>Add {pendingCount} as exact keyword{pendingCount !== 1 ? 's' : ''}</h3>
         <p style={{ margin: '0 0 16px', color: '#6b7280', fontSize: 13 }}>
           Add selected search terms as enabled EXACT keywords. Choose the matching exact ad group automatically, or move them into one ad group you select.
@@ -399,10 +405,19 @@ function KeywordTargetPickerModal({
         </label>
         {mode === 'adGroup' && (
           <>
-            <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 6, background: 'white' }}>
+            <input
+              type="search"
+              value={adGroupSearch}
+              onChange={(e) => setAdGroupSearch(e.currentTarget.value)}
+              placeholder="Search campaign or ad group…"
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, marginBottom: 8 }}
+            />
+            <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 6, background: 'white' }}>
               {adGroups.length === 0 ? (
                 <div style={{ padding: '10px 12px', color: '#6b7280', fontSize: 13 }}>No active ad groups found.</div>
-              ) : adGroups.map((group) => {
+              ) : filteredAdGroups.length === 0 ? (
+                <div style={{ padding: '10px 12px', color: '#6b7280', fontSize: 13 }}>No ad groups match “{adGroupSearch}”.</div>
+              ) : filteredAdGroups.map((group) => {
                 const checked = adGroupIds.includes(group.adGroupId)
                 return (
                   <label key={group.adGroupId} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '8px 10px', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', fontSize: 13 }}>
@@ -412,9 +427,9 @@ function KeywordTargetPickerModal({
                       onChange={() => setAdGroupIds((prev) => checked ? prev.filter((id) => id !== group.adGroupId) : [...prev, group.adGroupId])}
                       style={{ marginTop: 2 }}
                     />
-                    <span>
-                      <strong>{group.adGroupName || group.adGroupId}</strong>
-                      <span style={{ color: '#6b7280' }}> — {group.campaignName || 'Unknown campaign'}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <strong>{group.campaignName || 'Unknown campaign'}</strong>
+                      <span style={{ color: '#6b7280' }}> — {group.adGroupName || group.adGroupId}</span>
                     </span>
                   </label>
                 )
