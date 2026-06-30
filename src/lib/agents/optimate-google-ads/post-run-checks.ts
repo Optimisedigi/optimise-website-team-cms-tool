@@ -170,9 +170,9 @@ const ACTION_CLAIMS: ReadonlyArray<{
       "now i'll create",
       "now i will create",
     ],
-    tools: ["create_gmail_draft"],
+    tools: ["create_gmail_draft", "create_weekly_budget_gmail_draft", "create_monthly_budget_gmail_draft"],
     expectedToolHint:
-      "Call create_gmail_draft now with the budget HTML and subject you already pulled from get_budget_management_email. Do not return text until the tool call has been made.",
+      "Call the correct Gmail draft tool now. For weekly budget drafts use create_weekly_budget_gmail_draft. For monthly budget drafts with explicit components use create_monthly_budget_gmail_draft. For other drafts use create_gmail_draft with the HTML and subject you already pulled. Do not return text until the tool call has been made.",
   },
   {
     phrases: [
@@ -443,11 +443,15 @@ export function detectBudgetEmailWithoutTemplate(
   toolNamesCalledThisRun: readonly string[],
 ): CorrectionRequest | null {
   if (!containsAnyPhrase(userMessage, BUDGET_EMAIL_PHRASES)) return null;
-  if (toolNamesCalledThisRun.includes("get_budget_management_email")) return null;
+  if (
+    toolNamesCalledThisRun.includes("get_budget_management_email") ||
+    toolNamesCalledThisRun.includes("create_weekly_budget_gmail_draft") ||
+    toolNamesCalledThisRun.includes("create_monthly_budget_gmail_draft")
+  ) return null;
   return {
     reason: "budget_email_without_template",
     correctionNote:
-      "The user asked for a Budget Management email. You must call get_budget_management_email with mode='this_month' to verify the canonical HTML/template is available. If the user asked for a Gmail draft, then call create_gmail_draft with that HTML. If they only asked to see/give the email, reply with the subject and requested short summary, then ask if they want it saved as a Gmail draft. Never paste raw HTML in chat.",
+      "The user asked for a Budget Management email. You must call get_budget_management_email with mode='this_month' to verify the canonical HTML/template is available, unless this is a one-off weekly/monthly Gmail draft handled by create_weekly_budget_gmail_draft or create_monthly_budget_gmail_draft. If they only asked to see/give the email, reply with the subject and requested short summary, then ask if they want it saved as a Gmail draft. Never paste raw HTML in chat.",
   };
 }
 

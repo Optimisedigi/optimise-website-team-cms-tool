@@ -29,6 +29,7 @@ import { getMonthlyMetricTable } from "./tools/get-monthly-metric-table";
 import { growthToolsRead } from "./tools/growth-tools-read";
 import { createGmailDraftTool } from "./tools/create-gmail-draft";
 import { createWeeklyBudgetGmailDraftTool } from "./tools/create-weekly-budget-gmail-draft";
+import { createMonthlyBudgetGmailDraftTool } from "./tools/create-monthly-budget-gmail-draft";
 import { proposeNegativeKeywords } from "./tools/propose-negative-keywords";
 import { proposeNklCreate } from "./tools/propose-nkl-create";
 import { proposeNklUpdate } from "./tools/propose-nkl-update";
@@ -92,6 +93,7 @@ export { AGENT_NAME, buildSystemPromptForAudit, buildSystemPromptForPortfolio };
 const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "create_gmail_draft",
   "create_weekly_budget_gmail_draft",
+  "create_monthly_budget_gmail_draft",
   "remember",
   "soul_set",
   "propose_negative_keywords",
@@ -198,6 +200,7 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
     getWeeklyTrendNote as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
     createWeeklyBudgetGmailDraftTool as unknown as CanonicalTool<unknown>,
+    createMonthlyBudgetGmailDraftTool as unknown as CanonicalTool<unknown>,
     proposeNegativeKeywords as unknown as CanonicalTool<unknown>,
     proposeNklCreate as unknown as CanonicalTool<unknown>,
     proposeNklUpdate as unknown as CanonicalTool<unknown>,
@@ -263,7 +266,7 @@ function applyToolRestrictions(
 const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown>[]> = {
   performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, growthToolsRead, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
   negative_keywords: [getSearchTerms, getNegativeKeywordLists, proposeNegativeKeywords, proposeNklCreate, proposeNklUpdate, proposeNklPushLive] as unknown as CanonicalTool<unknown>[],
-  budget_email: [createWeeklyBudgetGmailDraftTool, getBudgetManagementEmail, getDashboardEmailComponents, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool, proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
+  budget_email: [createWeeklyBudgetGmailDraftTool, createMonthlyBudgetGmailDraftTool, getBudgetManagementEmail, getDashboardEmailComponents, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool, proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
   ad_copy: [getAdAssetPerformance, proposeAdCopyGenerate, proposeAdCopyDeploy] as unknown as CanonicalTool<unknown>[],
   seo_organic: [getGa4Overview, getGscOverview, getGscBrandedSplit, getGscIndexingStatus, getSerpDisplacement, getSerpDisplacementAlerts, getAiVisibility] as unknown as CanonicalTool<unknown>[],
   campaign_build: [proposeCampaignRestructure, proposeCampaignBuild, proposeGeoCampaignSplit, proposeCampaignStatusChange, proposeAdGroupCreate, proposeAdGroupStatusChange, proposeKeywordsAdd, getCampaignProposalStatus, requestConfirmTool] as unknown as CanonicalTool<unknown>[],

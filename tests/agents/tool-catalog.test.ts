@@ -29,6 +29,7 @@ const FIXTURE_TOOLS = [
   { name: "get_budget_management_email", description: "Gmail-ready budget management email HTML." },
   { name: "create_gmail_draft", description: "Create one-off Gmail draft." },
   { name: "create_weekly_budget_gmail_draft", description: "Create weekly budget Gmail draft." },
+  { name: "create_monthly_budget_gmail_draft", description: "Create monthly budget Gmail draft." },
   { name: "propose_negative_keywords", description: "Quick negative-keyword propose." },
   { name: "propose_nkl_create", description: "Create a new NKL." },
   { name: "propose_nkl_update", description: "Update an existing NKL." },

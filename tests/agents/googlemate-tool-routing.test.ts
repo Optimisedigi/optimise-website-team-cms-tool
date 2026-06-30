@@ -60,6 +60,12 @@ describe("GoogleMate tool routing", () => {
     expect(names).toContain("create_weekly_budget_gmail_draft");
   });
 
+  it("routes explicit monthly budget Gmail drafts to the deterministic shortcut", () => {
+    const names = toolNamesFor("Create a monthly budget Gmail draft with keyword relevancy and CPA trend");
+
+    expect(names).toContain("create_monthly_budget_gmail_draft");
+  });
+
   it("pre-attaches only the campaign-build bundle for geo keywords", () => {
     expectExactToolsFor("geo split", [
       "propose_campaign_restructure",
@@ -104,6 +110,7 @@ describe("GoogleMate tool routing", () => {
     expect(fullNames).toContain("propose_negative_keywords");
     expect(fullNames).toContain("create_gmail_draft");
     expect(fullNames).toContain("create_weekly_budget_gmail_draft");
+    expect(fullNames).toContain("create_monthly_budget_gmail_draft");
     expect(fullNames).toContain("propose_deck_from_template");
     expect(fullNames).not.toContain("remember");
   });
