@@ -231,7 +231,7 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
       // Fetch live campaigns + MTD spend from the same endpoint the UI loads
       // on mount. The /list route already supports x-api-key authentication.
       const listRes = await fetchJsonWithRetry<ListResponse>(
-        `${baseUrl}/api/google-ads-budgets/${auditId}/list`,
+        `${baseUrl}/api/google-ads-budgets/${auditId}/list?reportOnly=1`,
         { method: "GET", headers: { "x-api-key": apiKey } },
         "load campaigns",
       );

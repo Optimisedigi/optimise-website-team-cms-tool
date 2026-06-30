@@ -112,7 +112,7 @@ describe("get_budget_management_email", () => {
     expect(result.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toBe("http://localhost:3004/api/google-ads-budgets/7/list");
+    expect(String(url)).toBe("http://localhost:3004/api/google-ads-budgets/7/list?reportOnly=1");
     expect((init as RequestInit).method).toBe("GET");
     expect(((init as RequestInit).headers as Record<string, string>)["x-api-key"]).toBe(
       "test-key",

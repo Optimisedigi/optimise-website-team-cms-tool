@@ -124,6 +124,7 @@ export async function GET(
   const { id } = await params;
   const auditId = Number(id);
   const metricsRange = parseMetricsRange(req.nextUrl.searchParams.get("range"));
+  const reportOnly = req.nextUrl.searchParams.get("reportOnly") === "1";
   const competitiveRange: BudgetMetricsRange = metricsRange === "THIS_MONTH" ? "LAST_30_DAYS" : metricsRange;
 
   const payloadConfig = await config;
@@ -236,7 +237,7 @@ export async function GET(
       const campaigns = result.campaigns || [];
 
       const competitiveByCampaign = new Map<string, any>();
-      if (competitiveRange !== metricsRange) {
+      if (!reportOnly && competitiveRange !== metricsRange) {
         try {
           const competitiveResponse = await fetchCampaignBudgetMetrics(competitiveRange);
           if (competitiveResponse.ok) {
@@ -251,16 +252,18 @@ export async function GET(
       }
 
       const last60ByCampaign = new Map<string, any>();
-      try {
-        const last60Response = await fetchCampaignBudgetMetrics("LAST_60_DAYS");
-        if (last60Response.ok) {
-          const last60Result = await last60Response.json();
-          for (const campaign of last60Result.campaigns || []) {
-            last60ByCampaign.set(String(campaign.campaignId), campaign);
+      if (!reportOnly) {
+        try {
+          const last60Response = await fetchCampaignBudgetMetrics("LAST_60_DAYS");
+          if (last60Response.ok) {
+            const last60Result = await last60Response.json();
+            for (const campaign of last60Result.campaigns || []) {
+              last60ByCampaign.set(String(campaign.campaignId), campaign);
+            }
           }
+        } catch {
+          /* Recommendation signal falls back to saved recommendation fields. */
         }
-      } catch {
-        /* Recommendation signal falls back to saved recommendation fields. */
       }
 
       // Map Growth Tools bid strategy names to collection values
@@ -427,7 +430,8 @@ export async function GET(
         monthlyBudget: audit.monthlyBudget || 0,
         range: metricsRange,
         competitiveRange,
-        recommendationRange: "LAST_60_DAYS",
+        recommendationRange: reportOnly ? null : "LAST_60_DAYS",
+        reportOnly,
       });
     } catch (e: any) {
       console.error("[GoogleAdsBudgets] List error:", e.message);
