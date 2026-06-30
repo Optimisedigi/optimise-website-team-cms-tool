@@ -4,6 +4,14 @@ import { validateDashboardToken } from "../verify/route";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
+const CACHE_TTL_MS = 15 * 60 * 1000;
+
+type CachedPostClickResponse = {
+  expiresAt: number;
+  data: unknown;
+};
+
+const postClickCache = new Map<string, CachedPostClickResponse>();
 
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug") || "";
@@ -30,12 +38,25 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const normalizedRange = normalizeDashboardRange(range);
     const params = new URLSearchParams({
       customerId: customerId.replace(/-/g, ""),
-      range: normalizeDashboardRange(range),
+      range: normalizedRange,
       clientName,
     });
     if (conversionActions) params.set("conversionActions", conversionActions);
+
+    const cacheKey = JSON.stringify({ slug, customerId: customerId.replace(/-/g, ""), range: normalizedRange, clientName, conversionActions });
+    const cached = postClickCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.data, {
+        headers: {
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=900",
+          "X-Post-Click-Cache": "HIT",
+        },
+      });
+    }
+
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/hubspot-post-click?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },
@@ -56,7 +77,13 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await res.json();
-    return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
+    postClickCache.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=900",
+        "X-Post-Click-Cache": "MISS",
+      },
+    });
   } catch (err) {
     console.error("[HubSpot Post-Click Dashboard] Exception:", err);
     return NextResponse.json({ error: "Failed to fetch HubSpot post-click dashboard" }, { status: 500 });

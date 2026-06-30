@@ -400,27 +400,58 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const fetchPostClickData = useCallback(
     async (rangeOverride?: string) => {
       if (!isAwayDigital || !data.slug || !data.customerId) return;
-      setPostClickLoading(true);
+      const params = new URLSearchParams({
+        slug: data.slug,
+        customerId: data.customerId,
+        range: rangeOverride || "last_14_months",
+        clientName: data.clientName || "Away Digital Teams",
+      });
+      if (activeConversionActions) params.set("conversionActions", activeConversionActions);
+      const cacheKey = `google-ads-post-click:${params.toString()}`;
+      let showedCached = false;
+
+      if (typeof window !== "undefined") {
+        try {
+          const cached = window.sessionStorage.getItem(cacheKey);
+          if (cached) {
+            const parsed = JSON.parse(cached) as { savedAt: number; data: HubSpotPostClickDashboardData };
+            if (Date.now() - parsed.savedAt < 15 * 60 * 1000) {
+              setPostClickData(parsed.data);
+              setPostClickError("");
+              postClickFetched.current = true;
+              showedCached = true;
+            }
+          }
+        } catch {
+          try {
+            window.sessionStorage.removeItem(cacheKey);
+          } catch {
+            // Ignore unavailable storage; the network fetch below still runs.
+          }
+        }
+      }
+
+      setPostClickLoading(!showedCached);
       setPostClickError("");
       try {
-        const params = new URLSearchParams({
-          slug: data.slug,
-          customerId: data.customerId,
-          range: "last_14_months",
-          clientName: data.clientName || "Away Digital Teams",
-        });
-        if (activeConversionActions) params.set("conversionActions", activeConversionActions);
         const res = await fetch(`/api/dashboard/hubspot-post-click?${params}`, { credentials: "include", cache: "no-store" });
         if (res.ok) {
           const result = await res.json();
           setPostClickData(result);
           postClickFetched.current = true;
-        } else {
+          if (typeof window !== "undefined") {
+            try {
+              window.sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), data: result }));
+            } catch {
+              // Ignore storage quota/private-mode failures; fresh data is already rendered.
+            }
+          }
+        } else if (!showedCached) {
           setPostClickError(`Failed to load lead quality data (${res.status})`);
         }
       } catch (err) {
         console.error("[PostClick] Fetch error:", err);
-        setPostClickError("Failed to load lead quality data. Please try again.");
+        if (!showedCached) setPostClickError("Failed to load lead quality data. Please try again.");
       } finally {
         setPostClickLoading(false);
       }

@@ -416,6 +416,7 @@ function InfoTooltip({ label, text }: { label: string; text: string }) {
 }
 
 function MonthlySalesFollowUpMetrics({ data }: { data: MonthlySalesPoint[] }) {
+  const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
   return (
     <div className="mt-4 overflow-x-auto rounded-lg border border-slate-100">
       <table className="min-w-full divide-y divide-slate-100 text-xs">
@@ -443,21 +444,25 @@ function MonthlySalesFollowUpMetrics({ data }: { data: MonthlySalesPoint[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white text-slate-600">
-          {data.map((row) => (
-            <tr key={row.month}>
-              <td className="px-3 py-2 font-medium text-slate-700">{monthFull(row.month)}</td>
-              <td className="px-3 py-2 text-right">{formatCurrency(row.googleAdsSpend)}</td>
-              <td className="px-3 py-2 text-right">{Math.round(row.googleAdsConversions || 0)}</td>
-              <td className="px-3 py-2 text-right">{formatRate(row.keywordRelevancy)}</td>
-              <td className="px-3 py-2 text-right">{row.paidLeads}</td>
-              <td className="px-3 py-2 text-right">{row.meetings}</td>
-              <td className="px-3 py-2 text-right">{row.mqls}</td>
-              <td className="px-3 py-2 text-right">{row.sqls}</td>
-              <td className="px-3 py-2 text-right">{formatDurationFromDays(row.avgDaysToFirstOutreach)}</td>
-              <td className="px-3 py-2 text-right">{formatDurationFromDays(row.avgDaysToMql)}</td>
-              <td className="px-3 py-2 text-right">{formatDurationFromDays(row.avgDaysToSql)}</td>
-            </tr>
-          ))}
+          {data.map((row) => {
+            const isCurrentMonth = row.month === currentMonth;
+            const valueClassName = `px-3 py-2 text-right ${isCurrentMonth ? "font-bold text-slate-800" : "text-slate-600"}`;
+            return (
+              <tr key={row.month}>
+                <td className={`px-3 py-2 ${isCurrentMonth ? "font-bold text-slate-800" : "font-medium text-slate-700"}`}>{monthFull(row.month)}</td>
+                <td className={valueClassName}>{formatCurrency(row.googleAdsSpend)}</td>
+                <td className={valueClassName}>{Math.round(row.googleAdsConversions || 0)}</td>
+                <td className={valueClassName}>{formatRate(row.keywordRelevancy)}</td>
+                <td className={valueClassName}>{row.paidLeads}</td>
+                <td className={valueClassName}>{row.meetings}</td>
+                <td className={valueClassName}>{row.mqls}</td>
+                <td className={valueClassName}>{row.sqls}</td>
+                <td className={valueClassName}>{formatDurationFromDays(row.avgDaysToFirstOutreach)}</td>
+                <td className={valueClassName}>{formatDurationFromDays(row.avgDaysToMql)}</td>
+                <td className={valueClassName}>{formatDurationFromDays(row.avgDaysToSql)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
