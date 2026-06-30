@@ -82,6 +82,7 @@ interface MetricsEnvelope {
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_METRICS = 6;
 const COLUMN_WARN_THRESHOLD = 10;
+const WEEKLY_GROWTH_TOOLS_TIMEOUT_MS = 120_000;
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
@@ -341,6 +342,7 @@ async function fetchWeekTotals(
 
   const res = await growthToolsGet<MetricsEnvelope>(
     `/api/google-ads/campaign-budgets/get-metrics?${qs.toString()}`,
+    WEEKLY_GROWTH_TOOLS_TIMEOUT_MS,
   );
   if (!res.ok) return { ok: false, error: res.error ?? "Growth Tools call failed" };
 

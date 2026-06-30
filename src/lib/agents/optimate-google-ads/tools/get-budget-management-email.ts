@@ -57,6 +57,8 @@ interface ListResponse {
   monthlyBudget?: number;
 }
 
+const BUDGET_EMAIL_SELF_CALL_TIMEOUT_MS = 180_000;
+
 function resolveBaseUrl(): string {
   // Prefer explicit overrides, then fall back to the Vercel-injected production
   // URL (set automatically on every deploy). Without that fallback, serverless
@@ -90,7 +92,7 @@ async function fetchJsonWithRetry<T>(
   let lastStatus: number | null = null;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(60_000) });
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(BUDGET_EMAIL_SELF_CALL_TIMEOUT_MS) });
       if (res.ok) {
         const data = (await res.json()) as T;
         if (attempt > 1) {

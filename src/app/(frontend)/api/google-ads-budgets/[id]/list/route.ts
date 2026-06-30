@@ -7,6 +7,8 @@ import { isCampaignLifecycleActive } from "@/lib/google-ads-budget-email";
 // Collection slug type (use 'as any' to bypass strict type checking for new collections)
 const BUDGETS_COLLECTION = "google-ads-campaign-budgets" as any;
 
+export const maxDuration = 300;
+
 type BudgetMetricsRange = "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "LAST_60_DAYS" | "LAST_180_DAYS";
 type GrowthToolsDateRange = Exclude<BudgetMetricsRange, "LAST_180_DAYS">;
 
