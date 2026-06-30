@@ -34,6 +34,8 @@ const MAX_IMAGE_ATTACHMENTS = 3;
 const APPROX_CHARS_PER_TOKEN = 4;
 const MIN_RECENT_HISTORY_MESSAGES = 8;
 
+export const maxDuration = 300;
+
 export async function POST(request: Request) {
   try {
     const payload = await getPayload({ config });
