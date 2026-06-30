@@ -131,7 +131,7 @@ export default buildConfig({
       beforeNav: ["./components/AdminNavSetup"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
-      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass", "./components/ResetDocumentTabsOnOpen", "./components/ListRowClick"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass", "./components/ResetDocumentTabsOnOpen", "./components/ListRowClick", "./components/NegativeKeywordStaleReload"],
       beforeDashboard: ["./components/Dashboard"],
     },
   },
