@@ -6,13 +6,10 @@
  */
 
 export type GoogleAdsEmailComponentKey =
-  | "monthly_performance"
-  | "kpi_summary"
-  | "top_converters"
-  | "budget_wasters"
-  | "campaign_breakdown"
-  | "lead_quality"
-  | "competitor_snapshot";
+  | "keyword_relevancy"
+  | "cpa_trend"
+  | "quality_score"
+  | "top_converters";
 
 export interface GoogleAdsEmailComponentMeta {
   key: GoogleAdsEmailComponentKey;
@@ -22,39 +19,24 @@ export interface GoogleAdsEmailComponentMeta {
 
 export const GOOGLE_ADS_EMAIL_COMPONENTS: readonly GoogleAdsEmailComponentMeta[] = [
   {
-    key: "monthly_performance",
-    label: "Monthly performance",
-    description: "Monthly spend, conversions, and CPA trend table.",
+    key: "keyword_relevancy",
+    label: "Keyword relevancy",
+    description: "Monthly keyword relevancy trend graph.",
   },
   {
-    key: "kpi_summary",
-    label: "KPI summary",
-    description: "Spend, conversions, CPA, CTR, and CPC summary.",
+    key: "cpa_trend",
+    label: "CPA trend",
+    description: "Monthly cost-per-acquisition trend graph.",
+  },
+  {
+    key: "quality_score",
+    label: "Quality Score",
+    description: "Quality Score trend and component summary.",
   },
   {
     key: "top_converters",
     label: "Top converters",
     description: "Top converting search terms or keywords.",
-  },
-  {
-    key: "budget_wasters",
-    label: "Budget wasters",
-    description: "Wasted spend and no-conversion search terms.",
-  },
-  {
-    key: "campaign_breakdown",
-    label: "Campaign breakdown",
-    description: "Compact campaign/category performance table when available.",
-  },
-  {
-    key: "lead_quality",
-    label: "Lead quality",
-    description: "Paid leads, meetings, conversion, and quality rates when available.",
-  },
-  {
-    key: "competitor_snapshot",
-    label: "Competitor snapshot",
-    description: "Impression share and missed-budget snapshot when available.",
   },
 ] as const;
 
@@ -98,15 +80,26 @@ export interface GoogleAdsEmailCompetitorSnapshot {
   periodLabel?: string | null;
 }
 
+export interface GoogleAdsEmailTrendPoint {
+  label: string;
+  value: number | null;
+}
+
+export interface GoogleAdsEmailQualityScoreSummary {
+  latestQualityScore?: number | null;
+  latestMonth?: string | null;
+  creativeQuality?: number | null;
+  searchPredictedCtr?: number | null;
+  landingPageQuality?: number | null;
+  trend?: GoogleAdsEmailTrendPoint[];
+}
+
 export interface GoogleAdsEmailComponentsData {
   periodLabel?: string | null;
-  monthlyPerformanceRows?: GoogleAdsEmailMonthlyRow[];
-  kpiSummary?: GoogleAdsEmailMetricTotals | null;
+  keywordRelevancyTrend?: GoogleAdsEmailTrendPoint[];
+  cpaTrend?: GoogleAdsEmailTrendPoint[];
+  qualityScore?: GoogleAdsEmailQualityScoreSummary | null;
   topConverters?: GoogleAdsEmailTermRow[];
-  budgetWasters?: GoogleAdsEmailTermRow[];
-  campaignBreakdown?: GoogleAdsEmailCampaignRow[];
-  leadQuality?: GoogleAdsEmailLeadQuality | null;
-  competitorSnapshot?: GoogleAdsEmailCompetitorSnapshot | null;
   unavailable?: Partial<Record<GoogleAdsEmailComponentKey, string>>;
 }
 
@@ -121,20 +114,22 @@ export function renderGoogleAdsEmailComponentHtml(key: GoogleAdsEmailComponentKe
   if (unavailable) return renderUnavailable(componentLabel(key), unavailable);
 
   switch (key) {
-    case "monthly_performance":
-      return renderMonthlyPerformance(data.monthlyPerformanceRows ?? []);
-    case "kpi_summary":
-      return renderKpiSummary(data.kpiSummary ?? null, data.periodLabel);
+    case "keyword_relevancy":
+      return renderTrendGraph(
+        "Keyword Relevancy",
+        data.keywordRelevancyTrend ?? [],
+        "#8b5cf6",
+        "%",
+        "Keyword relevancy data is unavailable for this account.",
+        undefined,
+        "Keyword Relevancy shows the share of non-brand search spend going to relevant searches, with a higher score meaning budget is reaching better-fit searches.",
+      );
+    case "cpa_trend":
+      return renderTrendGraph("Cost Per Acquisition", data.cpaTrend ?? [], "#f59e0b", "", "CPA trend data is unavailable for this account.", moneyOrDash);
+    case "quality_score":
+      return renderQualityScore(data.qualityScore ?? null);
     case "top_converters":
       return renderTermTable("Top Converters", data.topConverters ?? [], "No converting search terms were available for this period.", { sort: "conversions" });
-    case "budget_wasters":
-      return renderTermTable("Budget Wasters", data.budgetWasters ?? [], "No no-conversion wasted-spend search terms were available for this period.", { sort: "spend" });
-    case "campaign_breakdown":
-      return renderCampaignBreakdown(data.campaignBreakdown ?? [], data.periodLabel);
-    case "lead_quality":
-      return renderLeadQuality(data.leadQuality ?? null);
-    case "competitor_snapshot":
-      return renderCompetitorSnapshot(data.competitorSnapshot ?? null);
     default:
       return "";
   }
@@ -153,25 +148,43 @@ export function renderGoogleAdsEmailComponentsHtml(keys: GoogleAdsEmailComponent
     .join("\n");
 }
 
-function renderMonthlyPerformance(rows: GoogleAdsEmailMonthlyRow[]): string {
-  if (rows.length === 0) return renderUnavailable("Monthly Performance Trend", "Monthly performance data is unavailable for this account and period.");
-  return renderTable(
-    "Monthly Performance Trend",
-    ["Month", "Spend", "Conversions", "CPA"],
-    rows.map((row) => [row.label, money(row.spend), number(row.conversions), moneyOrDash(row.cpa)]),
-    ["left", "right", "right", "right"],
-  );
+function renderTrendGraph(title: string, rows: GoogleAdsEmailTrendPoint[], color: string, suffix: string, empty: string, formatValue?: (value: number) => string, note?: string): string {
+  const usable = rows.filter((row) => Number.isFinite(Number(row.value)));
+  if (usable.length === 0) return renderUnavailable(title, empty);
+  const max = Math.max(...usable.map((row) => Number(row.value)), 1);
+  const rowsHtml = rows.map((row) => {
+    const value = Number(row.value);
+    const width = Number.isFinite(value) ? Math.max(4, Math.min(100, (value / max) * 100)) : 0;
+    const label = Number.isFinite(value) ? (formatValue ? formatValue(value) : `${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}${suffix}`) : "-";
+    return `<tr>
+      <td style=\"${cellStyle};text-align:left\">${escapeHtml(row.label)}</td>
+      <td style=\"${cellStyle};text-align:left;min-width:180px\"><div style=\"height:8px;background:#f1f5f9;width:160px\"><div style=\"height:8px;background:${color};width:${width.toFixed(0)}%\"></div></div></td>
+      <td style=\"${cellStyle};text-align:right\">${escapeHtml(label)}</td>
+    </tr>`;
+  }).join("");
+  const noteHtml = note ? `<p style=\"margin:0 0 8px;color:#64748b;font-family:Verdana,sans-serif;font-size:12px;line-height:1.35\">${escapeHtml(note)}</p>` : "";
+  return `<div style=\"${outerStyle}\">
+  <p style=\"${headingStyle}\"><strong>${escapeHtml(title)}</strong></p>
+  ${noteHtml}
+  <table style=\"${tableStyle}\">
+    <tr><th style=\"${headStyle};text-align:left\">Month</th><th style=\"${headStyle};text-align:left\">Trend</th><th style=\"${headStyle};text-align:right\">Value</th></tr>
+    ${rowsHtml}
+  </table>
+</div>`;
 }
 
-function renderKpiSummary(totals: GoogleAdsEmailMetricTotals | null, periodLabel?: string | null): string {
-  if (!totals) return renderUnavailable("KPI Summary", "KPI summary data is unavailable for this period.");
-  const label = periodLabel ? `KPI Summary - ${escapeHtml(periodLabel)}` : "KPI Summary";
-  return renderTable(
-    label,
-    ["Spend", "Conversions", "CPA", "CTR", "CPC"],
-    [[money(totals.spend), number(totals.conversions), moneyOrDash(totals.cpa), percent(totals.ctr), moneyOrDash(totals.cpc)]],
-    ["right", "right", "right", "right", "right"],
+function renderQualityScore(data: GoogleAdsEmailQualityScoreSummary | null): string {
+  if (!data) return renderUnavailable("Quality Score", "Quality Score data is unavailable for this account.");
+  const trend = data.trend && data.trend.length > 0
+    ? renderTrendGraph("Quality Score Trend", data.trend, "#0ea5e9", "/10", "Quality Score trend data is unavailable for this account.")
+    : "";
+  const summary = renderTable(
+    data.latestMonth ? `Quality Score - ${escapeHtml(data.latestMonth)}` : "Quality Score",
+    ["Quality Score", "Ad relevance", "Expected CTR", "Landing page"],
+    [[score(data.latestQualityScore), score(data.creativeQuality), score(data.searchPredictedCtr), score(data.landingPageQuality)]],
+    ["right", "right", "right", "right"],
   );
+  return `${summary}\n${trend}`;
 }
 
 function renderTermTable(title: string, rows: GoogleAdsEmailTermRow[], empty: string, options: { sort: "spend" | "conversions" }): string {
@@ -184,39 +197,6 @@ function renderTermTable(title: string, rows: GoogleAdsEmailTermRow[], empty: st
     ["Search term", "Campaign", "Spend", "Conversions", "CPA"],
     sorted.map((row) => [row.term, row.campaignName || "-", money(row.spend), number(row.conversions), moneyOrDash(row.cpa)]),
     ["left", "left", "right", "right", "right"],
-  );
-}
-
-function renderCampaignBreakdown(rows: GoogleAdsEmailCampaignRow[], periodLabel?: string | null): string {
-  if (rows.length === 0) return renderUnavailable("Campaign Breakdown", "Campaign breakdown data is unavailable for this period.");
-  const title = periodLabel ? `Campaign Breakdown - ${escapeHtml(periodLabel)}` : "Campaign Breakdown";
-  return renderTable(
-    title,
-    ["Campaign", "Spend", "Conversions", "CPA", "CTR"],
-    rows.slice(0, 10).map((row) => [row.campaignName, money(row.spend), number(row.conversions), moneyOrDash(row.cpa), percent(row.ctr)]),
-    ["left", "right", "right", "right", "right"],
-  );
-}
-
-function renderLeadQuality(data: GoogleAdsEmailLeadQuality | null): string {
-  if (!data) return renderUnavailable("Lead Quality", "Lead quality data is not available for this account.");
-  const title = data.periodLabel ? `Lead Quality - ${escapeHtml(data.periodLabel)}` : "Lead Quality";
-  return renderTable(
-    title,
-    ["Paid leads", "Meetings", "Google Ads conversions", "Meeting rate", "Qualified lead rate"],
-    [[number(data.paidLeads), number(data.meetings), number(data.googleAdsConversions), percent(data.meetingRate), percent(data.qualifiedLeadRate)]],
-    ["right", "right", "right", "right", "right"],
-  );
-}
-
-function renderCompetitorSnapshot(data: GoogleAdsEmailCompetitorSnapshot | null): string {
-  if (!data) return renderUnavailable("Competitor Snapshot", "Competitor/impression-share data is not available for this account.");
-  const title = data.periodLabel ? `Competitor Snapshot - ${escapeHtml(data.periodLabel)}` : "Competitor Snapshot";
-  return renderTable(
-    title,
-    ["Search impression share", "Search budget lost IS"],
-    [[percent(data.searchImpressionShare), percent(data.searchBudgetLostIS)]],
-    ["right", "right"],
   );
 }
 
@@ -265,6 +245,12 @@ function percent(value: number | null | undefined): string {
   const n = Number(value);
   if (!Number.isFinite(n)) return "-";
   return `${n.toLocaleString("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
+}
+
+function score(value: number | null | undefined): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  return n.toLocaleString("en-AU", { maximumFractionDigits: 1 });
 }
 
 function escapeHtml(value: string): string {

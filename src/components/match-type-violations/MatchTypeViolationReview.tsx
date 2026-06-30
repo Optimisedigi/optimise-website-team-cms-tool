@@ -299,11 +299,13 @@ function NklPickerModal({
   onConfirm,
   onCancel,
   pendingCount,
+  loading,
 }: {
   lists: NegativeKeywordList[]
   onConfirm: (routing: { mode: RoutingMode; listId?: string | number }) => void
   onCancel: () => void
   pendingCount: number
+  loading: boolean
 }) {
   const [mode, setMode] = useState<RoutingMode>('auto')
   const [selected, setSelected] = useState<string | number | ''>('')
@@ -350,13 +352,13 @@ function NklPickerModal({
           </select>
         )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
+          <button onClick={onCancel} disabled={loading} style={btnStyle('ghost')}>Cancel</button>
           <button
             onClick={() => canConfirm && onConfirm(mode === 'existing' ? { mode: 'existing', listId: selected as string | number } : { mode: 'auto' })}
-            disabled={!canConfirm}
-            style={btnStyle('primary', !canConfirm)}
+            disabled={!canConfirm || loading}
+            style={btnStyle('primary', !canConfirm || loading)}
           >
-            Approve
+            {loading ? 'Approving…' : 'Approve'}
           </button>
         </div>
       </div>
@@ -373,13 +375,13 @@ function KeywordTargetPickerModal({
 }: {
   adGroups: AdGroupOption[]
   error: string | null
-  onConfirm: (target: { mode: KeywordTargetMode; adGroupId?: string }) => void
+  onConfirm: (target: { mode: KeywordTargetMode; adGroupIds?: string[] }) => void
   onCancel: () => void
   pendingCount: number
 }) {
   const [mode, setMode] = useState<KeywordTargetMode>('auto')
-  const [adGroupId, setAdGroupId] = useState('')
-  const canConfirm = mode === 'auto' || Boolean(adGroupId)
+  const [adGroupIds, setAdGroupIds] = useState<string[]>([])
+  const canConfirm = mode === 'auto' || adGroupIds.length > 0
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
       <div style={{ background: 'white', borderRadius: 8, padding: 24, width: 520, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
@@ -393,20 +395,29 @@ function KeywordTargetPickerModal({
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer', fontSize: 13 }}>
           <input type="radio" checked={mode === 'adGroup'} onChange={() => setMode('adGroup')} />
-          <span>Move all selected terms to one ad group</span>
+          <span>Move all selected terms to selected ad group(s)</span>
         </label>
         {mode === 'adGroup' && (
-          <select value={adGroupId} onChange={(e) => setAdGroupId(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, marginBottom: 12 }}>
-            <option value="">— Select target ad group —</option>
-            {adGroups.map((group) => (
-              <option key={group.adGroupId} value={group.adGroupId}>{group.campaignName} / {group.adGroupName}</option>
-            ))}
-          </select>
+          <>
+            <select
+              multiple
+              value={adGroupIds}
+              onChange={(e) => setAdGroupIds(Array.from(e.currentTarget.selectedOptions).map((option) => option.value))}
+              style={{ width: '100%', minHeight: 180, padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14, marginBottom: 6 }}
+            >
+              {adGroups.map((group) => (
+                <option key={group.adGroupId} value={group.adGroupId}>{group.campaignName} / {group.adGroupName}</option>
+              ))}
+            </select>
+            <div style={{ marginBottom: 12, color: '#6b7280', fontSize: 12 }}>
+              Hold Cmd/Ctrl to select multiple ad groups. Selected: {adGroupIds.length}
+            </div>
+          </>
         )}
         {error && <div style={{ marginBottom: 12, color: '#dc2626', fontSize: 12 }}>{error}</div>}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
-          <button onClick={() => canConfirm && onConfirm(mode === 'adGroup' ? { mode, adGroupId } : { mode })} disabled={!canConfirm} style={btnStyle('primary', !canConfirm)}>Add exact keywords</button>
+          <button onClick={() => canConfirm && onConfirm(mode === 'adGroup' ? { mode, adGroupIds } : { mode })} disabled={!canConfirm} style={btnStyle('primary', !canConfirm)}>Add exact keywords</button>
         </div>
       </div>
     </div>
@@ -828,20 +839,50 @@ export default function MatchTypeViolationReview({
       overrides[String(c.id)] = negativeFor(c)
     }
     setBulkLoading(true)
+    setKeywordActionStatus({
+      kind: 'loading',
+      title: `Approving ${ids.length} negative keyword${ids.length !== 1 ? 's' : ''}…`,
+      lines: [routing.mode === 'auto'
+        ? 'Adding each selected term to its source ad-group negative keyword list, creating lists where needed.'
+        : 'Adding selected terms to the chosen negative keyword list.'],
+    })
     try {
       const res = await fetch('/api/match-type-violations/bulk-approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ candidateIds: ids, routing, overrides }),
       })
-      if (!res.ok) throw new Error(await res.text())
+      const raw = await res.text()
+      const data = raw ? (() => { try { return JSON.parse(raw) } catch { return null } })() : null
+      if (!res.ok) throw new Error(data?.error ?? raw)
+      const listLines = Array.isArray(data?.listSummaries)
+        ? data.listSummaries.slice(0, 8).flatMap((summary: any) => {
+            const keywords = Array.isArray(summary.keywords)
+              ? summary.keywords.slice(0, 6).map((kw: any) => `[${kw.keyword}] ${kw.matchType || 'exact'}`).join(', ')
+              : ''
+            return [
+              `${summary.listName || summary.listId}: ${summary.added ?? 0} negative${Number(summary.added ?? 0) !== 1 ? 's' : ''} saved`,
+              ...(keywords ? [`Keywords: ${keywords}${Array.isArray(summary.keywords) && summary.keywords.length > 6 ? ', …' : ''}`] : []),
+            ]
+          })
+        : []
       setShowNklPicker(false)
       setCandidates((prev) => prev.filter((candidate) => !ids.includes(candidate.id)))
       setSelected(new Set())
       setTotalDocs((prev) => Math.max(0, prev - ids.length))
+      setKeywordActionStatus({
+        kind: 'success',
+        title: `Approved ${data?.approved ?? ids.length} negative keyword${Number(data?.approved ?? ids.length) !== 1 ? 's' : ''}`,
+        lines: [
+          routing.mode === 'auto'
+            ? `Saved across ${Array.isArray(data?.listSummaries) ? data.listSummaries.length : 0} ad-group negative keyword list${Array.isArray(data?.listSummaries) && data.listSummaries.length === 1 ? '' : 's'}; ${data?.createdLists ?? 0} list${Number(data?.createdLists ?? 0) !== 1 ? 's' : ''} created.`
+            : 'Saved to the selected negative keyword list.',
+          ...listLines,
+        ],
+      })
       void fetchCandidates()
     } catch (e: any) {
-      alert(`Error: ${e.message}`)
+      setKeywordActionStatus({ kind: 'error', title: 'Negative keyword approval failed', lines: [cleanActionError(e.message)] })
     } finally {
       setBulkLoading(false)
     }
@@ -916,11 +957,11 @@ export default function MatchTypeViolationReview({
     setShowKeywordTargetPicker(true)
   }
 
-  const handleBulkAddOpportunities = async (target: { mode: KeywordTargetMode; adGroupId?: string }) => {
+  const handleBulkAddOpportunities = async (target: { mode: KeywordTargetMode; adGroupIds?: string[] }) => {
     const ids = pendingSelected.map((candidate) => candidate.id)
     if (ids.length === 0) return
-    if (target.mode === 'adGroup' && !target.adGroupId) {
-      setKeywordActionStatus({ kind: 'error', title: 'Choose a target ad group', lines: ['Select one ad group before adding exact keywords.'] })
+    if (target.mode === 'adGroup' && (!Array.isArray(target.adGroupIds) || target.adGroupIds.length === 0)) {
+      setKeywordActionStatus({ kind: 'error', title: 'Choose target ad group(s)', lines: ['Select at least one ad group before adding exact keywords.'] })
       return
     }
     setBulkLoading(true)
@@ -931,7 +972,7 @@ export default function MatchTypeViolationReview({
     })
     try {
       const body = target.mode === 'adGroup'
-        ? { candidateIds: ids, adGroupIds: [target.adGroupId], negateSource: true }
+        ? { candidateIds: ids, adGroupIds: target.adGroupIds, negateSource: true }
         : { candidateIds: ids, autoExactFromCandidates: true, negateSource: true }
       const res = await fetch('/api/match-type-violations/add-exact-bulk', {
         method: 'POST',
@@ -1561,6 +1602,7 @@ export default function MatchTypeViolationReview({
         <NklPickerModal
           lists={nklLists}
           pendingCount={pendingSelected.length}
+          loading={bulkLoading}
           onConfirm={handleBulkApprove}
           onCancel={() => setShowNklPicker(false)}
         />

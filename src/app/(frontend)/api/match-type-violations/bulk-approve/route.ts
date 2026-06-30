@@ -110,6 +110,12 @@ export async function POST(req: NextRequest) {
   }
 
   const listNames: string[] = [];
+  const listSummaries: Array<{
+    listId: string | number;
+    listName: string;
+    added: number;
+    keywords: Array<{ keyword: string; matchType: NegativeMatchType }>;
+  }> = [];
   let persisted = 0;
   let failedToPersist = 0;
   for (const [listId, bucket] of perList) {
@@ -120,7 +126,8 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
     }).catch(() => null);
     if (!nkl) continue;
-    listNames.push((nkl as any).name ?? String(listId));
+    const listName = (nkl as any).name ?? String(listId);
+    listNames.push(listName);
 
     const existingKeywords = Array.isArray((nkl as any).keywords) ? (nkl as any).keywords : [];
     const dedupedMap = new Map<string, any>();
@@ -139,6 +146,13 @@ export async function POST(req: NextRequest) {
       id: listId,
       data: { keywords: mergedKeywords },
       overrideAccess: true,
+    });
+
+    listSummaries.push({
+      listId,
+      listName,
+      added: bucket.newKws.length,
+      keywords: bucket.newKws.map((kw) => ({ keyword: kw.keyword, matchType: kw.matchType })),
     });
 
     const statusUpdates = await Promise.allSettled(
@@ -193,6 +207,7 @@ export async function POST(req: NextRequest) {
     approved: persisted,
     failedToPersist,
     createdLists,
+    listSummaries,
     results: results.map((r) =>
       r.status === "fulfilled" ? r.value : { status: "error", reason: r.status },
     ),

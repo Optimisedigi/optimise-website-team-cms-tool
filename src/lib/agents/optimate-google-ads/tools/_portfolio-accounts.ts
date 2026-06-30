@@ -7,6 +7,7 @@ export interface PortfolioAccount {
   displayName: string;
   customerId: string;
   maskedCustomerId: string;
+  clientSlug?: string;
   source: "audit" | "client";
   active: boolean;
   managed: boolean;
@@ -20,6 +21,7 @@ interface ClientAccountRecord {
   id: string | number;
   name?: string | null;
   googleAdsCustomerId?: string | null;
+  slug?: string | null;
   isActive?: boolean | null;
   dashboardConversionActions?: string | null;
   phoneCallConversionActions?: string | null;
@@ -86,6 +88,7 @@ export async function loadPortfolioAccounts(): Promise<PortfolioAccount[]> {
         id: true,
         name: true,
         googleAdsCustomerId: true,
+        slug: true,
         isActive: true,
         dashboardConversionActions: true,
         phoneCallConversionActions: true,
@@ -119,6 +122,7 @@ export async function loadPortfolioAccounts(): Promise<PortfolioAccount[]> {
       displayName: audit.businessName || client?.name || maskCustomerId(customerId),
       customerId,
       maskedCustomerId: maskCustomerId(customerId),
+      ...(client?.slug ? { clientSlug: client.slug } : {}),
       source: "audit",
       active: client?.isActive !== false,
       managed,
@@ -139,6 +143,7 @@ export async function loadPortfolioAccounts(): Promise<PortfolioAccount[]> {
       existing.clientId = existing.clientId ?? client.id;
       existing.active = client.isActive !== false;
       existing.managed = managed;
+      if (!existing.clientSlug && client.slug) existing.clientSlug = client.slug;
       if (!existing.displayName && client.name) existing.displayName = client.name;
       if (!existing.conversionActions && conversionSettings.conversionActions) {
         existing.conversionActions = conversionSettings.conversionActions;
@@ -153,6 +158,7 @@ export async function loadPortfolioAccounts(): Promise<PortfolioAccount[]> {
       displayName: client.name || maskCustomerId(customerId),
       customerId,
       maskedCustomerId: maskCustomerId(customerId),
+      ...(client.slug ? { clientSlug: client.slug } : {}),
       source: "client",
       active: client.isActive !== false,
       managed,

@@ -372,6 +372,7 @@ interface AuditDocLike {
 interface ClientDocLike {
   id?: string | number;
   name?: string | null;
+  slug?: string | null;
   googleAdsCustomerId?: string | null;
   ga4PropertyId?: string | null;
   ga4MeasurementId?: string | null;
@@ -564,6 +565,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   const agentContext = {
     customerId: effectiveCustomerId,
     clientId: client?.id,
+    clientSlug: client?.slug,
     auditId: audit.id,
     clientName: client?.name ?? audit.businessName ?? null,
     ga4PropertyId: client?.ga4PropertyId ?? null,

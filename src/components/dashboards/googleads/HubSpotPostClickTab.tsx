@@ -62,9 +62,19 @@ function formatDate(value: string): string {
   return date.toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function formatDays(value: number | null | undefined): string {
+function formatDurationFromDays(value: number | null | undefined): string {
   if (value == null) return "—";
-  return `${value.toFixed(1).replace(/\.0$/, "")}d`;
+  const totalMinutes = Math.ceil(value * 24 * 60);
+  if (totalMinutes <= 0) return "0 minutes";
+  if (totalMinutes < 60) return totalMinutes === 1 ? "1 minute" : `${totalMinutes} minutes`;
+  const totalHours = Math.ceil(totalMinutes / 60);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const dayText = days === 1 ? "1 day" : `${days} days`;
+  const hourText = hours === 1 ? "1 hour" : `${hours} hours`;
+  if (days && hours) return `${dayText} ${hourText}`;
+  if (days) return dayText;
+  return hourText;
 }
 
 function daysBetween(start: string | undefined, end: string | undefined): number | null {
@@ -72,13 +82,13 @@ function daysBetween(start: string | undefined, end: string | undefined): number
   const startTime = new Date(start).getTime();
   const endTime = new Date(end).getTime();
   if (Number.isNaN(startTime) || Number.isNaN(endTime) || endTime < startTime) return null;
-  return Math.round(((endTime - startTime) / 86_400_000) * 10) / 10;
+  return (endTime - startTime) / 86_400_000;
 }
 
 function averageDays(values: Array<number | null>): number | null {
   const valid = values.filter((value): value is number => value != null);
   if (!valid.length) return null;
-  return Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 10) / 10;
+  return Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 10000) / 10000;
 }
 
 function toggleMetricSelection(current: MetricKey[], key: MetricKey): MetricKey[] {
@@ -99,8 +109,10 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
       stats.paidLeads += 1;
       stats.disqualifiedLeads += lead.isQualifiedLead ? 0 : 1;
       stats.daysToFirstOutreach.push(daysBetween(baseline, lead.firstOutreachAt));
-      stats.daysToMql.push(daysBetween(baseline, lead.mqlAt));
-      stats.daysToSql.push(daysBetween(baseline, lead.sqlAt));
+      if (lead.isQualifiedLead) {
+        stats.daysToMql.push(daysBetween(baseline, lead.mqlAt));
+        stats.daysToSql.push(daysBetween(baseline, lead.sqlAt));
+      }
       leadStatsByMonth.set(lead.month, stats);
     }
     return buildMonthKeys(14).map((month) => {
@@ -266,6 +278,20 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
   );
 }
 
+function InfoTooltip({ label, text }: { label: string; text: string }) {
+  return (
+    <span className="inline-flex items-center justify-end gap-1">
+      {label}
+      <span className="group relative inline-flex">
+        <span className="flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-slate-300 text-[10px] font-semibold leading-none text-slate-500 transition-colors group-hover:border-blue-300 group-hover:bg-blue-50 group-hover:text-blue-600">i</span>
+        <span className="pointer-events-none absolute right-0 top-6 z-20 w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-normal leading-relaxed text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+          {text}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 function MonthlySalesFollowUpMetrics({ data }: { data: MonthlyPoint[] }) {
   return (
     <div className="mt-4 overflow-x-auto rounded-lg border border-slate-100">
@@ -273,18 +299,24 @@ function MonthlySalesFollowUpMetrics({ data }: { data: MonthlyPoint[] }) {
         <thead className="bg-slate-50 text-slate-500">
           <tr>
             <th className="px-3 py-2 text-left font-medium">Month</th>
-            <th className="px-3 py-2 text-right font-medium" title="Average days from first conversion date when available, otherwise contact create date, to HubSpot first outreach date.">Speed to first outreach ⓘ</th>
-            <th className="px-3 py-2 text-right font-medium" title="Average days from first conversion date when available, otherwise contact create date, to Marketing Qualified Lead lifecycle entry.">Days to MQL ⓘ</th>
-            <th className="px-3 py-2 text-right font-medium" title="Average days from first conversion date when available, otherwise contact create date, to Sales Qualified Lead lifecycle entry.">Days to SQL ⓘ</th>
+            <th className="px-3 py-2 text-right font-medium">
+              <InfoTooltip label="Speed to first outreach" text="Average time from first conversion date when available, otherwise contact create date, to HubSpot first outreach date." />
+            </th>
+            <th className="px-3 py-2 text-right font-medium">
+              <InfoTooltip label="Time to MQL" text="Average time for qualified paid-search leads to be marked Marketing Qualified Lead in HubSpot. Disqualified leads are excluded." />
+            </th>
+            <th className="px-3 py-2 text-right font-medium">
+              <InfoTooltip label="Time to SQL" text="Average time for qualified paid-search leads to be marked Sales Qualified Lead in HubSpot. Disqualified leads are excluded." />
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white text-slate-600">
           {data.map((row) => (
             <tr key={row.month}>
-              <td className="px-3 py-2 font-medium text-slate-700">{monthShort(row.month)}</td>
-              <td className="px-3 py-2 text-right">{formatDays(row.avgDaysToFirstOutreach)}</td>
-              <td className="px-3 py-2 text-right">{formatDays(row.avgDaysToMql)}</td>
-              <td className="px-3 py-2 text-right">{formatDays(row.avgDaysToSql)}</td>
+              <td className="px-3 py-2 font-medium text-slate-700">{monthFull(row.month)}</td>
+              <td className="px-3 py-2 text-right">{formatDurationFromDays(row.avgDaysToFirstOutreach)}</td>
+              <td className="px-3 py-2 text-right">{formatDurationFromDays(row.avgDaysToMql)}</td>
+              <td className="px-3 py-2 text-right">{formatDurationFromDays(row.avgDaysToSql)}</td>
             </tr>
           ))}
         </tbody>
@@ -386,8 +418,6 @@ export function HubSpotPostClickTab({ data }: { data: HubSpotPostClickDashboardD
           />
         </div>
 
-        <MonthlySalesFollowUpMetrics data={monthlyChartData} />
-
         <div className="mt-5 grid gap-3 text-xs text-slate-600 md:grid-cols-5">
           <div className="rounded-lg bg-slate-50 p-3">
             <p className="font-semibold text-slate-800">Google Ads conversions</p>
@@ -410,6 +440,17 @@ export function HubSpotPostClickTab({ data }: { data: HubSpotPostClickDashboardD
             <p className="mt-1">Paid leads marked unqualified, dead, junk, spam, or not model aligned divided by paid leads.</p>
           </div>
           </div>
+
+        </div>
+      </div>
+
+      <div className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-8">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Sales follow-up timing</h3>
+            <p className="mt-1 text-xs text-slate-400">Average time from paid-search lead creation/conversion to HubSpot sales milestones.</p>
+          </div>
+          <MonthlySalesFollowUpMetrics data={monthlyChartData} />
         </div>
       </div>
 
@@ -425,17 +466,18 @@ export function HubSpotPostClickTab({ data }: { data: HubSpotPostClickDashboardD
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setShowLeadDetails((open) => !open)}
-          className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-700"
+      <div className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-8">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowLeadDetails((open) => !open)}
+            className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-700"
         >
           <span>Lead details</span>
           <span className="text-xs text-slate-400">{showLeadDetails ? "Hide" : "Show"}</span>
-        </button>
-        {showLeadDetails && (
-          <div className="mt-4 overflow-x-auto">
+          </button>
+          {showLeadDetails && (
+            <div className="mt-4 overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                 <tr>
@@ -464,8 +506,9 @@ export function HubSpotPostClickTab({ data }: { data: HubSpotPostClickDashboardD
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-900">

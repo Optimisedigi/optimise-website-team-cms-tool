@@ -1,11 +1,13 @@
+import { getPayload } from "payload";
+import config from "@/payload.config";
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import {
   GOOGLE_ADS_EMAIL_COMPONENT_KEYS,
   renderGoogleAdsEmailComponentsHtml,
   type GoogleAdsEmailComponentKey,
   type GoogleAdsEmailComponentsData,
-  type GoogleAdsEmailMetricTotals,
 } from "@/lib/google-ads-email-components";
+import { buildMonthlyWasteRelevancyResponse, warmMonthlyWasteRelevancyForClient } from "@/lib/monthly-waste-relevancy-warmer";
 import { ensureCustomerId, growthToolsGet, parseConversionActions } from "./_growth-tools";
 import { customerKey, loadPortfolioAccounts, type PortfolioAccount } from "./_portfolio-accounts";
 
@@ -16,31 +18,26 @@ export interface DashboardEmailComponentsArgs {
   auditId?: number | string;
 }
 
+interface QualityTrendRaw {
+  month?: string;
+  qualityScore?: number | null;
+  creativeQuality?: number | null;
+  searchPredictedCtr?: number | null;
+  landingPageQuality?: number | null;
+}
+
+interface QualityScoresEnvelope {
+  qualityTrend?: QualityTrendRaw[];
+}
+
 interface MetricRaw {
-  campaignName?: string;
-  campaign?: string;
   cost?: number;
   spend?: number;
-  clicks?: number;
-  impressions?: number;
   conversions?: number;
-  ctr?: number | string | null;
-  searchImpressionShare?: number | string | null;
-  searchBudgetLostIS?: number | string | null;
-  searchBudgetLostImpressionShare?: number | string | null;
 }
 
 interface MetricsEnvelope {
   metrics?: MetricRaw[];
-}
-
-interface MetricTotalsAccumulator {
-  spend: number;
-  clicks: number;
-  impressions: number;
-  conversions: number;
-  ctrNumerator: number;
-  ctrDenominator: number;
 }
 
 interface SearchTermRaw {
@@ -67,7 +64,7 @@ const SUPPORTED_COMPONENTS = new Set<GoogleAdsEmailComponentKey>(GOOGLE_ADS_EMAI
 export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponentsArgs> = {
   name: "get_dashboard_email_components",
   description:
-    "Returns ordered Gmail-safe OptiMate dashboard component HTML for monthly Google Ads budget emails. Use when the user selects monthly email components/chips such as monthly_performance, kpi_summary, top_converters, budget_wasters, campaign_breakdown, lead_quality, or competitor_snapshot. Insert returned html before get_budget_management_email's canonical budget tracker. Missing data returns warnings and never invents metrics.",
+    "Returns ordered Gmail-safe OptiMate dashboard component HTML for monthly Google Ads budget emails. Use when the user selects monthly email components/chips: keyword_relevancy, cpa_trend, quality_score, or top_converters. Insert returned html before get_budget_management_email's canonical budget tracker. Missing data returns warnings and never invents metrics.",
   inputSchema: {
     type: "object",
     properties: {
@@ -81,7 +78,7 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
         type: "integer",
         minimum: 1,
         maximum: MAX_MONTHS,
-        description: "Number of completed calendar months for monthly_performance. Defaults to 6 and is clamped to 1..12.",
+        description: "Number of completed calendar months for keyword_relevancy, cpa_trend, and quality_score. Defaults to 6 and is clamped to 1..12.",
       },
       range: {
         type: "string",
@@ -140,40 +137,37 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
     const conversionActions = resolvedAccount.conversionActions;
     const conversionActionCategories = resolvedAccount.conversionActionCategories;
 
-    if (args.components.includes("monthly_performance")) {
-      const monthly = await fetchMonthlyPerformance(customerId, args.months ?? DEFAULT_MONTHS, conversionActions);
-      if (monthly.ok) {
-        data.monthlyPerformanceRows = monthly.rows;
+    if (args.components.includes("keyword_relevancy")) {
+      const relevancy = await fetchKeywordRelevancy(resolvedAccount, args.months ?? DEFAULT_MONTHS);
+      if (relevancy.ok) {
+        data.keywordRelevancyTrend = relevancy.rows;
       } else {
-        warnings.push(monthly.error);
-        data.unavailable!.monthly_performance = monthly.error;
+        warnings.push(relevancy.error);
+        data.unavailable!.keyword_relevancy = relevancy.error;
       }
     }
 
-    const needsMetrics = args.components.some((key) => key === "kpi_summary" || key === "campaign_breakdown" || key === "competitor_snapshot");
-    if (needsMetrics) {
-      const metrics = await fetchMetrics(customerId, range, conversionActions);
-      if (metrics.ok) {
-        data.periodLabel = rangeLabel(range);
-        const totals = sumMetrics(metrics.rows);
-        data.kpiSummary = totals;
-        data.campaignBreakdown = aggregateCampaignRows(metrics.rows);
-        const impressionShare = competitorSnapshot(metrics.rows);
-        if (impressionShare) data.competitorSnapshot = { ...impressionShare, periodLabel: data.periodLabel };
-        if (args.components.includes("competitor_snapshot") && !impressionShare) {
-          const warning = "Competitor snapshot skipped because Growth Tools did not return impression-share fields for this period.";
-          warnings.push(warning);
-          data.unavailable!.competitor_snapshot = warning;
-        }
+    if (args.components.includes("cpa_trend")) {
+      const cpa = await fetchCpaTrend(customerId, args.months ?? DEFAULT_MONTHS, conversionActions);
+      if (cpa.ok) {
+        data.cpaTrend = cpa.rows;
       } else {
-        warnings.push(metrics.error);
-        for (const key of ["kpi_summary", "campaign_breakdown", "competitor_snapshot"] as const) {
-          if (args.components.includes(key)) data.unavailable![key] = metrics.error;
-        }
+        warnings.push(cpa.error);
+        data.unavailable!.cpa_trend = cpa.error;
       }
     }
 
-    const needsSearchTerms = args.components.some((key) => key === "top_converters" || key === "budget_wasters");
+    if (args.components.includes("quality_score")) {
+      const quality = await fetchQualityScore(resolvedAccount, args.months ?? DEFAULT_MONTHS);
+      if (quality.ok) {
+        data.qualityScore = quality.summary;
+      } else {
+        warnings.push(quality.error);
+        data.unavailable!.quality_score = quality.error;
+      }
+    }
+
+    const needsSearchTerms = args.components.some((key) => key === "top_converters");
     if (needsSearchTerms) {
       const terms = await fetchSearchTerms(customerId, range, conversionActions, conversionActionCategories);
       if (terms.ok) {
@@ -181,22 +175,9 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
           .filter((row) => Number(row.conversions ?? 0) > 0)
           .sort((a, b) => Number(b.conversions ?? 0) - Number(a.conversions ?? 0))
           .slice(0, 8);
-        data.budgetWasters = terms.rows
-          .filter((row) => Number(row.conversions ?? 0) <= 0 && Number(row.spend ?? 0) > 0)
-          .sort((a, b) => Number(b.spend ?? 0) - Number(a.spend ?? 0))
-          .slice(0, 8);
       } else {
         warnings.push(terms.error);
-        if (args.components.includes("top_converters")) data.unavailable!.top_converters = terms.error;
-        if (args.components.includes("budget_wasters")) data.unavailable!.budget_wasters = terms.error;
-      }
-    }
-
-    for (const key of ["lead_quality"] as const) {
-      if (args.components.includes(key)) {
-        const warning = "Lead quality skipped because connected lead-quality fields were not available in this OptiMate data path.";
-        warnings.push(warning);
-        data.unavailable![key] = warning;
+        data.unavailable!.top_converters = terms.error;
       }
     }
 
@@ -208,8 +189,9 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
         components: args.components,
         warnings,
         sourceSummary: {
-          monthlyPerformance: args.components.includes("monthly_performance") ? "Growth Tools campaign-budgets/get-metrics, one request per completed calendar month" : null,
-          dashboardBlocks: needsMetrics ? `Growth Tools campaign-budgets/get-metrics for ${range}` : null,
+          keywordRelevancy: args.components.includes("keyword_relevancy") ? "CMS monthly waste/relevancy cache" : null,
+          cpaTrend: args.components.includes("cpa_trend") ? "Growth Tools campaign-budgets/get-metrics, one request per completed calendar month" : null,
+          qualityScore: args.components.includes("quality_score") ? "Growth Tools dashboard quality-scores" : null,
           searchTerms: needsSearchTerms ? `Growth Tools search-terms for ${range}` : null,
           auditId: resolvedAccount.auditId ?? null,
           conversionActionsApplied: conversionActions || null,
@@ -219,14 +201,45 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
   },
 };
 
-async function fetchMonthlyPerformance(customerId: string, months: number, conversionActions: string): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["monthlyPerformanceRows"]> } | { ok: false; error: string }> {
+type ResolvedDashboardAccount = {
+  customerId: string;
+  auditId?: string | number;
+  clientId?: string | number;
+  clientSlug?: string;
+  conversionActions: string;
+  conversionActionCategories: string;
+};
+
+async function fetchKeywordRelevancy(account: ResolvedDashboardAccount, months: number): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["keywordRelevancyTrend"]> } | { ok: false; error: string }> {
+  if (!account.clientId || !account.clientSlug) {
+    return { ok: false, error: "Keyword relevancy needs a linked CMS client and dashboard slug for this account." };
+  }
+  const payload = await getPayload({ config });
+  const result = await warmMonthlyWasteRelevancyForClient(
+    payload,
+    Number(account.clientId),
+    account.customerId,
+    account.clientSlug,
+    clamp(months, 1, MAX_MONTHS),
+  );
+  const built = buildMonthlyWasteRelevancyResponse(result);
+  const rows = built.monthly.map((row) => {
+    const nonBrandSpend = Math.max(0, row.totalSpend - row.brandSpend);
+    const denominator = nonBrandSpend > 0 ? nonBrandSpend : row.totalSpend;
+    const value = denominator > 0 ? Math.max(0, Math.min(100, 100 - (row.irrelevantSpend / denominator) * 100)) : null;
+    return { label: monthLabel(row.month), value: value === null ? null : round2(value) };
+  });
+  return { ok: true, rows };
+}
+
+async function fetchCpaTrend(customerId: string, months: number, conversionActions: string): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["cpaTrend"]> } | { ok: false; error: string }> {
   const monthKeys = completedMonthKeys(clamp(months, 1, MAX_MONTHS));
-  const rows: NonNullable<GoogleAdsEmailComponentsData["monthlyPerformanceRows"]> = [];
+  const rows: NonNullable<GoogleAdsEmailComponentsData["cpaTrend"]> = [];
   for (const month of monthKeys) {
     const res = await fetchMetrics(customerId, `${month}-01,${lastDayOfMonth(month)}`, conversionActions);
     if (!res.ok) return res;
-    const totals = sumMetrics(res.rows);
-    rows.push({ label: monthLabel(month), spend: totals.spend, conversions: totals.conversions, cpa: totals.cpa });
+    const totals = sumCpaMetrics(res.rows);
+    rows.push({ label: monthLabel(month), value: totals.cpa });
   }
   return { ok: true, rows };
 }
@@ -237,6 +250,40 @@ async function fetchMetrics(customerId: string, dateRange: string, conversionAct
   const res = await growthToolsGet<MetricsEnvelope>(`/api/google-ads/campaign-budgets/get-metrics?${qs.toString()}`);
   if (!res.ok) return { ok: false, error: res.error ?? "Growth Tools metrics call failed" };
   return { ok: true, rows: res.data?.metrics ?? [] };
+}
+
+function sumCpaMetrics(rows: MetricRaw[]): { cpa: number | null } {
+  let spend = 0;
+  let conversions = 0;
+  for (const row of rows) {
+    spend += Number(row.cost ?? row.spend ?? 0);
+    conversions += Number(row.conversions ?? 0);
+  }
+  return { cpa: conversions > 0 ? round2(spend / conversions) : null };
+}
+
+async function fetchQualityScore(account: ResolvedDashboardAccount, months: number): Promise<{ ok: true; summary: NonNullable<GoogleAdsEmailComponentsData["qualityScore"]> } | { ok: false; error: string }> {
+  if (!account.clientSlug) {
+    return { ok: false, error: "Quality Score needs a linked CMS client dashboard slug for this account." };
+  }
+  const qs = new URLSearchParams({ customerId: account.customerId, range: "last_6_months" });
+  const res = await growthToolsGet<QualityScoresEnvelope>(`/api/google-ads/dashboard/${encodeURIComponent(account.clientSlug)}/quality-scores?${qs.toString()}`);
+  if (!res.ok) return { ok: false, error: res.error ?? "Growth Tools quality score call failed" };
+  const trend = (res.data?.qualityTrend ?? [])
+    .slice(-clamp(months, 1, MAX_MONTHS))
+    .map((row) => ({ label: monthLabel(String(row.month ?? "")), value: row.qualityScore ?? null }));
+  const latest = [...(res.data?.qualityTrend ?? [])].reverse().find((row) => row.qualityScore !== null && row.qualityScore !== undefined) ?? res.data?.qualityTrend?.at(-1);
+  return {
+    ok: true,
+    summary: {
+      latestQualityScore: latest?.qualityScore ?? null,
+      latestMonth: latest?.month ? monthLabel(latest.month) : null,
+      creativeQuality: latest?.creativeQuality ?? null,
+      searchPredictedCtr: latest?.searchPredictedCtr ?? null,
+      landingPageQuality: latest?.landingPageQuality ?? null,
+      trend,
+    },
+  };
 }
 
 async function fetchSearchTerms(customerId: string, dateRange: string, conversionActions: string, conversionActionCategories: string): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["topConverters"]> } | { ok: false; error: string }> {
@@ -262,73 +309,11 @@ async function fetchSearchTerms(customerId: string, dateRange: string, conversio
   return { ok: true, rows };
 }
 
-function sumMetrics(rows: MetricRaw[]): GoogleAdsEmailMetricTotals {
-  const totals = rows.reduce<MetricTotalsAccumulator>(
-    (acc, row) => {
-      const spend = Number(row.cost ?? row.spend ?? 0);
-      const clicks = Number(row.clicks ?? 0);
-      const impressions = Number(row.impressions ?? 0);
-      const conversions = Number(row.conversions ?? 0);
-      const ctr = parsePercent(row.ctr);
-      acc.spend += spend;
-      acc.clicks += clicks;
-      acc.impressions += impressions;
-      acc.conversions += conversions;
-      if (ctr !== null && impressions > 0) {
-        acc.ctrNumerator += ctr * impressions;
-        acc.ctrDenominator += impressions;
-      }
-      return acc;
-    },
-    { spend: 0, clicks: 0, impressions: 0, conversions: 0, ctrNumerator: 0, ctrDenominator: 0 },
-  );
-  return {
-    spend: round2(totals.spend),
-    clicks: Math.round(totals.clicks),
-    impressions: Math.round(totals.impressions),
-    conversions: round2(totals.conversions),
-    ctr: totals.ctrDenominator > 0 ? round2(totals.ctrNumerator / totals.ctrDenominator) : totals.impressions > 0 ? round2((totals.clicks / totals.impressions) * 100) : null,
-    cpc: totals.clicks > 0 ? round2(totals.spend / totals.clicks) : null,
-    cpa: totals.conversions > 0 ? round2(totals.spend / totals.conversions) : null,
-  };
-}
-
-function aggregateCampaignRows(rows: MetricRaw[]): NonNullable<GoogleAdsEmailComponentsData["campaignBreakdown"]> {
-  const map = new Map<string, MetricRaw[]>();
-  for (const row of rows) {
-    const campaignName = String(row.campaignName ?? row.campaign ?? "Unknown campaign").trim() || "Unknown campaign";
-    map.set(campaignName, [...(map.get(campaignName) ?? []), row]);
-  }
-  return Array.from(map.entries())
-    .map(([campaignName, campaignRows]) => ({ campaignName, ...sumMetrics(campaignRows) }))
-    .sort((a, b) => Number(b.spend ?? 0) - Number(a.spend ?? 0));
-}
-
-function competitorSnapshot(rows: MetricRaw[]): { searchImpressionShare?: number | null; searchBudgetLostIS?: number | null } | null {
-  let shareNumerator = 0;
-  let lostNumerator = 0;
-  let denominator = 0;
-  for (const row of rows) {
-    const impressions = Number(row.impressions ?? 0);
-    if (impressions <= 0) continue;
-    const share = parseSharePercent(row.searchImpressionShare);
-    const lost = parseSharePercent(row.searchBudgetLostIS ?? row.searchBudgetLostImpressionShare);
-    if (share !== null) shareNumerator += share * impressions;
-    if (lost !== null) lostNumerator += lost * impressions;
-    if (share !== null || lost !== null) denominator += impressions;
-  }
-  if (denominator <= 0) return null;
-  return {
-    searchImpressionShare: shareNumerator > 0 ? round2(shareNumerator / denominator) : null,
-    searchBudgetLostIS: lostNumerator > 0 ? round2(lostNumerator / denominator) : null,
-  };
-}
-
 async function resolveAccountContext(
   args: DashboardEmailComponentsArgs,
   context: Record<string, unknown>,
 ): Promise<
-  | { ok: true; customerId: string; auditId?: string | number; conversionActions: string; conversionActionCategories: string }
+  | { ok: true; customerId: string; auditId?: string | number; clientId?: string | number; clientSlug?: string; conversionActions: string; conversionActionCategories: string }
   | { ok: false; error: string }
 > {
   if (typeof context.customerId === "string" && context.customerId.trim()) {
@@ -336,12 +321,19 @@ async function resolveAccountContext(
       ok: true,
       customerId: customerKey(context.customerId),
       auditId: args.auditId ?? (context.auditId as string | number | undefined),
+      clientId: context.clientId as string | number | undefined,
+      clientSlug: typeof context.clientSlug === "string" ? context.clientSlug : undefined,
       conversionActions: parseConversionActions(context.conversionActions).join(","),
       conversionActionCategories: (context.conversionActionCategories as string | undefined) ?? "",
     };
   }
 
-  if (args.auditId === undefined || args.auditId === null || args.auditId === "") {
+  const selectedAccountRefs = Array.isArray(context.selectedAccountRefs)
+    ? context.selectedAccountRefs.filter((ref): ref is string | number => typeof ref === "string" || typeof ref === "number")
+    : [];
+  const accountRef = args.auditId ?? (selectedAccountRefs.length === 1 ? selectedAccountRefs[0] : undefined);
+
+  if (accountRef === undefined || accountRef === null || accountRef === "") {
     try {
       return {
         ok: true,
@@ -354,15 +346,18 @@ async function resolveAccountContext(
     }
   }
 
-  const account = await findPortfolioAccount(args.auditId);
-  if (!account) return { ok: false, error: `No Google Ads account found for auditId/accountRef ${String(args.auditId)}.` };
+  const account = await findPortfolioAccount(accountRef);
+  if (!account) return { ok: false, error: `No Google Ads account found for auditId/accountRef ${String(accountRef)}.` };
   return {
     ok: true,
     customerId: customerKey(account.customerId),
-    auditId: account.accountRef ?? args.auditId,
+    auditId: account.accountRef ?? accountRef,
+    clientId: account.clientId,
+    clientSlug: account.clientSlug,
     conversionActions: account.conversionActions ?? "",
     conversionActionCategories: account.conversionActionCategories ?? "",
   };
+
 }
 
 async function findPortfolioAccount(ref: string | number): Promise<PortfolioAccount | null> {
@@ -374,6 +369,7 @@ async function findPortfolioAccount(ref: string | number): Promise<PortfolioAcco
     customerKey(account.customerId) === refText.replace(/-/g, ""),
   ) ?? null;
 }
+
 
 function completedMonthKeys(count: number): string[] {
   const cursor = new Date();
@@ -398,23 +394,6 @@ function monthLabel(month: string): string {
   return date.toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
-function rangeLabel(range: string): string {
-  if (/^\d{4}-\d{2}-\d{2},\d{4}-\d{2}-\d{2}$/.test(range)) return range.replace(",", " to ");
-  return range.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function parsePercent(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value !== "string" || !value.trim()) return null;
-  const numeric = Number(value.replace(/[%<>,\s]/g, ""));
-  return Number.isFinite(numeric) ? numeric : null;
-}
-
-function parseSharePercent(value: unknown): number | null {
-  const parsed = parsePercent(value);
-  if (parsed === null) return null;
-  return parsed > 0 && parsed <= 1 ? parsed * 100 : parsed;
-}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));

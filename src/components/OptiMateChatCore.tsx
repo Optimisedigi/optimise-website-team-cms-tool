@@ -162,16 +162,19 @@ const MAX_IMAGE_ATTACHMENTS = 3
 const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 const MONTHLY_EMAIL_COMPONENT_CHIPS = [
-  { key: 'monthly_performance', label: 'Monthly performance' },
-  { key: 'kpi_summary', label: 'KPI summary' },
-  { key: 'top_converters', label: 'Top converters' },
-  { key: 'budget_wasters', label: 'Budget wasters' },
-  { key: 'campaign_breakdown', label: 'Campaign breakdown' },
-  { key: 'lead_quality', label: 'Lead quality' },
-  { key: 'competitor_snapshot', label: 'Competitor snapshot' },
+  { key: 'keyword_relevancy', label: 'Keyword Relevancy' },
+  { key: 'cpa_trend', label: 'CPA Trend' },
+  { key: 'quality_score', label: 'Quality Score' },
+  { key: 'top_converters', label: 'Top Converters' },
 ] as const
 
 type MonthlyEmailComponentKey = (typeof MONTHLY_EMAIL_COMPONENT_CHIPS)[number]['key']
+
+function shouldShowMonthlyEmailComponents(input: string, selectedCount: number): boolean {
+  if (selectedCount > 0) return true
+  const text = input.toLowerCase()
+  return /\bmonthly\b/.test(text) && /\b(budget|email|report|gmail|draft)\b/.test(text)
+}
 
 interface OptiMateSettingsResponse {
   defaultChatModel?: string
@@ -1074,7 +1077,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     }
 
     const buildMonthlyEmailPrompt = useCallback((components: MonthlyEmailComponentKey[]): string => {
-      const selected = components.length > 0 ? components.join(', ') : 'monthly_performance'
+      const selected = components.length > 0 ? components.join(', ') : 'keyword_relevancy'
       return `Create the monthly budget email with dashboard components: ${selected}.`
     }, [])
 
@@ -2024,73 +2027,75 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               }}
             />
 
-            <div
-              aria-label="Monthly email components"
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                gap: 6,
-                margin: '0 0 8px',
-                padding: '8px 10px',
-                border: '1px solid #e5e7eb',
-                borderRadius: 12,
-                background: '#f9fafb',
-              }}
-            >
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginRight: 2 }}>
-                Monthly email components
-              </span>
-              {MONTHLY_EMAIL_COMPONENT_CHIPS.map((chip) => {
-                const selected = selectedMonthlyEmailComponents.includes(chip.key)
-                return (
-                  <button
-                    key={chip.key}
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      toggleMonthlyEmailComponent(chip.key)
-                    }}
-                    disabled={loading}
-                    style={{
-                      padding: '5px 9px',
-                      fontSize: 11,
-                      background: selected ? '#dbeafe' : '#fff',
-                      border: selected ? '1px solid #93c5fd' : '1px solid #e5e7eb',
-                      borderRadius: 999,
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      color: selected ? '#1d4ed8' : '#374151',
-                      fontWeight: selected ? 700 : 500,
-                    }}
-                  >
-                    {chip.label}
-                  </button>
-                )
-              })}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  sendMonthlyEmailComponentPrompt()
-                }}
-                disabled={loading}
+            {shouldShowMonthlyEmailComponents(input, selectedMonthlyEmailComponents.length) && (
+              <div
+                aria-label="Monthly email components"
                 style={{
-                  marginLeft: 'auto',
-                  padding: '5px 10px',
-                  fontSize: 11,
-                  background: '#111827',
-                  border: '1px solid #111827',
-                  borderRadius: 999,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  color: '#fff',
-                  fontWeight: 700,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: 6,
+                  margin: '0 0 8px',
+                  padding: '8px 10px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 12,
+                  background: '#f9fafb',
                 }}
               >
-                Draft monthly email
-              </button>
-            </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginRight: 2 }}>
+                  Monthly email components
+                </span>
+                {MONTHLY_EMAIL_COMPONENT_CHIPS.map((chip) => {
+                  const selected = selectedMonthlyEmailComponents.includes(chip.key)
+                  return (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        toggleMonthlyEmailComponent(chip.key)
+                      }}
+                      disabled={loading}
+                      style={{
+                        padding: '5px 9px',
+                        fontSize: 11,
+                        background: selected ? '#dbeafe' : '#fff',
+                        border: selected ? '1px solid #93c5fd' : '1px solid #e5e7eb',
+                        borderRadius: 999,
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        color: selected ? '#1d4ed8' : '#374151',
+                        fontWeight: selected ? 700 : 500,
+                      }}
+                    >
+                      {chip.label}
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    sendMonthlyEmailComponentPrompt()
+                  }}
+                  disabled={loading}
+                  style={{
+                    marginLeft: 'auto',
+                    padding: '5px 10px',
+                    fontSize: 11,
+                    background: '#111827',
+                    border: '1px solid #111827',
+                    borderRadius: 999,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    color: '#fff',
+                    fontWeight: 700,
+                  }}
+                >
+                  Draft monthly email
+                </button>
+              </div>
+            )}
 
             <div
               style={{
