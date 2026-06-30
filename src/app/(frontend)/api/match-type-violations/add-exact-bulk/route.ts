@@ -282,13 +282,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const duplicateTexts = new Set([...duplicateByTextTarget].map((key) => key.split("\u0000")[0]));
   const targetSummaries = Array.from(targetBatches.values()).map(({ target, texts }) => {
     const textList = Array.from(texts);
+    const addedKeywords = textList.filter((text) => addedByTextTarget.has(`${text.toLowerCase()}\u0000${target.adGroupId}`));
+    const skippedKeywords = textList.filter((text) => duplicateByTextTarget.has(`${text.toLowerCase()}\u0000${target.adGroupId}`));
     return {
       adGroupId: target.adGroupId,
       adGroupName: target.adGroupName,
       campaignName: target.campaignName ?? "",
       selected: textList.length,
-      added: textList.filter((text) => addedByTextTarget.has(`${text.toLowerCase()}\u0000${target.adGroupId}`)).length,
-      alreadyExists: textList.filter((text) => duplicateByTextTarget.has(`${text.toLowerCase()}\u0000${target.adGroupId}`)).length,
+      added: addedKeywords.length,
+      alreadyExists: skippedKeywords.length,
+      addedKeywords: addedKeywords.map((keyword) => ({ keyword, matchType: "EXACT" })),
+      skippedKeywords: skippedKeywords.map((keyword) => ({ keyword, matchType: "EXACT" })),
     };
   });
 

@@ -406,25 +406,26 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         const params = new URLSearchParams({
           slug: data.slug,
           customerId: data.customerId,
-          range: rangeOverride || range,
+          range: "last_14_months",
           clientName: data.clientName || "Away Digital Teams",
         });
+        if (activeConversionActions) params.set("conversionActions", activeConversionActions);
         const res = await fetch(`/api/dashboard/hubspot-post-click?${params}`, { credentials: "include", cache: "no-store" });
         if (res.ok) {
           const result = await res.json();
           setPostClickData(result);
           postClickFetched.current = true;
         } else {
-          setPostClickError(`Failed to load post-click quality data (${res.status})`);
+          setPostClickError(`Failed to load lead quality data (${res.status})`);
         }
       } catch (err) {
         console.error("[PostClick] Fetch error:", err);
-        setPostClickError("Failed to load post-click quality data. Please try again.");
+        setPostClickError("Failed to load lead quality data. Please try again.");
       } finally {
         setPostClickLoading(false);
       }
     },
-    [isAwayDigital, data.slug, data.customerId, data.clientName, range],
+    [isAwayDigital, data.slug, data.customerId, data.clientName, activeConversionActions],
   );
 
   const handleTabChange = useCallback(
@@ -479,9 +480,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
 
   useEffect(() => {
     if (!postClickFetched.current) return;
-    fetchPostClickData(range);
+    fetchPostClickData("last_14_months");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
+  }, [activeConversionActions]);
 
   const toggleConversion = useCallback(
     (action: string) => {
@@ -845,7 +846,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             { key: "competitors" as Tab, label: "Competitor Analysis" },
             { key: "keywords" as Tab, label: "Keyword Deep Dive" },
             { key: "quality" as Tab, label: "Quality Score" },
-            ...(isAwayDigital ? [{ key: "postClick" as Tab, label: "Post-click Quality" }] : []),
+            ...(isAwayDigital ? [{ key: "postClick" as Tab, label: "Lead Quality" }] : []),
             { key: "accountStructure" as Tab, label: "Account Structure View" },
           ]).map((tab) => (
             <button
@@ -1026,7 +1027,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Loading post-click quality data...
+                Loading lead quality data...
               </div>
             ) : postClickError ? (
               <div className="py-12 text-center">

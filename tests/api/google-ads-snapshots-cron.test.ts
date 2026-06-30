@@ -25,7 +25,7 @@ vi.mock("@/payload.config", () => ({
   default: Promise.resolve({}),
 }));
 
-import { completedMonths, monthRangeLabel, mtdComparisonRanges, runGoogleAdsSnapshotsCron } from "@/lib/google-ads-snapshots/cron";
+import { completedMonths, monthDateRange, monthRangeLabel, mtdComparisonRanges, runGoogleAdsSnapshotsCron } from "@/lib/google-ads-snapshots/cron";
 
 // Pre-existing monthly snapshot docs — makes captureMonthlyCampaignSnapshots a
 // no-op in the concurrency tests so the original level-sequencing contract
@@ -286,7 +286,12 @@ describe("runGoogleAdsSnapshotsCron — concurrency + sequencing", () => {
 
     await runGoogleAdsSnapshotsCron({ payload: mockPayload as never, concurrency: 1 });
 
-    expect(monthlyFetchRanges).toHaveLength(10);
+    const expectedMissingRanges = completedMonths(13)
+      .slice(3)
+      .map(({ year, month }) => monthDateRange(year, month))
+      .map((range) => `${range.start},${range.end}`)
+      .filter((range) => !mtdRanges.has(range));
+    expect(monthlyFetchRanges).toEqual(expectedMissingRanges);
     // Every fetched range is a full calendar month: starts on the 1st.
     for (const range of monthlyFetchRanges) {
       expect(range).toMatch(/^\d{4}-\d{2}-01,\d{4}-\d{2}-\d{2}$/);

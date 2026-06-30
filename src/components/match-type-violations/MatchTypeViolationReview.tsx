@@ -537,7 +537,7 @@ export default function MatchTypeViolationReview({
   // Filters
   const [filterClient, setFilterClient] = useState(initialClientId ?? '')
   const [filterStatus, setFilterStatus] = useState('pending')
-  const [filterMatchType, setFilterMatchType] = useState('')
+  const [filterMatchType, setFilterMatchType] = useState('PHRASE')
   const [filterViolationType, setFilterViolationType] = useState('')
   const [filterConfidence, setFilterConfidence] = useState<ConfidenceFilter>('')
 
@@ -947,9 +947,19 @@ export default function MatchTypeViolationReview({
         ? data.results.filter((result: any) => result.outcome && result.outcome !== 'error').map((result: any) => result.id)
         : ids
       const targetLines = Array.isArray(data.targetSummaries)
-        ? data.targetSummaries.slice(0, 5).map((target: any) => {
+        ? data.targetSummaries.slice(0, 5).flatMap((target: any) => {
             const campaign = target.campaignName ? `${target.campaignName} / ` : ''
-            return `Target: ${campaign}${target.adGroupName || target.adGroupId} — ${target.added ?? 0} added, ${target.alreadyExists ?? 0} skipped, ${target.selected ?? 0} selected`
+            const addedKeywords = Array.isArray(target.addedKeywords)
+              ? target.addedKeywords.map((item: any) => `[${item.keyword}] ${item.matchType || 'EXACT'}`).join(', ')
+              : ''
+            const skippedKeywords = Array.isArray(target.skippedKeywords)
+              ? target.skippedKeywords.map((item: any) => `[${item.keyword}] ${item.matchType || 'EXACT'}`).join(', ')
+              : ''
+            return [
+              `Target: ${campaign}${target.adGroupName || target.adGroupId} — ${target.added ?? 0} added, ${target.alreadyExists ?? 0} skipped, ${target.selected ?? 0} selected`,
+              ...(addedKeywords ? [`Added keywords: ${addedKeywords}`] : []),
+              ...(skippedKeywords ? [`Skipped existing keywords: ${skippedKeywords}`] : []),
+            ]
           })
         : []
       const warningLines = [

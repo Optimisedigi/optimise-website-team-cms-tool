@@ -54,7 +54,7 @@ const MAX_METRICS = 6;
 export const getMonthlyMetricTable: CanonicalTool<MonthlyMetricTableArgs> = {
   name: "get_monthly_metric_table",
   description:
-    "Canonical account-level monthly Google Ads metric table. Use this whenever the user asks for CTR by month, monthly CTR, month-by-month clicks/impressions/CTR, or any monthly breakdown of spend, clicks, impressions, conversions, CPA, CPC, CTR, or conversion rate for the active audit account. For CTR, uses Google Ads' metrics.ctr values returned by Growth Tools, weighted by impressions across rows. Other derived rates still use summed totals. Returns totals, display values, and validation formulas.",
+    "Canonical account-level monthly Google Ads metric table. Use this whenever the user asks for CTR by month, monthly CTR, month-by-month clicks/impressions/CTR, six-month performance, or any monthly breakdown of spend, clicks, impressions, conversions, CPA, CPC, CTR, or conversion rate for the active audit account. For CTR, uses Google Ads' metrics.ctr values returned by Growth Tools, weighted by impressions across rows. Other derived rates still use summed totals. Returns Gmail-ready html, totals, display values, and validation formulas.",
   inputSchema: {
     type: "object",
     properties: {
@@ -135,6 +135,7 @@ export const getMonthlyMetricTable: CanonicalTool<MonthlyMetricTableArgs> = {
         endMonth: months[months.length - 1] ?? null,
         rows,
         markdownTable: renderMarkdown(rows, args.metrics),
+        html: renderHtml(rows, args.metrics),
       },
     };
   },
@@ -246,6 +247,41 @@ function renderMarkdown(rows: MonthlyMetricRow[], metrics: WeeklyMetricKey[]): s
     lines.push([row.label, ...metrics.map((metric) => row.displayMetrics[metric] ?? "-")].join(" | "));
   }
   return lines.join("\n");
+}
+
+function renderHtml(rows: MonthlyMetricRow[], metrics: WeeklyMetricKey[]): string {
+  const headBase = "padding:8px 12px;background:#f1f5f9;border-bottom:2px solid #e5e7eb;font-size:12px;font-family:Arial,sans-serif;color:#64748b;font-weight:600;white-space:nowrap";
+  const cellBase = "padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap";
+  const headerCells = [
+    `<th style=\"${headBase};text-align:left\">Month</th>`,
+    ...metrics.map((metric) => `<th style=\"${headBase};text-align:right\">${metricHeader(metric)}</th>`),
+  ];
+  const rowsHtml = rows.map((row) => {
+    const cells = [
+      `<td style=\"${cellBase};text-align:left\">${escapeHtml(row.label)}</td>`,
+      ...metrics.map((metric) => {
+        const color = metric === "cpa" && typeof row.metrics.cpa === "number" && row.metrics.cpa < 100 ? ";color:#059669;font-weight:700" : "";
+        return `<td style=\"${cellBase}${color};text-align:right\">${escapeHtml(row.displayMetrics[metric] ?? "-")}</td>`;
+      }),
+    ];
+    return `<tr>${cells.join("")}</tr>`;
+  }).join("");
+  return `<div style=\"font-family:Verdana,sans-serif;color:#222;font-size:13px;margin:0 0 20px\">
+  <p style=\"margin:0 0 8px;font-family:Verdana,sans-serif;font-size:14px;color:#222\"><strong>Monthly Performance Trend</strong></p>
+  <table style=\"border-collapse:collapse;width:auto;max-width:760px;table-layout:auto;font-family:Verdana,sans-serif;color:#222\">
+    <tr>${headerCells.join("")}</tr>
+    ${rowsHtml}
+  </table>
+</div>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function monthSpan(startMonth: string, endMonth: string): string[] {

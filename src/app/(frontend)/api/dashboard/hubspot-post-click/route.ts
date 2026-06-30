@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const customerId = req.nextUrl.searchParams.get("customerId") || "";
   const range = req.nextUrl.searchParams.get("range") || "this_month";
   const clientName = req.nextUrl.searchParams.get("clientName") || "Away Digital Teams";
+  const conversionActions = req.nextUrl.searchParams.get("conversionActions") || "";
 
   if (slug !== "away-digital") {
     return NextResponse.json({ error: "HubSpot post-click dashboard is only available for Away Digital Teams" }, { status: 404 });
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
       range: normalizeDashboardRange(range),
       clientName,
     });
+    if (conversionActions) params.set("conversionActions", conversionActions);
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/hubspot-post-click?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },

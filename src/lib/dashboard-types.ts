@@ -197,9 +197,17 @@ export interface HubSpotPostClickDashboardData {
     paidLeads: number;
     meetings: number;
     meetingRate: number | null;
+    meetingOrCallRate: number | null;
     qualifiedLeads: number;
+    disqualifiedLeads: number;
     qualifiedLeadRate: number | null;
+    disqualifiedRate: number | null;
     calls: number;
+    avgDaysToFirstOutreach: number | null;
+    avgDaysToMql: number | null;
+    avgDaysToSql: number | null;
+    googleAdsConversions: number;
+    googleAdsSpend: number;
   }>;
   attributionRows: Array<{
     month: string;
@@ -221,6 +229,10 @@ export interface HubSpotPostClickDashboardData {
   leadDetails: Array<{
     contactId: string;
     createdAt: string;
+    firstConversionAt?: string;
+    firstOutreachAt?: string;
+    mqlAt?: string;
+    sqlAt?: string;
     month: string;
     contactName: string;
     company: string;

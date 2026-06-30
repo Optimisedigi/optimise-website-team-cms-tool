@@ -13,8 +13,8 @@
  *   - Colour: #222 (Gmail body black). No blue body text, no card chrome.
  *   - Heading: bold "Weekly Performance Trend" row above the table (or a
  *     caller-supplied `title`).
- *   - Table: plain row borders, no header background, no border-radius,
- *     no `background:#f1f5f9` header bar, no coloured callout cards.
+ *   - Table: plain row borders, no border-radius, no coloured callout cards.
+ *     Header row matches the Budget Management campaign breakdown table.
  *   - CPA cell coloured on EVERY row by absolute threshold:
  *       <  $100 -> #059669 (green)
  *       <= $300 -> #d97706 (amber)   (the $100 and $300 boundaries are amber)
@@ -389,7 +389,7 @@ export function generateWeeklyMetricTableHtml(args: GenerateTableArgs): string {
   const cellBase =
     "padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap";
   const headBase =
-    "padding:6px 10px;border-bottom:2px solid #cbd5e1;font-size:13px;font-family:Verdana,sans-serif;color:#222;font-weight:600;white-space:nowrap";
+    "padding:8px 12px;background:#f1f5f9;border-bottom:2px solid #e5e7eb;font-size:12px;font-family:Arial,sans-serif;color:#64748b;font-weight:600;white-space:nowrap";
 
   // Precompute per-row per-metric values once for rendering.
   const computed: Array<Array<number | null>> = rows.map((row) =>
@@ -438,8 +438,8 @@ export function generateWeeklyMetricTableHtml(args: GenerateTableArgs): string {
     ? `<p style="margin:12px 0 0;font-family:Verdana,sans-serif;font-size:13px;color:#222;line-height:1.5;text-align:left">${escapeHtml(summary)}</p>`
     : "";
 
-  return `<div style="font-family:Verdana,sans-serif;color:#222;font-size:13px">
-  <p style="margin:0 0 8px;font-family:Verdana,sans-serif;font-size:14px;color:#222"><strong>${escapeHtml(title)}</strong></p>
+  return `<div style="font-family:Verdana,sans-serif;color:#222;font-size:13px;margin:0 0 24px">
+  <p style="margin:0 0 8px;font-family:Verdana,sans-serif;font-size:14px;color:#222;line-height:1.4;text-align:left"><strong>${escapeHtml(title)}</strong></p>
   <table style="border-collapse:collapse;width:auto;max-width:680px;table-layout:auto;font-family:Verdana,sans-serif;color:#222">
     <tr>
       ${headerCells.join("\n      ")}

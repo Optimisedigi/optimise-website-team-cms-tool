@@ -306,7 +306,7 @@ export function generateBudgetEmailHtml(
   const dashboardUrl = clientSlug ? `https://cms.optimisedigital.online/google-dashboard/${clientSlug}` : '';
 
   return `<div style="font-family:Arial,sans-serif;max-width:100%;width:100%;color:#1e293b">
-  <p style="margin:0 0 20px;color:#64748b;font-size:14px">${month} (Month-to-Date)</p>
+  <h3 style="margin:24px 0 16px;font-size:15px">${month} (Month-to-Date)</h3>
 
   <!-- Budget Progress + Time Tracking side by side -->
   <table style="width:100%;max-width:760px;border-collapse:collapse;margin-bottom:20px">
@@ -422,7 +422,8 @@ export function generateBudgetEmailHtml(
     ${campaignRows}
   </table>
 
-  ${dashboardUrl ? `<p style="font-size:13px;color:#64748b;margin:0"><a href="${dashboardUrl}" style="color:#2563eb;text-decoration:none;font-weight:500">View live dashboard</a>${clientPin ? ` — PIN: ${clientPin}` : ''}</p>` : ''}
+  ${dashboardUrl ? `<p style="font-size:13px;color:#64748b;margin:0 0 16px"><a href="${dashboardUrl}" style="color:#2563eb;text-decoration:none;font-weight:500">View live dashboard</a>${clientPin ? ` — PIN: ${clientPin}` : ''}</p>` : ''}
+  <p style="font-size:13px;color:#1e293b;margin:0">Reach out if you have any questions.</p>
 </div>`;
 }
 
@@ -645,6 +646,7 @@ export function generateLastMonthRecapEmailHtml(
     </table>
   </div>
 
-  ${dashboardUrl ? `<p style="font-size:13px;color:#64748b;margin:0"><a href="${dashboardUrl}" style="color:#2563eb;text-decoration:none;font-weight:500">View live dashboard</a>${clientPin ? ` — PIN: ${clientPin}` : ''}</p>` : ''}
+  ${dashboardUrl ? `<p style="font-size:13px;color:#64748b;margin:0 0 16px"><a href="${dashboardUrl}" style="color:#2563eb;text-decoration:none;font-weight:500">View live dashboard</a>${clientPin ? ` — PIN: ${clientPin}` : ''}</p>` : ''}
+  <p style="font-size:13px;color:#1e293b;margin:0">Reach out if you have any questions.</p>
 </div>`;
 }

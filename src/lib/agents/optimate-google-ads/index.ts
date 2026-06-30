@@ -22,6 +22,7 @@ import { getSearchTerms } from "./tools/get-search-terms";
 import { getNegativeKeywordLists } from "./tools/get-negative-keyword-lists";
 import { getAdAssetPerformance } from "./tools/get-ad-asset-performance";
 import { getBudgetManagementEmail } from "./tools/get-budget-management-email";
+import { getDashboardEmailComponents } from "./tools/get-dashboard-email-components";
 import { getWeeklyTrendNote } from "./tools/get-weekly-trend-note";
 import { getWeeklyMetricTable } from "./tools/get-weekly-metric-table";
 import { getMonthlyMetricTable } from "./tools/get-monthly-metric-table";
@@ -188,6 +189,7 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
     getNegativeKeywordLists as unknown as CanonicalTool<unknown>,
     getAdAssetPerformance as unknown as CanonicalTool<unknown>,
     getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
+    getDashboardEmailComponents as unknown as CanonicalTool<unknown>,
     getWeeklyMetricTable as unknown as CanonicalTool<unknown>,
     getMonthlyMetricTable as unknown as CanonicalTool<unknown>,
     growthToolsRead as unknown as CanonicalTool<unknown>,
@@ -258,7 +260,7 @@ function applyToolRestrictions(
 const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown>[]> = {
   performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, growthToolsRead, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
   negative_keywords: [getSearchTerms, getNegativeKeywordLists, proposeNegativeKeywords, proposeNklCreate, proposeNklUpdate, proposeNklPushLive] as unknown as CanonicalTool<unknown>[],
-  budget_email: [getBudgetManagementEmail, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool, proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
+  budget_email: [getBudgetManagementEmail, getDashboardEmailComponents, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool, proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
   ad_copy: [getAdAssetPerformance, proposeAdCopyGenerate, proposeAdCopyDeploy] as unknown as CanonicalTool<unknown>[],
   seo_organic: [getGa4Overview, getGscOverview, getGscBrandedSplit, getGscIndexingStatus, getSerpDisplacement, getSerpDisplacementAlerts, getAiVisibility] as unknown as CanonicalTool<unknown>[],
   campaign_build: [proposeCampaignRestructure, proposeCampaignBuild, proposeGeoCampaignSplit, proposeCampaignStatusChange, proposeAdGroupCreate, proposeAdGroupStatusChange, proposeKeywordsAdd, getCampaignProposalStatus, requestConfirmTool] as unknown as CanonicalTool<unknown>[],
@@ -344,6 +346,7 @@ export function getPortfolioTools(options?: { restrictExternalContextActions?: b
     getPortfolioWeeklyMetricTable as unknown as CanonicalTool<unknown>,
     getPortfolioMonthlyPerformanceBreakdown as unknown as CanonicalTool<unknown>,
     getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
+    getDashboardEmailComponents as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
     requestConfirmTool as unknown as CanonicalTool<unknown>,
     ...(options?.attachMemoryTools
