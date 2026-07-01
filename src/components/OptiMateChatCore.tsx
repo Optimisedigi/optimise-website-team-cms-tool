@@ -6,10 +6,6 @@ import {
   DEFAULT_CHAT_MODEL,
   isCanonicalModel,
 } from '@/lib/agents/_shared/llm/registry'
-import {
-  DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
-  DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
-} from '@/lib/agents/_shared/optimate-starter-questions'
 
 type ReasoningMode = 'off' | 'low' | 'medium' | 'high'
 
@@ -538,12 +534,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     }, [])
     const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_CHAT_MODEL)
     const modelManuallyChangedRef = useRef(false)
-    const [starterQuestions, setStarterQuestions] = useState<string[]>(() => [
-      ...DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
-    ])
-    const [portfolioStarterQuestions, setPortfolioStarterQuestions] = useState<string[]>(() => [
-      ...DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
-    ])
+    const [starterQuestions, setStarterQuestions] = useState<string[]>([])
+    const [portfolioStarterQuestions, setPortfolioStarterQuestions] = useState<string[]>([])
     const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('off')
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -581,8 +573,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
 
     /* Seed the picker and starter questions from OptiMate Settings on first
      * load. The configured default should be reflected in the dropdown whenever
-     * a chat opens; users can still switch models for the current chat. Best-effort:
-     * a fetch failure leaves the bundled/default local value in place. */
+     * a chat opens; users can still switch models for the current chat. Starter
+     * questions intentionally start empty so old bundled prompts never flash before
+     * the settings request finishes. */
     useEffect(() => {
       let cancelled = false
       ;(async () => {
@@ -607,7 +600,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             setPortfolioStarterQuestions(json.googleMatePortfolioStarterQuestions)
           }
         } catch {
-          // Network/parse failure — keep the registry defaults already in state.
+          // Network/parse failure — keep starter questions empty rather than showing stale bundled prompts.
         }
       })()
       return () => {
