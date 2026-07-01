@@ -170,11 +170,10 @@ function renderTrendGraph(
   const usable = rows.filter((row) => Number.isFinite(Number(row.value)));
   if (usable.length === 0) return renderUnavailable(title, empty);
 
-  const chart = buildSvgTrendChart(usable, {
+  const chart = buildHostedTrendChartImage(usable, {
     color,
     suffix,
     formatValue,
-    gradientId: options.gradientId ?? `email-${slugify(title)}-grad`,
     ariaLabel: options.ariaLabel ?? title,
     axisColor: options.axisColor ?? "#94a3b8",
     min: options.min,
@@ -191,12 +190,11 @@ function renderTrendGraph(
 </div>`;
 }
 
-function buildSvgTrendChart(
+function buildHostedTrendChartImage(
   rows: GoogleAdsEmailTrendPoint[],
   options: {
     color: string;
     suffix: string;
-    gradientId: string;
     ariaLabel: string;
     axisColor: string;
     formatValue?: (value: number) => string;
@@ -204,56 +202,52 @@ function buildSvgTrendChart(
     max?: number;
   },
 ): string {
-  const width = 1040;
-  const height = 300;
-  const left = 55;
-  const right = 1010;
-  const top = 36;
-  const bottom = 204;
   const values = rows.map((row) => Number(row.value));
   const rawMin = options.min ?? Math.min(...values);
   const rawMax = options.max ?? Math.max(...values);
   const padding = rawMax === rawMin ? Math.max(1, Math.abs(rawMax) * 0.1) : (rawMax - rawMin) * 0.08;
   const min = options.min ?? Math.max(0, rawMin - padding);
   const max = options.max ?? rawMax + padding;
-  const range = max - min || 1;
-  const xFor = (index: number) => rows.length === 1 ? left : left + ((right - left) * index) / (rows.length - 1);
-  const yFor = (value: number) => bottom - ((value - min) / range) * (bottom - top);
-  const points = rows.map((row, index) => ({
-    label: row.label,
-    value: Number(row.value),
-    x: xFor(index),
-    y: yFor(Number(row.value)),
-  }));
-  const pointList = points.map((point) => `${round(point.x)},${round(point.y)}`).join(" ");
-  const first = points[0];
-  const last = points[points.length - 1];
-  const areaPath = first && last ? `M${round(first.x)},${round(first.y)} ${points.slice(1).map((point) => `L${round(point.x)},${round(point.y)}`).join(" ")} L${round(last.x)},${bottom} L${round(first.x)},${bottom} Z` : "";
-  const ticks = buildAxisTicks(min, max);
-  const gridHtml = ticks.map((tick) => {
-    const y = yFor(tick);
-    return `<line x1=\"${left}\" x2=\"${right}\" y1=\"${round(y)}\" y2=\"${round(y)}\" stroke=\"#e2e8f0\"/>`;
-  }).join("");
-  const axisHtml = ticks.map((tick) => `<text x=\"49\" y=\"${round(yFor(tick) + 4)}\" font-size=\"10\" fill=\"${options.axisColor}\" text-anchor=\"end\">${escapeHtml(formatTrendValue(tick, options.suffix, options.formatValue))}</text>`).join("");
-  const circleHtml = points.map((point) => `<circle cx=\"${round(point.x)}\" cy=\"${round(point.y)}\" r=\"3\"/>`).join("");
-  const valueHtml = points.map((point) => `<text x=\"${round(point.x)}\" y=\"${round(point.y - 10)}\">${escapeHtml(formatTrendValue(point.value, options.suffix, options.formatValue))}</text>`).join("");
-  const monthHtml = points.map((point) => `<text x=\"${round(point.x)}\" y=\"270\" transform=\"rotate(-35 ${round(point.x)} 270)\">${escapeHtml(point.label)}</text>`).join("");
-
-  return `<svg width=\"100%\" viewBox=\"0 0 ${width} ${height}\" role=\"img\" aria-label=\"${escapeHtml(options.ariaLabel)} over ${rows.length} months\" style=\"display:block;max-width:1040px;height:auto\">
-  <defs><linearGradient id=\"${escapeHtml(options.gradientId)}\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0%\" stop-color=\"${options.color}\" stop-opacity=\"0.15\"/><stop offset=\"100%\" stop-color=\"${options.color}\" stop-opacity=\"0.02\"/></linearGradient></defs>
-  ${gridHtml}
-  ${axisHtml}
-  <path d=\"${areaPath}\" fill=\"url(#${escapeHtml(options.gradientId)})\"/>
-  <polyline points=\"${pointList}\" fill=\"none\" stroke=\"${options.color}\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>
-  <g fill=\"white\" stroke=\"${options.color}\" stroke-width=\"2\">${circleHtml}</g>
-  <g font-size=\"10\" fill=\"${options.color}\" font-weight=\"600\" text-anchor=\"middle\">${valueHtml}</g>
-  <g font-size=\"10\" fill=\"#94a3b8\" text-anchor=\"end\">${monthHtml}</g>
-</svg>`;
-}
-
-function buildAxisTicks(min: number, max: number): number[] {
-  const range = max - min || 1;
-  return [max, max - range * 0.25, max - range * 0.5, max - range * 0.75, min];
+  const config = {
+    type: "line",
+    data: {
+      labels: rows.map((row) => row.label),
+      datasets: [
+        {
+          data: values,
+          borderColor: options.color,
+          backgroundColor: withAlpha(options.color, "22"),
+          borderWidth: 3,
+          pointRadius: 4,
+          pointBackgroundColor: "#ffffff",
+          pointBorderColor: options.color,
+          pointBorderWidth: 2,
+          fill: true,
+          lineTension: 0.25,
+        },
+      ],
+    },
+    options: {
+      legend: { display: false },
+      layout: { padding: { top: 20, right: 24, bottom: 8, left: 8 } },
+      scales: {
+        xAxes: [{ ticks: { autoSkip: false, maxRotation: 35, minRotation: 35, fontSize: 10, fontColor: "#94a3b8" }, gridLines: { display: false } }],
+        yAxes: [{ ticks: { min, max, maxTicksLimit: 5, fontSize: 10, fontColor: options.axisColor, callback: "__VALUE_CALLBACK__" }, gridLines: { color: "#e2e8f0", zeroLineColor: "#e2e8f0" } }],
+      },
+      plugins: {
+        datalabels: {
+          align: "top",
+          anchor: "end",
+          color: options.color,
+          font: { size: 10, weight: "bold" },
+          formatter: "__VALUE_CALLBACK__",
+        },
+      },
+    },
+  };
+  const json = JSON.stringify(config).replaceAll('"__VALUE_CALLBACK__"', () => callbackFormatter(options.suffix, options.formatValue));
+  const url = `https://quickchart.io/chart?w=1040&h=300&devicePixelRatio=2&bkg=white&c=${encodeURIComponent(json)}`;
+  return `<img src="${escapeUrlAttribute(url)}" width="1040" alt="${escapeHtml(options.ariaLabel)} over ${rows.length} months" style="display:block;width:100%;max-width:1040px;height:auto;border:0;outline:none;text-decoration:none" />`;
 }
 
 function formatTrendValue(value: number, suffix: string, formatValue?: (value: number) => string): string {
@@ -261,12 +255,21 @@ function formatTrendValue(value: number, suffix: string, formatValue?: (value: n
   return `${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}${suffix}`;
 }
 
-function round(value: number): string {
-  return String(Math.round(value));
+function callbackFormatter(suffix: string, formatValue?: (value: number) => string): string {
+  if (formatValue === moneyOrDash) {
+    return "function(value){return !isFinite(value)||value<=0?'-':value<100?'$'+Number(value).toFixed(2):'$'+Math.round(value).toLocaleString('en-AU');}";
+  }
+  if (suffix === "%") {
+    return "function(value){return Number(value).toLocaleString('en-AU',{maximumFractionDigits:1})+'%';}";
+  }
+  if (suffix) {
+    return `function(value){return Number(value).toLocaleString('en-AU',{maximumFractionDigits:1})+'${suffix.replace(/'/g, "\\'")}';}`;
+  }
+  return "function(value){return Number(value).toLocaleString('en-AU',{maximumFractionDigits:1});}";
 }
 
-function slugify(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function withAlpha(hex: string, alpha: string): string {
+  return /^#[0-9a-f]{6}$/i.test(hex) ? `${hex}${alpha}` : hex;
 }
 
 function renderQualityScore(data: GoogleAdsEmailQualityScoreSummary | null): string {
@@ -353,6 +356,14 @@ function score(value: number | null | undefined): string {
   const n = Number(value);
   if (!Number.isFinite(n)) return "-";
   return n.toLocaleString("en-AU", { maximumFractionDigits: 1 });
+}
+
+function escapeUrlAttribute(value: string): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
 }
 
 function escapeHtml(value: string): string {
