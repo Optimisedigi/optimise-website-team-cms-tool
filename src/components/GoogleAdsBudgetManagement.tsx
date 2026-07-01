@@ -18,6 +18,7 @@ import {
   type MonthlySpend,
   type LastMonthRecap,
 } from '@/lib/google-ads-budget-email';
+import { canPushGoogleAdsBudget } from '@/lib/google-ads-budget-push';
 
 type CampaignFilter = 'enabled' | 'paused' | 'all';
 type BudgetMetricsRange = 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_60_DAYS' | 'LAST_180_DAYS';
@@ -513,15 +514,6 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
   const handlePushToGoogleAds = useCallback(async () => {
     if (!id || campaigns.length === 0) return;
-
-    // Only validate enabled, non-standalone campaigns. Standalone campaigns push
-    // their own derived daily budget independently of the % split.
-    const enabledCampaigns = campaigns.filter(isBudgetAllocationCampaign);
-    const enabledPercentage = enabledCampaigns.reduce((sum, c) => sum + c.budgetPercentage, 0);
-    if (enabledCampaigns.length > 0 && Math.abs(enabledPercentage - 100) > 0.5) {
-      setError(`Enabled campaigns sum to ${enabledPercentage.toFixed(1)}%, not 100%. Please adjust before pushing.`);
-      return;
-    }
 
     if (monthlyTotal <= 0) {
       setError('Set a monthly budget before pushing.');
@@ -1066,20 +1058,13 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     [standaloneCampaigns]
   );
 
-  // Push allowed when:
-  // - non-standalone enabled % sums to 100, OR
-  // - there are no non-standalone enabled campaigns (i.e. only standalone to push)
-  const enabledNonStandaloneCount = useMemo(
-    () => campaigns.filter(isBudgetAllocationCampaign).length,
-    [campaigns]
+  // Push allowed when at least one eligible campaign has a positive daily budget.
+  // We intentionally allow allocations above 100% so teams can front-load spend
+  // early in the month on campaigns that need more room to gain traction.
+  const canPush = useMemo(
+    () => canPushGoogleAdsBudget(campaigns, monthlyTotal),
+    [campaigns, monthlyTotal]
   );
-  const canPush = useMemo(() => {
-    if (enabledNonStandaloneCount === 0) {
-      // Only standalone (or none enabled); allow push if any eligible campaign exists with a daily budget.
-      return campaigns.some(c => isBudgetPushEligible(c) && c.calculatedDailyBudget > 0);
-    }
-    return Math.abs(totalPercentage - 100) <= 0.5;
-  }, [campaigns, enabledNonStandaloneCount, totalPercentage]);
   
   const totalDailyBudget = useMemo(() =>
     campaigns.reduce((sum, c) => sum + c.calculatedDailyBudget, 0),

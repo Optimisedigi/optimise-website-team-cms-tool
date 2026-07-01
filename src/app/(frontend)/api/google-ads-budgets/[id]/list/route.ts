@@ -3,45 +3,13 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { hasValidApiKey } from "@/collections/api-key-access";
 import { isCampaignLifecycleActive } from "@/lib/google-ads-budget-email";
+import { getGrowthToolsMetricsRequest, parseBudgetMetricsRange, type BudgetMetricsRange } from "@/lib/google-ads-budget-metrics-range";
 
 // Collection slug type (use 'as any' to bypass strict type checking for new collections)
 const BUDGETS_COLLECTION = "google-ads-campaign-budgets" as any;
 
 export const maxDuration = 300;
 
-type BudgetMetricsRange = "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "LAST_60_DAYS" | "LAST_180_DAYS";
-type GrowthToolsDateRange = Exclude<BudgetMetricsRange, "LAST_180_DAYS">;
-
-type GrowthToolsBudgetMetricsRequest = {
-  dateRange: GrowthToolsDateRange;
-  startDate?: string;
-  endDate?: string;
-};
-
-function parseMetricsRange(value: string | null): BudgetMetricsRange {
-  return value === "LAST_MONTH" || value === "LAST_30_DAYS" || value === "LAST_60_DAYS" || value === "LAST_180_DAYS"
-    ? value
-    : "THIS_MONTH";
-}
-
-function formatGoogleAdsDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function getLast180DaysRequest(now = new Date()): GrowthToolsBudgetMetricsRequest {
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - 179);
-  return {
-    dateRange: "LAST_30_DAYS",
-    startDate: formatGoogleAdsDate(start),
-    endDate: formatGoogleAdsDate(end),
-  };
-}
-
-function getGrowthToolsMetricsRequest(range: BudgetMetricsRange): GrowthToolsBudgetMetricsRequest {
-  return range === "LAST_180_DAYS" ? getLast180DaysRequest() : { dateRange: range };
-}
 
 function numberValue(value: unknown): number {
   const parsed = Number(value ?? 0);
@@ -123,7 +91,7 @@ export async function GET(
 ) {
   const { id } = await params;
   const auditId = Number(id);
-  const metricsRange = parseMetricsRange(req.nextUrl.searchParams.get("range"));
+  const metricsRange = parseBudgetMetricsRange(req.nextUrl.searchParams.get("range"));
   const reportOnly = req.nextUrl.searchParams.get("reportOnly") === "1";
   const skipPersist = req.nextUrl.searchParams.get("skipPersist") === "1";
   const competitiveRange: BudgetMetricsRange = metricsRange === "THIS_MONTH" ? "LAST_30_DAYS" : metricsRange;
