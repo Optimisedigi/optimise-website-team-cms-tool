@@ -47,12 +47,18 @@ function expectSvgLineCard(html: string, gradientId: string, stroke: string, lab
 }
 
 describe("Google Ads dashboard email graph renderer", () => {
-  it("renders keyword relevancy as the preview-style SVG line card", () => {
+  it("renders keyword relevancy as a Gmail-safe dashboard table card, not flattened SVG text", () => {
     const html = renderGoogleAdsEmailComponentHtml("keyword_relevancy", data);
 
-    expectSvgLineCard(html, "email-keyword-relevancy-grad", "#8b5cf6", "Keyword Relevancy");
+    expect(html).toContain('role="presentation"');
+    expect(html).toContain("KEYWORD RELEVANCY");
+    expect(html).toContain("3 month trend");
+    expect(html).toContain("Google Ads Dashboard Trend");
     expect(html).toContain("Keyword Relevancy shows the share of non-brand search spend");
     expect(html).toContain("96.7%");
+    expect(html).toContain("background:#8b5cf6");
+    expect(html).not.toContain("<svg");
+    expect(html).not.toContain("<polyline");
   });
 
   it("renders CPA trend as the preview-style SVG line card", () => {

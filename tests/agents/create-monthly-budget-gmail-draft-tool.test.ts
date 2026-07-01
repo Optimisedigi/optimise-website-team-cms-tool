@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "@/lib/agents/_shared/tool";
 
 const mocks = vi.hoisted(() => ({
@@ -41,10 +41,16 @@ const ctx: ToolContext = {
 
 describe("create_monthly_budget_gmail_draft", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-26T12:00:00Z"));
     mocks.executeDashboard.mockReset();
     mocks.executeMonthly.mockReset();
     mocks.executeBudget.mockReset();
     mocks.executeDraft.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("does not create a draft and asks which components to include for 'Create a monthly budget Gmail draft'", async () => {
@@ -97,8 +103,8 @@ describe("create_monthly_budget_gmail_draft", () => {
     mocks.executeBudget.mockResolvedValueOnce({
       ok: true,
       data: {
-        subject: "Berendsen - Google Ads Budget Report - June 2026",
-        html: '<div data-testid="budget">budget html</div>',
+        subject: "Berendsen - Google Ads Budget Report - July 2026",
+        html: '<div data-testid="budget"><h3 style="margin:24px 0 16px;font-size:15px">July 2026 (Month-to-Date)</h3><!-- Budget Progress + Time Tracking side by side --><table><tr><td>Time Tracking</td><td>Days Remaining</td></tr></table><h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3><table><tr><td>campaign rows</td></tr></table></div>',
       },
     });
     mocks.executeDraft.mockResolvedValueOnce({
@@ -107,7 +113,7 @@ describe("create_monthly_budget_gmail_draft", () => {
         draftId: "draft_456",
         messageId: "msg_456",
         gmailUrl: "https://mail.google.com/mail/u/0/#drafts/msg_456",
-        subject: "Berendsen - Google Ads Budget Report - June 2026",
+        subject: "Berendsen - Google Ads Budget Report - July 2026",
       },
     });
 
@@ -119,11 +125,11 @@ describe("create_monthly_budget_gmail_draft", () => {
 
     expect(result.ok).toBe(true);
     expect(mocks.executeDashboard).toHaveBeenCalledWith(
-      { components: ["keyword_relevancy", "cpa_trend"], months: 4 },
+      { components: ["keyword_relevancy", "cpa_trend"], months: 4, endMonth: "2026-06" },
       ctx,
     );
     expect(mocks.executeMonthly).toHaveBeenCalledWith(
-      expect.objectContaining({ metrics: ["spend", "conversions", "cpa"] }),
+      expect.objectContaining({ startMonth: "2026-03", endMonth: "2026-06", metrics: ["spend", "conversions", "cpa"] }),
       ctx,
     );
     expect(mocks.executeBudget).toHaveBeenCalledWith({ mode: "this_month" }, ctx);
@@ -135,6 +141,10 @@ describe("create_monthly_budget_gmail_draft", () => {
     expect(draftArgs.htmlBody).toContain('data-testid="monthly"');
     expect(draftArgs.htmlBody).toContain('data-testid="dashboard"');
     expect(draftArgs.htmlBody).toContain('data-testid="budget"');
+    expect(draftArgs.htmlBody).not.toContain("July 2026 (Month-to-Date)");
+    expect(draftArgs.htmlBody).not.toContain("Time Tracking");
+    expect(draftArgs.htmlBody).not.toContain("Days Remaining");
+    expect(draftArgs.htmlBody).toContain("Campaign Breakdown");
 
     const data = result.data as Record<string, unknown>;
     expect(data.gmailUrl).toBe("https://mail.google.com/mail/u/0/#drafts/msg_456");

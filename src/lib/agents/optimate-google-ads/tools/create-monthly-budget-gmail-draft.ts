@@ -137,12 +137,13 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
     }
 
     const months = args.months ?? DEFAULT_MONTHS;
-    const monthSpan = monthSpanEndingCurrentMonth(months);
+    const monthSpan = monthSpanEndingPreviousMonth(months);
 
     const dashboardResult = await getDashboardEmailComponents.execute(
       {
         components: args.components,
         months,
+        endMonth: monthSpan.endMonth,
         ...(args.range ? { range: args.range } : {}),
         ...(args.auditId !== undefined ? { auditId: args.auditId } : {}),
       },
@@ -173,10 +174,13 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
     const budget = budgetResult.data as BudgetEmailData;
 
     const summary = buildSummary(monthly.rows, args.components);
-    const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">Hey team,</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budget.html}`;
+    const reportMonthLabel = latestMonthLabel(monthly.rows);
+    const budgetHtml = stripCurrentMonthBudgetProgress(budget.html);
+    const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">Hey team,</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budgetHtml}`;
+    const subject = reportMonthLabel ? replaceSubjectMonth(budget.subject, reportMonthLabel) : budget.subject;
 
     const draftResult = await createGmailDraftTool.execute(
-      { subject: budget.subject, htmlBody },
+      { subject, htmlBody },
       ctx,
     );
     if (!draftResult.ok) return draftResult;
@@ -188,7 +192,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
         draftId: draft.draftId,
         messageId: draft.messageId,
         gmailUrl: draft.gmailUrl,
-        subject: budget.subject,
+        subject,
         summary,
         components: dashboard.components,
         componentLabels: dashboard.components.map((component) => COMPONENT_LABELS[component]),
@@ -199,8 +203,8 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
   },
 };
 
-function monthSpanEndingCurrentMonth(months: number, now = new Date()): { startMonth: string; endMonth: string } {
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+function monthSpanEndingPreviousMonth(months: number, now = new Date()): { startMonth: string; endMonth: string } {
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
   const start = new Date(end);
   start.setUTCMonth(start.getUTCMonth() - Math.max(1, Math.min(MAX_MONTHS, months)) + 1);
   return { startMonth: toMonth(start), endMonth: toMonth(end) };
@@ -208,6 +212,18 @@ function monthSpanEndingCurrentMonth(months: number, now = new Date()): { startM
 
 function toMonth(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function stripCurrentMonthBudgetProgress(html: string): string {
+  return html.replace(/\s*<h3 style="margin:24px 0 16px;font-size:15px">[\s\S]*?<!-- Budget Progress \+ Time Tracking side by side -->[\s\S]*?<h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown<\/h3>/, '\n  <h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3>');
+}
+
+function latestMonthLabel(rows: MonthlyMetricTableData["rows"]): string | null {
+  return rows[rows.length - 1]?.label ?? null;
+}
+
+function replaceSubjectMonth(subject: string, monthLabel: string): string {
+  return subject.replace(/ - [A-Z][a-z]+ \d{4}$/, ` - ${monthLabel}`);
 }
 
 function buildSummary(rows: MonthlyMetricTableData["rows"], components: GoogleAdsEmailComponentKey[]): string {
@@ -250,6 +266,6 @@ function escapeHtml(value: string): string {
 }
 
 export const __createMonthlyBudgetGmailDraftInternals = {
-  monthSpanEndingCurrentMonth,
+  monthSpanEndingPreviousMonth,
   buildSummary,
 };

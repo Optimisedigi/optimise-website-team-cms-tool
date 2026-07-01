@@ -115,15 +115,7 @@ export function renderGoogleAdsEmailComponentHtml(key: GoogleAdsEmailComponentKe
 
   switch (key) {
     case "keyword_relevancy":
-      return renderTrendGraph(
-        "Keyword Relevancy",
-        data.keywordRelevancyTrend ?? [],
-        "#8b5cf6",
-        "%",
-        "Keyword relevancy data is unavailable for this account.",
-        undefined,
-        "Keyword Relevancy shows the share of non-brand search spend going to relevant searches, with a higher score meaning budget is reaching better-fit searches.",
-      );
+      return renderKeywordRelevancyTable(data.keywordRelevancyTrend ?? []);
     case "cpa_trend":
       return renderTrendGraph("Cost Per Acquisition", data.cpaTrend ?? [], "#f59e0b", "", "CPA trend data is unavailable for this account.", moneyOrDash, undefined, {
         gradientId: "email-cpa-trend-grad",
@@ -150,6 +142,41 @@ export function renderGoogleAdsEmailComponentsHtml(keys: GoogleAdsEmailComponent
     .map((key) => renderGoogleAdsEmailComponentHtml(key, data))
     .filter(Boolean)
     .join("\n");
+}
+
+function renderKeywordRelevancyTable(rows: GoogleAdsEmailTrendPoint[]): string {
+  const usable = rows.filter((row) => Number.isFinite(Number(row.value)));
+  if (usable.length === 0) return renderUnavailable("Keyword Relevancy", "Keyword relevancy data is unavailable for this account.");
+  const max = Math.max(...usable.map((row) => Number(row.value)), 100);
+  const rowsHtml = usable.map((row) => {
+    const value = Number(row.value);
+    const width = Math.max(4, Math.min(100, (value / max) * 100));
+    const formatted = `${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%`;
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Arial,sans-serif;color:#1e293b;white-space:nowrap">${escapeHtml(row.label)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Arial,sans-serif;color:#1e293b;text-align:right;font-weight:700;white-space:nowrap">${escapeHtml(formatted)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Arial,sans-serif;color:#1e293b;min-width:180px;width:55%">
+        <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#ede9fe;border-radius:999px"><tr><td style="width:${width.toFixed(0)}%;height:10px;background:#8b5cf6;border-radius:999px;font-size:1px;line-height:1px">&nbsp;</td><td style="width:${(100 - width).toFixed(0)}%;height:10px;font-size:1px;line-height:1px">&nbsp;</td></tr></table>
+      </td>
+    </tr>`;
+  }).join("");
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:760px;border-collapse:separate;border-spacing:0;margin:0 0 24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;font-family:Arial,sans-serif;color:#1e293b">
+  <tr>
+    <td style="padding:18px 20px 10px">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="font-size:17px;letter-spacing:0.10em;text-transform:uppercase;font-weight:700;color:#64748b">KEYWORD RELEVANCY</td>
+          <td style="font-size:12px;color:#94a3b8;text-align:right;white-space:nowrap">${usable.length} month trend</td>
+        </tr>
+      </table>
+      <p style="margin:14px 0 12px;color:#64748b;font-size:12px;line-height:1.35;font-family:Arial,sans-serif">Keyword Relevancy shows the share of non-brand search spend going to relevant searches, with a higher score meaning budget is reaching better-fit searches.</p>
+      <table style="width:100%;border-collapse:collapse;table-layout:auto;font-family:Arial,sans-serif;color:#1e293b">
+        <tr style="background:#f1f5f9"><th style="padding:8px 12px;text-align:left;font-size:12px;font-family:Arial,sans-serif;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Month</th><th style="padding:8px 12px;text-align:right;font-size:12px;font-family:Arial,sans-serif;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Keyword Relevancy</th><th style="padding:8px 12px;text-align:left;font-size:12px;font-family:Arial,sans-serif;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Google Ads Dashboard Trend</th></tr>
+        ${rowsHtml}
+      </table>
+    </td>
+  </tr>
+</table>`;
 }
 
 function renderTrendGraph(

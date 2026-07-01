@@ -14,6 +14,7 @@ import { customerKey, loadPortfolioAccounts, type PortfolioAccount } from "./_po
 export interface DashboardEmailComponentsArgs {
   components: GoogleAdsEmailComponentKey[];
   months?: number;
+  endMonth?: string;
   range?: string;
   auditId?: number | string;
 }
@@ -80,6 +81,10 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
         maximum: MAX_MONTHS,
         description: "Number of completed calendar months for keyword_relevancy, cpa_trend, and quality_score. Defaults to 6 and is clamped to 1..12.",
       },
+      endMonth: {
+        type: "string",
+        description: "Optional YYYY-MM final month for completed-month trend components. Defaults to previous completed calendar month.",
+      },
       range: {
         type: "string",
         description: "Growth Tools date range for KPI/search-term/campaign blocks. Defaults to LAST_30_DAYS.",
@@ -117,6 +122,11 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
       if (!Number.isFinite(months) || months < 1) throw new Error("months must be a positive integer");
       out.months = clamp(Math.floor(months), 1, MAX_MONTHS);
     }
+    if (obj.endMonth !== undefined && obj.endMonth !== null && String(obj.endMonth).trim()) {
+      const endMonth = String(obj.endMonth).trim();
+      if (!/^\d{4}-\d{2}$/.test(endMonth)) throw new Error("endMonth must be YYYY-MM when provided");
+      out.endMonth = endMonth;
+    }
     if (obj.range !== undefined && obj.range !== null && String(obj.range).trim()) {
       out.range = String(obj.range).trim();
     }
@@ -138,7 +148,7 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
     const conversionActionCategories = resolvedAccount.conversionActionCategories;
 
     if (args.components.includes("keyword_relevancy")) {
-      const relevancy = await fetchKeywordRelevancy(resolvedAccount, args.months ?? DEFAULT_MONTHS);
+      const relevancy = await fetchKeywordRelevancy(resolvedAccount, args.months ?? DEFAULT_MONTHS, args.endMonth);
       if (relevancy.ok) {
         data.keywordRelevancyTrend = relevancy.rows;
       } else {
@@ -148,7 +158,7 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
     }
 
     if (args.components.includes("cpa_trend")) {
-      const cpa = await fetchCpaTrend(customerId, args.months ?? DEFAULT_MONTHS, conversionActions);
+      const cpa = await fetchCpaTrend(customerId, args.months ?? DEFAULT_MONTHS, conversionActions, args.endMonth);
       if (cpa.ok) {
         data.cpaTrend = cpa.rows;
       } else {
@@ -158,7 +168,7 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
     }
 
     if (args.components.includes("quality_score")) {
-      const quality = await fetchQualityScore(resolvedAccount, args.months ?? DEFAULT_MONTHS);
+      const quality = await fetchQualityScore(resolvedAccount, args.months ?? DEFAULT_MONTHS, args.endMonth);
       if (quality.ok) {
         data.qualityScore = quality.summary;
       } else {
@@ -210,7 +220,7 @@ type ResolvedDashboardAccount = {
   conversionActionCategories: string;
 };
 
-async function fetchKeywordRelevancy(account: ResolvedDashboardAccount, months: number): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["keywordRelevancyTrend"]> } | { ok: false; error: string }> {
+async function fetchKeywordRelevancy(account: ResolvedDashboardAccount, months: number, endMonth?: string): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["keywordRelevancyTrend"]> } | { ok: false; error: string }> {
   if (!account.clientId || !account.clientSlug) {
     return { ok: false, error: "Keyword relevancy needs a linked CMS client and dashboard slug for this account." };
   }
@@ -223,17 +233,20 @@ async function fetchKeywordRelevancy(account: ResolvedDashboardAccount, months: 
     clamp(months, 1, MAX_MONTHS),
   );
   const built = buildMonthlyWasteRelevancyResponse(result);
-  const rows = built.monthly.map((row) => {
-    const nonBrandSpend = Math.max(0, row.totalSpend - row.brandSpend);
-    const denominator = nonBrandSpend > 0 ? nonBrandSpend : row.totalSpend;
-    const value = denominator > 0 ? Math.max(0, Math.min(100, 100 - (row.irrelevantSpend / denominator) * 100)) : null;
-    return { label: monthLabel(row.month), value: value === null ? null : round2(value) };
-  });
+  const rows = built.monthly
+    .filter((row) => !endMonth || row.month <= endMonth)
+    .slice(-clamp(months, 1, MAX_MONTHS))
+    .map((row) => {
+      const nonBrandSpend = Math.max(0, row.totalSpend - row.brandSpend);
+      const denominator = nonBrandSpend > 0 ? nonBrandSpend : row.totalSpend;
+      const value = denominator > 0 ? Math.max(0, Math.min(100, 100 - (row.irrelevantSpend / denominator) * 100)) : null;
+      return { label: monthLabel(row.month), value: value === null ? null : round2(value) };
+    });
   return { ok: true, rows };
 }
 
-async function fetchCpaTrend(customerId: string, months: number, conversionActions: string): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["cpaTrend"]> } | { ok: false; error: string }> {
-  const monthKeys = completedMonthKeys(clamp(months, 1, MAX_MONTHS));
+async function fetchCpaTrend(customerId: string, months: number, conversionActions: string, endMonth?: string): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["cpaTrend"]> } | { ok: false; error: string }> {
+  const monthKeys = completedMonthKeys(clamp(months, 1, MAX_MONTHS), endMonth);
   const rows: NonNullable<GoogleAdsEmailComponentsData["cpaTrend"]> = [];
   for (const month of monthKeys) {
     const res = await fetchMetrics(customerId, `${month}-01,${lastDayOfMonth(month)}`, conversionActions);
@@ -262,17 +275,18 @@ function sumCpaMetrics(rows: MetricRaw[]): { cpa: number | null } {
   return { cpa: conversions > 0 ? round2(spend / conversions) : null };
 }
 
-async function fetchQualityScore(account: ResolvedDashboardAccount, months: number): Promise<{ ok: true; summary: NonNullable<GoogleAdsEmailComponentsData["qualityScore"]> } | { ok: false; error: string }> {
+async function fetchQualityScore(account: ResolvedDashboardAccount, months: number, endMonth?: string): Promise<{ ok: true; summary: NonNullable<GoogleAdsEmailComponentsData["qualityScore"]> } | { ok: false; error: string }> {
   if (!account.clientSlug) {
     return { ok: false, error: "Quality Score needs a linked CMS client dashboard slug for this account." };
   }
   const qs = new URLSearchParams({ customerId: account.customerId, range: "last_6_months" });
   const res = await growthToolsGet<QualityScoresEnvelope>(`/api/google-ads/dashboard/${encodeURIComponent(account.clientSlug)}/quality-scores?${qs.toString()}`);
   if (!res.ok) return { ok: false, error: res.error ?? "Growth Tools quality score call failed" };
-  const trend = (res.data?.qualityTrend ?? [])
+  const completedTrend = (res.data?.qualityTrend ?? []).filter((row) => !endMonth || String(row.month ?? "") <= endMonth);
+  const trend = completedTrend
     .slice(-clamp(months, 1, MAX_MONTHS))
     .map((row) => ({ label: monthLabel(String(row.month ?? "")), value: row.qualityScore ?? null }));
-  const latest = [...(res.data?.qualityTrend ?? [])].reverse().find((row) => row.qualityScore !== null && row.qualityScore !== undefined) ?? res.data?.qualityTrend?.at(-1);
+  const latest = [...completedTrend].reverse().find((row) => row.qualityScore !== null && row.qualityScore !== undefined) ?? completedTrend.at(-1);
   return {
     ok: true,
     summary: {
@@ -371,10 +385,11 @@ async function findPortfolioAccount(ref: string | number): Promise<PortfolioAcco
 }
 
 
-function completedMonthKeys(count: number): string[] {
-  const cursor = new Date();
+function completedMonthKeys(count: number, endMonth?: string): string[] {
+  const cursor = endMonth ? new Date(`${endMonth}-01T00:00:00Z`) : new Date();
   cursor.setUTCDate(1);
-  cursor.setUTCMonth(cursor.getUTCMonth() - count);
+  if (!endMonth) cursor.setUTCMonth(cursor.getUTCMonth() - 1);
+  cursor.setUTCMonth(cursor.getUTCMonth() - count + 1);
   const months: string[] = [];
   for (let i = 0; i < count; i += 1) {
     months.push(`${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`);
