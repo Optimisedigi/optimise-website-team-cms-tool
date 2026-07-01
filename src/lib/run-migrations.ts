@@ -4198,6 +4198,9 @@ export async function runMigrations(
     await run("gacb.recommendation_generated_at", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommendation_generated_at` text");
     await run("gacb.recommendation_basis", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommendation_basis` text");
 
+    // ── google_ads_audits CMS-only annual budget placeholders (2026-07-01) ──
+    await run("gaa.annual_budget_placeholders", "ALTER TABLE `google_ads_audits` ADD `annual_budget_placeholders` text");
+
     // ── Client Growth Hub collections and client portal links (2026-06-14) ──
     // The public /api/migrate endpoint runs this legacy inline sweep, not Payload's
     // generated migration index. Keep this block in sync with

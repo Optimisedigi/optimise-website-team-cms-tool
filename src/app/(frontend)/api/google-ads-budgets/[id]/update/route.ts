@@ -60,6 +60,22 @@ export async function POST(
     }
   }
 
+  // Save CMS-only annual budget placeholders to the audit record.
+  // These are reference data only and are never used by budget allocation or push logic.
+  if (body._saveAnnualBudgetPlaceholders !== undefined) {
+    try {
+      await payload.update({
+        collection: "google-ads-audits",
+        id: auditIdNum,
+        data: { annualBudgetPlaceholders: body._saveAnnualBudgetPlaceholders },
+        overrideAccess: true,
+      });
+      return NextResponse.json({ success: true });
+    } catch (e: any) {
+      return NextResponse.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   // Load saved allocations from CMS
   if (body._loadSaved) {
     try {

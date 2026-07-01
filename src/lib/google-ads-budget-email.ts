@@ -263,7 +263,7 @@ export function generateBudgetEmailHtml(
   clientPin?: string
 ): string {
   const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
-  const { daysInMonth } = getMonthInfo();
+  const daysInMonth = Math.max(1, spend.daysElapsed + spend.daysRemaining);
   const onTrackPercent = (spend.daysElapsed / daysInMonth) * 100;
   const expectedSpendToDate = spend.maxBudget * (spend.daysElapsed / daysInMonth);
   const spendPacingDelta = spend.totalSpend - expectedSpendToDate;

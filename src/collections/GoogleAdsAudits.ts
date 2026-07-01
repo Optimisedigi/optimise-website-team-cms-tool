@@ -1991,6 +1991,14 @@ export const GoogleAdsAudits: CollectionConfig = {
         description: "Monthly budget total for budget management tab",
       },
     },
+    {
+      name: "annualBudgetPlaceholders",
+      type: "json",
+      admin: {
+        hidden: true,
+        description: "CMS-only annual client budget placeholder grid for Budget Management reference. Not used by budget allocation or Google Ads pushes.",
+      },
+    },
 
   ],
 };

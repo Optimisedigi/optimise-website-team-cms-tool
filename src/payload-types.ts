@@ -4111,6 +4111,18 @@ export interface GoogleAdsAudit {
    * Monthly budget total for budget management tab
    */
   monthlyBudget?: number | null;
+  /**
+   * CMS-only annual client budget placeholder grid for Budget Management reference. Not used by budget allocation or Google Ads pushes.
+   */
+  annualBudgetPlaceholders?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -10917,6 +10929,7 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
         id?: T;
       };
   monthlyBudget?: T;
+  annualBudgetPlaceholders?: T;
   updatedAt?: T;
   createdAt?: T;
 }
