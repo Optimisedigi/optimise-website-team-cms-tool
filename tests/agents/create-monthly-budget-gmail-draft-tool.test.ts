@@ -47,7 +47,10 @@ describe("create_monthly_budget_gmail_draft", () => {
     mocks.executeDraft.mockReset();
   });
 
-  it("asks which components to include and does not create a draft when components are missing", async () => {
+  it("does not create a draft and asks which components to include for 'Create a monthly budget Gmail draft'", async () => {
+    const userRequest = "Create a monthly budget Gmail draft";
+    expect(userRequest).not.toMatch(/keyword relevancy|cpa trend|quality score|top converters/i);
+
     const args = createMonthlyBudgetGmailDraftTool.validate!({});
     const result = await createMonthlyBudgetGmailDraftTool.execute(args, ctx);
 
@@ -56,7 +59,12 @@ describe("create_monthly_budget_gmail_draft", () => {
       needsClarification: true,
       validComponents: ["keyword_relevancy", "cpa_trend", "quality_score", "top_converters"],
     });
-    expect(String((result.data as { message: string }).message)).toContain("Which monthly email components");
+    const message = String((result.data as { message: string }).message);
+    expect(message).toContain("Which monthly email components");
+    expect(message).toContain("Keyword Relevancy");
+    expect(message).toContain("CPA Trend");
+    expect(message).toContain("Quality Score");
+    expect(message).toContain("Top Converters");
     expect(mocks.executeDashboard).not.toHaveBeenCalled();
     expect(mocks.executeMonthly).not.toHaveBeenCalled();
     expect(mocks.executeBudget).not.toHaveBeenCalled();
