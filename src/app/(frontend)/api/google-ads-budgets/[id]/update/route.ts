@@ -120,12 +120,20 @@ export async function POST(
 
   // Bulk save: save budget allocations to CMS only (no Google Ads push)
   if (body.campaigns && Array.isArray(body.campaigns)) {
-    // Get customerId from audit for creating new records
-    let auditCustomerId = '';
+    // Read only the audit document at depth 0 so the linked client stays as an ID
+    // and Payload does not expand unrelated client data during a simple budget save.
+    let auditCustomerId = "";
     try {
-      const audit = await payload.findByID({ collection: "google-ads-audits", id: auditIdNum, overrideAccess: true });
-      auditCustomerId = audit.customerId || '';
-    } catch { /* use empty */ }
+      const audit = await payload.findByID({
+        collection: "google-ads-audits",
+        id: auditIdNum,
+        depth: 0,
+        overrideAccess: true,
+      });
+      auditCustomerId = typeof audit?.customerId === "string" ? audit.customerId : "";
+    } catch {
+      /* use empty */
+    }
 
     const errors: string[] = [];
     for (const campaign of body.campaigns) {
@@ -137,6 +145,7 @@ export async function POST(
             campaignId: { equals: campaign.campaignId },
           },
           limit: 1,
+          depth: 0,
           overrideAccess: true,
         });
 
@@ -157,6 +166,7 @@ export async function POST(
             collection: BUDGETS_COLLECTION,
             id: existing.docs[0].id,
             data: cmsData,
+            depth: 0,
             overrideAccess: true,
           });
         } else {
@@ -169,6 +179,7 @@ export async function POST(
               campaignName: campaign.campaignName || campaign.campaignId,
               ...cmsData,
             } as any,
+            depth: 0,
             overrideAccess: true,
           });
         }
