@@ -1,19 +1,16 @@
 'use client'
 
 /**
- * OptiMateVoice — live OpenAI Realtime voice for an OptiMate audit.
+ * OptiMateVoice — live OpenAI Realtime voice for OptiMate.
  *
- * Flow (mirrors Brah's working WebRTC renderer, plan §2.5):
- *   1. Fetch the voice session config (instructions + full OptiMate tool defs)
- *      from /api/optimate/realtime-session (server-built, prompt stays ours).
- *   2. Mint an ephemeral secret via the token provider (local Electron helper
- *      bridge on 127.0.0.1).
- *   3. Open a WebRTC peer: mic track out, remote audio in, an `oai-events`
- *      data channel. POST the SDP offer to api.openai.com/v1/realtime/calls
- *      with the ephemeral secret; set the answer.
- *   4. On a model `function_call`, POST it to /api/optimate/realtime-tool
- *      (server runs the read tool), then send function_call_output +
- *      response.create back over the data channel.
+ * Current flow:
+ *   1. Fetch the voice session config from the server.
+ *   2. Mint an ephemeral secret via the local helper bridge.
+ *   3. Open a WebRTC peer: mic out, remote audio in, `oai-events` data channel.
+ *   4. Email/invoice keep Realtime-native tool calling.
+ *   5. GoogleMate audit/portfolio use Realtime only for transcription + audio
+ *      readback; the actual reasoning turn goes through the normal typed
+ *      backend chat routes.
  *
  * The single-in-flight `response.create` coordinator is ported from Brah's
  * realtime-response-queue so we never trip
@@ -24,6 +21,56 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getTokenProvider } from '@/lib/realtime/token-provider'
 import { checkVoiceRunForCorrection, type VoiceToolCallRecord } from '@/lib/agents/optimate-google-ads/voice-run-checks'
+import type { AttachedEmailMeta } from './EmailAttachPicker'
+import {
+  GOOGLE_MATE_PARITY_QUERY,
+  summarizeForDevTrace,
+  type GoogleMateDevToolTrace,
+  type GoogleMateDevVoiceTrace,
+} from '@/lib/optimate/dev-google-mate-parity'
+
+type ReasoningMode = 'off' | 'low' | 'medium' | 'high'
+
+interface TypedChatHistoryEntry {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+interface TypedChatContext {
+  sessionId: string
+  history: TypedChatHistoryEntry[]
+  selectedModel: string
+  reasoningMode: ReasoningMode
+  attachedEmail?: AttachedEmailMeta | null
+}
+
+interface TypedChatRequestPayload {
+  message: string
+  displayMessage: string
+  sessionId: string
+  history: TypedChatHistoryEntry[]
+  model: string
+  reasoningMode: ReasoningMode
+  selectedAccountRefs?: Array<string | number>
+  imageAttachments?: Array<{ name: string; mediaType: string; data: string }>
+  attachedEmail?: {
+    messageId: string
+    subject: string
+    from: string
+    date: string
+  }
+}
+
+interface TypedChatResponse {
+  reply?: string
+  runId?: string
+  modelUsed?: string
+  modelRequested?: string
+  proposals?: Array<Record<string, unknown>>
+  confirmRequests?: Array<Record<string, unknown>>
+  sessionId?: string
+  persisted?: boolean
+}
 
 interface OptiMateVoiceProps {
   auditId?: string | number
@@ -50,6 +97,14 @@ interface OptiMateVoiceProps {
   /** Email mode only: the agent staged a reply via stage_email_reply. The host
    *  surfaces this in the review box for the user to edit and confirm. */
   onStagedEmailReply?: (reply: { subject?: string; body: string }) => void
+  /** Development-only parity trace sink for comparing voice against typed chat. */
+  onDevTrace?: (trace: GoogleMateDevVoiceTrace) => void
+  /** Shared typed-chat state so voice can hit the exact same backend semantics. */
+  typedChatContext?: TypedChatContext
+  /** Shared typed-chat payload builder from OptiMateChatCore. */
+  buildTypedChatRequest?: (text: string) => TypedChatRequestPayload
+  /** Shared typed-chat response applier from OptiMateChatCore. */
+  onTypedChatResponse?: (data: TypedChatResponse) => void
 }
 
 type VoiceState = 'idle' | 'checking' | 'connecting' | 'connected' | 'error'
@@ -64,6 +119,19 @@ interface VoiceTurnSafetyState {
   toolCalls: VoiceToolCallRecord[]
   retryAttempted: boolean
   retryInProgress: boolean
+}
+
+interface VoiceDevTraceState {
+  transcript: string
+  userMessage: string
+  model?: string
+  modelUsed?: string
+  modelRequested?: string
+  replyPath?: 'typed-backend' | 'realtime-model'
+  finalAssistantReply: string
+  emptyResponsePoint?: string | null
+  toolsCalled: GoogleMateDevToolTrace[]
+  availableToolNames: string[]
 }
 
 // --- response.create coordinator (ported from Brah) ---------------------------
@@ -166,6 +234,21 @@ function isLikelyIntentionalVoiceInput(text: string): boolean {
   if (words.length >= 3) return true
   if (/[?]/.test(trimmed) && words.length >= 1) return true
   return VOICE_INTENT_KEYWORDS.test(trimmed) && words.length >= 1
+}
+
+function createEmptyVoiceDevTrace(): VoiceDevTraceState {
+  return {
+    transcript: '',
+    userMessage: '',
+    model: undefined,
+    modelUsed: undefined,
+    modelRequested: undefined,
+    replyPath: undefined,
+    finalAssistantReply: '',
+    emptyResponsePoint: null,
+    toolsCalled: [],
+    availableToolNames: [],
+  }
 }
 
 // Standard microphone glyph used across most chat UIs (rounded capsule mic on
@@ -327,6 +410,10 @@ export default function OptiMateVoice({
   triggerSize = 40,
   attachedEmailMessageId,
   onStagedEmailReply,
+  onDevTrace,
+  typedChatContext,
+  buildTypedChatRequest,
+  onTypedChatResponse,
 }: OptiMateVoiceProps) {
   const [state, setState] = useState<VoiceState>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -357,6 +444,7 @@ export default function OptiMateVoice({
     model: string
     recorded: boolean
   } | null>(null)
+  const googleMateTurnInFlightRef = useRef(false)
   const usageMetadataRef = useRef<{
     agent: 'google-ads' | 'email' | 'invoice'
     mode: OptiMateVoiceProps['mode']
@@ -374,6 +462,33 @@ export default function OptiMateVoice({
   })
 
   const provider = getTokenProvider()
+  const devTraceRef = useRef<VoiceDevTraceState>(createEmptyVoiceDevTrace())
+  const isDevParityEnabled = process.env.NODE_ENV === 'development' && !!onDevTrace
+
+  const publishDevTrace = useCallback(() => {
+    if (!isDevParityEnabled || !onDevTrace) return
+    const trace = devTraceRef.current
+    onDevTrace({
+      kind: 'voice',
+      query: GOOGLE_MATE_PARITY_QUERY,
+      transcript: trace.transcript,
+      userMessage: trace.userMessage,
+      model: trace.model,
+      modelUsed: trace.modelUsed,
+      modelRequested: trace.modelRequested,
+      replyPath: trace.replyPath,
+      finalAssistantReply: trace.finalAssistantReply,
+      emptyResponsePoint: trace.emptyResponsePoint ?? null,
+      toolsCalled: trace.toolsCalled,
+      availableToolNames: trace.availableToolNames,
+    })
+  }, [isDevParityEnabled, onDevTrace])
+
+  const resetDevTrace = useCallback(() => {
+    if (!isDevParityEnabled) return
+    devTraceRef.current = createEmptyVoiceDevTrace()
+    publishDevTrace()
+  }, [isDevParityEnabled, publishDevTrace])
 
   const refreshHelperStatus = useCallback(async () => {
     const status = await provider.getStatus()
@@ -452,6 +567,119 @@ export default function OptiMateVoice({
     [sendEvent],
   )
 
+  const speakAssistantReply = useCallback(
+    (text: string) => {
+      const spokenText = text.trim()
+      if (!spokenText) return
+      sendEvent({
+        type: 'conversation.item.create',
+        item: {
+          type: 'message',
+          role: 'assistant',
+          status: 'completed',
+          content: [{ type: 'output_text', text: spokenText }],
+        },
+      })
+      requestResponse({
+        type: 'response.create',
+        response: {
+          output_modalities: ['audio'],
+          instructions:
+            'Read the most recent assistant message aloud exactly as written. Do not add, remove, paraphrase, summarize, reason, or answer anything else.',
+        },
+      })
+    },
+    [requestResponse, sendEvent],
+  )
+
+  const runGoogleMateVoiceTurn = useCallback(
+    async (transcript: string) => {
+      if (mode !== 'audit' && mode !== 'portfolio') return
+      if (!onTypedChatResponse) return
+      if (googleMateTurnInFlightRef.current) return
+
+      const payload = buildTypedChatRequest
+        ? buildTypedChatRequest(transcript)
+        : typedChatContext
+          ? {
+              message: transcript,
+              displayMessage: transcript,
+              sessionId: typedChatContext.sessionId,
+              history: typedChatContext.history,
+              model: typedChatContext.selectedModel,
+              reasoningMode: typedChatContext.reasoningMode,
+              selectedAccountRefs: mode === 'portfolio' ? selectedAccountRefs : undefined,
+              attachedEmail: typedChatContext.attachedEmail
+                ? {
+                    messageId: typedChatContext.attachedEmail.messageId,
+                    subject: typedChatContext.attachedEmail.subject,
+                    from: typedChatContext.attachedEmail.from,
+                    date: typedChatContext.attachedEmail.date,
+                  }
+                : undefined,
+            }
+          : null
+      if (!payload) return
+
+      googleMateTurnInFlightRef.current = true
+      try {
+        const chatUrl = mode === 'portfolio' ? '/api/optimate/google-ads-portfolio/chat' : `/api/google-ads-audits/${auditId}/chat`
+        const res = await fetch(chatUrl, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const data = (await res.json().catch(() => ({}))) as TypedChatResponse & {
+          error?: string
+          devToolsCalled?: GoogleMateDevToolTrace[]
+        }
+        if (!res.ok) {
+          throw new Error(data.error || `Failed (${res.status})`)
+        }
+
+        onTypedChatResponse(data)
+        if (isDevParityEnabled) {
+          devTraceRef.current.replyPath = 'typed-backend'
+          devTraceRef.current.modelUsed = typeof data.modelUsed === 'string' ? data.modelUsed : undefined
+          devTraceRef.current.modelRequested = typeof data.modelRequested === 'string' ? data.modelRequested : undefined
+          devTraceRef.current.finalAssistantReply = sanitizeVoiceTranscript(data.reply || 'No response received.')
+          devTraceRef.current.emptyResponsePoint = devTraceRef.current.finalAssistantReply
+            ? null
+            : 'typed backend returned an empty assistant reply'
+          if (Array.isArray(data.devToolsCalled)) {
+            devTraceRef.current.toolsCalled = data.devToolsCalled
+          }
+          publishDevTrace()
+        }
+        speakAssistantReply(data.reply || 'No response received.')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to run GoogleMate voice turn'
+        onAssistantMessage?.(message)
+        if (isDevParityEnabled) {
+          devTraceRef.current.replyPath = 'typed-backend'
+          devTraceRef.current.emptyResponsePoint = message
+          publishDevTrace()
+        }
+        speakAssistantReply(message)
+      } finally {
+        googleMateTurnInFlightRef.current = false
+      }
+    },
+    [
+      auditId,
+      buildTypedChatRequest,
+      isDevParityEnabled,
+      mode,
+      onAssistantMessage,
+      onTypedChatResponse,
+      publishDevTrace,
+      selectedAccountRefs,
+      speakAssistantReply,
+      typedChatContext,
+    ],
+  )
+
   const runVoiceSafetyCheck = useCallback(() => {
     if (mode === 'email') return
     const turn = voiceTurnSafetyRef.current
@@ -495,6 +723,16 @@ export default function OptiMateVoice({
       if (handledToolCallIds.current.has(callId)) return
       handledToolCallIds.current.add(callId)
       const args = parseToolArguments(rawArgs)
+      let devToolTrace: GoogleMateDevToolTrace | null = null
+      if (isDevParityEnabled) {
+        devToolTrace = {
+          name,
+          args,
+          resultSummary: '(pending)',
+        }
+        devTraceRef.current.toolsCalled.push(devToolTrace)
+        publishDevTrace()
+      }
 
       const isEmail = mode === 'email'
       const isInvoice = mode === 'invoice'
@@ -539,6 +777,11 @@ export default function OptiMateVoice({
       if (turnToolCall) {
         turnToolCall.ok = result.ok
         turnToolCall.result = result
+      }
+      if (devToolTrace) {
+        devToolTrace.ok = result.ok
+        devToolTrace.resultSummary = summarizeForDevTrace(result.ok ? result.data ?? { ok: true } : { error: result.error })
+        publishDevTrace()
       }
 
       // Email mode: surface a staged reply into the host review box. No Gmail
@@ -673,7 +916,17 @@ export default function OptiMateVoice({
         const text = sanitizeVoiceTranscript(event.transcript.trim())
         if (text && isLikelyIntentionalVoiceInput(text)) {
           onTurn?.(`u_${Date.now()}`, 'user', text)
+          if (isDevParityEnabled) {
+            devTraceRef.current.transcript = text
+            devTraceRef.current.userMessage = text
+            if (mode === 'audit' || mode === 'portfolio') {
+              devTraceRef.current.replyPath = 'typed-backend'
+            }
+            publishDevTrace()
+          }
           if (mode === 'audit' || mode === 'portfolio') {
+            void runGoogleMateVoiceTurn(text)
+          } else {
             voiceTurnSafetyRef.current = {
               userMessage: text,
               toolCalls: [],
@@ -702,7 +955,9 @@ export default function OptiMateVoice({
         const id = activeReplyIdRef.current
         if (id) {
           replyTextRef.current += event.delta
-          onTurn?.(id, 'assistant', sanitizeVoiceTranscript(replyTextRef.current))
+          if (mode !== 'audit' && mode !== 'portfolio') {
+            onTurn?.(id, 'assistant', sanitizeVoiceTranscript(replyTextRef.current))
+          }
         }
       }
       if (event.type === 'response.done') {
@@ -721,7 +976,17 @@ export default function OptiMateVoice({
           pendingGmailDraftRef.current = null
           gmailDraftConfirmationReplyIdRef.current = null
         }
-        runVoiceSafetyCheck()
+        if (isDevParityEnabled && mode !== 'audit' && mode !== 'portfolio') {
+          devTraceRef.current.replyPath = 'realtime-model'
+          devTraceRef.current.finalAssistantReply = sanitizeVoiceTranscript(replyTextRef.current.trim())
+          if (!devTraceRef.current.finalAssistantReply) {
+            devTraceRef.current.emptyResponsePoint = 'response.done arrived with no assistant transcript deltas'
+          }
+          publishDevTrace()
+        }
+        if (mode !== 'audit' && mode !== 'portfolio') {
+          runVoiceSafetyCheck()
+        }
         activeReplyIdRef.current = null
       }
 
@@ -735,7 +1000,7 @@ export default function OptiMateVoice({
         }
       }
     },
-    [sendEvent, executeToolCall, onTurn, mode, runVoiceSafetyCheck],
+    [sendEvent, executeToolCall, isDevParityEnabled, mode, onTurn, publishDevTrace, runGoogleMateVoiceTurn, runVoiceSafetyCheck],
   )
 
   useEffect(() => {
@@ -818,7 +1083,7 @@ export default function OptiMateVoice({
           )
         }
       }
-      if (attachedEmailMessageId) {
+      if (attachedEmailMessageId && (mode === 'email' || mode === 'invoice')) {
         sessionUrl.searchParams.set('attachedEmailMessageId', attachedEmailMessageId)
       }
       const sessionRes = await fetch(sessionUrl.toString())
@@ -828,7 +1093,16 @@ export default function OptiMateVoice({
       }
       const session = (await sessionRes.json()) as {
         instructions: string
-        tools: unknown[]
+        tools: Array<{ name?: unknown }>
+      }
+      if (isDevParityEnabled) {
+        resetDevTrace()
+        devTraceRef.current.availableToolNames = Array.isArray(session.tools)
+          ? session.tools
+              .map((tool) => (tool && typeof tool === 'object' && typeof tool.name === 'string' ? tool.name : null))
+              .filter((name): name is string => !!name)
+          : []
+        publishDevTrace()
       }
 
       setState('connecting')
@@ -842,17 +1116,16 @@ export default function OptiMateVoice({
         session: {
           instructions: session.instructions,
           tools: session.tools,
-          // Let Realtime wait longer before ending a user turn, and let it own
-          // response creation. Manually creating a response as soon as the
-          // transcript completed made tool turns unreliable (the model could say
-          // it created a Gmail draft without the function call completing) and
-          // made pauses feel like interruptions.
+          // Let Realtime wait longer before ending a user turn. Email/invoice
+          // still let Realtime create the response itself; GoogleMate audit /
+          // portfolio uses Realtime only for transcription + readback, so the
+          // typed backend owns the actual answer turn.
           turnDetection: {
             type: 'server_vad',
             threshold: 0.65,
             prefix_padding_ms: 500,
             silence_duration_ms: 1400,
-            create_response: true,
+            create_response: mode === 'email' || mode === 'invoice',
             interrupt_response: false,
           },
         },
@@ -862,6 +1135,10 @@ export default function OptiMateVoice({
         startedAt: Date.now(),
         model: secret.model,
         recorded: false,
+      }
+      if (isDevParityEnabled) {
+        devTraceRef.current.model = secret.model
+        publishDevTrace()
       }
 
       // 3. WebRTC peer.
@@ -971,7 +1248,7 @@ export default function OptiMateVoice({
       setState('error')
       stop()
     }
-  }, [auditId, attachedEmailMessageId, businessName, customerId, mode, provider, refreshHelperStatus, handleRealtimeEvent, selectedAccountRefs, stop, recordUsage])
+  }, [auditId, attachedEmailMessageId, businessName, customerId, mode, provider, refreshHelperStatus, handleRealtimeEvent, selectedAccountRefs, stop, recordUsage, isDevParityEnabled, publishDevTrace, resetDevTrace])
 
   const toggleMute = useCallback(() => {
     const stream = streamRef.current

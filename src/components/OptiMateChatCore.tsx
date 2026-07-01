@@ -43,10 +43,18 @@ import OptiMateConfirmBubble, {
   type ConfirmResolution,
 } from './OptiMateConfirmBubble'
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
+import type { CanonicalModelName } from '@/lib/agents/_shared/llm/registry'
 import OptiMateToolsHelp from './OptiMateToolsHelp'
 import OptiMateVoice from './OptiMateVoice'
 import OptiMateTranscribe from './OptiMateTranscribe'
 import { isVoiceEnabled } from '@/lib/realtime/token-provider'
+import {
+  GOOGLE_MATE_PARITY_QUERY,
+  summarizeForDevTrace,
+  type GoogleMateDevTextTrace,
+  type GoogleMateDevToolTrace,
+  type GoogleMateDevVoiceTrace,
+} from '@/lib/optimate/dev-google-mate-parity'
 
 /**
  * Imperative handle exposed via ref so a multi-account wrapper can broadcast
@@ -97,6 +105,44 @@ interface ChatMessage {
    *  inline amber "history not saved" pill so the user knows reloading
    *  will lose this turn. */
   historyNotSaved?: boolean
+}
+
+interface ChatHistoryEntry {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+interface TypedChatRequestPayload {
+  message: string
+  displayMessage: string
+  sessionId: string
+  history: ChatHistoryEntry[]
+  model: CanonicalModelName
+  reasoningMode: ReasoningMode
+  selectedAccountRefs?: Array<string | number>
+  imageAttachments?: Array<Pick<ImageAttachment, 'name' | 'mediaType' | 'data'>>
+  attachedEmail?: {
+    messageId: string
+    subject: string
+    from: string
+    date: string
+  }
+}
+
+interface TypedChatResponse {
+  reply?: string
+  runId?: string
+  modelUsed?: string
+  modelRequested?: string
+  proposals?: Array<Record<string, unknown>>
+  confirmRequests?: Array<Record<string, unknown>>
+  sessionId?: string
+  persisted?: boolean
+}
+
+interface ApplyTypedChatResponseOptions {
+  voice?: boolean
+  clearTurnAttachments?: boolean
 }
 
 export interface OptiMateChatCoreProps {
@@ -176,6 +222,77 @@ interface OptiMateSettingsResponse {
   defaultChatModel?: string
   googleMateStarterQuestions?: string[]
   googleMatePortfolioStarterQuestions?: string[]
+}
+
+interface GoogleMateParityHarnessResponse {
+  query: string
+  textTrace: GoogleMateDevTextTrace
+  voiceContext: {
+    mode: 'audit' | 'portfolio'
+    modelRequested?: string
+    modelUsed?: string
+    availableToolNames: string[]
+    historyMessageCount: number
+    replyPath?: 'typed-backend' | 'realtime-model'
+  }
+  divergenceHints: string[]
+}
+
+interface ParityToolComparison {
+  index: number
+  textTool: GoogleMateDevToolTrace | null
+  voiceTool: GoogleMateDevToolTrace | null
+  differs: boolean
+  diffFields: string[]
+}
+
+function stringifyParityValue(value: unknown): string {
+  if (value == null) return '—'
+  if (typeof value === 'string') return value || '—'
+  return summarizeForDevTrace(value, 400)
+}
+
+function areParityValuesEqual(left: unknown, right: unknown): boolean {
+  return stringifyParityValue(left) === stringifyParityValue(right)
+}
+
+function buildParityToolComparisons(
+  textTools: GoogleMateDevToolTrace[],
+  voiceTools: GoogleMateDevToolTrace[],
+): ParityToolComparison[] {
+  const count = Math.max(textTools.length, voiceTools.length)
+  return Array.from({ length: count }, (_, index) => {
+    const textTool = textTools[index] ?? null
+    const voiceTool = voiceTools[index] ?? null
+    const diffFields: string[] = []
+    if (!textTool || !voiceTool) {
+      diffFields.push(textTool ? 'missing in voice' : 'missing in text')
+    } else {
+      if (textTool.name !== voiceTool.name) diffFields.push('tool name')
+      if (!areParityValuesEqual(textTool.args, voiceTool.args)) diffFields.push('args')
+      if (!areParityValuesEqual(textTool.resultSummary, voiceTool.resultSummary)) diffFields.push('result summary')
+      if ((textTool.ok ?? null) !== (voiceTool.ok ?? null)) diffFields.push('status')
+    }
+    return {
+      index,
+      textTool,
+      voiceTool,
+      differs: diffFields.length > 0,
+      diffFields,
+    }
+  })
+}
+
+function summarizeToolSetDiff(textTools: string[], voiceTools: string[]): string {
+  const onlyText = textTools.filter((name) => !voiceTools.includes(name))
+  const onlyVoice = voiceTools.filter((name) => !textTools.includes(name))
+  if (onlyText.length === 0 && onlyVoice.length === 0) return 'Same turn-1 tool set.'
+  return [
+    onlyText.length > 0 ? `Text-only: ${onlyText.join(', ')}` : '',
+    onlyVoice.length > 0 ? `Voice-only: ${onlyVoice.join(', ')}` : '',
+  ]
+    .filter(Boolean)
+    .join(' • ')
 }
 
 /**
@@ -533,12 +650,89 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       ])
     }, [])
     const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_CHAT_MODEL)
+    const devParityEnabled = process.env.NODE_ENV === 'development'
+    const [parityBaseline, setParityBaseline] = useState<GoogleMateParityHarnessResponse | null>(null)
+    const [parityVoiceTrace, setParityVoiceTrace] = useState<GoogleMateDevVoiceTrace | null>(null)
+    const [parityLoading, setParityLoading] = useState(false)
+    const [parityError, setParityError] = useState<string | null>(null)
     const modelManuallyChangedRef = useRef(false)
     const [starterQuestions, setStarterQuestions] = useState<string[]>([])
     const [portfolioStarterQuestions, setPortfolioStarterQuestions] = useState<string[]>([])
     const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('off')
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
+
+    const runDevParityBaseline = useCallback(async () => {
+      if (!devParityEnabled || loading) return
+      setParityLoading(true)
+      setParityError(null)
+      try {
+        const res = await fetch('/api/optimate/dev/google-mate-parity', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode,
+            auditId,
+            customerId,
+            businessName,
+            selectedAccountRefs,
+          }),
+        })
+        const data = (await res.json().catch(() => ({}))) as GoogleMateParityHarnessResponse & { error?: string }
+        if (!res.ok) throw new Error(data.error || `Failed (${res.status})`)
+        setParityBaseline(data)
+      } catch (err) {
+        setParityError(err instanceof Error ? err.message : 'Failed to run parity baseline')
+      } finally {
+        setParityLoading(false)
+      }
+    }, [auditId, businessName, customerId, devParityEnabled, loading, mode, selectedAccountRefs])
+
+    const prepareDevVoiceParity = useCallback(() => {
+      setInput(GOOGLE_MATE_PARITY_QUERY)
+      setParityVoiceTrace(null)
+      setParityError(null)
+      inputRef.current?.focus()
+    }, [])
+
+    const parityToolComparisons = buildParityToolComparisons(
+      parityBaseline?.textTrace.toolsCalled ?? [],
+      parityVoiceTrace?.toolsCalled ?? [],
+    )
+    const parityDiffItems = [
+      {
+        label: 'Model',
+        textValue: parityBaseline?.textTrace.context.modelUsed ?? parityBaseline?.textTrace.context.modelRequested ?? null,
+        voiceValue: parityVoiceTrace?.model ?? parityBaseline?.voiceContext.modelRequested ?? null,
+      },
+      {
+        label: 'User message',
+        textValue: parityBaseline?.textTrace.userMessage ?? null,
+        voiceValue: parityVoiceTrace?.userMessage ?? parityVoiceTrace?.transcript ?? null,
+      },
+      {
+        label: 'Reply path',
+        textValue: parityBaseline?.textTrace.context.replyPath ?? 'typed-backend',
+        voiceValue: parityVoiceTrace?.replyPath ?? parityBaseline?.voiceContext.replyPath ?? null,
+      },
+      {
+        label: 'Final reply',
+        textValue: parityBaseline?.textTrace.finalAssistantReply ?? null,
+        voiceValue: parityVoiceTrace?.finalAssistantReply ?? null,
+      },
+      {
+        label: 'Empty-response point',
+        textValue: parityBaseline?.textTrace.emptyResponsePoint ?? null,
+        voiceValue: parityVoiceTrace?.emptyResponsePoint ?? null,
+      },
+    ]
+    const parityMismatchCount = parityDiffItems.filter((item) => !areParityValuesEqual(item.textValue, item.voiceValue)).length
+    const parityToolMismatchCount = parityToolComparisons.filter((item) => item.differs).length
+    const parityToolSetSummary = summarizeToolSetDiff(
+      parityBaseline?.textTrace.context.availableToolNames ?? [],
+      parityVoiceTrace?.availableToolNames ?? parityBaseline?.voiceContext.availableToolNames ?? [],
+    )
     // Feature flag: render the voice CTA only when a provider is configured.
     const voiceEnabled = isVoiceEnabled()
     const canUseVoice = voiceEnabled && (mode === 'audit' || mode === 'portfolio' || selectedAccountRefs.length > 0)
@@ -889,6 +1083,145 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       setHistoryOpen(false)
     }, [storageScope])
 
+    const buildChatUrl = useCallback(() => {
+      return mode === 'portfolio' ? '/api/optimate/google-ads-portfolio/chat' : `/api/google-ads-audits/${auditId}/chat`
+    }, [auditId, mode])
+
+    const mapMessagesToHistory = useCallback((historyMessages: ChatMessage[]): ChatHistoryEntry[] => {
+      return historyMessages.map(({ role, content }) => ({ role, content }))
+    }, [])
+
+    const buildTypedChatRequestPayload = useCallback(
+      (input: {
+        text: string
+        historyMessages?: ChatMessage[]
+        imageAttachments?: ImageAttachment[]
+        attachedEmail?: AttachedEmailMeta | null
+      }): TypedChatRequestPayload => {
+        const trimmedText = input.text.trim() || 'Please review the attached image.'
+        const apiMessage = messageContextPrefix
+          ? `${messageContextPrefix.trim()}\n\nUser request: ${trimmedText}`
+          : trimmedText
+        return {
+          message: apiMessage,
+          displayMessage: trimmedText,
+          sessionId: sessionIdRef.current,
+          history: mapMessagesToHistory(input.historyMessages ?? messages),
+          model: selectedModel as CanonicalModelName,
+          reasoningMode,
+          selectedAccountRefs: mode === 'portfolio' ? selectedAccountRefs : undefined,
+          imageAttachments: (input.imageAttachments ?? []).map((image) => ({
+            name: image.name,
+            mediaType: image.mediaType,
+            data: image.data,
+          })),
+          attachedEmail: input.attachedEmail
+            ? {
+                messageId: input.attachedEmail.messageId,
+                subject: input.attachedEmail.subject,
+                from: input.attachedEmail.from,
+                date: input.attachedEmail.date,
+              }
+            : undefined,
+        }
+      },
+      [mapMessagesToHistory, messageContextPrefix, messages, mode, reasoningMode, selectedAccountRefs, selectedModel],
+    )
+
+    const syncSessionIdFromResponse = useCallback(
+      (data: TypedChatResponse) => {
+        if (
+          typeof data.sessionId === 'string' &&
+          data.sessionId.length > 0 &&
+          data.sessionId !== sessionIdRef.current
+        ) {
+          sessionIdRef.current = data.sessionId
+          savePersistedSessionId(storageScope, data.sessionId)
+          return
+        }
+        savePersistedSessionId(storageScope, sessionIdRef.current)
+      },
+      [storageScope],
+    )
+
+    const applyTypedChatResponse = useCallback(
+      (data: TypedChatResponse, options: ApplyTypedChatResponseOptions = {}) => {
+        const proposals: OptiMateProposal[] = Array.isArray(data.proposals)
+          ? data.proposals
+              .map((p) => ({
+                id: Number(p.id),
+                title: String(p.title ?? ''),
+                proposalType: String(p.proposalType ?? ''),
+                status: String(p.status ?? 'pending'),
+              }))
+              .filter((p) => Number.isFinite(p.id))
+          : []
+        const confirmRequests: OptiMateConfirmRequest[] = Array.isArray(data.confirmRequests)
+          ? data.confirmRequests
+              .filter(
+                (c) =>
+                  c &&
+                  typeof c.confirmId === 'string' &&
+                  typeof c.wording === 'string' &&
+                  (c.proposalType === 'campaign-restructure' || c.proposalType === 'campaign-build') &&
+                  c.draftSettings &&
+                  typeof c.draftSettings === 'object',
+              )
+              .map((c) => ({
+                confirmId: String(c.confirmId),
+                proposalType: c.proposalType as 'campaign-restructure' | 'campaign-build',
+                wording: String(c.wording),
+                draftSettings: c.draftSettings as Record<string, unknown>,
+              }))
+          : []
+        const turnPersisted = data.persisted !== false
+        if (!turnPersisted) setPersistenceFailedSeen(true)
+        const assistantMsg: ChatMessage = {
+          role: 'assistant',
+          content: data.reply || 'No response received.',
+          voice: options.voice,
+          voiceId: options.voice ? `voice_backend_${Date.now()}` : undefined,
+          runId: typeof data.runId === 'string' ? data.runId : undefined,
+          modelUsed: typeof data.modelUsed === 'string' ? data.modelUsed : undefined,
+          modelRequested: typeof data.modelRequested === 'string' ? data.modelRequested : undefined,
+          proposals: proposals.length > 0 ? proposals : undefined,
+          confirmRequests: confirmRequests.length > 0 ? confirmRequests : undefined,
+          confirmResolutions: confirmRequests.length > 0 ? {} : undefined,
+          historyNotSaved: !turnPersisted,
+        }
+        setMessages((prev) => [...prev, assistantMsg])
+        syncSessionIdFromResponse(data)
+
+        if (options.clearTurnAttachments) {
+          setAttachedEmail(null)
+          setImageAttachments([])
+          if (imageInputRef.current) imageInputRef.current.value = ''
+        }
+
+        if (proposals.length > 0) {
+          bumpPendingRefresh()
+          if (
+            typeof document !== 'undefined' &&
+            document.hidden &&
+            typeof Notification !== 'undefined' &&
+            Notification.permission === 'granted'
+          ) {
+            for (const p of proposals) {
+              try {
+                new Notification('OptiMate: proposal queued', {
+                  body: p.title,
+                  tag: `optimate-${p.id}`,
+                })
+              } catch {
+                /* notification API can throw on some platforms; silent */
+              }
+            }
+          }
+        }
+      },
+      [bumpPendingRefresh, syncSessionIdFromResponse],
+    )
+
     const stopThinking = useCallback(() => {
       const controller = abortControllerRef.current
       abortControllerRef.current = null
@@ -925,37 +1258,18 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       abortControllerRef.current = controller
 
       try {
-        const chatUrl = mode === 'portfolio' ? '/api/optimate/google-ads-portfolio/chat' : `/api/google-ads-audits/${auditId}/chat`
-        const apiMessage = messageContextPrefix
-          ? `${messageContextPrefix.trim()}\n\nUser request: ${trimmedText || 'Please review the attached image.'}`
-          : trimmedText || 'Please review the attached image.'
-        const res = await fetch(chatUrl, {
+        const payload = buildTypedChatRequestPayload({
+          text,
+          historyMessages: messages,
+          imageAttachments: currentImages,
+          attachedEmail,
+        })
+        const res = await fetch(buildChatUrl(), {
           method: 'POST',
           credentials: 'include',
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: apiMessage,
-            displayMessage: trimmedText || 'Please review the attached image.',
-            sessionId: sessionIdRef.current,
-            history: messages.map(({ role, content }) => ({ role, content })),
-            model: selectedModel,
-            reasoningMode,
-            selectedAccountRefs: mode === 'portfolio' ? selectedAccountRefs : undefined,
-            imageAttachments: currentImages.map((image) => ({
-              name: image.name,
-              mediaType: image.mediaType,
-              data: image.data,
-            })),
-            attachedEmail: attachedEmail
-              ? {
-                  messageId: attachedEmail.messageId,
-                  subject: attachedEmail.subject,
-                  from: attachedEmail.from,
-                  date: attachedEmail.date,
-                }
-              : undefined,
-          }),
+          body: JSON.stringify(payload),
         })
 
         if (!res.ok) {
@@ -963,97 +1277,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           throw new Error(data.error || `Failed (${res.status})`)
         }
 
-        const data = await res.json()
-        const proposals: OptiMateProposal[] = Array.isArray(data.proposals)
-          ? (data.proposals as Array<Record<string, unknown>>)
-              .map((p) => ({
-                id: Number(p.id),
-                title: String(p.title ?? ''),
-                proposalType: String(p.proposalType ?? ''),
-                status: String(p.status ?? 'pending'),
-              }))
-              .filter((p) => Number.isFinite(p.id))
-          : []
-        const confirmRequests: OptiMateConfirmRequest[] = Array.isArray(data.confirmRequests)
-          ? (data.confirmRequests as Array<Record<string, unknown>>)
-              .filter(
-                (c) =>
-                  c &&
-                  typeof c.confirmId === 'string' &&
-                  typeof c.wording === 'string' &&
-                  (c.proposalType === 'campaign-restructure' ||
-                    c.proposalType === 'campaign-build') &&
-                  c.draftSettings &&
-                  typeof c.draftSettings === 'object',
-              )
-              .map((c) => ({
-                confirmId: String(c.confirmId),
-                proposalType: c.proposalType as 'campaign-restructure' | 'campaign-build',
-                wording: String(c.wording),
-                draftSettings: c.draftSettings as Record<string, unknown>,
-              }))
-          : []
-        // `persisted` is sent by the chat route when one or both DB writes
-        // (user prompt + assistant reply) failed. The reply still flows —
-        // we just badge it so the user knows reload will lose it. Treat
-        // missing/undefined as "persisted" (older deploys / future shapes).
-        const turnPersisted = data.persisted !== false
-        if (!turnPersisted) setPersistenceFailedSeen(true)
-        const assistantMsg: ChatMessage = {
-          role: 'assistant',
-          content: data.reply || 'No response received.',
-          runId: typeof data.runId === 'string' ? data.runId : undefined,
-          modelUsed: typeof data.modelUsed === 'string' ? data.modelUsed : undefined,
-          modelRequested: typeof data.modelRequested === 'string' ? data.modelRequested : undefined,
-          proposals: proposals.length > 0 ? proposals : undefined,
-          confirmRequests: confirmRequests.length > 0 ? confirmRequests : undefined,
-          confirmResolutions: confirmRequests.length > 0 ? {} : undefined,
-          historyNotSaved: !turnPersisted,
-        }
-        setMessages((prev) => [...prev, assistantMsg])
-
-        // Server may have minted a fresh sessionId when none was sent. Keep
-        // our local ref in sync so subsequent turns + reloads attach to it.
-        if (
-          typeof data.sessionId === 'string' &&
-          data.sessionId.length > 0 &&
-          data.sessionId !== sessionIdRef.current
-        ) {
-          sessionIdRef.current = data.sessionId
-          savePersistedSessionId(storageScope, data.sessionId)
-        } else {
-          // Reaffirm storage (cheap) so any earlier write failure is retried.
-          savePersistedSessionId(storageScope, sessionIdRef.current)
-        }
-
-        // Attachments are per-turn context only — clear after a successful
-        // send so the next unrelated question doesn't accidentally reuse them.
-        setAttachedEmail(null)
-        setImageAttachments([])
-        if (imageInputRef.current) imageInputRef.current.value = ''
-
-        // Refresh the pending strip and (when tab is hidden) fire a browser
-        // notification so the user notices the proposal landed.
-        if (proposals.length > 0) {
-          bumpPendingRefresh()
-          if (
-            typeof document !== 'undefined' &&
-            document.hidden &&
-            typeof Notification !== 'undefined' &&
-            Notification.permission === 'granted'
-          ) {
-            for (const p of proposals) {
-              try {
-                new Notification('OptiMate: proposal queued', {
-                  body: p.title,
-                  tag: `optimate-${p.id}`,
-                })
-              } catch {
-                /* notification API can throw on some platforms; silent */
-              }
-            }
-          }
-        }
+        const data = (await res.json()) as TypedChatResponse
+        applyTypedChatResponse(data, { clearTurnAttachments: true })
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           setError(null)
@@ -1361,8 +1586,25 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               selectedAccountRefs={selectedAccountRefs}
               onTurn={upsertVoiceTurn}
               onAssistantMessage={appendVoiceAssistantMessage}
+              onDevTrace={devParityEnabled ? setParityVoiceTrace : undefined}
               controlsContainer={voiceControlsEl}
               triggerSize={29}
+              attachedEmailMessageId={attachedEmail?.messageId ?? null}
+              typedChatContext={{
+                sessionId: sessionIdRef.current,
+                history: mapMessagesToHistory(messages),
+                selectedModel,
+                reasoningMode,
+                attachedEmail,
+              }}
+              buildTypedChatRequest={(text) =>
+                buildTypedChatRequestPayload({
+                  text,
+                  historyMessages: messages,
+                  attachedEmail,
+                })
+              }
+              onTypedChatResponse={(data) => applyTypedChatResponse(data, { voice: true, clearTurnAttachments: true })}
             />
           )}
           <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -2291,9 +2533,25 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                       selectedAccountRefs={selectedAccountRefs}
                       onTurn={upsertVoiceTurn}
                       onAssistantMessage={appendVoiceAssistantMessage}
+                      onDevTrace={devParityEnabled ? setParityVoiceTrace : undefined}
                       controlsContainer={voiceControlsEl}
                       triggerSize={29}
                       attachedEmailMessageId={attachedEmail?.messageId ?? null}
+                      typedChatContext={{
+                        sessionId: sessionIdRef.current,
+                        history: mapMessagesToHistory(messages),
+                        selectedModel,
+                        reasoningMode,
+                        attachedEmail,
+                      }}
+                      buildTypedChatRequest={(text) =>
+                        buildTypedChatRequestPayload({
+                          text,
+                          historyMessages: messages,
+                          attachedEmail,
+                        })
+                      }
+                      onTypedChatResponse={(data) => applyTypedChatResponse(data, { voice: true, clearTurnAttachments: true })}
                     />
                   )
                 )}
@@ -2314,7 +2572,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 marginTop: 6,
                 // Keep a clear gap below the model selector so it isn't clipped
                 // by the bottom edge of the popout window.
-                marginBottom: 18,
+                marginBottom: devParityEnabled ? 8 : 18,
               }}
             >
               <select
@@ -2369,6 +2627,267 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 ))}
               </select>
             </div>
+
+            {devParityEnabled && (
+              <details
+                style={{
+                  marginBottom: 18,
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  padding: 10,
+                  background: '#f8fafc',
+                }}
+              >
+                <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                  Dev parity harness
+                </summary>
+                <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+                  <div style={{ fontSize: 12, color: '#4b5563' }}>
+                    Query: <code>{GOOGLE_MATE_PARITY_QUERY}</code>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={runDevParityBaseline}
+                      disabled={parityLoading || loading}
+                      style={{
+                        border: '1px solid #cbd5e1',
+                        background: parityLoading ? '#cbd5e1' : '#fff',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                        fontSize: 12,
+                        cursor: parityLoading || loading ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {parityLoading ? 'Running typed baseline…' : 'Run typed baseline'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={prepareDevVoiceParity}
+                      style={{
+                        border: '1px solid #cbd5e1',
+                        background: '#fff',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Prep voice comparison
+                    </button>
+                  </div>
+                  {parityError && <div style={{ fontSize: 12, color: '#b91c1c' }}>{parityError}</div>}
+                  {(parityBaseline || parityVoiceTrace) && (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      {!parityBaseline && (
+                        <div style={{ border: '1px solid #bfdbfe', borderRadius: 8, padding: 10, background: '#eff6ff', fontSize: 12, color: '#1e40af' }}>
+                          Run the typed baseline first so every diff row has a real text-side comparison.
+                        </div>
+                      )}
+                      {parityBaseline && !parityVoiceTrace && (
+                        <div style={{ border: '1px solid #fde68a', borderRadius: 8, padding: 10, background: '#fffbeb', fontSize: 12, color: '#92400e' }}>
+                          Typed baseline is ready. Next, start voice on this same account and say the exact parity query shown above.
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gap: 8,
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                        }}
+                      >
+                        <div style={{ border: '1px solid #dbeafe', background: '#eff6ff', borderRadius: 8, padding: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8' }}>Account</div>
+                          <div style={{ marginTop: 4, fontSize: 12, color: '#111827' }}>{displayName}</div>
+                        </div>
+                        <div style={{ border: '1px solid #fde68a', background: '#fffbeb', borderRadius: 8, padding: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#b45309' }}>Field diffs</div>
+                          <div style={{ marginTop: 4, fontSize: 12, color: '#111827' }}>{parityMismatchCount}</div>
+                        </div>
+                        <div style={{ border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 8, padding: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c' }}>Tool call diffs</div>
+                          <div style={{ marginTop: 4, fontSize: 12, color: '#111827' }}>{parityToolMismatchCount}</div>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gap: 10,
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                        }}
+                      >
+                        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 10, background: '#fff' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Typed baseline</div>
+                          <div style={{ marginTop: 8, display: 'grid', gap: 6, fontSize: 12, color: '#374151' }}>
+                            <div><strong>Model:</strong> {stringifyParityValue(parityBaseline?.textTrace.context.modelUsed ?? parityBaseline?.textTrace.context.modelRequested)}</div>
+                            <div><strong>Run ID:</strong> {stringifyParityValue(parityBaseline?.textTrace.runId)}</div>
+                            <div><strong>Tools exposed:</strong> {(parityBaseline?.textTrace.context.availableToolNames ?? []).length}</div>
+                            <div><strong>Tools called:</strong> {(parityBaseline?.textTrace.toolsCalled ?? []).length}</div>
+                            <div><strong>Reply:</strong> {parityBaseline?.textTrace.finalAssistantReply ? 'Captured' : 'Empty'}</div>
+                          </div>
+                        </div>
+                        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 10, background: '#fff' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Live voice trace</div>
+                          <div style={{ marginTop: 8, display: 'grid', gap: 6, fontSize: 12, color: '#374151' }}>
+                            <div><strong>Model:</strong> {stringifyParityValue(parityVoiceTrace?.model ?? parityBaseline?.voiceContext.modelRequested)}</div>
+                            <div><strong>Transcript:</strong> {parityVoiceTrace?.transcript ? 'Captured' : 'Waiting'}</div>
+                            <div><strong>Tools exposed:</strong> {(parityVoiceTrace?.availableToolNames ?? parityBaseline?.voiceContext.availableToolNames ?? []).length}</div>
+                            <div><strong>Tools called:</strong> {(parityVoiceTrace?.toolsCalled ?? []).length}</div>
+                            <div><strong>Reply:</strong> {parityVoiceTrace?.finalAssistantReply ? 'Captured' : 'Waiting'}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', overflow: 'hidden' }}>
+                        <div style={{ padding: '10px 12px', borderBottom: '1px solid #e5e7eb', fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                          Field-by-field diff
+                        </div>
+                        <div style={{ display: 'grid', gap: 1, background: '#e5e7eb' }}>
+                          <div style={{ display: 'grid', gap: 1, gridTemplateColumns: '160px minmax(0, 1fr) minmax(0, 1fr)', background: '#e5e7eb' }}>
+                            <div style={{ background: '#e2e8f0', padding: 10, fontSize: 11, fontWeight: 700, color: '#111827' }}>Field</div>
+                            <div style={{ background: '#e2e8f0', padding: 10, fontSize: 11, fontWeight: 700, color: '#111827' }}>Typed</div>
+                            <div style={{ background: '#e2e8f0', padding: 10, fontSize: 11, fontWeight: 700, color: '#111827' }}>Voice</div>
+                          </div>
+                          {parityDiffItems.map((item) => {
+                            const matches = areParityValuesEqual(item.textValue, item.voiceValue)
+                            return (
+                              <div
+                                key={item.label}
+                                style={{
+                                  display: 'grid',
+                                  gap: 1,
+                                  gridTemplateColumns: '160px minmax(0, 1fr) minmax(0, 1fr)',
+                                  background: '#e5e7eb',
+                                }}
+                              >
+                                <div style={{ background: '#f8fafc', padding: 10, fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                                  {item.label}
+                                  <div style={{ marginTop: 4, fontSize: 10, color: matches ? '#15803d' : '#b91c1c' }}>
+                                    {matches ? 'MATCH' : 'DIFF'}
+                                  </div>
+                                </div>
+                                <div style={{ background: matches ? '#f0fdf4' : '#fef2f2', padding: 10, fontSize: 12, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                  {stringifyParityValue(item.textValue)}
+                                </div>
+                                <div style={{ background: matches ? '#f0fdf4' : '#fef2f2', padding: 10, fontSize: 12, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                  {stringifyParityValue(item.voiceValue)}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 10, background: '#fff' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Tool registry diff</div>
+                        <div style={{ marginTop: 8, fontSize: 12, color: '#374151', whiteSpace: 'pre-wrap' }}>{parityToolSetSummary}</div>
+                      </div>
+
+                      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', overflow: 'hidden' }}>
+                        <div style={{ padding: '10px 12px', borderBottom: '1px solid #e5e7eb', fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                          Tool call diff
+                        </div>
+                        {parityToolComparisons.length === 0 ? (
+                          <div style={{ padding: 12, fontSize: 12, color: '#6b7280' }}>
+                            No tool calls captured yet. Run typed baseline, then reproduce the same query by voice.
+                          </div>
+                        ) : (
+                          <div style={{ display: 'grid', gap: 1, background: '#e5e7eb' }}>
+                            <div style={{ display: 'grid', gap: 1, gridTemplateColumns: '160px minmax(0, 1fr) minmax(0, 1fr)', background: '#e5e7eb' }}>
+                              <div style={{ background: '#e2e8f0', padding: 10, fontSize: 11, fontWeight: 700, color: '#111827' }}>Step</div>
+                              <div style={{ background: '#e2e8f0', padding: 10, fontSize: 11, fontWeight: 700, color: '#111827' }}>Typed</div>
+                              <div style={{ background: '#e2e8f0', padding: 10, fontSize: 11, fontWeight: 700, color: '#111827' }}>Voice</div>
+                            </div>
+                            {parityToolComparisons.map((comparison) => (
+                              <div
+                                key={`tool-${comparison.index}`}
+                                style={{
+                                  display: 'grid',
+                                  gap: 1,
+                                  gridTemplateColumns: '160px minmax(0, 1fr) minmax(0, 1fr)',
+                                  background: '#e5e7eb',
+                                }}
+                              >
+                                <div style={{ background: '#f8fafc', padding: 10, fontSize: 12, color: '#111827' }}>
+                                  <div style={{ fontWeight: 700 }}>Tool #{comparison.index + 1}</div>
+                                  <div style={{ marginTop: 4, fontSize: 10, color: comparison.differs ? '#b91c1c' : '#15803d' }}>
+                                    {comparison.differs ? `DIFF: ${comparison.diffFields.join(', ')}` : 'MATCH'}
+                                  </div>
+                                </div>
+                                {[comparison.textTool, comparison.voiceTool].map((tool, columnIndex) => (
+                                  <div
+                                    key={`${comparison.index}-${columnIndex}`}
+                                    style={{
+                                      background: comparison.differs ? '#fef2f2' : '#f0fdf4',
+                                      padding: 10,
+                                      fontSize: 12,
+                                      color: '#1f2937',
+                                      display: 'grid',
+                                      gap: 6,
+                                    }}
+                                  >
+                                    {tool ? (
+                                      <>
+                                        <div><strong>Name:</strong> {tool.name}</div>
+                                        <div><strong>Status:</strong> {tool.ok === undefined ? 'Unknown' : tool.ok ? 'OK' : 'Error'}</div>
+                                        <div><strong>Args:</strong> <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{stringifyParityValue(tool.args)}</span></div>
+                                        <div><strong>Result:</strong> <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{stringifyParityValue(tool.resultSummary)}</span></div>
+                                      </>
+                                    ) : (
+                                      <div style={{ color: '#6b7280' }}>Missing</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {(parityBaseline?.divergenceHints?.length ?? 0) > 0 && (
+                        <div style={{ border: '1px solid #fde68a', borderRadius: 8, padding: 10, background: '#fffbeb' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Known divergence hints</div>
+                          <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: '#78350f' }}>
+                            {(parityBaseline?.divergenceHints ?? []).map((hint) => (
+                              <li key={hint}>{hint}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <details>
+                        <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#111827' }}>Raw trace JSON</summary>
+                        <pre
+                          style={{
+                            margin: '10px 0 0',
+                            padding: 10,
+                            borderRadius: 8,
+                            background: '#111827',
+                            color: '#e5e7eb',
+                            fontSize: 11,
+                            lineHeight: 1.5,
+                            overflowX: 'auto',
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        >
+                          {JSON.stringify(
+                            {
+                              textTrace: parityBaseline?.textTrace ?? null,
+                              voiceContext: parityBaseline?.voiceContext ?? null,
+                              liveVoiceTrace: parityVoiceTrace,
+                              divergenceHints: parityBaseline?.divergenceHints ?? [],
+                            },
+                            null,
+                            2,
+                          )}
+                        </pre>
+                      </details>
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
           </div>
         )}
       </div>
