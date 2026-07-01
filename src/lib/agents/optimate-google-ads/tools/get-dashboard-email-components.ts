@@ -57,8 +57,8 @@ interface SearchTermsEnvelope {
   terms?: SearchTermRaw[];
 }
 
-const MAX_MONTHS = 12;
-const DEFAULT_MONTHS = 6;
+const MAX_MONTHS = 14;
+const DEFAULT_MONTHS = 14;
 const DEFAULT_RANGE = "LAST_30_DAYS";
 const SUPPORTED_COMPONENTS = new Set<GoogleAdsEmailComponentKey>(GOOGLE_ADS_EMAIL_COMPONENT_KEYS);
 
@@ -79,7 +79,7 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
         type: "integer",
         minimum: 1,
         maximum: MAX_MONTHS,
-        description: "Number of completed calendar months for keyword_relevancy, cpa_trend, and quality_score. Defaults to 6 and is clamped to 1..12.",
+        description: "Number of completed calendar months for keyword_relevancy, cpa_trend, and quality_score. Defaults to 14 and is clamped to 1..14.",
       },
       endMonth: {
         type: "string",

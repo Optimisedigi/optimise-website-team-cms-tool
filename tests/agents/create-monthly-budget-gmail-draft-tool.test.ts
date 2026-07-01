@@ -125,7 +125,7 @@ describe("create_monthly_budget_gmail_draft", () => {
 
     expect(result.ok).toBe(true);
     expect(mocks.executeDashboard).toHaveBeenCalledWith(
-      { components: ["keyword_relevancy", "cpa_trend"], months: 4, endMonth: "2026-06" },
+      { components: ["keyword_relevancy", "cpa_trend"], months: 14, endMonth: "2026-06" },
       ctx,
     );
     expect(mocks.executeMonthly).toHaveBeenCalledWith(

@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { renderGoogleAdsEmailComponentHtml, type GoogleAdsEmailComponentsData } from "@/lib/google-ads-email-components";
 
+const relevancyLabels = ["Jan '25", "Feb '25", "Mar '25", "Apr '25", "May '25", "Jun '25", "Jul '25", "Aug '25", "Sep '25", "Oct '25", "Nov '25", "Dec '25", "Jan '26", "Feb '26"];
+const fourteenMonthRelevancy = [
+  87.3, 93.6, 95.7, 95.4, 95.0, 95.1, 95.8, 96.4, 97.7, 97.8, 95.1, 96.9, 97.9, 96.7,
+].map((value, index) => ({
+  label: relevancyLabels[index]!,
+  value,
+}));
+
 const data: GoogleAdsEmailComponentsData = {
-  keywordRelevancyTrend: [
-    { label: "Jan '26", value: 87.3 },
-    { label: "Feb '26", value: 93.6 },
-    { label: "Mar '26", value: 96.7 },
-  ],
+  keywordRelevancyTrend: fourteenMonthRelevancy,
   cpaTrend: [
     { label: "Jan '26", value: 182 },
     { label: "Feb '26", value: 151 },
@@ -47,18 +51,19 @@ function expectSvgLineCard(html: string, gradientId: string, stroke: string, lab
 }
 
 describe("Google Ads dashboard email graph renderer", () => {
-  it("renders keyword relevancy as a Gmail-safe dashboard table card, not flattened SVG text", () => {
+  it("renders keyword relevancy as the exact preview-style 14-month SVG graph", () => {
     const html = renderGoogleAdsEmailComponentHtml("keyword_relevancy", data);
 
-    expect(html).toContain('role="presentation"');
-    expect(html).toContain("KEYWORD RELEVANCY");
-    expect(html).toContain("3 month trend");
-    expect(html).toContain("Google Ads Dashboard Trend");
+    expect(html).toContain("Keyword Relevancy");
+    expect(html).toContain("14 month trend");
     expect(html).toContain("Keyword Relevancy shows the share of non-brand search spend");
+    expect(html).toContain('<svg width="100%" viewBox="0 0 1040 300" role="img" aria-label="Keyword Relevancy percentage over 14 months"');
+    expect(html).toContain('id="email-keyword-relevancy-grad"');
+    expect(html).toContain('<polyline points="');
+    expect(html).toContain('stroke="#8b5cf6" stroke-width="2.5"');
     expect(html).toContain("96.7%");
-    expect(html).toContain("background:#8b5cf6");
-    expect(html).not.toContain("<svg");
-    expect(html).not.toContain("<polyline");
+    expect(html).toContain("Feb &#39;26");
+    expect(html).not.toContain("Google Ads Dashboard Trend");
   });
 
   it("renders CPA trend as the preview-style SVG line card", () => {

@@ -44,6 +44,7 @@ interface GmailDraftData {
 
 const SUPPORTED_COMPONENTS = new Set<GoogleAdsEmailComponentKey>(GOOGLE_ADS_EMAIL_COMPONENT_KEYS);
 const DEFAULT_MONTHS = 4;
+const DASHBOARD_TREND_MONTHS = 14;
 const MAX_MONTHS = 12;
 const COMPONENT_LABELS: Record<GoogleAdsEmailComponentKey, string> = {
   keyword_relevancy: "Keyword Relevancy",
@@ -66,7 +67,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
       },
       months: {
         type: "number",
-        description: "Completed calendar months for dashboard trends and the monthly metric table. Defaults to 4; clamped to 1..12.",
+        description: "Completed calendar months for the monthly performance table. Defaults to 4; clamped to 1..12. Dashboard trend components always use the 14-month template window."
       },
       range: {
         type: "string",
@@ -142,7 +143,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
     const dashboardResult = await getDashboardEmailComponents.execute(
       {
         components: args.components,
-        months,
+        months: DASHBOARD_TREND_MONTHS,
         endMonth: monthSpan.endMonth,
         ...(args.range ? { range: args.range } : {}),
         ...(args.auditId !== undefined ? { auditId: args.auditId } : {}),
