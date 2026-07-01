@@ -127,6 +127,7 @@ export function renderGoogleAdsEmailComponentHtml(key: GoogleAdsEmailComponentKe
           gradientId: "email-keyword-relevancy-grad",
           ariaLabel: "Keyword Relevancy percentage",
           axisColor: "#94a3b8",
+          typedHeading: true,
         },
       );
     case "cpa_trend":
@@ -134,6 +135,7 @@ export function renderGoogleAdsEmailComponentHtml(key: GoogleAdsEmailComponentKe
         gradientId: "email-cpa-trend-grad",
         ariaLabel: "Cost per acquisition",
         axisColor: "#f59e0b",
+        typedHeading: true,
       });
     case "quality_score":
       return renderQualityScore(data.qualityScore ?? null);
@@ -165,7 +167,7 @@ function renderTrendGraph(
   empty: string,
   formatValue?: (value: number) => string,
   note?: string,
-  options: { gradientId?: string; ariaLabel?: string; axisColor?: string; min?: number; max?: number } = {},
+  options: { gradientId?: string; ariaLabel?: string; axisColor?: string; min?: number; max?: number; typedHeading?: boolean } = {},
 ): string {
   const usable = rows.filter((row) => Number.isFinite(Number(row.value)));
   if (usable.length === 0) return renderUnavailable(title, empty);
@@ -180,13 +182,20 @@ function renderTrendGraph(
     max: options.max,
   });
   const noteHtml = note ? `<p style=\"margin:0 0 8px;color:#64748b;font-size:12px;line-height:1.35\">${escapeHtml(note)}</p>` : "";
-  return `<div style=\"font-family:Inter,Arial,sans-serif;color:#0f172a;font-size:13px;margin:0 0 24px;padding:18px 20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 10px 24px rgba(15,23,42,0.08)\">
-  <div style=\"display:flex;align-items:center;justify-content:space-between;margin:0 0 18px\">
+  const typedHeading = options.typedHeading ? `<p style=\"${headingStyle}\"><strong>${escapeHtml(title)}</strong></p>` : "";
+  const cardHeading = options.typedHeading
+    ? ""
+    : `<div style=\"display:flex;align-items:center;justify-content:space-between;margin:0 0 18px\">
     <div style=\"font-size:17px;letter-spacing:0.10em;text-transform:uppercase;font-weight:700;color:#64748b\">${escapeHtml(title)}</div>
     <div style=\"font-size:12px;color:#94a3b8\">${usable.length} month trend</div>
+  </div>`;
+  return `<div style=\"${outerStyle}\">
+  ${typedHeading}
+  <div style=\"font-family:Inter,Arial,sans-serif;color:#0f172a;font-size:13px;margin:0 0 24px;padding:18px 20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 10px 24px rgba(15,23,42,0.08)\">
+    ${cardHeading}
+    ${noteHtml}
+    ${chart}
   </div>
-  ${noteHtml}
-  ${chart}
 </div>`;
 }
 
@@ -232,7 +241,7 @@ function buildHostedTrendChartImage(
       layout: { padding: { top: 20, right: 24, bottom: 8, left: 8 } },
       scales: {
         xAxes: [{ ticks: { autoSkip: false, maxRotation: 35, minRotation: 35, fontSize: 10, fontColor: "#94a3b8" }, gridLines: { display: false } }],
-        yAxes: [{ ticks: { min, max, maxTicksLimit: 5, fontSize: 10, fontColor: options.axisColor, callback: "__VALUE_CALLBACK__" }, gridLines: { color: "#e2e8f0", zeroLineColor: "#e2e8f0" } }],
+        yAxes: [{ ticks: { min, max, maxTicksLimit: 5, display: false }, gridLines: { color: "#e2e8f0", zeroLineColor: "#e2e8f0", drawTicks: false } }],
       },
       plugins: {
         datalabels: {
@@ -281,6 +290,7 @@ function renderQualityScore(data: GoogleAdsEmailQualityScoreSummary | null): str
       axisColor: "#3b82f6",
       min: 0,
       max: 10,
+      typedHeading: true,
     })
     : "";
   const summary = renderTable(

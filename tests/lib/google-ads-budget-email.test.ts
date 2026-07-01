@@ -31,7 +31,7 @@ function makeCampaign(overrides: Partial<BudgetCampaign> = {}): BudgetCampaign {
 }
 
 describe("generateBudgetEmailHtml", () => {
-  it("starts with the expected font wrapper div and embeds month + status text", () => {
+  it("starts with the expected font wrapper div and embeds spend pacing status text", () => {
     const campaigns = [
       makeCampaign({ campaignName: "Brand", budgetPercentage: 60, clicks: 200 }),
       makeCampaign({ campaignId: "2", campaignName: "Generic", budgetPercentage: 40, clicks: 50 }),
@@ -56,16 +56,16 @@ describe("generateBudgetEmailHtml", () => {
     );
 
     expect(html.startsWith('<div style="font-family:Arial')).toBe(true);
-    expect(html).toContain("April 2026 (Month-to-Date)");
-    // Status text is one of: Over Budget / On Track / Under Budget.
-    // For 50% used at 15/30 days elapsed (~49% on track), expect "On Track".
-    expect(html).toMatch(/On Track|Under Budget/);
+    expect(html).toContain("Spend to Budget");
+    // Status text is one of: Over Budget / Ahead of Pace / Under Budget / On Track.
+    // For 50% used at 15/30 days elapsed (~49% on track), expect a pacing-safe status.
+    expect(html).toMatch(/On Track|Under Budget|Ahead of Pace/);
     expect(html).toContain("Brand");
     expect(html).toContain("Generic");
     expect(html).toContain("Target spend to date");
     expect(html).toContain("Pacing difference");
-    expect(html).toContain("Days Remaining");
-    expect(html).toContain("% of month");
+    expect(html).toContain("Actual spend");
+    expect(html).toContain("Remaining");
     // Dashboard link with PIN
     expect(html).toContain("https://cms.optimisedigital.online/google-dashboard/acme");
     expect(html).toContain("PIN: 1234");

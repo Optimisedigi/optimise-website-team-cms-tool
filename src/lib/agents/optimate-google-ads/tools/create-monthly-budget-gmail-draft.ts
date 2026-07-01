@@ -1,4 +1,4 @@
-import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import type { CanonicalTool, ToolContext } from "@/lib/agents/_shared/tool";
 import type { GoogleAdsEmailComponentKey } from "@/lib/google-ads-email-components";
 import { GOOGLE_ADS_EMAIL_COMPONENT_KEYS } from "@/lib/google-ads-email-components";
 import { createGmailDraftTool } from "./create-gmail-draft";
@@ -179,7 +179,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
     const reportMonthLabel = latestMonthLabel(monthly.rows);
     const budgetHtml = prepareMonthlyBudgetBreakdownHtml(budget.html);
     const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">Hey team,</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budgetHtml}`;
-    const subject = reportMonthLabel ? replaceSubjectMonth(budget.subject, reportMonthLabel) : budget.subject;
+    const subject = buildMonthlySubject(ctx, budget.subject, reportMonthLabel);
 
     const draftResult = await createGmailDraftTool.execute(
       { subject, htmlBody },
@@ -218,16 +218,18 @@ function toMonth(date: Date): string {
 
 function prepareMonthlyBudgetBreakdownHtml(html: string): string {
   return html
-    .replace(/\s*<h3 style="margin:24px 0 16px;font-size:15px">[\s\S]*?<!-- Budget Progress \+ Time Tracking side by side -->[\s\S]*?<h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown<\/h3>/, '\n  <h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3>')
-    .replace(/>MTD Spend<\/th>/g, ">Spend</th>");
+    .replace(/\s*<h3 style="margin:24px 0 16px;font-size:15px">[\s\S]*?<\/table>/, "")
+    .replace(/>MTD Spend<\/th>/g, ">Spend</th>")
+    .replace(/\s*<t[hd][^>]*\sdata-col="adjusted-daily-budget"[^>]*>[\s\S]*?<\/t[hd]>/g, "");
 }
 
 function latestMonthLabel(rows: MonthlyMetricTableData["rows"]): string | null {
   return rows[rows.length - 1]?.label ?? null;
 }
 
-function replaceSubjectMonth(subject: string, monthLabel: string): string {
-  return subject.replace(/ - [A-Z][a-z]+ \d{4}$/, ` - ${monthLabel}`);
+function buildMonthlySubject(ctx: ToolContext, fallbackSubject: string, monthLabel: string | null): string {
+  const clientName = String(ctx.context.clientName || fallbackSubject.split(" - Google Ads")[0] || "Client").trim() || "Client";
+  return monthLabel ? `${clientName} - Google Ads Monthly Report - ${monthLabel}` : `${clientName} - Google Ads Monthly Report`;
 }
 
 function buildSummary(rows: MonthlyMetricTableData["rows"], components: GoogleAdsEmailComponentKey[]): string {

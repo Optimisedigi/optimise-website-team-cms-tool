@@ -293,7 +293,7 @@ export function generateBudgetEmailHtml(
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;min-width:240px;max-width:380px;white-space:normal;word-break:break-word">${c.campaignName}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;white-space:nowrap">${splitCell}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${c.calculatedDailyBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+      <td data-col="adjusted-daily-budget" style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${c.calculatedDailyBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600">$${mtd.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.impressions || 0).toLocaleString()}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.clicks || 0).toLocaleString()}</td>
@@ -306,12 +306,12 @@ export function generateBudgetEmailHtml(
   const dashboardUrl = clientSlug ? `https://cms.optimisedigital.online/google-dashboard/${clientSlug}` : '';
 
   return `<div style="font-family:Arial,sans-serif;max-width:100%;width:100%;color:#1e293b">
-  <h3 style="margin:24px 0 16px;font-size:15px">${month} (Month-to-Date)</h3>
+  <h3 style="margin:24px 0 16px;font-size:15px">Spend to Budget</h3>
 
-  <!-- Budget Progress + Time Tracking side by side -->
+  <!-- Budget Progress -->
   <table style="width:100%;max-width:760px;border-collapse:collapse;margin-bottom:20px">
     <tr>
-      <td style="width:55%;vertical-align:top;padding-right:8px">
+      <td style="width:100%;vertical-align:top;padding-right:0">
         <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};height:100%;box-sizing:border-box">
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
@@ -368,41 +368,6 @@ export function generateBudgetEmailHtml(
           </table>
         </div>
       </td>
-      <td style="width:45%;vertical-align:top;padding-left:8px">
-        <div style="padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%;box-sizing:border-box">
-          <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Time Tracking</div>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
-            <tr>
-              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
-                <div style="font-size:10px;color:#64748b;margin-bottom:2px">Days Elapsed</div>
-                <div style="font-size:22px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
-              </td>
-              <td style="width:6px"></td>
-              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
-                <div style="font-size:10px;color:#64748b;margin-bottom:2px">Days Remaining</div>
-                <div style="font-size:22px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
-              </td>
-            </tr>
-          </table>
-          <!-- Calendar grid -->
-          <div style="margin-top:8px">
-            <div>${(() => {
-              const now = new Date().getDate();
-              const totalDays = Math.ceil(30.4);
-              return Array.from({ length: totalDays }, (_, i) => {
-                const day = i + 1;
-                const bg = day === now ? '#2563eb' : day < now ? '#059669' : '#e5e7eb';
-                return `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${bg};margin:0 1px 2px 0"></span>`;
-              }).join('');
-            })()}</div>
-            <div style="margin-top:6px;font-size:10px;color:#64748b">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#059669;margin-right:3px;vertical-align:middle"></span>Past
-              <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#2563eb;margin:0 3px 0 10px;vertical-align:middle"></span>Today
-              <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#e5e7eb;margin:0 3px 0 10px;vertical-align:middle"></span>Remaining
-            </div>
-          </div>
-        </div>
-      </td>
     </tr>
   </table>
 
@@ -411,7 +376,7 @@ export function generateBudgetEmailHtml(
     <tr style="background:#f1f5f9">
       <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;min-width:240px">Campaign</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Split</th>
-      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Adjusted Daily Budget</th>
+      <th data-col="adjusted-daily-budget" style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Adjusted Daily Budget</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">MTD Spend</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Impr.</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Clicks</th>
