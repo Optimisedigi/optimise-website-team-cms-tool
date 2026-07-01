@@ -125,6 +125,7 @@ export async function GET(
   const auditId = Number(id);
   const metricsRange = parseMetricsRange(req.nextUrl.searchParams.get("range"));
   const reportOnly = req.nextUrl.searchParams.get("reportOnly") === "1";
+  const skipPersist = req.nextUrl.searchParams.get("skipPersist") === "1";
   const competitiveRange: BudgetMetricsRange = metricsRange === "THIS_MONTH" ? "LAST_30_DAYS" : metricsRange;
 
   const payloadConfig = await config;
@@ -289,59 +290,61 @@ export async function GET(
         campaignEndDate: campaign.campaignEndDate ?? campaign.campaign_end_date ?? null,
       });
 
-      for (const campaign of campaigns) {
-        const cmsData: Record<string, any> = {
-          audit: auditId,
-          customerId: customerId,
-          campaignId: campaign.campaignId,
-          campaignName: campaign.campaignName,
-          actualDailyBudget: campaign.dailyBudget || 0,
-          bidStrategy: mapBidStrategy(campaign.biddingStrategyType || campaign.bidStrategy || ""),
-          bidStrategyId: campaign.biddingStrategyId || campaign.bidStrategyId || null,
-          locationIds: (campaign.locationIds || []).map((lid: string) => ({ locationId: lid })),
-          locationNames: (campaign.locationNames || []).map((n: string) => ({ name: n })),
-          metricsLastUpdated: new Date().toISOString(),
-          impressions: campaign.impressions || 0,
-          clicks: campaign.clicks || 0,
-          avgCpc: campaign.avgCpc || 0,
-          conversions: campaign.conversions || 0,
-        };
+      if (!skipPersist) {
+        for (const campaign of campaigns) {
+          const cmsData: Record<string, any> = {
+            audit: auditId,
+            customerId: customerId,
+            campaignId: campaign.campaignId,
+            campaignName: campaign.campaignName,
+            actualDailyBudget: campaign.dailyBudget || 0,
+            bidStrategy: mapBidStrategy(campaign.biddingStrategyType || campaign.bidStrategy || ""),
+            bidStrategyId: campaign.biddingStrategyId || campaign.bidStrategyId || null,
+            locationIds: (campaign.locationIds || []).map((lid: string) => ({ locationId: lid })),
+            locationNames: (campaign.locationNames || []).map((n: string) => ({ name: n })),
+            metricsLastUpdated: new Date().toISOString(),
+            impressions: campaign.impressions || 0,
+            clicks: campaign.clicks || 0,
+            avgCpc: campaign.avgCpc || 0,
+            conversions: campaign.conversions || 0,
+          };
 
-        try {
-          const existing = await payload.find({
-            collection: BUDGETS_COLLECTION,
-            where: {
-              audit: { equals: auditId },
-              campaignId: { equals: campaign.campaignId },
-            },
-            limit: 1,
-            overrideAccess: true,
-          });
+          try {
+            const existing = await payload.find({
+              collection: BUDGETS_COLLECTION,
+              where: {
+                audit: { equals: auditId },
+                campaignId: { equals: campaign.campaignId },
+              },
+              limit: 1,
+              overrideAccess: true,
+            });
 
-          if (existing.totalDocs > 0) {
-            const doc = existing.docs[0] as any;
-            const { audit: _a, customerId: _c, campaignId: _ci, campaignName: _cn, ...updateData } = cmsData;
-            // If user hasn't configured this campaign (no budget %), sync enabled from Google Ads status
-            if (!doc.budgetPercentage || doc.budgetPercentage === 0) {
-              updateData.enabled = isActive(campaign);
+            if (existing.totalDocs > 0) {
+              const doc = existing.docs[0] as any;
+              const { audit: _a, customerId: _c, campaignId: _ci, campaignName: _cn, ...updateData } = cmsData;
+              // If user hasn't configured this campaign (no budget %), sync enabled from Google Ads status
+              if (!doc.budgetPercentage || doc.budgetPercentage === 0) {
+                updateData.enabled = isActive(campaign);
+              }
+              await payload.update({
+                collection: BUDGETS_COLLECTION,
+                id: doc.id,
+                data: updateData,
+                overrideAccess: true,
+              });
+            } else {
+              // New record: set enabled from Google Ads campaign status and active dates
+              (cmsData as any).enabled = isActive(campaign);
+              await payload.create({
+                collection: BUDGETS_COLLECTION,
+                data: cmsData as any,
+                overrideAccess: true,
+              });
             }
-            await payload.update({
-              collection: BUDGETS_COLLECTION,
-              id: doc.id,
-              data: updateData,
-              overrideAccess: true,
-            });
-          } else {
-            // New record: set enabled from Google Ads campaign status and active dates
-            (cmsData as any).enabled = isActive(campaign);
-            await payload.create({
-              collection: BUDGETS_COLLECTION,
-              data: cmsData as any,
-              overrideAccess: true,
-            });
+          } catch (e: any) {
+            console.error(`[GoogleAdsBudgets] Failed to save campaign ${campaign.campaignId}:`, e.message);
           }
-        } catch (e: any) {
-          console.error(`[GoogleAdsBudgets] Failed to save campaign ${campaign.campaignId}:`, e.message);
         }
       }
 
@@ -432,6 +435,7 @@ export async function GET(
         competitiveRange,
         recommendationRange: reportOnly ? null : "LAST_60_DAYS",
         reportOnly,
+        skipPersist,
       });
     } catch (e: any) {
       console.error("[GoogleAdsBudgets] List error:", e.message);

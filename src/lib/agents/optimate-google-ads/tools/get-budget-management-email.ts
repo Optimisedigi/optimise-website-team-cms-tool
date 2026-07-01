@@ -31,9 +31,12 @@ import {
 } from "@/lib/google-ads-budget-email";
 
 type EmailMode = "this_month" | "last_month";
+type CampaignMetricsRange = "THIS_MONTH" | "LAST_MONTH";
 
 interface BudgetEmailArgs {
   mode: EmailMode;
+  /** Metrics window for the campaign breakdown in this_month mode. Defaults to THIS_MONTH. */
+  campaignMetricsRange?: CampaignMetricsRange;
   /** Optional audit id, used only in portfolio mode to render one client email at a time. */
   auditId?: number | string;
 }
@@ -133,6 +136,12 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
         description:
           "Which email to render. 'this_month' = current MTD budget update (the default Budget Management tab). 'last_month' = previous-month recap with action items.",
       },
+      campaignMetricsRange: {
+        type: "string",
+        enum: ["THIS_MONTH", "LAST_MONTH"],
+        description:
+          "Optional. Metrics window for the campaign breakdown in this_month mode. Defaults to THIS_MONTH; monthly report drafts use LAST_MONTH.",
+      },
       auditId: {
         type: ["string", "number"],
         description:
@@ -150,6 +159,15 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
         "mode must be 'this_month' or 'last_month'",
       );
     }
+    const campaignMetricsRange = obj.campaignMetricsRange;
+    if (
+      campaignMetricsRange !== undefined &&
+      campaignMetricsRange !== null &&
+      campaignMetricsRange !== "THIS_MONTH" &&
+      campaignMetricsRange !== "LAST_MONTH"
+    ) {
+      throw new Error("campaignMetricsRange must be 'THIS_MONTH' or 'LAST_MONTH' when provided");
+    }
     const auditId = obj.auditId;
     if (
       auditId !== undefined &&
@@ -161,6 +179,7 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
     }
     return {
       mode,
+      ...(campaignMetricsRange === "THIS_MONTH" || campaignMetricsRange === "LAST_MONTH" ? { campaignMetricsRange } : {}),
       ...(auditId !== undefined && auditId !== null && auditId !== "" ? { auditId } : {}),
     };
   },
@@ -230,8 +249,14 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
     if (args.mode === "this_month") {
       // Fetch live campaigns + MTD spend from the same endpoint the UI loads
       // on mount. The /list route already supports x-api-key authentication.
+      const campaignMetricsRange = args.campaignMetricsRange ?? "THIS_MONTH";
+      const query = new URLSearchParams({ reportOnly: "1" });
+      if (campaignMetricsRange !== "THIS_MONTH") {
+        query.set("range", campaignMetricsRange);
+        query.set("skipPersist", "1");
+      }
       const listRes = await fetchJsonWithRetry<ListResponse>(
-        `${baseUrl}/api/google-ads-budgets/${auditId}/list?reportOnly=1`,
+        `${baseUrl}/api/google-ads-budgets/${auditId}/list?${query.toString()}`,
         { method: "GET", headers: { "x-api-key": apiKey } },
         "load campaigns",
       );

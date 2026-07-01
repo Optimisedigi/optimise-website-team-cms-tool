@@ -104,7 +104,7 @@ describe("create_monthly_budget_gmail_draft", () => {
       ok: true,
       data: {
         subject: "Berendsen - Google Ads Budget Report - July 2026",
-        html: '<div data-testid="budget"><h3 style="margin:24px 0 16px;font-size:15px">July 2026 (Month-to-Date)</h3><!-- Budget Progress + Time Tracking side by side --><table><tr><td>Time Tracking</td><td>Days Remaining</td></tr></table><h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3><table><tr><td>campaign rows</td></tr></table></div>',
+        html: '<div data-testid="budget"><h3 style="margin:24px 0 16px;font-size:15px">July 2026 (Month-to-Date)</h3><!-- Budget Progress + Time Tracking side by side --><table><tr><td>Time Tracking</td><td>Days Remaining</td></tr></table><h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3><table><tr><th>MTD Spend</th></tr><tr><td>June campaign rows</td></tr></table></div>',
       },
     });
     mocks.executeDraft.mockResolvedValueOnce({
@@ -132,7 +132,7 @@ describe("create_monthly_budget_gmail_draft", () => {
       expect.objectContaining({ startMonth: "2026-03", endMonth: "2026-06", metrics: ["spend", "conversions", "cpa"] }),
       ctx,
     );
-    expect(mocks.executeBudget).toHaveBeenCalledWith({ mode: "this_month" }, ctx);
+    expect(mocks.executeBudget).toHaveBeenCalledWith({ mode: "this_month", campaignMetricsRange: "LAST_MONTH" }, ctx);
     expect(mocks.executeDraft).toHaveBeenCalledTimes(1);
     const draftArgs = mocks.executeDraft.mock.calls[0]?.[0];
     expect(draftArgs.subject).toBe("Berendsen - Google Ads Budget Report - June 2026");
@@ -145,6 +145,9 @@ describe("create_monthly_budget_gmail_draft", () => {
     expect(draftArgs.htmlBody).not.toContain("Time Tracking");
     expect(draftArgs.htmlBody).not.toContain("Days Remaining");
     expect(draftArgs.htmlBody).toContain("Campaign Breakdown");
+    expect(draftArgs.htmlBody).toContain("June campaign rows");
+    expect(draftArgs.htmlBody).toContain(">Spend</th>");
+    expect(draftArgs.htmlBody).not.toContain(">MTD Spend</th>");
 
     const data = result.data as Record<string, unknown>;
     expect(data.gmailUrl).toBe("https://mail.google.com/mail/u/0/#drafts/msg_456");

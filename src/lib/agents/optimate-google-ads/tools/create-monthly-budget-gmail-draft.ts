@@ -167,6 +167,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
     const budgetResult = await getBudgetManagementEmail.execute(
       {
         mode: "this_month",
+        campaignMetricsRange: "LAST_MONTH",
         ...(args.auditId !== undefined ? { auditId: args.auditId } : {}),
       },
       ctx,
@@ -176,7 +177,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
 
     const summary = buildSummary(monthly.rows, args.components);
     const reportMonthLabel = latestMonthLabel(monthly.rows);
-    const budgetHtml = stripCurrentMonthBudgetProgress(budget.html);
+    const budgetHtml = prepareMonthlyBudgetBreakdownHtml(budget.html);
     const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">Hey team,</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budgetHtml}`;
     const subject = reportMonthLabel ? replaceSubjectMonth(budget.subject, reportMonthLabel) : budget.subject;
 
@@ -215,8 +216,10 @@ function toMonth(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function stripCurrentMonthBudgetProgress(html: string): string {
-  return html.replace(/\s*<h3 style="margin:24px 0 16px;font-size:15px">[\s\S]*?<!-- Budget Progress \+ Time Tracking side by side -->[\s\S]*?<h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown<\/h3>/, '\n  <h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3>');
+function prepareMonthlyBudgetBreakdownHtml(html: string): string {
+  return html
+    .replace(/\s*<h3 style="margin:24px 0 16px;font-size:15px">[\s\S]*?<!-- Budget Progress \+ Time Tracking side by side -->[\s\S]*?<h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown<\/h3>/, '\n  <h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3>')
+    .replace(/>MTD Spend<\/th>/g, ">Spend</th>");
 }
 
 function latestMonthLabel(rows: MonthlyMetricTableData["rows"]): string | null {

@@ -70,6 +70,14 @@ describe("get_budget_management_email", () => {
     });
   });
 
+  it("this_month: accepts LAST_MONTH campaign metrics for monthly report breakdowns", () => {
+    expect(getBudgetManagementEmail.validate!({ mode: "this_month", campaignMetricsRange: "LAST_MONTH", auditId: 7 })).toEqual({
+      mode: "this_month",
+      campaignMetricsRange: "LAST_MONTH",
+      auditId: 7,
+    });
+  });
+
   it("this_month: hits /list with x-api-key and returns HTML containing the business name", async () => {
     mockFindByID.mockResolvedValueOnce({
       id: 7,
@@ -127,6 +135,52 @@ describe("get_budget_management_email", () => {
     expect(data.html).toContain("Brand Search");
     expect(data.html).toContain("google-dashboard/acme");
     expect(data.html).toContain("PIN: 1234");
+  });
+
+  it("this_month with LAST_MONTH campaign metrics: passes range=LAST_MONTH to the list route", async () => {
+    mockFindByID.mockResolvedValueOnce({
+      id: 7,
+      businessName: "Acme Plumbing",
+      monthlyBudget: 1000,
+      client: { id: 42, slug: "acme", clientPin: "1234" },
+    });
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          monthlyBudget: 1000,
+          campaigns: [
+            {
+              campaignId: "c1",
+              campaignName: "Last Month Search",
+              budgetPercentage: 100,
+              calculatedDailyBudget: 33,
+              actualDailyBudget: 30,
+              bidStrategy: "manual_cpc",
+              impressions: 2000,
+              clicks: 120,
+              avgCpc: 1.5,
+              conversions: 8,
+              mtdSpend: 360,
+              enabled: true,
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    // @ts-expect-error - test override
+    globalThis.fetch = fetchMock;
+
+    const args = getBudgetManagementEmail.validate!({ mode: "this_month", campaignMetricsRange: "LAST_MONTH" });
+    const result = await getBudgetManagementEmail.execute(args, baseCtx());
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe("http://localhost:3004/api/google-ads-budgets/7/list?reportOnly=1&range=LAST_MONTH&skipPersist=1");
+    expect((result.data as { html: string }).html).toContain("Last Month Search");
   });
 
   it("last_month: hits last-month-recap with x-api-key and renders recap HTML", async () => {
