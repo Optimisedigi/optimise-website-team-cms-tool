@@ -17,6 +17,16 @@ interface DashboardComponentsData {
   html: string;
   components: GoogleAdsEmailComponentKey[];
   warnings?: string[];
+  componentData?: {
+    keywordRelevancyTrend?: Array<{ label: string; value: number | null }>;
+    cpaTrend?: Array<{ label: string; value: number | null }>;
+    qualityScore?: {
+      latestQualityScore?: number | null;
+      latestMonth?: string | null;
+      trend?: Array<{ label: string; value: number | null }>;
+    } | null;
+    topConverters?: Array<{ term: string; conversions?: number | null; cpa?: number | null }>;
+  };
 }
 
 interface MonthlyMetricTableData {
@@ -145,7 +155,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
         components: args.components,
         months: DASHBOARD_TREND_MONTHS,
         endMonth: monthSpan.endMonth,
-        ...(args.range ? { range: args.range } : {}),
+        range: args.range ?? "LAST_MONTH",
         ...(args.auditId !== undefined ? { auditId: args.auditId } : {}),
       },
       ctx,
@@ -175,7 +185,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
     if (!budgetResult.ok) return budgetResult;
     const budget = budgetResult.data as BudgetEmailData;
 
-    const summary = buildSummary(monthly.rows, args.components);
+    const summary = buildSummary(monthly.rows, args.components, dashboard.componentData);
     const reportMonthLabel = latestMonthLabel(monthly.rows);
     const budgetHtml = prepareMonthlyBudgetBreakdownHtml(budget.html);
     const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">Hey team,</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budgetHtml}`;
@@ -218,8 +228,17 @@ function toMonth(date: Date): string {
 
 function prepareMonthlyBudgetBreakdownHtml(html: string): string {
   return html
-    .replace(/\s*<h3 style="margin:24px 0 16px;font-size:15px">[\s\S]*?<\/table>/, "")
+    .replace(/\s*\(Month-to-Date\)/g, "")
     .replace(/>MTD Spend<\/th>/g, ">Spend</th>")
+    .replace(/Behind expected pace by/g, "Under budget by")
+    .replace(/Ahead of expected pace by/g, "Over budget by")
+    .replace(/Target spend to date/g, "Monthly budget")
+    .replace(/Pacing difference/g, "Budget difference")
+    .replace(/behind pace\./g, "under budget.")
+    .replace(/ahead of pace\./g, "over budget.")
+    .replace(/on pace\./g, "on budget.")
+    .replace(/\s*<td[^>]*data-budget-time-tracking-cell="1"[^>]*>[\s\S]*?<\/td>/g, "")
+    .replace(/data-budget-progress-cell="1"([^>]*)width:64%;/g, 'data-budget-progress-cell="1"$1width:100%;')
     .replace(/\s*<t[hd][^>]*\sdata-col="adjusted-daily-budget"[^>]*>[\s\S]*?<\/t[hd]>/g, "");
 }
 
@@ -232,22 +251,121 @@ function buildMonthlySubject(ctx: ToolContext, fallbackSubject: string, monthLab
   return monthLabel ? `${clientName} - Google Ads Monthly Report - ${monthLabel}` : `${clientName} - Google Ads Monthly Report`;
 }
 
-function buildSummary(rows: MonthlyMetricTableData["rows"], components: GoogleAdsEmailComponentKey[]): string {
+function buildSummary(
+  rows: MonthlyMetricTableData["rows"],
+  components: GoogleAdsEmailComponentKey[],
+  dashboardData?: DashboardComponentsData["componentData"],
+): string {
   const latest = rows[rows.length - 1];
-  const componentText = components.map((component) => COMPONENT_LABELS[component]).join(", ");
-  if (!latest) {
-    return `I have included ${componentText} above the monthly budget tracker for this report.`;
-  }
+  const performanceSentence = buildPerformanceSentence(latest);
+  const insightSentence = buildInsightSentence(components, dashboardData);
+  return [performanceSentence, insightSentence].filter(Boolean).join(" ");
+}
+
+function buildPerformanceSentence(latest: MonthlyMetricTableData["rows"][number] | undefined): string {
+  if (!latest) return "Here is the monthly Google Ads performance update.";
   const conversions = Number(latest.totals?.conversions ?? 0);
   const spend = Number(latest.totals?.spend ?? 0);
   const cpa = typeof latest.metrics?.cpa === "number" ? latest.metrics.cpa : conversions > 0 ? spend / conversions : null;
+
   if (conversions > 0 && cpa !== null) {
-    return `${latest.label} delivered ${formatNumber(conversions)} conversions at a CPA of ${formatCurrency(cpa)}, with ${componentText} included above the budget tracker.`;
+    const cpaTone = cpa <= 100 ? "efficient" : cpa <= 150 ? "steady" : "heavier than target";
+    return `${latest.label} delivered ${formatNumber(conversions)} conversions from ${formatCurrency(spend)} in spend, with CPA ${cpaTone} at ${formatCurrency(cpa)}.`;
   }
   if (spend > 0) {
-    return `${latest.label} recorded ${formatCurrency(spend)} in spend, with ${componentText} included above the budget tracker.`;
+    return `${latest.label} recorded ${formatCurrency(spend)} in spend, and conversion volume remained limited across the month.`;
   }
-  return `${latest.label} is included in the monthly performance table, with ${componentText} above the budget tracker.`;
+  return `${latest.label} is included in the monthly performance table.`;
+}
+
+function buildInsightSentence(
+  components: GoogleAdsEmailComponentKey[],
+  dashboardData?: DashboardComponentsData["componentData"],
+): string {
+  const insights: string[] = [];
+
+  for (const component of components) {
+    if (component === "keyword_relevancy") {
+      const trend = dashboardData?.keywordRelevancyTrend?.filter(hasNumericValue);
+      if (trend && trend.length >= 2) {
+        const latest = trend[trend.length - 1]!;
+        const previous = trend[trend.length - 2]!;
+        const delta = Number(latest.value) - Number(previous.value);
+        const direction = delta >= 0.5 ? "improved" : delta <= -0.5 ? "softened" : "held steady";
+        insights.push(
+          direction === "held steady"
+            ? `search relevance held steady at ${formatPercent(Number(latest.value))}`
+            : `search relevance ${direction} to ${formatPercent(Number(latest.value))} from ${formatPercent(Number(previous.value))}`,
+        );
+      }
+      continue;
+    }
+
+    if (component === "cpa_trend") {
+      const trend = dashboardData?.cpaTrend?.filter(hasNumericValue);
+      if (trend && trend.length >= 2) {
+        const latest = trend[trend.length - 1]!;
+        const previous = trend[trend.length - 2]!;
+        const delta = Number(latest.value) - Number(previous.value);
+        const direction = delta <= -5 ? "improved" : delta >= 5 ? "rose" : "held steady";
+        insights.push(
+          direction === "held steady"
+            ? `the wider CPA trend held steady at ${formatCurrency(Number(latest.value))}`
+            : `the wider CPA trend ${direction} to ${formatCurrency(Number(latest.value))} from ${formatCurrency(Number(previous.value))}`,
+        );
+      }
+      continue;
+    }
+
+    if (component === "quality_score") {
+      const latestScore = Number(dashboardData?.qualityScore?.latestQualityScore ?? NaN);
+      const latestMonth = String(dashboardData?.qualityScore?.latestMonth ?? "").trim();
+      const trend = dashboardData?.qualityScore?.trend?.filter(hasNumericValue);
+      if (Number.isFinite(latestScore)) {
+        const prior = trend && trend.length >= 2 ? Number(trend[trend.length - 2]?.value ?? NaN) : NaN;
+        if (Number.isFinite(prior)) {
+          const direction = latestScore >= prior + 0.2 ? "improved" : latestScore <= prior - 0.2 ? "softened" : "held steady";
+          insights.push(
+            direction === "held steady"
+              ? `Quality Score held steady${latestMonth ? ` in ${latestMonth}` : ""} at ${formatScore(latestScore)}`
+              : `Quality Score ${direction}${latestMonth ? ` in ${latestMonth}` : ""} to ${formatScore(latestScore)} from ${formatScore(prior)}`,
+          );
+        } else {
+          insights.push(`Quality Score sits at ${formatScore(latestScore)}${latestMonth ? ` in ${latestMonth}` : ""}`);
+        }
+      }
+      continue;
+    }
+
+    if (component === "top_converters") {
+      const top = dashboardData?.topConverters?.[0];
+      const conversions = Number(top?.conversions ?? 0);
+      if (top?.term && conversions > 0) {
+        const cpaText = Number.isFinite(Number(top.cpa)) && Number(top.cpa) > 0 ? ` at a CPA of ${formatCurrency(Number(top.cpa))}` : "";
+        insights.push(`the strongest converting search was ${top.term}, generating ${formatNumber(conversions)} conversions${cpaText}`);
+      }
+    }
+  }
+
+  if (insights.length === 0) {
+    return "The supporting trend data is included below to show how efficiency and search quality moved across the recent reporting window.";
+  }
+
+  return `${joinInsights(insights)}.`;
+}
+
+function joinInsights(insights: string[]): string {
+  if (insights.length === 1) return capitalize(insights[0]!);
+  if (insights.length === 2) return `${capitalize(insights[0]!)} and ${insights[1]!}`;
+  return `${capitalize(insights.slice(0, -1).join(", "))}, and ${insights[insights.length - 1]!}`;
+}
+
+function capitalize(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+function hasNumericValue<T extends { value: number | null }>(row: T): row is T & { value: number } {
+  return typeof row.value === "number" && Number.isFinite(row.value);
 }
 
 function formatCurrency(value: number): string {
@@ -261,6 +379,14 @@ function formatCurrency(value: number): string {
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(value);
+}
+
+function formatPercent(value: number): string {
+  return `${new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(value)}%`;
+}
+
+function formatScore(value: number): string {
+  return new Intl.NumberFormat("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
 }
 
 function escapeHtml(value: string): string {

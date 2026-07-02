@@ -4,6 +4,13 @@ import config from "@/payload.config";
 import { hasValidApiKey } from "@/collections/api-key-access";
 import { isCampaignLifecycleActive } from "@/lib/google-ads-budget-email";
 import { getGrowthToolsMetricsRequest, parseBudgetMetricsRange, type BudgetMetricsRange } from "@/lib/google-ads-budget-metrics-range";
+import {
+  annualBudgetHasExplicitValue,
+  monthKeyForDate,
+  financialYearSectionForDate,
+  normalizeAnnualBudgetMultiYearData,
+  resolveMonthlyBudgetForDate,
+} from "@/lib/google-ads-annual-budget-placeholders";
 
 // Collection slug type (use 'as any' to bypass strict type checking for new collections)
 const BUDGETS_COLLECTION = "google-ads-campaign-budgets" as any;
@@ -150,12 +157,49 @@ export async function GET(
     );
   }
 
+  let legacyAuditAnnualBudgetPlaceholders: unknown = undefined;
+
   // Read the client's default conversion actions (stored newline-separated on the
   // Clients collection, set via the Default Conversion Actions picker on the Google
   // Ads tab). Growth Tools uses these to filter metrics.conversions per campaign so
   // the Budget Management tab matches what the user expects — same scoping the
   // dashboard uses.
   const dashboardConversionActions: string = linkedClient?.dashboardConversionActions || "";
+  const viewedMonthDate = metricsRange === "LAST_MONTH"
+    ? new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)
+    : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const fallbackMonthlyBudget = Number(audit.monthlyBudget || 0);
+  const clientPlaceholders = normalizeAnnualBudgetMultiYearData(linkedClient?.annualClientBudgetPlaceholders);
+  const viewedMonthSection = financialYearSectionForDate(viewedMonthDate);
+  const viewedMonthKey = monthKeyForDate(viewedMonthDate);
+  const clientHasViewedMonthPlaceholder = viewedMonthSection
+    ? annualBudgetHasExplicitValue(clientPlaceholders[viewedMonthSection], viewedMonthKey)
+    : false;
+
+  if (!linkedClient || !clientHasViewedMonthPlaceholder) {
+    try {
+      const auditDoc = await payload.findByID({
+        collection: "google-ads-audits",
+        id: auditId,
+        depth: 0,
+        overrideAccess: true,
+      });
+      legacyAuditAnnualBudgetPlaceholders = auditDoc?.annualBudgetPlaceholders;
+    } catch {
+      /* legacy placeholder fallback is optional */
+    }
+  }
+
+  const legacyFallbackPlaceholders = viewedMonthSection
+    ? normalizeAnnualBudgetMultiYearData({ [viewedMonthSection]: legacyAuditAnnualBudgetPlaceholders })
+    : normalizeAnnualBudgetMultiYearData(undefined, legacyAuditAnnualBudgetPlaceholders);
+  const resolvedMonthlyBudget = clientHasViewedMonthPlaceholder
+    ? resolveMonthlyBudgetForDate(clientPlaceholders, viewedMonthDate, fallbackMonthlyBudget)
+    : resolveMonthlyBudgetForDate(
+        legacyFallbackPlaceholders,
+        viewedMonthDate,
+        fallbackMonthlyBudget,
+      );
   const conversionActions: string[] = dashboardConversionActions
     .split(/[\r\n,]+/)
     .map((s) => s.trim())
@@ -398,7 +442,7 @@ export async function GET(
         success: true,
         campaigns: normalized,
         totalCount: normalized.length,
-        monthlyBudget: audit.monthlyBudget || 0,
+        monthlyBudget: resolvedMonthlyBudget,
         range: metricsRange,
         competitiveRange,
         recommendationRange: reportOnly ? null : "LAST_60_DAYS",
@@ -427,6 +471,8 @@ export async function GET(
       success: true,
       campaigns: cachedBudgets.docs,
       totalCount: cachedBudgets.totalDocs,
+      monthlyBudget: resolvedMonthlyBudget,
+      range: metricsRange,
       source: "cache",
     });
   } catch (e: any) {

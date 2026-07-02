@@ -6,6 +6,7 @@ import {
   generateBudgetEmailHtml,
   generateLastMonthRecapEmailHtml,
   calculateMonthlySpend,
+  calculateCompletedMonthSpend,
   calculateSmartDailyBudget,
   calculateStandaloneDailyBudget,
   getMonthInfo,
@@ -18,49 +19,28 @@ import {
   type MonthlySpend,
   type LastMonthRecap,
 } from '@/lib/google-ads-budget-email';
+import {
+  ANNUAL_BUDGET_MONTHS,
+  annualBudgetColumnTotal,
+  emptyAnnualBudgetValues,
+  financialYearLabel,
+  financialYearSectionForDate,
+  financialYearStartYear,
+  monthKeyForDate,
+  normalizeAnnualBudgetMultiYearData,
+  resolveActualTotalsSlotForDate,
+  resolveMonthlyBudgetForDate,
+  writeActualTotalForDate,
+  type AnnualBudgetMonthKey,
+  type AnnualBudgetMultiYearData,
+  type AnnualBudgetPlaceholderRow,
+} from '@/lib/google-ads-annual-budget-placeholders';
 import { canPushGoogleAdsBudget } from '@/lib/google-ads-budget-push';
 
 type CampaignFilter = 'enabled' | 'paused' | 'all';
 type BudgetMetricsRange = 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_60_DAYS' | 'LAST_180_DAYS';
 
-type AnnualBudgetMonthKey = 'jul' | 'aug' | 'sep' | 'oct' | 'nov' | 'dec' | 'jan' | 'feb' | 'mar' | 'apr' | 'may' | 'jun';
-
-interface AnnualBudgetPlaceholderRow {
-  id: string;
-  label: string;
-  values: Record<AnnualBudgetMonthKey, number | ''>;
-}
-
-interface AnnualBudgetPlaceholderData {
-  rows: AnnualBudgetPlaceholderRow[];
-  actualTotals: Record<AnnualBudgetMonthKey, number | ''>;
-}
-
-const ANNUAL_BUDGET_MONTHS: Array<{ key: AnnualBudgetMonthKey; label: string }> = [
-  { key: 'jul', label: 'Jul' },
-  { key: 'aug', label: 'Aug' },
-  { key: 'sep', label: 'Sep' },
-  { key: 'oct', label: 'Oct' },
-  { key: 'nov', label: 'Nov' },
-  { key: 'dec', label: 'Dec' },
-  { key: 'jan', label: 'Jan' },
-  { key: 'feb', label: 'Feb' },
-  { key: 'mar', label: 'Mar' },
-  { key: 'apr', label: 'Apr' },
-  { key: 'may', label: 'May' },
-  { key: 'jun', label: 'Jun' },
-];
-
-const emptyAnnualBudgetValues = (): Record<AnnualBudgetMonthKey, number | ''> =>
-  ANNUAL_BUDGET_MONTHS.reduce((acc, month) => {
-    acc[month.key] = '';
-    return acc;
-  }, {} as Record<AnnualBudgetMonthKey, number | ''>);
-
-function currentAnnualBudgetMonthKey(): AnnualBudgetMonthKey {
-  const monthIndex = new Date().getMonth();
-  return ANNUAL_BUDGET_MONTHS[monthIndex >= 6 ? monthIndex - 6 : monthIndex + 6].key;
-}
+type AnnualBudgetYearKey = 'thisYear' | 'lastYear';
 
 const createAnnualBudgetRow = (label = 'Budget'): AnnualBudgetPlaceholderRow => ({
   id: `row-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -89,28 +69,6 @@ function formatBudgetDiscrepancyPercent(actual: number | '', planned: number): s
   return `${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`;
 }
 
-function normalizeAnnualBudgetRows(value: unknown): AnnualBudgetPlaceholderRow[] {
-  const rawRows = Array.isArray(value) ? value : Array.isArray((value as any)?.rows) ? (value as any).rows : [];
-  if (rawRows.length === 0) return [createAnnualBudgetRow()];
-  return rawRows.map((row: any, index: number) => ({
-    id: typeof row?.id === 'string' ? row.id : `saved-${index}`,
-    label: typeof row?.label === 'string' && row.label.trim() ? row.label : `Budget ${index + 1}`,
-    values: ANNUAL_BUDGET_MONTHS.reduce((acc, month) => {
-      const cell = row?.values?.[month.key];
-      acc[month.key] = typeof cell === 'number' ? cell : parseBudgetCell(String(cell ?? ''));
-      return acc;
-    }, {} as Record<AnnualBudgetMonthKey, number | ''>),
-  }));
-}
-
-function normalizeAnnualBudgetActualTotals(value: unknown): Record<AnnualBudgetMonthKey, number | ''> {
-  const rawActuals = (value as any)?.actualTotals;
-  return ANNUAL_BUDGET_MONTHS.reduce((acc, month) => {
-    const cell = rawActuals?.[month.key];
-    acc[month.key] = typeof cell === 'number' ? cell : parseBudgetCell(String(cell ?? ''));
-    return acc;
-  }, emptyAnnualBudgetValues());
-}
 
 /** Shape returned by /api/google-ads-budgets/[id]/ad-groups. Kept in sync
  *  with the AdGroupRow type in that route handler. */
@@ -224,13 +182,15 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   const [businessName, setBusinessName] = useState('Client');
   const [clientSlug, setClientSlug] = useState('');
   const [clientPin, setClientPin] = useState('');
-  const [annualBudgetRows, setAnnualBudgetRows] = useState<AnnualBudgetPlaceholderRow[]>(() => [createAnnualBudgetRow()]);
-  const [annualBudgetActualTotals, setAnnualBudgetActualTotals] = useState<Record<AnnualBudgetMonthKey, number | ''>>(() => emptyAnnualBudgetValues());
+  const [annualBudgetPlaceholders, setAnnualBudgetPlaceholders] = useState<AnnualBudgetMultiYearData>(() => ({
+    thisYear: { rows: [createAnnualBudgetRow()], actualTotals: emptyAnnualBudgetValues() },
+    lastYear: { rows: [createAnnualBudgetRow()], actualTotals: emptyAnnualBudgetValues() },
+  }));
   const [annualBudgetSaving, setAnnualBudgetSaving] = useState(false);
   const [annualBudgetSaved, setAnnualBudgetSaved] = useState(false);
   const [annualBudgetPlaceholdersLoaded, setAnnualBudgetPlaceholdersLoaded] = useState(false);
-  const [annualBudgetFocusedCell, setAnnualBudgetFocusedCell] = useState<{ rowIndex: number; columnIndex: number }>({ rowIndex: 0, columnIndex: 0 });
-  const [annualBudgetDeleteConfirmRow, setAnnualBudgetDeleteConfirmRow] = useState<number | null>(null);
+  const [annualBudgetFocusedCell, setAnnualBudgetFocusedCell] = useState<{ yearKey: AnnualBudgetYearKey; rowIndex: number; columnIndex: number }>({ yearKey: 'thisYear', rowIndex: 0, columnIndex: 0 });
+  const [annualBudgetDeleteConfirmRow, setAnnualBudgetDeleteConfirmRow] = useState<{ yearKey: AnnualBudgetYearKey; rowIndex: number } | null>(null);
   const [recommendationTooltip, setRecommendationTooltip] = useState<{
     campaignId: string;
     x: number;
@@ -250,8 +210,20 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         if (data?.businessName) setBusinessName(data.businessName);
         if (data?.client?.slug) setClientSlug(data.client.slug);
         if (data?.client?.clientPin) setClientPin(data.client.clientPin);
-        setAnnualBudgetRows(normalizeAnnualBudgetRows(data?.annualBudgetPlaceholders));
-        setAnnualBudgetActualTotals(normalizeAnnualBudgetActualTotals(data?.annualBudgetPlaceholders));
+        const placeholders = normalizeAnnualBudgetMultiYearData(
+          data?.client?.annualClientBudgetPlaceholders,
+          data?.annualBudgetPlaceholders,
+        );
+        setAnnualBudgetPlaceholders({
+          thisYear: {
+            rows: placeholders.thisYear.rows.length > 0 ? placeholders.thisYear.rows : [createAnnualBudgetRow()],
+            actualTotals: placeholders.thisYear.actualTotals,
+          },
+          lastYear: {
+            rows: placeholders.lastYear.rows.length > 0 ? placeholders.lastYear.rows : [createAnnualBudgetRow()],
+            actualTotals: placeholders.lastYear.actualTotals,
+          },
+        });
         setAnnualBudgetPlaceholdersLoaded(true);
       })
       .catch(() => {});
@@ -311,9 +283,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
   }, [id, adGroupsByCampaign, adGroupsLoading]);
 
-  // Fetch metrics for display only (LAST_MONTH / LAST_60_DAYS / LAST_180_DAYS). Does NOT
-  // update monthlyTotal, daily budgets, or the budget tracker — only refreshes
-  // campaign metrics (cost, impressions, clicks, conversions, etc.) for the table.
+  // Fetch alternate-range metrics (LAST_MONTH / LAST_60_DAYS / LAST_180_DAYS) without
+  // changing the editable Monthly Budget Total or recalculating saved allocations.
+  // For LAST_MONTH, the tracker reuses these fetched spend figures plus the viewed
+  // month's resolved budget; for longer ranges, the extra metrics are display-only.
   const fetchMetricsForDisplay = useCallback(async (range: BudgetMetricsRange) => {
     if (!id || range === 'THIS_MONTH') return;
     setLoading(true);
@@ -461,9 +434,11 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         budgetPercentage: c.budgetPercentage ?? 0,
       }));
 
-      // Use monthlyBudget from list response (from audit record) to avoid race condition
+      // Only let a sync overwrite the editable Monthly Budget Total when we're
+      // looking at the live current month. Historical month views should not
+      // replace the active budget config field with last month's placeholder.
       let budget = monthlyTotal;
-      if (data.monthlyBudget && data.monthlyBudget > 0) {
+      if (metricsRange === 'THIS_MONTH' && data.monthlyBudget && data.monthlyBudget > 0) {
         budget = data.monthlyBudget;
         setMonthlyTotal(budget);
       }
@@ -806,9 +781,11 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       html = generateLastMonthRecapEmailHtml(businessName, recapWithEdits, clientSlug, clientPin);
       subject = `${businessName} - Google Ads Recap - ${lastMonthRecap.monthLabel}`;
     } else {
-      const spend = calculateMonthlySpend(campaigns, monthlyTotal);
-      const currentMonth = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-      html = generateBudgetEmailHtml(businessName, currentMonth, spend, campaigns, monthlyTotal, clientSlug, clientPin);
+      const currentMonthDate = new Date();
+      const currentMonth = currentMonthDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+      const currentMonthBudget = resolveMonthlyBudgetForDate(annualBudgetPlaceholders, currentMonthDate, monthlyTotal);
+      const spend = calculateMonthlySpend(campaigns, currentMonthBudget);
+      html = generateBudgetEmailHtml(businessName, currentMonth, spend, campaigns, currentMonthBudget, clientSlug, clientPin);
       subject = `${businessName} - Google Ads Budget Report - ${currentMonth}`;
     }
 
@@ -916,30 +893,46 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, metricsRange]);
 
-  const updateAnnualBudgetRowLabel = useCallback((rowIndex: number, label: string) => {
-    setAnnualBudgetRows(rows => rows.map((row, index) => index === rowIndex ? { ...row, label } : row));
+  const updateAnnualBudgetYear = useCallback((yearKey: AnnualBudgetYearKey, updater: (yearData: AnnualBudgetMultiYearData[AnnualBudgetYearKey]) => AnnualBudgetMultiYearData[AnnualBudgetYearKey]) => {
+    setAnnualBudgetPlaceholders((current) => ({
+      ...current,
+      [yearKey]: updater(current[yearKey]),
+    }));
     setAnnualBudgetSaved(false);
   }, []);
 
-  const updateAnnualBudgetCell = useCallback((rowIndex: number, monthKey: AnnualBudgetMonthKey, value: string) => {
-    setAnnualBudgetRows(rows => rows.map((row, index) => (
-      index === rowIndex
-        ? { ...row, values: { ...row.values, [monthKey]: parseBudgetCell(value) } }
-        : row
-    )));
-    setAnnualBudgetSaved(false);
-  }, []);
+  const updateAnnualBudgetRowLabel = useCallback((yearKey: AnnualBudgetYearKey, rowIndex: number, label: string) => {
+    updateAnnualBudgetYear(yearKey, (yearData) => ({
+      ...yearData,
+      rows: yearData.rows.map((row, index) => index === rowIndex ? { ...row, label } : row),
+    }));
+  }, [updateAnnualBudgetYear]);
 
-  const addAnnualBudgetRow = useCallback(() => {
-    setAnnualBudgetRows(rows => [...rows, createAnnualBudgetRow(`Budget ${rows.length + 1}`)]);
-    setAnnualBudgetSaved(false);
-  }, []);
+  const updateAnnualBudgetCell = useCallback((yearKey: AnnualBudgetYearKey, rowIndex: number, monthKey: AnnualBudgetMonthKey, value: string) => {
+    updateAnnualBudgetYear(yearKey, (yearData) => ({
+      ...yearData,
+      rows: yearData.rows.map((row, index) => (
+        index === rowIndex
+          ? { ...row, values: { ...row.values, [monthKey]: parseBudgetCell(value) } }
+          : row
+      )),
+    }));
+  }, [updateAnnualBudgetYear]);
 
-  const removeAnnualBudgetRow = useCallback((rowIndex: number) => {
-    setAnnualBudgetRows(rows => rows.length <= 1 ? rows : rows.filter((_, index) => index !== rowIndex));
+  const addAnnualBudgetRow = useCallback((yearKey: AnnualBudgetYearKey) => {
+    updateAnnualBudgetYear(yearKey, (yearData) => ({
+      ...yearData,
+      rows: [...yearData.rows, createAnnualBudgetRow(`Budget ${yearData.rows.length + 1}`)],
+    }));
+  }, [updateAnnualBudgetYear]);
+
+  const removeAnnualBudgetRow = useCallback((yearKey: AnnualBudgetYearKey, rowIndex: number) => {
+    updateAnnualBudgetYear(yearKey, (yearData) => ({
+      ...yearData,
+      rows: yearData.rows.length <= 1 ? yearData.rows : yearData.rows.filter((_, index) => index !== rowIndex),
+    }));
     setAnnualBudgetDeleteConfirmRow(null);
-    setAnnualBudgetSaved(false);
-  }, []);
+  }, [updateAnnualBudgetYear]);
 
   const handleAnnualBudgetPaste = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
     const text = event.clipboardData.getData('text/plain');
@@ -962,8 +955,8 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
     if (pastedRows.length === 0) return;
 
-    setAnnualBudgetRows(currentRows => {
-      const nextRows = currentRows.map(row => ({ ...row, values: { ...row.values } }));
+    updateAnnualBudgetYear(annualBudgetFocusedCell.yearKey, (yearData) => {
+      const nextRows = yearData.rows.map(row => ({ ...row, values: { ...row.values } }));
       const pasteHasLabels = pastedRows.some(row => row.length > 1 && parseBudgetCell(row[0]) === '' && row[0].trim() !== '');
       const startColumn = pasteHasLabels ? -1 : annualBudgetFocusedCell.columnIndex;
 
@@ -986,10 +979,9 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         });
       });
 
-      return nextRows;
+      return { ...yearData, rows: nextRows };
     });
-    setAnnualBudgetSaved(false);
-  }, [annualBudgetFocusedCell]);
+  }, [annualBudgetFocusedCell, updateAnnualBudgetYear]);
 
   const handleSaveAnnualBudgetPlaceholders = useCallback(async () => {
     if (!id) return;
@@ -997,15 +989,11 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     setAnnualBudgetSaved(false);
     setError(null);
     try {
-      const referenceBudgetData: AnnualBudgetPlaceholderData = {
-        rows: annualBudgetRows,
-        actualTotals: annualBudgetActualTotals,
-      };
       const res = await fetch(`/api/google-ads-budgets/${id}/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ _saveAnnualBudgetPlaceholders: referenceBudgetData }),
+        body: JSON.stringify({ _saveAnnualBudgetPlaceholders: annualBudgetPlaceholders }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || `Save failed (${res.status})`);
@@ -1015,23 +1003,26 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     } finally {
       setAnnualBudgetSaving(false);
     }
-  }, [id, annualBudgetRows, annualBudgetActualTotals]);
+  }, [id, annualBudgetPlaceholders]);
 
-  const annualBudgetColumnTotals = useMemo(() =>
-    ANNUAL_BUDGET_MONTHS.reduce((acc, month) => {
-      acc[month.key] = annualBudgetRows.reduce((sum, row) => sum + (Number(row.values[month.key]) || 0), 0);
+  const annualBudgetColumnTotalsByYear = useMemo(() => ({
+    thisYear: ANNUAL_BUDGET_MONTHS.reduce((acc, month) => {
+      acc[month.key] = annualBudgetColumnTotal(annualBudgetPlaceholders.thisYear, month.key);
       return acc;
     }, {} as Record<AnnualBudgetMonthKey, number>),
-    [annualBudgetRows]
-  );
-  const annualBudgetGrandTotal = useMemo(
-    () => ANNUAL_BUDGET_MONTHS.reduce((sum, month) => sum + annualBudgetColumnTotals[month.key], 0),
-    [annualBudgetColumnTotals]
-  );
-  const annualBudgetActualGrandTotal = useMemo(
-    () => ANNUAL_BUDGET_MONTHS.reduce((sum, month) => sum + (Number(annualBudgetActualTotals[month.key]) || 0), 0),
-    [annualBudgetActualTotals]
-  );
+    lastYear: ANNUAL_BUDGET_MONTHS.reduce((acc, month) => {
+      acc[month.key] = annualBudgetColumnTotal(annualBudgetPlaceholders.lastYear, month.key);
+      return acc;
+    }, {} as Record<AnnualBudgetMonthKey, number>),
+  }), [annualBudgetPlaceholders]);
+  const annualBudgetGrandTotalByYear = useMemo(() => ({
+    thisYear: ANNUAL_BUDGET_MONTHS.reduce((sum, month) => sum + annualBudgetColumnTotalsByYear.thisYear[month.key], 0),
+    lastYear: ANNUAL_BUDGET_MONTHS.reduce((sum, month) => sum + annualBudgetColumnTotalsByYear.lastYear[month.key], 0),
+  }), [annualBudgetColumnTotalsByYear]);
+  const annualBudgetActualGrandTotalByYear = useMemo(() => ({
+    thisYear: ANNUAL_BUDGET_MONTHS.reduce((sum, month) => sum + (Number(annualBudgetPlaceholders.thisYear.actualTotals[month.key]) || 0), 0),
+    lastYear: ANNUAL_BUDGET_MONTHS.reduce((sum, month) => sum + (Number(annualBudgetPlaceholders.lastYear.actualTotals[month.key]) || 0), 0),
+  }), [annualBudgetPlaceholders]);
 
   const totalPercentage = useMemo(() =>
     campaigns.filter(isBudgetAllocationCampaign).reduce((sum, c) => sum + c.budgetPercentage, 0),
@@ -1071,36 +1062,74 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     [campaigns]
   );
 
-  // Calculate monthly spend metrics
-  const monthlySpend = useMemo(() => 
-    calculateMonthlySpend(campaigns, monthlyTotal),
-    [campaigns, monthlyTotal]
+  const viewedMonthDate = useMemo(() => {
+    const now = new Date();
+    if (metricsRange === 'LAST_MONTH') return new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }, [metricsRange]);
+  const viewedMonthLabel = useMemo(
+    () => viewedMonthDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }),
+    [viewedMonthDate],
   );
-  const currentAnnualMonthKey = useMemo(() => currentAnnualBudgetMonthKey(), []);
+  const viewedMonthDayCount = useMemo(
+    () => new Date(viewedMonthDate.getFullYear(), viewedMonthDate.getMonth() + 1, 0).getDate(),
+    [viewedMonthDate],
+  );
+  const viewedMonthBudget = useMemo(
+    () => resolveMonthlyBudgetForDate(annualBudgetPlaceholders, viewedMonthDate, monthlyTotal),
+    [annualBudgetPlaceholders, viewedMonthDate, monthlyTotal],
+  );
+  const viewedBudgetUsesPlaceholder = useMemo(() => {
+    const section = financialYearSectionForDate(viewedMonthDate);
+    if (!section) return false;
+    const monthKey = monthKeyForDate(viewedMonthDate);
+    return annualBudgetPlaceholders[section].rows.some((row) => typeof row.values[monthKey] === 'number');
+  }, [annualBudgetPlaceholders, viewedMonthDate]);
+
+  // Calculate spend metrics for the month currently being viewed in Budget Management.
+  const monthlySpend = useMemo(() => {
+    if (metricsRange === 'LAST_MONTH') {
+      const lastMonthCampaigns = campaigns.map((campaign) => ({
+        ...campaign,
+        mtdSpend: campaign.displayMtdSpend ?? campaign.mtdSpend ?? 0,
+      }));
+      const completedMonth = `${viewedMonthDate.getFullYear()}-${String(viewedMonthDate.getMonth() + 1).padStart(2, '0')}`;
+      return calculateCompletedMonthSpend(lastMonthCampaigns, viewedMonthBudget, completedMonth);
+    }
+    return calculateMonthlySpend(campaigns, viewedMonthBudget);
+  }, [campaigns, metricsRange, viewedMonthBudget, viewedMonthDate]);
+  const currentDate = new Date();
+  const currentActualTotalsSlot = resolveActualTotalsSlotForDate(currentDate, currentDate);
 
   useEffect(() => {
-    const actualSpend = Math.round(monthlySpend.totalSpend);
-    if (!id || !annualBudgetPlaceholdersLoaded || actualSpend <= 0 || annualBudgetActualTotals[currentAnnualMonthKey] !== '') return;
+    const actualSpend = Math.round(calculateMonthlySpend(campaigns, resolveMonthlyBudgetForDate(annualBudgetPlaceholders, currentDate, monthlyTotal)).totalSpend);
+    if (!id || !annualBudgetPlaceholdersLoaded || actualSpend <= 0 || !currentActualTotalsSlot.section) return;
+    const currentActualTotal = annualBudgetPlaceholders[currentActualTotalsSlot.section].actualTotals[currentActualTotalsSlot.monthKey];
+    if (currentActualTotal !== '') return;
 
-    const nextActualTotals = { ...annualBudgetActualTotals, [currentAnnualMonthKey]: actualSpend };
-    setAnnualBudgetActualTotals(nextActualTotals);
+    const nextPlaceholders = writeActualTotalForDate(annualBudgetPlaceholders, currentDate, actualSpend, currentDate);
+    setAnnualBudgetPlaceholders(nextPlaceholders);
     setAnnualBudgetSaved(false);
 
-    const referenceBudgetData: AnnualBudgetPlaceholderData = {
-      rows: annualBudgetRows,
-      actualTotals: nextActualTotals,
-    };
     fetch(`/api/google-ads-budgets/${id}/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ _saveAnnualBudgetPlaceholders: referenceBudgetData }),
+      body: JSON.stringify({ _saveAnnualBudgetPlaceholders: nextPlaceholders }),
     })
       .then((res) => {
         if (res.ok) setAnnualBudgetSaved(true);
       })
       .catch(() => {});
-  }, [id, annualBudgetPlaceholdersLoaded, annualBudgetRows, annualBudgetActualTotals, currentAnnualMonthKey, monthlySpend.totalSpend]);
+  }, [
+    id,
+    annualBudgetPlaceholdersLoaded,
+    annualBudgetPlaceholders,
+    currentActualTotalsSlot.section,
+    currentActualTotalsSlot.monthKey,
+    campaigns,
+    monthlyTotal,
+  ]);
 
   const totalConversions = campaigns.reduce((sum, c) => sum + (c.conversions || 0), 0);
   const activeCampaignCount = campaigns.filter(isBudgetIncludedCampaign).length;
@@ -1110,9 +1139,9 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     ? Math.min(100, (monthlySpend.totalSpend / monthlySpend.maxBudget) * 100) 
     : 0;
   const percentRemaining = 100 - percentUsed;
-  const monthInfo = getMonthInfo();
-  const onTrackPercent = (monthlySpend.daysElapsed / monthInfo.daysInMonth) * 100;
-  const expectedSpendToDate = monthlySpend.maxBudget * (monthlySpend.daysElapsed / monthInfo.daysInMonth);
+  const viewedMonthDays = Math.max(1, monthlySpend.daysElapsed + monthlySpend.daysRemaining);
+  const onTrackPercent = (monthlySpend.daysElapsed / viewedMonthDays) * 100;
+  const expectedSpendToDate = monthlySpend.maxBudget * (monthlySpend.daysElapsed / viewedMonthDays);
   const spendPacingDelta = monthlySpend.totalSpend - expectedSpendToDate;
   const pacingPercentDelta = monthlySpend.maxBudget > 0 ? (spendPacingDelta / monthlySpend.maxBudget) * 100 : 0;
   const absPacingDelta = Math.abs(spendPacingDelta);
@@ -1293,10 +1322,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       </div>
 
       {/* Monthly Budget Tracker - Visual */}
-      {monthlyTotal > 0 && campaigns.length > 0 && (
+      {(viewedMonthBudget > 0 || monthlyTotal > 0) && campaigns.length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: '#1e293b' }}>
-            📊 Monthly Budget Tracker - {new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}
+            📊 Monthly Budget Tracker - {viewedMonthLabel}
           </h3>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
@@ -1307,6 +1336,9 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>{statusText}</span>
                   <div style={{ marginTop: 2, fontSize: 12, color: statusColor, fontWeight: 600 }}>
                     {pacingContext}
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: '#64748b' }}>
+                    Budget source: {viewedBudgetUsesPlaceholder ? 'client FY placeholder' : 'Monthly Budget Total fallback'}
                   </div>
                 </div>
                 <span style={{ fontSize: 24, fontWeight: 700, color: statusColor }}>{percentUsed.toFixed(0)}%</span>
@@ -1426,7 +1458,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               
               <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
                 To meet your monthly budget of <strong>${monthlySpend.maxBudget.toLocaleString()}</strong>, 
-                you need to spend <strong>${budgetPerDay.toFixed(2)}/day</strong> for the next {monthlySpend.daysRemaining} days.
+                you need to spend <strong>${budgetPerDay.toFixed(2)}/day</strong> for the next <strong>{monthlySpend.daysRemaining}</strong> days.
               </div>
             </div>
 
@@ -1452,11 +1484,13 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               {/* Calendar visualization */}
               <div style={{ marginTop: 16 }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                  {Array.from({ length: Math.ceil(DAYS_IN_MONTH) }, (_, i) => {
+                  {Array.from({ length: viewedMonthDayCount }, (_, i) => {
                     const day = i + 1;
-                    const now = new Date().getDate();
-                    const isPast = day < now;
-                    const isToday = day === now;
+                    const currentDayMarker = metricsRange === 'LAST_MONTH'
+                      ? viewedMonthDayCount + 1
+                      : Math.min(viewedMonthDayCount, new Date().getDate());
+                    const isPast = day < currentDayMarker;
+                    const isToday = metricsRange !== 'LAST_MONTH' && day === currentDayMarker;
                     return (
                       <div
                         key={day}
@@ -1495,7 +1529,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
         {[
           { label: 'Added Campaigns', value: campaigns.filter(isBudgetIncludedCampaign).length, color: '#1e293b' },
-          { label: 'MTD Spend', value: `$${monthlySpend.totalSpend.toFixed(0)}`, color: '#d97706' },
+          { label: metricsRange === 'LAST_MONTH' ? 'Last Month Spend' : 'MTD Spend', value: `$${monthlySpend.totalSpend.toFixed(0)}`, color: '#d97706' },
           { label: 'Remaining', value: `$${monthlySpend.remainingBudget.toFixed(0)}`, color: '#059669' },
           { label: 'Smart Daily Budget', value: `$${totalDailyBudget.toFixed(2)}`, color: '#2563eb' },
           { label: 'Conversions', value: totalConversions.toLocaleString(), color: '#6366f1' },
@@ -1507,7 +1541,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         ))}
       </div>
 
-      {/* Annual Client Budget Placeholders - CMS reference only */}
+      {/* Annual Client Budget Placeholders - month-specific tracker source */}
       <div style={{ marginBottom: 24, padding: 16, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           <div>
@@ -1515,152 +1549,166 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               Annual Client Budget Placeholders
             </h3>
             <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>
-              CMS-only reference grid. Paste from Excel; these values do not affect campaign allocation, budget maths, or Google Ads pushes.
+              Monthly tracker and monthly reports use the month value from these client FY grids when present. If a month is blank, the tracker falls back to the Monthly Budget Total above.
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={addAnnualBudgetRow}
-              style={{ padding: '7px 12px', fontSize: 12, fontWeight: 600, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}
-            >
-              Add row
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveAnnualBudgetPlaceholders}
-              disabled={annualBudgetSaving}
-              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700, background: annualBudgetSaving ? '#94a3b8' : annualBudgetSaved ? '#059669' : '#1e293b', color: '#fff', border: 'none', borderRadius: 6, cursor: annualBudgetSaving ? 'not-allowed' : 'pointer' }}
-            >
-              {annualBudgetSaving ? 'Saving...' : annualBudgetSaved ? 'Saved' : 'Save'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleSaveAnnualBudgetPlaceholders}
+            disabled={annualBudgetSaving}
+            style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700, background: annualBudgetSaving ? '#94a3b8' : annualBudgetSaved ? '#059669' : '#1e293b', color: '#fff', border: 'none', borderRadius: 6, cursor: annualBudgetSaving ? 'not-allowed' : 'pointer' }}
+          >
+            {annualBudgetSaving ? 'Saving...' : annualBudgetSaved ? 'Saved' : 'Save'}
+          </button>
         </div>
 
-        <div onPaste={handleAnnualBudgetPaste} style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: 8 }}>
-          <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 13 }}>
-            <thead>
-              <tr>
-                <th style={{ width: 190, padding: '8px 10px', background: '#f8fafc', borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', textAlign: 'left', color: '#475569' }}>Row</th>
-                {ANNUAL_BUDGET_MONTHS.map((month) => (
-                  <th key={month.key} style={{ padding: '8px 6px', background: '#f8fafc', borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', textAlign: 'center', color: '#0f172a', fontWeight: 700 }}>
-                    {month.label}
-                  </th>
-                ))}
-                <th style={{ width: 100, padding: '8px 8px', background: '#f8fafc', borderBottom: '1px solid #cbd5e1', textAlign: 'center', color: '#0f172a', fontWeight: 700 }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {annualBudgetRows.map((row, rowIndex) => (
-                <tr key={row.id}>
-                  <td style={{ padding: 0, borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #e2e8f0', background: '#fff' }}>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        value={row.label}
-                        onFocus={() => setAnnualBudgetFocusedCell({ rowIndex, columnIndex: 0 })}
-                        onChange={(e) => updateAnnualBudgetRowLabel(rowIndex, e.target.value)}
-                        placeholder="Budget"
-                        style={{ flex: 1, minWidth: 0, padding: '8px 8px', border: 'none', outline: 'none', fontSize: 13, fontWeight: 600, color: '#0f172a', background: 'transparent' }}
-                      />
-                      {annualBudgetRows.length > 1 && (
-                        annualBudgetDeleteConfirmRow === rowIndex ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginRight: 4 }}>
-                            <button
-                              type="button"
-                              onClick={() => removeAnnualBudgetRow(rowIndex)}
-                              title="Confirm delete row"
-                              style={{ padding: '3px 6px', border: '1px solid #fecaca', borderRadius: 4, background: '#fef2f2', color: '#991b1b', cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
-                            >
-                              Delete
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setAnnualBudgetDeleteConfirmRow(null)}
-                              title="Cancel delete"
-                              style={{ padding: '3px 5px', border: '1px solid #e2e8f0', borderRadius: 4, background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: 10 }}
-                            >
-                              Cancel
-                            </button>
+        {(['thisYear', 'lastYear'] as AnnualBudgetYearKey[]).map((yearKey) => {
+          const yearData = annualBudgetPlaceholders[yearKey];
+          const yearStart = financialYearStartYear(new Date()) - (yearKey === 'lastYear' ? 1 : 0);
+          const yearLabel = yearKey === 'thisYear' ? `This FY (${financialYearLabel(yearStart)})` : `Last FY (${financialYearLabel(yearStart)})`;
+          const annualBudgetColumnTotals = annualBudgetColumnTotalsByYear[yearKey];
+          const annualBudgetGrandTotal = annualBudgetGrandTotalByYear[yearKey];
+          const annualBudgetActualGrandTotal = annualBudgetActualGrandTotalByYear[yearKey];
+          return (
+            <div key={yearKey} style={{ marginTop: yearKey === 'thisYear' ? 0 : 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{yearLabel}</div>
+                <button
+                  type="button"
+                  onClick={() => addAnnualBudgetRow(yearKey)}
+                  style={{ padding: '7px 12px', fontSize: 12, fontWeight: 600, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}
+                >
+                  Add row
+                </button>
+              </div>
+              <div onPaste={handleAnnualBudgetPaste} style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: 8 }}>
+                <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 190, padding: '8px 10px', background: '#f8fafc', borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', textAlign: 'left', color: '#475569' }}>Row</th>
+                      {ANNUAL_BUDGET_MONTHS.map((month) => (
+                        <th key={month.key} style={{ padding: '8px 6px', background: '#f8fafc', borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', textAlign: 'center', color: '#0f172a', fontWeight: 700 }}>
+                          {month.label}
+                        </th>
+                      ))}
+                      <th style={{ width: 100, padding: '8px 8px', background: '#f8fafc', borderBottom: '1px solid #cbd5e1', textAlign: 'center', color: '#0f172a', fontWeight: 700 }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {yearData.rows.map((row, rowIndex) => (
+                      <tr key={`${yearKey}-${row.id}`}>
+                        <td style={{ padding: 0, borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #e2e8f0', background: '#fff' }}>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              value={row.label}
+                              onFocus={() => setAnnualBudgetFocusedCell({ yearKey, rowIndex, columnIndex: 0 })}
+                              onChange={(e) => updateAnnualBudgetRowLabel(yearKey, rowIndex, e.target.value)}
+                              placeholder="Budget"
+                              style={{ flex: 1, minWidth: 0, padding: '8px 8px', border: 'none', outline: 'none', fontSize: 13, fontWeight: 600, color: '#0f172a', background: 'transparent' }}
+                            />
+                            {yearData.rows.length > 1 && (
+                              annualBudgetDeleteConfirmRow?.yearKey === yearKey && annualBudgetDeleteConfirmRow?.rowIndex === rowIndex ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginRight: 4 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeAnnualBudgetRow(yearKey, rowIndex)}
+                                    title="Confirm delete row"
+                                    style={{ padding: '3px 6px', border: '1px solid #fecaca', borderRadius: 4, background: '#fef2f2', color: '#991b1b', cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
+                                  >
+                                    Delete
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAnnualBudgetDeleteConfirmRow(null)}
+                                    title="Cancel delete"
+                                    style={{ padding: '3px 5px', border: '1px solid #e2e8f0', borderRadius: 4, background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: 10 }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setAnnualBudgetDeleteConfirmRow({ yearKey, rowIndex })}
+
+                                  title="Remove row"
+                                  style={{ width: 22, height: 22, marginRight: 4, border: 'none', borderRadius: 4, background: 'transparent', color: '#cbd5e1', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}
+                                >
+                                  ×
+                                </button>
+                              )
+                            )}
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setAnnualBudgetDeleteConfirmRow(rowIndex)}
-                            title="Remove row"
-                            style={{ width: 22, height: 22, marginRight: 4, border: 'none', borderRadius: 4, background: 'transparent', color: '#cbd5e1', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}
-                          >
-                            ×
-                          </button>
-                        )
-                      )}
-                    </div>
-                  </td>
-                  {ANNUAL_BUDGET_MONTHS.map((month, columnIndex) => (
-                    <td key={month.key} style={{ padding: 0, borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', background: '#fff' }}>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={formatBudgetCell(row.values[month.key])}
-                        onFocus={() => setAnnualBudgetFocusedCell({ rowIndex, columnIndex })}
-                        onChange={(e) => updateAnnualBudgetCell(rowIndex, month.key, e.target.value)}
-                        style={{ width: '100%', padding: '8px 6px', border: 'none', outline: 'none', textAlign: 'center', fontSize: 13, color: '#0f172a', background: 'transparent' }}
-                      />
-                    </td>
-                  ))}
-                  <td style={{ padding: '8px 8px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', textAlign: 'center', fontWeight: 700, color: '#0f172a' }}>
-                    {annualBudgetRowTotal(row).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-              <tr>
-                <td style={{ padding: '8px 10px', borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', background: '#eff6ff', fontWeight: 800, color: '#1d4ed8' }}>
-                  Actual spend
-                </td>
-                {ANNUAL_BUDGET_MONTHS.map((month) => (
-                  <td key={month.key} style={{ padding: '8px 6px', borderRight: '1px solid #dbeafe', borderBottom: '1px solid #cbd5e1', background: '#eff6ff', textAlign: 'center', fontWeight: 800, color: '#1d4ed8' }}>
-                    {formatBudgetCell(annualBudgetActualTotals[month.key])}
-                  </td>
-                ))}
-                <td style={{ padding: '8px 8px', borderBottom: '1px solid #cbd5e1', background: '#eff6ff', textAlign: 'center', fontWeight: 800, color: '#1d4ed8' }}>
-                  {annualBudgetActualGrandTotal.toLocaleString()}
-                </td>
-              </tr>
-              <tr>
-                <td style={{ padding: '6px 10px', borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', background: '#f8fbff', fontWeight: 700, color: '#475569', fontSize: 12 }}>
-                  Discrepancy %
-                </td>
-                {ANNUAL_BUDGET_MONTHS.map((month) => {
-                  const planned = annualBudgetColumnTotals[month.key];
-                  const actual = annualBudgetActualTotals[month.key];
-                  const percentText = formatBudgetDiscrepancyPercent(actual, planned);
-                  const percentValue = planned && actual !== '' ? ((Number(actual) - planned) / planned) * 100 : 0;
-                  return (
-                    <td key={month.key} style={{ padding: '6px 6px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1', background: '#f8fbff', textAlign: 'center', fontWeight: 700, color: percentText === '—' ? '#94a3b8' : percentValue > 0 ? '#dc2626' : '#059669', fontSize: 12 }}>
-                      {percentText}
-                    </td>
-                  );
-                })}
-                <td style={{ padding: '6px 8px', borderBottom: '1px solid #cbd5e1', background: '#f8fbff', textAlign: 'center', fontWeight: 700, color: annualBudgetGrandTotal && annualBudgetActualGrandTotal > annualBudgetGrandTotal ? '#dc2626' : '#059669', fontSize: 12 }}>
-                  {formatBudgetDiscrepancyPercent(annualBudgetActualGrandTotal || '', annualBudgetGrandTotal)}
-                </td>
-              </tr>
-              {annualBudgetRows.length > 1 && (
-                <tr>
-                  <td style={{ padding: '8px 10px', borderRight: '1px solid #cbd5e1', background: '#f8fafc', fontWeight: 800, color: '#0f172a' }}>Total</td>
-                  {ANNUAL_BUDGET_MONTHS.map((month) => (
-                    <td key={month.key} style={{ padding: '8px 6px', borderRight: '1px solid #e2e8f0', background: '#f8fafc', textAlign: 'center', fontWeight: 800, color: '#0f172a' }}>
-                      {annualBudgetColumnTotals[month.key].toLocaleString()}
-                    </td>
-                  ))}
-                  <td style={{ padding: '8px 8px', background: '#f8fafc', textAlign: 'center', fontWeight: 800, color: '#0f172a' }}>
-                    {annualBudgetGrandTotal.toLocaleString()}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                        </td>
+                        {ANNUAL_BUDGET_MONTHS.map((month, columnIndex) => (
+                          <td key={month.key} style={{ padding: 0, borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', background: 'transparent' }}>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={formatBudgetCell(row.values[month.key])}
+                              onFocus={() => setAnnualBudgetFocusedCell({ yearKey, rowIndex, columnIndex })}
+                              onChange={(e) => updateAnnualBudgetCell(yearKey, rowIndex, month.key, e.target.value)}
+                              style={{ width: '100%', padding: '8px 6px', border: 'none', outline: 'none', textAlign: 'center', fontSize: 13, color: '#0f172a', background: 'transparent' }}
+                            />
+                          </td>
+                        ))}
+                        <td style={{ padding: '8px 8px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', textAlign: 'center', fontWeight: 700, color: '#0f172a' }}>
+                          {annualBudgetRowTotal(row).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td style={{ padding: '8px 10px', borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', background: '#eff6ff', fontWeight: 800, color: '#1d4ed8' }}>
+                        Actual spend
+                      </td>
+                      {ANNUAL_BUDGET_MONTHS.map((month) => (
+                        <td key={month.key} style={{ padding: '8px 6px', borderRight: '1px solid #dbeafe', borderBottom: '1px solid #cbd5e1', background: '#eff6ff', textAlign: 'center', fontWeight: 800, color: '#1d4ed8' }}>
+                          {formatBudgetCell(yearData.actualTotals[month.key])}
+                        </td>
+                      ))}
+                      <td style={{ padding: '8px 8px', borderBottom: '1px solid #cbd5e1', background: '#eff6ff', textAlign: 'center', fontWeight: 800, color: '#1d4ed8' }}>
+                        {annualBudgetActualGrandTotal.toLocaleString()}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '6px 10px', borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', background: '#f8fbff', fontWeight: 700, color: '#475569', fontSize: 12 }}>
+                        Discrepancy %
+                      </td>
+                      {ANNUAL_BUDGET_MONTHS.map((month) => {
+                        const planned = annualBudgetColumnTotals[month.key];
+                        const actual = yearData.actualTotals[month.key];
+                        const percentText = formatBudgetDiscrepancyPercent(actual, planned);
+                        const percentValue = planned && actual !== '' ? ((Number(actual) - planned) / planned) * 100 : 0;
+                        return (
+                          <td key={month.key} style={{ padding: '6px 6px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1', background: '#f8fbff', textAlign: 'center', fontWeight: 700, color: percentText === '—' ? '#94a3b8' : percentValue > 0 ? '#dc2626' : '#059669', fontSize: 12 }}>
+                            {percentText}
+                          </td>
+                        );
+                      })}
+                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #cbd5e1', background: '#f8fbff', textAlign: 'center', fontWeight: 700, color: annualBudgetGrandTotal && annualBudgetActualGrandTotal > annualBudgetGrandTotal ? '#dc2626' : '#059669', fontSize: 12 }}>
+                        {formatBudgetDiscrepancyPercent(annualBudgetActualGrandTotal || '', annualBudgetGrandTotal)}
+                      </td>
+                    </tr>
+                    {yearData.rows.length > 1 && (
+                      <tr>
+                        <td style={{ padding: '8px 10px', borderRight: '1px solid #cbd5e1', background: '#f8fafc', fontWeight: 800, color: '#0f172a' }}>Total</td>
+                        {ANNUAL_BUDGET_MONTHS.map((month) => (
+                          <td key={month.key} style={{ padding: '8px 6px', borderRight: '1px solid #e2e8f0', background: '#f8fafc', textAlign: 'center', fontWeight: 800, color: '#0f172a' }}>
+                            {annualBudgetColumnTotals[month.key].toLocaleString()}
+                          </td>
+                        ))}
+                        <td style={{ padding: '8px 8px', background: '#f8fafc', textAlign: 'center', fontWeight: 800, color: '#0f172a' }}>
+                          {annualBudgetGrandTotal.toLocaleString()}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Campaign Budget List */}
@@ -1720,6 +1768,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           <div style={{ display: 'flex', gap: 4 }}>
             {([
               { key: 'THIS_MONTH' as BudgetMetricsRange, label: 'MTD' },
+              { key: 'LAST_MONTH' as BudgetMetricsRange, label: 'Last month' },
               { key: 'LAST_60_DAYS' as BudgetMetricsRange, label: 'Last 60 days' },
               { key: 'LAST_180_DAYS' as BudgetMetricsRange, label: 'Last 180 days' },
             ]).map(range => (
