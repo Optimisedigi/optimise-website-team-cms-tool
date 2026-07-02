@@ -3,6 +3,7 @@
 import { useAllFormFields, useAuth, useDocumentInfo } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 import { MonthlyKeywordSelection } from './MonthlyKeywordSelection'
+import { relationshipId, type MonthlyNegativeKeywordsRelationshipValue } from './monthly-negative-keywords-relationship'
 
 type ClientLinkData = {
   clientId: string
@@ -23,8 +24,7 @@ export default function MonthlyNegativeKeywordsLink() {
   const directCustomerId = fields?.googleAdsCustomerId?.value ? String(fields.googleAdsCustomerId.value) : ''
   const directClientId = id ? String(id) : ''
   const directMonthlyNegativeKeywordsEnabled = fields?.['gadsAuto.monthlyNegativeKeywordsEnabled']?.value === true
-  const clientRel = fields?.client?.value as string | number | { id?: string | number } | undefined
-  const linkedClientId = typeof clientRel === 'object' ? clientRel?.id : clientRel
+  const linkedClientId = relationshipId(fields?.client?.value as MonthlyNegativeKeywordsRelationshipValue)
 
   useEffect(() => {
     if (!id) return
@@ -58,9 +58,9 @@ export default function MonthlyNegativeKeywordsLink() {
       try {
         const res = await fetch(`/api/google-ads-audits/${id}?depth=0`, { credentials: 'include' })
         const audit = res.ok ? await res.json() : null
-        const auditClient = typeof audit?.client === 'object' ? audit.client?.id : audit?.client
-        if (auditClient) {
-          await fetchClient(auditClient)
+        const auditClientId = relationshipId(audit?.client as MonthlyNegativeKeywordsRelationshipValue)
+        if (auditClientId) {
+          await fetchClient(auditClientId)
         } else {
           setResolvedClient(null)
           setLoading(false)
