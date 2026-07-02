@@ -113,17 +113,28 @@ describe('GoogleAdsBudgetManagement viewed month budget tracking', () => {
     global.fetch = realFetch;
   });
 
-  it('shows This FY + Last FY sections and switches the tracker to last month\'s month/year budget', async () => {
+  it('shows This FY with a collapsible Last FY and switches the tracker to last month\'s month/year budget', async () => {
     render(<GoogleAdsBudgetManagement auditId="12" />);
 
     await waitFor(() => {
       expect(screen.getByText('📊 Monthly Budget Tracker - July 2026')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('This FY (2026/27)')).toBeInTheDocument();
-    expect(screen.getByText('Last FY (2025/26)')).toBeInTheDocument();
+    expect(screen.getByText(/This FY \(2026\/27\)/i)).toBeInTheDocument();
+    const lastFyToggle = screen.getByRole('button', { name: /Last FY \(2025\/26\)/i });
+
+    expect(lastFyToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByDisplayValue('100,000')).not.toBeInTheDocument();
     expect(screen.getByText('Budget source: client FY placeholder')).toBeInTheDocument();
     expect(screen.getAllByText('$50,000').length).toBeGreaterThan(0);
+
+    fireEvent.click(lastFyToggle);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('100,000')).toBeInTheDocument();
+    });
+
+    expect(lastFyToggle).toHaveAttribute('aria-expanded', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: 'Last month' }));
 

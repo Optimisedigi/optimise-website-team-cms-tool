@@ -189,6 +189,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   const [annualBudgetSaving, setAnnualBudgetSaving] = useState(false);
   const [annualBudgetSaved, setAnnualBudgetSaved] = useState(false);
   const [annualBudgetPlaceholdersLoaded, setAnnualBudgetPlaceholdersLoaded] = useState(false);
+  const [collapsedAnnualBudgetYears, setCollapsedAnnualBudgetYears] = useState<Record<AnnualBudgetYearKey, boolean>>({
+    thisYear: false,
+    lastYear: true,
+  });
   const [annualBudgetFocusedCell, setAnnualBudgetFocusedCell] = useState<{ yearKey: AnnualBudgetYearKey; rowIndex: number; columnIndex: number }>({ yearKey: 'thisYear', rowIndex: 0, columnIndex: 0 });
   const [annualBudgetDeleteConfirmRow, setAnnualBudgetDeleteConfirmRow] = useState<{ yearKey: AnnualBudgetYearKey; rowIndex: number } | null>(null);
   const [recommendationTooltip, setRecommendationTooltip] = useState<{
@@ -1569,19 +1573,45 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           const annualBudgetColumnTotals = annualBudgetColumnTotalsByYear[yearKey];
           const annualBudgetGrandTotal = annualBudgetGrandTotalByYear[yearKey];
           const annualBudgetActualGrandTotal = annualBudgetActualGrandTotalByYear[yearKey];
+          const isPreviousYear = yearKey !== 'thisYear';
+          const isCollapsed = isPreviousYear ? collapsedAnnualBudgetYears[yearKey] : false;
           return (
             <div key={yearKey} style={{ marginTop: yearKey === 'thisYear' ? 0 : 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{yearLabel}</div>
-                <button
-                  type="button"
-                  onClick={() => addAnnualBudgetRow(yearKey)}
-                  style={{ padding: '7px 12px', fontSize: 12, fontWeight: 600, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}
-                >
-                  Add row
-                </button>
+                {isPreviousYear ? (
+                  <button
+                    type="button"
+                    onClick={() => setCollapsedAnnualBudgetYears((prev) => ({ ...prev, [yearKey]: !prev[yearKey] }))}
+                    aria-expanded={!isCollapsed}
+                    aria-controls={`annual-budget-${yearKey}`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, cursor: 'pointer', color: '#0f172a' }}
+                  >
+                    <span style={{ fontSize: 12, color: '#64748b' }}>{isCollapsed ? '▸' : '▾'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{yearLabel}</span>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>
+                      Planned ${annualBudgetGrandTotal.toLocaleString()} · Actual ${annualBudgetActualGrandTotal.toLocaleString()}
+                    </span>
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0f172a' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{yearLabel}</span>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>
+                      Planned ${annualBudgetGrandTotal.toLocaleString()} · Actual ${annualBudgetActualGrandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {!isCollapsed && (
+                  <button
+                    type="button"
+                    onClick={() => addAnnualBudgetRow(yearKey)}
+                    style={{ padding: '7px 12px', fontSize: 12, fontWeight: 600, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}
+                  >
+                    Add row
+                  </button>
+                )}
               </div>
-              <div onPaste={handleAnnualBudgetPaste} style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: 8 }}>
+              {isCollapsed ? null : (
+              <div id={`annual-budget-${yearKey}`} onPaste={handleAnnualBudgetPaste} style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: 8 }}>
                 <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 13 }}>
                   <thead>
                     <tr>
@@ -1706,6 +1736,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           );
         })}
