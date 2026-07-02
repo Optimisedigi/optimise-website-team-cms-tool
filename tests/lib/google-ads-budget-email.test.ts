@@ -3,12 +3,13 @@
  * Payload, no HTTP — to keep the suite fast.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   generateBudgetEmailHtml,
   formatCostPerConv,
   calculateSmartDailyBudget,
   calculateMonthlySpend,
+  calculateCompletedMonthSpend,
   type BudgetCampaign,
   type MonthlySpend,
 } from "@/lib/google-ads-budget-email";
@@ -29,6 +30,10 @@ function makeCampaign(overrides: Partial<BudgetCampaign> = {}): BudgetCampaign {
     ...overrides,
   };
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("generateBudgetEmailHtml", () => {
   it("starts with the expected font wrapper div and embeds spend pacing status text", () => {
@@ -103,6 +108,51 @@ describe("generateBudgetEmailHtml", () => {
     const html = generateBudgetEmailHtml("Acme", "April 2026", spend, campaigns, 1000);
     expect(html.indexOf(">Hi<")).toBeLessThan(html.indexOf(">Low<"));
   });
+
+  it("renders weekly time tracking with full-month day boxes and matching card height", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-10T12:00:00Z"));
+
+    const spend: MonthlySpend = {
+      totalSpend: 320,
+      dailyBudget: 40,
+      daysElapsed: 10,
+      daysRemaining: 18,
+      dailyBurnRate: 32,
+      remainingBudget: 800,
+      maxBudget: 1120,
+    };
+
+    const html = generateBudgetEmailHtml("Acme", "February 2026", spend, [makeCampaign()], 1120, undefined, undefined, { variant: "weekly" });
+    const dayCells = (html.match(/title="Day \d+"/g) ?? []).length;
+
+    expect(dayCells).toBe(28);
+    expect(html).toContain('data-budget-time-tracking-card="1" style="padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%;box-sizing:border-box"');
+    expect(html).toContain('data-budget-progress-card="1" style="padding:20px;background:');
+    expect(html).toContain('Days Elapsed');
+    expect(html).toContain('Days Remaining');
+    expect(html).toContain('title="Day 28"');
+    expect(html).not.toContain('title="Day 29"');
+  });
+
+  it("renders monthly without the time-tracking card and keeps the bordered half-width budget card", () => {
+    const spend: MonthlySpend = {
+      totalSpend: 165,
+      dailyBudget: 200,
+      daysElapsed: 1,
+      daysRemaining: 29,
+      dailyBurnRate: 165,
+      remainingBudget: 5835,
+      maxBudget: 6000,
+    };
+
+    const html = generateBudgetEmailHtml("Acme", "May 2026", spend, [makeCampaign()], 6000, undefined, undefined, { variant: "monthly" });
+
+    expect(html).toContain('data-budget-progress-card="1" style="padding:20px;background:#f0fdf4;border-radius:12px;border:2px solid #059669;height:100%;box-sizing:border-box"');
+    expect(html).toContain('data-budget-progress-cell="1" style="width:52%;vertical-align:top;padding-right:12px;height:100%"');
+    expect(html).toContain('data-budget-time-tracking-cell="placeholder" style="width:48%;vertical-align:top;padding-left:0">&#8203;</td>');
+    expect(html).not.toContain('data-budget-time-tracking-card="1"');
+  });
 });
 
 describe("formatCostPerConv", () => {
@@ -151,5 +201,16 @@ describe("calculateSmartDailyBudget", () => {
     expect(result.totalSpend).toBe(500);
     expect(result.maxBudget).toBe(2000);
     expect(result.remainingBudget).toBe(1500);
+  });
+
+  it("calculateCompletedMonthSpend uses the full previous month instead of current MTD pacing", () => {
+    const campaigns: BudgetCampaign[] = [makeCampaign({ mtdSpend: 360 })];
+    const result = calculateCompletedMonthSpend(campaigns, 1000, "2026-06");
+
+    expect(result.totalSpend).toBe(360);
+    expect(result.daysElapsed).toBe(30);
+    expect(result.daysRemaining).toBe(0);
+    expect(result.dailyBudget).toBeCloseTo(1000 / 30, 5);
+    expect(result.remainingBudget).toBe(640);
   });
 });

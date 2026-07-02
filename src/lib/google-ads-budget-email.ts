@@ -80,6 +80,11 @@ export interface MonthlySpend {
   maxBudget: number;
 }
 
+export interface BudgetEmailHtmlOptions {
+  variant?: 'weekly' | 'monthly';
+  includeTimeTracking?: boolean;
+}
+
 function formatWholeCurrency(value: number): string {
   return `$${value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
@@ -252,6 +257,29 @@ export function calculateMonthlySpend(campaigns: BudgetCampaign[], monthlyBudget
   };
 }
 
+export function calculateCompletedMonthSpend(
+  campaigns: BudgetCampaign[],
+  monthlyBudget: number,
+  completedMonth: string,
+): MonthlySpend {
+  const [year, month] = completedMonth.split("-").map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const safeDaysInMonth = Number.isFinite(daysInMonth) && daysInMonth > 0 ? daysInMonth : 30;
+  const totalSpend = getTotalMtdSpend(campaigns);
+  const dailyBudget = monthlyBudget / safeDaysInMonth;
+  const remainingBudget = Math.max(0, monthlyBudget - totalSpend);
+
+  return {
+    totalSpend,
+    dailyBudget,
+    daysElapsed: safeDaysInMonth,
+    daysRemaining: 0,
+    dailyBurnRate: safeDaysInMonth > 0 ? totalSpend / safeDaysInMonth : 0,
+    remainingBudget,
+    maxBudget: monthlyBudget,
+  };
+}
+
 // Generate Gmail-ready HTML email
 export function generateBudgetEmailHtml(
   businessName: string,
@@ -260,7 +288,8 @@ export function generateBudgetEmailHtml(
   campaigns: BudgetCampaign[],
   monthlyBudget: number,
   clientSlug?: string,
-  clientPin?: string
+  clientPin?: string,
+  options?: BudgetEmailHtmlOptions,
 ): string {
   const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
   const daysInMonth = Math.max(1, spend.daysElapsed + spend.daysRemaining);
@@ -304,15 +333,58 @@ export function generateBudgetEmailHtml(
   }).join('');
 
   const dashboardUrl = clientSlug ? `https://cms.optimisedigital.online/google-dashboard/${clientSlug}` : '';
+  const variant = options?.variant ?? 'weekly';
+  const includeTimeTracking = options?.includeTimeTracking ?? (variant !== 'monthly');
+  const progressCellWidth = includeTimeTracking ? '64%' : '52%';
+  const progressCellPaddingRight = includeTimeTracking ? '8px' : '12px';
+  const emptyCellHtml = includeTimeTracking
+    ? `<td data-budget-time-tracking-cell="1" style="width:36%;vertical-align:top;padding-left:8px;height:100%">
+        <div data-budget-time-tracking-card="1" style="padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%;box-sizing:border-box">
+          <table style="width:100%;height:100%;border-collapse:collapse">
+            <tr>
+              <td style="vertical-align:top;padding:0">
+                <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:16px">Time Tracking</div>
+                <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+            <tr>
+              <td style="width:50%;vertical-align:top;padding-right:8px">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px">Days Elapsed</div>
+                <div style="font-size:18px;font-weight:600;color:#1e293b">${spend.daysElapsed}</div>
+              </td>
+              <td style="width:50%;vertical-align:top;padding-left:8px">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px">Days Remaining</div>
+                <div style="font-size:18px;font-weight:600;color:#1e293b">${spend.daysRemaining}</div>
+              </td>
+            </tr>
+          </table>
+                <table style="border-collapse:separate;border-spacing:2px;margin:0 0 10px">
+                  ${renderTimeTrackingCalendarRows(getMonthInfo().daysInMonth, spend.daysElapsed)}
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="vertical-align:bottom;padding:0">
+                <table style="width:auto;border-collapse:collapse">
+                  <tr>
+                    <td style="padding:0 12px 0 0;font-size:10px;color:#64748b"><span style="display:inline-block;width:8px;height:8px;background:#059669;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Past</td>
+                    <td style="padding:0 12px 0 0;font-size:10px;color:#64748b"><span style="display:inline-block;width:8px;height:8px;background:#2563eb;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Today</td>
+                    <td style="padding:0;font-size:10px;color:#64748b"><span style="display:inline-block;width:8px;height:8px;background:#e5e7eb;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Remaining</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </td>`
+    : '<td data-budget-time-tracking-cell="placeholder" style="width:48%;vertical-align:top;padding-left:0">&#8203;</td>';
 
   return `<div style="font-family:Arial,sans-serif;max-width:100%;width:100%;color:#1e293b">
   <h3 style="margin:24px 0 16px;font-size:15px">Spend to Budget</h3>
 
   <!-- Budget Progress -->
-  <table style="width:100%;max-width:760px;border-collapse:collapse;margin-bottom:20px">
+  <table data-budget-summary-layout="1" style="width:100%;max-width:760px;border-collapse:collapse;margin-bottom:20px">
     <tr>
-      <td style="width:100%;vertical-align:top;padding-right:0">
-        <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};height:100%;box-sizing:border-box">
+      <td data-budget-progress-cell="1" style="width:${progressCellWidth};vertical-align:top;padding-right:${progressCellPaddingRight};height:100%">
+        <div data-budget-progress-card="1" style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};height:100%;box-sizing:border-box">
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
               <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText}<div style="margin-top:2px;font-size:12px;color:${statusColor};font-weight:600">${pacingContext}</div></td>
@@ -368,6 +440,7 @@ export function generateBudgetEmailHtml(
           </table>
         </div>
       </td>
+      ${emptyCellHtml}
     </tr>
   </table>
 
@@ -390,6 +463,27 @@ export function generateBudgetEmailHtml(
   ${dashboardUrl ? `<p style="font-size:13px;color:#64748b;margin:0 0 16px"><a href="${dashboardUrl}" style="color:#2563eb;text-decoration:none;font-weight:500">View live dashboard</a>${clientPin ? ` — PIN: ${clientPin}` : ''}</p>` : ''}
   <p style="font-size:13px;color:#1e293b;margin:0">Reach out if you have any questions.</p>
 </div>`;
+}
+
+function renderTimeTrackingCalendarRows(daysInMonth: number, daysElapsed: number): string {
+  const columns = 8;
+  const today = Math.max(1, Math.min(daysInMonth, daysElapsed));
+  const cells: string[] = [];
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const isPast = day < today;
+    const isToday = day === today;
+    const color = isToday ? '#2563eb' : isPast ? '#059669' : '#e5e7eb';
+    cells.push(`<td title="Day ${day}" style="width:12px;height:12px;background:${color};border-radius:2px;font-size:1px;line-height:1px;padding:0">&#8203;</td>`);
+  }
+  const rows: string[] = [];
+  for (let index = 0; index < cells.length; index += columns) {
+    const chunk = cells.slice(index, index + columns);
+    while (chunk.length < columns) {
+      chunk.push('<td style="width:12px;height:12px;background:transparent;font-size:1px;line-height:1px;padding:0">&#8203;</td>');
+    }
+    rows.push(`<tr>${chunk.join('')}</tr>`);
+  }
+  return rows.join('');
 }
 
 function searchTermRows(

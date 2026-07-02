@@ -12,7 +12,7 @@
  *   - upstream HTTP errors propagate as ok:false
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockFindByID = vi.fn();
 
@@ -41,6 +41,10 @@ beforeEach(() => {
   // Reset fetch between tests.
   // @ts-expect-error - test override
   globalThis.fetch = vi.fn();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("get_budget_management_email", () => {
@@ -137,7 +141,10 @@ describe("get_budget_management_email", () => {
     expect(data.html).toContain("PIN: 1234");
   });
 
-  it("this_month with LAST_MONTH campaign metrics: passes range=LAST_MONTH to the list route", async () => {
+  it("this_month with LAST_MONTH campaign metrics: passes range=LAST_MONTH to the list route and renders full completed-month budget math", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-26T12:00:00Z"));
+
     mockFindByID.mockResolvedValueOnce({
       id: 7,
       businessName: "Acme Plumbing",
@@ -180,7 +187,13 @@ describe("get_budget_management_email", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0];
     expect(String(url)).toBe("http://localhost:3004/api/google-ads-budgets/7/list?reportOnly=1&range=LAST_MONTH&skipPersist=1");
-    expect((result.data as { html: string }).html).toContain("Last Month Search");
+    const data = result.data as { html: string; monthLabel: string; subject: string };
+    expect(data.monthLabel).toBe("June 2026");
+    expect(data.subject).toBe("Acme Plumbing - Google Ads Budget Report - June 2026");
+    expect(data.html).toContain("Last Month Search");
+    expect(data.html).toContain("Vertical line shows target spend to date: $1,000 (100% of month).");
+    expect(data.html).toContain("Behind expected pace by $640");
+    expect(data.html).toContain("$360");
   });
 
   it("last_month: hits last-month-recap with x-api-key and renders recap HTML", async () => {

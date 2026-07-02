@@ -84,6 +84,16 @@ describe("create_monthly_budget_gmail_draft", () => {
         html: '<div data-testid="dashboard">dashboard html</div>',
         components: ["keyword_relevancy", "cpa_trend"],
         warnings: [],
+        componentData: {
+          keywordRelevancyTrend: [
+            { label: "May 2026", value: 93.2 },
+            { label: "June 2026", value: 95.1 },
+          ],
+          cpaTrend: [
+            { label: "May 2026", value: 96 },
+            { label: "June 2026", value: 85 },
+          ],
+        },
       },
     });
     mocks.executeMonthly.mockResolvedValueOnce({
@@ -104,7 +114,7 @@ describe("create_monthly_budget_gmail_draft", () => {
       ok: true,
       data: {
         subject: "Berendsen - Google Ads Budget Report - July 2026",
-        html: '<div data-testid="budget"><h3 style="margin:24px 0 16px;font-size:15px">July 2026 (Month-to-Date)</h3><!-- Budget Progress + Time Tracking side by side --><table><tr><td>Time Tracking</td><td>Days Remaining</td></tr></table><h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3><table><tr><th data-col="adjusted-daily-budget" style="text-align:right">Adjusted Daily Budget</th><th>MTD Spend</th></tr><tr><td data-col="adjusted-daily-budget" style="text-align:right">$61</td><td>June campaign rows</td></tr></table></div>',
+        html: '<div data-testid="budget"><h3 style="margin:24px 0 16px;font-size:15px">July 2026 (Month-to-Date)</h3><table data-budget-summary-layout="1"><tr><td data-budget-progress-cell="1" style="width:64%;vertical-align:top;padding-right:8px;height:100%"><div data-budget-progress-card="1"><div>Under Budget</div><div>Behind expected pace by $35</div><div>Target spend to date</div><div>Pacing difference</div></div></td><td data-budget-time-tracking-cell="1" style="width:36%;vertical-align:top;padding-left:8px;height:100%"><div data-budget-time-tracking-card="1"><div>Time Tracking</div><div>Days Remaining</div></div></td></tr></table><h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3><table><tr><th data-col="adjusted-daily-budget" style="text-align:right">Adjusted Daily Budget</th><th>MTD Spend</th></tr><tr><td data-col="adjusted-daily-budget" style="text-align:right">$61</td><td>June campaign rows</td></tr></table></div>',
       },
     });
     mocks.executeDraft.mockResolvedValueOnce({
@@ -125,7 +135,7 @@ describe("create_monthly_budget_gmail_draft", () => {
 
     expect(result.ok).toBe(true);
     expect(mocks.executeDashboard).toHaveBeenCalledWith(
-      { components: ["keyword_relevancy", "cpa_trend"], months: 14, endMonth: "2026-06" },
+      { components: ["keyword_relevancy", "cpa_trend"], months: 14, endMonth: "2026-06", range: "LAST_MONTH" },
       ctx,
     );
     expect(mocks.executeMonthly).toHaveBeenCalledWith(
@@ -137,7 +147,8 @@ describe("create_monthly_budget_gmail_draft", () => {
     const draftArgs = mocks.executeDraft.mock.calls[0]?.[0];
     expect(draftArgs.subject).toBe("Berendsen - Google Ads Monthly Report - June 2026");
     expect(draftArgs.htmlBody).toContain("Hey team,");
-    expect(draftArgs.htmlBody).toContain("June 2026 delivered 75 conversions at a CPA of $85");
+    expect(draftArgs.htmlBody).toContain("June 2026 delivered 75 conversions from $6,375 in spend, with CPA efficient at $85.");
+    expect(draftArgs.htmlBody).toContain("Search relevance improved to 95.1% from 93.2% and the wider CPA trend improved to $85 from $96.");
     expect(draftArgs.htmlBody).toContain('data-testid="monthly"');
     expect(draftArgs.htmlBody).toContain('data-testid="dashboard"');
     expect(draftArgs.htmlBody).toContain('data-testid="budget"');
@@ -150,10 +161,15 @@ describe("create_monthly_budget_gmail_draft", () => {
     expect(draftArgs.htmlBody).not.toContain(">MTD Spend</th>");
     expect(draftArgs.htmlBody).not.toContain("Adjusted Daily Budget");
     expect(draftArgs.htmlBody).not.toContain('data-col="adjusted-daily-budget"');
+    expect(draftArgs.htmlBody).toContain("Monthly budget");
+    expect(draftArgs.htmlBody).toContain("Budget difference");
+    expect(draftArgs.htmlBody).toContain("Under budget by $35");
+    expect(draftArgs.htmlBody).not.toContain("Behind expected pace by");
+    expect(draftArgs.htmlBody).not.toContain("Target spend to date");
 
     const data = result.data as Record<string, unknown>;
     expect(data.gmailUrl).toBe("https://mail.google.com/mail/u/0/#drafts/msg_456");
-    expect(data.summary).toBe("June 2026 delivered 75 conversions at a CPA of $85, with Keyword Relevancy, CPA Trend included above the budget tracker.");
+    expect(data.summary).toBe("June 2026 delivered 75 conversions from $6,375 in spend, with CPA efficient at $85. Search relevance improved to 95.1% from 93.2% and the wider CPA trend improved to $85 from $96.");
     expect(JSON.stringify(data)).not.toContain("monthly html");
     expect(JSON.stringify(data)).not.toContain("dashboard html");
     expect(JSON.stringify(data)).not.toContain("budget html");

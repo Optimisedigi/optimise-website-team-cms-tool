@@ -26,6 +26,7 @@ import {
   generateBudgetEmailHtml,
   generateLastMonthRecapEmailHtml,
   calculateMonthlySpend,
+  calculateCompletedMonthSpend,
   type BudgetCampaign,
   type LastMonthRecap,
 } from "@/lib/google-ads-budget-email";
@@ -286,11 +287,11 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
       // record) but fall back to the audit doc we already loaded.
       const effectiveBudget = Number(listData.monthlyBudget ?? monthlyBudget);
 
-      const spend = calculateMonthlySpend(campaigns, effectiveBudget);
-      const monthLabel = new Date().toLocaleDateString("en-AU", {
-        month: "long",
-        year: "numeric",
-      });
+      const lastMonthKey = previousMonthKey();
+      const spend = campaignMetricsRange === "LAST_MONTH"
+        ? calculateCompletedMonthSpend(campaigns, effectiveBudget, lastMonthKey)
+        : calculateMonthlySpend(campaigns, effectiveBudget);
+      const monthLabel = monthLabelForBudgetRange(campaignMetricsRange);
       const html = generateBudgetEmailHtml(
         businessName,
         monthLabel,
@@ -299,6 +300,7 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
         effectiveBudget,
         clientSlug,
         clientPin,
+        { variant: campaignMetricsRange === "LAST_MONTH" ? "monthly" : "weekly" },
       );
 
       return {
@@ -343,3 +345,18 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
     };
   },
 };
+
+function previousMonthKey(now = new Date()): string {
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabelForBudgetRange(range: CampaignMetricsRange, now = new Date()): string {
+  const date = range === "LAST_MONTH"
+    ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+    : now;
+  return date.toLocaleDateString("en-AU", {
+    month: "long",
+    year: "numeric",
+  });
+}
