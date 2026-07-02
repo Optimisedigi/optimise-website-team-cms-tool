@@ -1055,6 +1055,32 @@ export async function GET(request: NextRequest) {
     FOREIGN KEY (\`_parent_id\`) REFERENCES \`monthly_keyword_selections\`(\`id\`) ON UPDATE no action ON DELETE cascade,
     FOREIGN KEY (\`applied_to_n_k_l_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE set null
   )`);
+  // Per-selection columns added after the base table shipped. The
+  // monthly_keyword_selection_rows backfill below reads all of these, so they
+  // must exist first or the backfill fails with `no such column`.
+  await run("monthly_keyword_selections_selections.watch_horizon_months", "ALTER TABLE `monthly_keyword_selections_selections` ADD `watch_horizon_months` numeric");
+  await run("monthly_keyword_selections_selections.watch_until", "ALTER TABLE `monthly_keyword_selections_selections` ADD `watch_until` text");
+  await run("monthly_keyword_selections_selections.review_comment", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment` text");
+  await run("monthly_keyword_selections_selections.review_comment_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment_by` text");
+  await run("monthly_keyword_selections_selections.review_comment_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment_at` text");
+  await run("monthly_keyword_selections_selections.review_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment_tagged_user_ids` text");
+  await run("monthly_keyword_selections_selections.applied_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `applied_by` text");
+  await run("monthly_keyword_selections_selections.applied_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `applied_by_user_id` text");
+  await run("monthly_keyword_selections_selections.row_index", "ALTER TABLE `monthly_keyword_selections_selections` ADD `row_index` numeric DEFAULT 0 NOT NULL");
+  await run("monthly_keyword_selections_selections.removed_comment", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_comment` text");
+  await run("monthly_keyword_selections_selections.removed_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_by` text");
+  await run("monthly_keyword_selections_selections.removed_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_by_user_id` text");
+  await run("monthly_keyword_selections_selections.removed_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_at` text");
+  await run("monthly_keyword_selections_selections.decided_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `decided_by_user_id` text");
+  await run("monthly_keyword_selections_selections.decided_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `decided_by` text");
+  await run("monthly_keyword_selections_selections.review_dismissed_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_dismissed_at` text");
+  await run("monthly_keyword_selections_selections.review_dismissed_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_dismissed_by` text");
+  await run("monthly_keyword_selections_selections.outcome_type", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_type` text");
+  await run("monthly_keyword_selections_selections.outcome_detail", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_detail` text");
+  await run("monthly_keyword_selections_selections.outcome_comment", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_comment` text");
+  await run("monthly_keyword_selections_selections.outcome_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_by` text");
+  await run("monthly_keyword_selections_selections.outcome_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_by_user_id` text");
+  await run("monthly_keyword_selections_selections.outcome_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_at` text");
   await run("monthly_keyword_terms_cache", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_terms_cache\` (
     \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
     \`client_id\` integer NOT NULL,
@@ -1089,8 +1115,99 @@ export async function GET(request: NextRequest) {
   await run("monthly_keyword_terms_cache_client_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_idx` ON `monthly_keyword_terms_cache` (`client_id`)");
   await run("monthly_keyword_terms_cache_year_month_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_year_month_idx` ON `monthly_keyword_terms_cache` (`year_month`)");
   await run("monthly_keyword_terms_cache_client_month_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_month_idx` ON `monthly_keyword_terms_cache` (`client_id`, `year_month`)");
+  await run("clients.gads_auto_monthly_negative_keywords_enabled", "ALTER TABLE `clients` ADD `gads_auto_monthly_negative_keywords_enabled` integer DEFAULT false");
+  await run("clients.monthly_negative_keywords_enabled_backfill", "UPDATE `clients` SET `gads_auto_monthly_negative_keywords_enabled` = true WHERE `id` IN (SELECT DISTINCT `client_id` FROM `monthly_keyword_terms_cache` UNION SELECT DISTINCT `client_id` FROM `monthly_keyword_selections`)");
   await run("locked_docs_rels.monthly_keyword_selections_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_selections_id` integer REFERENCES `monthly_keyword_selections`(`id`) ON DELETE cascade");
   await run("locked_docs_rels.monthly_keyword_terms_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_terms_cache_id` integer REFERENCES `monthly_keyword_terms_cache`(`id`) ON DELETE cascade");
+
+  // Durable per-row Monthly Negative KWs decisions (2026-07-24). Each decision
+  // is now keyed independently so stale saves cannot replace the whole history.
+  await run("monthly_keyword_selection_rows", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_selection_rows\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`year_month\` text NOT NULL,
+    \`search_term\` text NOT NULL,
+    \`search_term_key\` text NOT NULL,
+    \`row_index\` numeric DEFAULT 0 NOT NULL,
+    \`row_key\` text NOT NULL,
+    \`keyword_key\` text,
+    \`negative_keyword\` text NOT NULL,
+    \`match_type\` text DEFAULT 'exact' NOT NULL,
+    \`decision\` text DEFAULT 'pending' NOT NULL,
+    \`applied_to_n_k_l_id\` integer,
+    \`applied_at\` text,
+    \`watch_horizon_months\` numeric,
+    \`watch_until\` text,
+    \`applied_by\` text,
+    \`applied_by_user_id\` text,
+    \`removed_comment\` text,
+    \`removed_by\` text,
+    \`removed_by_user_id\` text,
+    \`removed_at\` text,
+    \`decided_by\` text,
+    \`decided_by_user_id\` text,
+    \`review_dismissed_at\` text,
+    \`review_dismissed_by\` text,
+    \`review_comment\` text,
+    \`review_comment_by\` text,
+    \`review_comment_at\` text,
+    \`review_comment_tagged_user_ids\` text,
+    \`outcome_type\` text,
+    \`outcome_detail\` text,
+    \`outcome_comment\` text,
+    \`outcome_by\` text,
+    \`outcome_by_user_id\` text,
+    \`outcome_at\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    FOREIGN KEY (\`applied_to_n_k_l_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("selection_row_outcome_followups", `CREATE TABLE IF NOT EXISTS \`selection_row_outcome_followups\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`comment\` text NOT NULL,
+    \`by\` text,
+    \`by_user_id\` text,
+    \`at\` text,
+    \`tagged_user_ids\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`monthly_keyword_selection_rows\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("monthly_keyword_selection_rows_row_key_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `monthly_keyword_selection_rows_row_key_idx` ON `monthly_keyword_selection_rows` (`row_key`)");
+  await run("monthly_keyword_selection_rows_client_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selection_rows_client_idx` ON `monthly_keyword_selection_rows` (`client_id`)");
+  await run("monthly_keyword_selection_rows_client_month_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selection_rows_client_month_idx` ON `monthly_keyword_selection_rows` (`client_id`, `year_month`)");
+  await run("monthly_keyword_selection_rows_client_decision_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selection_rows_client_decision_idx` ON `monthly_keyword_selection_rows` (`client_id`, `decision`)");
+  await run("monthly_keyword_selection_rows_client_search_term_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selection_rows_client_search_term_idx` ON `monthly_keyword_selection_rows` (`client_id`, `search_term_key`)");
+  await run("monthly_keyword_selection_rows_client_keyword_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selection_rows_client_keyword_idx` ON `monthly_keyword_selection_rows` (`client_id`, `keyword_key`)");
+  await run("selection_row_outcome_followups_parent_idx", "CREATE INDEX IF NOT EXISTS `selection_row_outcome_followups_parent_idx` ON `selection_row_outcome_followups` (`_parent_id`)");
+  await run("selection_row_outcome_followups_order_idx", "CREATE INDEX IF NOT EXISTS `selection_row_outcome_followups_order_idx` ON `selection_row_outcome_followups` (`_order`)");
+  await run("locked_docs_rels.monthly_keyword_selection_rows_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_selection_rows_id` integer REFERENCES `monthly_keyword_selection_rows`(`id`) ON DELETE cascade");
+  await run("monthly_keyword_selection_rows_backfill", `INSERT OR REPLACE INTO \`monthly_keyword_selection_rows\` (
+    \`client_id\`, \`year_month\`, \`search_term\`, \`search_term_key\`, \`row_index\`, \`row_key\`, \`keyword_key\`,
+    \`negative_keyword\`, \`match_type\`, \`decision\`, \`applied_to_n_k_l_id\`, \`applied_at\`,
+    \`watch_horizon_months\`, \`watch_until\`, \`applied_by\`, \`applied_by_user_id\`,
+    \`removed_comment\`, \`removed_by\`, \`removed_by_user_id\`, \`removed_at\`,
+    \`decided_by\`, \`decided_by_user_id\`, \`review_dismissed_at\`, \`review_dismissed_by\`,
+    \`review_comment\`, \`review_comment_by\`, \`review_comment_at\`, \`review_comment_tagged_user_ids\`,
+    \`outcome_type\`, \`outcome_detail\`, \`outcome_comment\`, \`outcome_by\`, \`outcome_by_user_id\`, \`outcome_at\`,
+    \`updated_at\`, \`created_at\`
+  )
+  SELECT
+    p.\`client_id\`, s.\`year_month\`, s.\`search_term\`, lower(trim(s.\`search_term\`)), coalesce(s.\`row_index\`, 0),
+    cast(p.\`client_id\` as text) || '|' || s.\`year_month\` || '|' || lower(trim(s.\`search_term\`)) || '|' || cast(coalesce(s.\`row_index\`, 0) as text),
+    lower(trim(s.\`negative_keyword\`)) || '|' || lower(trim(s.\`match_type\`)),
+    s.\`negative_keyword\`, s.\`match_type\`, s.\`decision\`, s.\`applied_to_n_k_l_id\`, s.\`applied_at\`,
+    s.\`watch_horizon_months\`, s.\`watch_until\`, s.\`applied_by\`, s.\`applied_by_user_id\`,
+    s.\`removed_comment\`, s.\`removed_by\`, s.\`removed_by_user_id\`, s.\`removed_at\`,
+    s.\`decided_by\`, s.\`decided_by_user_id\`, s.\`review_dismissed_at\`, s.\`review_dismissed_by\`,
+    s.\`review_comment\`, s.\`review_comment_by\`, s.\`review_comment_at\`, s.\`review_comment_tagged_user_ids\`,
+    s.\`outcome_type\`, s.\`outcome_detail\`, s.\`outcome_comment\`, s.\`outcome_by\`, s.\`outcome_by_user_id\`, s.\`outcome_at\`,
+    coalesce(s.\`updated_at\`, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    coalesce(s.\`created_at\`, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  FROM \`monthly_keyword_selections_selections\` s
+  INNER JOIN \`monthly_keyword_selections\` p ON p.\`id\` = s.\`_parent_id\`
+  WHERE trim(coalesce(s.\`search_term\`, '')) <> '' AND trim(coalesce(s.\`negative_keyword\`, '')) <> ''`);
 
   let tables: string[] = [];
   try {

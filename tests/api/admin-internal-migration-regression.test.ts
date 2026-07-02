@@ -114,6 +114,30 @@ describe("admin/internal migration endpoints regression", () => {
     expectNoSecretLeak(body);
   });
 
+  it("includes the later monthly-negative schema steps in /api/migrate GET", async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes("sqlite_master")) return { rows: [{ name: "clients" }, { name: "monthly_keyword_selection_rows" }] };
+      return { rows: [] };
+    });
+    const { GET } = await import("@/app/(frontend)/api/migrate/route");
+
+    const response = await GET(request("/api/migrate", { headers: { "x-api-key": "super-secret-key" } }));
+    const body = (await jsonOf(response)) as { migrationsRun?: string[]; tables?: string[] };
+
+    expect(response.status).toBe(200);
+    expect(body.migrationsRun?.some((line) => line.startsWith("ERROR:"))).toBe(false);
+    expect(body.migrationsRun).toEqual(expect.arrayContaining([
+      "OK: clients.gads_auto_monthly_negative_keywords_enabled",
+      "OK: monthly_keyword_selection_rows",
+      "OK: selection_row_outcome_followups",
+    ]));
+    expect(execute).toHaveBeenCalledWith(expect.stringContaining("gads_auto_monthly_negative_keywords_enabled"));
+    expect(execute).toHaveBeenCalledWith(expect.stringContaining("CREATE TABLE IF NOT EXISTS `monthly_keyword_selection_rows`"));
+    expect(execute).toHaveBeenCalledWith(expect.stringContaining("CREATE TABLE IF NOT EXISTS `selection_row_outcome_followups`"));
+    expect(body.tables).toEqual(["clients", "monthly_keyword_selection_rows"]);
+    expectNoSecretLeak(body);
+  });
+
   it("treats duplicate column errors as safe skips in schema migration GET", async () => {
     execute.mockImplementation(async (sql: string) => {
       if (sql.includes("ADD")) throw new Error("duplicate column name: client_id");
