@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { hasValidApiKey } from "@/collections/api-key-access";
+import { normalizeAnnualBudgetMultiYearData, resolveMonthlyBudgetForDate } from "@/lib/google-ads-annual-budget-placeholders";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -208,6 +209,12 @@ export async function POST(
 
   const cleanCustomerId = String(customerId).replace(/-/g, "");
   const { label, year, month } = lastMonthLabel();
+  const viewedMonthDate = new Date(year, month - 1, 1);
+  const resolvedMonthlyBudget = resolveMonthlyBudgetForDate(
+    normalizeAnnualBudgetMultiYearData(linkedClient?.annualClientBudgetPlaceholders, audit?.annualBudgetPlaceholders),
+    viewedMonthDate,
+    Number(audit.monthlyBudget || 0),
+  );
 
   // 1. Campaign metrics for LAST_MONTH
   const metricsUrl = new URL(
@@ -351,7 +358,7 @@ export async function POST(
     monthLabel: label,
     year,
     month,
-    monthlyBudget: Number(audit.monthlyBudget || 0),
+    monthlyBudget: resolvedMonthlyBudget,
     customerIdUsed: cleanCustomerId,
     conversionActionsApplied: conversionActions,
     totals: {

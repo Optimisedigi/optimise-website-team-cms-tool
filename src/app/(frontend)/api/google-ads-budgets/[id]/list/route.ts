@@ -190,9 +190,16 @@ export async function GET(
     }
   }
 
-  const legacyFallbackPlaceholders = viewedMonthSection
-    ? normalizeAnnualBudgetMultiYearData({ [viewedMonthSection]: legacyAuditAnnualBudgetPlaceholders })
-    : normalizeAnnualBudgetMultiYearData(undefined, legacyAuditAnnualBudgetPlaceholders);
+  const legacyAuditHasMultiYearShape = Boolean(
+    legacyAuditAnnualBudgetPlaceholders &&
+    typeof legacyAuditAnnualBudgetPlaceholders === 'object' &&
+    ('thisYear' in (legacyAuditAnnualBudgetPlaceholders as Record<string, unknown>) || 'lastYear' in (legacyAuditAnnualBudgetPlaceholders as Record<string, unknown>))
+  );
+  const legacyFallbackPlaceholders = legacyAuditHasMultiYearShape
+    ? normalizeAnnualBudgetMultiYearData(legacyAuditAnnualBudgetPlaceholders)
+    : viewedMonthSection
+      ? normalizeAnnualBudgetMultiYearData({ [viewedMonthSection]: legacyAuditAnnualBudgetPlaceholders })
+      : normalizeAnnualBudgetMultiYearData(undefined, legacyAuditAnnualBudgetPlaceholders);
   const resolvedMonthlyBudget = clientHasViewedMonthPlaceholder
     ? resolveMonthlyBudgetForDate(clientPlaceholders, viewedMonthDate, fallbackMonthlyBudget)
     : resolveMonthlyBudgetForDate(

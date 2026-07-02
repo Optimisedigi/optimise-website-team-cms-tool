@@ -40,6 +40,63 @@ describe("google ads budgets update route", () => {
     mockPayload.create.mockResolvedValue({ id: 100 });
   });
 
+  it("saves annual budget placeholders onto the linked client record", async () => {
+    mockPayload.findByID.mockResolvedValueOnce({ id: 12, client: 77 });
+
+    const response = await POST(request({
+      _saveAnnualBudgetPlaceholders: {
+        thisYear: { rows: [{ id: '1', label: 'Budget', values: { jul: 50000 } }], actualTotals: {} },
+        lastYear: { rows: [{ id: '2', label: 'Budget', values: { jun: 100000 } }], actualTotals: {} },
+      },
+    }), {
+      params: Promise.resolve({ id: '12' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'clients',
+      id: 77,
+      data: expect.objectContaining({
+        annualClientBudgetPlaceholders: expect.objectContaining({
+          thisYear: expect.any(Object),
+          lastYear: expect.any(Object),
+        }),
+      }),
+    }));
+  });
+
+  it("falls back to the audit field when client placeholder storage is unavailable", async () => {
+    mockPayload.findByID.mockResolvedValueOnce({ id: 12, client: 77 });
+    mockPayload.update
+      .mockRejectedValueOnce(new Error("SQL_INPUT_ERROR: no such column: annual_client_budget_placeholders"))
+      .mockResolvedValueOnce({ id: 12 });
+
+    const response = await POST(request({
+      _saveAnnualBudgetPlaceholders: {
+        thisYear: { rows: [{ id: '1', label: 'Budget', values: { jul: 50000 } }], actualTotals: { jul: 1200 } },
+        lastYear: { rows: [{ id: '2', label: 'Budget', values: { jun: 100000 } }], actualTotals: {} },
+      },
+    }), {
+      params: Promise.resolve({ id: '12' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockPayload.update).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      collection: 'clients',
+      id: 77,
+    }));
+    expect(mockPayload.update).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      collection: 'google-ads-audits',
+      id: 12,
+      data: expect.objectContaining({
+        annualBudgetPlaceholders: expect.objectContaining({
+          thisYear: expect.any(Object),
+          lastYear: expect.any(Object),
+        }),
+      }),
+    }));
+  });
+
   it("bulk save uses depth-0 audit lookup and depth-0 CMS writes", async () => {
     mockPayload.find
       .mockResolvedValueOnce({ totalDocs: 1, docs: [{ id: 41 }] })

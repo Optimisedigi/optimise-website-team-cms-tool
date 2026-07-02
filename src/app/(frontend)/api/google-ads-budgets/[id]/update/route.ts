@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { hasValidApiKey } from "@/collections/api-key-access";
+import { normalizeAnnualBudgetMultiYearData } from "@/lib/google-ads-annual-budget-placeholders";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -60,16 +61,44 @@ export async function POST(
     }
   }
 
-  // Save CMS-only annual budget placeholders to the audit record.
-  // These are reference data only and are never used by budget allocation or push logic.
+  // Save CMS-only annual budget placeholders to the linked client when possible.
+  // If that schema is not available yet, fall back to the audit JSON field so
+  // the Budget Management UI still persists locally and on pre-migration DBs.
   if (body._saveAnnualBudgetPlaceholders !== undefined) {
     try {
-      await payload.update({
+      const audit = await payload.findByID({
         collection: "google-ads-audits",
         id: auditIdNum,
-        data: { annualBudgetPlaceholders: body._saveAnnualBudgetPlaceholders },
+        depth: 0,
         overrideAccess: true,
       });
+      const normalized = normalizeAnnualBudgetMultiYearData(body._saveAnnualBudgetPlaceholders);
+      const clientId = typeof audit?.client === "object" ? audit.client?.id : audit?.client;
+      const saveToAuditFallback = async () => {
+        await payload.update({
+          collection: "google-ads-audits",
+          id: auditIdNum,
+          data: { annualBudgetPlaceholders: normalized } as any,
+          overrideAccess: true,
+        });
+      };
+      if (clientId) {
+        try {
+          await payload.update({
+            collection: "clients",
+            id: clientId,
+            data: { annualClientBudgetPlaceholders: normalized } as any,
+            overrideAccess: true,
+          });
+        } catch (e: any) {
+          const message = String(e?.message || e || '');
+          const shouldFallbackToAudit = /annualClientBudgetPlaceholders|annual_client_budget_placeholders|no such column|unknown column|sql_input_error/i.test(message);
+          if (!shouldFallbackToAudit) throw e;
+          await saveToAuditFallback();
+        }
+      } else {
+        await saveToAuditFallback();
+      }
       return NextResponse.json({ success: true });
     } catch (e: any) {
       return NextResponse.json({ error: e.message }, { status: 500 });

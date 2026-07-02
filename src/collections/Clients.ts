@@ -2344,6 +2344,14 @@ export const Clients: CollectionConfig = {
                 },
               },
             },
+            {
+              name: "annualClientBudgetPlaceholders",
+              type: "json",
+              admin: {
+                hidden: true,
+                description: "CMS-only client FY budget placeholders for Budget Management reporting (this FY + last FY).",
+              },
+            },
 
             // ─ Negative List Builder ─
             {

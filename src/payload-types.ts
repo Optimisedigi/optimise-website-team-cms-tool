@@ -914,6 +914,18 @@ export interface Client {
     totalDocs?: number;
   };
   /**
+   * CMS-only client FY budget placeholders for Budget Management reporting (this FY + last FY).
+   */
+  annualClientBudgetPlaceholders?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Negative keyword lists managed for this client
    */
   negativeKeywordLists?: {
@@ -9565,6 +9577,7 @@ export interface ClientsSelect<T extends boolean = true> {
   phoneCallConversionActions?: T;
   formSubmitConversionActions?: T;
   googleAdsAudits?: T;
+  annualClientBudgetPlaceholders?: T;
   negativeKeywordLists?: T;
   keywordDeepDiveSessions?: T;
   gadsAuto?:
