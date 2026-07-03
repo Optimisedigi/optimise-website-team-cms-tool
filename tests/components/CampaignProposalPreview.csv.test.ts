@@ -4,6 +4,7 @@ import {
   buildCampaignProposalCsv,
   buildImportedCampaignsFromCsv,
 } from "@/lib/campaign-proposal-csv";
+import { normalizeCampaignProposalKeywords } from "@/lib/campaign-proposal-normalize";
 
 describe("CampaignProposalPreview CSV helpers", () => {
   it("exports and imports ad-group-only rows without creating fake keywords", () => {
@@ -53,5 +54,49 @@ describe("CampaignProposalPreview CSV helpers", () => {
       },
       keywords: [],
     });
+  });
+
+  it("persists Growth Tools topKeywords into ad group keywords and exports keyword rows", () => {
+    const rawGrowthToolsProposal = {
+      proposedCampaigns: [
+        {
+          name: "Generic - Pump Types",
+          campaignType: "generic",
+          channelType: "SEARCH",
+          adGroups: [
+            {
+              name: "Centrifugal Pumps",
+              theme: "Centrifugal Pumps",
+              topKeywords: [
+                { text: "centrifugal pump", volume: 1900, competition: "HIGH" },
+                { text: "centrifugal pumps", monthlySearchVolume: 720, matchType: "EXACT" },
+              ],
+              totalMonthlyVolume: 2620,
+              landingPage: {
+                url: "https://example.com/centrifugal-pumps",
+                status: "exists",
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const proposal = normalizeCampaignProposalKeywords(rawGrowthToolsProposal);
+
+    expect(proposal.proposedCampaigns[0].adGroups[0].keywords).toEqual([
+      expect.objectContaining({ text: "centrifugal pump", monthlySearchVolume: 1900 }),
+      expect.objectContaining({ text: "centrifugal pumps", monthlySearchVolume: 720, matchType: "EXACT" }),
+    ]);
+
+    const csv = buildCampaignProposalCsv(rawGrowthToolsProposal);
+    const lines = csv.split("\n");
+
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toBe(
+      "Generic - Pump Types,Centrifugal Pumps,centrifugal pump,1900,https://example.com/centrifugal-pumps,,,,,,,No,exists",
+    );
+    expect(lines[2]).toBe(
+      "Generic - Pump Types,Centrifugal Pumps,centrifugal pumps,720,https://example.com/centrifugal-pumps,,,,,,,No,exists",
+    );
   });
 });

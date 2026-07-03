@@ -7,6 +7,7 @@ import crypto from "crypto";
 import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
 import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { normalizeCampaignProposalKeywords } from "../lib/campaign-proposal-normalize";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = async ({
   data,
@@ -139,6 +140,9 @@ export const GoogleAdsAudits: CollectionConfig = {
         for (const field of selectFields) {
           if (doc?.[field] === "") doc[field] = null;
         }
+        if (doc?.campaignProposal) {
+          doc.campaignProposal = normalizeCampaignProposalKeywords(doc.campaignProposal);
+        }
         return doc;
       },
     ],
@@ -150,6 +154,9 @@ export const GoogleAdsAudits: CollectionConfig = {
           const selectFields = ["proposalBusinessType", "proposalConversionGoal", "proposalServiceRadius"];
           for (const field of selectFields) {
             if (data[field] === "") data[field] = null;
+          }
+          if (data.campaignProposal) {
+            data.campaignProposal = normalizeCampaignProposalKeywords(data.campaignProposal);
           }
         }
         return data;

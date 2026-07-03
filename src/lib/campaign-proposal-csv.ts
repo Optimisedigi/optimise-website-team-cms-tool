@@ -1,3 +1,5 @@
+import { normalizeCampaignProposalKeywords } from "./campaign-proposal-normalize";
+
 type ProposalKeyword = {
   text: string;
   matchType?: "PHRASE" | "EXACT" | "BROAD";
@@ -20,6 +22,7 @@ type ProposedAdGroup = {
   keywords?: ProposalKeyword[];
   keywordIdeas?: ProposalKeyword[];
   keywordsUsed?: ProposalKeyword[];
+  topKeywords?: ProposalKeyword[];
   seedKeywords?: string[];
   targetKeywords?: string[];
   totalMonthlyVolume?: number;
@@ -53,6 +56,7 @@ function getExportKeywords(adGroup: ProposedAdGroup): ProposalKeyword[] {
     adGroup.keywords,
     adGroup.keywordIdeas,
     adGroup.keywordsUsed,
+    adGroup.topKeywords,
   ].find((keywords): keywords is ProposalKeyword[] => Array.isArray(keywords) && keywords.length > 0);
 
   if (keywordRows) return keywordRows.filter((keyword) => keyword?.text?.trim());
@@ -97,6 +101,7 @@ function parseCsvLine(line: string): string[] {
 }
 
 export function buildCampaignProposalCsv(proposal: { proposedCampaigns?: ProposedCampaign[] }): string {
+  const normalizedProposal = normalizeCampaignProposalKeywords(proposal);
   const headers = [
     "Proposed Campaign", "Proposed Ad Group", "Keyword", "Monthly Searches", "Proposed Landing Page",
     "Current Campaign", "Current Ad Group", "Clicks", "Impressions",
@@ -104,7 +109,7 @@ export function buildCampaignProposalCsv(proposal: { proposedCampaigns?: Propose
   ];
   const rows: string[] = [headers.join(",")];
 
-  for (const campaign of proposal.proposedCampaigns || []) {
+  for (const campaign of normalizedProposal.proposedCampaigns || []) {
     for (const adGroup of campaign.adGroups || []) {
       for (const keyword of getExportKeywords(adGroup)) {
         const mapped = keyword.existingCampaign || keyword.existingAdGroup;
