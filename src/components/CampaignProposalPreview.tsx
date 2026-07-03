@@ -657,6 +657,8 @@ const CampaignProposalPreviewInner = () => {
       {activeTab === 'summary' && <SummaryView proposal={proposal} selectedCampaigns={selectedCampaigns} stats={selectedStats} />}
       {activeTab === 'email' && (
         <EmailEditorView
+          auditId={id}
+          clientName={proposal.businessName || 'Client'}
           emailHtml={currentHtml}
           onHtmlChange={setEditableHtml}
         />
@@ -1145,14 +1147,20 @@ function SummaryView({
 // ---------------------------------------------------------------------------
 
 function EmailEditorView({
+  auditId,
+  clientName,
   emailHtml,
   onHtmlChange,
 }: {
+  auditId: string | number | undefined
+  clientName: string
   emailHtml: string
   onHtmlChange: (html: string) => void
 }) {
   const [copied, setCopied] = useState(false)
   const [showSource, setShowSource] = useState(false)
+  const [draftStatus, setDraftStatus] = useState<{ type: 'success' | 'error'; message: string; gmailUrl?: string } | null>(null)
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false)
 
   const handleCopy = useCallback(async () => {
     if (!emailHtml) return
@@ -1172,6 +1180,41 @@ function EmailEditorView({
     }
   }, [emailHtml])
 
+  const handleCreateGmailDraft = useCallback(async () => {
+    if (!emailHtml || !auditId) return
+
+    setIsCreatingDraft(true)
+    setDraftStatus(null)
+
+    try {
+      const res = await fetch(`/api/google-ads-audits/${auditId}/gmail-draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ htmlBody: emailHtml }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string; reason?: string; gmailUrl?: string; subject?: string }
+
+      if (!res.ok) {
+        const detail = data.reason || data.error || res.statusText
+        throw new Error(detail === 'gmail-not-connected' ? 'Connect Gmail first, then try again.' : detail)
+      }
+
+      setDraftStatus({
+        type: 'success',
+        message: `Draft created in Gmail: ${data.subject || `[${clientName}] campaign structure proposal`}`,
+        gmailUrl: data.gmailUrl,
+      })
+    } catch (err) {
+      setDraftStatus({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to create Gmail draft.',
+      })
+    } finally {
+      setIsCreatingDraft(false)
+    }
+  }, [auditId, clientName, emailHtml])
+
   if (!emailHtml) {
     return (
       <div style={{ color: '#9ca3af', fontSize: 13, padding: 16 }}>No email HTML generated yet.</div>
@@ -1190,14 +1233,48 @@ function EmailEditorView({
             {showSource ? 'Preview' : 'Edit HTML'}
           </button>
         </div>
-        <button
-          type="button"
-          onClick={handleCopy}
-          style={btnStyle(copied ? '#16a34a' : '#374151')}
-        >
-          {copied ? 'Copied!' : 'Copy HTML'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleCreateGmailDraft}
+            disabled={isCreatingDraft || !auditId}
+            style={btnStyle(isCreatingDraft ? '#94a3b8' : '#0f766e')}
+          >
+            {isCreatingDraft ? 'Creating Draft...' : 'Send to Gmail Draft'}
+          </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            style={btnStyle(copied ? '#16a34a' : '#374151')}
+          >
+            {copied ? 'Copied!' : 'Copy HTML'}
+          </button>
+        </div>
       </div>
+
+      {draftStatus && (
+        <div
+          style={{
+            padding: '8px 12px',
+            marginBottom: 12,
+            borderRadius: 6,
+            fontSize: 13,
+            background: draftStatus.type === 'success' ? '#ecfdf5' : '#fee2e2',
+            color: draftStatus.type === 'success' ? '#065f46' : '#991b1b',
+            border: `1px solid ${draftStatus.type === 'success' ? '#a7f3d0' : '#fecaca'}`,
+          }}
+        >
+          {draftStatus.message}
+          {draftStatus.gmailUrl && (
+            <>
+              {' '}
+              <a href={draftStatus.gmailUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>
+                Open draft
+              </a>
+            </>
+          )}
+        </div>
+      )}
 
       {showSource ? (
         <textarea
