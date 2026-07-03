@@ -45,6 +45,11 @@ export async function callXaiGrok(
     ...toCodex(opts, providerModel, { reasoningMode: (opts.reasoningMode ?? "off") as ReasoningMode }),
     stream: false,
   };
+  // Unlike the Codex backend, the grok-cli proxy rejects Codex-only reasoning
+  // request fields. Keep the shared Responses input shape, but strip reasoning
+  // controls here so Codex behaviour remains unchanged.
+  delete body.reasoning;
+  delete body.reasoningEffort;
   // Unlike the Codex backend, the grok-cli proxy 400s when `tool_choice` is set
   // but no tools are supplied. Drop the tool-routing fields when there are no
   // tools so plain chat/probe turns are accepted.

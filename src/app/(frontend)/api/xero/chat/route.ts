@@ -496,7 +496,9 @@ export async function POST(req: NextRequest) {
   try {
     const settings = await getOptiMateDefaultModels(payload);
     const selectedModel =
-      settings.invoiceAssistantModel ?? settings.defaultAutonomousModel;
+      resolveRequestedModel(body.model) ??
+      settings.invoiceAssistantModel ??
+      settings.defaultAutonomousModel;
 
     const pinnedMemory = await loadPinnedMemoryBlock([], { includePinnedFacts: false, soulAgentKeys: ["invoice", "invoicemate", "xero"] });
     const memoryBlock = pinnedMemory.text.trim()
