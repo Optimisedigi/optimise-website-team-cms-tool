@@ -2,7 +2,11 @@
 
 import { useAllFormFields, useDocumentInfo } from '@payloadcms/ui'
 import { useState, useCallback, useMemo } from 'react'
-import { buildCampaignProposalCsv, buildImportedCampaignsFromCsv } from '@/lib/campaign-proposal-csv'
+import {
+  buildCampaignProposalCsv,
+  buildImportedCampaignsFromCsv,
+} from '@/lib/campaign-proposal-csv'
+import { buildCampaignProposalEmailHtml } from '@/lib/campaign-proposal-email'
 
 // ---------------------------------------------------------------------------
 // Types (mirror the Growth Tools CampaignProposalResults shape)
@@ -80,8 +84,17 @@ interface ProposalCompetitor {
 
 interface AccountMismatch {
   servicesNotAdvertised: Array<{ pageUrl: string; pageTitle: string; estimatedVolume: number }>
-  adGroupsWithBadLandingPages: Array<{ adGroupName: string; campaignName: string; currentUrl: string; issue: string }>
-  brandGenericMixed: Array<{ campaignName: string; brandKeywords: string[]; genericKeywords: string[] }>
+  adGroupsWithBadLandingPages: Array<{
+    adGroupName: string
+    campaignName: string
+    currentUrl: string
+    issue: string
+  }>
+  brandGenericMixed: Array<{
+    campaignName: string
+    brandKeywords: string[]
+    genericKeywords: string[]
+  }>
 }
 
 interface LandingPageToCreate {
@@ -164,11 +177,20 @@ const styles = {
     marginBottom: 20,
   } as React.CSSProperties,
   header: { fontSize: 16, fontWeight: 600, margin: '0 0 12px' } as React.CSSProperties,
-  sectionHeader: { fontSize: 15, fontWeight: 600, margin: '16px 0 8px', color: '#1e293b' } as React.CSSProperties,
+  sectionHeader: {
+    fontSize: 15,
+    fontWeight: 600,
+    margin: '16px 0 8px',
+    color: '#1e293b',
+  } as React.CSSProperties,
   body: { fontSize: 13, color: '#374151', lineHeight: 1.6 } as React.CSSProperties,
   muted: { fontSize: 12, color: '#6b7280' } as React.CSSProperties,
   link: { color: '#2563eb', textDecoration: 'none' } as React.CSSProperties,
-  table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 } as React.CSSProperties,
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse' as const,
+    fontSize: 13,
+  } as React.CSSProperties,
   th: {
     padding: '8px 12px',
     borderBottom: '2px solid #e5e7eb',
@@ -179,8 +201,17 @@ const styles = {
     textTransform: 'uppercase' as const,
   } as React.CSSProperties,
   td: { padding: '8px 12px', borderBottom: '1px solid #e5e7eb' } as React.CSSProperties,
-  tdEven: { padding: '8px 12px', borderBottom: '1px solid #e5e7eb', background: '#f8fafc' } as React.CSSProperties,
-  checkbox: { width: 16, height: 16, cursor: 'pointer', accentColor: '#2563eb' } as React.CSSProperties,
+  tdEven: {
+    padding: '8px 12px',
+    borderBottom: '1px solid #e5e7eb',
+    background: '#f8fafc',
+  } as React.CSSProperties,
+  checkbox: {
+    width: 16,
+    height: 16,
+    cursor: 'pointer',
+    accentColor: '#2563eb',
+  } as React.CSSProperties,
 }
 
 const badgeBase: React.CSSProperties = {
@@ -342,8 +373,13 @@ const CampaignProposalPreviewInner = () => {
     proposal ? buildInitialSelection(proposal) : {},
   )
 
-  // Initialize editable HTML from email when first available
-  const currentHtml = editableHtml ?? emailHtml ?? ''
+  const generatedProposalEmailHtml = useMemo(
+    () => (proposal ? buildCampaignProposalEmailHtml(proposal) : ''),
+    [proposal],
+  )
+
+  // Use the live proposal structure for the email view so imported CSV changes are reflected immediately.
+  const currentHtml = editableHtml ?? generatedProposalEmailHtml ?? emailHtml ?? ''
 
   // Selected campaigns for summary/email
   const selectedCampaigns = useMemo(
@@ -422,13 +458,15 @@ const CampaignProposalPreviewInner = () => {
     const rows: string[] = [headers.join(',')]
 
     for (const neg of proposal.recommendedNegatives) {
-      rows.push([
-        escapeCsvValue(neg.phrase),
-        neg.matchType,
-        neg.scope,
-        escapeCsvValue(neg.campaign || ''),
-        escapeCsvValue(neg.reason),
-      ].join(','))
+      rows.push(
+        [
+          escapeCsvValue(neg.phrase),
+          neg.matchType,
+          neg.scope,
+          escapeCsvValue(neg.campaign || ''),
+          escapeCsvValue(neg.reason),
+        ].join(','),
+      )
     }
 
     const name = (proposal.businessName || 'export').replace(/[^a-z0-9]/gi, '-').slice(0, 40)
@@ -458,26 +496,48 @@ const CampaignProposalPreviewInner = () => {
 
         const importedCampaigns = buildImportedCampaignsFromCsv(csvContent)
         const totalCampaigns = importedCampaigns.length
-        const totalAdGroups = importedCampaigns.reduce((sum, campaign) => sum + campaign.adGroups.length, 0)
+        const totalAdGroups = importedCampaigns.reduce(
+          (sum, campaign) => sum + campaign.adGroups.length,
+          0,
+        )
         const totalKeywords = importedCampaigns.reduce(
-          (sum, campaign) => sum + campaign.adGroups.reduce((adGroupSum, adGroup) => adGroupSum + adGroup.keywords.length, 0),
+          (sum, campaign) =>
+            sum +
+            campaign.adGroups.reduce(
+              (adGroupSum, adGroup) => adGroupSum + adGroup.keywords.length,
+              0,
+            ),
           0,
         )
 
         if (totalAdGroups === 0) {
-          setImportStatus('Error: No valid rows found. Check that your CSV has Proposed Campaign and Proposed Ad Group columns.')
+          setImportStatus(
+            'Error: No valid rows found. Check that your CSV has Proposed Campaign and Proposed Ad Group columns.',
+          )
           return
         }
 
-        setImportStatus(`Parsed: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Saving...`)
+        setImportStatus(
+          `Parsed: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Saving...`,
+        )
 
         // Merge into existing proposal (keep metadata like discoveredPages, competitors)
         // or create a minimal proposal shell if none exists
         const updatedProposal = proposal
           ? { ...proposal, proposedCampaigns: importedCampaigns }
-          : { proposedCampaigns: importedCampaigns, discoveredPages: [], competitors: [], landingPagesToCreate: [], landingPagesToImprove: [], structureComparison: [], priorityRanking: [] }
+          : {
+              proposedCampaigns: importedCampaigns,
+              discoveredPages: [],
+              competitors: [],
+              landingPagesToCreate: [],
+              landingPagesToImprove: [],
+              structureComparison: [],
+              priorityRanking: [],
+            }
 
-        // Save to CMS via PATCH — update both campaignProposal (for UI) and approvedCampaignStructure (for reference)
+        const updatedEmailHtml = buildCampaignProposalEmailHtml(updatedProposal)
+
+        // Save to CMS via PATCH — update structure, approved structure, and the email preview/draft HTML together
         const res = await fetch(`/api/google-ads-audits/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -486,11 +546,15 @@ const CampaignProposalPreviewInner = () => {
             campaignProposalStatus: 'approved',
             campaignProposal: updatedProposal,
             approvedCampaignStructure: importedCampaigns,
+            campaignProposalEmailHtml: updatedEmailHtml,
           }),
         })
 
         if (res.ok) {
-          setImportStatus(`Saved: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Status set to Approved. Refresh the page to see updated structure.`)
+          setEditableHtml(updatedEmailHtml)
+          setImportStatus(
+            `Saved: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Email preview updated with the approved CSV structure.`,
+          )
         } else {
           const err = await res.json().catch(() => ({}))
           setImportStatus(`Error saving: ${(err as any).message || res.statusText}`)
@@ -527,14 +591,35 @@ const CampaignProposalPreviewInner = () => {
   return (
     <div style={styles.container}>
       {/* Tab bar */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #e5e7eb', marginBottom: 16, flexWrap: 'wrap', gap: 4 }}>
-        <button type="button" style={tabStyle(activeTab === 'structure')} onClick={() => setActiveTab('structure')}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          borderBottom: '1px solid #e5e7eb',
+          marginBottom: 16,
+          flexWrap: 'wrap',
+          gap: 4,
+        }}
+      >
+        <button
+          type="button"
+          style={tabStyle(activeTab === 'structure')}
+          onClick={() => setActiveTab('structure')}
+        >
           Campaign Structure
         </button>
-        <button type="button" style={tabStyle(activeTab === 'summary')} onClick={() => setActiveTab('summary')}>
+        <button
+          type="button"
+          style={tabStyle(activeTab === 'summary')}
+          onClick={() => setActiveTab('summary')}
+        >
           Client Summary
         </button>
-        <button type="button" style={tabStyle(activeTab === 'email')} onClick={() => setActiveTab('email')}>
+        <button
+          type="button"
+          style={tabStyle(activeTab === 'email')}
+          onClick={() => setActiveTab('email')}
+        >
           Email Editor
         </button>
         <div style={{ flex: 1 }} />
@@ -561,19 +646,41 @@ const CampaignProposalPreviewInner = () => {
         <button
           type="button"
           onClick={() => setShowImportFormat(!showImportFormat)}
-          style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 12, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#2563eb',
+            fontSize: 12,
+            cursor: 'pointer',
+            padding: 0,
+            textDecoration: 'underline',
+          }}
         >
           {showImportFormat ? 'Hide' : 'Show'} required CSV format for import
         </button>
         {showImportFormat && (
-          <div style={{ marginTop: 8, padding: '10px 14px', background: '#f1f5f9', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, lineHeight: 1.7 }}>
+          <div
+            style={{
+              marginTop: 8,
+              padding: '10px 14px',
+              background: '#f1f5f9',
+              borderRadius: 6,
+              border: '1px solid #e2e8f0',
+              fontSize: 12,
+              lineHeight: 1.7,
+            }}
+          >
             <strong style={{ fontSize: 13 }}>CSV columns (in this order):</strong>
             <table style={{ marginTop: 6, borderCollapse: 'collapse', width: '100%' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
                   <th style={{ textAlign: 'left', padding: '3px 8px', color: '#475569' }}>#</th>
-                  <th style={{ textAlign: 'left', padding: '3px 8px', color: '#475569' }}>Column</th>
-                  <th style={{ textAlign: 'left', padding: '3px 8px', color: '#475569' }}>Used on import</th>
+                  <th style={{ textAlign: 'left', padding: '3px 8px', color: '#475569' }}>
+                    Column
+                  </th>
+                  <th style={{ textAlign: 'left', padding: '3px 8px', color: '#475569' }}>
+                    Used on import
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -595,13 +702,21 @@ const CampaignProposalPreviewInner = () => {
                   <tr key={num} style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '3px 8px', color: '#94a3b8' }}>{num}</td>
                     <td style={{ padding: '3px 8px', fontFamily: 'monospace' }}>{col}</td>
-                    <td style={{ padding: '3px 8px', color: used.startsWith('Yes') ? '#059669' : '#94a3b8' }}>{used}</td>
+                    <td
+                      style={{
+                        padding: '3px 8px',
+                        color: used.startsWith('Yes') ? '#059669' : '#94a3b8',
+                      }}
+                    >
+                      {used}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p style={{ marginTop: 8, color: '#64748b' }}>
-              Tip: Export the CSV first, edit it (move keywords, rename campaigns, remove rows), then import it back. Columns 5-11 are for reference only and are ignored on import.
+              Tip: Export the CSV first, edit it (move keywords, rename campaigns, remove rows),
+              then import it back. Columns 5-11 are for reference only and are ignored on import.
             </p>
           </div>
         )}
@@ -609,12 +724,17 @@ const CampaignProposalPreviewInner = () => {
 
       {/* Import status */}
       {importStatus && (
-        <div style={{
-          padding: '8px 12px', marginBottom: 12, borderRadius: 6, fontSize: 13,
-          background: importStatus.startsWith('Error') ? '#fee2e2' : '#ecfdf5',
-          color: importStatus.startsWith('Error') ? '#991b1b' : '#065f46',
-          border: `1px solid ${importStatus.startsWith('Error') ? '#fecaca' : '#a7f3d0'}`,
-        }}>
+        <div
+          style={{
+            padding: '8px 12px',
+            marginBottom: 12,
+            borderRadius: 6,
+            fontSize: 13,
+            background: importStatus.startsWith('Error') ? '#fee2e2' : '#ecfdf5',
+            color: importStatus.startsWith('Error') ? '#991b1b' : '#065f46',
+            border: `1px solid ${importStatus.startsWith('Error') ? '#fecaca' : '#a7f3d0'}`,
+          }}
+        >
           {importStatus}
         </div>
       )}
@@ -654,7 +774,13 @@ const CampaignProposalPreviewInner = () => {
           proposalCompetitorKeywords={proposalCompetitorKeywords}
         />
       )}
-      {activeTab === 'summary' && <SummaryView proposal={proposal} selectedCampaigns={selectedCampaigns} stats={selectedStats} />}
+      {activeTab === 'summary' && (
+        <SummaryView
+          proposal={proposal}
+          selectedCampaigns={selectedCampaigns}
+          stats={selectedStats}
+        />
+      )}
       {activeTab === 'email' && (
         <EmailEditorView
           auditId={id}
@@ -689,13 +815,15 @@ function StructureView({
   return (
     <div style={styles.body}>
       <p style={{ ...styles.muted, marginBottom: 12 }}>
-        Use checkboxes to select which campaigns and ad groups to include in the client summary and email.
-        Deselected items will be excluded.
+        Use checkboxes to select which campaigns and ad groups to include in the client summary and
+        email. Deselected items will be excluded.
       </p>
 
       {proposal.proposedCampaigns.map((campaign, ci) => {
         const campaignChecked = !!selection[`c${ci}`]
-        const checkedCount = campaign.adGroups.filter((_, agi) => selection[`c${ci}-ag${agi}`]).length
+        const checkedCount = campaign.adGroups.filter(
+          (_, agi) => selection[`c${ci}-ag${agi}`],
+        ).length
         const allChecked = checkedCount === campaign.adGroups.length
         const someChecked = checkedCount > 0 && !allChecked
 
@@ -776,13 +904,17 @@ function StructureView({
                       <summary style={{ cursor: 'pointer', fontSize: 12, color: '#6b7280' }}>
                         {ag.keywords.length} keywords
                       </summary>
-                      <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4, lineHeight: 1.8 }}>
+                      <div
+                        style={{ fontSize: 12, color: '#6b7280', marginTop: 4, lineHeight: 1.8 }}
+                      >
                         {ag.keywords
                           .sort((a, b) => b.monthlySearchVolume - a.monthlySearchVolume)
                           .map((kw, ki) => (
                             <span key={ki} style={{ marginRight: 12, whiteSpace: 'nowrap' }}>
                               {kw.text}{' '}
-                              <strong style={{ color: '#334155' }}>({fmt(kw.monthlySearchVolume)})</strong>
+                              <strong style={{ color: '#334155' }}>
+                                ({fmt(kw.monthlySearchVolume)})
+                              </strong>
                               {ki < ag.keywords.length - 1 ? ',' : ''}
                             </span>
                           ))}
@@ -826,11 +958,17 @@ function StructureView({
                         )}
                         {row.currentAdGroup && <div>{row.currentAdGroup}</div>}
                         {row.currentLandingPage && (
-                          <div style={{ color: '#6b7280', fontSize: 11 }}>{row.currentLandingPage}</div>
+                          <div style={{ color: '#6b7280', fontSize: 11 }}>
+                            {row.currentLandingPage}
+                          </div>
                         )}
                       </div>
                     </td>
-                    <td style={{ ...styles.td, textAlign: 'center', fontSize: 16, color: '#9ca3af' }}>&#8594;</td>
+                    <td
+                      style={{ ...styles.td, textAlign: 'center', fontSize: 16, color: '#9ca3af' }}
+                    >
+                      &#8594;
+                    </td>
                     <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
                       <div style={{ fontSize: 12 }}>
                         {row.proposedCampaign && (
@@ -840,7 +978,9 @@ function StructureView({
                         )}
                         {row.proposedAdGroup && <div>{row.proposedAdGroup}</div>}
                         {row.proposedLandingPage && (
-                          <div style={{ color: '#6b7280', fontSize: 11 }}>{row.proposedLandingPage}</div>
+                          <div style={{ color: '#6b7280', fontSize: 11 }}>
+                            {row.proposedLandingPage}
+                          </div>
                         )}
                       </div>
                     </td>
@@ -862,7 +1002,9 @@ function StructureView({
 
           {(proposal.mismatchAnalysis.servicesNotAdvertised?.length ?? 0) > 0 && (
             <details style={{ marginBottom: 8 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#991b1b' }}>
+              <summary
+                style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#991b1b' }}
+              >
                 Services Not Advertised ({proposal.mismatchAnalysis.servicesNotAdvertised.length})
               </summary>
               <table style={{ ...styles.table, marginTop: 4 }}>
@@ -876,7 +1018,12 @@ function StructureView({
                   {proposal.mismatchAnalysis.servicesNotAdvertised.map((s, i) => (
                     <tr key={i}>
                       <td style={styles.td}>
-                        <a href={s.pageUrl} target="_blank" rel="noopener noreferrer" style={styles.link}>
+                        <a
+                          href={s.pageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={styles.link}
+                        >
                           {s.pageTitle}
                         </a>
                       </td>
@@ -890,7 +1037,9 @@ function StructureView({
 
           {(proposal.mismatchAnalysis.adGroupsWithBadLandingPages?.length ?? 0) > 0 && (
             <details style={{ marginBottom: 8 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+              <summary
+                style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#92400e' }}
+              >
                 Bad Landing Pages ({proposal.mismatchAnalysis.adGroupsWithBadLandingPages.length})
               </summary>
               <table style={{ ...styles.table, marginTop: 4 }}>
@@ -916,13 +1065,21 @@ function StructureView({
 
           {(proposal.mismatchAnalysis.brandGenericMixed?.length ?? 0) > 0 && (
             <details>
-              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+              <summary
+                style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#92400e' }}
+              >
                 Brand/Generic Mixed ({proposal.mismatchAnalysis.brandGenericMixed.length})
               </summary>
               {proposal.mismatchAnalysis.brandGenericMixed.map((m, i) => (
                 <div
                   key={i}
-                  style={{ padding: 8, marginTop: 4, background: '#fef3c7', borderRadius: 6, fontSize: 12 }}
+                  style={{
+                    padding: 8,
+                    marginTop: 4,
+                    background: '#fef3c7',
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
                 >
                   <strong>{m.campaignName}</strong>
                   <div>Brand: {m.brandKeywords.join(', ')}</div>
@@ -942,7 +1099,10 @@ function StructureView({
           </summary>
           {proposalCompetitorKeywords.length > 0 && (
             <p style={styles.muted}>
-              Keywords used: {proposalCompetitorKeywords.map((kw) => `${kw.text} (${fmt(kw.monthlySearchVolume)})`).join(', ')}
+              Keywords used:{' '}
+              {proposalCompetitorKeywords
+                .map((kw) => `${kw.text} (${fmt(kw.monthlySearchVolume)})`)
+                .join(', ')}
             </p>
           )}
           <table style={{ ...styles.table, marginTop: 8 }}>
@@ -963,7 +1123,9 @@ function StructureView({
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.source || 'generated'}</td>
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{formatMonthlyVisits(c)}</td>
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.overlappingKeywords}</td>
-                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{Number(c.averagePosition || 0).toFixed(1)}</td>
+                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
+                    {Number(c.averagePosition || 0).toFixed(1)}
+                  </td>
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
                     {c.isRunningAds ? 'Yes' : 'No'}
                     {c.adCopyCount ? ` (${c.adCopyCount} ads)` : ''}
@@ -995,7 +1157,9 @@ function StructureView({
                 <tr key={i}>
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.domain}</td>
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.overlappingKeywords}</td>
-                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.averagePosition.toFixed(1)}</td>
+                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
+                    {c.averagePosition.toFixed(1)}
+                  </td>
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
                     {c.isRunningAds ? 'Yes' : 'No'}
                     {c.adCopyCount ? ` (${c.adCopyCount} ads)` : ''}
@@ -1021,14 +1185,32 @@ function SummaryView({
 }: {
   proposal: CampaignProposalData
   selectedCampaigns: ProposedCampaign[]
-  stats: { totalCampaigns: number; totalAdGroups: number; totalVolume: number; uniqueLandingPages: number }
+  stats: {
+    totalCampaigns: number
+    totalAdGroups: number
+    totalVolume: number
+    uniqueLandingPages: number
+  }
 }) {
   const generatedDate = proposal.createdAt
-    ? new Date(proposal.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(proposal.createdAt).toLocaleDateString('en-AU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
     : ''
 
   return (
-    <div style={{ background: '#fff', padding: 24, borderRadius: 8, color: '#1e293b', lineHeight: 1.7, fontSize: 14 }}>
+    <div
+      style={{
+        background: '#fff',
+        padding: 24,
+        borderRadius: 8,
+        color: '#1e293b',
+        lineHeight: 1.7,
+        fontSize: 14,
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <button type="button" onClick={() => window.print()} style={btnStyle('#374151')}>
           Print
@@ -1072,7 +1254,9 @@ function SummaryView({
       <section style={{ marginBottom: 20 }}>
         <h4 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>Proposed Structure</h4>
         {selectedCampaigns.length === 0 ? (
-          <p style={{ color: '#9ca3af' }}>No campaigns selected. Go to Campaign Structure tab to select items.</p>
+          <p style={{ color: '#9ca3af' }}>
+            No campaigns selected. Go to Campaign Structure tab to select items.
+          </p>
         ) : (
           <table style={styles.table}>
             <thead>
@@ -1092,10 +1276,14 @@ function SummaryView({
                     <td style={styles.td}>{ag.name}</td>
                     <td style={styles.td}>{fmt(ag.totalMonthlyVolume)}</td>
                     <td style={styles.td}>
-                      {ag.landingPage.url ? ag.landingPage.url.replace(/^https?:\/\//, '').slice(0, 40) : '(create)'}
+                      {ag.landingPage.url
+                        ? ag.landingPage.url.replace(/^https?:\/\//, '').slice(0, 40)
+                        : '(create)'}
                     </td>
                     <td style={styles.td}>
-                      <span style={statusBadge(ag.landingPage.status)}>{ag.landingPage.status}</span>
+                      <span style={statusBadge(ag.landingPage.status)}>
+                        {ag.landingPage.status}
+                      </span>
                     </td>
                   </tr>
                 )),
@@ -1106,17 +1294,23 @@ function SummaryView({
       </section>
 
       {/* Landing Page Recommendations */}
-      {((proposal.landingPagesToCreate?.length ?? 0) > 0 || (proposal.landingPagesToImprove?.length ?? 0) > 0) && (
+      {((proposal.landingPagesToCreate?.length ?? 0) > 0 ||
+        (proposal.landingPagesToImprove?.length ?? 0) > 0) && (
         <section style={{ marginBottom: 20 }}>
-          <h4 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>Landing Page Recommendations</h4>
+          <h4 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>
+            Landing Page Recommendations
+          </h4>
 
           {(proposal.landingPagesToCreate?.length ?? 0) > 0 && (
             <>
-              <h5 style={{ fontSize: 14, fontWeight: 600, margin: '8px 0', color: '#991b1b' }}>Pages to Create</h5>
+              <h5 style={{ fontSize: 14, fontWeight: 600, margin: '8px 0', color: '#991b1b' }}>
+                Pages to Create
+              </h5>
               <ul style={{ margin: 0, paddingLeft: 20 }}>
                 {proposal.landingPagesToCreate.map((lp, i) => (
                   <li key={i} style={{ marginBottom: 4 }}>
-                    <strong>{lp.suggestedPath}</strong> -- {lp.targetService}, {fmt(lp.monthlyVolume)} vol/mo
+                    <strong>{lp.suggestedPath}</strong> -- {lp.targetService},{' '}
+                    {fmt(lp.monthlyVolume)} vol/mo
                   </li>
                 ))}
               </ul>
@@ -1125,11 +1319,14 @@ function SummaryView({
 
           {(proposal.landingPagesToImprove?.length ?? 0) > 0 && (
             <>
-              <h5 style={{ fontSize: 14, fontWeight: 600, margin: '12px 0 8px', color: '#92400e' }}>Pages to Improve</h5>
+              <h5 style={{ fontSize: 14, fontWeight: 600, margin: '12px 0 8px', color: '#92400e' }}>
+                Pages to Improve
+              </h5>
               <ul style={{ margin: 0, paddingLeft: 20 }}>
                 {proposal.landingPagesToImprove.map((lp, i) => (
                   <li key={i} style={{ marginBottom: 4 }}>
-                    <strong>{lp.url.replace(/^https?:\/\//, '')}</strong> -- CRO score {lp.croScore}/100
+                    <strong>{lp.url.replace(/^https?:\/\//, '')}</strong> -- CRO score {lp.croScore}
+                    /100
                     {(lp.issues?.length ?? 0) > 0 && ` (${lp.issues.join(', ')})`}
                   </li>
                 ))}
@@ -1159,7 +1356,11 @@ function EmailEditorView({
 }) {
   const [copied, setCopied] = useState(false)
   const [showSource, setShowSource] = useState(false)
-  const [draftStatus, setDraftStatus] = useState<{ type: 'success' | 'error'; message: string; gmailUrl?: string } | null>(null)
+  const [draftStatus, setDraftStatus] = useState<{
+    type: 'success' | 'error'
+    message: string
+    gmailUrl?: string
+  } | null>(null)
   const [isCreatingDraft, setIsCreatingDraft] = useState(false)
 
   const handleCopy = useCallback(async () => {
@@ -1193,11 +1394,18 @@ function EmailEditorView({
         credentials: 'include',
         body: JSON.stringify({ htmlBody: emailHtml }),
       })
-      const data = await res.json().catch(() => ({})) as { error?: string; reason?: string; gmailUrl?: string; subject?: string }
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        reason?: string
+        gmailUrl?: string
+        subject?: string
+      }
 
       if (!res.ok) {
         const detail = data.reason || data.error || res.statusText
-        throw new Error(detail === 'gmail-not-connected' ? 'Connect Gmail first, then try again.' : detail)
+        throw new Error(
+          detail === 'gmail-not-connected' ? 'Connect Gmail first, then try again.' : detail,
+        )
       }
 
       setDraftStatus({
@@ -1217,13 +1425,24 @@ function EmailEditorView({
 
   if (!emailHtml) {
     return (
-      <div style={{ color: '#9ca3af', fontSize: 13, padding: 16 }}>No email HTML generated yet.</div>
+      <div style={{ color: '#9ca3af', fontSize: 13, padding: 16 }}>
+        No email HTML generated yet.
+      </div>
     )
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+          flexWrap: 'wrap',
+          gap: 8,
+        }}
+      >
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             type="button"
@@ -1268,7 +1487,12 @@ function EmailEditorView({
           {draftStatus.gmailUrl && (
             <>
               {' '}
-              <a href={draftStatus.gmailUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>
+              <a
+                href={draftStatus.gmailUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: '#2563eb', fontWeight: 600 }}
+              >
                 Open draft
               </a>
             </>
@@ -1321,7 +1545,15 @@ const CampaignProposalPreview = () => {
 
   if (renderError) {
     return (
-      <div style={{ padding: 12, background: '#fee2e2', borderRadius: 6, fontSize: 13, color: '#991b1b' }}>
+      <div
+        style={{
+          padding: 12,
+          background: '#fee2e2',
+          borderRadius: 6,
+          fontSize: 13,
+          color: '#991b1b',
+        }}
+      >
         Campaign Proposal Preview error: {renderError}
       </div>
     )
@@ -1333,7 +1565,15 @@ const CampaignProposalPreview = () => {
     const msg = err instanceof Error ? err.message : String(err)
     if (!renderError) setRenderError(msg)
     return (
-      <div style={{ padding: 12, background: '#fee2e2', borderRadius: 6, fontSize: 13, color: '#991b1b' }}>
+      <div
+        style={{
+          padding: 12,
+          background: '#fee2e2',
+          borderRadius: 6,
+          fontSize: 13,
+          color: '#991b1b',
+        }}
+      >
         Campaign Proposal Preview error: {msg}
       </div>
     )
