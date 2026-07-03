@@ -65,6 +65,10 @@ export interface AnthropicRequestBody {
   thinking?: { type: "disabled" } | { type: "adaptive" } | { type: "enabled"; budget_tokens: number };
 }
 
+function modelRejectsTemperature(providerModel: string): boolean {
+  return /^claude-/i.test(providerModel);
+}
+
 export function toAnthropic(
   opts: CallLLMOptions,
   providerModel: string,
@@ -160,7 +164,9 @@ export function toAnthropic(
     max_tokens: opts.maxTokens ?? 4096,
     messages,
   };
-  if (opts.temperature !== undefined) body.temperature = opts.temperature;
+  if (opts.temperature !== undefined && !modelRejectsTemperature(providerModel)) {
+    body.temperature = opts.temperature;
+  }
 
   // Build the system array.  Three shapes:
   //   1. OAuth + user system: [identity-prefix (uncached)] + [user system (cached)]

@@ -38,6 +38,9 @@ export async function callKimiCoding(
   const credential = auth.credential;
   const body: KimiRequestBody = toOpenAI(opts, credential.kimiModelId ?? providerModel);
   body.prompt_cache_key = PROMPT_CACHE_KEY;
+  // Kimi For Coding rejects arbitrary temperatures; if a caller supplied one
+  // through the shared LLM options, normalize it to the only accepted value.
+  if (body.temperature !== undefined) body.temperature = 0.6;
   applyReasoning(body, opts.reasoningMode);
 
   const json = await withRetry(async () => {
