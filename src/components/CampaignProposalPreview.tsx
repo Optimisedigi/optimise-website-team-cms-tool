@@ -2,6 +2,7 @@
 
 import { useAllFormFields, useDocumentInfo } from '@payloadcms/ui'
 import { useState, useCallback, useMemo } from 'react'
+import { buildCampaignProposalCsv, buildImportedCampaignsFromCsv } from '@/lib/campaign-proposal-csv'
 
 // ---------------------------------------------------------------------------
 // Types (mirror the Growth Tools CampaignProposalResults shape)
@@ -234,6 +235,13 @@ function formatMonthlyVisits(competitor: ProposalCompetitor): string {
   return 'Traffic unavailable'
 }
 
+function escapeCsvValue(val: string) {
+  if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+    return `"${val.replace(/"/g, '""')}"`
+  }
+  return val
+}
+
 // ---------------------------------------------------------------------------
 // Tab bar
 // ---------------------------------------------------------------------------
@@ -398,48 +406,12 @@ const CampaignProposalPreviewInner = () => {
     URL.revokeObjectURL(url)
   }, [])
 
-  const escapeCsv = (val: string) => {
-    if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-      return `"${val.replace(/"/g, '""')}"`
-    }
-    return val
-  }
-
-  // CSV Export — one row per keyword with account mapping
+  // CSV Export — one row per keyword, or one ad-group row when no keywords are present
   const handleExportCSV = useCallback(() => {
     if (!proposal) return
 
-    const headers = [
-      'Proposed Campaign', 'Proposed Ad Group', 'Keyword', 'Proposed Landing Page',
-      'Current Campaign', 'Current Ad Group', 'Clicks', 'Impressions',
-      'Cost ($)', 'Conversions', 'Mapped', 'Landing Page Status',
-    ]
-    const rows: string[] = [headers.join(',')]
-
-    for (const campaign of proposal.proposedCampaigns) {
-      for (const ag of campaign.adGroups) {
-        for (const kw of (ag.keywords ?? [])) {
-          const mapped = kw.existingCampaign || kw.existingAdGroup
-          rows.push([
-            escapeCsv(campaign.name),
-            escapeCsv(ag.name),
-            escapeCsv(kw.text),
-            escapeCsv(ag.landingPage.url || ''),
-            escapeCsv(kw.existingCampaign || ''),
-            escapeCsv(kw.existingAdGroup || ''),
-            kw.existingClicks?.toString() || '',
-            kw.existingImpressions?.toString() || '',
-            kw.existingCost != null ? kw.existingCost.toFixed(2) : '',
-            kw.existingConversions?.toString() || '',
-            mapped ? 'Yes' : 'No',
-            escapeCsv(ag.landingPage.status),
-          ].join(','))
-        }
-      }
-    }
-
     const name = (proposal.businessName || 'export').replace(/[^a-z0-9]/gi, '-').slice(0, 40)
-    downloadCsv(rows.join('\n'), `campaign-proposal-${name}.csv`)
+    downloadCsv(buildCampaignProposalCsv(proposal), `campaign-proposal-${name}.csv`)
   }, [proposal, downloadCsv])
 
   // Negatives CSV Export
@@ -451,11 +423,11 @@ const CampaignProposalPreviewInner = () => {
 
     for (const neg of proposal.recommendedNegatives) {
       rows.push([
-        escapeCsv(neg.phrase),
+        escapeCsvValue(neg.phrase),
         neg.matchType,
         neg.scope,
-        escapeCsv(neg.campaign || ''),
-        escapeCsv(neg.reason),
+        escapeCsvValue(neg.campaign || ''),
+        escapeCsvValue(neg.reason),
       ].join(','))
     }
 
@@ -484,119 +456,20 @@ const CampaignProposalPreviewInner = () => {
         setImportStatus('Reading CSV...')
         const csvContent = await file.text()
 
-        // Parse CSV locally into campaign structure
-        const lines = csvContent.split('\n').filter((l) => l.trim())
-        if (lines.length < 2) {
-          setImportStatus('Error: CSV must have a header row and data rows')
-          return
-        }
+        const importedCampaigns = buildImportedCampaignsFromCsv(csvContent)
+        const totalCampaigns = importedCampaigns.length
+        const totalAdGroups = importedCampaigns.reduce((sum, campaign) => sum + campaign.adGroups.length, 0)
+        const totalKeywords = importedCampaigns.reduce(
+          (sum, campaign) => sum + campaign.adGroups.reduce((adGroupSum, adGroup) => adGroupSum + adGroup.keywords.length, 0),
+          0,
+        )
 
-        // Parse CSV fields (handles quoted fields)
-        function parseLine(line: string): string[] {
-          const fields: string[] = []
-          let current = ''
-          let inQuotes = false
-          for (let i = 0; i < line.length; i++) {
-            const ch = line[i]
-            if (inQuotes) {
-              if (ch === '"' && line[i + 1] === '"') { current += '"'; i++ }
-              else if (ch === '"') { inQuotes = false }
-              else { current += ch }
-            } else {
-              if (ch === '"') { inQuotes = true }
-              else if (ch === ',') { fields.push(current); current = '' }
-              else { current += ch }
-            }
-          }
-          fields.push(current)
-          return fields
-        }
-
-        type ImportedKeyword = {
-          text: string
-          existingCampaign: string
-          existingAdGroup: string
-          existingClicks: number
-          existingImpressions: number
-          existingCost: number
-          existingConversions: number
-        }
-        const campaignMap = new Map<string, Map<string, { keywords: ImportedKeyword[]; landingPage: string; status: string }>>()
-        for (const line of lines.slice(1)) {
-          const f = parseLine(line)
-          const camp = f[0]?.trim()
-          const ag = f[1]?.trim()
-          const kw = f[2]?.trim()
-          const lp = f[3]?.trim() || ''
-          const existingCamp = f[4]?.trim() || ''
-          const existingAg = f[5]?.trim() || ''
-          const clicks = parseFloat(f[6]) || 0
-          const impressions = parseFloat(f[7]) || 0
-          const cost = parseFloat(f[8]) || 0
-          const conversions = parseFloat(f[9]) || 0
-          const status = f[11]?.trim() || 'exists'
-          if (!camp || !ag || !kw) continue
-
-          if (!campaignMap.has(camp)) campaignMap.set(camp, new Map())
-          const agMap = campaignMap.get(camp)!
-          if (!agMap.has(ag)) agMap.set(ag, { keywords: [], landingPage: lp, status })
-          agMap.get(ag)!.keywords.push({
-            text: kw,
-            existingCampaign: existingCamp,
-            existingAdGroup: existingAg,
-            existingClicks: clicks,
-            existingImpressions: impressions,
-            existingCost: cost,
-            existingConversions: conversions,
-          })
-        }
-
-        const totalCampaigns = campaignMap.size
-        const totalAdGroups = Array.from(campaignMap.values()).reduce((s, m) => s + m.size, 0)
-        const totalKeywords = Array.from(campaignMap.values()).reduce((s, m) => {
-          for (const ag of m.values()) s += ag.keywords.length
-          return s
-        }, 0)
-
-        if (totalKeywords === 0) {
-          setImportStatus('Error: No valid rows found. Check that your CSV has columns: Campaign, Ad Group, Keyword, Landing Page (columns 1-4).')
+        if (totalAdGroups === 0) {
+          setImportStatus('Error: No valid rows found. Check that your CSV has Proposed Campaign and Proposed Ad Group columns.')
           return
         }
 
         setImportStatus(`Parsed: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Saving...`)
-
-        // Build proposedCampaigns in the shape the preview UI expects
-        const importedCampaigns = Array.from(campaignMap.entries()).map(([campName, agMap]) => ({
-          name: campName,
-          campaignType: campName.toLowerCase().includes('brand') ? 'brand' as const : 'generic' as const,
-          channelType: 'SEARCH' as const,
-          adGroups: Array.from(agMap.entries()).map(([agName, data]) => ({
-            name: agName,
-            theme: agName,
-            keywords: data.keywords.map((kw) => ({
-              text: kw.text,
-              matchType: 'PHRASE' as const,
-              monthlySearchVolume: 0,
-              competition: 'UNKNOWN',
-              competitionIndex: 0,
-              lowCpcMicros: 0,
-              highCpcMicros: 0,
-              ...(kw.existingCampaign ? { existingCampaign: kw.existingCampaign } : {}),
-              ...(kw.existingAdGroup ? { existingAdGroup: kw.existingAdGroup } : {}),
-              ...(kw.existingClicks ? { existingClicks: kw.existingClicks } : {}),
-              ...(kw.existingImpressions ? { existingImpressions: kw.existingImpressions } : {}),
-              ...(kw.existingCost ? { existingCost: kw.existingCost } : {}),
-              ...(kw.existingConversions ? { existingConversions: kw.existingConversions } : {}),
-            })),
-            totalMonthlyVolume: 0,
-            landingPage: {
-              url: data.landingPage || null,
-              status: (data.status || 'exists') as 'exists' | 'needs-improvement' | 'create',
-            },
-            sourcePageUrl: null,
-          })),
-          totalMonthlyVolume: 0,
-        }))
 
         // Merge into existing proposal (keep metadata like discoveredPages, competitors)
         // or create a minimal proposal shell if none exists
@@ -708,15 +581,16 @@ const CampaignProposalPreviewInner = () => {
                   ['1', 'Proposed Campaign', 'Yes — campaign name'],
                   ['2', 'Proposed Ad Group', 'Yes — ad group name'],
                   ['3', 'Keyword', 'Yes — keyword text'],
-                  ['4', 'Proposed Landing Page', 'Yes — landing page URL'],
-                  ['5', 'Current Campaign', 'No (reference only)'],
-                  ['6', 'Current Ad Group', 'No (reference only)'],
-                  ['7', 'Clicks', 'No (reference only)'],
-                  ['8', 'Impressions', 'No (reference only)'],
-                  ['9', 'Cost ($)', 'No (reference only)'],
-                  ['10', 'Conversions', 'No (reference only)'],
-                  ['11', 'Mapped', 'No (reference only)'],
-                  ['12', 'Landing Page Status', 'Yes — exists / needs-improvement / create'],
+                  ['4', 'Monthly Searches', 'Yes — keeps search volume after import'],
+                  ['5', 'Proposed Landing Page', 'Yes — landing page URL'],
+                  ['6', 'Current Campaign', 'No (reference only)'],
+                  ['7', 'Current Ad Group', 'No (reference only)'],
+                  ['8', 'Clicks', 'No (reference only)'],
+                  ['9', 'Impressions', 'No (reference only)'],
+                  ['10', 'Cost ($)', 'No (reference only)'],
+                  ['11', 'Conversions', 'No (reference only)'],
+                  ['12', 'Mapped', 'No (reference only)'],
+                  ['13', 'Landing Page Status', 'Yes — exists / needs-improvement / create'],
                 ].map(([num, col, used]) => (
                   <tr key={num} style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '3px 8px', color: '#94a3b8' }}>{num}</td>
