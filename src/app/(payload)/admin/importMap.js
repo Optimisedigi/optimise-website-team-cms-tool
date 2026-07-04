@@ -73,6 +73,7 @@ import { default as default_81632eb6d14ae90ef8820b753fa1481c } from '../../../co
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../components/MockupUpload'
 import { default as default_56b28aa1b7f83ad9678320a990503af7 } from '../../../components/KeywordResearchAutofill'
+import { default as default_9cd4c7b63c4660809e24cc71ebe72a8e } from '../../../components/CompetitorRowLabel'
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
 import { default as default_9f498ec9f8b81bcfa099e8cb7b777007 } from '../../../components/BackfillProposalReportDataButton'
 import { default as default_62cba30eadd5a2962ed9c8cc86b16246 } from '../../../components/RefreshProposalCompetitorTrafficButton'
@@ -275,6 +276,7 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/MockupUpload#default": default_da47157ebc74588a3650c3de3faf920e,
   "./components/KeywordResearchAutofill#default": default_56b28aa1b7f83ad9678320a990503af7,
+  "./components/CompetitorRowLabel#default": default_9cd4c7b63c4660809e24cc71ebe72a8e,
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
   "./components/BackfillProposalReportDataButton#default": default_9f498ec9f8b81bcfa099e8cb7b777007,
   "./components/RefreshProposalCompetitorTrafficButton#default": default_62cba30eadd5a2962ed9c8cc86b16246,

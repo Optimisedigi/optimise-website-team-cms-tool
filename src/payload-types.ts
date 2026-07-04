@@ -2200,7 +2200,7 @@ export interface ClientProposal {
    */
   overrideKeywordsFound?: number | null;
   /**
-   * Competitor businesses to benchmark against (up to 5)
+   * Competitor businesses to benchmark against (up to 10). Press “Add competitor” for a new row; each row collapses to a one-line summary and expands to edit.
    */
   competitors?:
     | {
@@ -2213,15 +2213,15 @@ export interface ClientProposal {
          */
         websiteUrl?: string | null;
         /**
-         * Manual monthly visits for this competitor. Shown on Audit Results and proposal slides before fetched traffic.
+         * Manual monthly visits. Shown on Audit Results and proposal slides before fetched traffic.
          */
         manualMonthlyVisits?: number | null;
         /**
-         * SERP-derived average organic position for this manual competitor.
+         * SERP-derived average organic position.
          */
         serpAveragePosition?: number | null;
         /**
-         * How many proposal keywords this manual competitor ranked for.
+         * How many proposal keywords this competitor ranked for.
          */
         serpKeywordsFound?: number | null;
         /**
@@ -2265,19 +2265,19 @@ export interface ClientProposal {
          */
         gbpRespondsToReviews?: boolean | null;
         /**
-         * Manual override: mark this competitor as running Google Ads (used by the v2 deck's Competitor Analysis + Paid Burn slides when the audit data is wrong or missing).
+         * Manual override for the v2 deck's Competitor Analysis + Paid Burn slides when audit data is wrong or missing.
          */
         hasGoogleAds?: boolean | null;
         /**
-         * Optional override for the Google Ads count shown on the Paid Burn slide. Leave blank to use audit data.
+         * Optional override for the Google Ads count on the Paid Burn slide. Blank = audit data.
          */
         googleAdCountOverride?: number | null;
         /**
-         * Manual override: mark this competitor as running Meta Ads (used by the v2 deck's Competitor Analysis + Paid Burn slides when the audit data is wrong or missing).
+         * Manual override for the v2 deck's Competitor Analysis + Paid Burn slides when audit data is wrong or missing.
          */
         hasMetaAds?: boolean | null;
         /**
-         * Optional override for the Meta Ads count shown on the Paid Burn slide. Leave blank to use audit data.
+         * Optional override for the Meta Ads count on the Paid Burn slide. Blank = audit data.
          */
         metaAdCountOverride?: number | null;
         /**

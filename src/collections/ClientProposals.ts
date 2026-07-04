@@ -1361,61 +1361,84 @@ export const ClientProposals: CollectionConfig = {
             {
               name: "competitors",
               type: "array",
-              maxRows: 5,
+              maxRows: 10,
               admin: {
-                description: "Competitor businesses to benchmark against (up to 5)",
+                description: "Competitor businesses to benchmark against (up to 10). Press “Add competitor” for a new row; each row collapses to a one-line summary and expands to edit.",
+                initCollapsed: true,
+                components: {
+                  RowLabel: "./components/CompetitorRowLabel",
+                },
               },
               fields: [
                 {
-                  name: "name",
-                  type: "text",
-                  required: true,
-                  admin: {
-                    description: "Competitor business name",
-                  },
+                  type: "row",
+                  fields: [
+                    {
+                      name: "name",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        width: "50%",
+                        description: "Competitor business name",
+                      },
+                    },
+                    {
+                      name: "websiteUrl",
+                      type: "text",
+                      admin: {
+                        width: "50%",
+                        description: "Competitor website URL",
+                      },
+                    },
+                  ],
                 },
                 {
-                  name: "websiteUrl",
-                  type: "text",
-                  admin: {
-                    description: "Competitor website URL",
-                  },
+                  type: "row",
+                  fields: [
+                    {
+                      name: "manualMonthlyVisits",
+                      label: "Monthly visits",
+                      type: "number",
+                      min: 0,
+                      admin: {
+                        width: "33%",
+                        description: "Manual monthly visits. Shown on Audit Results and proposal slides before fetched traffic.",
+                        step: 1,
+                      },
+                    },
+                    {
+                      name: "serpAveragePosition",
+                      label: "SERP avg. position",
+                      type: "number",
+                      min: 0,
+                      admin: {
+                        width: "33%",
+                        description: "SERP-derived average organic position.",
+                        step: 0.1,
+                      },
+                    },
+                    {
+                      name: "serpKeywordsFound",
+                      label: "SERP keywords found",
+                      type: "number",
+                      min: 0,
+                      admin: {
+                        width: "33%",
+                        description: "How many proposal keywords this competitor ranked for.",
+                        step: 1,
+                      },
+                    },
+                  ],
                 },
-                {
-                  name: "manualMonthlyVisits",
-                  label: "Monthly visits",
-                  type: "number",
-                  min: 0,
-                  admin: {
-                    description: "Manual monthly visits for this competitor. Shown on Audit Results and proposal slides before fetched traffic.",
-                    step: 1,
-                  },
-                },
-                {
-                  name: "serpAveragePosition",
-                  label: "SERP avg. position",
-                  type: "number",
-                  min: 0,
-                  admin: {
-                    description: "SERP-derived average organic position for this manual competitor.",
-                    step: 0.1,
-                  },
-                },
-                {
-                  name: "serpKeywordsFound",
-                  label: "SERP keywords found",
-                  type: "number",
-                  min: 0,
-                  admin: {
-                    description: "How many proposal keywords this manual competitor ranked for.",
-                    step: 1,
-                  },
-                },
+                // Machine-managed SERP fetch metadata — populated by the manual
+                // competitor SERP metrics job. Hidden from the compact editor;
+                // still read/written via the API and audit pipeline.
                 {
                   name: "serpKeywordPositions",
                   label: "SERP keyword positions",
                   type: "json",
                   admin: {
+                    hidden: true,
                     description: "Optional keyword/position detail returned by Growth Tools.",
                   },
                 },
@@ -1432,6 +1455,7 @@ export const ClientProposals: CollectionConfig = {
                     { label: "Skipped", value: "skipped" },
                   ],
                   admin: {
+                    hidden: true,
                     description: "Latest manual competitor SERP metrics fetch status.",
                   },
                 },
@@ -1440,6 +1464,7 @@ export const ClientProposals: CollectionConfig = {
                   label: "SERP metrics error",
                   type: "textarea",
                   admin: {
+                    hidden: true,
                     description: "Latest error from manual competitor SERP metrics fetch.",
                   },
                 },
@@ -1448,6 +1473,7 @@ export const ClientProposals: CollectionConfig = {
                   label: "SERP metrics updated at",
                   type: "date",
                   admin: {
+                    hidden: true,
                     description: "When SERP metrics were last fetched for this competitor.",
                   },
                 },
@@ -1459,65 +1485,89 @@ export const ClientProposals: CollectionConfig = {
                   },
                 },
                 {
-                  name: "gbpRating",
-                  type: "number",
-                  min: 0,
-                  max: 5,
-                  admin: {
-                    description: "Google Business Profile rating (1.0 - 5.0)",
-                    step: 0.1,
-                  },
+                  type: "row",
+                  fields: [
+                    {
+                      name: "gbpRating",
+                      label: "GBP rating",
+                      type: "number",
+                      min: 0,
+                      max: 5,
+                      admin: {
+                        width: "33%",
+                        description: "Google Business Profile rating (1.0 - 5.0)",
+                        step: 0.1,
+                      },
+                    },
+                    {
+                      name: "gbpReviewCount",
+                      label: "GBP reviews",
+                      type: "number",
+                      min: 0,
+                      admin: {
+                        width: "33%",
+                        description: "Number of Google reviews",
+                        step: 1,
+                      },
+                    },
+                    {
+                      name: "gbpRespondsToReviews",
+                      label: "Responds to reviews?",
+                      type: "checkbox",
+                      defaultValue: false,
+                      admin: {
+                        width: "33%",
+                        description: "Does this business respond to reviews?",
+                      },
+                    },
+                  ],
                 },
                 {
-                  name: "gbpReviewCount",
-                  type: "number",
-                  min: 0,
-                  admin: {
-                    description: "Number of Google reviews",
-                    step: 1,
-                  },
-                },
-                {
-                  name: "gbpRespondsToReviews",
-                  type: "checkbox",
-                  defaultValue: false,
-                  admin: {
-                    description: "Does this business respond to reviews?",
-                  },
-                },
-                {
-                  name: "hasGoogleAds",
-                  type: "checkbox",
-                  defaultValue: false,
-                  admin: {
-                    description: "Manual override: mark this competitor as running Google Ads (used by the v2 deck's Competitor Analysis + Paid Burn slides when the audit data is wrong or missing).",
-                  },
-                },
-                {
-                  name: "googleAdCountOverride",
-                  type: "number",
-                  min: 0,
-                  admin: {
-                    description: "Optional override for the Google Ads count shown on the Paid Burn slide. Leave blank to use audit data.",
-                    condition: (_, sibling) => Boolean(sibling?.hasGoogleAds),
-                  },
-                },
-                {
-                  name: "hasMetaAds",
-                  type: "checkbox",
-                  defaultValue: false,
-                  admin: {
-                    description: "Manual override: mark this competitor as running Meta Ads (used by the v2 deck's Competitor Analysis + Paid Burn slides when the audit data is wrong or missing).",
-                  },
-                },
-                {
-                  name: "metaAdCountOverride",
-                  type: "number",
-                  min: 0,
-                  admin: {
-                    description: "Optional override for the Meta Ads count shown on the Paid Burn slide. Leave blank to use audit data.",
-                    condition: (_, sibling) => Boolean(sibling?.hasMetaAds),
-                  },
+                  type: "row",
+                  fields: [
+                    {
+                      name: "hasGoogleAds",
+                      label: "Runs Google Ads",
+                      type: "checkbox",
+                      defaultValue: false,
+                      admin: {
+                        width: "25%",
+                        description: "Manual override for the v2 deck's Competitor Analysis + Paid Burn slides when audit data is wrong or missing.",
+                      },
+                    },
+                    {
+                      name: "googleAdCountOverride",
+                      label: "Google Ads count",
+                      type: "number",
+                      min: 0,
+                      admin: {
+                        width: "25%",
+                        description: "Optional override for the Google Ads count on the Paid Burn slide. Blank = audit data.",
+                        condition: (_, sibling) => Boolean(sibling?.hasGoogleAds),
+                      },
+                    },
+                    {
+                      name: "hasMetaAds",
+                      label: "Runs Meta Ads",
+                      type: "checkbox",
+                      defaultValue: false,
+                      admin: {
+                        width: "25%",
+                        description: "Manual override for the v2 deck's Competitor Analysis + Paid Burn slides when audit data is wrong or missing.",
+                      },
+                    },
+                    {
+                      name: "metaAdCountOverride",
+                      label: "Meta Ads count",
+                      type: "number",
+                      min: 0,
+                      admin: {
+                        width: "25%",
+                        description: "Optional override for the Meta Ads count on the Paid Burn slide. Blank = audit data.",
+                        condition: (_, sibling) => Boolean(sibling?.hasMetaAds),
+                      },
+                    },
+                  ],
                 },
                 {
                   name: "googleAdScreenshots",
