@@ -15,6 +15,7 @@
  */
 
 // Side-effect imports: each module registers its template on load.
+import "./templates/delivery-radius-review";
 import "./templates/google-ads-audit-15-slide";
 import "./templates/stakeholder-recap-5-slide";
 
