@@ -88,6 +88,58 @@ export async function runMigrations(
     return rows.some((row) => row.from === columnName && row.table === targetTable);
   }
 
+  async function columnIsNotNull(tableName: string, columnName: string): Promise<boolean> {
+    const result = await client!.execute(`PRAGMA table_info(\`${tableName}\`)`);
+    const rows = (result as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+    const col = rows.find((row) => row.name === columnName);
+    return !!col && Number(col.notnull) === 1;
+  }
+
+  // Drop a legacy NOT NULL constraint on client_proposals_keyword_categories.keywords
+  // via SQLite table rebuild. Guarded + idempotent: only rebuilds if the column is
+  // still NOT NULL. Atomic via client.batch so there's no DROP-without-RENAME window.
+  async function relaxKeywordCategoriesKeywordsNullable(): Promise<void> {
+    const label = "client_proposals_keyword_categories.keywords_nullable";
+    try {
+      if (!(await columnIsNotNull("client_proposals_keyword_categories", "keywords"))) {
+        const r: MigrationResult = { label, status: "skip", message: "already nullable" };
+        opts?.onProgress?.(r);
+        results.push(r);
+        return;
+      }
+      const batch = (client as unknown as {
+        batch?: (stmts: string[], mode?: string) => Promise<unknown>;
+      }).batch;
+      const statements = [
+        "PRAGMA foreign_keys=OFF",
+        "CREATE TABLE `client_proposals_keyword_categories__newkw` (" +
+          "`_order` integer NOT NULL, `_parent_id` integer NOT NULL, " +
+          "`id` text PRIMARY KEY NOT NULL, `category_name` text NOT NULL, `keywords` text, " +
+          "FOREIGN KEY (`_parent_id`) REFERENCES `client_proposals`(`id`) ON UPDATE no action ON DELETE cascade)",
+        "INSERT INTO `client_proposals_keyword_categories__newkw` (`_order`,`_parent_id`,`id`,`category_name`,`keywords`) " +
+          "SELECT `_order`,`_parent_id`,`id`,`category_name`,`keywords` FROM `client_proposals_keyword_categories`",
+        "DROP TABLE `client_proposals_keyword_categories`",
+        "ALTER TABLE `client_proposals_keyword_categories__newkw` RENAME TO `client_proposals_keyword_categories`",
+        "CREATE INDEX IF NOT EXISTS `client_proposals_keyword_categories_order_idx` ON `client_proposals_keyword_categories` (`_order`)",
+        "CREATE INDEX IF NOT EXISTS `client_proposals_keyword_categories_parent_id_idx` ON `client_proposals_keyword_categories` (`_parent_id`)",
+        "PRAGMA foreign_keys=ON",
+      ];
+      if (typeof batch === "function") {
+        await batch.call(client, statements, "write");
+      } else {
+        for (const stmt of statements) await client!.execute(stmt);
+      }
+      const r: MigrationResult = { label, status: "ok" };
+      opts?.onProgress?.(r);
+      results.push(r);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const r: MigrationResult = { label, status: "error", message: msg };
+      opts?.onProgress?.(r);
+      results.push(r);
+    }
+  }
+
   try {
     // --- Authors tables ---
     await run("clients_authors", `CREATE TABLE IF NOT EXISTS \`clients_authors\` (
@@ -2530,6 +2582,11 @@ export async function runMigrations(
     await run("client_proposals_competitors.serp_metrics_status", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_status` text DEFAULT 'idle'");
     await run("client_proposals_competitors.serp_metrics_error", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_error` text");
     await run("client_proposals_competitors.serp_metrics_updated_at", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_updated_at` text");
+  
+    // ── Allow keyword categories to be saved without keywords (2026-07-04) ──
+    // Legacy DB column is NOT NULL; a category saved with just a name (keywords
+    // filled later via category research) hit "NOT NULL constraint failed".
+    await relaxKeywordCategoriesKeywordsNullable();
   
     // ── Flight Plan Recommendations sub-table (missing from earlier migration) ──
     await run("client_proposals_flight_plan_recommendations", `CREATE TABLE IF NOT EXISTS \`client_proposals_flight_plan_recommendations\` (

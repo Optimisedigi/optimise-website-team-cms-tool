@@ -774,6 +774,42 @@ export async function GET(request: NextRequest) {
   await run("client_proposals_competitors.serp_metrics_error", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_error` text");
   await run("client_proposals_competitors.serp_metrics_updated_at", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_updated_at` text");
 
+  // ── Allow keyword categories to be saved without keywords (2026-07-04) ──
+  // Legacy DB column is NOT NULL; a category saved with just a name (keywords
+  // filled later via category research) hit "NOT NULL constraint failed".
+  // Guarded + atomic SQLite table rebuild — only runs if still NOT NULL.
+  try {
+    const info = await client.execute("PRAGMA table_info(`client_proposals_keyword_categories`)");
+    const rows = (info?.rows ?? []) as Array<Record<string, unknown>>;
+    const kw = rows.find((r) => r.name === "keywords");
+    if (kw && Number(kw.notnull) === 1) {
+      const statements = [
+        "PRAGMA foreign_keys=OFF",
+        "CREATE TABLE `client_proposals_keyword_categories__newkw` (" +
+          "`_order` integer NOT NULL, `_parent_id` integer NOT NULL, " +
+          "`id` text PRIMARY KEY NOT NULL, `category_name` text NOT NULL, `keywords` text, " +
+          "FOREIGN KEY (`_parent_id`) REFERENCES `client_proposals`(`id`) ON UPDATE no action ON DELETE cascade)",
+        "INSERT INTO `client_proposals_keyword_categories__newkw` (`_order`,`_parent_id`,`id`,`category_name`,`keywords`) " +
+          "SELECT `_order`,`_parent_id`,`id`,`category_name`,`keywords` FROM `client_proposals_keyword_categories`",
+        "DROP TABLE `client_proposals_keyword_categories`",
+        "ALTER TABLE `client_proposals_keyword_categories__newkw` RENAME TO `client_proposals_keyword_categories`",
+        "CREATE INDEX IF NOT EXISTS `client_proposals_keyword_categories_order_idx` ON `client_proposals_keyword_categories` (`_order`)",
+        "CREATE INDEX IF NOT EXISTS `client_proposals_keyword_categories_parent_id_idx` ON `client_proposals_keyword_categories` (`_parent_id`)",
+        "PRAGMA foreign_keys=ON",
+      ];
+      if (typeof client.batch === "function") {
+        await client.batch(statements, "write");
+      } else {
+        for (const stmt of statements) await client.execute(stmt);
+      }
+      results.push("OK: client_proposals_keyword_categories.keywords_nullable");
+    } else {
+      results.push("SKIP: client_proposals_keyword_categories.keywords_nullable (already nullable)");
+    }
+  } catch (e: any) {
+    results.push(`ERROR: client_proposals_keyword_categories.keywords_nullable — ${e?.message || String(e)}`);
+  }
+
   // ── Flight Plan Recommendations sub-table (missing from earlier migration) ──
   await run("client_proposals_flight_plan_recommendations_get", `CREATE TABLE IF NOT EXISTS \`client_proposals_flight_plan_recommendations\` (
     \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,

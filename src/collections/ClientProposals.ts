@@ -1178,6 +1178,10 @@ export const ClientProposals: CollectionConfig = {
                 {
                   name: "keywords",
                   type: "textarea",
+                  // The DB column is legacy NOT NULL (pre-optional migration).
+                  // Default to an empty string so a category saved without
+                  // keywords writes "" instead of NULL and passes the constraint.
+                  defaultValue: "",
                   admin: {
                     description:
                       "One keyword per line. Optional — leave blank and use “Search keywords for my categories” above to auto-fill volume-ranked keywords for each category name.",
