@@ -1178,9 +1178,9 @@ export const ClientProposals: CollectionConfig = {
                 {
                   name: "keywords",
                   type: "textarea",
-                  required: true,
                   admin: {
-                    description: "One keyword per line",
+                    description:
+                      "One keyword per line. Optional — leave blank and use “Search keywords for my categories” above to auto-fill volume-ranked keywords for each category name.",
                   },
                 },
               ],

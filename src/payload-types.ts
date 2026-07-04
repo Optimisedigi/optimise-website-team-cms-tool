@@ -2112,9 +2112,9 @@ export interface ClientProposal {
          */
         categoryName: string;
         /**
-         * One keyword per line
+         * One keyword per line. Optional — leave blank and use “Search keywords for my categories” above to auto-fill volume-ranked keywords for each category name.
          */
-        keywords: string;
+        keywords?: string | null;
         id?: string | null;
       }[]
     | null;

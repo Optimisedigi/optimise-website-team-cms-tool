@@ -47,8 +47,8 @@ function categoryText(category: CategoryResult, selectedKeywords?: Set<string>) 
 
 export default function KeywordResearchAutofill() {
   const [fields] = useAllFormFields()
-  const { setValue } = useField<CategoryRow[]>({ path: 'keywordCategories' })
-  const [loading, setLoading] = useState(false)
+  const { value: categoryRows, setValue } = useField<CategoryRow[]>({ path: 'keywordCategories' })
+  const [loading, setLoading] = useState<false | 'website' | 'categories'>(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ResearchResult | null>(null)
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
@@ -60,6 +60,18 @@ export default function KeywordResearchAutofill() {
   const businessName = getFieldValue(fields, 'businessName')
   const targetLocation = getFieldValue(fields, 'targetLocation') || 'us'
   const selectedCount = selectedCategories.size
+
+  const categoryNames = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (Array.isArray(categoryRows) ? categoryRows : [])
+            .map((row) => (typeof row?.categoryName === 'string' ? row.categoryName.trim() : ''))
+            .filter(Boolean),
+        ),
+      ),
+    [categoryRows],
+  )
 
   const remainingText = useMemo(() => {
     if (!result) return ''
@@ -109,17 +121,21 @@ export default function KeywordResearchAutofill() {
     throw new Error('Keyword research is still running. Try again in a moment.')
   }
 
-  async function research() {
-    setLoading(true)
+  async function runResearch(mode: 'website' | 'categories') {
+    setLoading(mode)
     setError(null)
     setResult(null)
 
     try {
+      const requestBody =
+        mode === 'categories'
+          ? { categories: categoryNames, businessName, location: targetLocation }
+          : { websiteUrl, businessName, location: targetLocation }
       const res = await fetch('/api/client-proposals/keyword-research', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ websiteUrl, businessName, location: targetLocation }),
+        body: JSON.stringify(requestBody),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || `Keyword research failed (${res.status})`)
@@ -177,16 +193,35 @@ export default function KeywordResearchAutofill() {
         <div>
           <strong id="keyword-research-autofill-title">Keyword research autofill</strong>
           <p style={{ margin: '4px 0 0', color: 'var(--theme-elevation-600)' }}>
-            Pulls website-based keyword categories from Growth Tools, then lets you choose the 6 to use.
+            Pull categories from the website, or enter category names below and expand each into
+            volume-ranked keywords — handy when the site doesn’t exist yet.
           </p>
         </div>
-        <button type="button" className="btn btn--style-primary btn--size-small" disabled={loading || !websiteUrl} onClick={research}>
-          {loading ? 'Researching…' : 'Research keyword categories from website'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            className="btn btn--style-primary btn--size-small"
+            disabled={loading !== false || !websiteUrl}
+            onClick={() => runResearch('website')}
+          >
+            {loading === 'website' ? 'Researching…' : 'Research keyword categories from website'}
+          </button>
+          <button
+            type="button"
+            className="btn btn--style-secondary btn--size-small"
+            disabled={loading !== false || categoryNames.length === 0}
+            onClick={() => runResearch('categories')}
+          >
+            {loading === 'categories' ? 'Researching…' : 'Search keywords for my categories'}
+          </button>
+        </div>
       </div>
 
-      {!websiteUrl && <p style={{ color: '#b45309' }}>Add a website URL first.</p>}
-      {loading && <p>Research started in the background. This can take 1–3 minutes while Growth Tools crawls the site and checks Google Ads volume.</p>}
+      {!websiteUrl && categoryNames.length === 0 && (
+        <p style={{ color: '#b45309' }}>Add a website URL, or add category names below to search keywords for them.</p>
+      )}
+      {loading === 'website' && <p>Research started in the background. This can take 1–3 minutes while Growth Tools crawls the site and checks Google Ads volume.</p>}
+      {loading === 'categories' && <p>Searching Google Ads volume for your {categoryNames.length} categor{categoryNames.length === 1 ? 'y' : 'ies'}. This usually takes under a minute.</p>}
       {error && <p style={{ color: '#dc2626' }}>{error}</p>}
 
       {result && (

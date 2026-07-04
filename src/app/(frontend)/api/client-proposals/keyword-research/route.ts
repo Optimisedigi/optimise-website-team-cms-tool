@@ -49,6 +49,34 @@ async function runKeywordResearch(input: { websiteUrl: string; businessName?: st
   return data;
 }
 
+async function runCategoryKeywordResearch(input: { categories: string[]; businessName?: string; location: string }) {
+  if (!GROWTH_TOOLS_URL || !GROWTH_TOOLS_INTERNAL_KEY) {
+    throw new Error("Server misconfigured: missing GROWTH_TOOLS_URL or GROWTH_TOOLS_INTERNAL_KEY");
+  }
+
+  const res = await fetch(`${GROWTH_TOOLS_URL.replace(/\/+$/, "")}/api/google-ads/category-keyword-research`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-internal-key": GROWTH_TOOLS_INTERNAL_KEY,
+    },
+    body: JSON.stringify({
+      categories: input.categories,
+      businessName: input.businessName,
+      location: input.location,
+      maxKeywordsPerCategory: 30,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data?.message || data?.error || `Keyword research failed (${res.status})`);
+  }
+
+  return data;
+}
+
 export async function POST(req: NextRequest) {
   const payload = await getAuthorizedPayload(req);
   if (!payload) {
@@ -56,21 +84,37 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  const websiteUrl = typeof body?.websiteUrl === "string" ? body.websiteUrl.trim() : "";
   const businessName = typeof body?.businessName === "string" ? body.businessName.trim() : undefined;
   const location = typeof body?.location === "string" && body.location.trim() ? body.location.trim() : "us";
 
-  if (!websiteUrl) {
-    return NextResponse.json({ error: "websiteUrl is required" }, { status: 400 });
-  }
+  // Two modes: crawl a website, or seed from category names (no site required).
+  const rawCategories = Array.isArray(body?.categories) ? body.categories : null;
+  const categories: string[] = rawCategories
+    ? Array.from(
+        new Set(
+          rawCategories
+            .map((c: unknown) => (typeof c === "string" ? c.trim() : ""))
+            .filter((c: string): c is string => Boolean(c)),
+        ),
+      )
+    : [];
+  const isCategoryMode = categories.length > 0;
 
-  try {
-    const parsed = new URL(websiteUrl);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      return NextResponse.json({ error: "Website URL must start with http:// or https://" }, { status: 400 });
+  const websiteUrl = typeof body?.websiteUrl === "string" ? body.websiteUrl.trim() : "";
+
+  if (!isCategoryMode) {
+    if (!websiteUrl) {
+      return NextResponse.json({ error: "Provide a websiteUrl or at least one category name" }, { status: 400 });
     }
-  } catch {
-    return NextResponse.json({ error: "Invalid website URL" }, { status: 400 });
+
+    try {
+      const parsed = new URL(websiteUrl);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return NextResponse.json({ error: "Website URL must start with http:// or https://" }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: "Invalid website URL" }, { status: 400 });
+    }
   }
 
   await pruneKeywordResearchJobs(payload);
@@ -78,7 +122,9 @@ export async function POST(req: NextRequest) {
 
   after(async () => {
     try {
-      const result = await runKeywordResearch({ websiteUrl, businessName, location });
+      const result = isCategoryMode
+        ? await runCategoryKeywordResearch({ categories, businessName, location })
+        : await runKeywordResearch({ websiteUrl, businessName, location });
       await completeKeywordResearchJob(payload, job.id, result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
