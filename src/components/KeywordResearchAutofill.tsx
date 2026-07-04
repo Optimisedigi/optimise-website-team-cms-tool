@@ -1,7 +1,7 @@
 'use client'
 
 import { useAllFormFields, useField } from '@payloadcms/ui'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 type KeywordResult = {
   keyword: string
@@ -38,6 +38,23 @@ function getFieldValue(fields: Record<string, any>, path: string): string {
   return typeof value === 'string' ? value : ''
 }
 
+/**
+ * Read category names from an array field. Payload exposes the array's parent
+ * path value as a ROW COUNT (not the rows), so we scan the flat field map for
+ * `keywordCategories.<index>.categoryName` entries and return them in order.
+ */
+function getCategoryNames(fields: Record<string, any>): string[] {
+  const byIndex: Array<{ index: number; name: string }> = []
+  for (const [path, field] of Object.entries(fields || {})) {
+    const match = /^keywordCategories\.(\d+)\.categoryName$/.exec(path)
+    if (!match) continue
+    const name = typeof field?.value === 'string' ? field.value.trim() : ''
+    if (name) byIndex.push({ index: Number(match[1]), name })
+  }
+  byIndex.sort((a, b) => a.index - b.index)
+  return Array.from(new Set(byIndex.map((entry) => entry.name)))
+}
+
 function categoryText(category: CategoryResult, selectedKeywords?: Set<string>) {
   return category.keywords
     .filter((kw) => !selectedKeywords || selectedKeywords.has(kw.keyword))
@@ -47,8 +64,9 @@ function categoryText(category: CategoryResult, selectedKeywords?: Set<string>) 
 
 export default function KeywordResearchAutofill() {
   const [fields] = useAllFormFields()
-  const { value: categoryRows, setValue } = useField<CategoryRow[]>({ path: 'keywordCategories' })
+  const { setValue } = useField<CategoryRow[]>({ path: 'keywordCategories' })
   const [loading, setLoading] = useState<false | 'website' | 'categories'>(false)
+  const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ResearchResult | null>(null)
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
@@ -61,17 +79,29 @@ export default function KeywordResearchAutofill() {
   const targetLocation = getFieldValue(fields, 'targetLocation') || 'us'
   const selectedCount = selectedCategories.size
 
-  const categoryNames = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (Array.isArray(categoryRows) ? categoryRows : [])
-            .map((row) => (typeof row?.categoryName === 'string' ? row.categoryName.trim() : ''))
-            .filter(Boolean),
-        ),
-      ),
-    [categoryRows],
-  )
+  // Time-eased progress bar. We can't know true backend progress, so ease
+  // toward 90% over the expected duration (categories are quicker than a full
+  // website crawl) and snap to 100% when the job actually completes. Purpose is
+  // to give instant, visible feedback that the search started.
+  const progressStartRef = useRef<number>(0)
+  useEffect(() => {
+    if (loading === false) return
+    const expectedMs = loading === 'categories' ? 45_000 : 120_000
+    progressStartRef.current = Date.now()
+    const tick = () => {
+      const elapsed = Date.now() - progressStartRef.current
+      // Asymptotic ease-out that never quite reaches 90 until completion.
+      const pct = 90 * (1 - Math.exp(-elapsed / (expectedMs * 0.5)))
+      setProgress(Math.max(6, Math.round(pct)))
+    }
+    tick()
+    const id = setInterval(tick, 400)
+    return () => clearInterval(id)
+  }, [loading])
+
+  // Payload exposes the array's own path value as a row count, so read the
+  // category names from the flat field map (keywordCategories.<i>.categoryName).
+  const categoryNames = useMemo(() => getCategoryNames(fields), [fields])
 
   const remainingText = useMemo(() => {
     if (!result) return ''
@@ -122,6 +152,7 @@ export default function KeywordResearchAutofill() {
   }
 
   async function runResearch(mode: 'website' | 'categories') {
+    setProgress(3)
     setLoading(mode)
     setError(null)
     setResult(null)
@@ -141,6 +172,7 @@ export default function KeywordResearchAutofill() {
       if (!res.ok) throw new Error(data?.error || `Keyword research failed (${res.status})`)
       if (!data.jobId) throw new Error('Keyword research did not return a job ID')
       await pollJob(data.jobId)
+      setProgress(100)
     } catch (err: any) {
       setError(err.message || 'Keyword research failed')
     } finally {
@@ -220,8 +252,68 @@ export default function KeywordResearchAutofill() {
       {!websiteUrl && categoryNames.length === 0 && (
         <p style={{ color: '#b45309' }}>Add a website URL, or add category names below to search keywords for them.</p>
       )}
-      {loading === 'website' && <p>Research started in the background. This can take 1–3 minutes while Growth Tools crawls the site and checks Google Ads volume.</p>}
-      {loading === 'categories' && <p>Searching Google Ads volume for your {categoryNames.length} categor{categoryNames.length === 1 ? 'y' : 'ies'}. This usually takes under a minute.</p>}
+
+      {loading !== false && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            marginTop: 12,
+            padding: 12,
+            border: '1px solid var(--theme-elevation-150)',
+            borderRadius: 6,
+            background: 'var(--theme-elevation-50)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span
+              aria-hidden
+              style={{
+                width: 14,
+                height: 14,
+                border: '2px solid var(--theme-elevation-300)',
+                borderTopColor: 'var(--theme-success-500, #22c55e)',
+                borderRadius: '50%',
+                display: 'inline-block',
+                animation: 'od-kw-spin 0.8s linear infinite',
+              }}
+            />
+            <strong>
+              {loading === 'categories'
+                ? `Searching Google Ads volume for your ${categoryNames.length} categor${categoryNames.length === 1 ? 'y' : 'ies'}…`
+                : 'Researching the website…'}
+            </strong>
+            <span style={{ marginLeft: 'auto', fontVariantNumeric: 'tabular-nums', color: 'var(--theme-elevation-600)' }}>
+              {progress}%
+            </span>
+          </div>
+          <div
+            style={{
+              height: 8,
+              borderRadius: 999,
+              background: 'var(--theme-elevation-200)',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${progress}%`,
+                background: 'var(--theme-success-500, #22c55e)',
+                borderRadius: 999,
+                transition: 'width 0.4s ease',
+              }}
+            />
+          </div>
+          <p style={{ margin: '8px 0 0', color: 'var(--theme-elevation-600)', fontSize: '0.85em' }}>
+            {loading === 'categories'
+              ? 'This usually takes under a minute. Keep this tab open.'
+              : 'This can take 1–3 minutes while Growth Tools crawls the site and checks Google Ads volume. Keep this tab open.'}
+          </p>
+          <style>{'@keyframes od-kw-spin { to { transform: rotate(360deg); } }'}</style>
+        </div>
+      )}
+
       {error && <p style={{ color: '#dc2626' }}>{error}</p>}
 
       {result && (
