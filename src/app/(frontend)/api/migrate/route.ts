@@ -763,6 +763,17 @@ export async function GET(request: NextRequest) {
   await run("client_proposals_competitors.gbp_review_count", "ALTER TABLE `client_proposals_competitors` ADD `gbp_review_count` numeric");
   await run("client_proposals_competitors.gbp_responds_to_reviews", "ALTER TABLE `client_proposals_competitors` ADD `gbp_responds_to_reviews` integer DEFAULT 0");
 
+  // ── Manual competitor SERP metrics on competitors (2026-07-02) ──
+  // Payload's read query selects these columns; without them every
+  // client_proposals read 500s ("no such column: serp_average_position")
+  // and the admin edit view renders blank.
+  await run("client_proposals_competitors.serp_average_position", "ALTER TABLE `client_proposals_competitors` ADD `serp_average_position` numeric");
+  await run("client_proposals_competitors.serp_keywords_found", "ALTER TABLE `client_proposals_competitors` ADD `serp_keywords_found` numeric");
+  await run("client_proposals_competitors.serp_keyword_positions", "ALTER TABLE `client_proposals_competitors` ADD `serp_keyword_positions` text");
+  await run("client_proposals_competitors.serp_metrics_status", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_status` text DEFAULT 'idle'");
+  await run("client_proposals_competitors.serp_metrics_error", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_error` text");
+  await run("client_proposals_competitors.serp_metrics_updated_at", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_updated_at` text");
+
   // ── Flight Plan Recommendations sub-table (missing from earlier migration) ──
   await run("client_proposals_flight_plan_recommendations_get", `CREATE TABLE IF NOT EXISTS \`client_proposals_flight_plan_recommendations\` (
     \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
