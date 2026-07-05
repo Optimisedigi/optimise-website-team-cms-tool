@@ -1,6 +1,6 @@
 'use client'
 
-import { useAllFormFields, useField } from '@payloadcms/ui'
+import { useAllFormFields, useForm } from '@payloadcms/ui'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 type KeywordResult = {
@@ -38,21 +38,40 @@ function getFieldValue(fields: Record<string, any>, path: string): string {
   return typeof value === 'string' ? value : ''
 }
 
+type CategoryRowWithIndex = CategoryRow & { index: number }
+
 /**
- * Read category names from an array field. Payload exposes the array's parent
- * path value as a ROW COUNT (not the rows), so we scan the flat field map for
- * `keywordCategories.<index>.categoryName` entries and return them in order.
+ * Read the existing keyword-category rows (index + name + keywords) from an
+ * array field. Payload exposes the array's parent path value as a ROW COUNT
+ * (not the rows), so we scan the flat field map for
+ * `keywordCategories.<index>.<field>` entries and reassemble them in row order.
  */
-function getCategoryNames(fields: Record<string, any>): string[] {
-  const byIndex: Array<{ index: number; name: string }> = []
+function getCategoryRows(fields: Record<string, any>): CategoryRowWithIndex[] {
+  const byIndex = new Map<number, CategoryRowWithIndex>()
   for (const [path, field] of Object.entries(fields || {})) {
-    const match = /^keywordCategories\.(\d+)\.categoryName$/.exec(path)
+    const match = /^keywordCategories\.(\d+)\.(categoryName|keywords)$/.exec(path)
     if (!match) continue
-    const name = typeof field?.value === 'string' ? field.value.trim() : ''
-    if (name) byIndex.push({ index: Number(match[1]), name })
+    const index = Number(match[1])
+    const row = byIndex.get(index) || { index, categoryName: '', keywords: '' }
+    const value = typeof field?.value === 'string' ? field.value : ''
+    if (match[2] === 'categoryName') row.categoryName = value
+    else row.keywords = value
+    byIndex.set(index, row)
   }
-  byIndex.sort((a, b) => a.index - b.index)
-  return Array.from(new Set(byIndex.map((entry) => entry.name)))
+  return Array.from(byIndex.values())
+    .sort((a, b) => a.index - b.index)
+    .filter((row) => row.categoryName.trim() || row.keywords.trim())
+}
+
+/** Category names, in row order, deduped. */
+function getCategoryNames(fields: Record<string, any>): string[] {
+  return Array.from(
+    new Set(
+      getCategoryRows(fields)
+        .map((row) => row.categoryName.trim())
+        .filter(Boolean),
+    ),
+  )
 }
 
 function categoryText(category: CategoryResult, selectedKeywords?: Set<string>) {
@@ -63,8 +82,8 @@ function categoryText(category: CategoryResult, selectedKeywords?: Set<string>) 
 }
 
 export default function KeywordResearchAutofill() {
-  const [fields] = useAllFormFields()
-  const { setValue } = useField<CategoryRow[]>({ path: 'keywordCategories' })
+  const [fields, dispatchFields] = useAllFormFields()
+  const { addFieldRow, setModified } = useForm()
   const [loading, setLoading] = useState<false | 'website' | 'categories'>(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -73,6 +92,7 @@ export default function KeywordResearchAutofill() {
   const [selectedKeywords, setSelectedKeywords] = useState<Record<string, Set<string>>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState<string | null>(null)
+  const [imported, setImported] = useState(false)
 
   const websiteUrl = getFieldValue(fields, 'websiteUrl')
   const businessName = getFieldValue(fields, 'businessName')
@@ -205,14 +225,52 @@ export default function KeywordResearchAutofill() {
 
   function applySelected() {
     if (!result) return
-    const rows = result.categories
+    const selected = result.categories
       .filter((category) => selectedCategories.has(category.categoryName))
       .slice(0, 6)
-      .map((category) => ({
-        categoryName: category.categoryName,
-        keywords: categoryText(category, selectedKeywords[category.categoryName]),
-      }))
-    setValue(rows)
+
+    const existingRows = getCategoryRows(fields)
+    const existingByName = new Map(
+      existingRows.map((row) => [row.categoryName.trim().toLowerCase(), row]),
+    )
+
+    let nextIndex = existingRows.reduce((max, row) => Math.max(max, row.index + 1), 0)
+    let filled = 0
+
+    for (const category of selected) {
+      const keywords = categoryText(category, selectedKeywords[category.categoryName])
+      const key = category.categoryName.trim().toLowerCase()
+      const existing = existingByName.get(key)
+
+      if (existing) {
+        // Fill keywords into the row the user already typed, in place.
+        dispatchFields({
+          type: 'UPDATE',
+          path: `keywordCategories.${existing.index}.keywords`,
+          value: keywords,
+        })
+      } else {
+        // New category (e.g. discovered by the website crawl) — add a full row.
+        const rowIndex = nextIndex++
+        addFieldRow({ path: 'keywordCategories', schemaPath: 'keywordCategories', rowIndex })
+        // Populate the new row's subfields once it exists in form state.
+        // Matches the delay used by AccountTimelineTable so the row is
+        // reconciled before we dispatch its subfield values.
+        setTimeout(() => {
+          dispatchFields({ type: 'UPDATE', path: `keywordCategories.${rowIndex}.categoryName`, value: category.categoryName })
+          dispatchFields({ type: 'UPDATE', path: `keywordCategories.${rowIndex}.keywords`, value: keywords })
+        }, 50)
+      }
+      filled++
+    }
+
+    if (filled > 0) {
+      // Mark the form dirty so the dispatched field updates actually persist
+      // (a raw UPDATE dispatch doesn't flip the modified flag on its own).
+      setModified(true)
+      setImported(true)
+      setTimeout(() => setImported(false), 2500)
+    }
   }
 
   return (
@@ -357,9 +415,16 @@ export default function KeywordResearchAutofill() {
             })}
           </div>
 
-          <button type="button" className="btn btn--style-primary" style={{ marginTop: 16 }} disabled={selectedCount === 0} onClick={applySelected}>
-            Use selected categories
-          </button>
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <button type="button" className="btn btn--style-primary" disabled={selectedCount === 0} onClick={applySelected}>
+              Import selected keywords into categories below
+            </button>
+            {imported && (
+              <span style={{ color: 'var(--theme-success-600, #16a34a)', fontWeight: 600 }} role="status">
+                ✓ Imported — see the categories below
+              </span>
+            )}
+          </div>
 
           <div style={{ marginTop: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
