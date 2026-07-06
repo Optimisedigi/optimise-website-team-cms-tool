@@ -619,10 +619,17 @@ $svg-close: "%3C/svg%3E";
 // that rail from the content width. Without the width subtraction, the admin
 // wrap remains 100vw wide then shifts right by 64px, which can crop dashboard
 // content at narrower desktop widths.
+//
+// `body { zoom: 0.9 }` inflates the layout coordinate space to 1 / 0.9 of the
+// viewport, but `100vw` still resolves to the *physical* viewport width. So a
+// plain `calc(100vw - 64px)` cap is ~10% too small and leaves an empty grey/
+// white strip on the right of wide views (most obvious on Google Ads tables).
+// Divide the viewport term by the same 0.9 zoom so the cap fills the real
+// width — mirrors the `calc(100vh / 0.9)` compensation used on the sidebars.
 .template-default:not(.template-default--nav-open) .template-default__wrap {
   margin-left: 64px;
   width: calc(100% - 64px);
-  max-width: calc(100vw - 64px);
+  max-width: calc(100vw / 0.9 - 64px);
   min-width: 0;
 }
 
@@ -7057,6 +7064,15 @@ body:has(:is(
   --ode-radius: 12px;
   --ode-shadow: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.04);
   --ode-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+
+  // Google Ads audits is a wide, data-tool view (tables, budgets, negative
+  // lists) — not a narrow form. The shared compact-edit rule caps
+  // `.document-fields__edit` at 1180px, which on wide screens strands a large
+  // empty band on the right of every tab. Let all Google Ads tabs use the full
+  // canvas (the Match Type Variants tab already opts out via its own rule).
+  .document-fields__edit {
+    max-width: none;
+  }
 
   .render-fields > .field-type:has(.od-client-head) {
     margin-bottom: 5px;
