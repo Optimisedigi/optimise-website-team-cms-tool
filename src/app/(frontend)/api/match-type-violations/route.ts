@@ -2,6 +2,10 @@ import type { Where } from "payload";
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import {
+  findCoveringNegative,
+  type CoverageNkl,
+} from "@/lib/match-type-negation-coverage";
 
 export async function GET(req: NextRequest) {
   const payloadConfig = await config;
@@ -37,9 +41,44 @@ export async function GET(req: NextRequest) {
     overrideAccess: true,
   });
 
+  // Live suppression: hide any pending candidate whose search term is already
+  // covered by an active negative keyword routing to its campaign / ad group.
+  // The cron does this at sync time, but negatives added since the last sync
+  // would otherwise linger in the review list until the next run — this filters
+  // them out on read so newly-added negatives take effect immediately.
+  let docs: any[] = result.docs;
+  let suppressed = 0;
+  if (clientId && typeof clientId === "number") {
+    const pending = docs.filter((d) => d?.status === "pending");
+    if (pending.length > 0) {
+      const nklResult = await (payload.find as any)({
+        collection: "negative-keyword-lists",
+        where: {
+          and: [{ client: { equals: clientId } }, { isActive: { equals: true } }],
+        },
+        depth: 0,
+        limit: 500,
+        overrideAccess: true,
+      });
+      const negatives: CoverageNkl[] = Array.isArray(nklResult?.docs) ? nklResult.docs : [];
+      if (negatives.length > 0) {
+        docs = docs.filter((d) => {
+          if (d?.status !== "pending") return true;
+          const covered = findCoveringNegative(
+            String(d.searchTerm ?? ""),
+            { campaignName: d.campaignName, adGroupName: d.adGroupName },
+            negatives,
+          );
+          if (covered) suppressed++;
+          return !covered;
+        });
+      }
+    }
+  }
+
   return NextResponse.json({
-    docs: result.docs,
-    totalDocs: result.totalDocs,
+    docs,
+    totalDocs: Math.max(0, (result.totalDocs ?? docs.length) - suppressed),
     page: result.page,
     totalPages: result.totalPages,
   });
