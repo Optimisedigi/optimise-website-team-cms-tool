@@ -565,6 +565,82 @@ function TeachSynonymModal({
   )
 }
 
+// Match-type pill colours, mirroring the NKL table so the negative editor reads
+// the same across the app.
+const NEG_MATCH_COLORS: Record<NegMatchType, { bg: string; color: string }> = {
+  exact: { bg: '#dcfce7', color: '#166534' },
+  phrase: { bg: '#dbeafe', color: '#1e40af' },
+}
+
+/**
+ * Inline negative-keyword editor used in the research modal, matching the NKL
+ * table's affordance: the keyword shows as text, double-click (or click) turns
+ * it into an input (Enter/blur commits, Escape reverts), and the match type is a
+ * colour-coded dropdown to its right.
+ */
+function NegativeInlineEditor({
+  neg,
+  disabled,
+  onChange,
+}: {
+  neg: NegativeEdit
+  disabled?: boolean
+  onChange: (patch: Partial<NegativeEdit>) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(neg.keyword)
+
+  const startEdit = () => {
+    if (disabled) return
+    setDraft(neg.keyword)
+    setEditing(true)
+  }
+  const commit = () => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== neg.keyword) onChange({ keyword: trimmed })
+    setEditing(false)
+  }
+  const mc = NEG_MATCH_COLORS[neg.matchType]
+
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      {editing ? (
+        <input
+          value={draft}
+          autoFocus
+          disabled={disabled}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit()
+            if (e.key === 'Escape') { setDraft(neg.keyword); setEditing(false) }
+          }}
+          style={{ width: 180, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }}
+        />
+      ) : (
+        <span
+          onDoubleClick={startEdit}
+          onClick={startEdit}
+          title="Double-click to edit the negative keyword"
+          style={{ cursor: 'text', fontSize: 13, fontWeight: 500, color: '#111827', borderBottom: '1px dashed #cbd5e1', padding: '2px 0' }}
+        >
+          {neg.keyword || <span style={{ color: '#9ca3af' }}>(empty)</span>}
+        </span>
+      )}
+      <select
+        value={neg.matchType}
+        disabled={disabled}
+        onChange={(e) => onChange({ matchType: e.target.value as NegMatchType })}
+        title="Negative match type"
+        style={{ padding: '3px 6px', borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 600, background: mc.bg, color: mc.color, cursor: disabled ? 'not-allowed' : 'pointer' }}
+      >
+        <option value="phrase">Phrase</option>
+        <option value="exact">Exact</option>
+      </select>
+    </div>
+  )
+}
+
 function TermResearchModal({
   adGroupName,
   loading,
@@ -573,6 +649,9 @@ function TermResearchModal({
   grounded,
   termCandidates,
   busy,
+  negativeFor,
+  setNegative,
+  nklLists,
   onApproveTerms,
   onDismissTerms,
   onClose,
@@ -585,13 +664,26 @@ function TermResearchModal({
   /** Lowercased search term → still-pending candidate it maps to. */
   termCandidates: Map<string, Candidate>
   busy: boolean
-  onApproveTerms: (ids: (string | number)[]) => void | Promise<void>
+  /** Resolve the negative (keyword + match type) a candidate will add. */
+  negativeFor: (c: Candidate) => NegativeEdit
+  /** Stage an inline edit to a candidate's negative before approving. */
+  setNegative: (id: string | number, patch: Partial<NegativeEdit>, base: NegativeEdit) => void
+  /** The client's negative keyword lists, for the routing selector. */
+  nklLists: NegativeKeywordList[]
+  onApproveTerms: (ids: (string | number)[], routing: { mode: RoutingMode; listId?: string | number }) => void | Promise<void>
   onDismissTerms: (ids: (string | number)[]) => void | Promise<void>
   onClose: () => void
 }) {
   // Track selected terms by lowercased key so selection survives re-renders as
   // candidates drop out after actioning.
   const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set())
+  // Routing for approved terms: auto-match each to its ad-group list, or send
+  // them all to one chosen existing list.
+  const [routeMode, setRouteMode] = useState<RoutingMode>('auto')
+  const [routeListId, setRouteListId] = useState<string | number | ''>('')
+  const routing: { mode: RoutingMode; listId?: string | number } =
+    routeMode === 'existing' && routeListId ? { mode: 'existing', listId: routeListId } : { mode: 'auto' }
+  const canApprove = routeMode === 'auto' || !!routeListId
 
   const actionableKeys = (results ?? [])
     .map((r) => r.term.toLowerCase())
@@ -624,6 +716,18 @@ function TermResearchModal({
     })
   }
 
+  // Approve helper that threads the chosen routing through to the parent.
+  const runApprove = async (keys: string[]) => {
+    const ids = idsFor(keys)
+    if (ids.length === 0 || !canApprove) return
+    await onApproveTerms(ids, routing)
+    setSelectedTerms((prev) => {
+      const next = new Set(prev)
+      keys.forEach((key) => next.delete(key))
+      return next
+    })
+  }
+
   const selectedKeys = actionableKeys.filter((key) => selectedTerms.has(key))
 
   return (
@@ -647,6 +751,31 @@ function TermResearchModal({
               <input type="checkbox" checked={allSelected} onChange={(e) => toggleAll(e.target.checked)} />
               Select all {selectableCount} pending term{selectableCount !== 1 ? 's' : ''}
             </label>
+          )}
+          {selectableCount > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '8px 10px', marginBottom: 10, background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Route approved terms to:</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', cursor: 'pointer' }}>
+                <input type="radio" checked={routeMode === 'auto'} onChange={() => setRouteMode('auto')} />
+                Ad-group list <span style={{ color: '#6b7280' }}>(auto)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', cursor: 'pointer' }}>
+                <input type="radio" checked={routeMode === 'existing'} onChange={() => setRouteMode('existing')} />
+                Existing list
+              </label>
+              {routeMode === 'existing' && (
+                <select
+                  value={String(routeListId)}
+                  onChange={(e) => setRouteListId(e.target.value)}
+                  style={{ padding: '5px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, minWidth: 180 }}
+                >
+                  <option value="">— Select a list —</option>
+                  {nklLists.map((l) => (
+                    <option key={String(l.id)} value={String(l.id)}>{l.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
           )}
         </div>
         <div style={{ padding: '0 22px', overflowY: 'auto', flex: 1 }}>
@@ -683,13 +812,20 @@ function TermResearchModal({
                           Source: {r.source.title}
                         </a>
                       )}
-                      {candidate && (
-                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                          <button
-                            onClick={() => void runAction(onApproveTerms, [key])}
+                      {candidate && (() => {
+                        const neg = negativeFor(candidate)
+                        return (
+                        <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <NegativeInlineEditor
+                            neg={neg}
                             disabled={busy}
-                            title="Approve this term as an ad-group negative keyword"
-                            style={{ ...btnStyle('primary', busy), fontSize: 11, padding: '4px 10px' }}
+                            onChange={(patch) => setNegative(candidate.id, patch, neg)}
+                          />
+                          <button
+                            onClick={() => void runApprove([key])}
+                            disabled={busy || !canApprove}
+                            title={routeMode === 'existing' ? 'Approve this term into the selected list' : 'Approve this term as an ad-group negative keyword'}
+                            style={{ ...btnStyle('primary', busy || !canApprove), fontSize: 11, padding: '4px 10px' }}
                           >
                             Approve
                           </button>
@@ -702,7 +838,8 @@ function TermResearchModal({
                             Dismiss
                           </button>
                         </div>
-                      )}
+                        )
+                      })()}
                     </div>
                   </div>
                 )
@@ -725,9 +862,9 @@ function TermResearchModal({
               Dismiss selected
             </button>
             <button
-              onClick={() => void runAction(onApproveTerms, selectedKeys)}
-              disabled={busy || selectedCount === 0}
-              style={{ ...btnStyle('primary', busy || selectedCount === 0), fontSize: 12, padding: '6px 12px' }}
+              onClick={() => void runApprove(selectedKeys)}
+              disabled={busy || selectedCount === 0 || !canApprove}
+              style={{ ...btnStyle('primary', busy || selectedCount === 0 || !canApprove), fontSize: 12, padding: '6px 12px' }}
             >
               Approve selected
             </button>
@@ -1384,6 +1521,9 @@ export default function MatchTypeViolationReview({
     setResearchError(null)
     setResearchGrounded(true)
     setResearchLoading(true)
+    // Load the client's negative keyword lists so the modal's NKL selector can
+    // offer an existing list instead of only auto-routing.
+    void fetchNklLists()
     try {
       const res = await fetch('/api/match-type-violations/research-terms', {
         method: 'POST',
@@ -1403,8 +1543,10 @@ export default function MatchTypeViolationReview({
 
   // Modal actions: approve terms as ad-group negatives, or dismiss them, using
   // the shared cores. The ad group stays open until all its terms are handled.
-  const approveResearchTerms = (ids: (string | number)[]) =>
-    approveCandidates(ids, { mode: 'auto' })
+  const approveResearchTerms = (
+    ids: (string | number)[],
+    routing: { mode: RoutingMode; listId?: string | number } = { mode: 'auto' },
+  ) => approveCandidates(ids, routing)
   const dismissResearchTerms = (ids: (string | number)[]) => dismissCandidates(ids)
 
   const openGroupPicker = async (group: CandidateGroup) => {
@@ -1972,6 +2114,9 @@ export default function MatchTypeViolationReview({
           grounded={researchGrounded}
           termCandidates={researchTermCandidates}
           busy={bulkLoading}
+          negativeFor={negativeFor}
+          setNegative={setNegative}
+          nklLists={nklLists}
           onApproveTerms={approveResearchTerms}
           onDismissTerms={dismissResearchTerms}
           onClose={() => setResearchGroup(null)}
