@@ -240,14 +240,20 @@ function formatNumber(n: number): string {
 }
 
 /**
- * Share of an ad group's spend that comes from match-type violations, as a
- * whole-number percent. Returns null when the ad-group total spend is unknown
+ * Share of an ad group's spend that comes from match-type violations, formatted
+ * as a display label. Returns null when the ad-group total spend is unknown
  * (older rows synced before spend tracking) so the UI can hide the metric
- * rather than show a misleading 0%.
+ * rather than show a misleading value.
+ *
+ * A tiny-but-nonzero share (e.g. violating terms that got impressions but almost
+ * no clicks) renders as "<1%" instead of rounding down to "0%", so the badge
+ * never implies there is zero violating spend when there is some.
  */
-function violationSpendShare(violationSpend: number, adGroupSpend: number): number | null {
+function violationSpendShareLabel(violationSpend: number, adGroupSpend: number): string | null {
   if (!(adGroupSpend > 0)) return null
-  return Math.min(100, Math.round((violationSpend / adGroupSpend) * 100))
+  const raw = Math.min(100, (violationSpend / adGroupSpend) * 100)
+  if (raw > 0 && raw < 1) return '<1%'
+  return `${Math.round(raw)}%`
 }
 
 /** Content keyword words absent from the search term — the "missing words". */
@@ -1718,14 +1724,14 @@ export default function MatchTypeViolationReview({
                             <span style={badgeStyle('#e0f2fe', '#075985')}>{group.pendingCount} pending</span>
                             <span style={{ color: '#6b7280', fontSize: 12 }}>{group.candidates.length} total · {formatNumber(group.impressions)} impr · {formatNumber(group.clicks)} clicks</span>
                             {(() => {
-                              const share = violationSpendShare(group.violationSpend, group.adGroupSpend)
+                              const share = violationSpendShareLabel(group.violationSpend, group.adGroupSpend)
                               if (share === null) return null
                               return (
                                 <span
                                   style={badgeStyle('#fee2e2', '#991b1b')}
                                   title={`${formatNumber(Math.round(group.violationSpend))} of ${formatNumber(Math.round(group.adGroupSpend))} ad-group spend (account currency) is from match-type violations`}
                                 >
-                                  Paid keywords in violation: {share}%
+                                  Violation spend share: {share}
                                 </span>
                               )
                             })()}
