@@ -540,6 +540,10 @@ function TermResearchModal({
   error,
   results,
   grounded,
+  termCandidates,
+  busy,
+  onApproveTerms,
+  onDismissTerms,
   onClose,
 }: {
   adGroupName: string
@@ -547,48 +551,156 @@ function TermResearchModal({
   error: string | null
   results: TermResearchResult[] | null
   grounded: boolean
+  /** Lowercased search term → still-pending candidate it maps to. */
+  termCandidates: Map<string, Candidate>
+  busy: boolean
+  onApproveTerms: (ids: (string | number)[]) => void | Promise<void>
+  onDismissTerms: (ids: (string | number)[]) => void | Promise<void>
   onClose: () => void
 }) {
+  // Track selected terms by lowercased key so selection survives re-renders as
+  // candidates drop out after actioning.
+  const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set())
+
+  const actionableKeys = (results ?? [])
+    .map((r) => r.term.toLowerCase())
+    .filter((key) => termCandidates.has(key))
+  const selectableCount = actionableKeys.length
+  const selectedCount = actionableKeys.filter((key) => selectedTerms.has(key)).length
+  const allSelected = selectableCount > 0 && selectedCount === selectableCount
+
+  const toggleTerm = (key: string) =>
+    setSelectedTerms((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+
+  const toggleAll = (checked: boolean) =>
+    setSelectedTerms(checked ? new Set(actionableKeys) : new Set())
+
+  const idsFor = (keys: string[]): (string | number)[] =>
+    keys.map((key) => termCandidates.get(key)?.id).filter((id): id is string | number => id != null)
+
+  const runAction = async (action: (ids: (string | number)[]) => void | Promise<void>, keys: string[]) => {
+    const ids = idsFor(keys)
+    if (ids.length === 0) return
+    await action(ids)
+    setSelectedTerms((prev) => {
+      const next = new Set(prev)
+      keys.forEach((key) => next.delete(key))
+      return next
+    })
+  }
+
+  const selectedKeys = actionableKeys.filter((key) => selectedTerms.has(key))
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: 'white', borderRadius: 10, padding: 22, width: 720, maxWidth: '96vw', maxHeight: '86vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Research search terms</h3>
-          <button onClick={onClose} style={{ ...btnStyle('ghost'), fontSize: 12, padding: '4px 10px' }}>Close</button>
-        </div>
-        <p style={{ margin: '0 0 14px', color: '#64748b', fontSize: 13, lineHeight: 1.45 }}>
-          {adGroupName} — one-sentence summary per term, based on the top Google result.
-          {!grounded && (
-            <span style={{ display: 'block', marginTop: 6, color: '#9a3412' }}>
-              Live Google grounding is unavailable (Growth Tools SERP lookup not reachable/configured), so summaries fall back to the model’s own knowledge.
-            </span>
-          )}
-        </p>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 32, color: '#6b7280', fontSize: 13 }}>Searching Google and summarising…</div>
-        ) : error ? (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, padding: '10px 12px', fontSize: 13 }}>{error}</div>
-        ) : results && results.length > 0 ? (
-          <div style={{ display: 'grid', gap: 10 }}>
-            {results.map((r) => (
-              <div key={r.term} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                  <a href={googleSearchUrl(r.term)} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', fontSize: 13 }}>
-                    {r.term}
-                  </a>
-                  {!r.grounded && <span style={badgeStyle('#fef3c7', '#92400e')}>ungrounded</span>}
-                </div>
-                <div style={{ fontSize: 13, color: '#111827', lineHeight: 1.45 }}>{r.summary}</div>
-                {r.source && (
-                  <a href={r.source.link} target="_blank" rel="noopener noreferrer" title={r.source.link} style={{ display: 'block', marginTop: 4, fontSize: 12, color: '#6b7280', textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    Source: {r.source.title}
-                  </a>
-                )}
-              </div>
-            ))}
+      <div style={{ background: 'white', borderRadius: 10, width: 720, maxWidth: '96vw', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+        <div style={{ padding: '22px 22px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Research search terms</h3>
+            <button onClick={onClose} style={{ ...btnStyle('ghost'), fontSize: 12, padding: '4px 10px' }}>Close</button>
           </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: 32, color: '#6b7280', fontSize: 13 }}>No results.</div>
+          <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13, lineHeight: 1.45 }}>
+            {adGroupName} — one-sentence summary per term, based on the top Google result. Approve or dismiss terms without leaving this window.
+            {!grounded && (
+              <span style={{ display: 'block', marginTop: 6, color: '#9a3412' }}>
+                Live Google grounding is unavailable (Growth Tools SERP lookup not reachable/configured), so summaries fall back to the model’s own knowledge.
+              </span>
+            )}
+          </p>
+          {selectableCount > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151', marginBottom: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={allSelected} onChange={(e) => toggleAll(e.target.checked)} />
+              Select all {selectableCount} pending term{selectableCount !== 1 ? 's' : ''}
+            </label>
+          )}
+        </div>
+        <div style={{ padding: '0 22px', overflowY: 'auto', flex: 1 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 32, color: '#6b7280', fontSize: 13 }}>Searching Google and summarising…</div>
+          ) : error ? (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, padding: '10px 12px', fontSize: 13 }}>{error}</div>
+          ) : results && results.length > 0 ? (
+            <div style={{ display: 'grid', gap: 10, paddingBottom: 4 }}>
+              {results.map((r) => {
+                const key = r.term.toLowerCase()
+                const candidate = termCandidates.get(key)
+                const isSelected = selectedTerms.has(key)
+                return (
+                  <div key={r.term} style={{ border: `1px solid ${isSelected ? '#bfdbfe' : '#e5e7eb'}`, background: isSelected ? '#eff6ff' : 'white', borderRadius: 8, padding: '10px 12px', display: 'flex', gap: 10 }}>
+                    <div style={{ paddingTop: 1 }}>
+                      {candidate ? (
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleTerm(key)} title="Select this term" />
+                      ) : (
+                        <span title="Already actioned or not pending" style={{ display: 'inline-block', width: 13 }} />
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                        <a href={googleSearchUrl(r.term)} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', fontSize: 13 }}>
+                          {r.term}
+                        </a>
+                        {!r.grounded && <span style={badgeStyle('#fef3c7', '#92400e')}>ungrounded</span>}
+                        {!candidate && <span style={badgeStyle('#e5e7eb', '#6b7280')}>done</span>}
+                      </div>
+                      <div style={{ fontSize: 13, color: '#111827', lineHeight: 1.45 }}>{r.summary}</div>
+                      {r.source && (
+                        <a href={r.source.link} target="_blank" rel="noopener noreferrer" title={r.source.link} style={{ display: 'block', marginTop: 4, fontSize: 12, color: '#6b7280', textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Source: {r.source.title}
+                        </a>
+                      )}
+                      {candidate && (
+                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                          <button
+                            onClick={() => void runAction(onApproveTerms, [key])}
+                            disabled={busy}
+                            title="Approve this term as an ad-group negative keyword"
+                            style={{ ...btnStyle('primary', busy), fontSize: 11, padding: '4px 10px' }}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => void runAction(onDismissTerms, [key])}
+                            disabled={busy}
+                            title="Dismiss this term so it no longer appears as pending"
+                            style={{ ...btnStyle('ghost'), fontSize: 11, padding: '4px 10px' }}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: 32, color: '#6b7280', fontSize: 13 }}>No results.</div>
+          )}
+        </div>
+        {selectableCount > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 22px', borderTop: '1px solid #e5e7eb' }}>
+            <span style={{ fontSize: 12, color: '#64748b', marginRight: 'auto' }}>
+              {selectedCount} selected
+            </span>
+            <button
+              onClick={() => void runAction(onDismissTerms, selectedKeys)}
+              disabled={busy || selectedCount === 0}
+              style={{ ...btnStyle('ghost'), fontSize: 12, padding: '6px 12px', opacity: busy || selectedCount === 0 ? 0.5 : 1 }}
+            >
+              Dismiss selected
+            </button>
+            <button
+              onClick={() => void runAction(onApproveTerms, selectedKeys)}
+              disabled={busy || selectedCount === 0}
+              style={{ ...btnStyle('primary', busy || selectedCount === 0), fontSize: 12, padding: '6px 12px' }}
+            >
+              Approve selected
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -771,8 +883,13 @@ export default function MatchTypeViolationReview({
 
   // Load every page up front so the table is one continuous scrollable list
   // (no Previous/Next pagination).
-  const fetchCandidates = useCallback(async () => {
-    setLoading(true)
+  // `silent` skips the full-table Loading state so post-action reconciliation
+  // refetches don't flash every ad group away — the optimistic row removal has
+  // already updated the UI, so a group stays visible until its own terms are
+  // all actioned/dismissed rather than briefly vanishing on every approve.
+  const fetchCandidates = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true
+    if (!silent) setLoading(true)
     setError(null)
     const baseParams = new URLSearchParams({ limit: '100' })
     if (filterClient) baseParams.set('client', filterClient)
@@ -797,12 +914,17 @@ export default function MatchTypeViolationReview({
       }
       setCandidates(all)
       setTotalDocs(total)
-      setSelected(new Set())
-      setEdits(new Map())
+      // A silent post-action refetch must preserve the reviewer's selections and
+      // inline negative edits in other ad groups (the whole point of acting
+      // without losing your place). Only a full/filter reload clears them.
+      if (!silent) {
+        setSelected(new Set())
+        setEdits(new Map())
+      }
     } catch (e: any) {
       setError(e.message)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [filterClient, filterStatus, filterMatchType, filterViolationType])
 
@@ -903,7 +1025,7 @@ export default function MatchTypeViolationReview({
       setCandidates((prev) => prev.filter((candidate) => candidate.id !== id))
       setSelected((prev) => { const s = new Set(prev); s.delete(id); return s })
       setTotalDocs((prev) => Math.max(0, prev - 1))
-      void fetchCandidates()
+      void fetchCandidates({ silent: true })
     } catch (e: any) {
       alert(`Error: ${e.message}`)
     } finally {
@@ -920,7 +1042,7 @@ export default function MatchTypeViolationReview({
       setCandidates((prev) => prev.filter((candidate) => candidate.id !== id))
       setSelected((prev) => { const s = new Set(prev); s.delete(id); return s })
       setTotalDocs((prev) => Math.max(0, prev - 1))
-      void fetchCandidates()
+      void fetchCandidates({ silent: true })
     } catch (e: any) {
       alert(`Error: ${e.message}`)
     } finally {
@@ -928,14 +1050,22 @@ export default function MatchTypeViolationReview({
     }
   }
 
-  const handleBulkApprove = async (routing: { mode: RoutingMode; listId?: string | number }) => {
-    const ids = Array.from(selected)
+  // Core approve used by the toolbar, ad-group shortcut, and the research modal.
+  // Takes explicit ids so callers can approve a subset without depending on the
+  // global selection; only the actioned ids are removed and deselected, so
+  // other ad groups and selections stay intact.
+  const approveCandidates = async (
+    approveIds: (string | number)[],
+    routing: { mode: RoutingMode; listId?: string | number },
+  ) => {
+    const ids = approveIds
     if (ids.length === 0) return
+    const idSet = new Set(ids)
     // Send each selected row's inline-edited negative so bulk approve honours
     // per-row keyword/match-type changes rather than only the stored default.
     const overrides: Record<string, NegativeEdit> = {}
     for (const c of candidates) {
-      if (!selected.has(c.id)) continue
+      if (!idSet.has(c.id)) continue
       overrides[String(c.id)] = negativeFor(c)
     }
     setBulkLoading(true)
@@ -967,8 +1097,8 @@ export default function MatchTypeViolationReview({
           })
         : []
       setShowNklPicker(false)
-      setCandidates((prev) => prev.filter((candidate) => !ids.includes(candidate.id)))
-      setSelected(new Set())
+      setCandidates((prev) => prev.filter((candidate) => !idSet.has(candidate.id)))
+      setSelected((prev) => { const s = new Set(prev); ids.forEach((id) => s.delete(id)); return s })
       setTotalDocs((prev) => Math.max(0, prev - ids.length))
       setKeywordActionStatus({
         kind: 'success',
@@ -980,13 +1110,16 @@ export default function MatchTypeViolationReview({
           ...listLines,
         ],
       })
-      void fetchCandidates()
+      void fetchCandidates({ silent: true })
     } catch (e: any) {
       setKeywordActionStatus({ kind: 'error', title: 'Negative keyword approval failed', lines: [cleanActionError(e.message)] })
     } finally {
       setBulkLoading(false)
     }
   }
+
+  const handleBulkApprove = (routing: { mode: RoutingMode; listId?: string | number }) =>
+    approveCandidates(Array.from(selected), routing)
 
   const openBulkPicker = async () => {
     await fetchNklLists()
@@ -1027,10 +1160,14 @@ export default function MatchTypeViolationReview({
     URL.revokeObjectURL(url)
   }
 
-  const handleBulkDismiss = async () => {
-    const ids = pendingSelected.map((c) => c.id)
+  // Core dismiss (reject) used by the toolbar and the research modal. Only the
+  // actioned ids are removed and deselected so the ad group stays until its own
+  // terms are all handled.
+  const dismissCandidates = async (dismissIds: (string | number)[]) => {
+    const ids = dismissIds
     if (ids.length === 0) return
     if (!confirm(`Dismiss ${ids.length} reviewed term${ids.length !== 1 ? 's' : ''}? They won't show up as pending again.`)) return
+    const idSet = new Set(ids)
     setBulkLoading(true)
     try {
       const res = await fetch('/api/match-type-violations/bulk-reject', {
@@ -1039,16 +1176,18 @@ export default function MatchTypeViolationReview({
         body: JSON.stringify({ candidateIds: ids }),
       })
       if (!res.ok) throw new Error(await res.text())
-      setCandidates((prev) => prev.filter((candidate) => !ids.includes(candidate.id)))
-      setSelected(new Set())
+      setCandidates((prev) => prev.filter((candidate) => !idSet.has(candidate.id)))
+      setSelected((prev) => { const s = new Set(prev); ids.forEach((id) => s.delete(id)); return s })
       setTotalDocs((prev) => Math.max(0, prev - ids.length))
-      void fetchCandidates()
+      void fetchCandidates({ silent: true })
     } catch (e: any) {
       alert(`Error: ${e.message}`)
     } finally {
       setBulkLoading(false)
     }
   }
+
+  const handleBulkDismiss = () => dismissCandidates(pendingSelected.map((c) => c.id))
 
   const openKeywordTargetPicker = async () => {
     if (pendingSelected.length === 0) return
@@ -1121,7 +1260,7 @@ export default function MatchTypeViolationReview({
           ...warningLines,
         ],
       })
-      void fetchCandidates()
+      void fetchCandidates({ silent: true })
     } catch (e: any) {
       setKeywordActionStatus({
         kind: 'error',
@@ -1188,6 +1327,20 @@ export default function MatchTypeViolationReview({
   const groupedCandidates = useMemo(() => groupCandidatesByAdGroup(visibleCandidates), [visibleCandidates])
   const tableColumnCount = 4 + HIDEABLE_COLUMNS.filter((column) => isVisible(column.key)).length
 
+  // Map each researched search term (lowercased) to its still-pending candidate,
+  // so the research modal can approve/dismiss terms directly. Recomputed from the
+  // live group, so once a term is actioned its candidate drops out and the modal
+  // shows it as done.
+  const researchTermCandidates = useMemo(() => {
+    const map = new Map<string, Candidate>()
+    if (!researchGroup) return map
+    const group = groupedCandidates.find((g) => g.key === researchGroup.key)
+    for (const candidate of group?.candidates ?? []) {
+      if (candidate.status === 'pending') map.set(candidate.searchTerm.toLowerCase(), candidate)
+    }
+    return map
+  }, [researchGroup, groupedCandidates])
+
   // Batch-research a group's search terms: if some rows in the group are
   // selected, only research those; otherwise research every term in the group.
   const openGroupResearch = async (group: CandidateGroup) => {
@@ -1216,6 +1369,12 @@ export default function MatchTypeViolationReview({
       setResearchLoading(false)
     }
   }
+
+  // Modal actions: approve terms as ad-group negatives, or dismiss them, using
+  // the shared cores. The ad group stays open until all its terms are handled.
+  const approveResearchTerms = (ids: (string | number)[]) =>
+    approveCandidates(ids, { mode: 'auto' })
+  const dismissResearchTerms = (ids: (string | number)[]) => dismissCandidates(ids)
 
   const openGroupPicker = async (group: CandidateGroup) => {
     const pendingIds = group.candidates
@@ -1768,6 +1927,10 @@ export default function MatchTypeViolationReview({
           error={researchError}
           results={researchResults}
           grounded={researchGrounded}
+          termCandidates={researchTermCandidates}
+          busy={bulkLoading}
+          onApproveTerms={approveResearchTerms}
+          onDismissTerms={dismissResearchTerms}
           onClose={() => setResearchGroup(null)}
         />
       )}
