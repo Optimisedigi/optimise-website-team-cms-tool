@@ -421,17 +421,39 @@ export default function TeamTasksSpreadsheet() {
   }
 
   const addWeek = async () => {
-    const latestWeek = groupedTasks.reduce((latest, [week]) => week > latest ? week : latest, weekStart)
-    const next = new Date(`${latestWeek}T00:00:00`)
-    next.setDate(next.getDate() + 7)
-    const nextWeek = mondayKey(next)
-    setWeekStart(nextWeek)
-    if (weekMode === 'all') {
-      await addRow(nextWeek)
-      return
+    setSavingId('new')
+    setError('')
+    try {
+      // Decide the target week from the authoritative full list of weeks that
+      // already have tasks — not from `groupedTasks`, which in `week`/`last2`/
+      // `last4` mode only holds the currently-loaded subset and would make us
+      // skip (or duplicate) weeks that exist but aren't loaded yet.
+      const params = new URLSearchParams({ status: 'all', weekStart: 'all' })
+      if (clientFilter) params.set('client', clientFilter)
+      const res = await fetch(`/api/team-tasks/grid?${params.toString()}`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to add week')
+      const existing = new Set<string>(
+        (json.tasks || []).map((task: TeamTask) => taskWeek(task.dueDate)).filter(Boolean),
+      )
+      // Walk forward from the current week to the first week with no tasks, so
+      // the next *unavailable* week is added instead of jumping past a gap.
+      let target = mondayKey()
+      while (existing.has(target)) {
+        const d = new Date(`${target}T00:00:00`)
+        d.setDate(d.getDate() + 7)
+        target = mondayKey(d)
+      }
+      // Create the row first; only switch the view to the new week once the
+      // POST has succeeded, so a failed add never strands the UI on an empty
+      // week that was never created.
+      await addRow(target)
+      setWeekMode('all')
+      setWeekStart(target)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add week')
+      setSavingId(null)
     }
-    setWeekMode('all')
-    await addRow(nextWeek)
   }
 
   return (
