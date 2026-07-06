@@ -1216,7 +1216,7 @@ export default function MatchTypeViolationReview({
   }
 
   const handleReject = async (id: string | number) => {
-    if (!confirm('Reject this violation?')) return
+    if (!confirm('Dismiss this violation?')) return
     setActionLoading((prev) => new Set(prev).add(id))
     try {
       const res = await fetch(`/api/match-type-violations/${id}/reject`, { method: 'POST' })
@@ -2078,7 +2078,7 @@ export default function MatchTypeViolationReview({
                               disabled={actionLoading.has(c.id)}
                               style={{ ...btnStyle('ghost'), fontSize: 11, padding: '4px 8px' }}
                             >
-                              {actionLoading.has(c.id) ? 'Rejecting…' : 'Reject'}
+                              {actionLoading.has(c.id) ? 'Dismissing…' : 'Dismiss'}
                             </button>
                           </div>
                         )}
