@@ -11,12 +11,23 @@
  * Grounding is best-effort: if Growth Tools is unreachable or its Serper key is
  * missing, the summary falls back to the model's own knowledge and `grounded`
  * is false.
+ *
+ * The one-sentence summaries run through the shared `callLLM` layer so this task
+ * uses the model registry + provider failover instead of a single hardcoded
+ * provider. The default model is MiniMax; the intent is to promote this to a
+ * task-specific field in OptiMate Settings (like `blogPrompterModel`) so it can
+ * be changed without a deploy.
  */
+
+import { callLLM } from '@/lib/agents/_shared/llm'
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
-const KIMI_BASE_URL = process.env.KIMI_BASE_URL || 'https://api.moonshot.ai/v1'
-const KIMI_MODEL = process.env.KIMI_MODEL || 'kimi-k2-0905-preview'
+
+// Default model for the business summaries, with a resilient fallback chain.
+// Canonical registry names — see src/lib/agents/_shared/llm/registry.ts.
+const SUMMARY_MODEL = 'minimax-m3'
+const SUMMARY_FALLBACK_MODELS = ['claude-sonnet-4.6', 'kimi-k2.6']
 
 export interface TermResearchSource {
   title: string
@@ -119,11 +130,26 @@ function groundingLine(g: GroundedTerm): string {
   return parts.length > 0 ? parts.join('\n    ') : 'no search results found'
 }
 
+/** Pull the first balanced JSON array out of a model reply, tolerating fences/prose. */
+function extractJsonArray(text: string): unknown {
+  const stripped = text.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim()
+  try {
+    return JSON.parse(stripped)
+  } catch {
+    // Thinking models sometimes wrap the array in prose; slice to the outer [].
+    const start = stripped.indexOf('[')
+    const end = stripped.lastIndexOf(']')
+    if (start !== -1 && end > start) {
+      return JSON.parse(stripped.slice(start, end + 1))
+    }
+    throw new Error('No JSON array found in model reply')
+  }
+}
+
 /** Ask the LLM to compress grounded context into one sentence per term. */
 async function summariseGroundedTerms(grounded: GroundedTerm[]): Promise<Map<string, string>> {
   const summaries = new Map<string, string>()
-  const apiKey = process.env.KIMI_API_KEY
-  if (!apiKey || grounded.length === 0) return summaries
+  if (grounded.length === 0) return summaries
 
   const systemPrompt = [
     'You explain unfamiliar Google Ads search terms to a paid-search analyst.',
@@ -141,28 +167,21 @@ async function summariseGroundedTerms(grounded: GroundedTerm[]): Promise<Map<str
   ].join('\n')
 
   try {
-    const res = await fetch(`${KIMI_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: KIMI_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
-        ],
-        temperature: 0.2,
-        max_tokens: 1500,
-      }),
-      signal: AbortSignal.timeout(60_000),
+    // Generous token budget: MiniMax/thinking models spend tokens on a reasoning
+    // pass before emitting the visible JSON array.
+    const response = await callLLM({
+      model: SUMMARY_MODEL,
+      fallbackModels: SUMMARY_FALLBACK_MODELS,
+      maxTokens: 4000,
+      temperature: 0.2,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: [{ type: 'text', text: userMessage }] }],
     })
-    if (!res.ok) {
-      console.error(`[search-term-research] Kimi ${res.status}: ${await res.text().catch(() => '')}`)
-      return summaries
-    }
-    const data = await res.json()
-    const text: string = data.choices?.[0]?.message?.content?.trim() || ''
-    const jsonStr = text.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '')
-    const parsed = JSON.parse(jsonStr)
+    const text = response.message.content
+      .map((part) => (part.type === 'text' ? part.text : ''))
+      .join('')
+      .trim()
+    const parsed = extractJsonArray(text)
     if (Array.isArray(parsed)) {
       for (const row of parsed) {
         const term = typeof row?.term === 'string' ? row.term : ''
@@ -171,7 +190,7 @@ async function summariseGroundedTerms(grounded: GroundedTerm[]): Promise<Map<str
       }
     }
   } catch (err) {
-    console.error('[search-term-research] Kimi summarisation failed:', err)
+    console.error('[search-term-research] summarisation failed:', err)
   }
   return summaries
 }

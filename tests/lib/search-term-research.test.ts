@@ -2,13 +2,13 @@ import type { TermResearchResponse } from "@/lib/search-term-research";
 
 // ---------------------------------------------------------------------------
 // The module reads GROWTH_TOOLS_URL / INTERNAL_API_KEY at top-level evaluation
-// time, and KIMI_API_KEY inside the summariser, so each test uses
-// vi.resetModules() + a fresh dynamic import() after setting env vars.
+// time, so each test uses vi.resetModules() + a fresh dynamic import() after
+// setting env vars.
 //
-// Two fetch targets are involved:
-//   1. `${GROWTH_TOOLS_URL}/api/serp/top-results`  → Google grounding (Serper)
-//   2. `${KIMI_BASE_URL}/chat/completions`         → one-sentence summaries
-// The mock routes on the URL so each can be controlled independently.
+// Grounding (Serper via Growth Tools) is a real fetch to
+// `${GROWTH_TOOLS_URL}/api/serp/top-results`, so it is exercised via a mocked
+// global fetch. Summarisation goes through the shared `callLLM` layer, which is
+// mocked here so we don't pull in the whole model registry / providers.
 //
 // Two distinct meanings of "grounded":
 //   - TermResearchResponse.grounded (top-level) = GT reported `configured` true
@@ -17,10 +17,14 @@ import type { TermResearchResponse } from "@/lib/search-term-research";
 //     result / knowledge panel (source or knowledgeGraph present).
 // ---------------------------------------------------------------------------
 
+const mockCallLLM = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/agents/_shared/llm", () => ({
+  callLLM: (opts: unknown) => mockCallLLM(opts),
+}));
+
 const ORIG = {
   GROWTH_TOOLS_URL: process.env.GROWTH_TOOLS_URL,
   INTERNAL_API_KEY: process.env.INTERNAL_API_KEY,
-  KIMI_API_KEY: process.env.KIMI_API_KEY,
 };
 
 const mockFetch = vi.fn();
@@ -38,48 +42,40 @@ function jsonResponse(body: unknown, ok = true, status = 200) {
 }
 
 /**
- * Route fetch by URL: GT top-results vs Kimi chat completions.
- * `top` and `kimi` are the parsed JSON bodies each endpoint should return;
- * pass `topResponse` to override the raw response (e.g. a 404).
+ * Route fetch to the GT grounding endpoint. `top` is the parsed JSON body it
+ * returns; pass `topResponse` to override the raw response (e.g. a 404).
  */
-function routeFetch(opts: {
-  top?: unknown;
-  topResponse?: any;
-  kimi?: unknown;
-  onKimiRequest?: (body: any) => void;
-}) {
-  mockFetch.mockImplementation((url: string, init?: any) => {
+function routeFetch(opts: { top?: unknown; topResponse?: any }) {
+  mockFetch.mockImplementation((url: string) => {
     if (typeof url === "string" && url.includes("/api/serp/top-results")) {
       if (opts.topResponse) return Promise.resolve(opts.topResponse);
       return Promise.resolve(jsonResponse(opts.top ?? { results: [], configured: true }));
-    }
-    if (typeof url === "string" && url.includes("/chat/completions")) {
-      if (opts.onKimiRequest) opts.onKimiRequest(JSON.parse(init?.body ?? "{}"));
-      return Promise.resolve(
-        jsonResponse(
-          opts.kimi ?? {
-            choices: [{ message: { content: "[]" } }],
-          },
-        ),
-      );
     }
     return Promise.reject(new Error(`Unexpected fetch to ${url}`));
   });
 }
 
-/** Build a Kimi response whose JSON array summarises the given term→summary map. */
-function kimiSummaries(map: Record<string, string>) {
+/** Build an LLMResponse whose text content is the {term,summary} JSON array. */
+function llmResponse(map: Record<string, string>) {
   const arr = Object.entries(map).map(([term, summary]) => ({ term, summary }));
-  return { choices: [{ message: { content: JSON.stringify(arr) } }] };
+  return {
+    message: { role: "assistant", content: [{ type: "text", text: JSON.stringify(arr) }] },
+    stopReason: "end_turn",
+    usage: { inputTokens: 0, outputTokens: 0 },
+    model: "minimax-m3",
+    providerModel: "MiniMax-M3",
+    source: "env",
+  };
 }
 
 beforeEach(() => {
   mockFetch.mockReset();
+  mockCallLLM.mockReset();
+  mockCallLLM.mockResolvedValue(llmResponse({})); // default: no summaries
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.resetModules();
   process.env.GROWTH_TOOLS_URL = GT_URL;
   process.env.INTERNAL_API_KEY = "internal-key";
-  process.env.KIMI_API_KEY = "kimi-key";
 });
 
 afterEach(() => {
@@ -99,10 +95,8 @@ async function importModule() {
 
 describe("researchSearchTerms", () => {
   it("(1) GT returns 404 → grounded:false, results still returned with fallback summaries, no throw", async () => {
-    routeFetch({
-      topResponse: { ok: false, status: 404, text: () => Promise.resolve("Not Found") },
-      kimi: kimiSummaries({ acme: "A software firm." }),
-    });
+    routeFetch({ topResponse: { ok: false, status: 404, text: () => Promise.resolve("Not Found") } });
+    mockCallLLM.mockResolvedValue(llmResponse({ acme: "A software firm." }));
 
     const { researchSearchTerms } = await importModule();
     const res = await researchSearchTerms(["acme"]);
@@ -110,7 +104,7 @@ describe("researchSearchTerms", () => {
     expect(res.grounded).toBe(false); // GT unreachable → not grounded at service level
     expect(res.results).toHaveLength(1);
     expect(res.results[0].term).toBe("acme");
-    // Kimi still ran (ungrounded), so we get its summary; the term itself is not grounded.
+    // The summariser still ran (ungrounded), so we get its summary; the term itself is not grounded.
     expect(res.results[0].summary).toBe("A software firm.");
     expect(res.results[0].grounded).toBe(false);
     expect(res.results[0].source).toBeNull();
@@ -120,7 +114,7 @@ describe("researchSearchTerms", () => {
     delete process.env.GROWTH_TOOLS_URL;
     delete process.env.INTERNAL_API_KEY;
     vi.resetModules();
-    routeFetch({ kimi: kimiSummaries({ acme: "A software firm." }) });
+    routeFetch({});
 
     const { researchSearchTerms } = await importModule();
     const res = await researchSearchTerms(["acme"]);
@@ -147,8 +141,8 @@ describe("researchSearchTerms", () => {
           },
         ],
       },
-      kimi: kimiSummaries({ acme: "A manufacturer." }),
     });
+    mockCallLLM.mockResolvedValue(llmResponse({ acme: "A manufacturer." }));
 
     const { researchSearchTerms } = await importModule();
     const res = await researchSearchTerms(["acme"]);
@@ -158,7 +152,7 @@ describe("researchSearchTerms", () => {
     expect(res.results[0].source?.link).toBe("https://acme.example");
   });
 
-  it("(4) happy path with source + knowledgeGraph → grounded:true and source populated", async () => {
+  it("(4) happy path with source + knowledgeGraph → grounded:true, source populated, MiniMax is the model", async () => {
     routeFetch({
       top: {
         configured: true,
@@ -174,8 +168,8 @@ describe("researchSearchTerms", () => {
           },
         ],
       },
-      kimi: kimiSummaries({ "acme accountants leeds": "A UK accountancy firm in Leeds." }),
     });
+    mockCallLLM.mockResolvedValue(llmResponse({ "acme accountants leeds": "A UK accountancy firm in Leeds." }));
 
     const { researchSearchTerms } = await importModule();
     const res = await researchSearchTerms(["acme accountants leeds"]);
@@ -189,6 +183,11 @@ describe("researchSearchTerms", () => {
       link: "https://acme-accountants.co.uk",
       snippet: "Chartered accountants in Leeds.",
     });
+    // The summariser defaults to MiniMax with a resilient fallback chain.
+    expect(mockCallLLM).toHaveBeenCalledTimes(1);
+    const opts = mockCallLLM.mock.calls[0][0];
+    expect(opts.model).toBe("minimax-m3");
+    expect(opts.fallbackModels).toEqual(["claude-sonnet-4.6", "kimi-k2.6"]);
   });
 
   it("(5) duplicate / whitespace / empty input terms are deduped before grounding", async () => {
@@ -203,7 +202,7 @@ describe("researchSearchTerms", () => {
           }),
         );
       }
-      return Promise.resolve(jsonResponse({ choices: [{ message: { content: "[]" } }] }));
+      return Promise.reject(new Error(`Unexpected fetch to ${url}`));
     });
 
     const { researchSearchTerms } = await importModule();
@@ -224,8 +223,8 @@ describe("researchSearchTerms", () => {
           { term: "alpha", source: { title: "Alpha", link: "https://alpha.example", snippet: "" }, knowledgeGraph: null },
         ],
       },
-      kimi: kimiSummaries({ alpha: "A.", beta: "B." }),
     });
+    mockCallLLM.mockResolvedValue(llmResponse({ alpha: "A.", beta: "B." }));
 
     const { researchSearchTerms } = await importModule();
     const res = await researchSearchTerms(["alpha", "beta", "gamma"]);
@@ -239,9 +238,7 @@ describe("researchSearchTerms", () => {
     expect(res.results[2].source).toBeNull();
   });
 
-  it("(7) no KIMI_API_KEY → 'No summary available' fallback string, no crash, no Kimi fetch", async () => {
-    delete process.env.KIMI_API_KEY;
-    vi.resetModules();
+  it("(7) summariser (callLLM) fails for the whole batch → 'No summary available' fallback, no crash, grounding preserved", async () => {
     routeFetch({
       top: {
         configured: true,
@@ -250,6 +247,7 @@ describe("researchSearchTerms", () => {
         ],
       },
     });
+    mockCallLLM.mockRejectedValue(new Error("all providers failed"));
 
     const { researchSearchTerms } = await importModule();
     const res = await researchSearchTerms(["acme"]);
@@ -257,18 +255,43 @@ describe("researchSearchTerms", () => {
     expect(res.grounded).toBe(true); // GT still grounded this term
     expect(res.results[0].grounded).toBe(true);
     expect(res.results[0].summary).toMatch(/No summary available/);
-    // Summariser short-circuits without a key → no chat/completions call.
-    const kimiCalls = mockFetch.mock.calls.filter(
-      (c) => typeof c[0] === "string" && c[0].includes("/chat/completions"),
-    );
-    expect(kimiCalls).toHaveLength(0);
+    expect(mockCallLLM).toHaveBeenCalledTimes(1); // attempted, then fell back gracefully
   });
 
-  it("returns an empty response for all-empty input without any fetch", async () => {
+  it("parses a summary array even when the model wraps it in prose/fences", async () => {
+    routeFetch({
+      top: {
+        configured: true,
+        results: [
+          { term: "acme", source: { title: "Acme", link: "https://acme.example", snippet: "" }, knowledgeGraph: null },
+        ],
+      },
+    });
+    mockCallLLM.mockResolvedValue({
+      message: {
+        role: "assistant",
+        content: [
+          { type: "text", text: 'Here you go:\n```json\n[{"term":"acme","summary":"A widget maker."}]\n```' },
+        ],
+      },
+      stopReason: "end_turn",
+      usage: { inputTokens: 0, outputTokens: 0 },
+      model: "minimax-m3",
+      providerModel: "MiniMax-M3",
+      source: "env",
+    });
+
+    const { researchSearchTerms } = await importModule();
+    const res = await researchSearchTerms(["acme"]);
+    expect(res.results[0].summary).toBe("A widget maker.");
+  });
+
+  it("returns an empty response for all-empty input without any fetch or LLM call", async () => {
     routeFetch({});
     const { researchSearchTerms } = await importModule();
     const res: TermResearchResponse = await researchSearchTerms(["", "   "]);
     expect(res).toEqual({ grounded: false, results: [] });
     expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockCallLLM).not.toHaveBeenCalled();
   });
 });
