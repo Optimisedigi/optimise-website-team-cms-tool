@@ -735,7 +735,21 @@ function TermResearchModal({
       <div style={{ background: 'white', borderRadius: 10, width: 720, maxWidth: '96vw', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
         <div style={{ padding: '22px 22px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Research search terms</h3>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+              Research search terms
+              {busy && (
+                <span
+                  aria-label="Working…"
+                  role="status"
+                  style={{
+                    display: 'inline-block', width: 14, height: 14,
+                    border: '2px solid #cbd5e1', borderTopColor: '#2563eb',
+                    borderRadius: '50%', animation: 'mtv-spin 0.7s linear infinite',
+                  }}
+                />
+              )}
+              <style>{'@keyframes mtv-spin{to{transform:rotate(360deg)}}'}</style>
+            </h3>
             <button onClick={onClose} style={{ ...btnStyle('ghost'), fontSize: 12, padding: '4px 10px' }}>Close</button>
           </div>
           <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13, lineHeight: 1.45 }}>
@@ -2064,7 +2078,7 @@ export default function MatchTypeViolationReview({
                               disabled={actionLoading.has(c.id)}
                               style={{ ...btnStyle('ghost'), fontSize: 11, padding: '4px 8px' }}
                             >
-                              Reject
+                              {actionLoading.has(c.id) ? 'Rejecting…' : 'Reject'}
                             </button>
                           </div>
                         )}
@@ -2222,7 +2236,7 @@ function ApprovePopover({
         disabled={loading}
         style={{ ...btnStyle('primary'), fontSize: 11, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}
       >
-        {loading ? '…' : 'Approve'}
+        {loading ? 'Approving…' : 'Approve'}
         <span style={{ fontSize: 10 }}>▾</span>
       </button>
       {open && (

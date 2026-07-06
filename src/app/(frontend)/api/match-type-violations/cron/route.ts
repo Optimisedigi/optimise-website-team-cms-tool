@@ -4,6 +4,10 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
 import { filterViolations, readScope } from "@/lib/match-type-filter";
+import {
+  findCoveringNegative,
+  type CoverageNkl,
+} from "@/lib/match-type-negation-coverage";
 
 export const maxDuration = 180;
 
@@ -316,32 +320,6 @@ async function authCron(req: NextRequest): Promise<boolean> {
   }
 }
 
-/**
- * Returns true if the search term is already negated (as any match type)
- * in any active negative keyword list for this client.
- *
- * Uses the raw DB client to avoid Payload ORM id=null insert bug on
- * match_type_violation_candidates (SQLite NOT NULL constraint).
- */
-async function isAlreadyNegated(
-  payload: Awaited<ReturnType<typeof getPayload>>,
-  clientId: number,
-  searchTerm: string,
-): Promise<boolean> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = ((payload as any).db as { client: { execute: (sql: string) => Promise<unknown> } }).client;
-  const term = searchTerm.trim().toLowerCase();
-  const result = await db.execute(
-    `SELECT nkl.id FROM negative_keyword_lists nkl
-     JOIN negative_keyword_lists_keywords nklkw ON nklkw._parent_id = nkl.id
-     WHERE nkl.client_id = ${Number(clientId)}
-       AND (nkl.is_active = 1 OR nkl.is_active = 1)
-       AND LOWER(TRIM(nklkw.keyword)) = '${term.replace(/'/g, "''")}'
-     LIMIT 1;`,
-  ) as { rows: unknown[] };
-  return result.rows.length > 0;
-}
-
 function esc(s: unknown): string {
   if (s === null || s === undefined) return 'NULL';
   return `'${String(s).replace(/'/g, "''")}'`;
@@ -459,7 +437,6 @@ async function upsertViolation(
     }
   } else {
     if (conversions > 0) return false;
-    if (await isAlreadyNegated(payload, clientId, v.searchTerm)) return false;
 
     // Insert new candidate — use raw SQL to bypass Payload ORM id=null bug
     await db.execute(
@@ -542,19 +519,46 @@ async function syncClient(
   const existingKeywords = buildExistingKeywordSet(data, await fetchExistingKeywordSet(customerId.replace(/-/g, "")));
   const scopedViolations = filterViolations(allViolations, scope);
   const now = new Date().toISOString();
+
+  // Active NKLs for this client, used to suppress violations already blocked by
+  // a negative (exact, phrase, or broad) in a list that routes to the
+  // violation's campaign / ad group.
+  const nklResult = await (payload.find as any)({
+    collection: "negative-keyword-lists",
+    where: {
+      and: [{ client: { equals: clientId } }, { isActive: { equals: true } }],
+    },
+    depth: 0,
+    limit: 500,
+    overrideAccess: true,
+  });
+  const campaignNegatives: CoverageNkl[] = Array.isArray(nklResult?.docs) ? nklResult.docs : [];
+
   // Keep only violations the client actually polices (match-type gate + allow-list),
-  // and suppress rows where the search term already exists as a keyword in that campaign.
+  // then suppress rows where the search term already exists as a keyword in that
+  // campaign, or is already covered by an applicable negative keyword.
   const violations: Violation[] = [];
+  let skippedNegated = 0;
   for (const v of scopedViolations) {
     if (alreadyExistsInCampaign(v, existingKeywords)) {
       await hideExistingKeywordCandidate(payload, clientId as number, v, now);
-    } else {
-      violations.push(v);
+      continue;
     }
+    const covering = findCoveringNegative(
+      v.searchTerm,
+      { campaignName: v.campaignName, adGroupName: v.adGroupName },
+      campaignNegatives,
+    );
+    if (covering) {
+      // No-op for brand-new terms (nothing to hide); hides any stale pending row.
+      await hideExistingKeywordCandidate(payload, clientId as number, v, now);
+      skippedNegated++;
+      continue;
+    }
+    violations.push(v);
   }
 
   let createdOrUpdated = 0;
-  let skippedNegated = 0;
 
   for (const v of violations) {
     const wasUpserted = await upsertViolation(payload, clientId as number, v, now);
