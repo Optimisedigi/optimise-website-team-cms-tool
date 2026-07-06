@@ -5,6 +5,7 @@ import { buildNegativeFromViolation } from '@/lib/match-type-negative'
 import { contentWords, countSynonymOverlap, type SynonymRuleInput } from '@/lib/match-type-synonyms'
 import { buildAllowListSet, hasLikelyUnknownBrandToken, type AllowListTermInput } from '@/lib/match-type-allow-list'
 import { matchTypeDictionary } from '@/lib/match-type-dictionary'
+import type { TermResearchResult } from '@/lib/search-term-research'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,6 +203,11 @@ function confidenceFor(c: Candidate, synonymRules: SynonymRuleInput[] = [], allo
     bg: '#e0e7ff',
     color: '#3730a3',
   }
+}
+
+/** Google search URL for a search term, opened in a new tab for quick research. */
+function googleSearchUrl(term: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(term)}`
 }
 
 function violationColor(type: string): string {
@@ -528,6 +534,67 @@ function TeachSynonymModal({
   )
 }
 
+function TermResearchModal({
+  adGroupName,
+  loading,
+  error,
+  results,
+  grounded,
+  onClose,
+}: {
+  adGroupName: string
+  loading: boolean
+  error: string | null
+  results: TermResearchResult[] | null
+  grounded: boolean
+  onClose: () => void
+}) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'white', borderRadius: 10, padding: 22, width: 720, maxWidth: '96vw', maxHeight: '86vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Research search terms</h3>
+          <button onClick={onClose} style={{ ...btnStyle('ghost'), fontSize: 12, padding: '4px 10px' }}>Close</button>
+        </div>
+        <p style={{ margin: '0 0 14px', color: '#64748b', fontSize: 13, lineHeight: 1.45 }}>
+          {adGroupName} — one-sentence summary per term, based on the top Google result.
+          {!grounded && (
+            <span style={{ display: 'block', marginTop: 6, color: '#9a3412' }}>
+              Live Google grounding is unavailable (Growth Tools SERP lookup not reachable/configured), so summaries fall back to the model’s own knowledge.
+            </span>
+          )}
+        </p>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 32, color: '#6b7280', fontSize: 13 }}>Searching Google and summarising…</div>
+        ) : error ? (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, padding: '10px 12px', fontSize: 13 }}>{error}</div>
+        ) : results && results.length > 0 ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {results.map((r) => (
+              <div key={r.term} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                  <a href={googleSearchUrl(r.term)} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', fontSize: 13 }}>
+                    {r.term}
+                  </a>
+                  {!r.grounded && <span style={badgeStyle('#fef3c7', '#92400e')}>ungrounded</span>}
+                </div>
+                <div style={{ fontSize: 13, color: '#111827', lineHeight: 1.45 }}>{r.summary}</div>
+                {r.source && (
+                  <a href={r.source.link} target="_blank" rel="noopener noreferrer" title={r.source.link} style={{ display: 'block', marginTop: 4, fontSize: 12, color: '#6b7280', textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    Source: {r.source.title}
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: 32, color: '#6b7280', fontSize: 13 }}>No results.</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function inputStyle(): React.CSSProperties {
   return {
     display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 5,
@@ -590,6 +657,13 @@ export default function MatchTypeViolationReview({
 
   // Per-row action loading
   const [actionLoading, setActionLoading] = useState<Set<string | number>>(new Set())
+
+  // Batch search-term research (grounded one-sentence summaries)
+  const [researchGroup, setResearchGroup] = useState<{ key: string; adGroupName: string } | null>(null)
+  const [researchLoading, setResearchLoading] = useState(false)
+  const [researchError, setResearchError] = useState<string | null>(null)
+  const [researchResults, setResearchResults] = useState<TermResearchResult[] | null>(null)
+  const [researchGrounded, setResearchGrounded] = useState(true)
 
   // Collapsible help, inline negative edits, and column visibility
   const [helpOpen, setHelpOpen] = useState(false)
@@ -1114,6 +1188,35 @@ export default function MatchTypeViolationReview({
   const groupedCandidates = useMemo(() => groupCandidatesByAdGroup(visibleCandidates), [visibleCandidates])
   const tableColumnCount = 4 + HIDEABLE_COLUMNS.filter((column) => isVisible(column.key)).length
 
+  // Batch-research a group's search terms: if some rows in the group are
+  // selected, only research those; otherwise research every term in the group.
+  const openGroupResearch = async (group: CandidateGroup) => {
+    const selectedInGroup = group.candidates.filter((c) => selected.has(c.id))
+    const source = selectedInGroup.length > 0 ? selectedInGroup : group.candidates
+    const terms = source.map((c) => c.searchTerm).filter(Boolean)
+    if (terms.length === 0) return
+    setResearchGroup({ key: group.key, adGroupName: group.adGroupName })
+    setResearchResults(null)
+    setResearchError(null)
+    setResearchGrounded(true)
+    setResearchLoading(true)
+    try {
+      const res = await fetch('/api/match-type-violations/research-terms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ terms }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      setResearchResults(Array.isArray(data?.results) ? data.results : [])
+      setResearchGrounded(data?.grounded !== false)
+    } catch (e: any) {
+      setResearchError(e?.message || 'Failed to research search terms')
+    } finally {
+      setResearchLoading(false)
+    }
+  }
+
   const openGroupPicker = async (group: CandidateGroup) => {
     const pendingIds = group.candidates
       .filter((candidate) => candidate.status === 'pending')
@@ -1433,23 +1536,33 @@ export default function MatchTypeViolationReview({
                           </div>
                           <div style={{ color: '#6b7280', fontSize: 12, marginTop: 3 }}>Campaign: {group.campaignName} · Route: auto-create/use this ad group’s negative list</div>
                         </div>
-                        {group.pendingCount > 0 && (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                              onClick={() => toggleGroupSelection(group)}
-                              style={{ ...btnStyle('ghost'), fontSize: 11, padding: '5px 10px' }}
-                            >
-                              {groupAllSelected ? 'Unselect ad group' : 'Select ad group'}
-                            </button>
-                            <button
-                              onClick={() => void openGroupPicker(group)}
-                              disabled={bulkLoading}
-                              style={{ ...btnStyle('primary', bulkLoading), fontSize: 11, padding: '5px 10px' }}
-                            >
-                              {groupSelectedCount > 0 && !groupAllSelected ? `Approve ${groupSelectedCount} selected` : 'Approve ad group'}
-                            </button>
-                          </div>
-                        )}
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={() => void openGroupResearch(group)}
+                            disabled={researchLoading}
+                            title={groupSelectedCount > 0 ? `Research the ${groupSelectedCount} selected search term(s) in this ad group` : 'Research every search term in this ad group with a one-sentence Google summary'}
+                            style={{ ...btnStyle('ghost'), fontSize: 11, padding: '5px 10px' }}
+                          >
+                            {groupSelectedCount > 0 ? `Research ${groupSelectedCount} selected` : 'Research terms'}
+                          </button>
+                          {group.pendingCount > 0 && (
+                            <>
+                              <button
+                                onClick={() => toggleGroupSelection(group)}
+                                style={{ ...btnStyle('ghost'), fontSize: 11, padding: '5px 10px' }}
+                              >
+                                {groupAllSelected ? 'Unselect ad group' : 'Select ad group'}
+                              </button>
+                              <button
+                                onClick={() => void openGroupPicker(group)}
+                                disabled={bulkLoading}
+                                style={{ ...btnStyle('primary', bulkLoading), fontSize: 11, padding: '5px 10px' }}
+                              >
+                                {groupSelectedCount > 0 && !groupAllSelected ? `Approve ${groupSelectedCount} selected` : 'Approve ad group'}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1465,9 +1578,15 @@ export default function MatchTypeViolationReview({
                         )}
                       </td>
                       <td style={tdStyle()}>
-                        <span title={c.searchTerm} style={{ minWidth: 280, maxWidth: 460, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.35 }}>
+                        <a
+                          href={googleSearchUrl(c.searchTerm)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`Search Google for “${c.searchTerm}”`}
+                          style={{ minWidth: 280, maxWidth: 460, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.35, color: '#1d4ed8', textDecoration: 'none' }}
+                        >
                           {c.searchTerm}
-                        </span>
+                        </a>
                       </td>
                       {isVisible('triggeringKeyword') && (
                         <td style={tdStyle()}>
@@ -1640,6 +1759,16 @@ export default function MatchTypeViolationReview({
           pendingCount={pendingSelected.length}
           onConfirm={handleBulkAddOpportunities}
           onCancel={() => setShowKeywordTargetPicker(false)}
+        />
+      )}
+      {researchGroup && (
+        <TermResearchModal
+          adGroupName={researchGroup.adGroupName}
+          loading={researchLoading}
+          error={researchError}
+          results={researchResults}
+          grounded={researchGrounded}
+          onClose={() => setResearchGroup(null)}
         />
       )}
       {teachCandidate && (
