@@ -1,7 +1,7 @@
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { buildWeeklyBuckets, WEEKLY_METRIC_KEYS, type WeeklyMetricKey } from "@/lib/google-ads-weekly-metric-table";
 import { growthToolsGet } from "./_growth-tools";
-import { customerKey, loadPortfolioAccounts, type PortfolioAccount } from "./_portfolio-accounts";
+import { customerKey, loadPortfolioAccounts, mapWithConcurrencyOrdered, PORTFOLIO_FETCH_CONCURRENCY, type PortfolioAccount } from "./_portfolio-accounts";
 
 interface PortfolioWeeklyMetricTableArgs {
   accountRefs?: Array<string | number>;
@@ -80,25 +80,34 @@ export const getPortfolioWeeklyMetricTable: CanonicalTool<PortfolioWeeklyMetricT
     const accounts = selectAccounts(await loadPortfolioAccounts(), refs);
     const weeks = args.weeks ?? 10;
     const endDate = args.endDate ?? todayUtcIso();
-    const results = [];
-    for (const account of accounts) {
-      const buckets = buildWeeklyBuckets({ perDay: [], weeks, endDate });
-      const weekResults: FetchTotalsResult[] = [];
-      for (const bucket of buckets) {
-        weekResults.push(await fetchTotals(customerKey(account.customerId), bucket.weekStart, bucket.weekEnd));
-      }
-      const firstError = weekResults.find((result) => !result.ok);
+    const buckets = buildWeeklyBuckets({ perDay: [], weeks, endDate });
+
+    // Fetch every (account × week) cell with bounded concurrency instead of a
+    // fully serial nested loop. A 3-account × 10-week request was 30 sequential
+    // Growth Tools round-trips, which under backend load blew past the route's
+    // maxDuration and surfaced as a Vercel 504.
+    const tasks = accounts.flatMap((account) =>
+      buckets.map((bucket) => ({ customerId: customerKey(account.customerId), weekStart: bucket.weekStart, weekEnd: bucket.weekEnd })),
+    );
+    const flat = await mapWithConcurrencyOrdered(tasks, PORTFOLIO_FETCH_CONCURRENCY, (task) =>
+      fetchTotals(task.customerId, task.weekStart, task.weekEnd),
+    );
+
+    const results = accounts.map((account, accountIndex) => {
+      const weekResults = buckets.map((_, bucketIndex) => flat[accountIndex * buckets.length + bucketIndex]);
+      const firstError = weekResults.find((result) => result && !result.ok);
       if (firstError && !firstError.ok) {
-        results.push(accountEnvelope(account, { error: firstError.error }));
-        continue;
+        return accountEnvelope(account, { error: firstError.error });
       }
-      results.push(accountEnvelope(account, {
+      return accountEnvelope(account, {
         weeks: buckets.map((bucket, index) => {
-          const totals = weekResults[index]?.ok ? weekResults[index].totals : { spend: 0, clicks: 0, impressions: 0, conversions: 0 };
+          const result = weekResults[index];
+          const totals = result?.ok ? result.totals : { spend: 0, clicks: 0, impressions: 0, conversions: 0 };
           return { weekStart: bucket.weekStart, weekEnd: bucket.weekEnd, ...deriveMetrics(totals) };
         }),
-      }));
-    }
+      });
+    });
+
     return { ok: true, data: { analysedCount: accounts.length, metrics: args.metrics, weeks, endDate, accounts: results } };
   },
 };
@@ -115,7 +124,7 @@ function accountEnvelope(account: PortfolioAccount, data: Record<string, unknown
 
 async function fetchTotals(customerId: string, startDate: string, endDate: string): Promise<FetchTotalsResult> {
   const qs = new URLSearchParams({ customerId, dateRange: `${startDate},${endDate}` });
-  const res = await growthToolsGet<MetricsEnvelope>(`/api/google-ads/campaign-budgets/get-metrics?${qs.toString()}`);
+  const res = await growthToolsGet<MetricsEnvelope>(`/api/google-ads/campaign-budgets/get-metrics?${qs.toString()}`, 30_000);
   if (!res.ok) return { ok: false, error: res.error ?? "Growth Tools call failed" };
   const totals = { spend: 0, clicks: 0, impressions: 0, conversions: 0 };
   for (const row of res.data?.metrics ?? []) {

@@ -54,3 +54,17 @@ npx tsc --noEmit        # CI type check
 - `AUDIT_API_KEY` gates `/api/migrate`.
 - Google integrations are present for GSC, Gmail, GA4, Calendar, and Sheets.
 - Growth Tools/Scrapling-style HTTP integrations, SendGrid/Brevo email paths, Gemini/other LLM provider paths, and Vercel cron/API integrations are implemented under `src/app/(frontend)/api/` and `src/lib/`.
+
+## Viewing logs (Railway + Vercel)
+
+For diagnosing production errors (504s, timeouts, upstream failures), pull logs directly:
+
+- **Railway (Growth Tools / "Website Growth Tools" backend)**: an interactive `railway login` is already stored in `~/.railway/config.json` as `peter@optimisedigital.online`. Use the CLI directly — do NOT create/paste tokens. IMPORTANT: `.env` contains a stale/invalid `RAILWAY_TOKEN` that OVERRIDES the good stored session and makes every command fail with `Invalid RAILWAY_TOKEN`. Always `unset RAILWAY_TOKEN` first:
+  ```bash
+  unset RAILWAY_TOKEN
+  railway whoami          # -> peter@optimisedigital.online
+  railway status          # linked project: website-growth-tools / production
+  railway logs            # streams live; wrap in a timed kill to snapshot
+  ```
+  The CLI cannot log in from this non-interactive shell (`railway login`/`--browserless` fail: "Cannot login in non-interactive mode"), so the stored session is the only working path. `railway logs` streams forward-only. Growth Tools is an Express app; log lines look like `HH:MM:SS [express] GET /api/... <status> in <ms>ms`.
+- **Vercel (Next.js CMS frontend)**: CLI is authenticated as `peter-4074`; project `optimise-website-team-cms-tool` is linked in `.vercel/project.json`. `vercel logs <deployment-url>` tails runtime logs forward-only (it will NOT return historical events from minutes ago — it prints `waiting for new logs...`). Get the current prod deployment with `vercel ls optimise-website-team-cms-tool`. For historical 504s, the gateway timeout is emitted by Vercel (function exceeded `maxDuration`), while the underlying slow upstream is visible in the Railway/Growth Tools logs.

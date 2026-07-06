@@ -1,6 +1,6 @@
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { growthToolsGet } from "./_growth-tools";
-import { customerKey, loadPortfolioAccounts, type PortfolioAccount } from "./_portfolio-accounts";
+import { customerKey, loadPortfolioAccounts, mapWithConcurrencyOrdered, PORTFOLIO_FETCH_CONCURRENCY, type PortfolioAccount } from "./_portfolio-accounts";
 
 interface PortfolioMonthlyPerformanceBreakdownArgs {
   accountRefs?: Array<string | number>;
@@ -59,19 +59,26 @@ export const getPortfolioMonthlyPerformanceBreakdown: CanonicalTool<PortfolioMon
     const refs = args.accountRefs?.length ? args.accountRefs : Array.isArray(ctx.context.selectedAccountRefs) ? (ctx.context.selectedAccountRefs as Array<string | number>) : undefined;
     const accounts = selectAccounts(await loadPortfolioAccounts(), refs);
     const months = monthSpan(args.startMonth ?? defaultStartMonth(), args.endMonth ?? defaultEndMonth());
-    const results = [];
-    for (const account of accounts) {
-      const rows = [];
-      for (const month of months) {
-        const totals = await fetchMonthTotals(account, month);
-        if (!totals.ok) {
-          rows.push({ month, error: totals.error });
-          continue;
+
+    // Fetch every (account × month) cell with bounded concurrency rather than a
+    // serial nested loop, so wide spans across several accounts stay well under
+    // the route's maxDuration (was a Vercel 504 source under Growth Tools load).
+    const tasks = accounts.flatMap((account) => months.map((month) => ({ account, month })));
+    const flat = await mapWithConcurrencyOrdered(tasks, PORTFOLIO_FETCH_CONCURRENCY, (task) =>
+      fetchMonthTotals(task.account, task.month),
+    );
+
+    const results = accounts.map((account, accountIndex) => {
+      const rows = months.map((month, monthIndex) => {
+        const totals = flat[accountIndex * months.length + monthIndex];
+        if (!totals || !totals.ok) {
+          return { month, error: totals ? totals.error : "Growth Tools call failed" };
         }
-        rows.push({ month, ...deriveMetrics(totals.totals), conversionsByAction: totals.conversionsByAction, conversionsByCategory: totals.conversionsByCategory });
-      }
-      results.push({ accountRef: account.accountRef, clientId: account.clientId, displayName: account.displayName, maskedCustomerId: account.maskedCustomerId, months: rows });
-    }
+        return { month, ...deriveMetrics(totals.totals), conversionsByAction: totals.conversionsByAction, conversionsByCategory: totals.conversionsByCategory };
+      });
+      return { accountRef: account.accountRef, clientId: account.clientId, displayName: account.displayName, maskedCustomerId: account.maskedCustomerId, months: rows };
+    });
+
     return { ok: true, data: { analysedCount: accounts.length, startMonth: months[0] ?? null, endMonth: months[months.length - 1] ?? null, accounts: results } };
   },
 };
@@ -86,7 +93,7 @@ async function fetchMonthTotals(account: PortfolioAccount, month: string): Promi
   const qs = new URLSearchParams({ customerId: customerKey(account.customerId), dateRange: `${month}-01,${lastDayOfMonth(month)}` });
   if (account.conversionActions) qs.set("conversionActions", account.conversionActions);
   if (account.conversionActionCategories) qs.set("conversionActionCategories", account.conversionActionCategories);
-  const res = await growthToolsGet<MetricsEnvelope>(`/api/google-ads/campaign-budgets/get-metrics?${qs.toString()}`);
+  const res = await growthToolsGet<MetricsEnvelope>(`/api/google-ads/campaign-budgets/get-metrics?${qs.toString()}`, 30_000);
   if (!res.ok) return { ok: false, error: res.error ?? "Growth Tools call failed" };
   const totals = { spend: 0, clicks: 0, impressions: 0, conversions: 0 };
   const conversionsByAction: Record<string, number> = {};

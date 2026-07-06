@@ -47,6 +47,35 @@ export function customerKey(customerId: string): string {
   return customerId.replace(/-/g, "");
 }
 
+/** Default fan-out concurrency for portfolio Growth Tools calls. Keeps parallel
+ * load on the (often saturated) Growth Tools backend bounded while turning long
+ * serial account×period loops into a few parallel waves — the fix for portfolio
+ * chat requests exceeding the route's maxDuration and returning a Vercel 504. */
+export const PORTFOLIO_FETCH_CONCURRENCY = 5;
+
+/** Map over items with bounded concurrency, preserving input order in the
+ * returned array (unlike a push-on-completion pool). Order matters for callers
+ * that align results positionally with their input list (e.g. weekly buckets or
+ * month spans). */
+export async function mapWithConcurrencyOrdered<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const current = next;
+      next += 1;
+      results[current] = await fn(items[current] as T, current);
+    }
+  }
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 export function maskCustomerId(customerId: string): string {
   const digits = customerKey(customerId);
   if (digits.length <= 4) return "••••";
