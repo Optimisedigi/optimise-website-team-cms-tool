@@ -202,6 +202,10 @@ interface Violation {
   violationType: "exact_close_variant" | "phrase_missing_word";
   impressions: number;
   clicks: number;
+  /** Spend (account currency) attributed to this violating search term. */
+  cost?: number;
+  /** Total spend for this violation's ad group over the window (denominator). */
+  adGroupCost?: number;
   conversions?: number;
   allConversions?: number;
   campaignName: string;
@@ -212,8 +216,15 @@ interface Violation {
   recommendedMatchType?: "exact" | "phrase";
 }
 
+interface AdGroupSpend {
+  campaignName: string;
+  adGroupName: string;
+  cost: number;
+}
+
 interface GrowthToolsResponse {
   violations: Violation[];
+  adGroupSpend?: AdGroupSpend[];
 }
 
 interface ExistingKeywordRow {
@@ -373,6 +384,8 @@ async function upsertViolation(
   const recommendedMatchTypeSql = v.recommendedMatchType ? esc(v.recommendedMatchType) : 'NULL';
   const nearestKeyword = v.nearestKeyword ?? '';
   const conversions = Number(v.conversions ?? v.allConversions ?? 0) || 0;
+  const cost = Number(v.cost ?? 0) || 0;
+  const adGroupCost = Number(v.adGroupCost ?? 0) || 0;
 
   // Check for an existing candidate before skip guards so previously-visible
   // pending rows can be hidden when the detector later reports conversions.
@@ -392,6 +405,8 @@ async function upsertViolation(
           `UPDATE match_type_violation_candidates SET
              impressions = ${v.impressions ?? 0},
              clicks = ${v.clicks ?? 0},
+             cost = ${cost},
+             ad_group_cost = ${adGroupCost},
              status = 'rejected',
              rejected_at = COALESCE(rejected_at, ${esc(now)}),
              last_seen_at = ${esc(now)},
@@ -403,6 +418,8 @@ async function upsertViolation(
           `UPDATE match_type_violation_candidates SET
              impressions = ${v.impressions ?? 0},
              clicks = ${v.clicks ?? 0},
+             cost = ${cost},
+             ad_group_cost = ${adGroupCost},
              last_seen_at = ${esc(now)},
              run_date = ${esc(today)}
            WHERE id = ${doc.id};`,
@@ -419,6 +436,8 @@ async function upsertViolation(
            violation_type = ${esc(v.violationType)},
            impressions = ${v.impressions ?? 0},
            clicks = ${v.clicks ?? 0},
+           cost = ${cost},
+           ad_group_cost = ${adGroupCost},
            recommended_keyword = ${esc(recommendedKeyword)},
            recommended_match_type = ${recommendedMatchTypeSql},
            offending_words = ${esc(offendingWords)},
@@ -432,6 +451,8 @@ async function upsertViolation(
         `UPDATE match_type_violation_candidates SET
            impressions = ${v.impressions ?? 0},
            clicks = ${v.clicks ?? 0},
+           cost = ${cost},
+           ad_group_cost = ${adGroupCost},
            last_seen_at = ${esc(now)}
          WHERE id = ${doc.id};`,
       );
@@ -444,14 +465,14 @@ async function upsertViolation(
     await db.execute(
       `INSERT INTO match_type_violation_candidates
          (client_id, search_term, triggering_keyword, campaign_name, ad_group_name,
-          match_type, violation_type, impressions, clicks,
+          match_type, violation_type, impressions, clicks, cost, ad_group_cost,
           recommended_keyword, recommended_match_type, offending_words, nearest_keyword,
           status, last_seen_at, first_seen_at, run_date, created_at, updated_at)
        VALUES (
          ${Number(clientId)}, ${esc(v.searchTerm)}, ${esc(v.triggeringKeyword)},
          ${esc(v.campaignName ?? '')}, ${esc(v.adGroupName ?? '')},
          ${esc(v.matchType)}, ${esc(v.violationType)},
-         ${v.impressions ?? 0}, ${v.clicks ?? 0},
+         ${v.impressions ?? 0}, ${v.clicks ?? 0}, ${cost}, ${adGroupCost},
          ${esc(recommendedKeyword)}, ${recommendedMatchTypeSql}, ${esc(offendingWords)}, ${esc(nearestKeyword)},
          'pending', ${esc(now)}, ${esc(now)}, ${esc(today)}, ${esc(now)}, ${esc(now)}
        );`,
@@ -509,6 +530,15 @@ async function syncClient(
     throw new Error(`Failed to parse Growth Tools response as JSON: ${err?.message ?? err}`);
   });
   const allViolations: Violation[] = Array.isArray(data?.violations) ? data.violations : [];
+  // Denominator lookup: total spend per ad group over the same window, so each
+  // candidate can carry its ad group's total cost for the share-in-violation %.
+  const adGroupSpendByKey = new Map<string, number>();
+  for (const s of Array.isArray(data?.adGroupSpend) ? data.adGroupSpend : []) {
+    adGroupSpendByKey.set(`${s.campaignName ?? ''}\u0000${s.adGroupName ?? ''}`, Number(s.cost) || 0);
+  }
+  for (const v of allViolations) {
+    v.adGroupCost = adGroupSpendByKey.get(`${v.campaignName ?? ''}\u0000${v.adGroupName ?? ''}`) ?? 0;
+  }
   const existingKeywords = buildExistingKeywordSet(data, await fetchExistingKeywordSet(customerId.replace(/-/g, "")));
   const scopedViolations = filterViolations(allViolations, scope);
   const now = new Date().toISOString();

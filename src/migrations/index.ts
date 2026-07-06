@@ -140,6 +140,7 @@ import * as migration_20260728_130000_expand_client_wishlist_items from './20260
 import * as migration_20260729_120000_add_client_proposal_keyword_research_jobs from './20260729_120000_add_client_proposal_keyword_research_jobs';
 import * as migration_20260730_120000_add_proposal_competitor_serp_metrics from './20260730_120000_add_proposal_competitor_serp_metrics';
 import * as migration_20260731_120000_keyword_categories_keywords_nullable from './20260731_120000_keyword_categories_keywords_nullable';
+import * as migration_20260801_120000_add_mtvc_spend_fields from './20260801_120000_add_mtvc_spend_fields';
 
 export const migrations = [
   {
@@ -851,5 +852,10 @@ export const migrations = [
     up: migration_20260731_120000_keyword_categories_keywords_nullable.up,
     down: migration_20260731_120000_keyword_categories_keywords_nullable.down,
     name: '20260731_120000_keyword_categories_keywords_nullable'
+  },
+  {
+    up: migration_20260801_120000_add_mtvc_spend_fields.up,
+    down: migration_20260801_120000_add_mtvc_spend_fields.down,
+    name: '20260801_120000_add_mtvc_spend_fields'
   },
 ];

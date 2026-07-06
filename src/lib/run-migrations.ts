@@ -4266,8 +4266,9 @@ export async function runMigrations(
     await run("gacb.recommendation_generated_at", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommendation_generated_at` text");
     await run("gacb.recommendation_basis", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommendation_basis` text");
 
-    // ── google_ads_audits CMS-only annual budget placeholders (2026-07-01) ──
+    // ── CMS-only annual budget placeholders (2026-07-01) ──
     await run("gaa.annual_budget_placeholders", "ALTER TABLE `google_ads_audits` ADD `annual_budget_placeholders` text");
+    await run("clients.annual_client_budget_placeholders", "ALTER TABLE `clients` ADD `annual_client_budget_placeholders` text");
 
     // ── Client Growth Hub collections and client portal links (2026-06-14) ──
     // The public /api/migrate endpoint runs this legacy inline sweep, not Payload's
@@ -4846,6 +4847,22 @@ export async function runMigrations(
     await run(
       "mtvc.added_as_keyword_outcome",
       "ALTER TABLE `match_type_violation_candidates` ADD `added_as_keyword_outcome` text",
+    );
+
+    // ── Match-type violation spend fields (2026-08-01) ──
+    // `cost`: spend attributed to the violating search term over the window.
+    // `ad_group_cost`: total spend for the candidate's ad group over the same
+    // window (denominator) so the review UI can show what share of an ad
+    // group's spend is wasted on match-type violations. `cost` is in the
+    // original CREATE TABLE, but older databases created before it was added
+    // lack the column, so ADD it idempotently here too.
+    await run(
+      "mtvc.cost",
+      "ALTER TABLE `match_type_violation_candidates` ADD `cost` numeric DEFAULT 0",
+    );
+    await run(
+      "mtvc.ad_group_cost",
+      "ALTER TABLE `match_type_violation_candidates` ADD `ad_group_cost` numeric DEFAULT 0",
     );
 
     // ── Editable match-type synonym rules (2026-07-25) ──

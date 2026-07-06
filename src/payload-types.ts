@@ -8766,6 +8766,14 @@ export interface MatchTypeViolationCandidate {
   impressions?: number | null;
   clicks?: number | null;
   /**
+   * Spend (account currency) attributed to this violating search term over the scan window
+   */
+  cost?: number | null;
+  /**
+   * Total spend for this candidate's ad group over the scan window (all traffic). Denominator for the share-of-spend-in-violation percentage.
+   */
+  adGroupCost?: number | null;
+  /**
    * Suggested negative-keyword text from the detector
    */
   recommendedKeyword?: string | null;
@@ -12230,6 +12238,8 @@ export interface MatchTypeViolationCandidatesSelect<T extends boolean = true> {
   violationType?: T;
   impressions?: T;
   clicks?: T;
+  cost?: T;
+  adGroupCost?: T;
   recommendedKeyword?: T;
   recommendedMatchType?: T;
   offendingWords?: T;

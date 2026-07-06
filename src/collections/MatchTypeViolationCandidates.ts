@@ -109,15 +109,36 @@ export const MatchTypeViolationCandidates: CollectionConfig = {
           name: "impressions",
           type: "number",
           defaultValue: 0,
-          admin: { width: "50%" },
+          admin: { width: "33%" },
         },
         {
           name: "clicks",
           type: "number",
           defaultValue: 0,
-          admin: { width: "50%" },
+          admin: { width: "33%" },
+        },
+        {
+          name: "cost",
+          type: "number",
+          defaultValue: 0,
+          label: "Cost",
+          admin: {
+            width: "34%",
+            description:
+              "Spend (account currency) attributed to this violating search term over the scan window",
+          },
         },
       ],
+    },
+    {
+      name: "adGroupCost",
+      type: "number",
+      defaultValue: 0,
+      label: "Ad Group Total Cost",
+      admin: {
+        description:
+          "Total spend for this candidate's ad group over the scan window (all traffic). Denominator for the share-of-spend-in-violation percentage.",
+      },
     },
     {
       name: "recommendedKeyword",

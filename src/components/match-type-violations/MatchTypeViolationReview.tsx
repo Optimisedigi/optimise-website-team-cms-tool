@@ -20,6 +20,10 @@ interface Candidate {
   violationType: 'exact_close_variant' | 'phrase_missing_word'
   impressions: number
   clicks: number
+  /** Spend attributed to this violating search term over the scan window. */
+  cost?: number
+  /** Total spend for this candidate's ad group over the same window. */
+  adGroupCost?: number
   status: 'pending' | 'approved' | 'rejected'
   assignedListId?: { id: string | number; name?: string } | string | number
   recommendedKeyword?: string
@@ -50,6 +54,10 @@ type CandidateGroup = {
   impressions: number
   clicks: number
   maxClicks: number
+  /** Summed spend of the flagged violations in this ad group (numerator). */
+  violationSpend: number
+  /** Total spend of this ad group over the window (denominator). */
+  adGroupSpend: number
 }
 
 type KeywordActionStatus = {
@@ -231,6 +239,17 @@ function formatNumber(n: number): string {
   return new Intl.NumberFormat('en-GB').format(n)
 }
 
+/**
+ * Share of an ad group's spend that comes from match-type violations, as a
+ * whole-number percent. Returns null when the ad-group total spend is unknown
+ * (older rows synced before spend tracking) so the UI can hide the metric
+ * rather than show a misleading 0%.
+ */
+function violationSpendShare(violationSpend: number, adGroupSpend: number): number | null {
+  if (!(adGroupSpend > 0)) return null
+  return Math.min(100, Math.round((violationSpend / adGroupSpend) * 100))
+}
+
 /** Content keyword words absent from the search term — the "missing words". */
 function missingWords(searchTerm: string, triggeringKeyword: string): string[] {
   const termSet = new Set(contentWords(searchTerm))
@@ -268,6 +287,10 @@ function groupCandidatesByAdGroup(candidates: Candidate[]): CandidateGroup[] {
       existing.impressions += candidate.impressions || 0
       existing.clicks += candidate.clicks || 0
       existing.maxClicks = Math.max(existing.maxClicks, candidate.clicks || 0)
+      existing.violationSpend += candidate.cost || 0
+      // Ad-group total spend is denormalised onto every candidate, so keep the
+      // largest reported value (they should all agree within a run).
+      existing.adGroupSpend = Math.max(existing.adGroupSpend, candidate.adGroupCost || 0)
       if (candidate.status === 'pending') existing.pendingCount += 1
     } else {
       groups.set(key, {
@@ -279,6 +302,8 @@ function groupCandidatesByAdGroup(candidates: Candidate[]): CandidateGroup[] {
         impressions: candidate.impressions || 0,
         clicks: candidate.clicks || 0,
         maxClicks: candidate.clicks || 0,
+        violationSpend: candidate.cost || 0,
+        adGroupSpend: candidate.adGroupCost || 0,
       })
     }
   }
@@ -1692,6 +1717,18 @@ export default function MatchTypeViolationReview({
                             <strong style={{ color: '#111827', fontSize: 13 }}>{group.adGroupName}</strong>
                             <span style={badgeStyle('#e0f2fe', '#075985')}>{group.pendingCount} pending</span>
                             <span style={{ color: '#6b7280', fontSize: 12 }}>{group.candidates.length} total · {formatNumber(group.impressions)} impr · {formatNumber(group.clicks)} clicks</span>
+                            {(() => {
+                              const share = violationSpendShare(group.violationSpend, group.adGroupSpend)
+                              if (share === null) return null
+                              return (
+                                <span
+                                  style={badgeStyle('#fee2e2', '#991b1b')}
+                                  title={`${formatNumber(Math.round(group.violationSpend))} of ${formatNumber(Math.round(group.adGroupSpend))} ad-group spend (account currency) is from match-type violations`}
+                                >
+                                  Paid keywords in violation: {share}%
+                                </span>
+                              )
+                            })()}
                           </div>
                           <div style={{ color: '#6b7280', fontSize: 12, marginTop: 3 }}>Campaign: {group.campaignName} · Route: auto-create/use this ad group’s negative list</div>
                         </div>
