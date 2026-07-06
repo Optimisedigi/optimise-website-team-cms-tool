@@ -71,6 +71,38 @@ interface AdGroup {
    * endpoint that does not populate it.
    */
   keywords?: Keyword[];
+  /**
+   * Top search terms triggering this ad group's keywords, sorted by spend.
+   * Optional — the upstream Growth Tools endpoint does not yet populate this
+   * field. When absent, the "Search terms" toolbar toggle is disabled.
+   */
+  topSearchTermsBySpend?: SearchTerm[];
+  /** Top converting search terms. Same optionality as topSearchTermsBySpend. */
+  topSearchTermsByConversions?: SearchTerm[];
+  /**
+   * Full search-term list for this ad group (capped server-side, same shape
+   * as `keywords` for the "all" toggle). Optional.
+   */
+  searchTerms?: SearchTerm[];
+}
+
+/**
+ * Search-term report row. Same shape as a Keyword but with no matchType
+ * (search terms are always the literal user query) and `keyword` set to the
+ * matched keyword text so the row can surface which keyword it triggered.
+ */
+interface SearchTerm {
+  id: string;
+  text: string;
+  /** Keyword that matched this search term, when surfaced by the upstream. */
+  keyword?: string | null;
+  status?: string;
+  spend: number;
+  clicks: number;
+  conversions: number;
+  cpa: number | null;
+  impressions: number;
+  finalUrl?: string | null;
 }
 
 interface Campaign {
@@ -86,6 +118,13 @@ interface Campaign {
   impressions: number;
   searchImpressionShare: number | null;
   searchBudgetLostImpressionShare: number | null;
+  /**
+   * ISO date (YYYY-MM-DD) after which the campaign is no longer serving.
+   * Optional — the upstream Growth Tools endpoint does not currently
+   * populate this field. When absent, "Active only" treats the campaign as
+   * active (so the toggle is a no-op until the upstream exposes end dates).
+   */
+  endDate?: string | null;
   adGroups: AdGroup[];
 }
 
@@ -374,6 +413,7 @@ function campaignPalette(index: number): CampaignPalette {
 }
 
 type KeywordMode = "compact" | "all";
+type DetailDataSource = "keywords" | "search_terms";
 
 /**
  * Build the displayed keyword rows for one ad group.
@@ -417,6 +457,68 @@ function visibleKeywords(
     .slice(0, 5)
     .map((k) => ({ ...k, bucket: "spend-no-conv" as const }));
   return [...converters, ...spenders];
+}
+
+/**
+ * Mirror of visibleKeywords for search-term rows. Same compact/all split, same
+ * bucketing convention so the same colour tint logic works on SearchTermRow.
+ *
+ * Compact mode: top 5 converters + top 5 spenders-no-conv (deduped).
+ * All mode: every search term the server returned, or topSearchTermsBySpend
+ * if the full list wasn't populated.
+ *
+ * Returns an empty array if the upstream didn't populate any search-term data
+ * — callers should fall back to keywords when this happens.
+ */
+function visibleSearchTerms(
+  ag: AdGroup,
+  mode: KeywordMode,
+): Array<SearchTerm & { bucket: "converter" | "spend-no-conv" | "other" }> {
+  const haveFull = Array.isArray(ag.searchTerms) && ag.searchTerms.length > 0;
+  const haveTop = Array.isArray(ag.topSearchTermsBySpend) && ag.topSearchTermsBySpend.length > 0;
+  if (!haveFull && !haveTop) return [];
+  if (mode === "all") {
+    const all = ag.searchTerms ?? ag.topSearchTermsBySpend ?? [];
+    return all.map((s) => ({
+      ...s,
+      bucket: s.conversions > 0 ? "converter" : s.spend > 0 ? "spend-no-conv" : "other",
+    }));
+  }
+  const converterPool = ag.topSearchTermsByConversions ?? ag.topSearchTermsBySpend ?? [];
+  const converters = [...converterPool]
+    .filter((s) => s.conversions > 0)
+    .sort((a, b) => b.conversions - a.conversions)
+    .slice(0, 5)
+    .map((s) => ({ ...s, bucket: "converter" as const }));
+  const converterIds = new Set(converters.map((s) => s.id));
+  const spenderPool = (ag.searchTerms ?? ag.topSearchTermsBySpend ?? []).filter(
+    (s) => s.conversions === 0 && !converterIds.has(s.id) && s.spend > 0,
+  );
+  const spenders = spenderPool
+    .sort((a, b) => b.spend - a.spend)
+    .slice(0, 5)
+    .map((s) => ({ ...s, bucket: "spend-no-conv" as const }));
+  return [...converters, ...spenders];
+}
+
+/**
+ * "Currently active" means: status is ENABLED AND any endDate in the future
+ * (or unset). Campaigns with an endDate strictly before today are filtered
+ * out. Campaigns without an endDate field are treated as active (the upstream
+ * currently doesn't populate endDate, so we degrade gracefully).
+ */
+function isCampaignCurrentlyActive(c: Campaign, today: string): boolean {
+  if (c.status !== "ENABLED") return false;
+  if (!c.endDate) return true;
+  return c.endDate >= today;
+}
+
+/**
+ * `today` in YYYY-MM-DD, computed once per render so all calls agree.
+ */
+function todayIso(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 function prettyUrl(url: string): { host: string; path: string } {
@@ -632,6 +734,66 @@ function KeywordRow({
 }
 
 /**
+ * Search-term row — visually mirrors KeywordRow so the grid doesn't shift
+ * when the user toggles between keywords and search terms. The match-type
+ * badge is replaced with the matched keyword (when the upstream surfaces
+ * it) so reviewers can see which keyword triggered each search term.
+ */
+function SearchTermRow({
+  st,
+  palette,
+}: {
+  st: SearchTerm & { bucket: "converter" | "spend-no-conv" | "other" };
+  palette: CampaignPalette;
+}) {
+  const hasConv = st.conversions > 0;
+  return (
+    <div
+      className="h-full w-full rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 text-white"
+      style={{
+        backgroundColor: palette.keyword,
+        filter: hasConv ? "brightness(1.08)" : "brightness(0.92)",
+      }}
+      title={st.text}
+    >
+      <span
+        className="w-1 self-stretch rounded-sm shrink-0"
+        style={{
+          backgroundColor: hasConv ? "#34D399" : st.bucket === "spend-no-conv" ? "#FBBF24" : "rgba(255,255,255,0.3)",
+        }}
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[13px] font-mono font-semibold leading-tight break-words">{st.text}</span>
+          {st.keyword ? (
+            <span className="shrink-0 text-[9px] font-bold px-1 py-0 rounded bg-white/20" title={`Matched keyword: ${st.keyword}`}>
+              ← {st.keyword}
+            </span>
+          ) : (
+            <span className="shrink-0 text-[9px] font-bold px-1 py-0 rounded bg-white/15">ST</span>
+          )}
+        </div>
+      </div>
+      <div className="shrink-0 grid grid-cols-3 gap-1 font-mono text-[12px] leading-none">
+        <div className="w-12 text-right">
+          <div className="text-[10px] uppercase opacity-70">Avg CPC</div>
+          <div className="font-bold">{fmtAvgCpc(st.spend, st.clicks)}</div>
+        </div>
+        <div className="w-12 text-right">
+          <div className="text-[10px] uppercase opacity-70">Spend</div>
+          <div className="font-bold">{fmt(st.spend)}</div>
+        </div>
+        <div className="w-8 text-right">
+          <div className="text-[10px] uppercase opacity-70">Conv</div>
+          <div className="font-bold">{hasConv ? st.conversions.toFixed(0) : "\u00a0"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Rendered Google-style search-ad card. Shown in a fixed-position portal so it
  * sits on top of everything (and is never clipped by the grid's horizontal
  * scroll container). Approximates a real Google paid result: favicon + display
@@ -826,7 +988,7 @@ function AdRow({ ad, palette }: { ad: Ad; palette: CampaignPalette }) {
   );
 }
 
-// ── Unified detail-row model (ads + keywords as siblings) ────────────────────
+// ── Unified detail-row model (ads + keywords/search-terms as siblings) ───────
 
 type DetailRow =
   | { kind: "ad"; key: string; ad: Ad; landingPage: string | null; inherited: false }
@@ -838,19 +1000,33 @@ type DetailRow =
       /** True when the landing page was inherited from the ad group, not the
        *  keyword's own final URL. */
       inherited: boolean;
+    }
+  | {
+      kind: "search_term";
+      key: string;
+      st: SearchTerm & { bucket: "converter" | "spend-no-conv" | "other" };
+      landingPage: string | null;
+      /** True when the landing page was inherited from the ad group. */
+      inherited: boolean;
     };
 
 /**
  * Build the ordered detail rows for one ad group: ad rows first (when shown),
- * then keyword rows (when shown). Resolves each keyword's landing page with
- * the ad-group fallback so keywords with no final URL inherit the ad-level
- * landing page — mirrors Google's keyword→ad final-URL precedence.
+ * then keyword or search-term rows (when shown). Resolves each row's landing
+ * page with the ad-group fallback so rows without their own finalUrl inherit
+ * the ad-level landing page — mirrors Google's keyword/search-term→ad final
+ * URL precedence.
+ *
+ * `dataSource` chooses between keywords and search terms. When search terms
+ * are requested but the upstream didn't populate them, the function falls
+ * back to keyword rows so the grid stays populated.
  */
 function buildDetailRows(
   ag: AdGroup,
   mode: KeywordMode,
   showAds: boolean,
   showKeywords: boolean,
+  dataSource: "keywords" | "search_terms",
 ): DetailRow[] {
   const rows: DetailRow[] = [];
   if (showAds) {
@@ -859,16 +1035,35 @@ function buildDetailRows(
     }
   }
   if (showKeywords) {
-    for (const kw of visibleKeywords(ag, mode)) {
-      const own = kw.finalUrl ?? null;
-      const landingPage = own ?? ag.landingPage ?? null;
-      rows.push({
-        kind: "keyword",
-        key: `kw-${kw.id}`,
-        kw,
-        landingPage,
-        inherited: own == null && landingPage != null,
-      });
+    if (dataSource === "search_terms") {
+      const searchTerms = visibleSearchTerms(ag, mode);
+      // No silent keyword fallback when the user explicitly asked for search
+      // terms — an ad group without search-term data just contributes zero
+      // detail rows. The toolbar toggle is disabled when no ad group in the
+      // current dataset has search terms, so this branch is rare in practice.
+      for (const st of searchTerms) {
+        const own = st.finalUrl ?? null;
+        const landingPage = own ?? ag.landingPage ?? null;
+        rows.push({
+          kind: "search_term",
+          key: `st-${st.id}`,
+          st,
+          landingPage,
+          inherited: own == null && landingPage != null,
+        });
+      }
+    } else {
+      for (const kw of visibleKeywords(ag, mode)) {
+        const own = kw.finalUrl ?? null;
+        const landingPage = own ?? ag.landingPage ?? null;
+        rows.push({
+          kind: "keyword",
+          key: `kw-${kw.id}`,
+          kw,
+          landingPage,
+          inherited: own == null && landingPage != null,
+        });
+      }
     }
   }
   return rows;
@@ -900,15 +1095,15 @@ function groupByLandingPageRun(
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const url = row.landingPage ?? null;
-    const spend = row.kind === "ad" ? row.ad.spend : row.kw.spend;
-    const conversions = row.kind === "ad" ? row.ad.conversions : row.kw.conversions;
+    const spend = row.kind === "ad" ? row.ad.spend : row.kind === "keyword" ? row.kw.spend : row.st.spend;
+    const conversions = row.kind === "ad" ? row.ad.conversions : row.kind === "keyword" ? row.kw.conversions : row.st.conversions;
     const last = runs[runs.length - 1];
     if (last && last.url === url) {
       last.count += 1;
       last.spend += spend;
       last.conversions += conversions;
       last.cpa = last.conversions > 0 ? last.spend / last.conversions : null;
-      last.inherited = last.inherited && (row.kind === "keyword" ? row.inherited : false);
+      last.inherited = last.inherited && (row.kind !== "ad" ? row.inherited : false);
     } else {
       runs.push({
         url,
@@ -917,7 +1112,7 @@ function groupByLandingPageRun(
         cpa: conversions > 0 ? spend / conversions : null,
         count: 1,
         startIndex: i,
-        inherited: row.kind === "keyword" ? row.inherited : false,
+        inherited: row.kind !== "ad" ? row.inherited : false,
         previewAd: row.kind === "ad" ? row.ad : url ? adByUrl.get(url) ?? null : null,
       });
     }
@@ -982,6 +1177,7 @@ function CampaignGridBlock({
   showAdGroups,
   showAds,
   showKeywords,
+  dataSource,
   collapsedAdGroups,
   onToggleAdGroup,
 }: {
@@ -991,6 +1187,7 @@ function CampaignGridBlock({
   showAdGroups: boolean;
   showAds: boolean;
   showKeywords: boolean;
+  dataSource: DetailDataSource;
   /** Ad-group ids whose detail rows are collapsed (per-row override). */
   collapsedAdGroups: Set<string>;
   onToggleAdGroup: (id: string) => void;
@@ -1000,19 +1197,21 @@ function CampaignGridBlock({
   // and multiple campaigns are visible at once.
   const compact = !showAds && !showKeywords;
 
-  // For each ad group: build the unified ad+keyword detail rows and the
-  // landing-page run groupings. Memoised so toggling a control is the only
-  // thing that triggers re-computation. A collapsed ad group contributes a
-  // single summary row regardless of the global show toggles.
+  // For each ad group: build the unified ad+keyword/search-term detail rows
+  // and the landing-page run groupings. Memoised so toggling a control is the
+  // only thing that triggers re-computation. A collapsed ad group contributes
+  // a single summary row regardless of the global show toggles.
   const adGroupRows = useMemo(() => {
     return campaign.adGroups.map((ag) => {
       const collapsed = collapsedAdGroups.has(ag.id);
-      const rows = collapsed ? [] : buildDetailRows(ag, mode, showAds, showKeywords);
-      const visibleRows = rows.filter((row) => (showKeywords ? row.kind === "keyword" : row.kind === "ad"));
+      const rows = collapsed ? [] : buildDetailRows(ag, mode, showAds, showKeywords, dataSource);
+      const visibleRows = rows.filter((row) =>
+        showKeywords ? row.kind === "keyword" || row.kind === "search_term" : row.kind === "ad",
+      );
       const lpRuns = groupByLandingPageRun(visibleRows, showAds ? ag.ads ?? [] : []);
       return { adGroup: ag, rows, visibleRows, lpRuns, collapsed };
     });
-  }, [campaign, mode, showAds, showKeywords, collapsedAdGroups]);
+  }, [campaign, mode, showAds, showKeywords, dataSource, collapsedAdGroups]);
 
   const totalRows = adGroupRows.reduce((s, r) => s + Math.max(1, r.visibleRows.length), 0);
 
@@ -1122,7 +1321,7 @@ function CampaignGridBlock({
               <AdGroupCard
                 adGroup={adGroup}
                 palette={palette}
-                keywordCount={rows.filter((r) => r.kind === "keyword").length}
+                keywordCount={rows.filter((r) => r.kind === "keyword" || r.kind === "search_term").length}
                 adCount={adCount}
                 collapsed={collapsed}
                 onToggleCollapse={() => onToggleAdGroup(adGroup.id)}
@@ -1134,8 +1333,15 @@ function CampaignGridBlock({
               const lpRun = lpRuns[i];
               return (
                 <div key={row.key} className="contents">
-                  <div aria-label={row.kind === "keyword" ? "Keyword" : "Ad shown with landing page"} style={{ gridColumn: 3 }}>
-                    {row.kind === "keyword" ? <KeywordRow kw={row.kw} palette={palette} /> : null}
+                  <div
+                    aria-label={row.kind === "keyword" ? "Keyword" : row.kind === "search_term" ? "Search term" : "Ad shown with landing page"}
+                    style={{ gridColumn: 3 }}
+                  >
+                    {row.kind === "keyword" ? (
+                      <KeywordRow kw={row.kw} palette={palette} />
+                    ) : row.kind === "search_term" ? (
+                      <SearchTermRow st={row.st} palette={palette} />
+                    ) : null}
                   </div>
                   {showAds && lpRun && (
                     <div aria-label="Landing page" style={{ gridColumn: 4, gridRow: `span ${lpRun.count}` }}>
@@ -1167,6 +1373,7 @@ function AccountGrid({
   showAdGroups,
   showAds,
   showKeywords,
+  dataSource,
   collapsedAdGroups,
   onToggleAdGroup,
 }: {
@@ -1175,6 +1382,7 @@ function AccountGrid({
   showAdGroups: boolean;
   showAds: boolean;
   showKeywords: boolean;
+  dataSource: DetailDataSource;
   collapsedAdGroups: Set<string>;
   onToggleAdGroup: (id: string) => void;
 }) {
@@ -1189,6 +1397,7 @@ function AccountGrid({
           showAdGroups={showAdGroups}
           showAds={showAds}
           showKeywords={showKeywords}
+          dataSource={dataSource}
           collapsedAdGroups={collapsedAdGroups}
           onToggleAdGroup={onToggleAdGroup}
         />
@@ -1230,6 +1439,13 @@ export default function AccountStructureTree({
   const [showAdGroups, setShowAdGroups] = useState(true);
   const [showAds, setShowAds] = useState(true);
   const [showKeywords, setShowKeywords] = useState(true);
+  // "Active only" filter — when on, hides campaigns that are not currently
+  // serving (status !== ENABLED, or endDate already in the past).
+  const [activeOnly, setActiveOnly] = useState(false);
+  // Detail-row data source: keywords (default) or search terms. The toolbar
+  // toggle is disabled when no ad group in the current dataset has search
+  // terms (upstream doesn't populate the field yet).
+  const [dataSource, setDataSource] = useState<DetailDataSource>("keywords");
   // Per-ad-group collapse overrides (independent of the global toggles).
   const [collapsedAdGroups, setCollapsedAdGroups] = useState<Set<string>>(() => new Set());
   const toggleAdGroup = (id: string) =>
@@ -1298,12 +1514,30 @@ export default function AccountStructureTree({
 
   const filtered = useMemo(() => {
     if (!data) return [] as Campaign[];
+    const today = todayIso();
     return data.campaigns.filter((c) => {
       if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (healthFilter !== "all" && campaignHealth(c) !== healthFilter) return false;
+      if (activeOnly && !isCampaignCurrentlyActive(c, today)) return false;
       return true;
     });
-  }, [data, search, healthFilter]);
+  }, [data, search, healthFilter, activeOnly]);
+
+  // Whether the current dataset has any search-term rows to show. Computed
+  // off `data` (not `filtered`) so toggling Active-only can't accidentally
+  // disable the Search-terms button when filtering would have hidden the only
+  // ad group that had search terms.
+  const searchTermsAvailable = useMemo(() => {
+    if (!data) return false;
+    for (const c of data.campaigns) {
+      for (const ag of c.adGroups) {
+        if ((ag.topSearchTermsBySpend?.length ?? 0) > 0) return true;
+        if ((ag.searchTerms?.length ?? 0) > 0) return true;
+        if ((ag.topSearchTermsByConversions?.length ?? 0) > 0) return true;
+      }
+    }
+    return false;
+  }, [data]);
 
   const totalSpend = data?.campaigns.reduce((s, c) => s + c.spend, 0) ?? 0;
   const totalConv = data?.campaigns.reduce((s, c) => s + c.conversions, 0) ?? 0;
@@ -1484,6 +1718,49 @@ export default function AccountStructureTree({
                   <option value="bad">● Bad</option>
                   <option value="neutral">● No conv.</option>
                 </select>
+                {/* Active-only filter — hides paused/disabled campaigns and any
+                    with an endDate in the past. No-op until the upstream starts
+                    populating `endDate` on campaigns. */}
+                <button
+                  type="button"
+                  onClick={() => setActiveOnly((v) => !v)}
+                  className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+                    activeOnly
+                      ? "border-emerald-500 bg-emerald-600 text-white"
+                      : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}
+                  title={
+                    activeOnly
+                      ? "Showing currently active campaigns only (status = ENABLED and not past endDate)"
+                      : "Show only currently active campaigns (status = ENABLED and not past endDate)"
+                  }
+                  aria-pressed={activeOnly}
+                >
+                  {activeOnly ? "● Active only" : "○ Active only"}
+                </button>
+                {/* Switches the detail rows between keywords and search terms.
+                    Disabled when no ad group in the current dataset has search
+                    terms populated by the upstream. */}
+                <button
+                  type="button"
+                  onClick={() => setDataSource((s) => (s === "keywords" ? "search_terms" : "keywords"))}
+                  disabled={!showKeywords || !showAdGroups || (!searchTermsAvailable && dataSource === "keywords")}
+                  className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    dataSource === "search_terms"
+                      ? "border-blue-500 bg-blue-600 text-white"
+                      : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}
+                  title={
+                    !searchTermsAvailable
+                      ? "Search-term data isn't populated for this client yet (upstream Growth Tools endpoint doesn't return search terms). Toggle will activate when data is available."
+                      : dataSource === "keywords"
+                        ? "Switch the detail rows to top search terms"
+                        : "Switch the detail rows back to keywords"
+                  }
+                  aria-pressed={dataSource === "search_terms"}
+                >
+                  {dataSource === "keywords" ? "▤ Keywords" : "▤ Search terms"}
+                </button>
                 {/* Global entity toggles — ordered by structure depth: ad groups, keywords, ads. */}
                 <button
                   type="button"
@@ -1554,7 +1831,34 @@ export default function AccountStructureTree({
                   row-spans its detail rows so vertically aligned items merge
                   into a single tall block. */}
               {filtered.length === 0 ? (
-                <div className="text-center py-12 text-white/50 text-sm">No campaigns match your filters.</div>
+                data.campaigns.length === 0 ? (
+                  <div className="text-center py-12 text-white/50 text-sm">
+                    No campaign data returned for {rangeLabel(range)} ({range.from} → {range.to}).
+                    <span className="block mt-1 text-white/40">
+                      Try a wider date range or click “Refresh live data”.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-white/50 text-sm">
+                    No campaigns match your filters.
+                    {(search || healthFilter !== "all" || activeOnly) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearch("");
+                          setHealthFilter("all");
+                          setActiveOnly(false);
+                        }}
+                        className="ml-2 underline hover:text-white/80"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                    <span className="block mt-1 text-white/40">
+                      {data.campaigns.length} campaign{data.campaigns.length === 1 ? "" : "s"} hidden by the current filters.
+                    </span>
+                  </div>
+                )
               ) : (
                 // overflow-x-auto contains the grid's fixed min-width columns so
                 // wide rows scroll within this region instead of bleeding out.
@@ -1565,6 +1869,7 @@ export default function AccountStructureTree({
                     showAdGroups={showAdGroups}
                     showAds={showAds}
                     showKeywords={showKeywords}
+                    dataSource={dataSource}
                     collapsedAdGroups={collapsedAdGroups}
                     onToggleAdGroup={toggleAdGroup}
                   />
