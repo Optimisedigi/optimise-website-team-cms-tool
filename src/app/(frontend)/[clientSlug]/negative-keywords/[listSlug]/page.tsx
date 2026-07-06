@@ -51,12 +51,23 @@ export default async function NegativeKeywordsPage({
     campaignName: list.campaignName || null,
     campaigns: (list.campaigns || []).map((c: any) => c.campaignName).filter(Boolean),
     adGroupName: list.adGroupName || null,
-    keywords: (list.keywords || []).map((kw: any, i: number) => ({
-      index: i,
-      keyword: kw.keyword,
-      matchType: kw.matchType,
-      flaggedForRemoval: !!kw.flaggedForRemoval,
-    })),
+    keywords: (list.keywords || [])
+      .map((kw: any, i: number) => ({
+        index: i,
+        keyword: kw.keyword,
+        matchType: kw.matchType,
+        flaggedForRemoval: !!kw.flaggedForRemoval,
+        negatedAt: kw.negatedAt || null,
+      }))
+      // Most recently added first. Sort by negatedAt (the add date) descending;
+      // fall back to insertion order (higher index = newer) when dates are
+      // missing or identical, since keywords are only ever appended.
+      .sort((a: any, b: any) => {
+        const ta = a.negatedAt ? Date.parse(a.negatedAt) : NaN;
+        const tb = b.negatedAt ? Date.parse(b.negatedAt) : NaN;
+        if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return tb - ta;
+        return b.index - a.index;
+      }),
     updatedAt: list.updatedAt,
   }));
 

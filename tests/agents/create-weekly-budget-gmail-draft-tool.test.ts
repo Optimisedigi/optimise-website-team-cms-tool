@@ -104,7 +104,40 @@ describe("create_weekly_budget_gmail_draft", () => {
     expect(JSON.stringify(data)).not.toContain("budget html");
   });
 
-  it("defaults weekly draft requests to weeks=1", () => {
-    expect(createWeeklyBudgetGmailDraftTool.validate!({ weeks: undefined })).toEqual({ weeks: 1 });
+  it("defaults weekly draft requests to weeks=4", () => {
+    expect(createWeeklyBudgetGmailDraftTool.validate!({ weeks: undefined })).toEqual({ weeks: 4 });
+  });
+});
+
+describe("create_weekly_budget_gmail_draft validate", () => {
+  const validate = createWeeklyBudgetGmailDraftTool.validate!;
+
+  it("defaults to weeks=4 when weeks is omitted", () => {
+    expect(validate({})).toEqual({ weeks: 4 });
+  });
+
+  it("keeps weeks=1 for an explicit last-week request", () => {
+    expect(validate({ weeks: 1 })).toEqual({ weeks: 1 });
+  });
+
+  it("passes an explicit week count through", () => {
+    expect(validate({ weeks: 8 })).toEqual({ weeks: 8 });
+  });
+
+  it("throws when weeks is out of range", () => {
+    expect(() => validate({ weeks: 0 })).toThrow(/weeks must be an integer between 1 and 12/);
+    expect(() => validate({ weeks: 13 })).toThrow(/weeks must be an integer between 1 and 12/);
+  });
+
+  it("throws when weeks is not an integer", () => {
+    expect(() => validate({ weeks: 2.5 })).toThrow(/weeks must be an integer between 1 and 12/);
+  });
+
+  it("throws when endDate is malformed", () => {
+    expect(() => validate({ weeks: 4, endDate: "28-06-2026" })).toThrow(/endDate must be in YYYY-MM-DD format/);
+  });
+
+  it("passes a valid ISO endDate through", () => {
+    expect(validate({ weeks: 4, endDate: "2026-06-28" })).toEqual({ weeks: 4, endDate: "2026-06-28" });
   });
 });

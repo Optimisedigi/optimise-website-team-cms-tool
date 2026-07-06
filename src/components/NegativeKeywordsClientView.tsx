@@ -14,6 +14,7 @@ interface Keyword {
   keyword: string;
   matchType: string;
   flaggedForRemoval: boolean;
+  negatedAt?: string | null;
 }
 
 interface KeywordList {

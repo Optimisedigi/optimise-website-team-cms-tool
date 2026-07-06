@@ -7,6 +7,7 @@ interface Keyword {
   keyword: string
   matchType: string
   flaggedForRemoval?: boolean
+  negatedAt?: string
   id?: string
 }
 
@@ -52,6 +53,15 @@ export default function NegativeKeywordTable() {
     if (filterFlagged) {
       result = result.filter((kw) => kw.flaggedForRemoval)
     }
+    // Most recently added first. Sort by negatedAt (the add date) descending;
+    // fall back to insertion order (newest appended) when dates are missing or
+    // identical — keywords are only ever appended, so a higher index is newer.
+    result = result.sort((a, b) => {
+      const ta = a.negatedAt ? Date.parse(a.negatedAt) : NaN
+      const tb = b.negatedAt ? Date.parse(b.negatedAt) : NaN
+      if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return tb - ta
+      return b._idx - a._idx
+    })
     return result
   }, [keywords, search, filterMatch, filterFlagged])
 
@@ -69,6 +79,10 @@ export default function NegativeKeywordTable() {
             keyword: kw.keyword,
             matchType: kw.matchType,
             flaggedForRemoval: kw.flaggedForRemoval || false,
+            // Preserve the original add date so the server hook does not
+            // re-stamp it to now (which would break the added-date sort and
+            // the avoided-spend calculation).
+            ...(kw.negatedAt ? { negatedAt: kw.negatedAt } : {}),
           })),
         }),
       })

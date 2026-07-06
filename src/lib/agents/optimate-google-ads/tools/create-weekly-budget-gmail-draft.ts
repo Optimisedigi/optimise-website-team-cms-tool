@@ -34,13 +34,13 @@ const AGENCY_TIMEZONE = "Australia/Brisbane";
 export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetGmailDraftArgs> = {
   name: "create_weekly_budget_gmail_draft",
   description:
-    "Create the standard one-off Gmail draft for a weekly Google Ads budget report in one deterministic step. This avoids passing large budget HTML back through the LLM. Use this instead of separately calling get_weekly_metric_table, get_budget_management_email, and create_gmail_draft whenever the user asks to create/save/drop a weekly budget report into Gmail. Args: weeks=1 for last week or unspecified weekly reports; weeks=4 for last four weeks / 4-week trend; endDate optional ISO previous Sunday anchor; auditId optional for portfolio/audit override. Leaves the Gmail recipient blank.",
+    "Create the standard one-off Gmail draft for a weekly Google Ads budget report in one deterministic step. This avoids passing large budget HTML back through the LLM. Use this instead of separately calling get_weekly_metric_table, get_budget_management_email, and create_gmail_draft whenever the user asks to create/save/drop a weekly budget report into Gmail. Args: weeks=1 for last week; weeks=4 for an unspecified weekly report or last four weeks / 4-week trend (weeks defaults to 4 when omitted); endDate optional ISO previous Sunday anchor; auditId optional for portfolio/audit override. Leaves the Gmail recipient blank.",
   inputSchema: {
     type: "object",
     properties: {
       weeks: {
         type: "number",
-        description: "Completed Monday-Sunday weeks to include. Use 1 for last week/unspecified weekly report; 4 for last four weeks / 4-week trend.",
+        description: "Completed Monday-Sunday weeks to include. Use 1 for last week; 4 for an unspecified weekly report or last four weeks / 4-week trend. Defaults to 4 when omitted.",
       },
       endDate: {
         type: "string",
@@ -51,12 +51,12 @@ export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetG
         description: "Optional audit/account ref. Omit in a normal audit-scoped chat.",
       },
     },
-    required: ["weeks"],
+    required: [],
     additionalProperties: false,
   },
   validate(raw) {
     const obj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-    const weeksRaw = obj.weeks ?? 1;
+    const weeksRaw = obj.weeks ?? 4;
     const weeks = Number(weeksRaw);
     if (!Number.isInteger(weeks) || weeks < 1 || weeks > 12) {
       throw new Error("weeks must be an integer between 1 and 12");
