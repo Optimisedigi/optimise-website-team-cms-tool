@@ -16,22 +16,27 @@ export default async function PreviewPage({
   searchParams,
 }: {
   params: Promise<{ templateSlug: string }>;
-  searchParams: Promise<{ data?: string }>;
+  searchParams: Promise<{ data?: string; devPreview?: string }>;
 }) {
   const { templateSlug } = await params;
-  const { data: encoded } = await searchParams;
+  const { data: encoded, devPreview } = await searchParams;
 
   // Admin gate: require an active Payload admin session.
+  // Local-only bypass for visual QA/screenshots: /partners/_preview/<slug>?devPreview=1
+  const allowDevPreview =
+    process.env.NODE_ENV === "development" && devPreview === "1";
   const payload = await getPayload({ config: configPromise });
-  const reqHeaders = await headers();
-  const { user } = await payload.auth({ headers: reqHeaders });
-  if (!user) {
-    return (
-      <div style={{ padding: 40, fontFamily: "system-ui", color: "#444" }}>
-        <h1>Unauthorized</h1>
-        <p>Sign in to the CMS admin to preview deck templates.</p>
-      </div>
-    );
+  if (!allowDevPreview) {
+    const reqHeaders = await headers();
+    const { user } = await payload.auth({ headers: reqHeaders });
+    if (!user) {
+      return (
+        <div style={{ padding: 40, fontFamily: "system-ui", color: "#444" }}>
+          <h1>Unauthorized</h1>
+          <p>Sign in to the CMS admin to preview deck templates.</p>
+        </div>
+      );
+    }
   }
 
   const template = getTemplate(templateSlug);

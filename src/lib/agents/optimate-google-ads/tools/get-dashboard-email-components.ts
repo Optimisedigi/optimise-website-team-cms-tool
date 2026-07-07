@@ -198,6 +198,7 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
         html,
         components: args.components,
         warnings,
+        componentData: data,
         sourceSummary: {
           keywordRelevancy: args.components.includes("keyword_relevancy") ? "CMS monthly waste/relevancy cache" : null,
           cpaTrend: args.components.includes("cpa_trend") ? "Growth Tools campaign-budgets/get-metrics, one request per completed calendar month" : null,

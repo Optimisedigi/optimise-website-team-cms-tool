@@ -1077,6 +1077,12 @@ export async function GET(request: NextRequest) {
   await run("nkl_waste_relevancy_cache.brand_excluded_spend", "ALTER TABLE \`negative_keyword_monthly_waste_relevancy_cache\` ADD \`brand_excluded_spend\` numeric DEFAULT 0");
   await run("nkl_waste_relevancy_cache.low_relevancy_excluded_spend", "ALTER TABLE \`negative_keyword_monthly_waste_relevancy_cache\` ADD \`low_relevancy_excluded_spend\` numeric DEFAULT 0");
 
+  // CMS-only annual budget placeholders. Keep both audit fallback storage and
+  // client-owned storage available so Payload Clients list queries can decode the
+  // current schema.
+  await run("gaa.annual_budget_placeholders", "ALTER TABLE `google_ads_audits` ADD `annual_budget_placeholders` text");
+  await run("clients.annual_client_budget_placeholders", "ALTER TABLE `clients` ADD `annual_client_budget_placeholders` text");
+
   // Month-on-month keyword selection (2026-07-01). New per-client selection doc
   // plus immutable complete-month search-term cache. Kept in the GET fast-list
   // because the full POST sweep can time out in production.

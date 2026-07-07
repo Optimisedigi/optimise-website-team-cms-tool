@@ -114,7 +114,7 @@ describe("admin/internal migration endpoints regression", () => {
     expectNoSecretLeak(body);
   });
 
-  it("includes the later monthly-negative schema steps in /api/migrate GET", async () => {
+  it("includes the later budget-placeholder and monthly-negative schema steps in /api/migrate GET", async () => {
     execute.mockImplementation(async (sql: string) => {
       if (sql.includes("sqlite_master")) return { rows: [{ name: "clients" }, { name: "monthly_keyword_selection_rows" }] };
       return { rows: [] };
@@ -127,10 +127,12 @@ describe("admin/internal migration endpoints regression", () => {
     expect(response.status).toBe(200);
     expect(body.migrationsRun?.some((line) => line.startsWith("ERROR:"))).toBe(false);
     expect(body.migrationsRun).toEqual(expect.arrayContaining([
+      "OK: clients.annual_client_budget_placeholders",
       "OK: clients.gads_auto_monthly_negative_keywords_enabled",
       "OK: monthly_keyword_selection_rows",
       "OK: selection_row_outcome_followups",
     ]));
+    expect(execute).toHaveBeenCalledWith(expect.stringContaining("annual_client_budget_placeholders"));
     expect(execute).toHaveBeenCalledWith(expect.stringContaining("gads_auto_monthly_negative_keywords_enabled"));
     expect(execute).toHaveBeenCalledWith(expect.stringContaining("CREATE TABLE IF NOT EXISTS `monthly_keyword_selection_rows`"));
     expect(execute).toHaveBeenCalledWith(expect.stringContaining("CREATE TABLE IF NOT EXISTS `selection_row_outcome_followups`"));
