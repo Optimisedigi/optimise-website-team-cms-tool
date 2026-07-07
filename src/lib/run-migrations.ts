@@ -95,6 +95,69 @@ export async function runMigrations(
     return !!col && Number(col.notnull) === 1;
   }
 
+  async function columnExists(tableName: string, columnName: string): Promise<boolean> {
+    const result = await client!.execute(`PRAGMA table_info(\`${tableName}\`)`);
+    const rows = (result as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+    return rows.some((row) => row.name === columnName);
+  }
+
+  async function upgradeContractorTimeEntriesForUserAllocations(): Promise<void> {
+    const label = "contractor_time_entries_user_allocations";
+    try {
+      const hasUserId = await columnExists("contractor_time_entries", "user_id");
+      const contractorNotNull = await columnIsNotNull("contractor_time_entries", "contractor_id");
+      if (hasUserId && !contractorNotNull) {
+        const r: MigrationResult = { label, status: "skip", message: "already applied" };
+        opts?.onProgress?.(r);
+        results.push(r);
+        return;
+      }
+
+      const batch = (client as unknown as {
+        batch?: (stmts: string[], mode?: string) => Promise<unknown>;
+      }).batch;
+      const statements = [
+        "PRAGMA foreign_keys=OFF",
+        "DROP INDEX IF EXISTS `contractor_time_entries_unique_week`",
+        "CREATE TABLE IF NOT EXISTS `contractor_time_entries_next` (" +
+          "`id` integer PRIMARY KEY NOT NULL, `user_id` integer, `contractor_id` integer, " +
+          "`week_commencing` text NOT NULL, `hours` numeric DEFAULT 0 NOT NULL, " +
+          "`status` text DEFAULT 'draft' NOT NULL, `hourly_rate_snapshot` numeric, `total_fee` numeric, " +
+          "`payment_id` integer, `submitted_at` text, `approved_at` text, `paid_at` text, `notes` text, " +
+          "`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, " +
+          "`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, " +
+          "FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null, " +
+          "FOREIGN KEY (`contractor_id`) REFERENCES `contractors`(`id`) ON UPDATE no action ON DELETE cascade, " +
+          "FOREIGN KEY (`payment_id`) REFERENCES `contractor_payments`(`id`) ON UPDATE no action ON DELETE set null)",
+        "INSERT OR IGNORE INTO `contractor_time_entries_next` " +
+          "(`id`, `contractor_id`, `week_commencing`, `hours`, `status`, `hourly_rate_snapshot`, `total_fee`, `payment_id`, `submitted_at`, `approved_at`, `paid_at`, `notes`, `updated_at`, `created_at`) " +
+          "SELECT `id`, `contractor_id`, `week_commencing`, `hours`, `status`, `hourly_rate_snapshot`, `total_fee`, `payment_id`, `submitted_at`, `approved_at`, `paid_at`, `notes`, `updated_at`, `created_at` FROM `contractor_time_entries`",
+        "DROP TABLE IF EXISTS `contractor_time_entries`",
+        "ALTER TABLE `contractor_time_entries_next` RENAME TO `contractor_time_entries`",
+        "CREATE INDEX IF NOT EXISTS `contractor_time_entries_user_idx` ON `contractor_time_entries` (`user_id`)",
+        "CREATE INDEX IF NOT EXISTS `contractor_time_entries_contractor_idx` ON `contractor_time_entries` (`contractor_id`)",
+        "CREATE INDEX IF NOT EXISTS `contractor_time_entries_week_commencing_idx` ON `contractor_time_entries` (`week_commencing`)",
+        "CREATE INDEX IF NOT EXISTS `contractor_time_entries_status_idx` ON `contractor_time_entries` (`status`)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `contractor_time_entries_unique_user_week` ON `contractor_time_entries` (`user_id`, `week_commencing`) WHERE `user_id` IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `contractor_time_entries_unique_contractor_week` ON `contractor_time_entries` (`contractor_id`, `week_commencing`) WHERE `user_id` IS NULL AND `contractor_id` IS NOT NULL",
+        "PRAGMA foreign_keys=ON",
+      ];
+      if (typeof batch === "function") {
+        await batch.call(client, statements, "write");
+      } else {
+        for (const stmt of statements) await client!.execute(stmt);
+      }
+      const r: MigrationResult = { label, status: "ok" };
+      opts?.onProgress?.(r);
+      results.push(r);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const r: MigrationResult = { label, status: "error", message: msg };
+      opts?.onProgress?.(r);
+      results.push(r);
+    }
+  }
+
   // Drop a legacy NOT NULL constraint on client_proposals_keyword_categories.keywords
   // via SQLite table rebuild. Guarded + idempotent: only rebuilds if the column is
   // still NOT NULL. Atomic via client.batch so there's no DROP-without-RENAME window.
@@ -2874,7 +2937,19 @@ export async function runMigrations(
     await run("contractor_time_entries_contractor_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_contractor_idx` ON `contractor_time_entries` (`contractor_id`)");
     await run("contractor_time_entries_week_commencing_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_week_commencing_idx` ON `contractor_time_entries` (`week_commencing`)");
     await run("contractor_time_entries_status_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_status_idx` ON `contractor_time_entries` (`status`)");
-    await run("contractor_time_entries_unique_week", "CREATE UNIQUE INDEX IF NOT EXISTS `contractor_time_entries_unique_week` ON `contractor_time_entries` (`contractor_id`, `week_commencing`)");
+    await upgradeContractorTimeEntriesForUserAllocations();
+    await run("contractor_time_entries_client_allocations", `CREATE TABLE IF NOT EXISTS \`contractor_time_entries_client_allocations\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`hours\` numeric DEFAULT 0 NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`contractor_time_entries\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("contractor_time_entries_client_allocations_order_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_client_allocations_order_idx` ON `contractor_time_entries_client_allocations` (`_order`)");
+    await run("contractor_time_entries_client_allocations_parent_id_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_client_allocations_parent_id_idx` ON `contractor_time_entries_client_allocations` (`_parent_id`)");
+    await run("contractor_time_entries_client_allocations_client_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_client_allocations_client_idx` ON `contractor_time_entries_client_allocations` (`client_id`)");
   
     await run("locked_docs_rels.contractors_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contractors_id` integer REFERENCES `contractors`(`id`) ON DELETE cascade");
     await run("locked_docs_rels.contractor_payments_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contractor_payments_id` integer REFERENCES `contractor_payments`(`id`) ON DELETE cascade");
