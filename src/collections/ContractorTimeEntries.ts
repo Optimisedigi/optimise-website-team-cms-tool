@@ -1,5 +1,27 @@
-import type { CollectionConfig } from "payload";
-import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import type { Access, CollectionConfig } from "payload";
+import { adminOnlyDelete, getEffectiveFeatures } from "../lib/access";
+
+function hasTimeEntryAccess(user: any): boolean {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  return user.role === "manager" || user.role === "specialist" || getEffectiveFeatures(user).size > 0;
+}
+
+const canReadTimeEntries: Access = ({ req }) => {
+  const user = req.user;
+  if (!hasTimeEntryAccess(user)) return false;
+  if (user?.role === "admin") return true;
+  return { user: { equals: user!.id } };
+};
+
+const canCreateTimeEntries: Access = ({ req }) => hasTimeEntryAccess(req.user);
+
+const canUpdateTimeEntries: Access = ({ req }) => {
+  const user = req.user;
+  if (!hasTimeEntryAccess(user)) return false;
+  if (user?.role === "admin") return true;
+  return { user: { equals: user!.id } };
+};
 
 /**
  * One row per (contractor × week). The contractor enters `hours` via the
@@ -16,19 +38,27 @@ export const ContractorTimeEntries: CollectionConfig = {
   admin: {
     group: "Finance",
     useAsTitle: "weekCommencing",
-    defaultColumns: ["contractor", "weekCommencing", "hours", "totalFee", "status"],
-    description: "Weekly hours logged by contractors. Approved entries flow into fortnightly payments.",
-    hidden: hideUnlessFeature("contractors"),
+    defaultColumns: ["user", "contractor", "weekCommencing", "hours", "totalFee", "status"],
+    description: "Weekly hours logged by contractors or internal users. Approved contractor entries flow into fortnightly payments.",
+    hidden: ({ user }) => !hasTimeEntryAccess(user),
+    components: {
+      views: {
+        list: {
+          Component: "./components/ContractorTimeEntriesListView",
+        },
+      },
+    },
   },
   access: {
-    read: canAccess("contractors"),
-    create: canAccess("contractors"),
-    update: canAccess("contractors"),
+    read: canReadTimeEntries,
+    create: canCreateTimeEntries,
+    update: canUpdateTimeEntries,
     delete: adminOnlyDelete,
   },
   hooks: {
     beforeChange: [
       async ({ data, req, originalDoc, operation }) => {
+        if (req.user && req.user.role !== "admin") data.user = req.user.id;
         // Resolve hourly rate from the contractor at save time so the fee
         // sticks even if the contractor's rate is later changed.
         if (data?.contractor && data?.hours != null) {
@@ -62,11 +92,21 @@ export const ContractorTimeEntries: CollectionConfig = {
   },
   fields: [
     {
+      name: "user",
+      label: "User",
+      type: "relationship",
+      relationTo: "users",
+      index: true,
+      admin: {
+        description: "Internal user this time entry belongs to. Non-admins are forced to their own user.",
+      },
+    },
+    {
       name: "contractor",
       type: "relationship",
       relationTo: "contractors",
-      required: true,
       index: true,
+      admin: { description: "Optional contractor for payment/invoicing entries. Internal user time can leave this blank." },
     },
     {
       name: "weekCommencing",
@@ -83,6 +123,29 @@ export const ContractorTimeEntries: CollectionConfig = {
       type: "number",
       required: true,
       defaultValue: 0,
+    },
+    {
+      name: "clientAllocations",
+      label: "Client Allocations",
+      type: "array",
+      admin: {
+        description: "Allocate the weekly total across active clients. The grid view shows discrepancies automatically.",
+      },
+      fields: [
+        {
+          name: "client",
+          type: "relationship",
+          relationTo: "clients",
+          required: true,
+        },
+        {
+          name: "hours",
+          type: "number",
+          required: true,
+          defaultValue: 0,
+          min: 0,
+        },
+      ],
     },
     {
       name: "status",

@@ -7451,19 +7451,36 @@ export interface Contractor {
   createdAt: string;
 }
 /**
- * Weekly hours logged by contractors. Approved entries flow into fortnightly payments.
+ * Weekly hours logged by contractors or internal users. Approved contractor entries flow into fortnightly payments.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "contractor-time-entries".
  */
 export interface ContractorTimeEntry {
   id: number;
-  contractor: number | Contractor;
+  /**
+   * Internal user this time entry belongs to. Non-admins are forced to their own user.
+   */
+  user?: (number | null) | User;
+  /**
+   * Optional contractor for payment/invoicing entries. Internal user time can leave this blank.
+   */
+  contractor?: (number | null) | Contractor;
   /**
    * Monday of the week being logged.
    */
   weekCommencing: string;
   hours: number;
+  /**
+   * Allocate the weekly total across active clients. The grid view shows discrepancies automatically.
+   */
+  clientAllocations?:
+    | {
+        client: number | Client;
+        hours: number;
+        id?: string | null;
+      }[]
+    | null;
   status: 'draft' | 'submitted' | 'approved' | 'paid';
   /**
    * Rate at the time the entry was saved.
@@ -11621,9 +11638,17 @@ export interface ContractorsSelect<T extends boolean = true> {
  * via the `definition` "contractor-time-entries_select".
  */
 export interface ContractorTimeEntriesSelect<T extends boolean = true> {
+  user?: T;
   contractor?: T;
   weekCommencing?: T;
   hours?: T;
+  clientAllocations?:
+    | T
+    | {
+        client?: T;
+        hours?: T;
+        id?: T;
+      };
   status?: T;
   hourlyRateSnapshot?: T;
   totalFee?: T;
