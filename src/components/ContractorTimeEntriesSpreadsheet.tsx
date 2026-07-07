@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 type Option = { id: string | number; name: string; email?: string | null }
 type Allocation = { client: string | number; hours: number }
@@ -16,6 +16,7 @@ type TimeEntry = {
 }
 
 type MonthlyTotal = { clientId: string; clientName: string; hours: number }
+type MonthlyAllocationRow = { month: string; monthLabel: string; totals: MonthlyTotal[] }
 
 const statuses = [
   ['draft', 'Draft'],
@@ -87,7 +88,10 @@ function weekLabel(weekStart: string): string {
   const start = new Date(`${weekStart.slice(0, 10)}T00:00:00`)
   const end = new Date(start)
   end.setDate(end.getDate() + 6)
-  return `${start.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`
+  const startMonth = start.toLocaleDateString('en-AU', { month: 'long' })
+  const endMonth = end.toLocaleDateString('en-AU', { month: 'long' })
+  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) return `${start.getDate()}-${end.getDate()} ${endMonth}`
+  return `${start.getDate()} ${startMonth} - ${end.getDate()} ${endMonth}`
 }
 
 function allocationHours(entry: TimeEntry, clientId: string | number): number {
@@ -98,6 +102,12 @@ function allocatedTotal(entry: TimeEntry): number {
   return (entry.clientAllocations || []).reduce((sum, allocation) => sum + Number(allocation.hours || 0), 0)
 }
 
+function openDatePicker(input: HTMLInputElement) {
+  const pickerInput = input as HTMLInputElement & { showPicker?: () => void }
+  if (pickerInput.showPicker) pickerInput.showPicker()
+  else pickerInput.focus()
+}
+
 function statusTone(status: string): React.CSSProperties {
   if (status === 'paid') return { background: '#e0e7ff', color: '#3730a3' }
   if (status === 'approved') return { background: '#dcfce7', color: '#166534' }
@@ -105,12 +115,39 @@ function statusTone(status: string): React.CSSProperties {
   return { background: '#fef3c7', color: '#92400e' }
 }
 
+function WeekDateCell({ value, locked, onChange }: { value: string; locked: boolean; onChange: (date: string) => void }) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const date = value.slice(0, 10)
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => { if (!locked && inputRef.current) openDatePicker(inputRef.current) }}
+        disabled={locked}
+        style={{ ...inputStyle, cursor: locked ? 'default' : 'pointer', textAlign: 'left', fontWeight: 800, minHeight: 34 }}
+        title="Click to choose any date in this week"
+      >
+        {weekLabel(date)}
+      </button>
+      <input
+        ref={inputRef}
+        type="date"
+        value={date}
+        onChange={(event) => onChange(mondayKey(new Date(`${event.target.value}T00:00:00`)))}
+        disabled={locked}
+        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1, left: 0, top: 0 }}
+        tabIndex={-1}
+      />
+    </div>
+  )
+}
+
 export default function ContractorTimeEntriesSpreadsheet() {
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [clients, setClients] = useState<Option[]>([])
   const [users, setUsers] = useState<Option[]>([])
   const [currentUser, setCurrentUser] = useState<Option | null>(null)
-  const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotal[]>([])
+  const [monthlyTotals, setMonthlyTotals] = useState<MonthlyAllocationRow[]>([])
   const [month, setMonth] = useState(() => monthKey())
   const [userFilter, setUserFilter] = useState('')
   const [loading, setLoading] = useState(true)
@@ -118,6 +155,14 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const [error, setError] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [canDelete, setCanDelete] = useState(false)
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
+  const [showColumnPicker, setShowColumnPicker] = useState(false)
+  const selectedClientIdSet = useMemo(() => new Set(selectedClientIds), [selectedClientIds])
+  const visibleClients = useMemo(() => clients.filter((client) => selectedClientIdSet.has(String(client.id))), [clients, selectedClientIdSet])
+  const visibleMonthlyTotals = useMemo(() => monthlyTotals.map((row) => ({
+    ...row,
+    totals: row.totals.filter((total) => selectedClientIdSet.has(String(total.clientId))),
+  })), [monthlyTotals, selectedClientIdSet])
 
   const load = async () => {
     setLoading(true)
@@ -128,13 +173,19 @@ export default function ContractorTimeEntriesSpreadsheet() {
       const res = await fetch(`/api/contractor-time-entries/grid?${params.toString()}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load contractor time entries')
+      const nextClients = json.clients || []
       setEntries(json.entries || [])
-      setClients(json.clients || [])
+      setClients(nextClients)
       setUsers(json.users || [])
       setCurrentUser(json.currentUser || null)
       setMonthlyTotals(json.monthlyTotals || [])
       setIsAdmin(Boolean(json.isAdmin))
       setCanDelete(Boolean(json.canDelete))
+      const availableClientIds = new Set(nextClients.map((client: Option) => String(client.id)))
+      const defaultClientIds = Array.isArray(json.columnClientIds)
+        ? json.columnClientIds.map(String).filter((id: string) => availableClientIds.has(id))
+        : nextClients.map((client: Option) => String(client.id))
+      setSelectedClientIds(defaultClientIds)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load contractor time entries')
     } finally {
@@ -144,7 +195,9 @@ export default function ContractorTimeEntriesSpreadsheet() {
 
   useEffect(() => { void load() }, [month, userFilter])
 
-  const tableMinWidth = useMemo(() => 650 + clients.length * 120, [clients.length])
+  const leadingColumnCount = isAdmin ? 2 : 1
+  const totalColumnCount = leadingColumnCount + visibleClients.length + 4
+  const tableMinWidth = useMemo(() => (isAdmin ? 625 : 495) + visibleClients.length * 120, [isAdmin, visibleClients.length])
 
   const patch = async (id: string | number, data: Partial<TimeEntry>) => {
     setSavingId(id)
@@ -171,19 +224,46 @@ export default function ContractorTimeEntriesSpreadsheet() {
 
   const patchAllocation = (entry: TimeEntry, clientId: string | number, value: string) => {
     const hours = Math.max(0, Number(value || 0))
+    const previousAllocatedTotal = allocatedTotal(entry)
     const map = new Map<string, Allocation>()
     for (const allocation of entry.clientAllocations || []) {
       map.set(String(allocation.client), { client: allocation.client, hours: Number(allocation.hours || 0) })
     }
     map.set(String(clientId), { client: clientId, hours })
     const clientAllocations = Array.from(map.values()).filter((allocation) => allocation.hours > 0)
-    void patch(entry.id, { clientAllocations })
+    const nextAllocatedTotal = clientAllocations.reduce((sum, allocation) => sum + Number(allocation.hours || 0), 0)
+    const shouldAutoTotal = Number(entry.hours || 0) === 0 || Math.abs(Number(entry.hours || 0) - previousAllocatedTotal) < 0.01
+    void patch(entry.id, { clientAllocations, ...(shouldAutoTotal ? { hours: Math.round(nextAllocatedTotal * 100) / 100 } : {}) })
+  }
+
+  const saveClientColumns = async (clientIds: string[]) => {
+    const res = await fetch('/api/contractor-time-entries/grid', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnClientIds: clientIds }),
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error || 'Failed to save columns')
+  }
+
+  const setClientColumns = (clientIds: string[]) => {
+    setSelectedClientIds(clientIds)
+    void saveClientColumns(clientIds).catch((err) => setError(err instanceof Error ? err.message : 'Failed to save columns'))
+  }
+
+  const toggleClientColumn = (clientId: string | number) => {
+    const id = String(clientId)
+    setSelectedClientIds((current) => {
+      const next = current.includes(id) ? current.filter((currentId) => currentId !== id) : [...current, id]
+      void saveClientColumns(next).catch((err) => setError(err instanceof Error ? err.message : 'Failed to save columns'))
+      return next
+    })
   }
 
   const addWeek = async () => {
     const owner = isAdmin ? userFilter : String(currentUser?.id || '')
     if (!owner) {
-      setError(isAdmin ? 'Select a user before adding a week.' : 'Your user account could not be loaded.')
+      setError(isAdmin ? 'Select the user to add time for.' : 'Your user account could not be loaded.')
       return
     }
     setSavingId('new')
@@ -230,8 +310,8 @@ export default function ContractorTimeEntriesSpreadsheet() {
 
   return (
     <div style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
-      <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Contractor Time Entries</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? '180px 260px 1fr' : '180px 1fr', gap: 8, alignItems: 'end', marginBottom: 10 }}>
+      <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Time entries</h1>
+      <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? '180px 260px minmax(220px, 1fr) auto' : '180px minmax(220px, 1fr) auto', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
           Month
           <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} style={inputStyle} />
@@ -240,88 +320,118 @@ export default function ContractorTimeEntriesSpreadsheet() {
           <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
             User
             <select value={userFilter} onChange={(event) => setUserFilter(event.target.value)} style={inputStyle}>
-              <option value="">All users with time</option>
+              <option value="">All users</option>
               {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
             </select>
           </label>
         )}
         <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)', paddingBottom: 8 }}>
-          {isAdmin ? 'View everyone, filter to users who have added time, and allocate hours across active client columns.' : 'Add your own weekly time only, then allocate hours across active client columns.'}
+          {isAdmin ? 'Select any user, add a week for them, and allocate hours across active client columns.' : 'Add your own weekly time only, then allocate hours across active client columns.'}
+        </div>
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', paddingBottom: 1 }}>
+          <button type="button" onClick={() => setShowColumnPicker((open) => !open)} style={{ ...inputStyle, width: 'auto', minWidth: 0, padding: '5px 9px', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: 'transparent', color: 'var(--theme-elevation-500)' }}>
+            Columns ({visibleClients.length})
+          </button>
+          {showColumnPicker && (
+            <div style={{ position: 'absolute', zIndex: 5, top: 'calc(100% + 6px)', right: 0, width: 320, maxHeight: 360, overflow: 'auto', padding: 10, border: '1px solid var(--theme-elevation-150)', borderRadius: 12, background: 'var(--theme-bg)', boxShadow: '0 12px 30px rgba(0,0,0,.18)' }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <button type="button" onClick={() => setClientColumns(clients.map((client) => String(client.id)))} style={{ ...inputStyle, cursor: 'pointer', fontWeight: 800 }}>Show all</button>
+                <button type="button" onClick={() => setClientColumns([])} style={{ ...inputStyle, cursor: 'pointer', fontWeight: 800 }}>Hide all</button>
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {clients.map((client) => (
+                  <label key={client.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={selectedClientIdSet.has(String(client.id))} onChange={() => toggleClientColumn(client.id)} />
+                    <span style={{ textTransform: 'none' }}>{client.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {error && <div style={{ marginBottom: 10, padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
-
-      <div style={{ marginBottom: 14, border: '1px solid var(--theme-elevation-150)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)' }}>
-        <table style={{ width: '100%', minWidth: 520, borderCollapse: 'separate', borderSpacing: 0 }}>
+      <div style={{ marginBottom: 24, border: '1px solid var(--theme-elevation-250)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)', boxShadow: '0 1px 0 rgba(0,0,0,.04)' }}>
+        <table style={{ width: '100%', minWidth: tableMinWidth, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+          <colgroup>
+            {isAdmin && <col style={{ width: 130 }} />}
+            <col style={{ width: 130 }} />
+            {visibleClients.map((client) => <col key={client.id} style={{ width: 120 }} />)}
+            <col style={{ width: 90 }} />
+            <col style={{ width: 95 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 60 }} />
+          </colgroup>
           <thead>
             <tr>
-              <th style={thStyle}>Monthly allocation</th>
-              {monthlyTotals.map((total) => <th key={total.clientId} style={{ ...thStyle, textAlign: 'right' }}>{total.clientName}</th>)}
+              <th colSpan={leadingColumnCount} style={thStyle}>Monthly allocation</th>
+              {visibleClients.map((client) => <th key={client.id} style={{ ...thStyle, textAlign: 'right', textTransform: 'none', letterSpacing: 0, borderLeft: '1px solid var(--theme-elevation-100)' }}>{client.name}</th>)}
+              <th colSpan={4} style={thStyle}></th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td style={{ ...tdStyle, fontWeight: 900 }}>Hours</td>
-              {monthlyTotals.map((total) => <td key={total.clientId} style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>{total.hours.toFixed(2)}</td>)}
-            </tr>
+            {visibleMonthlyTotals.map((row) => (
+              <tr key={row.month}>
+                <td colSpan={leadingColumnCount} style={{ ...tdStyle, fontWeight: 900 }}>{row.monthLabel}</td>
+                {row.totals.map((total) => <td key={total.clientId} style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, borderLeft: '1px solid var(--theme-elevation-100)' }}>{total.hours.toFixed(2)}</td>)}
+                <td colSpan={4} style={tdStyle}></td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
-      <div style={{ width: '100%', maxWidth: 'none', border: '1px solid var(--theme-elevation-150)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)' }}>
+      <div style={{ width: '100%', maxWidth: 'none', border: '1px solid var(--theme-elevation-250)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)', boxShadow: '0 1px 0 rgba(0,0,0,.04)' }}>
         <table style={{ width: '100%', minWidth: tableMinWidth, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
           <colgroup>
-            <col style={{ width: 180 }} />
-            <col style={{ width: 140 }} />
-            <col style={{ width: 100 }} />
-            {clients.map((client) => <col key={client.id} style={{ width: 120 }} />)}
-            <col style={{ width: 120 }} />
+            {isAdmin && <col style={{ width: 130 }} />}
             <col style={{ width: 130 }} />
-            <col style={{ width: 70 }} />
+            {visibleClients.map((client) => <col key={client.id} style={{ width: 120 }} />)}
+            <col style={{ width: 90 }} />
+            <col style={{ width: 95 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 60 }} />
           </colgroup>
           <thead>
             <tr>
-              <th style={thStyle}>User</th>
+              {isAdmin && <th style={thStyle}>User</th>}
               <th style={thStyle}>Week</th>
+              {visibleClients.map((client) => <th key={client.id} style={{ ...thStyle, textAlign: 'right', textTransform: 'none', letterSpacing: 0, borderLeft: '1px solid var(--theme-elevation-100)' }}>{client.name}</th>)}
               <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
-              {clients.map((client) => <th key={client.id} style={{ ...thStyle, textAlign: 'right' }}>{client.name}</th>)}
-              <th style={{ ...thStyle, textAlign: 'right' }}>Discrepancy</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>Diff</th>
               <th style={thStyle}>Status</th>
               <th style={thStyle}></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={clients.length + 6} style={{ padding: 28, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>Loading entries…</td></tr>
+              <tr><td colSpan={totalColumnCount} style={{ padding: 28, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>Loading entries…</td></tr>
             ) : entries.length === 0 ? (
-              <tr><td colSpan={clients.length + 6} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No time entries for this month — add the first week below.</td></tr>
+              <tr><td colSpan={totalColumnCount} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No time entries for this month — add the first week below.</td></tr>
             ) : entries.map((entry) => {
               const discrepancy = Number(entry.hours || 0) - allocatedTotal(entry)
               const locked = entry.status === 'paid'
               return (
                 <tr key={entry.id} style={{ height: 58, ...(savingId === entry.id ? { opacity: .6 } : undefined) }}>
-                  <td style={tdStyle} title={relName(entry.user, users)}>
-                    {isAdmin ? (
+                  {isAdmin && (
+                    <td style={tdStyle} title={relName(entry.user, users)}>
                       <select value={relId(entry.user)} onChange={(event) => void patch(entry.id, { user: event.target.value })} disabled={locked} style={inputStyle}>
                         <option value="">Unassigned / contractor</option>
                         {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                       </select>
-                    ) : (
-                      <div style={{ ...inputStyle, background: 'rgba(255,255,255,.35)' }}>{relName(entry.user, users) || currentUser?.name || 'You'}</div>
-                    )}
-                  </td>
+                    </td>
+                  )}
                   <td style={tdStyle}>
-                    <input type="date" value={entry.weekCommencing.slice(0, 10)} onChange={(event) => void patch(entry.id, { weekCommencing: mondayKey(new Date(`${event.target.value}T00:00:00`)) })} disabled={locked} style={inputStyle} title={weekLabel(entry.weekCommencing)} />
+                    <WeekDateCell value={entry.weekCommencing} locked={locked} onChange={(date) => void patch(entry.id, { weekCommencing: date })} />
                   </td>
-                  <td style={tdStyle}>
-                    <input type="number" min={0} max={168} step={0.25} value={entry.hours ?? 0} onChange={(event) => void patch(entry.id, { hours: Number(event.target.value || 0) })} disabled={locked} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800 }} />
-                  </td>
-                  {clients.map((client) => (
-                    <td key={client.id} style={tdStyle}>
+                  {visibleClients.map((client) => (
+                    <td key={client.id} style={{ ...tdStyle, borderLeft: '1px solid var(--theme-elevation-100)' }}>
                       <input type="number" min={0} max={168} step={0.25} value={allocationHours(entry, client.id)} onChange={(event) => patchAllocation(entry, client.id, event.target.value)} disabled={locked} style={{ ...inputStyle, textAlign: 'right' }} />
                     </td>
                   ))}
+                  <td style={tdStyle}>
+                    <input type="number" min={0} max={168} step={0.25} value={entry.hours ?? 0} onChange={(event) => void patch(entry.id, { hours: Number(event.target.value || 0) })} disabled={locked} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800 }} />
+                  </td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 900, color: Math.abs(discrepancy) < 0.01 ? '#15803d' : '#b45309' }}>
                     {discrepancy.toFixed(2)}
                   </td>
@@ -332,7 +442,6 @@ export default function ContractorTimeEntriesSpreadsheet() {
                   </td>
                   <td style={{ ...tdStyle, padding: 4 }}>
                     <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
-                      <a href={`/admin/collections/contractor-time-entries/${entry.id}`} title="Open entry" style={{ ...inputStyle, display: 'grid', placeItems: 'center', width: 36, height: 36, padding: 0, color: '#1d4ed8', fontWeight: 900, textDecoration: 'none' }}>↗</a>
                       {canDelete && !locked && <button type="button" onClick={() => void deleteEntry(entry.id)} disabled={savingId === entry.id} title="Delete row" style={{ ...inputStyle, width: 36, height: 36, padding: 0, cursor: 'pointer', color: '#991b1b', fontWeight: 900 }}>×</button>}
                     </div>
                   </td>
@@ -341,7 +450,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
             })}
             {!loading && (
               <tr style={{ background: 'rgba(70, 141, 139, 0.08)' }}>
-                <td colSpan={clients.length + 6} style={{ padding: '8px 10px 12px', borderBottom: '1px solid var(--theme-elevation-100)' }}>
+                <td colSpan={totalColumnCount} style={{ padding: '8px 10px 12px', borderBottom: '1px solid var(--theme-elevation-100)' }}>
                   <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#7c3aed', borderColor: '#5b21b6', color: '#fff' }}>
                     {savingId === 'new' ? 'Adding week…' : '+ Add week'}
                   </button>

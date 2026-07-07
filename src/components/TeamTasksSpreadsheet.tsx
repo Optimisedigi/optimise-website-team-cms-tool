@@ -84,6 +84,12 @@ function taskWeek(value?: string | null): string {
   return value ? mondayKey(new Date(`${value.slice(0, 10)}T00:00:00`)) : ''
 }
 
+function openDatePicker(input: HTMLInputElement) {
+  const pickerInput = input as HTMLInputElement & { showPicker?: () => void }
+  if (pickerInput.showPicker) pickerInput.showPicker()
+  else pickerInput.focus()
+}
+
 function statusTone(status: string): React.CSSProperties {
   if (status === 'completed') return { background: '#dcfce7', color: '#166534' }
   if (status === 'ready_for_review') return { background: '#fef3c7', color: '#92400e' }
@@ -259,9 +265,8 @@ function WeekPickerCell({ value, onChange, rowSpan, color, boxColor }: { value: 
       <button
         type="button"
         onClick={() => {
-          const input = inputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null
-          if (input?.showPicker) input.showPicker()
-          else input?.focus()
+          const input = inputRef.current
+          if (input) openDatePicker(input)
         }}
         style={{
           position: 'absolute',
@@ -475,11 +480,12 @@ export default function TeamTasksSpreadsheet() {
             type="date"
             value={weekStart}
             disabled={weekMode !== 'week'}
+            onClick={(e) => openDatePicker(e.currentTarget)}
             onChange={(e) => {
               const next = mondayKey(new Date(`${e.target.value}T00:00:00`))
               setWeekStart(next)
             }}
-            style={inputStyle}
+            style={{ ...inputStyle, cursor: weekMode === 'week' ? 'pointer' : 'default' }}
           />
         </label>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={inputStyle}>

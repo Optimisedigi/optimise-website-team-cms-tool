@@ -108,7 +108,6 @@ import { default as default_c942878b95bb76e4edb6703d0af13ae3 } from '../../../co
 import { default as default_e5c235401c2506e52e0da17600621f37 } from '../../../components/ClientProcessWorksheet'
 import { default as default_f3192da0e1eaceb3549701f5cee70cf7 } from '../../../components/CreateProcessFromTemplate'
 import { default as default_03c19e26ded9f30117bc663c9fa87312 } from '../../../components/TeamTasksListView'
-import { default as default_4b8af8aa4f6f3d6b7f0be8f63a76b3a1 } from '../../../components/ContractorTimeEntriesListView'
 import { default as default_971d902ea7bb079a9f85d3af6410683c } from '../../../components/GenerateSlotsButton'
 import { default as default_00616646d6161fbe87975107f4e83aa2 } from '../../../components/CopyScheduleEmailButton'
 import { default as default_0038b26ea788903db0f6afa6e94f619a } from '../../../components/SendScheduleInvitesButton'
@@ -162,6 +161,7 @@ import { default as default_c6dc19d9268bf85af3aeeca1819ed97d } from '../../../co
 import { default as default_20396e04db8c07a5e3383d2e16b34dc4 } from '../../../components/RunSiteHealthButton'
 import { default as default_b058368eb7c5859811170004e5dd59a8 } from '../../../components/SiteHealthReportView'
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
+import { default as default_492e9fb76378e3beaf0e598f1da145d0 } from '../../../components/ContractorTimeEntriesListView'
 import { default as default_0a0f3b40e58f63623cf710a9f1c57a57 } from '../../../components/FeatureAccessPicker'
 import { default as default_5832cfd5a3db98abeba26a1e405dd7d5 } from '../../../components/agent/MemoryTokenCounterField'
 import { default as default_3c9d8edcf144f9e259759d2b0c9c8270 } from '../../../components/match-type-violations/MatchTypeViolationReviewList'
@@ -312,7 +312,6 @@ export const importMap = {
   "./components/ClientProcessWorksheet#default": default_e5c235401c2506e52e0da17600621f37,
   "./components/CreateProcessFromTemplate#default": default_f3192da0e1eaceb3549701f5cee70cf7,
   "./components/TeamTasksListView#default": default_03c19e26ded9f30117bc663c9fa87312,
-  "./components/ContractorTimeEntriesListView#default": default_4b8af8aa4f6f3d6b7f0be8f63a76b3a1,
   "./components/GenerateSlotsButton#default": default_971d902ea7bb079a9f85d3af6410683c,
   "./components/CopyScheduleEmailButton#default": default_00616646d6161fbe87975107f4e83aa2,
   "./components/SendScheduleInvitesButton#default": default_0038b26ea788903db0f6afa6e94f619a,
@@ -366,6 +365,7 @@ export const importMap = {
   "./components/RunSiteHealthButton#default": default_20396e04db8c07a5e3383d2e16b34dc4,
   "./components/SiteHealthReportView#default": default_b058368eb7c5859811170004e5dd59a8,
   "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
+  "./components/ContractorTimeEntriesListView#default": default_492e9fb76378e3beaf0e598f1da145d0,
   "./components/FeatureAccessPicker#default": default_0a0f3b40e58f63623cf710a9f1c57a57,
   "./components/agent/MemoryTokenCounterField#default": default_5832cfd5a3db98abeba26a1e405dd7d5,
   "./components/match-type-violations/MatchTypeViolationReviewList#default": default_3c9d8edcf144f9e259759d2b0c9c8270,

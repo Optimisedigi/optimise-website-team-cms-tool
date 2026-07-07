@@ -69,7 +69,8 @@ describe("contractor time entries grid RBAC", () => {
         ],
       })
       .mockResolvedValueOnce({ docs: [{ id: 5, name: "Acme", isActive: true }] })
-      .mockResolvedValueOnce({ docs: [ownUser] });
+      .mockResolvedValueOnce({ docs: [{ weekCommencing: "2026-07-06T00:00:00.000Z", clientAllocations: [{ client: 5, hours: 8 }] }] })
+      .mockResolvedValueOnce({ docs: [] });
 
     const res = await GET(getRequest({ month: "2026-07", user: "999" }));
     const body = await res.json();
@@ -79,6 +80,7 @@ describe("contractor time entries grid RBAC", () => {
       expect.objectContaining({ id: 10, user: 42 }),
     ]);
     expect(body.users).toEqual([{ id: 42, name: "Sam Specialist", email: "sam@example.com" }]);
+    expect(body.columnClientIds).toEqual(["5"]);
     expect(mockPayload.find).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -130,7 +132,7 @@ describe("contractor time entries grid RBAC", () => {
     expect(mockPayload.update).not.toHaveBeenCalled();
   });
 
-  it("GET lets admins see all rows and select users who have logged time", async () => {
+  it("GET lets admins see all rows and select any user", async () => {
     const { GET } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
     mockPayload.auth.mockResolvedValue({ user: adminUser });
     mockPayload.find
@@ -141,13 +143,20 @@ describe("contractor time entries grid RBAC", () => {
         ],
       })
       .mockResolvedValueOnce({ docs: [{ id: 5, name: "Acme", isActive: true }] })
-      .mockResolvedValueOnce({ docs: [{ user: 42 }, { user: 77 }, { user: 42 }] })
+      .mockResolvedValueOnce({
+        docs: [
+          { weekCommencing: "2026-07-06T00:00:00.000Z", clientAllocations: [{ client: 5, hours: 2 }] },
+          { weekCommencing: "2026-08-03T00:00:00.000Z", clientAllocations: [{ client: 5, hours: 4 }] },
+        ],
+      })
       .mockResolvedValueOnce({
         docs: [
           { id: 42, name: "Sam Specialist", email: "sam@example.com" },
           { id: 77, name: "Mia Manager", email: "mia@example.com" },
+          { id: 88, name: "No Time Yet", email: "new@example.com" },
         ],
-      });
+      })
+      .mockResolvedValueOnce({ docs: [{ id: 100, key: "contractor-time-entries.visible-client-ids", value: { clientIds: ["5", "999"] } }] });
 
     const res = await GET(getRequest({ month: "2026-07" }));
     const body = await res.json();
@@ -158,13 +167,23 @@ describe("contractor time entries grid RBAC", () => {
     expect(body.users).toEqual([
       { id: 42, name: "Sam Specialist", email: "sam@example.com" },
       { id: 77, name: "Mia Manager", email: "mia@example.com" },
+      { id: 88, name: "No Time Yet", email: "new@example.com" },
     ]);
+    expect(body.columnClientIds).toEqual(["5"]);
+    expect(body.monthlyTotals).toHaveLength(2);
+    expect(body.monthlyTotals[0]).toEqual(expect.objectContaining({ month: "2026-07", totals: [expect.objectContaining({ clientId: "5", hours: 2 })] }));
+    expect(body.monthlyTotals[1]).toEqual(expect.objectContaining({ month: "2026-08", totals: [expect.objectContaining({ clientId: "5", hours: 4 })] }));
     expect(mockPayload.find).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
         collection: "contractor-time-entries",
-        where: { user: { exists: true } },
-        select: { user: true },
+        where: {
+          and: expect.arrayContaining([
+            { weekCommencing: { greater_than_equal: "2026-01-01T00:00:00.000Z" } },
+            { weekCommencing: { less_than: "2027-01-01T00:00:00.000Z" } },
+          ]),
+        },
+        select: { weekCommencing: true, clientAllocations: true },
         overrideAccess: true,
       }),
     );
@@ -172,9 +191,37 @@ describe("contractor time entries grid RBAC", () => {
       4,
       expect.objectContaining({
         collection: "users",
-        where: { id: { in: ["42", "77"] } },
+        select: { name: true, email: true, role: true },
         overrideAccess: true,
       }),
     );
+    expect(mockPayload.find).toHaveBeenNthCalledWith(
+      5,
+      expect.objectContaining({
+        collection: "payload-preferences",
+        where: { key: { equals: "contractor-time-entries.visible-client-ids" } },
+        overrideAccess: true,
+      }),
+    );
+  });
+
+  it("PATCH persists shared client columns without an entry id", async () => {
+    const { PATCH } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    mockPayload.auth.mockResolvedValue({ user: ownUser });
+    mockPayload.find.mockResolvedValueOnce({ docs: [{ id: 100, key: "contractor-time-entries.visible-client-ids", value: { clientIds: ["5"] } }] });
+    mockPayload.update.mockResolvedValue({});
+
+    const res = await PATCH(patchRequest({ columnClientIds: [5, "7"] }));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.columnClientIds).toEqual(["5", "7"]);
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: "payload-preferences",
+      id: 100,
+      data: { key: "contractor-time-entries.visible-client-ids", value: { clientIds: ["5", "7"] } },
+      overrideAccess: true,
+    }));
+    expect(mockPayload.findByID).not.toHaveBeenCalled();
   });
 });

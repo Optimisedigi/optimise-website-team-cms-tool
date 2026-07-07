@@ -1,10 +1,8 @@
 import type { Access, CollectionConfig } from "payload";
-import { adminOnlyDelete, getEffectiveFeatures } from "../lib/access";
+import { adminOnlyDelete } from "../lib/access";
 
 function hasTimeEntryAccess(user: any): boolean {
-  if (!user) return false;
-  if (user.role === "admin") return true;
-  return user.role === "manager" || user.role === "specialist" || getEffectiveFeatures(user).size > 0;
+  return Boolean(user);
 }
 
 const canReadTimeEntries: Access = ({ req }) => {
@@ -34,7 +32,7 @@ const canUpdateTimeEntries: Access = ({ req }) => {
  */
 export const ContractorTimeEntries: CollectionConfig = {
   slug: "contractor-time-entries",
-  labels: { singular: "Time Entry", plural: "Contractor Time Entries" },
+  labels: { singular: "Time entry", plural: "Time entries" },
   admin: {
     group: "Finance",
     useAsTitle: "weekCommencing",
