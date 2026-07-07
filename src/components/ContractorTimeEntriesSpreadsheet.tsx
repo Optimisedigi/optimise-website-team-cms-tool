@@ -148,7 +148,9 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const [users, setUsers] = useState<Option[]>([])
   const [currentUser, setCurrentUser] = useState<Option | null>(null)
   const [monthlyTotals, setMonthlyTotals] = useState<MonthlyAllocationRow[]>([])
-  const [month, setMonth] = useState(() => monthKey())
+  const [weekMode, setWeekMode] = useState<'week' | 'all'>('week')
+  const [weekStart, setWeekStart] = useState(() => mondayKey())
+  const month = weekStart.slice(0, 7)
   const [userFilter, setUserFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | number | null>(null)
@@ -168,7 +170,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
     setLoading(true)
     setError('')
     try {
-      const params = new URLSearchParams({ month })
+      const params = new URLSearchParams({ month, weekMode, week: weekStart })
       if (userFilter) params.set('user', userFilter)
       const res = await fetch(`/api/contractor-time-entries/grid?${params.toString()}`)
       const json = await res.json()
@@ -193,7 +195,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
     }
   }
 
-  useEffect(() => { void load() }, [month, userFilter])
+  useEffect(() => { void load() }, [month, weekMode, weekStart, userFilter])
 
   const leadingColumnCount = isAdmin ? 2 : 1
   const totalColumnCount = leadingColumnCount + visibleClients.length + 4
@@ -269,8 +271,12 @@ export default function ContractorTimeEntriesSpreadsheet() {
     setSavingId('new')
     setError('')
     try {
-      let target = firstMondayInMonth(month)
+      let target = weekMode === 'week' ? weekStart : firstMondayInMonth(month)
       const existing = new Set(entries.filter((entry) => relId(entry.user) === owner).map((entry) => entry.weekCommencing.slice(0, 10)))
+      if (weekMode === 'week' && existing.has(target)) {
+        setError('This week already has a time entry. Edit the existing row or switch to All weeks to add another week.')
+        return
+      }
       while (existing.has(target)) {
         const d = new Date(`${target}T00:00:00`)
         d.setDate(d.getDate() + 7)
@@ -284,6 +290,8 @@ export default function ContractorTimeEntriesSpreadsheet() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to add week')
       if (isAdmin && !userFilter) setUserFilter(owner)
+      setWeekMode('week')
+      setWeekStart(target)
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add week')
@@ -311,10 +319,24 @@ export default function ContractorTimeEntriesSpreadsheet() {
   return (
     <div style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
       <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Time entries</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? '180px 260px minmax(220px, 1fr) auto' : '180px minmax(220px, 1fr) auto', gap: 8, alignItems: 'end', marginBottom: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? '150px 170px 260px minmax(220px, 1fr) auto' : '150px 170px minmax(220px, 1fr) auto', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
-          Month
-          <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} style={inputStyle} />
+          Weeks
+          <select value={weekMode} onChange={(event) => setWeekMode(event.target.value as 'week' | 'all')} style={inputStyle}>
+            <option value="week">This week</option>
+            <option value="all">All weeks</option>
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700, opacity: weekMode === 'week' ? 1 : .55 }}>
+          Week
+          <input
+            type="date"
+            value={weekStart}
+            disabled={weekMode !== 'week'}
+            onClick={(event) => openDatePicker(event.currentTarget)}
+            onChange={(event) => setWeekStart(mondayKey(new Date(`${event.target.value}T00:00:00`)))}
+            style={{ ...inputStyle, cursor: weekMode === 'week' ? 'pointer' : 'default' }}
+          />
         </label>
         {isAdmin && (
           <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
@@ -326,7 +348,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
           </label>
         )}
         <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)', paddingBottom: 8 }}>
-          {isAdmin ? 'Select any user, add a week for them, and allocate hours across active client columns.' : 'Add your own weekly time only, then allocate hours across active client columns.'}
+          Showing <strong>{weekMode === 'all' ? 'all weeks' : weekLabel(weekStart)}</strong>. {isAdmin ? 'Select any user and allocate hours across active client columns.' : 'Add your own weekly time and allocate hours across active client columns.'}
         </div>
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', paddingBottom: 1 }}>
           <button type="button" onClick={() => setShowColumnPicker((open) => !open)} style={{ ...inputStyle, width: 'auto', minWidth: 0, padding: '5px 9px', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: 'transparent', color: 'var(--theme-elevation-500)' }}>
@@ -350,6 +372,8 @@ export default function ContractorTimeEntriesSpreadsheet() {
           )}
         </div>
       </div>
+
+      {error && <div style={{ marginBottom: 10, padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
 
       <div style={{ marginBottom: 24, border: '1px solid var(--theme-elevation-250)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)', boxShadow: '0 1px 0 rgba(0,0,0,.04)' }}>
         <table style={{ width: '100%', minWidth: tableMinWidth, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
@@ -407,7 +431,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
             {loading ? (
               <tr><td colSpan={totalColumnCount} style={{ padding: 28, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>Loading entries…</td></tr>
             ) : entries.length === 0 ? (
-              <tr><td colSpan={totalColumnCount} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No time entries for this month — add the first week below.</td></tr>
+              <tr><td colSpan={totalColumnCount} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No time entries for this period — add the first week below.</td></tr>
             ) : entries.map((entry) => {
               const discrepancy = Number(entry.hours || 0) - allocatedTotal(entry)
               const locked = entry.status === 'paid'

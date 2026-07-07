@@ -72,6 +72,16 @@ function monthRange(month: string) {
   return { safeMonth, startIso: start.toISOString(), endIso: end.toISOString(), yearStartIso: yearStart.toISOString(), yearEndIso: yearEnd.toISOString() };
 }
 
+function weekRange(week: string) {
+  const safeWeek = /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : new Date().toISOString().slice(0, 10);
+  const start = new Date(`${safeWeek}T00:00:00.000Z`);
+  const day = start.getUTCDay() || 7;
+  start.setUTCDate(start.getUTCDate() - day + 1);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 7);
+  return { weekStartIso: start.toISOString(), weekEndIso: end.toISOString() };
+}
+
 async function getAuthedPayload() {
   const payload = await getPayload({ config });
   const headersList = await nextHeaders();
@@ -113,6 +123,8 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const { startIso, endIso, safeMonth, yearStartIso, yearEndIso } = monthRange(searchParams.get("month") || "");
+    const weekMode = searchParams.get("weekMode") || "month";
+    const { weekStartIso, weekEndIso } = weekRange(searchParams.get("week") || "");
     const selectedUser = searchParams.get("user") || "";
 
     const ownerScope: any[] = [];
@@ -122,9 +134,11 @@ export async function GET(req: NextRequest) {
       ownerScope.push({ user: { equals: user.id } });
     }
 
+    const entryStartIso = weekMode === "all" ? yearStartIso : weekMode === "week" ? weekStartIso : startIso;
+    const entryEndIso = weekMode === "all" ? yearEndIso : weekMode === "week" ? weekEndIso : endIso;
     const and: any[] = [
-      { weekCommencing: { greater_than_equal: startIso } },
-      { weekCommencing: { less_than: endIso } },
+      { weekCommencing: { greater_than_equal: entryStartIso } },
+      { weekCommencing: { less_than: entryEndIso } },
       ...ownerScope,
     ];
     const summaryAnd: any[] = [
