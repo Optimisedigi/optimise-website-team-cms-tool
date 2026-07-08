@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 
 type Option = { id: string | number; name: string; email?: string | null }
 type Allocation = { client: string | number; hours: number }
@@ -165,6 +165,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
   const [showColumnPicker, setShowColumnPicker] = useState(false)
   const [autoTotalEntryIds, setAutoTotalEntryIds] = useState<Set<string | number>>(() => new Set())
+  const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({})
   const selectedClientIdSet = useMemo(() => new Set(selectedClientIds), [selectedClientIds])
   const visibleClients = useMemo(() => clients.filter((client) => selectedClientIdSet.has(String(client.id))), [clients, selectedClientIdSet])
   const visibleMonthlyTotals = useMemo(() => monthlyTotals.map((row) => ({
@@ -208,9 +209,9 @@ export default function ContractorTimeEntriesSpreadsheet() {
 
   useEffect(() => { void load() }, [month, weekMode, weekStart, userFilter])
 
-  const leadingColumnCount = isAdmin ? 2 : 1
-  const totalColumnCount = leadingColumnCount + visibleClients.length + 4
-  const tableMinWidth = useMemo(() => (isAdmin ? 625 : 495) + visibleClients.length * 120, [isAdmin, visibleClients.length])
+  const leadingColumnCount = 1
+  const totalColumnCount = leadingColumnCount + visibleClients.length + 4 + (isAdmin ? 1 : 0)
+  const tableMinWidth = useMemo(() => 385 + visibleClients.length * 60 + (isAdmin ? 96 : 0), [isAdmin, visibleClients.length])
 
   const patch = async (id: string | number, data: Partial<TimeEntry>, options: { quiet?: boolean } = {}) => {
     if (!options.quiet) setSavingId(id)
@@ -234,7 +235,23 @@ export default function ContractorTimeEntriesSpreadsheet() {
     }
   }
 
+  const draftKey = (entryId: string | number, field: string) => `${entryId}:${field}`
+
+  const setInputDraft = (key: string, value: string) => {
+    setInputDrafts((current) => ({ ...current, [key]: value }))
+  }
+
+  const clearInputDraft = (key: string) => {
+    setInputDrafts((current) => {
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+  }
+
   const patchAllocation = (entry: TimeEntry, clientId: string | number, value: string) => {
+    const key = draftKey(entry.id, `client:${clientId}`)
+    setInputDraft(key, value)
     const hours = Math.max(0, Number(value || 0))
     const map = new Map<string, Allocation>()
     for (const allocation of entry.clientAllocations || []) {
@@ -249,6 +266,8 @@ export default function ContractorTimeEntriesSpreadsheet() {
   }
 
   const patchTotalHours = (entry: TimeEntry, value: string) => {
+    const key = draftKey(entry.id, 'total')
+    setInputDraft(key, value)
     if (value === '') {
       setAutoTotalEntryIds((current) => new Set(current).add(entry.id))
       void patch(entry.id, { hours: Math.round(allocatedTotal(entry) * 100) / 100 }, { quiet: true })
@@ -314,7 +333,6 @@ export default function ContractorTimeEntriesSpreadsheet() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to add week')
       if (isAdmin && !userFilter) setUserFilter(owner)
-      setWeekMode('week')
       setWeekStart(target)
       await load()
     } catch (err) {
@@ -343,7 +361,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
   return (
     <div style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
       <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Time entries</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? '150px 170px 260px minmax(220px, 1fr) auto' : '150px 170px minmax(220px, 1fr) auto', gap: 8, alignItems: 'end', marginBottom: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '150px 170px minmax(220px, 1fr) auto', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
           Weeks
           <select value={weekMode} onChange={(event) => setWeekMode(event.target.value as 'week' | 'all')} style={inputStyle}>
@@ -362,17 +380,8 @@ export default function ContractorTimeEntriesSpreadsheet() {
             style={{ ...inputStyle, cursor: weekMode === 'week' ? 'pointer' : 'default' }}
           />
         </label>
-        {isAdmin && (
-          <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
-            User
-            <select value={userFilter} onChange={(event) => setUserFilter(event.target.value)} style={inputStyle}>
-              <option value="">All users</option>
-              {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-            </select>
-          </label>
-        )}
         <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)', paddingBottom: 8 }}>
-          Showing <strong>{weekMode === 'all' ? 'all weeks' : weekLabel(weekStart)}</strong>. {isAdmin ? 'Select any user and allocate hours across active client columns.' : 'Add your own weekly time and allocate hours across active client columns.'}
+          Showing <strong>{weekMode === 'all' ? 'all weeks' : weekLabel(weekStart)}</strong>. {isAdmin ? 'Use the user selector above the time boxes to show everyone or add/edit one person.' : 'Add your own weekly time and allocate hours across active client columns.'}
         </div>
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', paddingBottom: 1 }}>
           <button type="button" onClick={() => setShowColumnPicker((open) => !open)} style={{ ...inputStyle, width: 'auto', minWidth: 0, padding: '5px 9px', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: 'transparent', color: 'var(--theme-elevation-500)' }}>
@@ -402,18 +411,17 @@ export default function ContractorTimeEntriesSpreadsheet() {
       <div style={{ marginBottom: 24, border: '1px solid var(--theme-elevation-250)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)', boxShadow: '0 1px 0 rgba(0,0,0,.04)' }}>
         <table style={{ width: '100%', minWidth: tableMinWidth, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
           <colgroup>
-            {isAdmin && <col style={{ width: 130 }} />}
-            <col style={{ width: 130 }} />
-            {visibleClients.map((client) => <col key={client.id} style={{ width: 120 }} />)}
             <col style={{ width: 90 }} />
+            {visibleClients.map((client) => <col key={client.id} style={{ width: 60 }} />)}
+            <col style={{ width: 70 }} />
             <col style={{ width: 95 }} />
-            <col style={{ width: 120 }} />
+            <col style={{ width: 72 }} />
             <col style={{ width: 60 }} />
           </colgroup>
           <thead>
             <tr>
               <th colSpan={leadingColumnCount} style={thStyle}>Monthly allocation</th>
-              {visibleClients.map((client) => <th key={client.id} style={{ ...thStyle, textAlign: 'right', textTransform: 'none', letterSpacing: 0, borderLeft: '1px solid var(--theme-elevation-100)' }}>{client.name}</th>)}
+              {visibleClients.map((client) => <th key={client.id} style={{ ...thStyle, textAlign: 'center', textTransform: 'none', letterSpacing: 0, whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.2, borderLeft: '1px solid var(--theme-elevation-100)' }}>{client.name}</th>)}
               <th colSpan={4} style={thStyle}></th>
             </tr>
           </thead>
@@ -429,26 +437,36 @@ export default function ContractorTimeEntriesSpreadsheet() {
         </table>
       </div>
 
+      {isAdmin && (
+        <label style={{ display: 'grid', gap: 4, maxWidth: 180, margin: '0 0 8px', fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
+          User
+          <select value={userFilter} onChange={(event) => setUserFilter(event.target.value)} style={inputStyle}>
+            <option value="">All users</option>
+            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+          </select>
+        </label>
+      )}
+
       <div style={{ width: '100%', maxWidth: 'none', border: '1px solid var(--theme-elevation-250)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)', boxShadow: '0 1px 0 rgba(0,0,0,.04)' }}>
         <table style={{ width: '100%', minWidth: tableMinWidth, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
           <colgroup>
-            {isAdmin && <col style={{ width: 130 }} />}
-            <col style={{ width: 130 }} />
-            {visibleClients.map((client) => <col key={client.id} style={{ width: 120 }} />)}
             <col style={{ width: 90 }} />
+            {visibleClients.map((client) => <col key={client.id} style={{ width: 60 }} />)}
+            <col style={{ width: 70 }} />
             <col style={{ width: 95 }} />
-            <col style={{ width: 120 }} />
-            <col style={{ width: 60 }} />
+            <col style={{ width: 86 }} />
+            {isAdmin && <col style={{ width: 96 }} />}
+            <col style={{ width: 44 }} />
           </colgroup>
           <thead>
             <tr>
-              {isAdmin && <th style={thStyle}>User</th>}
               <th style={thStyle}>Week</th>
-              {visibleClients.map((client) => <th key={client.id} style={{ ...thStyle, textAlign: 'right', textTransform: 'none', letterSpacing: 0, borderLeft: '1px solid var(--theme-elevation-100)' }}>{client.name}</th>)}
+              {visibleClients.map((client) => <th key={client.id} style={{ ...thStyle, textAlign: 'center', textTransform: 'none', letterSpacing: 0, whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.2, borderLeft: '1px solid var(--theme-elevation-100)' }}>{client.name}</th>)}
               <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Diff</th>
-              <th style={thStyle}>Status</th>
-              <th style={thStyle}></th>
+              <th style={{ ...thStyle, paddingRight: 2 }}>Status</th>
+              {isAdmin && <th style={{ ...thStyle, paddingLeft: 2, paddingRight: 2 }}>Name</th>}
+              <th style={{ ...thStyle, paddingLeft: 2 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -462,41 +480,47 @@ export default function ContractorTimeEntriesSpreadsheet() {
               const effectiveTotal = autoTotal ? allocated : Number(entry.hours || 0)
               const discrepancy = effectiveTotal - allocated
               const locked = entry.status === 'paid'
+              const totalKey = draftKey(entry.id, 'total')
               return (
-                <tr key={entry.id} style={{ height: 58, ...(savingId === entry.id ? { opacity: .6 } : undefined) }}>
-                  {isAdmin && (
-                    <td style={tdStyle} title={relName(entry.user, users)}>
-                      <select value={relId(entry.user)} onChange={(event) => void patch(entry.id, { user: event.target.value })} disabled={locked} style={inputStyle}>
-                        <option value="">Unassigned / contractor</option>
-                        {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                <Fragment key={entry.id}>
+                  <tr style={{ height: 58, ...(savingId === entry.id ? { opacity: .6 } : undefined) }}>
+                    <td style={tdStyle}>
+                      <WeekDateCell value={entry.weekCommencing} locked={locked} onChange={(date) => void patch(entry.id, { weekCommencing: date })} />
+                    </td>
+                    {visibleClients.map((client) => {
+                      const key = draftKey(entry.id, `client:${client.id}`)
+                      return (
+                        <td key={client.id} style={{ ...tdStyle, borderLeft: '1px solid var(--theme-elevation-100)' }}>
+                          <input type="number" min={0} max={168} step={0.25} placeholder="0" value={inputDrafts[key] ?? allocationInputValue(entry, client.id)} onChange={(event) => patchAllocation(entry, client.id, event.target.value)} onBlur={() => clearInputDraft(key)} disabled={locked} style={{ ...inputStyle, textAlign: 'right', padding: '7px 4px' }} />
+                        </td>
+                      )
+                    })}
+                    <td style={tdStyle}>
+                      <input type="number" min={0} max={168} step={0.25} placeholder={allocated > 0 ? String(Math.round(allocated * 100) / 100) : 'Auto'} value={inputDrafts[totalKey] ?? (autoTotal ? '' : entry.hours ?? '')} onChange={(event) => patchTotalHours(entry, event.target.value)} onBlur={() => clearInputDraft(totalKey)} disabled={locked} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800, padding: '7px 4px' }} />
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 900, color: Math.abs(discrepancy) < 0.01 ? '#15803d' : '#b45309' }}>
+                      {discrepancy.toFixed(2)}
+                    </td>
+                    <td style={{ ...tdStyle, paddingRight: 2 }}>
+                      <select value={entry.status || 'draft'} onChange={(event) => void patch(entry.id, { status: event.target.value })} disabled={locked} style={{ ...inputStyle, ...statusTone(entry.status), maxWidth: 86, padding: '7px 4px' }}>
+                        {statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </select>
                     </td>
-                  )}
-                  <td style={tdStyle}>
-                    <WeekDateCell value={entry.weekCommencing} locked={locked} onChange={(date) => void patch(entry.id, { weekCommencing: date })} />
-                  </td>
-                  {visibleClients.map((client) => (
-                    <td key={client.id} style={{ ...tdStyle, borderLeft: '1px solid var(--theme-elevation-100)' }}>
-                      <input type="number" min={0} max={168} step={0.25} placeholder="0" value={allocationInputValue(entry, client.id)} onChange={(event) => patchAllocation(entry, client.id, event.target.value)} disabled={locked} style={{ ...inputStyle, textAlign: 'right' }} />
+                    {isAdmin && (
+                      <td style={{ ...tdStyle, paddingLeft: 2, paddingRight: 2 }} title={relName(entry.user, users)}>
+                        <select value={relId(entry.user)} onChange={(event) => void patch(entry.id, { user: event.target.value })} disabled={locked} style={{ ...inputStyle, maxWidth: 96, padding: '7px 4px' }}>
+                          <option value="">Unassigned</option>
+                          {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                        </select>
+                      </td>
+                    )}
+                    <td style={{ ...tdStyle, padding: '4px 2px' }}>
+                      <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+                        {canDelete && !locked && <button type="button" onClick={() => void deleteEntry(entry.id)} disabled={savingId === entry.id} title="Delete row" style={{ ...inputStyle, width: 32, height: 36, padding: 0, cursor: 'pointer', color: '#991b1b', fontWeight: 900 }}>×</button>}
+                      </div>
                     </td>
-                  ))}
-                  <td style={tdStyle}>
-                    <input type="number" min={0} max={168} step={0.25} placeholder={allocated > 0 ? String(Math.round(allocated * 100) / 100) : 'Auto'} value={autoTotal ? '' : entry.hours ?? ''} onChange={(event) => patchTotalHours(entry, event.target.value)} disabled={locked} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800 }} />
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 900, color: Math.abs(discrepancy) < 0.01 ? '#15803d' : '#b45309' }}>
-                    {discrepancy.toFixed(2)}
-                  </td>
-                  <td style={tdStyle}>
-                    <select value={entry.status || 'draft'} onChange={(event) => void patch(entry.id, { status: event.target.value })} disabled={locked} style={{ ...inputStyle, ...statusTone(entry.status) }}>
-                      {statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ ...tdStyle, padding: 4 }}>
-                    <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
-                      {canDelete && !locked && <button type="button" onClick={() => void deleteEntry(entry.id)} disabled={savingId === entry.id} title="Delete row" style={{ ...inputStyle, width: 36, height: 36, padding: 0, cursor: 'pointer', color: '#991b1b', fontWeight: 900 }}>×</button>}
-                    </div>
-                  </td>
-                </tr>
+                  </tr>
+                </Fragment>
               )
             })}
             {!loading && (
