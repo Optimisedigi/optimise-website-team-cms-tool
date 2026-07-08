@@ -12716,7 +12716,7 @@ export interface CronSetting {
   createdAt?: string | null;
 }
 /**
- * Default models for the OptiMate Google Ads agent. The chat default seeds the model picker and is used when a request doesn't specify a model; the autonomous default is used for scheduled/cron runs.
+ * Default models for OptiMate. The chat default seeds the model picker; the autonomous default is used for scheduled/cron runs; the Blog and copy model controls blog tools and Google Ads ad copy generation.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "optimate-settings".
@@ -12739,7 +12739,7 @@ export interface OptimateSetting {
     | 'grok-build'
     | 'grok-composer-2.5-fast';
   /**
-   * Model used for unattended runs (scheduled tasks, cron) where no human picks a model.
+   * Model used for unattended Google Ads runs (scheduled tasks, cron) where no human picks a model.
    */
   defaultAutonomousModel:
     | 'claude-sonnet-4.6'
@@ -12762,7 +12762,7 @@ export interface OptimateSetting {
    */
   chatHistoryTokenLimit?: number | null;
   /**
-   * Optional. Model used by all blog AI features — the Blog Prompter AI Suggest button, blog draft generation, and blog post image-prompt generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.
+   * Optional. Model used by blog and copy features — the Blog Prompter AI Suggest button, blog draft generation, blog post image-prompt generation, and Google Ads ad copy generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.
    */
   blogPrompterModel?:
     | (

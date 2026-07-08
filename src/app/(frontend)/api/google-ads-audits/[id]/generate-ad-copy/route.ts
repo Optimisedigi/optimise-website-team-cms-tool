@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-
-const KIMI_BASE_URL = process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1";
-const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2-0905-preview";
+import { callLLM } from "@/lib/agents/_shared/llm";
+import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
+import { DEFAULT_AUTONOMOUS_FALLBACKS } from "@/lib/agents/_shared/llm/registry";
 
 const SYSTEM_PROMPT = `You are a Google Ads RSA (Responsive Search Ad) copywriter. Generate ad copy for one ad group.
 
@@ -23,17 +23,43 @@ Rules:
 - Use keywords naturally, do not stuff
 - Return ONLY the JSON object, no markdown, no explanation`;
 
+type GeneratedAdCopyResponse = {
+  headlines?: unknown;
+  descriptions?: unknown;
+};
+
+function extractJsonObject(text: string): GeneratedAdCopyResponse {
+  const cleaned = text.trim().replace(/^```json?\s*/i, "").replace(/\s*```$/, "").trim();
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  const jsonText = firstBrace >= 0 && lastBrace > firstBrace
+    ? cleaned.slice(firstBrace, lastBrace + 1)
+    : cleaned;
+
+  const parsed = JSON.parse(jsonText);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Ad copy model returned JSON that was not an object");
+  }
+  return parsed as GeneratedAdCopyResponse;
+}
+
+function textFromLLMResponse(response: Awaited<ReturnType<typeof callLLM>>): string {
+  return response.message.content
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join("")
+    .trim();
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const KIMI_API_KEY = process.env.KIMI_API_KEY;
-
-    if (!KIMI_API_KEY) {
-      return NextResponse.json({ error: "KIMI_API_KEY not configured" }, { status: 500 });
-    }
 
     const payloadConfig = await config;
     const payload = await getPayload({ config: payloadConfig });
@@ -64,6 +90,10 @@ export async function POST(
     if (!Array.isArray(proposedCampaigns) || proposedCampaigns.length === 0) {
       return NextResponse.json({ error: "No approved campaign structure found" }, { status: 400 });
     }
+
+    const defaultModels = await getOptiMateDefaultModels(payload);
+    const model = defaultModels.blogPrompterModel ?? defaultModels.defaultAutonomousModel;
+    const fallbackModels = DEFAULT_AUTONOMOUS_FALLBACKS.filter((fallback) => fallback !== model);
 
     // Set status to generating
     try {
@@ -130,7 +160,7 @@ export async function POST(
           }
         }
 
-        console.log(`[generate-ad-copy] Generating ad copy for ${adGroups.length} ad groups...`);
+        console.log(`[generate-ad-copy] Generating ad copy for ${adGroups.length} ad groups with ${model}...`);
 
         // Process in batches of 5
         const BATCH_SIZE = 5;
@@ -155,43 +185,29 @@ Landing Page: ${ag.landingPage}
 ${pageContext}
 Top Keywords: ${ag.keywords.join(", ")}${brandNote}`;
 
-              const res = await fetch(`${KIMI_BASE_URL}/chat/completions`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${KIMI_API_KEY}`,
-                },
-                body: JSON.stringify({
-                  model: KIMI_MODEL,
-                  messages: [
-                    { role: "system", content: SYSTEM_PROMPT },
-                    { role: "user", content: userMessage },
-                  ],
-                  temperature: 0.8,
-                  max_tokens: 800,
-                }),
-                signal: AbortSignal.timeout(30_000),
+              const response = await callLLM({
+                model,
+                fallbackModels,
+                system: SYSTEM_PROMPT,
+                messages: [{ role: "user", content: [{ type: "text", text: userMessage }] }],
+                temperature: 0.8,
+                maxTokens: 1200,
+                timeoutMs: 60_000,
               });
 
-              if (!res.ok) {
-                throw new Error(`Kimi API error ${res.status}`);
-              }
-
-              const data = await res.json();
-              const content = data.choices?.[0]?.message?.content?.trim();
-              if (!content) throw new Error("Empty response from Kimi");
+              const content = textFromLLMResponse(response);
+              if (!content) throw new Error(`Empty response from ${response.model}`);
 
               // Parse JSON — handle potential markdown wrapping
-              const jsonStr = content.replace(/^```json?\s*/, "").replace(/\s*```$/, "");
-              const parsed = JSON.parse(jsonStr);
+              const parsed = extractJsonObject(content);
 
               // Post-process: enforce character limits
-              const headlines = (parsed.headlines || []).slice(0, 10).map((h: string) => {
+              const headlines = stringArray(parsed.headlines).slice(0, 10).map((h) => {
                 if (h.length <= 30) return h;
                 const truncated = h.slice(0, 30).replace(/\s+\S*$/, "");
                 return truncated || h.slice(0, 30);
               });
-              const descriptions = (parsed.descriptions || []).slice(0, 4).map((d: string) => {
+              const descriptions = stringArray(parsed.descriptions).slice(0, 4).map((d) => {
                 if (d.length <= 90) return d;
                 const truncated = d.slice(0, 90).replace(/\s+\S*$/, "");
                 return truncated || d.slice(0, 90);

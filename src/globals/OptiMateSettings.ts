@@ -15,17 +15,16 @@ import { DEFAULT_VOICE_REALTIME_MODEL } from "../lib/agents/_shared/optimate-def
 /**
  * OptiMate agent settings.
  *
- * Currently holds the default model selections for the Optimate-Google-Ads
- * agent:
+ * Holds the default model selections for OptiMate agents and AI tools:
  *  - `defaultChatModel` seeds the chat model picker the first time a user opens
  *    OptiMate (before they've made their own per-browser choice) and is the
  *    model the API uses when a chat request omits an explicit `model`.
- *  - `defaultAutonomousModel` is the model used for unattended runs (scheduled
- *    tasks / cron) where there is no human picking a model.
+ *  - `defaultAutonomousModel` is the model used for unattended Google Ads work
+ *    (scheduled tasks / cron) where there is no human picking a model.
  *  - `invoiceAssistantModel` is the model used by the Xero invoice assistant.
  *  - `voiceRealtimeModel` is the model used for live OptiMate voice calls.
  *
- * Both fall back to the registry constants (DEFAULT_CHAT_MODEL /
+ * Picker-backed model fields fall back to the registry constants (DEFAULT_CHAT_MODEL /
  * DEFAULT_AUTONOMOUS_MODEL) if unset or pointing at a model that's since been
  * removed from the picker — that fallback lives in
  * `src/lib/agents/_shared/optimate-default-models.ts`, the single reader.
@@ -98,7 +97,7 @@ export const OptiMateSettings: GlobalConfig = {
   admin: {
     group: "OptiMate",
     description:
-      "Default models for the OptiMate Google Ads agent. The chat default seeds the model picker and is used when a request doesn't specify a model; the autonomous default is used for scheduled/cron runs.",
+      "Default models for OptiMate. The chat default seeds the model picker; the autonomous default is used for scheduled/cron runs; the Blog and copy model controls blog tools and Google Ads ad copy generation.",
     hidden: hideGlobalUnlessFeature("optimate-settings"),
   },
   access: globalAccess("optimate-settings"),
@@ -160,7 +159,7 @@ export const OptiMateSettings: GlobalConfig = {
               required: true,
               admin: {
                 description:
-                  "Model used for unattended runs (scheduled tasks, cron) where no human picks a model.",
+                  "Model used for unattended Google Ads runs (scheduled tasks, cron) where no human picks a model.",
               },
             },
             {
@@ -200,10 +199,10 @@ export const OptiMateSettings: GlobalConfig = {
               name: "blogPrompterModel",
               type: "select",
               options: MODEL_OPTIONS,
-              label: "Blog AI model",
+              label: "Blog and copy model",
               admin: {
                 description:
-                  "Optional. Model used by all blog AI features — the Blog Prompter AI Suggest button, blog draft generation, and blog post image-prompt generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
+                  "Optional. Model used by blog and copy features — the Blog Prompter AI Suggest button, blog draft generation, blog post image-prompt generation, and Google Ads ad copy generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
               },
             },
             {
