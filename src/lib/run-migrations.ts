@@ -2951,6 +2951,7 @@ export async function runMigrations(
     await run("contractor_time_entries_week_commencing_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_week_commencing_idx` ON `contractor_time_entries` (`week_commencing`)");
     await run("contractor_time_entries_status_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_status_idx` ON `contractor_time_entries` (`status`)");
     await upgradeContractorTimeEntriesForUserAllocations();
+    await run("contractor_time_entries_week_commencing_iso", "UPDATE `contractor_time_entries` SET `week_commencing` = `week_commencing` || 'T00:00:00.000Z' WHERE length(`week_commencing`) = 10 AND substr(`week_commencing`, 5, 1) = '-' AND substr(`week_commencing`, 8, 1) = '-'");
     await run("contractor_time_entries_client_allocations", `CREATE TABLE IF NOT EXISTS \`contractor_time_entries_client_allocations\` (
       \`_order\` integer NOT NULL,
       \`_parent_id\` integer NOT NULL,

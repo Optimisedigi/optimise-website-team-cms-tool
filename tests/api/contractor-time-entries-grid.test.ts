@@ -113,7 +113,7 @@ describe("contractor time entries grid RBAC", () => {
     expect(mockPayload.create).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: "contractor-time-entries",
-        data: expect.objectContaining({ user: 42, hours: 4 }),
+        data: expect.objectContaining({ user: 42, weekCommencing: "2026-07-06T00:00:00.000Z", hours: 4 }),
         overrideAccess: true,
       }),
     );

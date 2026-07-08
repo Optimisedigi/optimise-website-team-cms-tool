@@ -82,6 +82,14 @@ function weekRange(week: string) {
   return { weekStartIso: start.toISOString(), weekEndIso: end.toISOString() };
 }
 
+function normalizeWeekCommencing(value: unknown): string {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return `${value}T00:00:00.000Z`;
+  }
+  if (typeof value === "string" && value) return value;
+  return new Date().toISOString();
+}
+
 async function getAuthedPayload() {
   const payload = await getPayload({ config });
   const headersList = await nextHeaders();
@@ -258,7 +266,7 @@ export async function POST(req: NextRequest) {
       data: {
         user: owner,
         contractor,
-        weekCommencing: body.weekCommencing || new Date().toISOString(),
+        weekCommencing: normalizeWeekCommencing(body.weekCommencing),
         hours: Number(body.hours || 0),
         status: body.status || "draft",
         clientAllocations: normalizeAllocations(body.clientAllocations) as any,
@@ -299,7 +307,7 @@ export async function PATCH(req: NextRequest) {
     const data: Record<string, unknown> = {};
     if (Object.prototype.hasOwnProperty.call(body, "user") && user.role === "admin") data.user = relationshipId(body.user) ?? null;
     if (Object.prototype.hasOwnProperty.call(body, "contractor") && user.role === "admin") data.contractor = relationshipId(body.contractor) ?? null;
-    if (Object.prototype.hasOwnProperty.call(body, "weekCommencing")) data.weekCommencing = body.weekCommencing;
+    if (Object.prototype.hasOwnProperty.call(body, "weekCommencing")) data.weekCommencing = normalizeWeekCommencing(body.weekCommencing);
     if (Object.prototype.hasOwnProperty.call(body, "hours")) data.hours = Math.max(0, Number(body.hours || 0));
     if (Object.prototype.hasOwnProperty.call(body, "status")) data.status = body.status || "draft";
     if (Object.prototype.hasOwnProperty.call(body, "notes")) data.notes = body.notes || null;

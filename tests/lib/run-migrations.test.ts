@@ -29,5 +29,8 @@ describe("runMigrations", () => {
     expect(contractorStatements).toContain(
       "CREATE UNIQUE INDEX IF NOT EXISTS `contractor_time_entries_unique_user_week` ON `contractor_time_entries` (`user_id`, `week_commencing`) WHERE `user_id` IS NOT NULL",
     );
+    expect(execute).toHaveBeenCalledWith(
+      "UPDATE `contractor_time_entries` SET `week_commencing` = `week_commencing` || 'T00:00:00.000Z' WHERE length(`week_commencing`) = 10 AND substr(`week_commencing`, 5, 1) = '-' AND substr(`week_commencing`, 8, 1) = '-'",
+    );
   });
 });
