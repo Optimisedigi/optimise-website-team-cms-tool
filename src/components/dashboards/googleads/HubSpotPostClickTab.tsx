@@ -8,6 +8,8 @@ type MetricKey = "paidLeads" | "meetings" | "googleAdsConversions" | "meetingRat
 type MonthlyPoint = HubSpotPostClickDashboardData["monthly"][number];
 type MonthlySalesPoint = MonthlyPoint & { keywordRelevancy: number | null; mqls: number; sqls: number };
 type AttributionRow = HubSpotPostClickDashboardData["attributionRows"][number];
+type LeadDetail = HubSpotPostClickDashboardData["leadDetails"][number];
+type MeetingFilter = "all" | "yes" | "no";
 
 const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; tooltip: string; color: string; kind: "bar" | "line"; unit?: "rate" | "currency" }> = [
   { key: "googleAdsConversions", label: "Google Ads conversions", shortLabel: "Google Ads conversions", tooltip: "Actual Google Ads conversions for the selected conversion actions in the dashboard conversion selector. This is ad-platform conversion volume, not HubSpot contact count.", color: "#60a5fa", kind: "bar" },
@@ -88,7 +90,7 @@ function keywordRelevancyFromMonthlyWaste(row: GoogleAdsDashboardMonthlyWasteRel
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
+  return date.toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric", timeZone: "Australia/Sydney" });
 }
 
 function formatDurationFromDays(value: number | null | undefined): string {
@@ -542,9 +544,66 @@ function AttributionSection({ month, rows }: { month: string; rows: AttributionR
   );
 }
 
+function csvEscape(value: string | number | boolean | null | undefined): string {
+  const text = value == null ? "" : String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function leadDetailStatus(lead: LeadDetail): string {
+  return lead.leadStatus || lead.lifecycleStage || (lead.isQualifiedLead ? "Qualified" : "Unqualified");
+}
+
+function leadDetailMatchesSearch(lead: LeadDetail, query: string): boolean {
+  if (!query) return true;
+  const haystack = [
+    lead.contactName,
+    lead.company,
+    lead.email,
+    lead.campaignName,
+    lead.hubspotCampaign,
+    lead.adGroupName,
+    lead.keywordText,
+    lead.hubspotKeyword,
+    lead.searchTermEvidence.join(" "),
+    leadDetailStatus(lead),
+  ].filter(Boolean).join(" ").toLowerCase();
+  return haystack.includes(query.toLowerCase());
+}
+
+function exportLeadDetailsCsv(leads: LeadDetail[]): void {
+  const headers = ["Created", "Company/contact", "Email", "Campaign", "Ad group", "Keyword", "Search term evidence", "Meeting count", "Meeting dates", "Calls", "Lead status"];
+  const rows = leads.map((lead) => [
+    formatDate(lead.createdAt),
+    lead.company || lead.contactName,
+    lead.email || "",
+    lead.campaignName || lead.hubspotCampaign || "",
+    lead.adGroupName || "",
+    lead.keywordText || lead.hubspotKeyword || "",
+    lead.searchTermEvidence.join(", "),
+    lead.meetings,
+    lead.meetingDates.map(formatDate).join(", "),
+    lead.calls,
+    leadDetailStatus(lead),
+  ]);
+  const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `lead-details-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: HubSpotPostClickDashboardData; monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[] }) {
   const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(["googleAdsConversions", "paidLeads", "meetings", "meetingRate"]);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
+  const [leadMonthFilter, setLeadMonthFilter] = useState("all");
+  const [leadMeetingFilter, setLeadMeetingFilter] = useState<MeetingFilter>("all");
+  const [leadStatusFilter, setLeadStatusFilter] = useState("all");
+  const [leadCampaignFilter, setLeadCampaignFilter] = useState("all");
+  const [leadSearchQuery, setLeadSearchQuery] = useState("");
   const monthlyChartData = usePostClickMonthlyData(data.monthly, data.leadDetails, monthlyWasteRelevancy);
   const recentMonths = useMemo(() => buildMonthKeys(6).reverse(), []);
   const rowsByMonth = useMemo(() => {
@@ -559,6 +618,20 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
     }
     return map;
   }, [data.attributionRows, recentMonths]);
+  const leadFilterOptions = useMemo(() => {
+    const months = Array.from(new Set(data.leadDetails.map((lead) => lead.month))).sort().reverse();
+    const statuses = Array.from(new Set(data.leadDetails.map(leadDetailStatus))).filter(Boolean).sort();
+    const campaigns = Array.from(new Set(data.leadDetails.map((lead) => lead.campaignName || lead.hubspotCampaign || "Unknown campaign"))).filter(Boolean).sort();
+    return { months, statuses, campaigns };
+  }, [data.leadDetails]);
+  const filteredLeadDetails = useMemo(() => data.leadDetails.filter((lead) => {
+    if (leadMonthFilter !== "all" && lead.month !== leadMonthFilter) return false;
+    if (leadMeetingFilter === "yes" && lead.meetings <= 0) return false;
+    if (leadMeetingFilter === "no" && lead.meetings > 0) return false;
+    if (leadStatusFilter !== "all" && leadDetailStatus(lead) !== leadStatusFilter) return false;
+    if (leadCampaignFilter !== "all" && (lead.campaignName || lead.hubspotCampaign || "Unknown campaign") !== leadCampaignFilter) return false;
+    return leadDetailMatchesSearch(lead, leadSearchQuery.trim());
+  }), [data.leadDetails, leadCampaignFilter, leadMeetingFilter, leadMonthFilter, leadSearchQuery, leadStatusFilter]);
 
   return (
     <div className="space-y-6">
@@ -645,40 +718,87 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
             type="button"
             onClick={() => setShowLeadDetails((open) => !open)}
             className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-700"
-        >
-          <span>Lead details</span>
-          <span className="text-xs text-slate-400">{showLeadDetails ? "Hide" : "Show"}</span>
+          >
+            <span>Lead details</span>
+            <span className="text-xs text-slate-400">{showLeadDetails ? "Hide" : "Show"}</span>
           </button>
           {showLeadDetails && (
-            <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100 text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium">Created</th>
-                  <th className="px-4 py-3 text-left font-medium">Company/contact</th>
-                  <th className="px-4 py-3 text-left font-medium">Campaign</th>
-                  <th className="px-4 py-3 text-left font-medium">Ad group</th>
-                  <th className="px-4 py-3 text-left font-medium">Keyword</th>
-                  <th className="px-4 py-3 text-left font-medium">Search term evidence</th>
-                  <th className="px-4 py-3 text-left font-medium">Meeting?</th>
-                  <th className="px-4 py-3 text-left font-medium">Lead status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.leadDetails.map((lead) => (
-                  <tr key={lead.contactId}>
-                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDate(lead.createdAt)}</td>
-                    <td className="min-w-[180px] px-4 py-3 text-slate-800">{lead.company || lead.contactName}</td>
-                    <td className="min-w-[180px] px-4 py-3 text-slate-600">{lead.campaignName || lead.hubspotCampaign || "—"}</td>
-                    <td className="min-w-[160px] px-4 py-3 text-slate-600">{lead.adGroupName || "—"}</td>
-                    <td className="min-w-[160px] px-4 py-3 text-slate-600">{lead.keywordText || lead.hubspotKeyword || "—"}</td>
-                    <td className="min-w-[220px] px-4 py-3 text-slate-600">{lead.searchTermEvidence.join(", ")}</td>
-                    <td className="px-4 py-3 text-slate-600">{lead.meetings > 0 ? `Yes (${lead.meetings})` : "No"}</td>
-                    <td className="min-w-[160px] px-4 py-3 text-slate-600">{lead.leadStatus || lead.lifecycleStage || (lead.isQualifiedLead ? "Qualified" : "Unqualified")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="mt-4 space-y-3">
+              <div className="grid gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600 md:grid-cols-6">
+                <label className="space-y-1">
+                  <span className="font-medium text-slate-700">Month</span>
+                  <select value={leadMonthFilter} onChange={(event) => setLeadMonthFilter(event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5">
+                    <option value="all">All months</option>
+                    {leadFilterOptions.months.map((month) => <option key={month} value={month}>{monthFull(month)}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="font-medium text-slate-700">Meeting?</span>
+                  <select value={leadMeetingFilter} onChange={(event) => setLeadMeetingFilter(event.target.value as MeetingFilter)} className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5">
+                    <option value="all">All</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="font-medium text-slate-700">Lead status</span>
+                  <select value={leadStatusFilter} onChange={(event) => setLeadStatusFilter(event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5">
+                    <option value="all">All statuses</option>
+                    {leadFilterOptions.statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1 md:col-span-2">
+                  <span className="font-medium text-slate-700">Campaign</span>
+                  <select value={leadCampaignFilter} onChange={(event) => setLeadCampaignFilter(event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5">
+                    <option value="all">All campaigns</option>
+                    {leadFilterOptions.campaigns.map((campaign) => <option key={campaign} value={campaign}>{campaign}</option>)}
+                  </select>
+                </label>
+                <div className="flex items-end">
+                  <button type="button" onClick={() => exportLeadDetailsCsv(filteredLeadDetails)} className="w-full rounded-md bg-slate-900 px-3 py-1.5 font-medium text-white hover:bg-slate-700">
+                    Export CSV ({filteredLeadDetails.length})
+                  </button>
+                </div>
+                <label className="space-y-1 md:col-span-6">
+                  <span className="font-medium text-slate-700">Search lead details</span>
+                  <input value={leadSearchQuery} onChange={(event) => setLeadSearchQuery(event.target.value)} placeholder="Company, contact, keyword, search term..." className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5" />
+                </label>
+              </div>
+              <p className="text-xs text-slate-400">Showing {filteredLeadDetails.length} of {data.leadDetails.length} leads. CSV export uses these filters.</p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-100 text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium">Created</th>
+                      <th className="px-4 py-3 text-left font-medium">Company/contact</th>
+                      <th className="px-4 py-3 text-left font-medium">Campaign</th>
+                      <th className="px-4 py-3 text-left font-medium">Ad group</th>
+                      <th className="px-4 py-3 text-left font-medium">Keyword</th>
+                      <th className="px-4 py-3 text-left font-medium">Search term evidence</th>
+                      <th className="px-4 py-3 text-left font-medium">Meeting?</th>
+                      <th className="px-4 py-3 text-left font-medium">Lead status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredLeadDetails.length ? filteredLeadDetails.map((lead) => (
+                      <tr key={lead.contactId}>
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDate(lead.createdAt)}</td>
+                        <td className="min-w-[180px] px-4 py-3 text-slate-800">{lead.company || lead.contactName}</td>
+                        <td className="min-w-[180px] px-4 py-3 text-slate-600">{lead.campaignName || lead.hubspotCampaign || "—"}</td>
+                        <td className="min-w-[160px] px-4 py-3 text-slate-600">{lead.adGroupName || "—"}</td>
+                        <td className="min-w-[160px] px-4 py-3 text-slate-600">{lead.keywordText || lead.hubspotKeyword || "—"}</td>
+                        <td className="min-w-[220px] px-4 py-3 text-slate-600">{lead.searchTermEvidence.join(", ")}</td>
+                        <td className="px-4 py-3 text-slate-600">{lead.meetings > 0 ? `Yes (${lead.meetings})` : "No"}</td>
+                        <td className="min-w-[160px] px-4 py-3 text-slate-600">{leadDetailStatus(lead)}</td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-400">No lead details match these filters.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

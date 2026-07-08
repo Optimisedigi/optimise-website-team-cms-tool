@@ -59,7 +59,7 @@ npx tsc --noEmit        # CI type check
 
 For diagnosing production errors (504s, timeouts, upstream failures), pull logs directly:
 
-- **Railway (Growth Tools / "Website Growth Tools" backend)**: an interactive `railway login` is already stored in `~/.railway/config.json` as `peter@optimisedigital.online`. Use the CLI directly — do NOT create/paste tokens. IMPORTANT: `.env` contains a stale/invalid `RAILWAY_TOKEN` that OVERRIDES the good stored session and makes every command fail with `Invalid RAILWAY_TOKEN`. Always `unset RAILWAY_TOKEN` first:
+- **Railway (Growth Tools / "Website Growth Tools" backend)**: the Growth Tools repo is at `/Users/Pe/my-projects/client/website-optimise-digital/website-growth-tools`; use it when CMS API fixes involve upstream Growth Tools endpoints. An interactive `railway login` is already stored in `~/.railway/config.json` as `peter@optimisedigital.online`. Use the CLI directly — do NOT create/paste tokens. IMPORTANT: `.env` contains a stale/invalid `RAILWAY_TOKEN` that OVERRIDES the good stored session and makes every command fail with `Invalid RAILWAY_TOKEN`. Always `unset RAILWAY_TOKEN` first:
   ```bash
   unset RAILWAY_TOKEN
   railway whoami          # -> peter@optimisedigital.online
