@@ -4,6 +4,7 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   // Rebuild contractor_time_entries so contractor_id can be nullable for
   // internal user time entries, and add user_id ownership for RBAC.
   await db.run(sql`PRAGMA foreign_keys=OFF;`)
+  await db.run(sql`DROP INDEX IF EXISTS "contractor_time_entries_unique_week";`)
   await db.run(sql`CREATE TABLE IF NOT EXISTS "contractor_time_entries_next" (
     "id" integer PRIMARY KEY NOT NULL,
     "user_id" integer,

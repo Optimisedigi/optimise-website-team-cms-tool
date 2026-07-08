@@ -101,12 +101,21 @@ export async function runMigrations(
     return rows.some((row) => row.name === columnName);
   }
 
+  async function indexExists(tableName: string, indexName: string): Promise<boolean> {
+    const result = await client!.execute(`PRAGMA index_list(\`${tableName}\`)`);
+    const rows = (result as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+    return rows.some((row) => row.name === indexName);
+  }
+
   async function upgradeContractorTimeEntriesForUserAllocations(): Promise<void> {
     const label = "contractor_time_entries_user_allocations";
     try {
       const hasUserId = await columnExists("contractor_time_entries", "user_id");
       const contractorNotNull = await columnIsNotNull("contractor_time_entries", "contractor_id");
-      if (hasUserId && !contractorNotNull) {
+      const hasLegacyUniqueWeek = await indexExists("contractor_time_entries", "contractor_time_entries_unique_week");
+      const hasUserWeekUnique = await indexExists("contractor_time_entries", "contractor_time_entries_unique_user_week");
+      const hasContractorWeekUnique = await indexExists("contractor_time_entries", "contractor_time_entries_unique_contractor_week");
+      if (hasUserId && !contractorNotNull && !hasLegacyUniqueWeek && hasUserWeekUnique && hasContractorWeekUnique) {
         const r: MigrationResult = { label, status: "skip", message: "already applied" };
         opts?.onProgress?.(r);
         results.push(r);
@@ -129,9 +138,13 @@ export async function runMigrations(
           "FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null, " +
           "FOREIGN KEY (`contractor_id`) REFERENCES `contractors`(`id`) ON UPDATE no action ON DELETE cascade, " +
           "FOREIGN KEY (`payment_id`) REFERENCES `contractor_payments`(`id`) ON UPDATE no action ON DELETE set null)",
-        "INSERT OR IGNORE INTO `contractor_time_entries_next` " +
-          "(`id`, `contractor_id`, `week_commencing`, `hours`, `status`, `hourly_rate_snapshot`, `total_fee`, `payment_id`, `submitted_at`, `approved_at`, `paid_at`, `notes`, `updated_at`, `created_at`) " +
-          "SELECT `id`, `contractor_id`, `week_commencing`, `hours`, `status`, `hourly_rate_snapshot`, `total_fee`, `payment_id`, `submitted_at`, `approved_at`, `paid_at`, `notes`, `updated_at`, `created_at` FROM `contractor_time_entries`",
+        hasUserId
+          ? "INSERT OR IGNORE INTO `contractor_time_entries_next` " +
+            "(`id`, `user_id`, `contractor_id`, `week_commencing`, `hours`, `status`, `hourly_rate_snapshot`, `total_fee`, `payment_id`, `submitted_at`, `approved_at`, `paid_at`, `notes`, `updated_at`, `created_at`) " +
+            "SELECT `id`, `user_id`, `contractor_id`, `week_commencing`, `hours`, `status`, `hourly_rate_snapshot`, `total_fee`, `payment_id`, `submitted_at`, `approved_at`, `paid_at`, `notes`, `updated_at`, `created_at` FROM `contractor_time_entries`"
+          : "INSERT OR IGNORE INTO `contractor_time_entries_next` " +
+            "(`id`, `contractor_id`, `week_commencing`, `hours`, `status`, `hourly_rate_snapshot`, `total_fee`, `payment_id`, `submitted_at`, `approved_at`, `paid_at`, `notes`, `updated_at`, `created_at`) " +
+            "SELECT `id`, `contractor_id`, `week_commencing`, `hours`, `status`, `hourly_rate_snapshot`, `total_fee`, `payment_id`, `submitted_at`, `approved_at`, `paid_at`, `notes`, `updated_at`, `created_at` FROM `contractor_time_entries`",
         "DROP TABLE IF EXISTS `contractor_time_entries`",
         "ALTER TABLE `contractor_time_entries_next` RENAME TO `contractor_time_entries`",
         "CREATE INDEX IF NOT EXISTS `contractor_time_entries_user_idx` ON `contractor_time_entries` (`user_id`)",
