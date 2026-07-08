@@ -66,11 +66,9 @@ export async function GET(
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // Fetch available conversion actions from Growth Tools dashboard endpoint.
-  // We request the widest range (all_time) because availableConversionActions
-  // is scoped to the requested range: a short range (e.g. this_month) hides
-  // actions that haven't fired recently, so the picker would miss valid
-  // conversion actions the account still uses.
+  // Fetch conversion actions from the lightweight Growth Tools endpoint.
+  // Do not call the full dashboard endpoint here: unrelated dashboard GAQL
+  // permission errors can fail even when the picker only needs action names.
   if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) {
     return NextResponse.json(
       {
@@ -85,56 +83,32 @@ export async function GET(
 
   try {
     const cleanCid = String(client.googleAdsCustomerId).replace(/-/g, "");
-    const qs = new URLSearchParams({
-      range: "all_time",
-      customerId: cleanCid,
-      clientName: client.name || "",
-    });
-    const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(client.slug || "")}?${qs}`;
+    const warnings: string[] = [];
+    let available: string[] = [];
+    let catalog: string[] = [];
 
-    const res = await fetch(url, {
+    const catalogUrl = `${GROWTH_TOOLS_URL}/api/google-ads/conversion-actions/${cleanCid}`;
+    const catalogRes = await fetch(catalogUrl, {
       headers: { "x-internal-key": INTERNAL_API_KEY },
       cache: "no-store",
     });
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      return NextResponse.json(
-        {
-          error: `Growth Tools returned ${res.status}: ${body.slice(0, 300)}`,
-          available: [],
-          saved,
-          customerId: client.googleAdsCustomerId,
-        },
-        { status: 502 }
-      );
-    }
-
-    const data = await res.json();
-    const available: string[] = Array.isArray(data?.availableConversionActions)
-      ? data.availableConversionActions
-      : [];
-
-    // Fetch the full catalog of DEFINED conversion actions (including ones that
-    // have never fired) so the picker can offer exact names as autocomplete.
-    // Best-effort: a failure here must not break the metrics-driven list.
-    let catalog: string[] = [];
-    try {
-      const catalogUrl = `${GROWTH_TOOLS_URL}/api/google-ads/conversion-actions/${cleanCid}`;
-      const catalogRes = await fetch(catalogUrl, {
-        headers: { "x-internal-key": INTERNAL_API_KEY },
-        cache: "no-store",
-      });
-      if (catalogRes.ok) {
-        const catalogData = await catalogRes.json();
-        catalog = Array.isArray(catalogData?.conversionActions)
-          ? catalogData.conversionActions
-              .map((a: { name?: string }) => String(a?.name || "").trim())
-              .filter(Boolean)
-          : [];
+    if (!catalogRes.ok) {
+      const body = await catalogRes.text().catch(() => "");
+      warnings.push(`Growth Tools conversion actions returned ${catalogRes.status}: ${body.slice(0, 300)}`);
+    } else {
+      const catalogData = await catalogRes.json();
+      available = Array.isArray(catalogData?.availableConversionActions)
+        ? catalogData.availableConversionActions
+        : [];
+      catalog = Array.isArray(catalogData?.conversionActions)
+        ? catalogData.conversionActions
+            .map((a: { name?: string }) => String(a?.name || "").trim())
+            .filter(Boolean)
+        : [];
+      if (Array.isArray(catalogData?.warnings)) {
+        warnings.push(...catalogData.warnings.map(String));
       }
-    } catch {
-      // Ignore — catalog is an enhancement, not required.
     }
 
     return NextResponse.json({
@@ -142,16 +116,15 @@ export async function GET(
       catalog,
       saved,
       customerId: client.googleAdsCustomerId,
+      warnings,
     });
   } catch (err) {
-    return NextResponse.json(
-      {
-        error: `Failed to fetch conversion actions: ${err instanceof Error ? err.message : String(err)}`,
-        available: [],
-        saved,
-        customerId: client.googleAdsCustomerId,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      available: [],
+      catalog: [],
+      saved,
+      customerId: client.googleAdsCustomerId,
+      warnings: [`Growth Tools conversion actions fetch failed: ${err instanceof Error ? err.message : String(err)}`],
+    });
   }
 }
