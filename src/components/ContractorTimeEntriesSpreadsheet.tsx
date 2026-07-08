@@ -98,6 +98,11 @@ function allocationHours(entry: TimeEntry, clientId: string | number): number {
   return Number(entry.clientAllocations?.find((allocation) => String(allocation.client) === String(clientId))?.hours || 0)
 }
 
+function allocationInputValue(entry: TimeEntry, clientId: string | number): string {
+  const hours = allocationHours(entry, clientId)
+  return hours > 0 ? String(hours) : ''
+}
+
 function allocatedTotal(entry: TimeEntry): number {
   return (entry.clientAllocations || []).reduce((sum, allocation) => sum + Number(allocation.hours || 0), 0)
 }
@@ -201,8 +206,8 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const totalColumnCount = leadingColumnCount + visibleClients.length + 4
   const tableMinWidth = useMemo(() => (isAdmin ? 625 : 495) + visibleClients.length * 120, [isAdmin, visibleClients.length])
 
-  const patch = async (id: string | number, data: Partial<TimeEntry>) => {
-    setSavingId(id)
+  const patch = async (id: string | number, data: Partial<TimeEntry>, options: { quiet?: boolean } = {}) => {
+    if (!options.quiet) setSavingId(id)
     setError('')
     const previous = entries
     setEntries((current) => current.map((entry) => entry.id === id ? { ...entry, ...data } : entry))
@@ -215,12 +220,11 @@ export default function ContractorTimeEntriesSpreadsheet() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to save entry')
       setEntries((current) => current.map((entry) => entry.id === id ? json.entry : entry))
-      if (data.clientAllocations || data.hours != null) void load()
     } catch (err) {
       setEntries(previous)
       setError(err instanceof Error ? err.message : 'Failed to save entry')
     } finally {
-      setSavingId(null)
+      if (!options.quiet) setSavingId(null)
     }
   }
 
@@ -235,7 +239,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
     const clientAllocations = Array.from(map.values()).filter((allocation) => allocation.hours > 0)
     const nextAllocatedTotal = clientAllocations.reduce((sum, allocation) => sum + Number(allocation.hours || 0), 0)
     const shouldAutoTotal = Number(entry.hours || 0) === 0 || Math.abs(Number(entry.hours || 0) - previousAllocatedTotal) < 0.01
-    void patch(entry.id, { clientAllocations, ...(shouldAutoTotal ? { hours: Math.round(nextAllocatedTotal * 100) / 100 } : {}) })
+    void patch(entry.id, { clientAllocations, ...(shouldAutoTotal ? { hours: Math.round(nextAllocatedTotal * 100) / 100 } : {}) }, { quiet: true })
   }
 
   const saveClientColumns = async (clientIds: string[]) => {
@@ -450,11 +454,11 @@ export default function ContractorTimeEntriesSpreadsheet() {
                   </td>
                   {visibleClients.map((client) => (
                     <td key={client.id} style={{ ...tdStyle, borderLeft: '1px solid var(--theme-elevation-100)' }}>
-                      <input type="number" min={0} max={168} step={0.25} value={allocationHours(entry, client.id)} onChange={(event) => patchAllocation(entry, client.id, event.target.value)} disabled={locked} style={{ ...inputStyle, textAlign: 'right' }} />
+                      <input type="number" min={0} max={168} step={0.25} placeholder="0" value={allocationInputValue(entry, client.id)} onChange={(event) => patchAllocation(entry, client.id, event.target.value)} disabled={locked} style={{ ...inputStyle, textAlign: 'right' }} />
                     </td>
                   ))}
                   <td style={tdStyle}>
-                    <input type="number" min={0} max={168} step={0.25} value={entry.hours ?? 0} onChange={(event) => void patch(entry.id, { hours: Number(event.target.value || 0) })} disabled={locked} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800 }} />
+                    <input type="number" min={0} max={168} step={0.25} value={entry.hours ?? 0} onChange={(event) => void patch(entry.id, { hours: Number(event.target.value || 0) }, { quiet: true })} disabled={locked} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800 }} />
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 900, color: Math.abs(discrepancy) < 0.01 ? '#15803d' : '#b45309' }}>
                     {discrepancy.toFixed(2)}
