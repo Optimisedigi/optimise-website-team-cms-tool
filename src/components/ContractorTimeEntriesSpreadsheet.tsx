@@ -164,6 +164,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const [canDelete, setCanDelete] = useState(false)
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
   const [showColumnPicker, setShowColumnPicker] = useState(false)
+  const [autoTotalEntryIds, setAutoTotalEntryIds] = useState<Set<string | number>>(() => new Set())
   const selectedClientIdSet = useMemo(() => new Set(selectedClientIds), [selectedClientIds])
   const visibleClients = useMemo(() => clients.filter((client) => selectedClientIdSet.has(String(client.id))), [clients, selectedClientIdSet])
   const visibleMonthlyTotals = useMemo(() => monthlyTotals.map((row) => ({
@@ -181,7 +182,12 @@ export default function ContractorTimeEntriesSpreadsheet() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load contractor time entries')
       const nextClients = json.clients || []
-      setEntries(json.entries || [])
+      const nextEntries = json.entries || []
+      setEntries(nextEntries)
+      setAutoTotalEntryIds(new Set(nextEntries.filter((entry: TimeEntry) => {
+        const hours = Number(entry.hours || 0)
+        return hours === 0 || Math.abs(hours - allocatedTotal(entry)) < 0.01
+      }).map((entry: TimeEntry) => entry.id)))
       setClients(nextClients)
       setUsers(json.users || [])
       setCurrentUser(json.currentUser || null)
@@ -219,7 +225,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to save entry')
-      setEntries((current) => current.map((entry) => entry.id === id ? json.entry : entry))
+      if (!options.quiet) setEntries((current) => current.map((entry) => entry.id === id ? json.entry : entry))
     } catch (err) {
       setEntries(previous)
       setError(err instanceof Error ? err.message : 'Failed to save entry')
@@ -230,7 +236,6 @@ export default function ContractorTimeEntriesSpreadsheet() {
 
   const patchAllocation = (entry: TimeEntry, clientId: string | number, value: string) => {
     const hours = Math.max(0, Number(value || 0))
-    const previousAllocatedTotal = allocatedTotal(entry)
     const map = new Map<string, Allocation>()
     for (const allocation of entry.clientAllocations || []) {
       map.set(String(allocation.client), { client: allocation.client, hours: Number(allocation.hours || 0) })
@@ -238,8 +243,23 @@ export default function ContractorTimeEntriesSpreadsheet() {
     map.set(String(clientId), { client: clientId, hours })
     const clientAllocations = Array.from(map.values()).filter((allocation) => allocation.hours > 0)
     const nextAllocatedTotal = clientAllocations.reduce((sum, allocation) => sum + Number(allocation.hours || 0), 0)
-    const shouldAutoTotal = Number(entry.hours || 0) === 0 || Math.abs(Number(entry.hours || 0) - previousAllocatedTotal) < 0.01
+    const shouldAutoTotal = autoTotalEntryIds.has(entry.id)
+    if (shouldAutoTotal) setAutoTotalEntryIds((current) => new Set(current).add(entry.id))
     void patch(entry.id, { clientAllocations, ...(shouldAutoTotal ? { hours: Math.round(nextAllocatedTotal * 100) / 100 } : {}) }, { quiet: true })
+  }
+
+  const patchTotalHours = (entry: TimeEntry, value: string) => {
+    if (value === '') {
+      setAutoTotalEntryIds((current) => new Set(current).add(entry.id))
+      void patch(entry.id, { hours: Math.round(allocatedTotal(entry) * 100) / 100 }, { quiet: true })
+      return
+    }
+    setAutoTotalEntryIds((current) => {
+      const next = new Set(current)
+      next.delete(entry.id)
+      return next
+    })
+    void patch(entry.id, { hours: Math.max(0, Number(value || 0)) }, { quiet: true })
   }
 
   const saveClientColumns = async (clientIds: string[]) => {
@@ -437,7 +457,10 @@ export default function ContractorTimeEntriesSpreadsheet() {
             ) : entries.length === 0 ? (
               <tr><td colSpan={totalColumnCount} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No time entries for this period — add the first week below.</td></tr>
             ) : entries.map((entry) => {
-              const discrepancy = Number(entry.hours || 0) - allocatedTotal(entry)
+              const allocated = allocatedTotal(entry)
+              const autoTotal = autoTotalEntryIds.has(entry.id)
+              const effectiveTotal = autoTotal ? allocated : Number(entry.hours || 0)
+              const discrepancy = effectiveTotal - allocated
               const locked = entry.status === 'paid'
               return (
                 <tr key={entry.id} style={{ height: 58, ...(savingId === entry.id ? { opacity: .6 } : undefined) }}>
@@ -458,7 +481,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
                     </td>
                   ))}
                   <td style={tdStyle}>
-                    <input type="number" min={0} max={168} step={0.25} value={entry.hours ?? 0} onChange={(event) => void patch(entry.id, { hours: Number(event.target.value || 0) }, { quiet: true })} disabled={locked} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800 }} />
+                    <input type="number" min={0} max={168} step={0.25} placeholder={allocated > 0 ? String(Math.round(allocated * 100) / 100) : 'Auto'} value={autoTotal ? '' : entry.hours ?? ''} onChange={(event) => patchTotalHours(entry, event.target.value)} disabled={locked} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800 }} />
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 900, color: Math.abs(discrepancy) < 0.01 ? '#15803d' : '#b45309' }}>
                     {discrepancy.toFixed(2)}
