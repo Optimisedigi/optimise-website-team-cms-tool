@@ -98,6 +98,11 @@ export const OptiMateSettings: GlobalConfig = {
     group: "OptiMate",
     description:
       "Default models for OptiMate. The chat default seeds the model picker; the autonomous default is used for scheduled/cron runs; the Blog and copy model controls blog tools and Google Ads ad copy generation.",
+    components: {
+      elements: {
+        beforeDocumentControls: ["./components/agent/OptiMateSettingsDefaultTab"],
+      },
+    },
     hidden: hideGlobalUnlessFeature("optimate-settings"),
   },
   access: globalAccess("optimate-settings"),

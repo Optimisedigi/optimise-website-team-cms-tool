@@ -178,6 +178,7 @@ import { default as default_b1bb90f08c5df85caf24dc08a7b957cf } from '../../../co
 import { default as default_a82602a1f42713b7065c509fd7e4e34f } from '../../../components/agent/SystemPromptTokenUsagePanel'
 import { default as default_d334e471c138b9e2dc99334cf0d3e3e7 } from '../../../components/agent/OptiMateSoulSettingsPanel'
 import { default as default_1269315f863c0e9ba5985ad220b96bad } from '../../../components/agent/OptiMateSettingsLinksPanel'
+import { default as default_7f7ab3b6a1a80268b184d65e6b180acc } from '../../../components/agent/OptiMateSettingsDefaultTab'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_2539ed3128925d1e4131db1b637125cd } from '../../../components/NotificationsBell'
@@ -382,6 +383,7 @@ export const importMap = {
   "./components/agent/SystemPromptTokenUsagePanel#default": default_a82602a1f42713b7065c509fd7e4e34f,
   "./components/agent/OptiMateSoulSettingsPanel#default": default_d334e471c138b9e2dc99334cf0d3e3e7,
   "./components/agent/OptiMateSettingsLinksPanel#default": default_1269315f863c0e9ba5985ad220b96bad,
+  "./components/agent/OptiMateSettingsDefaultTab#default": default_7f7ab3b6a1a80268b184d65e6b180acc,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/NotificationsBell#default": default_2539ed3128925d1e4131db1b637125cd,
