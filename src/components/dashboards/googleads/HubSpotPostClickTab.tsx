@@ -4,9 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { GoogleAdsDashboardMonthlyWasteRelevancy, HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
 
-type MetricKey = "paidLeads" | "meetings" | "googleAdsConversions" | "meetingRate" | "disqualifiedRate";
+type MetricKey = "paidLeads" | "meetings" | "googleAdsConversions" | "meetingRate" | "disqualifiedRate" | "cpaGoogleAdsConversions" | "cpaPaidLeads" | "cpaMeetings";
 type MonthlyPoint = HubSpotPostClickDashboardData["monthly"][number];
-type MonthlySalesPoint = MonthlyPoint & { keywordRelevancy: number | null; mqls: number; sqls: number };
+type MonthlySalesPoint = MonthlyPoint & {
+  keywordRelevancy: number | null;
+  mqls: number;
+  sqls: number;
+  cpaGoogleAdsConversions: number | null;
+  cpaPaidLeads: number | null;
+  cpaMeetings: number | null;
+};
 type AttributionRow = HubSpotPostClickDashboardData["attributionRows"][number];
 type LeadDetail = HubSpotPostClickDashboardData["leadDetails"][number];
 type MeetingFilter = "all" | "yes" | "no";
@@ -23,7 +30,10 @@ const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; toolti
   },
   { key: "meetings", label: "HubSpot meetings", shortLabel: "Meetings", tooltip: "Associated HubSpot meeting records plus HubSpot meeting timestamp fields for the paid-search contacts in this report.", color: "#16a34a", kind: "bar" },
   { key: "meetingRate", label: "Lead → HubSpot meeting conversion rate", shortLabel: "Meeting rate", tooltip: "HubSpot meetings divided by paid leads. It can exceed 100% when one paid lead has more than one associated meeting.", color: "#7c3aed", kind: "line", unit: "rate" },
-  { key: "disqualifiedRate", label: "Disqualified rate", shortLabel: "Disqualified rate", tooltip: "Paid leads marked unqualified, dead, junk, spam, or not model aligned divided by paid leads.", color: "#dc2626", kind: "line", unit: "rate" },
+  { key: "disqualifiedRate", label: "Disqualified rate", shortLabel: "Disqualified rate", tooltip: "Paid leads marked unqualified, dead, junk, spam, or not model aligned divided by paid leads. Lower is better when lead statuses are maintained.", color: "#dc2626", kind: "line", unit: "rate" },
+  { key: "cpaGoogleAdsConversions", label: "CPA by Google Ads conversions", shortLabel: "CPA / GA conv.", tooltip: "Google Ads spend divided by selected Google Ads conversions. This is the ad-platform CPA.", color: "#0f766e", kind: "line", unit: "currency" },
+  { key: "cpaPaidLeads", label: "CPA by HubSpot paid leads", shortLabel: "CPA / paid lead", tooltip: "Google Ads spend divided by HubSpot paid-search contacts. This shows the cost per HubSpot-captured paid lead.", color: "#f97316", kind: "line", unit: "currency" },
+  { key: "cpaMeetings", label: "CPA by HubSpot meetings", shortLabel: "CPA / meeting", tooltip: "Google Ads spend divided by HubSpot meetings. This shows cost per meeting booked or recorded from paid-search leads.", color: "#15803d", kind: "line", unit: "currency" },
 ];
 
 const CONFIDENCE_LABELS: Record<string, string> = {
@@ -77,6 +87,17 @@ function formatRate(value: number | null | undefined): string {
 function formatCurrency(value: number | null | undefined): string {
   if (value == null) return "—";
   return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
+}
+
+function formatCompactCurrency(value: number | null | undefined): string {
+  if (value == null) return "—";
+  if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return formatCurrency(value);
+}
+
+function nullSafeCpa(spend: number, denominator: number): number | null {
+  if (!denominator || denominator <= 0) return null;
+  return Math.round((spend / denominator) * 100) / 100;
 }
 
 function keywordRelevancyFromMonthlyWaste(row: GoogleAdsDashboardMonthlyWasteRelevancy | undefined): number | null {
@@ -170,6 +191,8 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
       const leadStats = leadStatsByMonth.get(month);
       const disqualifiedLeads = row.disqualifiedLeads ?? leadStats?.disqualifiedLeads ?? 0;
       const disqualifiedRate = row.disqualifiedRate ?? (leadStats && leadStats.paidLeads > 0 ? (leadStats.disqualifiedLeads / leadStats.paidLeads) * 100 : null);
+      const googleAdsConversions = row.googleAdsConversions || 0;
+      const googleAdsSpend = row.googleAdsSpend || 0;
       return {
         ...row,
         disqualifiedLeads,
@@ -177,6 +200,9 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
         keywordRelevancy: keywordRelevancyFromMonthlyWaste(relevancyByMonth.get(month)),
         mqls: leadStats?.mqls || 0,
         sqls: leadStats?.sqls || 0,
+        cpaGoogleAdsConversions: nullSafeCpa(googleAdsSpend, googleAdsConversions),
+        cpaPaidLeads: nullSafeCpa(googleAdsSpend, row.paidLeads),
+        cpaMeetings: nullSafeCpa(googleAdsSpend, row.meetings),
         avgDaysToFirstOutreach: row.avgDaysToFirstOutreach ?? averageDays(leadStats?.daysToFirstOutreach || []),
         avgDaysToMql: row.avgDaysToMql ?? averageDays(leadStats?.daysToMql || []),
         avgDaysToSql: row.avgDaysToSql ?? averageDays(leadStats?.daysToSql || []),
@@ -185,7 +211,7 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
   }, [monthly, leadDetails, monthlyWasteRelevancy]);
 }
 
-function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data: MonthlyPoint[]; selectedMetrics: MetricKey[]; onToggleMetric: (key: MetricKey) => void }) {
+function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data: MonthlySalesPoint[]; selectedMetrics: MetricKey[]; onToggleMetric: (key: MetricKey) => void }) {
   const width = 980;
   const height = 290;
   const left = 34;
@@ -197,22 +223,26 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
   const barMax = Math.max(1, ...data.map((row) => Math.max(row.paidLeads, row.meetings, row.googleAdsConversions || 0)));
   const lineSeries = METRICS.filter((metric) => metric.kind === "line" && selectedMetrics.includes(metric.key)) as Array<(typeof METRICS)[number] & { kind: "line" }>;
   const rateSeries = lineSeries.filter((series) => series.unit === "rate");
+  const currencySeries = lineSeries.filter((series) => series.unit === "currency");
   const showLine = lineSeries.length > 0;
   const rateMax = Math.max(100, Math.ceil(Math.max(...data.flatMap((row) => rateSeries.map((series) => Number(row[series.key] ?? 0)))) / 25) * 25);
+  const currencyMax = Math.max(1, Math.ceil(Math.max(...data.flatMap((row) => currencySeries.map((series) => Number(row[series.key] ?? 0)))) / 100) * 100);
   const disqualifiedRateMax = Math.max(10, Math.ceil(Math.max(...data.map((row) => row.disqualifiedRate ?? 0)) / 5) * 5);
   const slot = chartWidth / data.length;
   const barWidth = Math.max(8, Math.min(17, slot * 0.22));
   const yCount = (value: number) => top + chartHeight - (value / barMax) * chartHeight;
   const yRate = (value: number | null) => top + chartHeight - ((value ?? 0) / rateMax) * chartHeight;
+  const yCurrency = (value: number | null) => top + chartHeight - ((value ?? 0) / currencyMax) * chartHeight;
   const yDisqualifiedRate = (value: number | null) => top + chartHeight - ((value ?? 0) / disqualifiedRateMax) * chartHeight;
   const linePaths = lineSeries.map((series) => {
     const points = data
       .map((row, index) => {
-        const raw = Number(row[series.key] ?? 0);
-        if (series.unit === "rate" && row[series.key] == null) return null;
+        const value = row[series.key];
+        if (value == null) return null;
+        const raw = Number(value);
         return {
           x: left + slot * index + slot / 2,
-          y: series.key === "disqualifiedRate" ? yDisqualifiedRate(raw) : yRate(raw),
+          y: series.unit === "currency" ? yCurrency(raw) : series.key === "disqualifiedRate" ? yDisqualifiedRate(raw) : yRate(raw),
           value: raw,
         };
       })
@@ -299,7 +329,7 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
                   <g key={index} opacity={0.68}>
                     <circle cx={point.x} cy={point.y} r={4} fill={series.color} />
                     <text x={point.x} y={Math.max(11, point.y - 9)} textAnchor="middle" fontSize="10" fontWeight="600" fill={series.color}>
-                      {formatRate(point.value)}
+                      {series.unit === "currency" ? formatCompactCurrency(point.value) : formatRate(point.value)}
                     </text>
                   </g>
                 ))}
@@ -641,7 +671,7 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Lead Quality</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Last 14 months of selected Google Ads conversions, paid leads, HubSpot meetings, meeting rate, and disqualified rate.
+              Last 14 months of selected Google Ads conversions, paid leads, HubSpot meetings, rates, and CPA views by outcome type.
             </p>
           </div>
           <span className="text-xs text-slate-400">Updated {formatDate(data.lastUpdated)}</span>
@@ -655,7 +685,7 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
           />
         </div>
 
-        <div className="mt-5 grid gap-3 text-xs text-slate-600 md:grid-cols-5">
+        <div className="mt-5 grid gap-3 text-xs text-slate-600 md:grid-cols-6">
           <div className="rounded-lg bg-slate-50 p-3">
             <p className="font-semibold text-slate-800">Google Ads conversions</p>
             <p className="mt-1">Selected Google Ads conversion actions. One person can trigger multiple conversions, and some actions are not HubSpot contacts.</p>
@@ -669,12 +699,16 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
             <p className="mt-1">Meetings booked or recorded on the paid-search contact in HubSpot, including associated meeting records and meeting activity fields.</p>
           </div>
           <div className="rounded-lg bg-slate-50 p-3">
+            <p className="font-semibold text-slate-800">CPA views</p>
+            <p className="mt-1">Each CPA line uses the same Google Ads spend, divided by Google Ads conversions, HubSpot paid leads, or HubSpot meetings.</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3">
             <p className="font-semibold text-slate-800">Meeting rate</p>
             <p className="mt-1">HubSpot meetings divided by paid leads. It can go above 100% if one paid lead has multiple meetings.</p>
           </div>
           <div className="rounded-lg bg-slate-50 p-3">
             <p className="font-semibold text-slate-800">Disqualified rate</p>
-            <p className="mt-1">Paid leads marked unqualified, dead, junk, spam, or not model aligned divided by paid leads.</p>
+            <p className="mt-1">Paid leads marked unqualified, dead, junk, spam, or not model aligned divided by paid leads. Lower is better.</p>
           </div>
           </div>
 
