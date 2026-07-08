@@ -153,11 +153,12 @@ export async function GET(
     });
 
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      return NextResponse.json(
-        { error: `Growth Tools returned ${res.status}: ${body.slice(0, 300)}` },
-        { status: 502 }
-      );
+      await res.text().catch(() => "");
+      return NextResponse.json({
+        conversionSplit: null,
+        conversionSplitByCampaign: [],
+        warning: "Conversion split is temporarily unavailable. You can still manage default conversion actions below.",
+      });
     }
 
     const data = await res.json();
@@ -167,12 +168,11 @@ export async function GET(
         ? data.conversionSplitByCampaign
         : [],
     });
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error: `Failed to fetch conversion split: ${err instanceof Error ? err.message : String(err)}`,
-      },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({
+      conversionSplit: null,
+      conversionSplitByCampaign: [],
+      warning: "Conversion split is temporarily unavailable. You can still manage default conversion actions below.",
+    });
   }
 }

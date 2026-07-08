@@ -237,7 +237,7 @@ const GoogleAdsAuditConversions = () => {
   const [splitByCampaign, setSplitByCampaign] = useState<ConversionSplitByCampaign>([])
   const [splitLoading, setSplitLoading] = useState(false)
   const [splitError, setSplitError] = useState<string | null>(null)
-
+  const [splitWarning, setSplitWarning] = useState<string | null>(null)
   // Resolve the linked client from the audit.
   useEffect(() => {
     if (!id) {
@@ -288,6 +288,7 @@ const GoogleAdsAuditConversions = () => {
     const loadSplit = async () => {
       setSplitLoading(true)
       setSplitError(null)
+      setSplitWarning(null)
       try {
         const res = await fetch(
           `/api/google-ads-audits/${id}/conversion-split`,
@@ -306,6 +307,7 @@ const GoogleAdsAuditConversions = () => {
               ? data.conversionSplitByCampaign
               : [],
           )
+          setSplitWarning(typeof data?.warning === 'string' ? data.warning : null)
         }
       } catch (err) {
         if (!cancelled) {
@@ -355,6 +357,8 @@ const GoogleAdsAuditConversions = () => {
           notice('Loading conversion split from Google Ads…')
         ) : splitError ? (
           notice(splitError)
+        ) : splitWarning ? (
+          notice(splitWarning)
         ) : splitTotals && splitTotals.categories.length > 0 ? (
           <AdminConversionSplit totals={splitTotals} byCampaign={splitByCampaign} />
         ) : (
