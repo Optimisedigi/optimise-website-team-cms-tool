@@ -1,7 +1,7 @@
 'use client'
 
 import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 type AdCopyEntry = { text: string; pinnedPosition?: 1 | 2 | 3 | null }
 type AdCopySet = { headlines: (string | AdCopyEntry)[]; descriptions: (string | AdCopyEntry)[] }
@@ -59,13 +59,22 @@ const AdCopyEditorInner = () => {
   const slug = fields?.slug?.value as string | undefined
   const proposalRaw = fields?.campaignProposal?.value
 
+  const adCopyKey = useMemo(() => {
+    if (!adCopyRaw) return ''
+    if (typeof adCopyRaw === 'string') return adCopyRaw
+    try { return JSON.stringify(adCopyRaw) } catch { return '' }
+  }, [adCopyRaw])
+
   // Parse ad copy
-  let adCopy: AdCopyMap = {}
-  if (adCopyRaw && typeof adCopyRaw === 'object') {
-    adCopy = adCopyRaw as AdCopyMap
-  } else if (typeof adCopyRaw === 'string') {
-    try { adCopy = JSON.parse(adCopyRaw) } catch { /* invalid */ }
-  }
+  const adCopy = useMemo<AdCopyMap>(() => {
+    if (!adCopyKey) return {}
+    try {
+      const parsed = JSON.parse(adCopyKey)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as AdCopyMap : {}
+    } catch {
+      return {}
+    }
+  }, [adCopyKey])
 
   // Parse comments
   let comments: Comment[] = []
@@ -96,6 +105,11 @@ const AdCopyEditorInner = () => {
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [publishToggle, setPublishToggle] = useState(!!adCopyPublished)
+
+  useEffect(() => {
+    setEditableCopy(adCopy)
+    setExpandedAg(null)
+  }, [adCopyKey, adCopy])
 
   const campaignNames = Object.keys(editableCopy)
 

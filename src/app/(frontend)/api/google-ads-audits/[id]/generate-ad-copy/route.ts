@@ -230,11 +230,17 @@ Top Keywords: ${ag.keywords.join(", ")}${brandNote}`;
           }
         }
 
-        // Save results
+        // Save results only when at least one ad group actually generated.
+        // This avoids marking a failed regeneration as "generated" with an empty copy map,
+        // and preserves the previous generated copy for another retry.
         const totalGenerated = Object.values(adCopyMap).reduce(
           (s, ags) => s + Object.keys(ags).length, 0
         );
         console.log(`[generate-ad-copy] Generated ad copy for ${totalGenerated}/${adGroups.length} ad groups`);
+
+        if (totalGenerated === 0) {
+          throw new Error(`No ad copy generated for ${adGroups.length} ad groups`);
+        }
 
         const dbClient = (payload.db as any).client;
         await dbClient.execute({

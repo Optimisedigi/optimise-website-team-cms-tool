@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 
+function hasGeneratedAdCopy(value: unknown): boolean {
+  if (!value) return false;
+
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    return !!parsed && typeof parsed === "object" && !Array.isArray(parsed) && Object.keys(parsed).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -28,7 +39,7 @@ export async function GET(
     return NextResponse.json({
       status: a.adCopyStatus || null,
       generatedAt: a.adCopyGeneratedAt || null,
-      hasAdCopy: !!a.generatedAdCopy,
+      hasAdCopy: hasGeneratedAdCopy(a.generatedAdCopy),
     });
   } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
