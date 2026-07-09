@@ -2658,6 +2658,14 @@ export async function runMigrations(
     await run("client_proposals_competitors.serp_metrics_status", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_status` text DEFAULT 'idle'");
     await run("client_proposals_competitors.serp_metrics_error", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_error` text");
     await run("client_proposals_competitors.serp_metrics_updated_at", "ALTER TABLE `client_proposals_competitors` ADD `serp_metrics_updated_at` text");
+
+    // ── Meta Ads section status on client_proposals (2026-07-10) ──
+    // Meta Ad Library enrichment is decoupled from audit completion; its outcome
+    // is tracked here so it can be re-run in isolation via the Refresh Meta Ads
+    // button. Payload selects these columns on every read of the proposal.
+    await run("client_proposals.meta_ads_status", "ALTER TABLE `client_proposals` ADD `meta_ads_status` text DEFAULT 'idle'");
+    await run("client_proposals.meta_ads_error", "ALTER TABLE `client_proposals` ADD `meta_ads_error` text");
+    await run("client_proposals.meta_ads_updated_at", "ALTER TABLE `client_proposals` ADD `meta_ads_updated_at` text");
   
     // ── Allow keyword categories to be saved without keywords (2026-07-04) ──
     // Legacy DB column is NOT NULL; a category saved with just a name (keywords

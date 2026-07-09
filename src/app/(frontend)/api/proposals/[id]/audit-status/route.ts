@@ -39,6 +39,9 @@ export async function GET(
       stage,
       percent,
       error: p.auditError || null,
+      metaAdsStatus: p.metaAdsStatus || "idle",
+      metaAdsError: p.metaAdsError || null,
+      metaAdsUpdatedAt: p.metaAdsUpdatedAt || null,
     });
   } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

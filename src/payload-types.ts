@@ -2322,6 +2322,12 @@ export interface ClientProposal {
    */
   auditError?: string | null;
   /**
+   * Meta Ad Library fetch status. If failed, use the Refresh Meta Ads button — the proposal itself still completes without it.
+   */
+  metaAdsStatus?: ('idle' | 'running' | 'completed' | 'failed') | null;
+  metaAdsError?: string | null;
+  metaAdsUpdatedAt?: string | null;
+  /**
    * Local SimilarWeb helper job status for competitor monthly visits.
    */
   competitorTrafficJobStatus?: ('idle' | 'queued' | 'running' | 'completed' | 'failed') | null;
@@ -9943,6 +9949,9 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   auditStartedAt?: T;
   auditCompletedAt?: T;
   auditError?: T;
+  metaAdsStatus?: T;
+  metaAdsError?: T;
+  metaAdsUpdatedAt?: T;
   competitorTrafficJobStatus?: T;
   competitorTrafficJobId?: T;
   competitorTrafficJobDomains?: T;

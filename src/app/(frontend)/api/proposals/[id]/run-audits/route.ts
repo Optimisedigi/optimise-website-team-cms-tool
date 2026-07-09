@@ -3,8 +3,7 @@ import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { captureAndUploadScreenshot, type ScreenshotOptions } from "@/lib/screenshots";
-import { checkMetaAdsViaScrapling, extractSocialLinks } from "@/lib/scrapling-service";
-import { uploadScreenshotToBlob } from "@/lib/blob-upload";
+import { fetchMetaAdsForCompetitors } from "@/lib/proposal-meta-ads";
 import { explicitUnavailableTraffic, extractRootDomain, hasValue, hasTrafficCoverage, formatTraffic, type FormattedTraffic } from "@/lib/proposal-audit-backfill";
 
 // Allow up to 300s for the background audit pipeline (Vercel Pro max).
@@ -208,6 +207,11 @@ export async function POST(
   try {
     const auditDeadlineAt = Date.now() + maxDuration * 1000 - AUDIT_TIMEOUT_SAFETY_MS;
     const hasTimeForTrafficBatch = () => Date.now() + TRAFFIC_BATCH_BUDGET_MS < auditDeadlineAt;
+
+    // Meta Ads is best-effort and must never block proposal completion — its
+    // outcome is tracked separately so it can be re-run via the refresh button.
+    let metaAdsStatus: "idle" | "completed" | "failed" = "idle";
+    let metaAdsError: string | null = null;
 
     await updateProgress("Running SEO, CRO, keywords, competitors & content research", 5);
 
@@ -610,63 +614,35 @@ export async function POST(
             });
           }
 
-          // Combined pass: extract social links → Meta Ad Library per competitor (all in parallel)
-          // Merging these two stages into one saves ~15s of sequential waiting (critical for Hobby 60s limit)
+          // Combined pass: extract social links → Meta Ad Library per competitor.
+          // This is best-effort: it self-limits against the audit deadline and
+          // never throws upward, so a slow/flaky Scrapling service can no longer
+          // strand the whole proposal at "running". A failure is recorded in
+          // metaAdsStatus and can be re-run via /api/proposals/[id]/refresh-meta-ads.
           await updateProgress("Checking social links & Meta Ad Library", 71);
-          const allCompetitorDomains = enrichedCompetitors.map((c: any) => c.domain).filter(Boolean);
-          console.log(`[social+meta] Processing ${allCompetitorDomains.length} competitors (social links → meta ads)`);
-
-          const socialMetaResults = await Promise.allSettled(
-            allCompetitorDomains.map(async (domain: string) => {
-              const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-              // Step 1: Extract social links
-              const socialLinks = await withTimeout(
-                extractSocialLinks(domain),
-                AUXILIARY_FETCH_TIMEOUT_MS,
-              ).catch(() => null);
-              // Step 2: Use Facebook handle for Meta Ad Library (or fall back to domain)
-              const searchTerm = socialLinks?.facebook || cleanDomain;
-              if (socialLinks?.facebook) {
-                console.log(`[meta-ads] Using Facebook handle "${socialLinks.facebook}" for ${cleanDomain}`);
-              }
-              const result = await withTimeout(
-                checkMetaAdsViaScrapling(searchTerm),
-                AUXILIARY_FETCH_TIMEOUT_MS,
-              );
-              // Upload base64 ad screenshots to Vercel Blob
-              if (result.adScreenshots.length > 0) {
-                const uploadedUrls: string[] = [];
-                for (const b64 of result.adScreenshots) {
-                  try {
-                    const buffer = Buffer.from(b64, "base64");
-                    const blobUrl = await uploadScreenshotToBlob(buffer, `meta-ad-${cleanDomain}`);
-                    if (blobUrl) uploadedUrls.push(blobUrl);
-                  } catch {
-                    // Skip failed uploads
-                  }
-                }
-                result.adScreenshots = uploadedUrls;
-              }
-              return { domain, metaAds: result, socialLinks };
-            })
-          );
-          await updateProgress("Processing results", 85);
-          // Merge meta ads results and social links into enrichedCompetitors
-          for (const r of socialMetaResults) {
-            if (r.status !== "fulfilled") continue;
-            const { domain, metaAds, socialLinks } = r.value;
-            const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-            const comp = enrichedCompetitors.find((c: any) => {
-              const k = (c.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-              return k === cleanDomain;
+          console.log(`[social+meta] Processing ${enrichedCompetitors.length} competitors (social links → meta ads)`);
+          try {
+            const metaResult = await fetchMetaAdsForCompetitors(enrichedCompetitors, {
+              timeoutMs: AUXILIARY_FETCH_TIMEOUT_MS,
+              deadlineAt: auditDeadlineAt,
             });
-            if (comp) {
-              comp.metaAds = metaAds;
-              if (socialLinks) {
-                comp.socialLinks = socialLinks;
-              }
+            metaResult.updated.forEach((u: any, i: number) => {
+              if (!u) return;
+              if (u.metaAds !== undefined) enrichedCompetitors[i].metaAds = u.metaAds;
+              if (u.socialLinks !== undefined) enrichedCompetitors[i].socialLinks = u.socialLinks;
+            });
+            if (metaResult.failed > 0 || metaResult.skipped > 0) {
+              metaAdsStatus = "failed";
+              metaAdsError = `Meta Ads incomplete: ${metaResult.failed} failed, ${metaResult.skipped} skipped (deadline) of ${metaResult.attempted}. Use "Refresh Meta Ads" to retry.`;
+            } else {
+              metaAdsStatus = "completed";
             }
+          } catch (metaErr: any) {
+            metaAdsStatus = "failed";
+            metaAdsError = `Meta Ads enrichment failed: ${metaErr?.message || metaErr}. Use "Refresh Meta Ads" to retry.`;
+            console.error("[social+meta] failed (non-fatal):", metaErr?.message || metaErr);
           }
+          await updateProgress("Processing results", 85);
 
           // Fetch traffic for CMS-only competitors when there is enough runtime left.
           // If the audit is close to Vercel's function limit, mark traffic unavailable
@@ -929,6 +905,9 @@ export async function POST(
           auditProgress: finalProgress,
           auditCompletedAt: new Date().toISOString(),
           auditError: finalError,
+          metaAdsStatus,
+          metaAdsError,
+          metaAdsUpdatedAt: new Date().toISOString(),
           ...(auditIds.seoAudit ? { seoAudit: auditIds.seoAudit } : {}),
           ...(auditIds.croAudit ? { croAudit: auditIds.croAudit } : {}),
           ...(auditIds.keywordSnapshot ? { keywordSnapshot: auditIds.keywordSnapshot } : {}),
@@ -944,8 +923,8 @@ export async function POST(
         const sqlClient = (payload.db as any).client;
         if (sqlClient) {
           const completedAt = new Date().toISOString();
-          let sql = "UPDATE `client_proposals` SET `audit_status` = ?, `audit_progress` = ?, `audit_completed_at` = ?, `audit_error` = ?";
-          const params: any[] = [finalStatus, finalProgress, completedAt, finalError];
+          let sql = "UPDATE `client_proposals` SET `audit_status` = ?, `audit_progress` = ?, `audit_completed_at` = ?, `audit_error` = ?, `meta_ads_status` = ?, `meta_ads_error` = ?, `meta_ads_updated_at` = ?";
+          const params: any[] = [finalStatus, finalProgress, completedAt, finalError, metaAdsStatus, metaAdsError, completedAt];
           if (auditIds.seoAudit) { sql += ", `seo_audit_id` = ?"; params.push(auditIds.seoAudit); }
           if (auditIds.croAudit) { sql += ", `cro_audit_id` = ?"; params.push(auditIds.croAudit); }
           if (auditIds.keywordSnapshot) { sql += ", `keyword_snapshot_id` = ?"; params.push(auditIds.keywordSnapshot); }

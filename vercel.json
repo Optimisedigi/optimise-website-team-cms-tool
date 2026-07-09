@@ -58,6 +58,9 @@
     "src/app/(frontend)/api/proposals/[id]/run-audits/route.ts": {
       "maxDuration": 300
     },
+    "src/app/(frontend)/api/proposals/[id]/refresh-meta-ads/route.ts": {
+      "maxDuration": 300
+    },
     "src/app/(frontend)/api/monthly-keyword-selection/save/route.ts": {
       "maxDuration": 60
     },

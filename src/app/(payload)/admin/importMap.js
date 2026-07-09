@@ -77,6 +77,7 @@ import { default as default_9cd4c7b63c4660809e24cc71ebe72a8e } from '../../../co
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
 import { default as default_9f498ec9f8b81bcfa099e8cb7b777007 } from '../../../components/BackfillProposalReportDataButton'
 import { default as default_62cba30eadd5a2962ed9c8cc86b16246 } from '../../../components/RefreshProposalCompetitorTrafficButton'
+import { default as default_e72757a0bd9714b6ff729c6b05ad6be1 } from '../../../components/RefreshMetaAdsButton'
 import { default as default_2c89ed7a45cf9eb4c0ab6f8f79e1d8cb } from '../../../components/RunManualCompetitorSerpMetricsButton'
 import { default as default_a087138d05f6fdc79a220a1ae9afa2ee } from '../../../components/ManualCompetitorTrafficFields'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
@@ -178,7 +179,7 @@ import { default as default_b1bb90f08c5df85caf24dc08a7b957cf } from '../../../co
 import { default as default_a82602a1f42713b7065c509fd7e4e34f } from '../../../components/agent/SystemPromptTokenUsagePanel'
 import { default as default_d334e471c138b9e2dc99334cf0d3e3e7 } from '../../../components/agent/OptiMateSoulSettingsPanel'
 import { default as default_1269315f863c0e9ba5985ad220b96bad } from '../../../components/agent/OptiMateSettingsLinksPanel'
-import { default as default_7f7ab3b6a1a80268b184d65e6b180acc } from '../../../components/agent/OptiMateSettingsDefaultTab'
+import { default as default_e6e2bce5ab37926b7cefd050f9b529bd } from '../../../components/agent/OptiMateSettingsDefaultTab'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_2539ed3128925d1e4131db1b637125cd } from '../../../components/NotificationsBell'
@@ -282,6 +283,7 @@ export const importMap = {
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
   "./components/BackfillProposalReportDataButton#default": default_9f498ec9f8b81bcfa099e8cb7b777007,
   "./components/RefreshProposalCompetitorTrafficButton#default": default_62cba30eadd5a2962ed9c8cc86b16246,
+  "./components/RefreshMetaAdsButton#default": default_e72757a0bd9714b6ff729c6b05ad6be1,
   "./components/RunManualCompetitorSerpMetricsButton#default": default_2c89ed7a45cf9eb4c0ab6f8f79e1d8cb,
   "./components/ManualCompetitorTrafficFields#default": default_a087138d05f6fdc79a220a1ae9afa2ee,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
@@ -383,7 +385,7 @@ export const importMap = {
   "./components/agent/SystemPromptTokenUsagePanel#default": default_a82602a1f42713b7065c509fd7e4e34f,
   "./components/agent/OptiMateSoulSettingsPanel#default": default_d334e471c138b9e2dc99334cf0d3e3e7,
   "./components/agent/OptiMateSettingsLinksPanel#default": default_1269315f863c0e9ba5985ad220b96bad,
-  "./components/agent/OptiMateSettingsDefaultTab#default": default_7f7ab3b6a1a80268b184d65e6b180acc,
+  "./components/agent/OptiMateSettingsDefaultTab#default": default_e6e2bce5ab37926b7cefd050f9b529bd,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/NotificationsBell#default": default_2539ed3128925d1e4131db1b637125cd,

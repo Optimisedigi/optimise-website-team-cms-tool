@@ -1640,6 +1640,15 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
+              name: "refreshMetaAds",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RefreshMetaAdsButton",
+                },
+              },
+            },
+            {
               name: "manualCompetitorSerpMetrics",
               type: "ui",
               admin: {
@@ -1711,6 +1720,31 @@ export const ClientProposals: CollectionConfig = {
                 readOnly: true,
                 description: "Error details if audits failed",
               },
+            },
+            {
+              name: "metaAdsStatus",
+              type: "select",
+              defaultValue: "idle",
+              admin: {
+                readOnly: true,
+                description: "Meta Ad Library fetch status. If failed, use the Refresh Meta Ads button — the proposal itself still completes without it.",
+              },
+              options: [
+                { label: "Idle", value: "idle" },
+                { label: "Running", value: "running" },
+                { label: "Completed", value: "completed" },
+                { label: "Failed", value: "failed" },
+              ],
+            },
+            {
+              name: "metaAdsError",
+              type: "textarea",
+              admin: { readOnly: true },
+            },
+            {
+              name: "metaAdsUpdatedAt",
+              type: "date",
+              admin: { readOnly: true },
             },
             {
               name: "competitorTrafficJobStatus",
