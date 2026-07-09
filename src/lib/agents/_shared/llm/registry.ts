@@ -52,16 +52,23 @@ export const MODEL_REGISTRY = {
   // GPT over the Codex Responses backend, served by a ChatGPT subscription via
   // Codex OAuth ("Sign in with ChatGPT"). Reasoning effort is selected per
   // request, not baked into the model name.
+  //
+  // GPT-5.6 family — three agentic coding tiers from OpenAI's Codex catalog
+  // (Sol = frontier heavyweight, Terra = balanced daily driver, Luna = fast and
+  // affordable). Launched July 2026; replaces the retired GPT-5.4 / 5.4 Mini.
+  "gpt-5.6-sol": { provider: "openai-codex", model: "gpt-5.6-sol" },
+  "gpt-5.6-terra": { provider: "openai-codex", model: "gpt-5.6-terra" },
+  "gpt-5.6-luna": { provider: "openai-codex", model: "gpt-5.6-luna" },
   "gpt-5.5-codex": { provider: "openai-codex", model: "gpt-5.5" },
-  "gpt-5.4": { provider: "openai-codex", model: "gpt-5.4" },
-  "gpt-5.4-mini": { provider: "openai-codex", model: "gpt-5.4-mini" },
-  // Back-compat aliases for stored prod selections from the short-lived GPT-4
-  // picker entries. The Codex OAuth backend rejects these GPT-4 model IDs, so
-  // route them to the matching supported gg-framework Codex models instead of
-  // failing as "Unknown model".
-  "gpt-4.1": { provider: "openai-codex", model: "gpt-5.4" },
-  "gpt-4": { provider: "openai-codex", model: "gpt-5.4" },
-  "gpt-4o-mini": { provider: "openai-codex", model: "gpt-5.4-mini" },
+  // Back-compat aliases for stored prod selections pointing at models OpenAI has
+  // since retired (GPT-5.4, 5.4 Mini) or the short-lived GPT-4 picker entries.
+  // The Codex OAuth backend rejects those model IDs, so route them to the
+  // closest supported GPT-5.6 tier instead of failing as "Unknown model".
+  "gpt-5.4": { provider: "openai-codex", model: "gpt-5.6-terra" },
+  "gpt-5.4-mini": { provider: "openai-codex", model: "gpt-5.6-luna" },
+  "gpt-4.1": { provider: "openai-codex", model: "gpt-5.6-terra" },
+  "gpt-4": { provider: "openai-codex", model: "gpt-5.6-terra" },
+  "gpt-4o-mini": { provider: "openai-codex", model: "gpt-5.6-luna" },
 
   // xAI Grok over the grok-cli proxy (cli-chat-proxy.grok.com), served by a
   // SuperGrok subscription via device-code OAuth — NOT the billed XAI_API_KEY
@@ -219,9 +226,10 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   { canonical: "kimi-for-coding", label: "Kimi For Coding (Kimi OAuth)", hint: "Kimi coding subscription via device-code OAuth. No API tokens billed." },
   { canonical: "kimi-k2.6", label: "Kimi K2.6 (API key)", hint: "Long context, analytical. Default for autonomous runs." },
   { canonical: "minimax-m3", label: "MiniMax M3", hint: "Latest MiniMax fallback for agentic workflows." },
-  { canonical: "gpt-5.5-codex", label: "GPT-5.5 Codex (ChatGPT OAuth)", hint: "GPT-5.5 over Codex. Reasoning is controlled per request." },
-  { canonical: "gpt-5.4", label: "GPT 5.4 (ChatGPT OAuth)", hint: "OpenAI Codex OAuth path for GPT 5.4 benchmarking." },
-  { canonical: "gpt-5.4-mini", label: "GPT 5.4 Mini (ChatGPT OAuth)", hint: "OpenAI Codex OAuth path for GPT 5.4 Mini benchmarking." },
+  { canonical: "gpt-5.6-sol", label: "GPT-5.6 Sol (ChatGPT OAuth)", hint: "Frontier heavyweight. Heaviest reasoning for complex work. Reasoning controlled per request." },
+  { canonical: "gpt-5.6-terra", label: "GPT-5.6 Terra (ChatGPT OAuth)", hint: "Balanced daily driver. Reasoning controlled per request." },
+  { canonical: "gpt-5.6-luna", label: "GPT-5.6 Luna (ChatGPT OAuth)", hint: "Fast and affordable. Reasoning controlled per request." },
+  { canonical: "gpt-5.5-codex", label: "GPT-5.5 (ChatGPT OAuth)", hint: "GPT-5.5 over Codex. Reasoning controlled per request." },
   { canonical: "grok-build", label: "Grok Build (SuperGrok OAuth)", hint: "xAI Grok coding model via your SuperGrok subscription. No API tokens billed." },
   { canonical: "grok-composer-2.5-fast", label: "Grok Composer 2.5 Fast (SuperGrok OAuth)", hint: "Faster Grok model via SuperGrok subscription." },
 ];
