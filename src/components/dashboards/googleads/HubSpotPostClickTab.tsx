@@ -217,7 +217,7 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
 }
 
 function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data: MonthlySalesPoint[]; selectedMetrics: MetricKey[]; onToggleMetric: (key: MetricKey) => void }) {
-  const width = 980;
+  const width = 1220;
   const height = 290;
   const left = 34;
   const right = 48;
@@ -287,7 +287,7 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
     <div>
       {legend}
       <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[920px] w-full" role="img" aria-label="Last 14 months lead quality chart">
+        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[1220px] w-full" role="img" aria-label="Last 14 months lead quality chart">
         {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
           const y = top + chartHeight - tick * chartHeight;
           return <line key={tick} x1={left} x2={width - right} y1={y} y2={y} stroke="#e2e8f0" strokeWidth={1} />;
