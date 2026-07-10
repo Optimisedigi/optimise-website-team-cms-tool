@@ -58,19 +58,6 @@ function hasUsableDomain(competitor: CompetitorRow): boolean {
   return name.includes('.')
 }
 
-function hasKeywordCategories(fields: ReturnType<typeof useAllFormFields>[0] | undefined): boolean {
-  const rootValue = fields?.keywordCategories?.value
-  if (Array.isArray(rootValue)) {
-    return rootValue.some((category) => typeof category?.keywords === 'string' && category.keywords.trim().length > 0)
-  }
-
-  return Object.entries(fields ?? {}).some(([key, field]) => {
-    if (!/^keywordCategories\.\d+\.keywords$/.test(key)) return false
-    const value = field?.value
-    return typeof value === 'string' && value.trim().length > 0
-  })
-}
-
 const RefreshManualCompetitorGoogleAdsButton = () => {
   const { id } = useDocumentInfo()
   const [fields] = useAllFormFields()
@@ -88,14 +75,9 @@ const RefreshManualCompetitorGoogleAdsButton = () => {
     }
   }, [competitors])
 
-  const hasKeywords = useMemo(() => {
-    const legacyKeywords = fields?.keywords?.value
-    return (typeof legacyKeywords === 'string' && legacyKeywords.trim().length > 0) || hasKeywordCategories(fields)
-  }, [fields])
-
   if (!id) return null
 
-  const disabled = loading || counts.withDomain === 0 || !hasKeywords
+  const disabled = loading || counts.withDomain === 0
 
   const handleClick = async () => {
     setLoading(true)
@@ -152,12 +134,6 @@ const RefreshManualCompetitorGoogleAdsButton = () => {
         {counts.withDomain} competitors with domains · {counts.alreadyMarkedRunning} already marked running
         {counts.noDomain > 0 ? ` · ${counts.noDomain} missing URL/domain` : ''}
       </p>
-
-      {!hasKeywords && (
-        <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>
-          Add proposal keywords before fetching manual competitor Google Ads.
-        </p>
-      )}
 
       {summary && (
         <p style={{ marginTop: 8, fontSize: 13, color: '#16a34a' }}>

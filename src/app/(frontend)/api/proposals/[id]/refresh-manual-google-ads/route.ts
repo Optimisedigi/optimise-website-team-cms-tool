@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import {
-  buildProposalKeywords,
   normaliseManualCompetitorDomain,
   type ManualCompetitorRow,
 } from "@/lib/manual-competitor-serp-metrics";
@@ -64,25 +63,22 @@ async function saveCompetitorPatch(
   return nextCompetitors;
 }
 
-async function fetchGrowthToolsGoogleAds(websiteUrl: string, keywords: string[], targetLocation?: string | null) {
-  const res = await fetch(`${GROWTH_TOOLS_URL}/api/competitor-analysis`, {
+async function fetchGrowthToolsGoogleAds(websiteUrl: string) {
+  const res = await fetch(`${GROWTH_TOOLS_URL}/api/google-ads-transparency`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-internal-key": INTERNAL_API_KEY!,
     },
-    body: JSON.stringify({
-      websiteUrl,
-      keywords: keywords.join("\n"),
-      location: targetLocation || undefined,
-    }),
+    body: JSON.stringify({ domain: websiteUrl }),
+    signal: AbortSignal.timeout(45_000),
   });
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(data?.error || data?.message || `Growth Tools failed (${res.status})`);
   }
-  return data?.yourProfile?.googleAds ?? null;
+  return data?.googleAds ?? null;
 }
 
 export async function POST(
@@ -116,11 +112,6 @@ export async function POST(
     return NextResponse.json({ error: "Proposal not found", detail: err?.message }, { status: 404 });
   }
 
-  const keywords = buildProposalKeywords(proposal);
-  if (keywords.length === 0) {
-    return NextResponse.json({ error: "Add proposal keywords before fetching manual competitor Google Ads." }, { status: 400 });
-  }
-
   let competitors: ManualCompetitorRow[] = Array.isArray(proposal.competitors) ? proposal.competitors : [];
   const candidates = competitors
     .map((competitor, index) => ({ competitor, index, websiteUrl: usableCompetitorUrl(competitor) }))
@@ -133,7 +124,7 @@ export async function POST(
 
   for (const item of candidates) {
     try {
-      const googleAds = await fetchGrowthToolsGoogleAds(item.websiteUrl, keywords, proposal.targetLocation);
+      const googleAds = await fetchGrowthToolsGoogleAds(item.websiteUrl);
       const isRunningAds = Boolean(googleAds?.isRunningAds);
       const adCount = Number.isFinite(Number(googleAds?.adCount)) ? Number(googleAds.adCount) : null;
 
