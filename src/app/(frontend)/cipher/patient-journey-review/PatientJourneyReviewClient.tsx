@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import AuditPasswordGate from "@/components/AuditPasswordGate";
 
-const DOC_SLUG = "cipher-health/patient-journey-review";
+const DOC_SLUG = "cipher/patient-journey-review";
 const REVIEWER_KEY = "cipher-patient-journey-reviewer-name";
 
 function esc(value: unknown) {

@@ -3,7 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { checkPinWithLockout } from "@/lib/pin-auth";
 
-const knownWorkingDocs = new Set(["cipher-health/patient-journey-review"]);
+const knownWorkingDocs = new Set(["cipher/patient-journey-review"]);
 
 export function isKnownWorkingDocSlug(slug: string) {
   return knownWorkingDocs.has(slug);
