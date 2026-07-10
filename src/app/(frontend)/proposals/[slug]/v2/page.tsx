@@ -616,7 +616,14 @@ export async function ProposalReportV2PageContent({
         />
 
         {/* Paid burn (dynamic). */}
-        {isSlideVisible('18') && <PaidBurnSlide competitorAnalysis={buildCompetitorAnalysisForPaidBurn(competitorAnalysisDoc)} />}
+        {isSlideVisible('18') && (
+          <PaidBurnSlide
+            competitorAnalysis={buildCompetitorAnalysisForPaidBurn(
+              competitorAnalysisDoc,
+              filteredProposalCompetitors,
+            )}
+          />
+        )}
 
         {/* Mission Control divider sits between Paid Burn and Return Modelling. */}
         <div
@@ -841,18 +848,28 @@ type RawCompetitorProfile = {
   domain?: string | null
   manualMonthlyVisits?: number | string | null
   traffic?: TrafficData
-  googleAds?: { isRunningAds?: boolean } | null
-  metaAds?: { isRunningAds?: boolean } | null
+  googleAds?: { isRunningAds?: boolean | null; adCount?: number | null } | null
+  metaAds?: { isRunningAds?: boolean | null; activeAdCount?: number | null } | null
   avgPosition?: number | null
   averagePosition?: number | null
   keywordsFound?: number | null
   websiteScreenshot?: string | null
+  manualGoogleAdScreenshotUrls?: string[]
+  manualMetaAdScreenshotUrls?: string[]
 } | null
+
+type ProposalAdScreenshotRows = Array<{ image?: { url?: string | null } | number | null } | null> | null | undefined
 
 type ProposalCompetitorForTraffic = {
   name?: string | null
   websiteUrl?: string | null
   manualMonthlyVisits?: number | string | null
+  hasGoogleAds?: boolean | null
+  googleAdCountOverride?: number | null
+  hasMetaAds?: boolean | null
+  metaAdCountOverride?: number | null
+  googleAdScreenshots?: ProposalAdScreenshotRows
+  metaAdScreenshots?: ProposalAdScreenshotRows
 } | null
 
 type RawCompetitorAnalysis = {
@@ -1058,17 +1075,96 @@ function buildCompetitorAnalysisForSlide(
 export type CompetitorAnalysisForPaidBurn = {
   competitors?: Array<{
     domain?: string | null
-    googleAds?: { isRunningAds?: boolean } | null
-    metaAds?: { isRunningAds?: boolean } | null
+    googleAds?: { isRunningAds?: boolean | null; adCount?: number | null } | null
+    metaAds?: { isRunningAds?: boolean | null; activeAdCount?: number | null } | null
+    manualGoogleAdScreenshotUrls?: string[]
+    manualMetaAdScreenshotUrls?: string[]
   }> | null
 }
 
-function buildCompetitorAnalysisForPaidBurn(raw: RawCompetitorAnalysis): CompetitorAnalysisForPaidBurn {
+function extractProposalScreenshotUrls(rows: ProposalAdScreenshotRows): string[] {
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((row) => row?.image)
+    .filter((image): image is { url: string } =>
+      Boolean(image && typeof image === 'object' && typeof image.url === 'string' && image.url),
+    )
+    .map((image) => image.url)
+}
+
+function buildManualPaidBurnCompetitor(
+  competitor: ProposalCompetitorForTraffic,
+  domain: string,
+): NonNullable<CompetitorAnalysisForPaidBurn['competitors']>[number] {
+  const googleAdCount = competitor?.googleAdCountOverride ?? null
+  const metaAdCount = competitor?.metaAdCountOverride ?? null
+
   return {
-    competitors: (raw?.competitors ?? []).map((c) => ({
-      domain: c?.domain ?? null,
-      googleAds: c?.googleAds ? { isRunningAds: c.googleAds.isRunningAds ?? undefined } : null,
-      metaAds: c?.metaAds ? { isRunningAds: c.metaAds.isRunningAds ?? undefined } : null,
-    })),
+    domain,
+    googleAds:
+      competitor?.hasGoogleAds || googleAdCount != null
+        ? {
+            isRunningAds: Boolean(competitor?.hasGoogleAds) || (googleAdCount ?? 0) > 0,
+            adCount: googleAdCount,
+          }
+        : null,
+    metaAds:
+      competitor?.hasMetaAds || metaAdCount != null
+        ? {
+            isRunningAds: Boolean(competitor?.hasMetaAds) || (metaAdCount ?? 0) > 0,
+            activeAdCount: metaAdCount,
+          }
+        : null,
+    manualGoogleAdScreenshotUrls: extractProposalScreenshotUrls(competitor?.googleAdScreenshots),
+    manualMetaAdScreenshotUrls: extractProposalScreenshotUrls(competitor?.metaAdScreenshots),
   }
+}
+
+function buildCompetitorAnalysisForPaidBurn(
+  raw: RawCompetitorAnalysis,
+  proposalCompetitors: ProposalCompetitorForTraffic[] | null,
+): CompetitorAnalysisForPaidBurn {
+  const manualCompetitors = proposalCompetitors ?? []
+  const manualDomains = new Set(
+    manualCompetitors
+      .map((c) => normaliseDomain(c?.websiteUrl) || normaliseDomain(c?.name))
+      .filter(Boolean),
+  )
+
+  if (manualDomains.size === 0) return { competitors: [] }
+
+  const seenDomains = new Set<string>()
+  const competitors: NonNullable<CompetitorAnalysisForPaidBurn['competitors']> = (raw?.competitors ?? [])
+    .filter((c) => {
+      const domain = normaliseDomain(c?.domain)
+      if (!domain || !manualDomains.has(domain)) return false
+      seenDomains.add(domain)
+      return true
+    })
+    .map((c) => ({
+      domain: c?.domain ?? null,
+      googleAds: c?.googleAds
+        ? {
+            isRunningAds: c.googleAds.isRunningAds ?? undefined,
+            adCount: c.googleAds.adCount ?? null,
+          }
+        : null,
+      metaAds: c?.metaAds
+        ? {
+            isRunningAds: c.metaAds.isRunningAds ?? undefined,
+            activeAdCount: c.metaAds.activeAdCount ?? null,
+          }
+        : null,
+      manualGoogleAdScreenshotUrls: c?.manualGoogleAdScreenshotUrls,
+      manualMetaAdScreenshotUrls: c?.manualMetaAdScreenshotUrls,
+    }))
+
+  for (const competitor of manualCompetitors) {
+    const domain = normaliseDomain(competitor?.websiteUrl) || normaliseDomain(competitor?.name)
+    if (!domain || seenDomains.has(domain)) continue
+    seenDomains.add(domain)
+    competitors.push(buildManualPaidBurnCompetitor(competitor, domain))
+  }
+
+  return { competitors }
 }
