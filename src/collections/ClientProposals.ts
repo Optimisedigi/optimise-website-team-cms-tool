@@ -1683,6 +1683,21 @@ export const ClientProposals: CollectionConfig = {
               ],
             },
             {
+              type: "row",
+              fields: [
+                {
+                  name: "refreshManualCompetitorGoogleAds",
+                  type: "ui",
+                  admin: {
+                    width: "33%",
+                    components: {
+                      Field: "./components/RefreshManualCompetitorGoogleAdsButton",
+                    },
+                  },
+                },
+              ],
+            },
+            {
               name: "manualCompetitorTraffic",
               type: "ui",
               admin: {

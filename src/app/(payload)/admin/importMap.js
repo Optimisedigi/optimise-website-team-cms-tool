@@ -80,6 +80,7 @@ import { default as default_62cba30eadd5a2962ed9c8cc86b16246 } from '../../../co
 import { default as default_e72757a0bd9714b6ff729c6b05ad6be1 } from '../../../components/RefreshMetaAdsButton'
 import { default as default_35ce4d1a0d1967aebc4acfbc99f4722b } from '../../../components/RefreshContentQuestionsButton'
 import { default as default_2c89ed7a45cf9eb4c0ab6f8f79e1d8cb } from '../../../components/RunManualCompetitorSerpMetricsButton'
+import { default as default_c65f1652f228ed717ad8c0de56fd48b9 } from '../../../components/RefreshManualCompetitorGoogleAdsButton'
 import { default as default_a087138d05f6fdc79a220a1ae9afa2ee } from '../../../components/ManualCompetitorTrafficFields'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
 import { default as default_524269742a06f6b5480b96a4c642a8de } from '../../../components/RunGoogleAdsAuditFromProposalButton'
@@ -287,6 +288,7 @@ export const importMap = {
   "./components/RefreshMetaAdsButton#default": default_e72757a0bd9714b6ff729c6b05ad6be1,
   "./components/RefreshContentQuestionsButton#default": default_35ce4d1a0d1967aebc4acfbc99f4722b,
   "./components/RunManualCompetitorSerpMetricsButton#default": default_2c89ed7a45cf9eb4c0ab6f8f79e1d8cb,
+  "./components/RefreshManualCompetitorGoogleAdsButton#default": default_c65f1652f228ed717ad8c0de56fd48b9,
   "./components/ManualCompetitorTrafficFields#default": default_a087138d05f6fdc79a220a1ae9afa2ee,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
   "./components/RunGoogleAdsAuditFromProposalButton#default": default_524269742a06f6b5480b96a4c642a8de,
