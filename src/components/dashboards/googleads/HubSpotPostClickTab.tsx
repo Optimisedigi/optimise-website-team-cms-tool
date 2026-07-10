@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { GoogleAdsDashboardMonthlyWasteRelevancy, HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
 
-type MetricKey = "paidLeads" | "meetings" | "googleAdsConversions" | "meetingRate" | "disqualifiedRate" | "cpaGoogleAdsConversions" | "cpaPaidLeads" | "cpaMeetings";
+type MetricKey = "paidLeads" | "meetings" | "totalMeetings" | "googleAdsConversions" | "meetingRate" | "disqualifiedRate" | "cpaGoogleAdsConversions" | "cpaPaidLeads" | "cpaMeetings";
 type MonthlyPoint = HubSpotPostClickDashboardData["monthly"][number];
 type MonthlySalesPoint = MonthlyPoint & {
+  totalMeetings: number;
   keywordRelevancy: number | null;
   mqls: number;
   sqls: number;
@@ -28,12 +29,13 @@ const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; toolti
     color: "#2563eb",
     kind: "bar",
   },
-  { key: "meetings", label: "HubSpot meetings", shortLabel: "Meetings", tooltip: "Associated HubSpot meeting records plus HubSpot meeting timestamp fields for the paid-search contacts in this report.", color: "#16a34a", kind: "bar" },
-  { key: "meetingRate", label: "Lead → HubSpot meeting conversion rate", shortLabel: "Meeting rate", tooltip: "HubSpot meetings divided by paid leads. It can exceed 100% when one paid lead has more than one associated meeting.", color: "#7c3aed", kind: "line", unit: "rate" },
+  { key: "meetings", label: "Paid leads with meetings", shortLabel: "Leads with meetings", tooltip: "Paid-search HubSpot contacts that have at least one associated HubSpot meeting. Each paid lead counts once, even if they generated multiple meetings.", color: "#16a34a", kind: "bar" },
+  { key: "totalMeetings", label: "Total HubSpot meetings", shortLabel: "Total meetings", tooltip: "All associated HubSpot meeting records and meeting activity fields generated from the paid-search contacts in this report.", color: "#22c55e", kind: "bar" },
+  { key: "meetingRate", label: "Lead → meeting conversion rate", shortLabel: "Meeting rate", tooltip: "Paid leads with at least one HubSpot meeting divided by paid leads. Each paid lead counts once, so this rate is capped at 100%.", color: "#7c3aed", kind: "line", unit: "rate" },
   { key: "disqualifiedRate", label: "Disqualified rate", shortLabel: "Disqualified rate", tooltip: "Paid leads marked unqualified, dead, junk, spam, or not model aligned divided by paid leads. Lower is better when lead statuses are maintained.", color: "#dc2626", kind: "line", unit: "rate" },
   { key: "cpaGoogleAdsConversions", label: "CPA by Google Ads conversions", shortLabel: "CPA / GA conv.", tooltip: "Google Ads spend divided by selected Google Ads conversions. This is the ad-platform CPA.", color: "#0f766e", kind: "line", unit: "currency" },
   { key: "cpaPaidLeads", label: "CPA by HubSpot paid leads", shortLabel: "CPA / paid lead", tooltip: "Google Ads spend divided by HubSpot paid-search contacts. This shows the cost per HubSpot-captured paid lead.", color: "#f97316", kind: "line", unit: "currency" },
-  { key: "cpaMeetings", label: "CPA by HubSpot meetings", shortLabel: "CPA / meeting", tooltip: "Google Ads spend divided by HubSpot meetings. This shows cost per meeting booked or recorded from paid-search leads.", color: "#15803d", kind: "line", unit: "currency" },
+  { key: "cpaMeetings", label: "CPA by total HubSpot meetings", shortLabel: "CPA / total meeting", tooltip: "Google Ads spend divided by total HubSpot meetings generated from paid-search leads. This shows cost per booked or recorded meeting, including repeat meetings.", color: "#15803d", kind: "line", unit: "currency" },
 ];
 
 const CONFIDENCE_LABELS: Record<string, string> = {
@@ -175,6 +177,7 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
         month,
         paidLeads: 0,
         meetings: 0,
+        totalMeetings: 0,
         googleAdsConversions: 0,
         googleAdsSpend: 0,
         meetingRate: null,
@@ -193,8 +196,10 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
       const disqualifiedRate = row.disqualifiedRate ?? (leadStats && leadStats.paidLeads > 0 ? (leadStats.disqualifiedLeads / leadStats.paidLeads) * 100 : null);
       const googleAdsConversions = row.googleAdsConversions || 0;
       const googleAdsSpend = row.googleAdsSpend || 0;
+      const totalMeetings = row.totalMeetings ?? row.meetings;
       return {
         ...row,
+        totalMeetings,
         disqualifiedLeads,
         disqualifiedRate,
         keywordRelevancy: keywordRelevancyFromMonthlyWaste(relevancyByMonth.get(month)),
@@ -202,7 +207,7 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
         sqls: leadStats?.sqls || 0,
         cpaGoogleAdsConversions: nullSafeCpa(googleAdsSpend, googleAdsConversions),
         cpaPaidLeads: nullSafeCpa(googleAdsSpend, row.paidLeads),
-        cpaMeetings: nullSafeCpa(googleAdsSpend, row.meetings),
+        cpaMeetings: nullSafeCpa(googleAdsSpend, totalMeetings),
         avgDaysToFirstOutreach: row.avgDaysToFirstOutreach ?? averageDays(leadStats?.daysToFirstOutreach || []),
         avgDaysToMql: row.avgDaysToMql ?? averageDays(leadStats?.daysToMql || []),
         avgDaysToSql: row.avgDaysToSql ?? averageDays(leadStats?.daysToSql || []),
@@ -220,7 +225,7 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
   const bottom = 46;
   const chartWidth = width - left - right;
   const chartHeight = height - top - bottom;
-  const barMax = Math.max(1, ...data.map((row) => Math.max(row.paidLeads, row.meetings, row.googleAdsConversions || 0)));
+  const barMax = Math.max(1, ...data.map((row) => Math.max(row.paidLeads, row.meetings, row.totalMeetings || 0, row.googleAdsConversions || 0)));
   const lineSeries = METRICS.filter((metric) => metric.kind === "line" && selectedMetrics.includes(metric.key)) as Array<(typeof METRICS)[number] & { kind: "line" }>;
   const rateSeries = lineSeries.filter((series) => series.unit === "rate");
   const currencySeries = lineSeries.filter((series) => series.unit === "currency");
@@ -292,6 +297,7 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
           const center = left + slot * index + slot / 2;
           const leadHeight = chartHeight - (yCount(row.paidLeads) - top);
           const meetingHeight = chartHeight - (yCount(row.meetings) - top);
+          const totalMeetingHeight = chartHeight - (yCount(row.totalMeetings) - top);
           const googleAdsConversions = row.googleAdsConversions || 0;
           const conversionHeight = googleAdsConversions > 0 ? Math.max(3, chartHeight - (yCount(googleAdsConversions) - top)) : 0;
           const conversionY = googleAdsConversions > 0 ? top + chartHeight - conversionHeight : yCount(0);
@@ -299,20 +305,26 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
             <g key={row.month}>
               {selectedMetrics.includes("googleAdsConversions") && (
                 <>
-                  <rect x={center - barWidth * 1.5 - 3} y={conversionY} width={barWidth} height={conversionHeight} rx={3} fill="#60a5fa" />
-                  {googleAdsConversions > 0 && <text x={center - barWidth - 3} y={conversionY - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#60a5fa">{Math.round(googleAdsConversions)}</text>}
+                  <rect x={center - barWidth * 2 - 5} y={conversionY} width={barWidth} height={conversionHeight} rx={3} fill="#60a5fa" />
+                  {googleAdsConversions > 0 && <text x={center - barWidth * 1.5 - 5} y={conversionY - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#60a5fa">{Math.round(googleAdsConversions)}</text>}
                 </>
               )}
               {selectedMetrics.includes("paidLeads") && (
                 <>
-                  <rect x={center - barWidth / 2} y={yCount(row.paidLeads)} width={barWidth} height={leadHeight} rx={3} fill="#2563eb" />
-                  {row.paidLeads > 0 && <text x={center} y={yCount(row.paidLeads) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#2563eb">{row.paidLeads}</text>}
+                  <rect x={center - barWidth - 2} y={yCount(row.paidLeads)} width={barWidth} height={leadHeight} rx={3} fill="#2563eb" />
+                  {row.paidLeads > 0 && <text x={center - barWidth / 2 - 2} y={yCount(row.paidLeads) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#2563eb">{row.paidLeads}</text>}
                 </>
               )}
               {selectedMetrics.includes("meetings") && (
                 <>
-                  <rect x={center + barWidth / 2 + 3} y={yCount(row.meetings)} width={barWidth} height={meetingHeight} rx={3} fill="#16a34a" />
-                  {row.meetings > 0 && <text x={center + barWidth + 3} y={yCount(row.meetings) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#16a34a">{row.meetings}</text>}
+                  <rect x={center + 2} y={yCount(row.meetings)} width={barWidth} height={meetingHeight} rx={3} fill="#16a34a" />
+                  {row.meetings > 0 && <text x={center + barWidth / 2 + 2} y={yCount(row.meetings) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#16a34a">{row.meetings}</text>}
+                </>
+              )}
+              {selectedMetrics.includes("totalMeetings") && (
+                <>
+                  <rect x={center + barWidth + 5} y={yCount(row.totalMeetings)} width={barWidth} height={totalMeetingHeight} rx={3} fill="#22c55e" />
+                  {row.totalMeetings > 0 && <text x={center + barWidth * 1.5 + 5} y={yCount(row.totalMeetings) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#22c55e">{row.totalMeetings}</text>}
                 </>
               )}
               <text x={center} y={height - 20} textAnchor="middle" fontSize="11" fill="#64748b">{monthShort(row.month)}</text>
@@ -461,7 +473,8 @@ function MonthlySalesFollowUpMetrics({ data }: { data: MonthlySalesPoint[] }) {
               <InfoTooltip label="Keyword relevancy" text="Share of non-brand Google Ads spend that reached relevant searches for that month, using the same source as the Progress tab relevancy line." />
             </th>
             <th className="px-3 py-2 text-right font-medium">Paid leads</th>
-            <th className="px-3 py-2 text-right font-medium">Meetings</th>
+            <th className="px-3 py-2 text-right font-medium">Leads with meetings</th>
+            <th className="px-3 py-2 text-right font-medium">Total meetings</th>
             <th className="px-3 py-2 text-right font-medium">MQL</th>
             <th className="px-3 py-2 text-right font-medium">SQL</th>
             <th className="px-3 py-2 text-right font-medium">
@@ -487,6 +500,7 @@ function MonthlySalesFollowUpMetrics({ data }: { data: MonthlySalesPoint[] }) {
                 <td className={valueClassName}>{formatRate(row.keywordRelevancy)}</td>
                 <td className={valueClassName}>{row.paidLeads}</td>
                 <td className={valueClassName}>{row.meetings}</td>
+                <td className={valueClassName}>{row.totalMeetings}</td>
                 <td className={valueClassName}>{row.mqls}</td>
                 <td className={valueClassName}>{row.sqls}</td>
                 <td className={valueClassName}>{formatDurationFromDays(row.avgDaysToFirstOutreach)}</td>
@@ -507,7 +521,7 @@ function AttributionSection({ month, rows }: { month: string; rows: AttributionR
     <section className="border-t border-slate-100 first:border-t-0">
       <div className="bg-slate-50 px-5 pb-3 pt-[15px]">
         <h4 className="text-sm font-semibold text-slate-800">{monthFull(month)}</h4>
-        <p className="text-xs text-slate-400">Recent search-term evidence, meetings first.</p>
+        <p className="text-xs text-slate-400">Recent search-term evidence, leads with meetings first.</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-[1700px] table-fixed divide-y divide-slate-100 text-sm">
@@ -527,9 +541,9 @@ function AttributionSection({ month, rows }: { month: string; rows: AttributionR
               </th>
               <th className="px-3 py-2 text-left font-medium">Campaign</th>
               <th className="px-3 py-2 text-left font-medium">Keyword</th>
-              <th className="px-3 py-2 text-right font-medium">Meetings</th>
+              <th className="px-3 py-2 text-right font-medium">Leads with meetings</th>
               <th className="px-3 py-2 text-right font-medium">
-                <InfoTooltip label="Meeting rate" text="HubSpot meetings divided by paid leads. Can exceed 100% if one lead has multiple meetings." />
+                <InfoTooltip label="Meeting rate" text="Paid leads with at least one HubSpot meeting divided by paid leads. Each paid lead counts once." />
               </th>
               <th className="px-3 py-2 text-right font-medium">
                 <InfoTooltip label="Lead quality" text="Qualified leads divided by paid leads. Unqualified means HubSpot status contains unqualified, dead, junk, spam, or not model aligned." />
@@ -627,7 +641,7 @@ function exportLeadDetailsCsv(leads: LeadDetail[]): void {
   URL.revokeObjectURL(url);
 }
 export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: HubSpotPostClickDashboardData; monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[] }) {
-  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(["googleAdsConversions", "paidLeads", "meetings", "meetingRate"]);
+  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(["googleAdsConversions", "paidLeads", "meetings", "totalMeetings", "meetingRate"]);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadMonthFilter, setLeadMonthFilter] = useState("all");
   const [leadMeetingFilter, setLeadMeetingFilter] = useState<MeetingFilter>("all");
@@ -671,7 +685,7 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Lead Quality</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Last 14 months of selected Google Ads conversions, paid leads, HubSpot meetings, rates, and CPA views by outcome type.
+              Last 14 months of selected Google Ads conversions, paid leads, paid leads with meetings, total HubSpot meetings, rates, and CPA views by outcome type.
             </p>
           </div>
           <span className="text-xs text-slate-400">Updated {formatDate(data.lastUpdated)}</span>
@@ -695,16 +709,16 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
             <p className="mt-1">HubSpot contacts attributed to paid search. This is lower when HubSpot misses attribution or the Google Ads conversion was not a contact.</p>
           </div>
           <div className="rounded-lg bg-slate-50 p-3">
-            <p className="font-semibold text-slate-800">HubSpot meetings</p>
-            <p className="mt-1">Meetings booked or recorded on the paid-search contact in HubSpot, including associated meeting records and meeting activity fields.</p>
+            <p className="font-semibold text-slate-800">Paid leads with meetings</p>
+            <p className="mt-1">Paid-search contacts with at least one HubSpot meeting. Each lead counts once, even when it generated multiple meetings.</p>
           </div>
           <div className="rounded-lg bg-slate-50 p-3">
-            <p className="font-semibold text-slate-800">CPA views</p>
-            <p className="mt-1">Each CPA line uses the same Google Ads spend, divided by Google Ads conversions, HubSpot paid leads, or HubSpot meetings.</p>
+            <p className="font-semibold text-slate-800">Total meetings</p>
+            <p className="mt-1">All HubSpot meeting records generated from those paid-search contacts, including repeat meetings and later follow-ups.</p>
           </div>
           <div className="rounded-lg bg-slate-50 p-3">
             <p className="font-semibold text-slate-800">Meeting rate</p>
-            <p className="mt-1">HubSpot meetings divided by paid leads. It can go above 100% if one paid lead has multiple meetings.</p>
+            <p className="mt-1">Paid leads with at least one HubSpot meeting divided by paid leads. This rate is capped at 100%.</p>
           </div>
           <div className="rounded-lg bg-slate-50 p-3">
             <p className="font-semibold text-slate-800">Disqualified rate</p>

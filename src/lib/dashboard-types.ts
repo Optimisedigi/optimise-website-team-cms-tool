@@ -196,6 +196,7 @@ export interface HubSpotPostClickDashboardData {
     month: string;
     paidLeads: number;
     meetings: number;
+    totalMeetings?: number;
     meetingRate: number | null;
     meetingOrCallRate: number | null;
     qualifiedLeads: number;
@@ -219,6 +220,7 @@ export interface HubSpotPostClickDashboardData {
     keywordMatchType?: string;
     paidLeads: number;
     meetings: number;
+    totalMeetings?: number;
     meetingRate: number | null;
     qualifiedLeads: number;
     qualifiedLeadRate: number | null;
