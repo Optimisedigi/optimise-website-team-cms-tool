@@ -16,6 +16,14 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 const AUXILIARY_FETCH_TIMEOUT_MS = 20_000;
 const AUDIT_TIMEOUT_SAFETY_MS = 45_000;
 const TRAFFIC_BATCH_BUDGET_MS = 70_000;
+// Content research is best-effort (it is never validated in
+// validateProposalAuditReport) but each Growth Tools call can take 3+ minutes
+// when the Google Ads volume API is throttled. Left unbounded it blocks the
+// Promise.allSettled below and pushes screenshots/meta/traffic post-processing
+// past Vercel's maxDuration, so the function is killed before the final status
+// write and the proposal is stranded at "running". Cap it so it can only ever
+// consume this slice of the budget; timed-out keywords are simply dropped.
+const CONTENT_RESEARCH_BUDGET_MS = 90_000;
 
 async function withTimeout<T>(work: Promise<T>, ms = AUXILIARY_FETCH_TIMEOUT_MS): Promise<T> {
   return Promise.race([
@@ -320,18 +328,27 @@ export async function POST(
       } else {
         topKeywords = keywordsList.slice(0, 5);
       }
+      // Bound content research against both its own budget and the overall audit
+      // deadline so a slow/throttled upstream can never strand the proposal.
+      const crDeadlineAt = Math.min(auditDeadlineAt, Date.now() + CONTENT_RESEARCH_BUDGET_MS);
       const results = await Promise.allSettled(
-        topKeywords.map((keyword: string) =>
-          fetch(`${GROWTH_TOOLS_URL}/api/content-research`, {
+        topKeywords.map((keyword: string) => {
+          const remainingMs = Math.max(1000, crDeadlineAt - Date.now());
+          return fetch(`${GROWTH_TOOLS_URL}/api/content-research`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY! },
             body: JSON.stringify({ keyword, location: crLocation }),
+            signal: AbortSignal.timeout(remainingMs),
           }).then(async (res) => {
             if (!res.ok) throw new Error(`Content research failed for "${keyword}": ${res.status}`);
             return res.json();
-          })
-        )
+          });
+        })
       );
+      const crDropped = results.filter((r) => r.status === "rejected").length;
+      if (crDropped > 0) {
+        console.warn(`[content-research] ${crDropped}/${topKeywords.length} keyword(s) dropped (budget/timeout) — best-effort, not blocking completion`);
+      }
       await onStepDone(4);
       return results
         .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
