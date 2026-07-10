@@ -62,7 +62,9 @@ function buildRow(
   const leads = Math.round(visits * lcr)
   const clients = Math.round(leads * ltsr)
   const monthlyReturn = clients * aov
-  const annualReturn = apf != null ? monthlyReturn * apf : null
+  // Annual return is 12 months of the monthly return. `apf` only gates whether
+  // the annual column is shown for this proposal, not the multiplier.
+  const annualReturn = apf != null ? monthlyReturn * 12 : null
   return { name, visits, leads, clients, monthlyReturn, annualReturn, isYou }
 }
 

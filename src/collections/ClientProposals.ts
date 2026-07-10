@@ -1649,6 +1649,15 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
+              name: "refreshContentQuestions",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RefreshContentQuestionsButton",
+                },
+              },
+            },
+            {
               name: "manualCompetitorSerpMetrics",
               type: "ui",
               admin: {

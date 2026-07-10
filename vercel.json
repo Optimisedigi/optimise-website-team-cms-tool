@@ -65,6 +65,9 @@
     "src/app/(frontend)/api/proposals/[id]/refresh-meta-ads/route.ts": {
       "maxDuration": 300
     },
+    "src/app/(frontend)/api/proposals/[id]/refresh-content-questions/route.ts": {
+      "maxDuration": 300
+    },
     "src/app/(frontend)/api/proposals/audit-watchdog/route.ts": {
       "maxDuration": 60
     },

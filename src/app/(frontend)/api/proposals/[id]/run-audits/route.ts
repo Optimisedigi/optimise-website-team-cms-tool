@@ -21,9 +21,11 @@ const TRAFFIC_BATCH_BUDGET_MS = 70_000;
 // when the Google Ads volume API is throttled. Left unbounded it blocks the
 // Promise.allSettled below and pushes screenshots/meta/traffic post-processing
 // past Vercel's maxDuration, so the function is killed before the final status
-// write and the proposal is stranded at "running". Cap it so it can only ever
-// consume this slice of the budget; timed-out keywords are simply dropped.
-const CONTENT_RESEARCH_BUDGET_MS = 90_000;
+// write and the proposal is stranded at "running". Cap it (still under the
+// overall audit deadline) so a runaway upstream can't consume the whole budget,
+// while leaving enough headroom for the questions to actually come back — they
+// feed the Organic Propulsion slide. Timed-out keywords are simply dropped.
+const CONTENT_RESEARCH_BUDGET_MS = 180_000;
 
 async function withTimeout<T>(work: Promise<T>, ms = AUXILIARY_FETCH_TIMEOUT_MS): Promise<T> {
   return Promise.race([
@@ -538,6 +540,40 @@ export async function POST(
       errors.push(compResult.reason?.message || "Competitor analysis failed");
     }
 
+    // Create content research records (one per keyword) BEFORE the slow
+    // screenshot/meta/traffic post-processing below. Content research is the
+    // longest-running upstream call, so persisting its questions here means the
+    // Organic Propulsion slide's questions survive even if post-processing later
+    // overruns the function budget and the run is killed before the final write.
+    if (crResult.status === "fulfilled") {
+      try {
+        const crResults = crResult.value as any[];
+        const crIds: number[] = [];
+        for (const cr of crResults) {
+          const created = await payload.create({
+            collection: "content-researches",
+            data: {
+              keyword: cr.keyword,
+              location: cr.location || null,
+              totalQuestions: cr.totalQuestions || 0,
+              clusters: cr.clusters || [],
+              externalId: cr.id || null,
+              proposal: proposalId,
+            },
+            overrideAccess: true,
+          });
+          crIds.push(created.id as number);
+        }
+        if (crIds.length > 0) {
+          auditIds.contentResearch = crIds;
+        }
+      } catch (e: any) {
+        errors.push(`Content research record creation failed: ${e.message}`);
+      }
+    } else {
+      errors.push(crResult.reason?.message || "Content research failed");
+    }
+
     // Post-processing: capture website screenshots via Scrapling service (→ Blob URL)
     // Falls back to PageSpeed (→ base64). Traffic backfill still uses growth-tools /api/traffic.
     const compAnalysisId = auditIds.competitorAnalysis ?? proposal.competitorAnalysis?.id ?? proposal.competitorAnalysis;
@@ -857,36 +893,6 @@ export async function POST(
         console.error("[screenshots] Post-processing failed:", e.message);
         errors.push(`Screenshot post-processing failed: ${e.message}`);
       }
-    }
-
-    // Create content research records (one per keyword)
-    if (crResult.status === "fulfilled") {
-      try {
-        const crResults = crResult.value as any[];
-        const crIds: number[] = [];
-        for (const cr of crResults) {
-          const created = await payload.create({
-            collection: "content-researches",
-            data: {
-              keyword: cr.keyword,
-              location: cr.location || null,
-              totalQuestions: cr.totalQuestions || 0,
-              clusters: cr.clusters || [],
-              externalId: cr.id || null,
-              proposal: proposalId,
-            },
-            overrideAccess: true,
-          });
-          crIds.push(created.id as number);
-        }
-        if (crIds.length > 0) {
-          auditIds.contentResearch = crIds;
-        }
-      } catch (e: any) {
-        errors.push(`Content research record creation failed: ${e.message}`);
-      }
-    } else {
-      errors.push(crResult.reason?.message || "Content research failed");
     }
 
     // Determine final status. Required report sections are validated after all
