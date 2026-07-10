@@ -1613,64 +1613,74 @@ export const ClientProposals: CollectionConfig = {
           label: "Audit Results",
           fields: [
             {
-              name: "runAudits",
-              type: "ui",
-              admin: {
-                width: "33%",
-                components: {
-                  Field: "./components/RunAuditsButton",
+              type: "row",
+              fields: [
+                {
+                  name: "runAudits",
+                  type: "ui",
+                  admin: {
+                    width: "33%",
+                    components: {
+                      Field: "./components/RunAuditsButton",
+                    },
+                  },
                 },
-              },
+                {
+                  name: "backfillReportData",
+                  type: "ui",
+                  admin: {
+                    width: "33%",
+                    components: {
+                      Field: "./components/BackfillProposalReportDataButton",
+                    },
+                  },
+                },
+                {
+                  name: "refreshCompetitorTraffic",
+                  type: "ui",
+                  admin: {
+                    width: "33%",
+                    components: {
+                      Field: "./components/RefreshProposalCompetitorTrafficButton",
+                    },
+                  },
+                },
+              ],
             },
             {
-              name: "backfillReportData",
-              type: "ui",
-              admin: {
-                width: "33%",
-                components: {
-                  Field: "./components/BackfillProposalReportDataButton",
+              type: "row",
+              fields: [
+                {
+                  name: "refreshMetaAds",
+                  type: "ui",
+                  admin: {
+                    width: "33%",
+                    components: {
+                      Field: "./components/RefreshMetaAdsButton",
+                    },
+                  },
                 },
-              },
-            },
-            {
-              name: "refreshCompetitorTraffic",
-              type: "ui",
-              admin: {
-                width: "33%",
-                components: {
-                  Field: "./components/RefreshProposalCompetitorTrafficButton",
+                {
+                  name: "refreshContentQuestions",
+                  type: "ui",
+                  admin: {
+                    width: "33%",
+                    components: {
+                      Field: "./components/RefreshContentQuestionsButton",
+                    },
+                  },
                 },
-              },
-            },
-            {
-              name: "refreshMetaAds",
-              type: "ui",
-              admin: {
-                width: "33%",
-                components: {
-                  Field: "./components/RefreshMetaAdsButton",
+                {
+                  name: "manualCompetitorSerpMetrics",
+                  type: "ui",
+                  admin: {
+                    width: "33%",
+                    components: {
+                      Field: "./components/RunManualCompetitorSerpMetricsButton",
+                    },
+                  },
                 },
-              },
-            },
-            {
-              name: "refreshContentQuestions",
-              type: "ui",
-              admin: {
-                width: "33%",
-                components: {
-                  Field: "./components/RefreshContentQuestionsButton",
-                },
-              },
-            },
-            {
-              name: "manualCompetitorSerpMetrics",
-              type: "ui",
-              admin: {
-                width: "33%",
-                components: {
-                  Field: "./components/RunManualCompetitorSerpMetricsButton",
-                },
-              },
+              ],
             },
             {
               name: "manualCompetitorTraffic",
