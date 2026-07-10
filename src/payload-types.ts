@@ -76,6 +76,7 @@ export interface Config {
     'sales-leads': SalesLead;
     'process-templates': ProcessTemplate;
     'deck-templates': DeckTemplate;
+    'shared-working-docs': SharedWorkingDoc;
     'client-processes': ClientProcess;
     'team-tasks': TeamTask;
     'team-task-comments': TeamTaskComment;
@@ -179,6 +180,7 @@ export interface Config {
     'sales-leads': SalesLeadsSelect<false> | SalesLeadsSelect<true>;
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
     'deck-templates': DeckTemplatesSelect<false> | DeckTemplatesSelect<true>;
+    'shared-working-docs': SharedWorkingDocsSelect<false> | SharedWorkingDocsSelect<true>;
     'client-processes': ClientProcessesSelect<false> | ClientProcessesSelect<true>;
     'team-tasks': TeamTasksSelect<false> | TeamTasksSelect<true>;
     'team-task-comments': TeamTaskCommentsSelect<false> | TeamTaskCommentsSelect<true>;
@@ -5650,6 +5652,33 @@ export interface ProcessTemplate {
   createdAt: string;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "shared-working-docs".
+ */
+export interface SharedWorkingDoc {
+  id: number;
+  slug: string;
+  title: string;
+  clientSlug: string;
+  deckSlug: string;
+  contentMarkdown: string;
+  lastEditedBy?: string | null;
+  lastSavedAt?: string | null;
+  /**
+   * Recent public working-doc saves.
+   */
+  changeLog?:
+    | {
+        savedAt: string;
+        savedBy?: string | null;
+        summary?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Live client onboarding/management processes
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -9086,6 +9115,10 @@ export interface PayloadLockedDocument {
         value: number | DeckTemplate;
       } | null)
     | ({
+        relationTo: 'shared-working-docs';
+        value: number | SharedWorkingDoc;
+      } | null)
+    | ({
         relationTo: 'client-processes';
         value: number | ClientProcess;
       } | null)
@@ -10315,6 +10348,29 @@ export interface DeckTemplatesSelect<T extends boolean = true> {
   isActive?: T;
   isDefault?: T;
   notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "shared-working-docs_select".
+ */
+export interface SharedWorkingDocsSelect<T extends boolean = true> {
+  slug?: T;
+  title?: T;
+  clientSlug?: T;
+  deckSlug?: T;
+  contentMarkdown?: T;
+  lastEditedBy?: T;
+  lastSavedAt?: T;
+  changeLog?:
+    | T
+    | {
+        savedAt?: T;
+        savedBy?: T;
+        summary?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

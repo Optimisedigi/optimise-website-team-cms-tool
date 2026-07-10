@@ -14,11 +14,13 @@ export default function AuditPasswordGate({
   children,
   businessName,
   featureLabel,
+  onUnlock,
 }: {
   auditSlug: string
   children: ReactNode
   businessName?: string
   featureLabel?: string
+  onUnlock?: (pin: string) => void | Promise<void>
 }) {
   const [unlocked, setUnlocked] = useState(false)
   const [digits, setDigits] = useState(['', '', '', ''])
@@ -37,6 +39,7 @@ export default function AuditPasswordGate({
         body: JSON.stringify({ slug: auditSlug, password: pin }),
       })
       if (res.ok) {
+        await onUnlock?.(pin)
         setUnlocked(true)
         return
       }
@@ -46,14 +49,14 @@ export default function AuditPasswordGate({
       } else {
         setError(body.error || 'Invalid access code.')
       }
-    } catch {
-      setError('Something went wrong. Please try again.')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
       setDigits(['', '', '', ''])
       inputRefs.current[0]?.focus()
     }
-  }, [auditSlug])
+  }, [auditSlug, onUnlock])
 
   const handleChange = useCallback((index: number, value: string) => {
     const digit = value.replace(/\D/g, '').slice(-1)

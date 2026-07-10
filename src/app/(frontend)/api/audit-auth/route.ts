@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { checkPinWithLockout } from "@/lib/pin-auth";
+import { isKnownWorkingDocSlug } from "@/lib/working-doc-auth";
 
 /**
  * Verify a 4-digit PIN against an audit / proposal / client-presentation
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
         const hasDeck = (clientRow.presentations ?? []).some(
           (p) => p?.deckSlug === deckSlug,
         );
-        if (hasDeck) {
+        if (hasDeck || isKnownWorkingDocSlug(slug)) {
           const result = await checkPinWithLockout(
             `audit-auth:${slug}`,
             password,

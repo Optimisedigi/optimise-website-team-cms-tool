@@ -142,6 +142,7 @@ import * as migration_20260730_120000_add_proposal_competitor_serp_metrics from 
 import * as migration_20260731_120000_keyword_categories_keywords_nullable from './20260731_120000_keyword_categories_keywords_nullable';
 import * as migration_20260801_120000_add_mtvc_spend_fields from './20260801_120000_add_mtvc_spend_fields';
 import * as migration_20260710_120000_add_proposal_meta_ads_status from './20260710_120000_add_proposal_meta_ads_status';
+import * as migration_20260710_130000_add_shared_working_docs from './20260710_130000_add_shared_working_docs';
 
 export const migrations = [
   {
@@ -863,5 +864,10 @@ export const migrations = [
     up: migration_20260710_120000_add_proposal_meta_ads_status.up,
     down: migration_20260710_120000_add_proposal_meta_ads_status.down,
     name: '20260710_120000_add_proposal_meta_ads_status'
+  },
+  {
+    up: migration_20260710_130000_add_shared_working_docs.up,
+    down: migration_20260710_130000_add_shared_working_docs.down,
+    name: '20260710_130000_add_shared_working_docs'
   },
 ];
