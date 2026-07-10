@@ -56,7 +56,7 @@ const RefreshContentQuestionsButton = () => {
   }
 
   return (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 20, minHeight: 148, padding: 16, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
       <button
         type="button"
         onClick={handleClick}
@@ -78,8 +78,8 @@ const RefreshContentQuestionsButton = () => {
         {loading ? 'Refreshing Content Questions…' : 'Refresh Content Questions'}
       </button>
 
-      <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>
-        Re-runs only the page 18 customer questions/content research section. Existing questions are kept if the refresh fails.
+      <p style={{ marginTop: 8, fontSize: 13, color: '#4b5563' }}>
+        <strong>Partial refresh.</strong> Re-runs only the page 18 customer questions/content research section. Existing questions are kept if the refresh fails.
       </p>
 
       {!hasKeywords && (

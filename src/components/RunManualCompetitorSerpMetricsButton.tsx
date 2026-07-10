@@ -107,7 +107,7 @@ const RunManualCompetitorSerpMetricsButton = () => {
   }
 
   return (
-    <div style={{ marginBottom: 20, padding: 16, border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb' }}>
+    <div style={{ marginBottom: 20, minHeight: 148, padding: 16, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
       <button
         type="button"
         onClick={handleClick}
@@ -130,7 +130,7 @@ const RunManualCompetitorSerpMetricsButton = () => {
       </button>
 
       <p style={{ marginTop: 8, fontSize: 13, color: '#4b5563' }}>
-        {counts.missing} competitors need SERP metrics · {counts.filled} already filled
+        <strong>Partial fill.</strong> Fills only missing manual competitor SERP metrics. {counts.missing} need metrics · {counts.filled} already filled
         {counts.noDomain > 0 ? ` · ${counts.noDomain} missing URL/domain` : ''}
       </p>
 

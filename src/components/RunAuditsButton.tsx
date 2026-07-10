@@ -120,7 +120,7 @@ const RunAuditsButton = () => {
   }
 
   return (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 20, minHeight: 148, padding: 16, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
       <button
         type="button"
         onClick={handleClick}
@@ -141,6 +141,10 @@ const RunAuditsButton = () => {
       >
         {isRunning ? 'Running General Audit...' : 'Run General Audit'}
       </button>
+
+      <p style={{ marginTop: 8, fontSize: 13, color: '#4b5563' }}>
+        <strong>Full run.</strong> Starts a fresh general audit from the beginning: SEO/PageSpeed, CRO, keywords, competitors, content questions, screenshots, traffic, and best-effort Meta Ads.
+      </p>
 
       {missingFields.length > 0 && (
         <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>

@@ -102,7 +102,7 @@ const RefreshProposalCompetitorTrafficButton = () => {
   }
 
   return (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 20, minHeight: 148, padding: 16, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
       <button
         type="button"
         onClick={handleClick}
@@ -124,8 +124,8 @@ const RefreshProposalCompetitorTrafficButton = () => {
         {loading ? 'Queued local monthly visits fetch...' : 'Queue local monthly visits fetch'}
       </button>
 
-      <p style={{ marginTop: 8, fontSize: 13, color: '#6b7280' }}>
-        Queues monthly visits for the linked competitor analysis. Keep npm run similarweb:helper running locally so SimilarWeb is fetched from your Mac/browser.
+      <p style={{ marginTop: 8, fontSize: 13, color: '#4b5563' }}>
+        <strong>Queue only.</strong> Queues monthly visits for the linked competitor analysis. Keep npm run similarweb:helper running locally so SimilarWeb is fetched from your Mac/browser.
       </p>
 
       {!hasCompetitorAnalysis && (

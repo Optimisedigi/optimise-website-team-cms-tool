@@ -1616,6 +1616,7 @@ export const ClientProposals: CollectionConfig = {
               name: "runAudits",
               type: "ui",
               admin: {
+                width: "33%",
                 components: {
                   Field: "./components/RunAuditsButton",
                 },
@@ -1625,6 +1626,7 @@ export const ClientProposals: CollectionConfig = {
               name: "backfillReportData",
               type: "ui",
               admin: {
+                width: "33%",
                 components: {
                   Field: "./components/BackfillProposalReportDataButton",
                 },
@@ -1634,6 +1636,7 @@ export const ClientProposals: CollectionConfig = {
               name: "refreshCompetitorTraffic",
               type: "ui",
               admin: {
+                width: "33%",
                 components: {
                   Field: "./components/RefreshProposalCompetitorTrafficButton",
                 },
@@ -1643,6 +1646,7 @@ export const ClientProposals: CollectionConfig = {
               name: "refreshMetaAds",
               type: "ui",
               admin: {
+                width: "33%",
                 components: {
                   Field: "./components/RefreshMetaAdsButton",
                 },
@@ -1652,6 +1656,7 @@ export const ClientProposals: CollectionConfig = {
               name: "refreshContentQuestions",
               type: "ui",
               admin: {
+                width: "33%",
                 components: {
                   Field: "./components/RefreshContentQuestionsButton",
                 },
@@ -1661,6 +1666,7 @@ export const ClientProposals: CollectionConfig = {
               name: "manualCompetitorSerpMetrics",
               type: "ui",
               admin: {
+                width: "33%",
                 components: {
                   Field: "./components/RunManualCompetitorSerpMetricsButton",
                 },

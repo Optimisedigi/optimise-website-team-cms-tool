@@ -95,7 +95,7 @@ const RefreshMetaAdsButton = () => {
   }
 
   return (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 20, minHeight: 148, padding: 16, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
       <button
         type="button"
         onClick={handleClick}
@@ -117,8 +117,8 @@ const RefreshMetaAdsButton = () => {
         {isRunning ? 'Refreshing Meta Ads…' : 'Refresh Meta Ads'}
       </button>
 
-      <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>
-        Re-runs only the Meta Ad Library lookup for this proposal&apos;s competitors.
+      <p style={{ marginTop: 8, fontSize: 13, color: '#4b5563' }}>
+        <strong>Partial refresh.</strong> Re-runs only the Meta Ad Library lookup for this proposal&apos;s competitors. Everything else is preserved.
       </p>
 
       {previousFailed && (
