@@ -2,6 +2,10 @@ import type { CollectionConfig } from "payload";
 
 export const SharedWorkingDocs: CollectionConfig = {
   slug: "shared-working-docs",
+  // Public working docs are autosaved via API routes and do not need Payload's
+  // admin document-lock relationship. Keeping locks off avoids requiring a
+  // payload_locked_documents_rels column before migrations have run.
+  lockDocuments: false,
   admin: {
     group: "Clients",
     useAsTitle: "title",

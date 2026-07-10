@@ -47,6 +47,10 @@ function matchTypeLabel(matchType: MatchType): string {
   return 'Exact match'
 }
 
+function googleSearchUrl(term: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(term)}`
+}
+
 function addMonthsIso(from: Date, months: number): string {
   return new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + months, from.getUTCDate())).toISOString()
 }
@@ -1467,13 +1471,21 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                           <div>
                             {isPrimary ? (
                               <>
-                                <div style={{ fontWeight: 600, marginBottom: 2 }}>{term.term}</div>
+                                <a
+                                  href={googleSearchUrl(term.term)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={`Search Google for “${term.term}”`}
+                                  style={{ display: 'inline-block', fontWeight: 600, marginBottom: 2, color: '#1d4ed8', textDecoration: 'none' }}
+                                >
+                                  {term.term}
+                                </a>
                                 <div style={{ fontSize: 10, color: 'var(--theme-elevation-500)' }}>
                                   {term.impressions} impr · {term.clicks} clicks · ${Number(term.cost || 0).toFixed(2)}
                                 </div>
                               </>
                             ) : (
-                              <div style={{ fontSize: 10, color: 'var(--theme-elevation-400)', fontStyle: 'italic' }}>↳ {term.term}</div>
+                              <a href={googleSearchUrl(term.term)} target="_blank" rel="noopener noreferrer" title={`Search Google for “${term.term}”`} style={{ fontSize: 10, color: '#1d4ed8', fontStyle: 'italic', textDecoration: 'none' }}>↳ {term.term}</a>
                             )}
                           </div>
                           {isFocused && isPrimary && (

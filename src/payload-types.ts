@@ -9115,10 +9115,6 @@ export interface PayloadLockedDocument {
         value: number | DeckTemplate;
       } | null)
     | ({
-        relationTo: 'shared-working-docs';
-        value: number | SharedWorkingDoc;
-      } | null)
-    | ({
         relationTo: 'client-processes';
         value: number | ClientProcess;
       } | null)
