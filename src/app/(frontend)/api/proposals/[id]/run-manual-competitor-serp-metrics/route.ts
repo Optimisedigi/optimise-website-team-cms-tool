@@ -4,6 +4,7 @@ import config from "@/payload.config";
 import {
   buildProposalKeywords,
   classifyManualCompetitors,
+  summarizeTrackedKeywordSerpMetrics,
   type ManualCompetitorRow,
 } from "@/lib/manual-competitor-serp-metrics";
 
@@ -60,24 +61,27 @@ async function saveCompetitorPatch(
 }
 
 async function fetchGrowthToolsProfile(websiteUrl: string, keywords: string[], targetLocation?: string | null) {
-  const res = await fetch(`${GROWTH_TOOLS_URL}/api/competitor-analysis`, {
+  const res = await fetch(`${GROWTH_TOOLS_URL}/api/track-keywords`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-internal-key": INTERNAL_API_KEY!,
     },
     body: JSON.stringify({
-      websiteUrl,
+      website: websiteUrl,
       keywords: keywords.join("\n"),
-      location: targetLocation || undefined,
+      location: targetLocation || "au:sydney",
+      fingerprint: "cms-manual-serp",
     }),
+    signal: AbortSignal.timeout(45_000),
   });
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(data?.error || data?.message || `Growth Tools failed (${res.status})`);
   }
-  return data?.yourProfile ?? {};
+
+  return summarizeTrackedKeywordSerpMetrics(data?.keywords);
 }
 
 export async function POST(
@@ -121,36 +125,69 @@ export async function POST(
   let updated = 0;
   let failed = 0;
 
-  for (const item of buckets.needsFetch) {
-    try {
-      competitors = await saveCompetitorPatch(payload, id, competitors, item.index, item.competitor, {
-        serpMetricsStatus: "running",
-        serpMetricsError: null,
-      });
+  if (buckets.needsFetch.length > 0) {
+    const runningCompetitors = buckets.needsFetch.reduce(
+      (nextCompetitors, item) =>
+        withUpdatedCompetitor(nextCompetitors, item.index, {
+          serpMetricsStatus: "running",
+          serpMetricsError: null,
+        }),
+      competitors,
+    );
 
-      const profile = await fetchGrowthToolsProfile(item.websiteUrl, keywords, proposal.targetLocation);
-      const averagePosition = numericOrNull(profile.avgPosition ?? profile.averagePosition);
-      const keywordsFound = numericOrNull(profile.keywordsFound);
-      const keywordPositions = Array.isArray(profile.keywordPositions) ? profile.keywordPositions : [];
-      const noRankingsFound = (keywordsFound ?? 0) === 0 && averagePosition === null;
+    await payload.update({
+      collection: "client-proposals",
+      id,
+      data: { competitors: runningCompetitors } as any,
+      overrideAccess: true,
+    });
+    competitors = runningCompetitors;
+  }
 
-      competitors = await saveCompetitorPatch(payload, id, competitors, item.index, item.competitor, {
-        serpAveragePosition: averagePosition,
-        serpKeywordsFound: keywordsFound,
-        serpKeywordPositions: keywordPositions,
-        serpMetricsStatus: noRankingsFound ? "skipped" : "completed",
-        serpMetricsError: null,
-        serpMetricsUpdatedAt: new Date().toISOString(),
-      });
-      updated++;
-    } catch (err) {
-      failed++;
-      competitors = await saveCompetitorPatch(payload, id, competitors, item.index, item.competitor, {
-        serpMetricsStatus: "failed",
-        serpMetricsError: errorMessage(err),
-        serpMetricsUpdatedAt: new Date().toISOString(),
-      });
+  const results: Array<{ item: (typeof buckets.needsFetch)[number]; patch: Record<string, any>; ok: boolean }> = [];
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(9, buckets.needsFetch.length) }, async () => {
+    while (cursor < buckets.needsFetch.length) {
+      const item = buckets.needsFetch[cursor++];
+      try {
+        const profile = await fetchGrowthToolsProfile(item.websiteUrl, keywords, proposal.targetLocation);
+        const averagePosition = profile.averagePosition;
+        const keywordsFound = profile.keywordsFound;
+        const keywordPositions = profile.keywordPositions;
+        const noRankingsFound = (keywordsFound ?? 0) === 0 && averagePosition === null;
+
+        results.push({
+          item,
+          ok: true,
+          patch: {
+            serpAveragePosition: averagePosition,
+            serpKeywordsFound: keywordsFound,
+            serpKeywordPositions: keywordPositions,
+            serpMetricsStatus: noRankingsFound ? "skipped" : "completed",
+            serpMetricsError: null,
+            serpMetricsUpdatedAt: new Date().toISOString(),
+          },
+        });
+      } catch (err) {
+        results.push({
+          item,
+          ok: false,
+          patch: {
+            serpMetricsStatus: "failed",
+            serpMetricsError: errorMessage(err),
+            serpMetricsUpdatedAt: new Date().toISOString(),
+          },
+        });
+      }
     }
+  });
+
+  await Promise.all(workers);
+
+  for (const result of results) {
+    competitors = await saveCompetitorPatch(payload, id, competitors, result.item.index, result.item.competitor, result.patch);
+    if (result.ok) updated++;
+    else failed++;
   }
 
   return NextResponse.json({

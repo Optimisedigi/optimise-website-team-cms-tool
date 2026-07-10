@@ -11,6 +11,12 @@ export type ManualCompetitorBuckets = {
   skippedNoDomain: Array<{ index: number; competitor: ManualCompetitorRow }>
 }
 
+export type TrackedKeywordSerpSummary = {
+  averagePosition: number | null
+  keywordsFound: number | null
+  keywordPositions: Array<{ keyword: string; position: number }>
+}
+
 function hasMetric(value: unknown): boolean {
   return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
 }
@@ -63,6 +69,32 @@ export function classifyManualCompetitors(competitors: ManualCompetitorRow[] | n
   }
 
   return buckets
+}
+
+function finiteNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+export function summarizeTrackedKeywordSerpMetrics(rawKeywords: unknown): TrackedKeywordSerpSummary {
+  if (!Array.isArray(rawKeywords)) {
+    return { averagePosition: null, keywordsFound: null, keywordPositions: [] }
+  }
+
+  const keywordPositions = rawKeywords.flatMap((row: any) => {
+    const position = finiteNumber(row?.position)
+    const keyword = typeof row?.keyword === 'string' ? row.keyword.trim() : ''
+    return position !== null && keyword ? [{ keyword, position }] : []
+  })
+
+  const keywordsFound = keywordPositions.length
+  const averagePosition =
+    keywordsFound > 0
+      ? Math.round((keywordPositions.reduce((sum, row) => sum + row.position, 0) / keywordsFound) * 10) / 10
+      : null
+
+  return { averagePosition, keywordsFound, keywordPositions }
 }
 
 export function buildProposalKeywords(proposal: Record<string, any>): string[] {

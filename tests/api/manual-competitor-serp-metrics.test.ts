@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyManualCompetitors } from '@/lib/manual-competitor-serp-metrics'
+import { classifyManualCompetitors, summarizeTrackedKeywordSerpMetrics } from '@/lib/manual-competitor-serp-metrics'
 
 describe('manual competitor SERP metrics classification', () => {
   it('fetches only eligible rows missing either SERP metric', () => {
@@ -33,5 +33,22 @@ describe('manual competitor SERP metrics classification', () => {
     expect(buckets.needsFetch.map((row) => row.index)).toEqual([1, 2])
     expect(buckets.skippedNoDomain.map((row) => row.index)).toEqual([3])
     expect(buckets.needsFetch).toHaveLength(2)
+  })
+
+  it('summarises lightweight keyword tracking results for manual SERP metrics', () => {
+    const summary = summarizeTrackedKeywordSerpMetrics([
+      { keyword: 'weight loss', position: 2 },
+      { keyword: 'ozempic alternative', position: null },
+      { keyword: 'medical weight loss', position: '5' },
+    ])
+
+    expect(summary).toEqual({
+      averagePosition: 3.5,
+      keywordsFound: 2,
+      keywordPositions: [
+        { keyword: 'weight loss', position: 2 },
+        { keyword: 'medical weight loss', position: 5 },
+      ],
+    })
   })
 })
