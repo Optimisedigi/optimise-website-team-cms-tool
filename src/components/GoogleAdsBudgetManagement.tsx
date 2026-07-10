@@ -22,6 +22,7 @@ import {
 import {
   ANNUAL_BUDGET_MONTHS,
   annualBudgetColumnTotal,
+  annualBudgetHasExplicitValue,
   emptyAnnualBudgetValues,
   financialYearLabel,
   financialYearSectionForDate,
@@ -896,6 +897,41 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, metricsRange]);
+
+  // If the client FY budget grid has a value for the live month, make that
+  // value the active Monthly Budget Total automatically. This keeps month
+  // rollovers and newly-entered placeholders flowing through the existing %
+  // split maths before anyone clicks Push to Google Ads.
+  const activePlaceholderBudget = useMemo(() => {
+    const currentMonth = new Date();
+    const section = financialYearSectionForDate(currentMonth);
+    if (!section) return null;
+    const monthKey = monthKeyForDate(currentMonth);
+    const yearData = annualBudgetPlaceholders[section];
+    if (!annualBudgetHasExplicitValue(yearData, monthKey)) return null;
+    return annualBudgetColumnTotal(yearData, monthKey);
+  }, [annualBudgetPlaceholders]);
+
+  const activePlaceholderBudgetSaved = useRef<number | null>(null);
+  useEffect(() => {
+    if (!id || !annualBudgetPlaceholdersLoaded || activePlaceholderBudget === null) return;
+
+    if (monthlyTotal !== activePlaceholderBudget) {
+      setMonthlyTotal(activePlaceholderBudget);
+      setCampaigns((currentCampaigns) => recalculateBudgets(currentCampaigns, activePlaceholderBudget));
+    }
+
+    if (activePlaceholderBudgetSaved.current === activePlaceholderBudget || activePlaceholderBudget <= 0) return;
+    activePlaceholderBudgetSaved.current = activePlaceholderBudget;
+    fetch(`/api/google-ads-budgets/${id}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ _saveMonthlyBudget: activePlaceholderBudget }),
+    }).catch(() => {
+      activePlaceholderBudgetSaved.current = null;
+    });
+  }, [id, annualBudgetPlaceholdersLoaded, activePlaceholderBudget, monthlyTotal, recalculateBudgets]);
 
   const updateAnnualBudgetYear = useCallback((yearKey: AnnualBudgetYearKey, updater: (yearData: AnnualBudgetMultiYearData[AnnualBudgetYearKey]) => AnnualBudgetMultiYearData[AnnualBudgetYearKey]) => {
     setAnnualBudgetPlaceholders((current) => ({
