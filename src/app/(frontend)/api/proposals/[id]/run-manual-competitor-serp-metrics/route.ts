@@ -13,12 +13,6 @@ export const maxDuration = 300;
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
-function numericOrNull(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-}
-
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Unknown Growth Tools error";
 }
