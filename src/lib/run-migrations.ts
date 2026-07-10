@@ -5310,6 +5310,38 @@ export async function runMigrations(
     await run("notifications_related_consolidation_candidate_idx", "CREATE INDEX IF NOT EXISTS `notifications_related_consolidation_candidate_idx` ON `notifications` (`related_consolidation_candidate_id`)");
     await run("notifications.related_team_task_id", "ALTER TABLE `notifications` ADD `related_team_task_id` integer REFERENCES `team_tasks`(`id`) ON UPDATE no action ON DELETE set null");
     await run("notifications_related_team_task_idx", "CREATE INDEX IF NOT EXISTS `notifications_related_team_task_idx` ON `notifications` (`related_team_task_id`)");
+
+    // ── Shared Working Docs (Cipher Health partner review, 2026-07-10) ──
+    // Public PIN-gated working documents save reviewer edits into this collection.
+    // Keep in sync with src/migrations/20260710_130000_add_shared_working_docs.ts.
+    await run("shared_working_docs", `CREATE TABLE IF NOT EXISTS \`shared_working_docs\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`slug\` text NOT NULL,
+      \`title\` text NOT NULL,
+      \`client_slug\` text NOT NULL,
+      \`deck_slug\` text NOT NULL,
+      \`content_markdown\` text NOT NULL,
+      \`last_edited_by\` text,
+      \`last_saved_at\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+    )`);
+    await run("shared_working_docs_slug_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `shared_working_docs_slug_idx` ON `shared_working_docs` (`slug`)");
+    await run("shared_working_docs_client_slug_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_client_slug_idx` ON `shared_working_docs` (`client_slug`)");
+    await run("shared_working_docs_deck_slug_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_deck_slug_idx` ON `shared_working_docs` (`deck_slug`)");
+    await run("shared_working_docs_updated_at_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_updated_at_idx` ON `shared_working_docs` (`updated_at`)");
+    await run("shared_working_docs_change_log", `CREATE TABLE IF NOT EXISTS \`shared_working_docs_change_log\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`saved_at\` text NOT NULL,
+      \`saved_by\` text,
+      \`summary\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`shared_working_docs\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("shared_working_docs_change_log_order_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_change_log_order_idx` ON `shared_working_docs_change_log` (`_order`)");
+    await run("shared_working_docs_change_log_parent_id_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_change_log_parent_id_idx` ON `shared_working_docs_change_log` (`_parent_id`)");
+    await run("locked_docs_rels.shared_working_docs_id", "ALTER TABLE `payload_locked_documents_rels` ADD `shared_working_docs_id` integer REFERENCES `shared_working_docs`(`id`) ON DELETE cascade");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

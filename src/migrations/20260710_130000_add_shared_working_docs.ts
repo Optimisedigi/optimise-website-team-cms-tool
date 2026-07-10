@@ -33,9 +33,11 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   `))
   await db.run(sql.raw(`CREATE INDEX IF NOT EXISTS shared_working_docs_change_log_order_idx ON shared_working_docs_change_log (_order);`))
   await db.run(sql.raw(`CREATE INDEX IF NOT EXISTS shared_working_docs_change_log_parent_id_idx ON shared_working_docs_change_log (_parent_id);`))
+  await db.run(sql.raw(`ALTER TABLE payload_locked_documents_rels ADD shared_working_docs_id integer REFERENCES shared_working_docs(id) ON DELETE cascade;`))
 }
 
 export async function down({ db }: MigrateDownArgs): Promise<void> {
+  await db.run(sql.raw(`ALTER TABLE payload_locked_documents_rels DROP COLUMN shared_working_docs_id;`))
   await db.run(sql.raw(`DROP TABLE IF EXISTS shared_working_docs_change_log;`))
   await db.run(sql.raw(`DROP TABLE IF EXISTS shared_working_docs;`))
 }
