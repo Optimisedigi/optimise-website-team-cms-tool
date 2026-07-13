@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { classifyPortfolioGmailDraftIntent } from '@/lib/agents/optimate-google-ads/portfolio-gmail-draft-intent'
 
 describe('classifyPortfolioGmailDraftIntent', () => {
-  it('routes the weekly starter prompt to a one-week weekly shortcut', () => {
+  it('routes weekly starter prompts with four weeks of comparison context', () => {
+    expect(
+      classifyPortfolioGmailDraftIntent(
+        'Create separate Gmail drafts for each selected account using the last 4 completed Monday-Sunday weeks. Summarise last week against prior weeks, then include current-month Budget Management pacing components. Keep the performance report weekly.',
+      ),
+    ).toEqual({ kind: 'weekly', weeks: 4 })
     expect(
       classifyPortfolioGmailDraftIntent(
         "Create a separate Gmail draft for each selected account's last completed Monday-Sunday weekly report. Add 1 sentence on top summarising weekly performance and spend pacing. Never use monthly or MTD data.",
       ),
-    ).toEqual({ kind: 'weekly', weeks: 1 })
+    ).toEqual({ kind: 'weekly', weeks: 4 })
   })
 
   it('keeps current-month portfolio pacing requests on the monthly shortcut', () => {

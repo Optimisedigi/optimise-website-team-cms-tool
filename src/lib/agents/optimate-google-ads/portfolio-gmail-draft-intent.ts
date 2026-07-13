@@ -41,8 +41,8 @@ export function classifyPortfolioGmailDraftIntent(text: string): PortfolioGmailD
 }
 
 function requestedCompletedWeeks(text: string): number {
-  if (/\b(last|most recently) completed\b[^.]{0,40}\b(?:week|weekly)\b/.test(text)) return 1
-  if (/\blast week\b/.test(text)) return 1
+  if (/\b(last|most recently) completed\b[^.]{0,40}\b(?:week|weekly)\b/.test(text)) return 4
+  if (/\blast week\b/.test(text)) return 4
   const wordCount = text.match(
     /\b(?:last\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[- ]weeks?\b/,
   )

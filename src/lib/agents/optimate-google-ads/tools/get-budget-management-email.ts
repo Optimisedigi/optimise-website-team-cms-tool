@@ -310,6 +310,17 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
           subject: `${businessName} - Google Ads Budget Report - ${monthLabel}`,
           html,
           monthLabel,
+          budget: {
+            monthlyBudget: spend.maxBudget,
+            totalSpend: spend.totalSpend,
+            targetSpendToDate:
+              spend.maxBudget *
+              (spend.daysElapsed / Math.max(1, spend.daysElapsed + spend.daysRemaining)),
+            pacingDifference:
+              spend.totalSpend -
+              spend.maxBudget *
+                (spend.daysElapsed / Math.max(1, spend.daysElapsed + spend.daysRemaining)),
+          },
         },
       };
     }

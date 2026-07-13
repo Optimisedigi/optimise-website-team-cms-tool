@@ -270,7 +270,7 @@ const PORTFOLIO_TOOL_GUIDE = `PORTFOLIO MODE, compact cross-account tools:
 - get_portfolio_monthly_performance_breakdown(accountRefs?, startMonth?, endMonth?): monthly rows for selected accounts, fetched one account at a time, including conversionsByAction and conversionsByCategory when configured. Use this for Jan-May/month-by-month performance and lead-type/conversion-action/category tables.
 - get_budget_management_email(mode, auditId?): exact Budget Management Gmail HTML for ONE audit-backed client. In portfolio mode, pass one selected accountRef/auditId at a time. Use this for client-specific monthly budget pacing drafts, never for a combined portfolio email.
 - create_portfolio_budget_pacing_gmail_drafts(accountRefs?): creates separate Gmail drafts for each selected audit-backed account's current-month budget pacing in one deterministic server-side operation. Use only for monthly/current-month/MTD portfolio pacing drafts.
-- create_portfolio_weekly_gmail_drafts(accountRefs?, weeks?, endDate?): creates separate weekly-only Gmail drafts for selected accounts. Each uses completed Monday-Sunday data, a one-sentence weekly performance and spend-pacing summary, a weekly subject, and no monthly or MTD report HTML.
+- create_portfolio_weekly_gmail_drafts(accountRefs?, weeks?, endDate?): creates separate weekly budget-management Gmail drafts for selected accounts. Each uses completed Monday-Sunday performance data, a client-friendly summary focused on last week, a weekly trend table, and the canonical current-month Budget Management pacing HTML.
 
 Portfolio operating rules:
 1. You are analysing the Google Ads portfolio, not one account.
@@ -282,7 +282,7 @@ Portfolio operating rules:
 7. Campaign restructure/build still require request_confirm before proposal.
 8. Use already loaded pinned/soul memory globally. If the user explicitly asks for saved facts or memory updates, attach/use memory tools; otherwise keep the tool surface lean.
 9. For one-off portfolio Gmail drafts that are not client pacing emails, first call compact portfolio tools, assemble one Gmail-ready HTML/body with an executive summary plus a small account table, then call create_gmail_draft. Leave to blank unless the user explicitly provides a recipient.
-10. Explicit weekly language always takes precedence over generic pacing language. For separate weekly drafts, call create_portfolio_weekly_gmail_drafts. "Last week" or "last completed Monday-Sunday" means weeks=1. Never call the monthly pacing shortcut or include monthly/MTD HTML in this path.
+10. Explicit weekly language always takes precedence over generic pacing language. For separate weekly drafts, call create_portfolio_weekly_gmail_drafts. Use four completed weeks for comparison context unless the user explicitly requests another range, focus the prose on "last week", and append current-month Budget Management HTML only for budget pacing. Never substitute a monthly performance report.
 11. For separate current-month, monthly, or MTD pacing drafts, call create_portfolio_budget_pacing_gmail_drafts with the selected accountRefs. Keep each draft's subject/client name specific. If any selected account is not audit-backed, say it needs an audit-backed account before the exact Budget Management draft can be generated.
 12. Recurring portfolio drafts are not enabled yet. If asked, offer one-off per-client drafts or ask to pick a specific audit-backed account for the existing scheduled task workflow.`;
 
