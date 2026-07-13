@@ -1677,6 +1677,16 @@ export const ClientProposals: CollectionConfig = {
                     },
                   },
                 },
+                {
+                  name: "refreshKeywordData",
+                  type: "ui",
+                  admin: {
+                    width: "33%",
+                    components: {
+                      Field: "./components/RefreshProposalKeywordDataButton",
+                    },
+                  },
+                },
               ],
             },
             {
