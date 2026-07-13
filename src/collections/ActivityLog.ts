@@ -90,6 +90,7 @@ export const ActivityLog: CollectionConfig = {
         { label: "Match Type Allow List Term Created", value: "match_type_allow_list_term_created" },
         { label: "Monthly Negatives Need Review", value: "monthly_negative_needs_review" },
         { label: "Monthly Negatives Applied", value: "monthly_negative_applied" },
+        { label: "Negative Keyword List Updated", value: "negative_keyword_list_updated" },
         { label: "Team Task Ready for Review", value: "team_task_ready_for_review" },
         { label: "Team Task Completed", value: "team_task_completed" },
       ],

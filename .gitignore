@@ -76,3 +76,11 @@ node_modules/
 
 # Syncthing conflict artifacts (never commit; they break typecheck/build)
 *.sync-conflict-*
+*.sync-conflict-*
+
+# Local browser profiles, backups, and diagnostic outputs
+/.similarweb-chrome-profile/
+/backups/
+/docs/test-runs/
+/content.db.schema-fix-backup-*
+/*-smoke.json

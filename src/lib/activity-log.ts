@@ -58,6 +58,7 @@ type ActivityType =
   | "consolidation_rejected"
   | "monthly_negative_needs_review"
   | "monthly_negative_applied"
+  | "negative_keyword_list_updated"
   | "google_ads_anomaly_detected"
   | "client_value_ledger_item_created"
   | "organic_growth_snapshot_created"

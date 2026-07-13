@@ -1,7 +1,7 @@
 'use client'
 
 import { useDocumentInfo } from '@payloadcms/ui'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 interface Keyword {
   keyword: string
@@ -28,15 +28,17 @@ export default function NegativeKeywordTable() {
   const data = initialData as any
 
   const [keywords, setKeywords] = useState<Keyword[]>(data?.keywords || [])
+  const [listUpdatedAt, setListUpdatedAt] = useState(String(data?.updatedAt || ''))
   const [search, setSearch] = useState('')
   const [filterMatch, setFilterMatch] = useState<string>('all')
   const [filterFlagged, setFilterFlagged] = useState(false)
   const [saving, setSaving] = useState(false)
+  const mutationInFlight = useRef(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [editingIdx, setEditingIdx] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
   const [mounted, setMounted] = useState(false)
-
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -67,60 +69,75 @@ export default function NegativeKeywordTable() {
 
   const flaggedCount = keywords.filter((kw) => kw.flaggedForRemoval).length
 
-  const saveKeywords = async (updated: Keyword[]) => {
-    if (!data?.id) return
+  const mutateKeywords = async (mutation: Record<string, unknown>) => {
+    if (!data?.id || mutationInFlight.current) return false
+    mutationInFlight.current = true
     setSaving(true)
+    setSaveError(null)
     try {
-      const res = await fetch(`/api/negative-keyword-lists/${data.id}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/negative-keyword-lists/${data.id}/keywords`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          keywords: updated.map((kw) => ({
-            keyword: kw.keyword,
-            matchType: kw.matchType,
-            flaggedForRemoval: kw.flaggedForRemoval || false,
-            // Preserve the original add date so the server hook does not
-            // re-stamp it to now (which would break the added-date sort and
-            // the avoided-spend calculation).
-            ...(kw.negatedAt ? { negatedAt: kw.negatedAt } : {}),
-          })),
+          ...mutation,
+          expectedUpdatedAt: listUpdatedAt,
+          expectedKeywordCount: keywords.length,
         }),
       })
-      if (res.ok) {
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2000)
+      const result = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (res.status === 409 && Array.isArray(result.keywords)) {
+          setKeywords(result.keywords)
+          setListUpdatedAt(String(result.updatedAt || ''))
+        }
+        setSaveError(result.error || `Save failed (${res.status})`)
+        return false
       }
-    } catch { /* ignore */ }
-    finally { setSaving(false) }
+      setKeywords(Array.isArray(result.keywords) ? result.keywords : keywords)
+      setListUpdatedAt(String(result.updatedAt || ''))
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      return true
+    } catch {
+      setSaveError('Network error — no changes were saved')
+      return false
+    } finally {
+      mutationInFlight.current = false
+      setSaving(false)
+    }
   }
 
-  const handleToggleFlag = (idx: number) => {
-    const updated = [...keywords]
-    updated[idx] = { ...updated[idx], flaggedForRemoval: !updated[idx].flaggedForRemoval }
-    setKeywords(updated)
-    saveKeywords(updated)
+  const handleToggleFlag = async (idx: number) => {
+    const keyword = keywords[idx]
+    if (keyword?.id === undefined) return setSaveError('Reload this list before editing')
+    await mutateKeywords({
+      operation: 'update',
+      keywordId: keyword.id,
+      patch: { flaggedForRemoval: !keyword.flaggedForRemoval },
+    })
   }
 
-  const handleChangeMatchType = (idx: number, matchType: string) => {
-    const updated = [...keywords]
-    updated[idx] = { ...updated[idx], matchType }
-    setKeywords(updated)
-    saveKeywords(updated)
+  const handleChangeMatchType = async (idx: number, matchType: string) => {
+    const keyword = keywords[idx]
+    if (keyword?.id === undefined) return setSaveError('Reload this list before editing')
+    await mutateKeywords({ operation: 'update', keywordId: keyword.id, patch: { matchType } })
   }
 
-  const handleDelete = (idx: number) => {
-    const updated = keywords.filter((_, i) => i !== idx)
-    setKeywords(updated)
-    saveKeywords(updated)
+  const handleDelete = async (idx: number) => {
+    const keyword = keywords[idx]
+    if (keyword?.id === undefined) return setSaveError('Reload this list before deleting')
+    await mutateKeywords({ operation: 'delete', keywordIds: [keyword.id] })
   }
 
-  const handleBulkDelete = () => {
-    const flaggedIdxs = new Set(keywords.map((kw, i) => kw.flaggedForRemoval ? i : -1).filter((i) => i >= 0))
-    if (flaggedIdxs.size === 0) return
-    if (!confirm(`Remove ${flaggedIdxs.size} flagged keyword${flaggedIdxs.size !== 1 ? 's' : ''}?`)) return
-    const updated = keywords.filter((_, i) => !flaggedIdxs.has(i))
-    setKeywords(updated)
-    saveKeywords(updated)
+  const handleBulkDelete = async () => {
+    const flagged = keywords.filter((kw) => kw.flaggedForRemoval)
+    if (flagged.length === 0) return
+    if (flagged.some((keyword) => keyword.id === undefined)) {
+      setSaveError('Reload this list before deleting flagged keywords')
+      return
+    }
+    if (!confirm(`Remove ${flagged.length} flagged keyword${flagged.length !== 1 ? 's' : ''}?`)) return
+    await mutateKeywords({ operation: 'delete', keywordIds: flagged.map((keyword) => keyword.id) })
   }
 
   const handleStartEdit = (idx: number) => {
@@ -128,12 +145,14 @@ export default function NegativeKeywordTable() {
     setEditValue(keywords[idx].keyword)
   }
 
-  const handleFinishEdit = (idx: number) => {
-    if (editValue.trim() && editValue.trim() !== keywords[idx].keyword) {
-      const updated = [...keywords]
-      updated[idx] = { ...updated[idx], keyword: editValue.trim() }
-      setKeywords(updated)
-      saveKeywords(updated)
+  const handleFinishEdit = async (idx: number) => {
+    const keyword = keywords[idx]
+    if (editValue.trim() && editValue.trim() !== keyword.keyword) {
+      if (keyword?.id === undefined) {
+        setSaveError('Reload this list before editing')
+      } else {
+        await mutateKeywords({ operation: 'update', keywordId: keyword.id, patch: { keyword: editValue.trim() } })
+      }
     }
     setEditingIdx(null)
   }
@@ -214,6 +233,11 @@ export default function NegativeKeywordTable() {
         {saving && <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>Saving...</span>}
         {saved && <span style={{ fontSize: 12, color: '#16a34a' }}>Saved</span>}
       </div>
+      {saveError && (
+        <div role="alert" style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 4, background: '#fef2f2', color: '#b91c1c', fontSize: 12 }}>
+          {saveError}
+        </div>
+      )}
 
       <div
         style={{

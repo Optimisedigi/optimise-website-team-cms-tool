@@ -1,0 +1,5 @@
+.similarweb-chrome-profile/
+backups/
+docs/test-runs/
+content.db.schema-fix-backup-*
+*-smoke.json
