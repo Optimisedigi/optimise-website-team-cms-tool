@@ -49,24 +49,24 @@ function barClass(score: number): string {
   return 'r'
 }
 
-function gradeLabel(score: number): string {
-  if (score >= 80) return 'Strong'
-  if (score >= 65) return 'Good'
-  if (score >= 40) return 'Fair'
+export function gradeLabel(score: number): string {
+  if (score >= 86) return 'Strong'
+  if (score >= 74) return 'Good'
+  if (score >= 50) return 'Fair'
   return 'Needs work'
 }
 
 export function gradeColour(score: number): string {
-  if (score >= 80) return '#22c55e'
-  if (score >= 65) return '#84cc16'
+  if (score >= 86) return '#22c55e'
+  if (score >= 74) return '#84cc16'
   if (score >= 50) return '#f0b35a'
   return '#ef4444'
 }
 
 function subText(score: number): string {
-  if (score >= 80) return 'Strong conversion foundation. Focus on incrementally optimising.'
-  if (score >= 65) return 'Above benchmark. Targeted improvements will lift lead capture meaningfully.'
-  if (score >= 40) return 'Trust and capture are the largest drag on conversion. Both are quick to fix.'
+  if (score >= 86) return 'Strong conversion foundation. Focus on incrementally optimising.'
+  if (score >= 74) return 'Above benchmark. Targeted improvements will lift lead capture meaningfully.'
+  if (score >= 50) return 'Trust and capture are the largest drag on conversion. Both are quick to fix.'
   return 'Significant conversion gaps. Fixing these will compound every other traffic investment.'
 }
 

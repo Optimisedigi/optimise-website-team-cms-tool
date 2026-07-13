@@ -128,24 +128,24 @@ function barClass(score: number): string {
   return 'r'
 }
 
-function gradeLabel(score: number): string {
-  if (score >= 80) return 'Strong'
-  if (score >= 65) return 'Good'
-  if (score >= 40) return 'Fair'
+export function gradeLabel(score: number): string {
+  if (score >= 86) return 'Strong'
+  if (score >= 74) return 'Good'
+  if (score >= 50) return 'Fair'
   return 'Needs work'
 }
 
 export function gradeColour(score: number): string {
-  if (score >= 80) return '#22c55e'
-  if (score >= 65) return '#84cc16'
+  if (score >= 86) return '#22c55e'
+  if (score >= 74) return '#84cc16'
   if (score >= 50) return '#f0b35a'
   return '#ef4444'
 }
 
 function subText(score: number): string {
-  if (score >= 80) return 'Strong foundation. Ready to fuel growth with paid and organic.'
-  if (score >= 65) return 'Above benchmark. A few targeted fixes will push this into the 80s.'
-  if (score >= 40) return 'Below the benchmark, but with a clear path to 80+ inside the first build.'
+  if (score >= 86) return 'Strong foundation. Ready to fuel growth with paid and organic.'
+  if (score >= 74) return 'Above benchmark. A few targeted fixes will push this into the 80s.'
+  if (score >= 50) return 'Below the benchmark, but with a clear path to 80+ inside the first build.'
   return 'Significant gaps. Fixing these is the highest-ROI action before any ad spend.'
 }
 
