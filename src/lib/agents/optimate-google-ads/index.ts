@@ -31,6 +31,8 @@ import { createGmailDraftTool } from "./tools/create-gmail-draft";
 import { createWeeklyBudgetGmailDraftTool } from "./tools/create-weekly-budget-gmail-draft";
 import { createMonthlyBudgetGmailDraftTool } from "./tools/create-monthly-budget-gmail-draft";
 import { createPortfolioBudgetPacingGmailDraftsTool } from "./tools/create-portfolio-budget-pacing-gmail-drafts";
+import { createPortfolioWeeklyGmailDraftsTool } from "./tools/create-portfolio-weekly-gmail-drafts";
+import { classifyPortfolioGmailDraftIntent } from "./portfolio-gmail-draft-intent";
 import { proposeNegativeKeywords } from "./tools/propose-negative-keywords";
 import { proposeNklCreate } from "./tools/propose-nkl-create";
 import { proposeNklUpdate } from "./tools/propose-nkl-update";
@@ -96,6 +98,7 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "create_weekly_budget_gmail_draft",
   "create_monthly_budget_gmail_draft",
   "create_portfolio_budget_pacing_gmail_drafts",
+  "create_portfolio_weekly_gmail_drafts",
   "remember",
   "soul_set",
   "propose_negative_keywords",
@@ -357,6 +360,7 @@ export function getPortfolioTools(options?: { restrictExternalContextActions?: b
     getDashboardEmailComponents as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
     createPortfolioBudgetPacingGmailDraftsTool as unknown as CanonicalTool<unknown>,
+    createPortfolioWeeklyGmailDraftsTool as unknown as CanonicalTool<unknown>,
     requestConfirmTool as unknown as CanonicalTool<unknown>,
     ...(options?.attachMemoryTools
       ? [
@@ -505,21 +509,32 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
     modelRequested = defaults.defaultChatModel;
   }
   const shortcutText = extractLastUserText(messages);
-  if (shouldUsePortfolioBudgetDraftShortcut(shortcutText, selectedAccountRefs, restrictExternalContextActions)) {
+  const shortcutIntent =
+    !restrictExternalContextActions && selectedAccountRefs && selectedAccountRefs.length >= 2
+      ? classifyPortfolioGmailDraftIntent(shortcutText)
+      : null;
+  if (shortcutIntent) {
     const runId = crypto.randomUUID();
-    const shortcutResult = await createPortfolioBudgetPacingGmailDraftsTool.execute(
-      { accountRefs: selectedAccountRefs ?? [] },
-      {
-        agentName: AGENT_NAME,
-        agentRunId: runId,
-        context: {
-          mode: "portfolio",
-          ...(selectedAccountRefs && selectedAccountRefs.length > 0 ? { selectedAccountRefs } : {}),
-          ...(userId !== undefined ? { userId } : {}),
-        },
-        log: () => undefined,
+    const shortcutContext = {
+      agentName: AGENT_NAME,
+      agentRunId: runId,
+      context: {
+        mode: "portfolio",
+        ...(selectedAccountRefs && selectedAccountRefs.length > 0 ? { selectedAccountRefs } : {}),
+        ...(userId !== undefined ? { userId } : {}),
       },
-    );
+      log: () => undefined,
+    };
+    const shortcutResult =
+      shortcutIntent.kind === "weekly"
+        ? await createPortfolioWeeklyGmailDraftsTool.execute(
+            { accountRefs: selectedAccountRefs ?? [], weeks: shortcutIntent.weeks },
+            shortcutContext,
+          )
+        : await createPortfolioBudgetPacingGmailDraftsTool.execute(
+            { accountRefs: selectedAccountRefs ?? [] },
+            shortcutContext,
+          );
     return {
       reply: buildPortfolioBudgetDraftShortcutReply(shortcutResult),
       runId,
@@ -754,21 +769,6 @@ interface PortfolioBudgetDraftShortcutData {
   skipped?: Array<{ displayName?: string; reason?: string }>;
   capped?: boolean;
   message?: string;
-}
-
-function shouldUsePortfolioBudgetDraftShortcut(
-  text: string,
-  selectedAccountRefs: Array<string | number> | undefined,
-  restrictExternalContextActions: boolean | undefined,
-): boolean {
-  if (restrictExternalContextActions) return false;
-  if (!selectedAccountRefs || selectedAccountRefs.length < 2) return false;
-  const lower = text.toLowerCase();
-  return (
-    /\b(gmail|draft|email)\b/.test(lower) &&
-    /\b(budget|pacing|spend)\b/.test(lower) &&
-    /\b(separate|each|per[- ]account|for each)\b/.test(lower)
-  );
 }
 
 function buildPortfolioBudgetDraftShortcutReply(result: { ok: boolean; data?: unknown; error?: string }): string {

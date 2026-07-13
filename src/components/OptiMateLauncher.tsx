@@ -944,6 +944,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                       )
                 }
                 compact
+                fluid
               />
             )}
 

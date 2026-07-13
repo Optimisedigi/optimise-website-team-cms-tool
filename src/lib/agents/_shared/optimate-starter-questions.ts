@@ -10,7 +10,7 @@ export const DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS = [
 ] as const;
 
 export const DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS = [
-  "Create separate Gmail drafts for each selected account's budget pacing this month, each with a 1 sentence performance summary on top.",
+  "Create separate Gmail drafts for each selected account's last completed Monday-Sunday weekly report. Add 1 sentence on top summarising weekly performance and spend pacing. Never use monthly or MTD data.",
   "Show me the account inventory",
   "Summarise portfolio performance",
   "Find cross-account search-term waste",
