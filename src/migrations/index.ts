@@ -141,6 +141,7 @@ import * as migration_20260729_120000_add_client_proposal_keyword_research_jobs 
 import * as migration_20260730_120000_add_proposal_competitor_serp_metrics from './20260730_120000_add_proposal_competitor_serp_metrics';
 import * as migration_20260731_120000_keyword_categories_keywords_nullable from './20260731_120000_keyword_categories_keywords_nullable';
 import * as migration_20260801_120000_add_mtvc_spend_fields from './20260801_120000_add_mtvc_spend_fields';
+import * as migration_20260802_120000_add_search_target_languages from './20260802_120000_add_search_target_languages';
 import * as migration_20260710_120000_add_proposal_meta_ads_status from './20260710_120000_add_proposal_meta_ads_status';
 import * as migration_20260710_130000_add_shared_working_docs from './20260710_130000_add_shared_working_docs';
 
@@ -859,6 +860,11 @@ export const migrations = [
     up: migration_20260801_120000_add_mtvc_spend_fields.up,
     down: migration_20260801_120000_add_mtvc_spend_fields.down,
     name: '20260801_120000_add_mtvc_spend_fields'
+  },
+  {
+    up: migration_20260802_120000_add_search_target_languages.up,
+    down: migration_20260802_120000_add_search_target_languages.down,
+    name: '20260802_120000_add_search_target_languages'
   },
   {
     up: migration_20260710_120000_add_proposal_meta_ads_status.up,

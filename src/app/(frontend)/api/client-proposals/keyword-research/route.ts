@@ -20,7 +20,7 @@ async function getAuthorizedPayload(req: NextRequest) {
   return user ? payload : null;
 }
 
-async function runKeywordResearch(input: { websiteUrl: string; businessName?: string; location: string }) {
+async function runKeywordResearch(input: { websiteUrl: string; businessName?: string; location: string; language?: string }) {
   if (!GROWTH_TOOLS_URL || !GROWTH_TOOLS_INTERNAL_KEY) {
     throw new Error("Server misconfigured: missing GROWTH_TOOLS_URL or GROWTH_TOOLS_INTERNAL_KEY");
   }
@@ -35,6 +35,7 @@ async function runKeywordResearch(input: { websiteUrl: string; businessName?: st
       websiteUrl: input.websiteUrl,
       businessName: input.businessName,
       location: input.location,
+      language: input.language,
       maxCategories: 12,
       maxKeywordsPerCategory: 30,
     }),
@@ -49,7 +50,7 @@ async function runKeywordResearch(input: { websiteUrl: string; businessName?: st
   return data;
 }
 
-async function runCategoryKeywordResearch(input: { categories: string[]; businessName?: string; location: string }) {
+async function runCategoryKeywordResearch(input: { categories: string[]; businessName?: string; location: string; language?: string }) {
   if (!GROWTH_TOOLS_URL || !GROWTH_TOOLS_INTERNAL_KEY) {
     throw new Error("Server misconfigured: missing GROWTH_TOOLS_URL or GROWTH_TOOLS_INTERNAL_KEY");
   }
@@ -64,6 +65,7 @@ async function runCategoryKeywordResearch(input: { categories: string[]; busines
       categories: input.categories,
       businessName: input.businessName,
       location: input.location,
+      language: input.language,
       maxKeywordsPerCategory: 30,
     }),
   });
@@ -86,6 +88,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const businessName = typeof body?.businessName === "string" ? body.businessName.trim() : undefined;
   const location = typeof body?.location === "string" && body.location.trim() ? body.location.trim() : "us";
+  const language = typeof body?.language === "string" && body.language.trim() ? body.language.trim() : undefined;
 
   // Two modes: crawl a website, or seed from category names (no site required).
   const rawCategories = Array.isArray(body?.categories) ? body.categories : null;
@@ -123,8 +126,8 @@ export async function POST(req: NextRequest) {
   after(async () => {
     try {
       const result = isCategoryMode
-        ? await runCategoryKeywordResearch({ categories, businessName, location })
-        : await runKeywordResearch({ websiteUrl, businessName, location });
+        ? await runCategoryKeywordResearch({ categories, businessName, location, language })
+        : await runKeywordResearch({ websiteUrl, businessName, location, language });
       await completeKeywordResearchJob(payload, job.id, result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

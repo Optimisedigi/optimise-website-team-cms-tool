@@ -72,6 +72,19 @@ describe("ClientProposals Collection", () => {
     expect(field.type).toBe("text");
   });
 
+  it("uses canonical searchable location and optional language selects", async () => {
+    const location = findField(ClientProposals.fields, "targetLocation");
+    const language = findField(ClientProposals.fields, "searchLanguage");
+
+    expect(location.type).toBe("select");
+    expect(location.options).toContainEqual({ label: "Vietnam", value: "vn" });
+    expect(await location.hooks.beforeValidate[0]({ value: "Vietnam" })).toBe("vn");
+    expect(language.type).toBe("select");
+    expect(language.required).not.toBe(true);
+    expect(language.options).toContainEqual({ label: "Vietnamese", value: "vi" });
+    expect(language.admin.description).toContain("Automatic");
+  });
+
   it("should have required unique slug field", () => {
     const field = findField(ClientProposals.fields, "slug");
     expect(field).toBeDefined();

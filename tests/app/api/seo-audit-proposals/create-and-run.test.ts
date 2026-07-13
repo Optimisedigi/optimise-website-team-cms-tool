@@ -50,7 +50,8 @@ describe("POST /api/seo-audit-proposals/create-and-run", () => {
       websiteUrl: "https://acme.com/",
       gscSiteUrl: "sc-domain:acme.com",
       businessType: "services",
-      targetLocation: "au:sydney",
+      targetLocation: "vn",
+      searchLanguage: "en",
       averageOrderValue: 1200,
       leadConversionRate: 3, // percentage
     });
@@ -77,7 +78,8 @@ describe("POST /api/seo-audit-proposals/create-and-run", () => {
       websiteUrl: "https://acme.com/",
       gscSiteUrl: "sc-domain:acme.com",
       businessType: "services",
-      location: "au:sydney",
+      location: "vn",
+      searchLanguage: "en",
       averageOrderValue: 1200,
       conversionRate: 3,
       status: "pending",

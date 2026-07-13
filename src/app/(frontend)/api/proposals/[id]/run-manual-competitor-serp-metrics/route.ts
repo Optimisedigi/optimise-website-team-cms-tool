@@ -54,7 +54,12 @@ async function saveCompetitorPatch(
   return nextCompetitors;
 }
 
-async function fetchGrowthToolsProfile(websiteUrl: string, keywords: string[], targetLocation?: string | null) {
+async function fetchGrowthToolsProfile(
+  websiteUrl: string,
+  keywords: string[],
+  targetLocation?: string | null,
+  searchLanguage?: string | null,
+) {
   const res = await fetch(`${GROWTH_TOOLS_URL}/api/track-keywords`, {
     method: "POST",
     headers: {
@@ -65,6 +70,7 @@ async function fetchGrowthToolsProfile(websiteUrl: string, keywords: string[], t
       website: websiteUrl,
       keywords: keywords.join("\n"),
       location: targetLocation || "au:sydney",
+      language: searchLanguage || undefined,
       fingerprint: "cms-manual-serp",
     }),
     signal: AbortSignal.timeout(45_000),
@@ -144,7 +150,7 @@ export async function POST(
     while (cursor < buckets.needsFetch.length) {
       const item = buckets.needsFetch[cursor++];
       try {
-        const profile = await fetchGrowthToolsProfile(item.websiteUrl, keywords, proposal.targetLocation);
+        const profile = await fetchGrowthToolsProfile(item.websiteUrl, keywords, proposal.targetLocation, proposal.searchLanguage);
         const averagePosition = profile.averagePosition;
         const keywordsFound = profile.keywordsFound;
         const keywordPositions = profile.keywordPositions;

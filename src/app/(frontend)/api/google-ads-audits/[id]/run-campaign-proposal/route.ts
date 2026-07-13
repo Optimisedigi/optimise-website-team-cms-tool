@@ -86,6 +86,33 @@ export async function POST(
       typeof brandTerms === "string" ? brandTerms : undefined,
     );
 
+    let searchLocation = audit.proposalTargetLocation || audit.location || "au";
+    let searchLanguage = audit.proposalSearchLanguage || undefined;
+    const proposalRef = audit.proposal;
+    const proposalId = typeof proposalRef === "object" && proposalRef ? proposalRef.id : proposalRef;
+    if (proposalId && (!audit.proposalTargetLocation || !audit.proposalSearchLanguage)) {
+      try {
+        const proposal = await payload.findByID({
+          collection: "client-proposals",
+          id: proposalId,
+          depth: 0,
+          overrideAccess: true,
+        }) as any;
+        searchLocation = audit.proposalTargetLocation || proposal.targetLocation || searchLocation;
+        searchLanguage = audit.proposalSearchLanguage || proposal.searchLanguage || searchLanguage;
+      } catch { /* retain audit snapshot/default */ }
+    }
+
+    await payload.update({
+      collection: "google-ads-audits",
+      id,
+      data: {
+        proposalTargetLocation: searchLocation,
+        proposalSearchLanguage: searchLanguage || null,
+      } as any,
+      overrideAccess: true,
+    });
+
     // Mark proposal as pending (direct DB update to avoid Payload re-validating
     // unset select fields like proposalBusinessType which store "" in SQLite)
     try {
@@ -132,7 +159,8 @@ export async function POST(
               websiteUrl,
               businessName,
               customerId: customerId ?? undefined,
-              location: audit.location ?? "au",
+              location: searchLocation,
+              language: searchLanguage,
               brandTerms: parsedBrandTerms.length > 0 ? parsedBrandTerms : undefined,
               negativeKeywords: Array.isArray(campaignProposalNegativeKeywords) && campaignProposalNegativeKeywords.length > 0
                 ? campaignProposalNegativeKeywords.map((nk: any) => ({

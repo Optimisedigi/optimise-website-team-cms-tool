@@ -97,6 +97,7 @@ export default function KeywordResearchAutofill() {
   const websiteUrl = getFieldValue(fields, 'websiteUrl')
   const businessName = getFieldValue(fields, 'businessName')
   const targetLocation = getFieldValue(fields, 'targetLocation') || 'us'
+  const searchLanguage = getFieldValue(fields, 'searchLanguage') || undefined
   const selectedCount = selectedCategories.size
 
   // Time-eased progress bar. We can't know true backend progress, so ease
@@ -180,8 +181,8 @@ export default function KeywordResearchAutofill() {
     try {
       const requestBody =
         mode === 'categories'
-          ? { categories: categoryNames, businessName, location: targetLocation }
-          : { websiteUrl, businessName, location: targetLocation }
+          ? { categories: categoryNames, businessName, location: targetLocation, language: searchLanguage }
+          : { websiteUrl, businessName, location: targetLocation, language: searchLanguage }
       const res = await fetch('/api/client-proposals/keyword-research', {
         method: 'POST',
         credentials: 'include',

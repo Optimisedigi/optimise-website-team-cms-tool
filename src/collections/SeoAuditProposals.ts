@@ -2,6 +2,7 @@ import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { hasValidApiKey } from "./api-key-access";
 import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { GOOGLE_SEARCH_LANGUAGE_OPTIONS, SEARCH_LOCATION_OPTIONS, normalizeSearchLocation } from "../lib/search-target-options";
 
 /**
  * SEO Audit Proposal — a full new-client SEO analysis produced by the Growth
@@ -142,8 +143,16 @@ export const SeoAuditProposals: CollectionConfig = {
         },
         {
           name: "location",
-          type: "text",
-          admin: { description: "Target location (country:city, e.g. au:sydney)" },
+          type: "select",
+          options: SEARCH_LOCATION_OPTIONS,
+          hooks: { beforeValidate: [({ value }) => normalizeSearchLocation(value)] },
+          admin: { isClearable: true, description: "Canonical search country or retained legacy city preset" },
+        },
+        {
+          name: "searchLanguage",
+          type: "select",
+          options: GOOGLE_SEARCH_LANGUAGE_OPTIONS,
+          admin: { isClearable: true, description: "Empty uses the selected country's automatic language" },
         },
       ],
     },

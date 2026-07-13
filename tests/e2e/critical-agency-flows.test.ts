@@ -138,7 +138,8 @@ describe("critical agency flows — E2E route contracts", () => {
       websiteUrl: "https://example.com",
       businessType: "Dental clinic",
       conversionGoal: "bookings",
-      targetLocation: "au:Sydney",
+      targetLocation: "vn",
+      searchLanguage: "vi",
       keywordCategories: [{ categoryName: "Core", keywords: "dentist sydney\nteeth whitening" }],
       competitors: [],
     };
@@ -213,6 +214,13 @@ describe("critical agency flows — E2E route contracts", () => {
       "https://growth-tools.test/api/seo-audits",
       expect.objectContaining({ method: "POST" }),
     );
+    const searchRequests = fetchMock.mock.calls
+      .filter(([input]) => ["/api/track-keywords", "/api/competitor-analysis", "/api/content-research"].some((path) => String(input).endsWith(path)))
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)));
+    expect(searchRequests.length).toBeGreaterThanOrEqual(3);
+    for (const body of searchRequests) {
+      expect(body).toMatchObject({ location: "vn", language: "vi" });
+    }
     expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ collection: "seo-audits" }));
     expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ collection: "cro-audits" }));
     expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ collection: "keyword-snapshots" }));

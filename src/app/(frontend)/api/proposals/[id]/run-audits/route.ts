@@ -145,7 +145,7 @@ export async function POST(
   }
 
   // Validate required fields
-  const { websiteUrl, businessType, conversionGoal, targetLocation } = proposal;
+  const { websiteUrl, businessType, conversionGoal, targetLocation, searchLanguage } = proposal;
 
   // Build keyword list from categories (preferred) or legacy field
   const keywordCategories = (proposal as any).keywordCategories as { categoryName: string; keywords: string }[] | null;
@@ -272,7 +272,7 @@ export async function POST(
           const res = await fetch(`${GROWTH_TOOLS_URL}/api/track-keywords`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY },
-            body: JSON.stringify({ website: websiteUrl, keywords: batch.join("\n"), location: targetLocation || undefined }),
+            body: JSON.stringify({ website: websiteUrl, keywords: batch.join("\n"), location: targetLocation || undefined, language: searchLanguage || undefined }),
           });
           if (!res.ok) throw new Error(`Keywords failed: ${res.status}`);
           return res.json();
@@ -296,7 +296,7 @@ export async function POST(
     const compPromise = fetch(`${GROWTH_TOOLS_URL}/api/competitor-analysis`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY },
-      body: JSON.stringify({ websiteUrl, keywords: keywordsCommaSeparated, location: targetLocation || undefined }),
+      body: JSON.stringify({ websiteUrl, keywords: keywordsCommaSeparated, location: targetLocation || undefined, language: searchLanguage || undefined }),
     }).then(async (res) => {
       if (!res.ok) throw new Error(`Competitor analysis failed: ${res.status}`);
       const data = await res.json();
@@ -339,7 +339,7 @@ export async function POST(
           return fetch(`${GROWTH_TOOLS_URL}/api/content-research`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY! },
-            body: JSON.stringify({ keyword, location: crLocation }),
+            body: JSON.stringify({ keyword, location: crLocation, language: searchLanguage || undefined }),
             signal: AbortSignal.timeout(remainingMs),
           }).then(async (res) => {
             if (!res.ok) throw new Error(`Content research failed for "${keyword}": ${res.status}`);
@@ -803,7 +803,7 @@ export async function POST(
                 const res = await fetch(`${GROWTH_TOOLS_URL}/api/gbp-lookup`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY! },
-                  body: JSON.stringify({ name: cmsComp.name, location: targetLocation || undefined }),
+                  body: JSON.stringify({ name: cmsComp.name, location: targetLocation || undefined, language: searchLanguage || undefined }),
                   signal: AbortSignal.timeout(AUXILIARY_FETCH_TIMEOUT_MS),
                 });
                 if (!res.ok) return { domain, cmsComp, gbp: null };

@@ -95,6 +95,7 @@ export async function POST(
   }
 
   const location = proposal.targetLocation ? String(proposal.targetLocation).split(":")[0] : "au";
+  const language = proposal.searchLanguage ? String(proposal.searchLanguage) : undefined;
   const deadlineAt = Date.now() + CONTENT_RESEARCH_TIMEOUT_MS;
 
   const results = await Promise.allSettled(
@@ -103,7 +104,7 @@ export async function POST(
       return fetch(`${GROWTH_TOOLS_URL}/api/content-research`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY! },
-        body: JSON.stringify({ keyword, location }),
+        body: JSON.stringify({ keyword, location, language }),
         signal: AbortSignal.timeout(remainingMs),
       }).then(async (res) => {
         if (!res.ok) throw new Error(`Content research failed for "${keyword}": ${res.status}`);

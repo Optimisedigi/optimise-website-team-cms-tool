@@ -8,6 +8,12 @@ import { proposalEditor } from "@/lib/proposalEditor";
 import { logActivity } from "../lib/activity-log";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 import { syncContractToClient } from "../lib/contract-to-client-sync";
+import {
+  GOOGLE_SEARCH_LANGUAGE_OPTIONS,
+  SEARCH_LOCATION_OPTIONS,
+  isSearchLanguage,
+  normalizeSearchLocation,
+} from "../lib/search-target-options";
 
 const ROADMAP_DEFAULTS = {
   buildLaunch: [
@@ -1203,10 +1209,25 @@ export const ClientProposals: CollectionConfig = {
             },
             {
               name: "targetLocation",
-              type: "text",
+              type: "select",
+              options: SEARCH_LOCATION_OPTIONS,
+              hooks: {
+                beforeValidate: [({ value }) => normalizeSearchLocation(value)],
+              },
               admin: {
+                isClearable: true,
                 description:
-                  "Determines the geo-location used for keyword volume lookups and competitor ranking checks. Use a country code or country:city value (e.g. au:sydney, vn, vn:ho-chi-minh).",
+                  "Search country used by Serper and Google Ads. Legacy city presets remain available.",
+              },
+            },
+            {
+              name: "searchLanguage",
+              type: "select",
+              options: GOOGLE_SEARCH_LANGUAGE_OPTIONS,
+              validate: (value: unknown) => !value || isSearchLanguage(value) || "Select a supported search language",
+              admin: {
+                isClearable: true,
+                description: "Automatic when empty (uses the selected country's likely language).",
               },
             },
             {

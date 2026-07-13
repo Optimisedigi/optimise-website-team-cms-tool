@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
   let gscSiteUrl: string | undefined;
   let businessType: string | undefined;
   let location: string | undefined;
+  let searchLanguage: string | undefined;
   let brandKeywords: string | undefined;
   let presentedBy: string | undefined;
   let proposalPin: string | undefined;
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
       gscSiteUrl = p.gscSiteUrl || undefined;
       businessType = p.businessType || undefined;
       location = p.targetLocation || undefined;
+      searchLanguage = p.searchLanguage || undefined;
       presentedBy = p.presentedBy || undefined;
       proposalPin = p.proposalPin || undefined;
       averageOrderValue = p.averageOrderValue ?? undefined;
@@ -62,6 +64,7 @@ export async function POST(req: NextRequest) {
       gscSiteUrl = c.gscSiteUrl || undefined;
       businessType = c.businessType || undefined;
       location = c.targetLocation || undefined;
+      searchLanguage = c.searchLanguage || undefined;
       brandKeywords = c.brandKeywords || undefined;
       presentedBy = c.presentedBy || undefined;
       proposalPin = c.clientPin || undefined;
@@ -108,6 +111,7 @@ export async function POST(req: NextRequest) {
     gscSiteUrl,
     businessType: businessType || null,
     location: location || null,
+    searchLanguage: searchLanguage || null,
     brandKeywords: brandKeywords || null,
     presentedBy: presentedBy || null,
     proposalPin: proposalPin || null,

@@ -81,6 +81,7 @@ export async function POST(
 
   const websiteUrl = (proposal?.websiteUrl as string | undefined)?.trim();
   const location = (proposal?.targetLocation as string | undefined)?.trim();
+  const language = (proposal?.searchLanguage as string | undefined)?.trim() || undefined;
   const keyword = pickFirstKeyword(proposal);
 
   if (!websiteUrl) {
@@ -115,13 +116,14 @@ export async function POST(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": INTERNAL_API_KEY,
+          "x-internal-key": INTERNAL_API_KEY,
         },
         body: JSON.stringify({
           proposalId: id,
           websiteUrl,
           keyword,
           location,
+          language,
           device: "desktop",
         }),
       },

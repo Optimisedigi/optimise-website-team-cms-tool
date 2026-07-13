@@ -8,6 +8,7 @@ import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
 import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 import { normalizeCampaignProposalKeywords } from "../lib/campaign-proposal-normalize";
+import { GOOGLE_SEARCH_LANGUAGE_OPTIONS, SEARCH_LOCATION_OPTIONS, normalizeSearchLocation } from "../lib/search-target-options";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = async ({
   data,
@@ -737,6 +738,25 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "Signups (registrations)", value: "signups" },
               ],
               validate: () => true as true,
+            },
+            {
+              name: "proposalTargetLocation",
+              type: "select",
+              options: SEARCH_LOCATION_OPTIONS,
+              hooks: { beforeValidate: [({ value }) => normalizeSearchLocation(value)] },
+              admin: {
+                isClearable: true,
+                description: "Search-target snapshot used by campaign keyword research.",
+              },
+            },
+            {
+              name: "proposalSearchLanguage",
+              type: "select",
+              options: GOOGLE_SEARCH_LANGUAGE_OPTIONS,
+              admin: {
+                isClearable: true,
+                description: "Explicit search-language snapshot; empty uses the country default.",
+              },
             },
             {
               name: "proposalServiceRadius",

@@ -56,6 +56,7 @@ export async function POST(
   let gscSiteUrl: string | undefined = record.gscSiteUrl || undefined;
   let businessType: string | undefined = record.businessType || undefined;
   let location: string | undefined = record.location || undefined;
+  let searchLanguage: string | undefined = record.searchLanguage || undefined;
   let brandKeywords: string | undefined = record.brandKeywords || undefined;
   let averageOrderValue: number | undefined = record.averageOrderValue ?? undefined;
   let conversionRate: number | undefined = record.conversionRate ?? undefined;
@@ -75,6 +76,7 @@ export async function POST(
       gscSiteUrl = gscSiteUrl || p.gscSiteUrl || undefined;
       businessType = businessType || p.businessType || undefined;
       location = location || p.targetLocation || undefined;
+      searchLanguage = searchLanguage || p.searchLanguage || undefined;
       averageOrderValue = averageOrderValue ?? p.averageOrderValue ?? undefined;
       // leadConversionRate is a percentage (e.g. 3 = 3%).
       conversionRate = conversionRate ?? p.leadConversionRate ?? undefined;
@@ -94,6 +96,7 @@ export async function POST(
       gscSiteUrl = gscSiteUrl || c.gscSiteUrl || undefined;
       businessType = businessType || c.businessType || undefined;
       location = location || c.targetLocation || undefined;
+      searchLanguage = searchLanguage || c.searchLanguage || undefined;
       brandKeywords = brandKeywords || c.brandKeywords || undefined;
       averageOrderValue = averageOrderValue ?? c.averageOrderValue ?? undefined;
       conversionRate = conversionRate ?? c.leadConversionRate ?? undefined;
@@ -118,6 +121,7 @@ export async function POST(
       gscSiteUrl,
       businessType: businessType || null,
       location: location || null,
+      searchLanguage: searchLanguage || null,
       brandKeywords: brandKeywords || null,
       averageOrderValue: averageOrderValue ?? null,
       conversionRate: conversionRate ?? null,
@@ -156,6 +160,7 @@ export async function POST(
     includeTopicClusters: true,
   };
   if (location) engineBody.location = location;
+  if (searchLanguage) engineBody.language = searchLanguage;
   if (brandTerms.length > 0) engineBody.brandTerms = brandTerms;
   if (typeof averageOrderValue === "number") engineBody.averageOrderValue = averageOrderValue;
   if (typeof conversionRate === "number") engineBody.conversionRate = conversionRate;
