@@ -439,14 +439,12 @@ export interface Client {
      * Services included in leadership Client Pulse scoring and filters.
      */
     servicesTracked?:
-      | ('organic' | 'paid_search' | 'paid_social' | 'seo' | 'content' | 'cro' | 'automations' | 'client_comms')[]
-      | null;
+      ('organic' | 'paid_search' | 'paid_social' | 'seo' | 'content' | 'cro' | 'automations' | 'client_comms')[] | null;
     /**
      * Google Analytics metrics to show in the Client Pulse hover scorecard.
      */
     analyticsMetrics?:
-      | ('traffic' | 'conversions' | 'cpa' | 'revenue' | 'roas' | 'organic_clicks' | 'paid_conversions')[]
-      | null;
+      ('traffic' | 'conversions' | 'cpa' | 'revenue' | 'roas' | 'organic_clicks' | 'paid_conversions')[] | null;
     neglectWarningDays?: number | null;
     neglectCriticalDays?: number | null;
     /**
@@ -1311,8 +1309,7 @@ export interface Client {
    * Which official Google Ranking update types should trigger reviews for this client.
    */
   coreUpdateReviewIncludeUpdateTypes?:
-    | ('core_update' | 'spam_update' | 'discover_update' | 'other_ranking_update')[]
-    | null;
+    ('core_update' | 'spam_update' | 'discover_update' | 'other_ranking_update')[] | null;
   /**
    * Last time Growth Tools checked this client for a Core Update Review.
    */
@@ -2125,42 +2122,9 @@ export interface ClientProposal {
    */
   keywords?: string | null;
   /**
-   * Determines the geo-location used for keyword volume lookups and competitor ranking checks.
+   * Determines the geo-location used for keyword volume lookups and competitor ranking checks. Use a country code or country:city value (e.g. au:sydney, vn, vn:ho-chi-minh).
    */
-  targetLocation?:
-    | (
-        | 'au'
-        | 'au:sydney'
-        | 'au:melbourne'
-        | 'au:brisbane'
-        | 'au:perth'
-        | 'au:adelaide'
-        | 'au:canberra'
-        | 'au:hobart'
-        | 'au:darwin'
-        | 'nz'
-        | 'nz:auckland'
-        | 'nz:wellington'
-        | 'us'
-        | 'us:new-york'
-        | 'us:los-angeles'
-        | 'us:chicago'
-        | 'us:houston'
-        | 'us:miami'
-        | 'us:atlanta'
-        | 'us:seattle'
-        | 'us:denver'
-        | 'ca'
-        | 'ca:toronto'
-        | 'ca:vancouver'
-        | 'ca:montreal'
-        | 'gb'
-        | 'gb:london'
-        | 'gb:manchester'
-        | 'gb:birmingham'
-        | 'sg'
-      )
-    | null;
+  targetLocation?: string | null;
   /**
    * Who is presenting (e.g. 'Adam Telhiwec and Peter Tu'). Shown on the closing slide of the SEO Audit Proposal & proposal decks.
    */
@@ -3562,8 +3526,7 @@ export interface GoogleAdsAudit {
    * Which campaign types to build. Leave empty for preset defaults.
    */
   proposalEnabledCampaigns?:
-    | ('brand' | 'brand-product' | 'products' | 'services' | 'services-geo' | 'industry')[]
-    | null;
+    ('brand' | 'brand-product' | 'products' | 'services' | 'services-geo' | 'industry')[] | null;
   /**
    * Minimum monthly searches for an ad group to qualify. Defaults: distributor=150, ecommerce=100, service=30.
    */
@@ -3596,8 +3559,7 @@ export interface GoogleAdsAudit {
    * Controls geo campaign proposal behaviour. Existing campaigns stay live; new geo splits are built paused.
    */
   proposalGeoIsolationMode?:
-    | ('off' | 'state_campaigns' | 'city_campaigns' | 'state_plus_city_priority' | 'auto')
-    | null;
+    ('off' | 'state_campaigns' | 'city_campaigns' | 'state_plus_city_priority' | 'auto') | null;
   /**
    * How to treat 'near me' local-intent searches in geo proposals.
    */
@@ -5600,8 +5562,7 @@ export interface ProcessTemplate {
                * Who should handle this step by default
                */
               defaultAssignee?:
-                | ('account_manager' | 'strategist' | 'developer' | 'founder' | 'client' | 'system')
-                | null;
+                ('account_manager' | 'strategist' | 'developer' | 'founder' | 'client' | 'system') | null;
               /**
                * e.g. "30 mins", "1 day", "1 week"
                */
@@ -5752,8 +5713,7 @@ export interface ClientProcess {
                */
               completedAt?: string | null;
               defaultAssignee?:
-                | ('account_manager' | 'strategist' | 'developer' | 'founder' | 'client' | 'system')
-                | null;
+                ('account_manager' | 'strategist' | 'developer' | 'founder' | 'client' | 'system') | null;
               estimatedDuration?: string | null;
               isAutomatable?: boolean | null;
               automationNotes?: string | null;
@@ -5996,15 +5956,7 @@ export interface ClientValueLedgerItem {
   activityLog?: (number | null) | ActivityLog;
   occurredAt: string;
   category:
-    | 'paid_media'
-    | 'seo'
-    | 'content'
-    | 'cro'
-    | 'tracking'
-    | 'process'
-    | 'finance'
-    | 'agent_action'
-    | 'client_approval';
+    'paid_media' | 'seo' | 'content' | 'cro' | 'tracking' | 'process' | 'finance' | 'agent_action' | 'client_approval';
   title: string;
   summary: string;
   /**
@@ -8680,14 +8632,7 @@ export interface GoalRun {
    * Current state in the goal-run lifecycle
    */
   status:
-    | 'awaiting_data'
-    | 'analysing'
-    | 'pending_approval'
-    | 'executing'
-    | 'measuring'
-    | 'complete'
-    | 'failed'
-    | 'blocked';
+    'awaiting_data' | 'analysing' | 'pending_approval' | 'executing' | 'measuring' | 'complete' | 'failed' | 'blocked';
   /**
    * Highest risk tier encountered in this run — set as decisions are recorded
    */
@@ -8987,13 +8932,7 @@ export interface GoalRunSnapshot {
    * Outcome of this step
    */
   status:
-    | 'proposed'
-    | 'approved'
-    | 'blocked_by_contract'
-    | 'blocked_by_pacer'
-    | 'blocked_by_scope'
-    | 'applied'
-    | 'rejected';
+    'proposed' | 'approved' | 'blocked_by_contract' | 'blocked_by_pacer' | 'blocked_by_scope' | 'applied' | 'rejected';
   /**
    * Campaign IDs this step operates on
    */

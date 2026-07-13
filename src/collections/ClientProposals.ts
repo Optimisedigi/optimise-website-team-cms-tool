@@ -1203,50 +1203,11 @@ export const ClientProposals: CollectionConfig = {
             },
             {
               name: "targetLocation",
-              type: "select",
+              type: "text",
               admin: {
                 description:
-                  "Determines the geo-location used for keyword volume lookups and competitor ranking checks.",
-                isSortable: false,
+                  "Determines the geo-location used for keyword volume lookups and competitor ranking checks. Use a country code or country:city value (e.g. au:sydney, vn, vn:ho-chi-minh).",
               },
-              options: [
-                // Australia
-                { label: "Australia (National)", value: "au" },
-                { label: "Sydney, NSW", value: "au:sydney" },
-                { label: "Melbourne, VIC", value: "au:melbourne" },
-                { label: "Brisbane, QLD", value: "au:brisbane" },
-                { label: "Perth, WA", value: "au:perth" },
-                { label: "Adelaide, SA", value: "au:adelaide" },
-                { label: "Canberra, ACT", value: "au:canberra" },
-                { label: "Hobart, TAS", value: "au:hobart" },
-                { label: "Darwin, NT", value: "au:darwin" },
-                // New Zealand
-                { label: "New Zealand (National)", value: "nz" },
-                { label: "Auckland, NZ", value: "nz:auckland" },
-                { label: "Wellington, NZ", value: "nz:wellington" },
-                // United States
-                { label: "United States (National)", value: "us" },
-                { label: "New York, NY", value: "us:new-york" },
-                { label: "Los Angeles, CA", value: "us:los-angeles" },
-                { label: "Chicago, IL", value: "us:chicago" },
-                { label: "Houston, TX", value: "us:houston" },
-                { label: "Miami, FL", value: "us:miami" },
-                { label: "Atlanta, GA", value: "us:atlanta" },
-                { label: "Seattle, WA", value: "us:seattle" },
-                { label: "Denver, CO", value: "us:denver" },
-                // Canada
-                { label: "Canada (National)", value: "ca" },
-                { label: "Toronto, ON", value: "ca:toronto" },
-                { label: "Vancouver, BC", value: "ca:vancouver" },
-                { label: "Montreal, QC", value: "ca:montreal" },
-                // UK
-                { label: "United Kingdom (National)", value: "gb" },
-                { label: "London, UK", value: "gb:london" },
-                { label: "Manchester, UK", value: "gb:manchester" },
-                { label: "Birmingham, UK", value: "gb:birmingham" },
-                // Singapore
-                { label: "Singapore", value: "sg" },
-              ],
             },
             {
               name: "presentedBy",
