@@ -17,6 +17,7 @@
  */
 
 import { useState, useRef, useCallback, type ReactElement, type KeyboardEvent } from 'react'
+import { formatProposalTraffic } from './format-proposal-traffic'
 
 type Row = {
   name: string
@@ -31,13 +32,6 @@ type Row = {
 // ---------------------------------------------------------------------------
 // Pure helpers (no React)
 // ---------------------------------------------------------------------------
-
-function formatVisits(n: number): string {
-  if (n <= 0) return ''
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toLocaleString()
-}
 
 function formatMoney(n: number): string {
   if (n <= 0) return ''
@@ -262,7 +256,7 @@ export function ReturnModellingSlide({
                   </span>
                 )}
               </td>
-              <td className="num" style={{ textAlign: 'right' }}>{formatVisits(row.visits)}</td>
+              <td className="num" style={{ textAlign: 'right' }}>{formatProposalTraffic(row.visits)}</td>
               <td className="num" style={{ textAlign: 'right' }}>{formatPct(lcr)}</td>
               <td className="num" style={{ textAlign: 'right' }}>{row.leads.toLocaleString()}</td>
               <td className="num" style={{ textAlign: 'right' }}>{row.clients.toLocaleString()}</td>

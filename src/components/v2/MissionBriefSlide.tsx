@@ -8,6 +8,7 @@
 
 import type { ReactElement } from 'react'
 import { stripDashes } from './_text'
+import { formatProposalTraffic } from './format-proposal-traffic'
 
 // Looser types because the linked audits come back as Payload relationships
 // which can be either an ID string or a fully-populated object depending on
@@ -378,7 +379,7 @@ export function MissionBriefSlide({
               </div>
               <div className="val purple" style={{ fontSize: 64 }}>
                 {competitorTraffic > 0
-                  ? formatBigNumber(competitorTraffic)
+                  ? formatProposalTraffic(competitorTraffic)
                   : hasUnavailableCompetitorTraffic
                     ? 'Traffic unavailable'
                     : ''}

@@ -9,6 +9,7 @@
 
 import type { ReactElement } from 'react'
 import { normaliseDomain } from './competitorAdOverrides'
+import { formatProposalTraffic } from './format-proposal-traffic'
 
 type MonthlyVisitPoint = number | { visits?: number | string | null }
 
@@ -85,11 +86,8 @@ function profileMonthlyVisits(profile: CompetitorProfile | null | undefined): nu
 }
 
 function formatVisits(profile: CompetitorProfile | null | undefined): string {
-  const n = profileMonthlyVisits(profile)
-  if (n <= 0) return 'Traffic unavailable'
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toLocaleString()
+  const visits = profileMonthlyVisits(profile)
+  return visits > 0 ? formatProposalTraffic(visits) : 'Traffic unavailable'
 }
 
 function domainFromUrl(url: string | null | undefined): string {

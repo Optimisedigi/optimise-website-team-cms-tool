@@ -56,10 +56,10 @@ function gradeLabel(score: number): string {
   return 'Needs work'
 }
 
-function gradeColour(score: number): string {
+export function gradeColour(score: number): string {
   if (score >= 80) return '#22c55e'
   if (score >= 65) return '#84cc16'
-  if (score >= 40) return '#f0b35a'
+  if (score >= 50) return '#f0b35a'
   return '#ef4444'
 }
 
