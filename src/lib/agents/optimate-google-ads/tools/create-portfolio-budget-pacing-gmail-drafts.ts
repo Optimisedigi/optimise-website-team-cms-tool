@@ -2,7 +2,11 @@ import type { CanonicalTool, ToolContext } from '@/lib/agents/_shared/tool'
 import { createGmailDraftTool } from './create-gmail-draft'
 import { getBudgetManagementEmail } from './get-budget-management-email'
 import { getPortfolioPerformanceSummary } from './get-portfolio-performance-summary'
-import { customerKey, loadPortfolioAccounts, type PortfolioAccount } from './_portfolio-accounts'
+import {
+  customerKey,
+  loadPortfolioAccounts,
+  selectPortfolioAccountsByAccountRefs,
+} from './_portfolio-accounts'
 
 interface CreatePortfolioBudgetPacingGmailDraftsArgs {
   accountRefs?: Array<string | number>
@@ -85,7 +89,10 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
         }
       }
 
-      const accounts = selectAccounts(await loadPortfolioAccounts(), refs)
+      const accounts = selectPortfolioAccountsByAccountRefs(
+        await loadPortfolioAccounts(),
+        refs,
+      )
       const capped = accounts.slice(0, MAX_ACCOUNTS)
       const skipped = accounts
         .filter(
@@ -115,7 +122,7 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
 
       const performanceResult = await getPortfolioPerformanceSummary.execute(
         {
-          accountRefs: auditBackedAccounts.map((account) => account.accountRef as string | number),
+          accountRefs: auditBackedAccounts.map((account) => customerKey(account.customerId)),
           range: 'THIS_MONTH',
           limit: auditBackedAccounts.length,
         },
@@ -128,8 +135,6 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
       for (const row of performance.accounts ?? []) {
         if (row.accountRef !== undefined && row.accountRef !== null)
           performanceByRef.set(String(row.accountRef), row)
-        if (row.clientId !== undefined && row.clientId !== null)
-          performanceByRef.set(String(row.clientId), row)
       }
 
       const drafts: Array<{
@@ -236,18 +241,6 @@ function normaliseRefs(refs: Array<string | number>): Array<string | number> {
   return out
 }
 
-function selectAccounts(
-  accounts: PortfolioAccount[],
-  refs: Array<string | number>,
-): PortfolioAccount[] {
-  const refSet = new Set(refs.map((ref) => String(ref)))
-  return accounts.filter(
-    (account) =>
-      (account.accountRef !== undefined && refSet.has(String(account.accountRef))) ||
-      (account.clientId !== undefined && refSet.has(String(account.clientId))) ||
-      refSet.has(customerKey(account.customerId)),
-  )
-}
 
 function buildPerformanceSummary(
   displayName: string,

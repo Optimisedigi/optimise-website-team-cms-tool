@@ -9,7 +9,16 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/agents/optimate-google-ads/tools/_portfolio-accounts', () => ({
   loadPortfolioAccounts: mocks.loadAccounts,
-  customerKey: (value: string) => value.replace(/-/g, ''),
+  selectPortfolioAccountsByAccountRefs: (
+    accounts: Array<{ accountRef?: string | number }>,
+    refs: Array<string | number>,
+  ) => {
+    const selected = new Set(refs.map(String))
+    return accounts.filter(
+      (account) =>
+        account.accountRef !== undefined && selected.has(String(account.accountRef)),
+    )
+  },
 }))
 
 vi.mock('@/lib/agents/optimate-google-ads/tools/get-weekly-metric-table', () => ({
@@ -54,6 +63,16 @@ describe('create_portfolio_weekly_gmail_drafts', () => {
         displayName: 'EPG',
         customerId: '098-765-4321',
         maskedCustomerId: '•••-4321',
+        source: 'audit',
+        active: true,
+        managed: true,
+      },
+      {
+        accountRef: 1,
+        clientId: 4,
+        displayName: 'Profiterole Patisserie',
+        customerId: '111-111-1111',
+        maskedCustomerId: '•••-1111',
         source: 'audit',
         active: true,
         managed: true,

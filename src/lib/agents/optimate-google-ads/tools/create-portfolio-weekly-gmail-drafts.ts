@@ -1,7 +1,11 @@
 import type { CanonicalTool, ToolContext } from '@/lib/agents/_shared/tool'
 import type { WeeklyBucketRow } from '@/lib/google-ads-weekly-metric-table'
 import { createGmailDraftTool } from './create-gmail-draft'
-import { customerKey, loadPortfolioAccounts, type PortfolioAccount } from './_portfolio-accounts'
+import {
+  loadPortfolioAccounts,
+  selectPortfolioAccountsByAccountRefs,
+  type PortfolioAccount,
+} from './_portfolio-accounts'
 import { getWeeklyMetricTable } from './get-weekly-metric-table'
 
 interface CreatePortfolioWeeklyGmailDraftsArgs {
@@ -87,7 +91,10 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
       const refs = normaliseRefs(args.accountRefs ?? contextSelectedAccountRefs(ctx))
       if (refs.length === 0) return { ok: false, error: 'No selected accounts were supplied.' }
 
-      const accounts = selectAccounts(await loadPortfolioAccounts(), refs)
+      const accounts = selectPortfolioAccountsByAccountRefs(
+        await loadPortfolioAccounts(),
+        refs,
+      )
       const capped = accounts.slice(0, MAX_ACCOUNTS)
       if (capped.length === 0)
         return { ok: false, error: 'None of the selected Google Ads accounts could be found.' }
@@ -191,18 +198,6 @@ function normaliseRefs(refs: Array<string | number>): Array<string | number> {
   })
 }
 
-function selectAccounts(
-  accounts: PortfolioAccount[],
-  refs: Array<string | number>,
-): PortfolioAccount[] {
-  const selected = new Set(refs.map((ref) => String(ref)))
-  return accounts.filter(
-    (account) =>
-      (account.accountRef !== undefined && selected.has(String(account.accountRef))) ||
-      (account.clientId !== undefined && selected.has(String(account.clientId))) ||
-      selected.has(customerKey(account.customerId)),
-  )
-}
 
 function contextForAccount(ctx: ToolContext, account: PortfolioAccount): ToolContext {
   return {

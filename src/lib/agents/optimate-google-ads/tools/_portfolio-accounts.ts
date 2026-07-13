@@ -47,6 +47,22 @@ export function customerKey(customerId: string): string {
   return customerId.replace(/-/g, "");
 }
 
+/**
+ * Resolve refs coming from the selected-account tabs. Those refs are audit IDs,
+ * so matching them against client IDs can pull an unrelated account when the
+ * two tables happen to use the same numeric ID.
+ */
+export function selectPortfolioAccountsByAccountRefs(
+  accounts: PortfolioAccount[],
+  refs: Array<string | number>,
+): PortfolioAccount[] {
+  const accountRefs = new Set(refs.map((ref) => String(ref)));
+  return accounts.filter(
+    (account) =>
+      account.accountRef !== undefined && accountRefs.has(String(account.accountRef)),
+  );
+}
+
 /** Default fan-out concurrency for portfolio Growth Tools calls. Keeps parallel
  * load on the (often saturated) Growth Tools backend bounded while turning long
  * serial account×period loops into a few parallel waves — the fix for portfolio
