@@ -212,6 +212,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   create_gmail_draft: "actions",
   create_weekly_budget_gmail_draft: "actions",
   create_monthly_budget_gmail_draft: "actions",
+  create_portfolio_budget_pacing_gmail_drafts: "actions",
   create_goal_run: "actions",
   create_account_efficiency_goal_run: "actions",
   execute_google_ads_action: "actions",

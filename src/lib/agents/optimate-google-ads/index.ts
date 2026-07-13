@@ -30,6 +30,7 @@ import { growthToolsRead } from "./tools/growth-tools-read";
 import { createGmailDraftTool } from "./tools/create-gmail-draft";
 import { createWeeklyBudgetGmailDraftTool } from "./tools/create-weekly-budget-gmail-draft";
 import { createMonthlyBudgetGmailDraftTool } from "./tools/create-monthly-budget-gmail-draft";
+import { createPortfolioBudgetPacingGmailDraftsTool } from "./tools/create-portfolio-budget-pacing-gmail-drafts";
 import { proposeNegativeKeywords } from "./tools/propose-negative-keywords";
 import { proposeNklCreate } from "./tools/propose-nkl-create";
 import { proposeNklUpdate } from "./tools/propose-nkl-update";
@@ -94,6 +95,7 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "create_gmail_draft",
   "create_weekly_budget_gmail_draft",
   "create_monthly_budget_gmail_draft",
+  "create_portfolio_budget_pacing_gmail_drafts",
   "remember",
   "soul_set",
   "propose_negative_keywords",
@@ -354,6 +356,7 @@ export function getPortfolioTools(options?: { restrictExternalContextActions?: b
     getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
     getDashboardEmailComponents as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
+    createPortfolioBudgetPacingGmailDraftsTool as unknown as CanonicalTool<unknown>,
     requestConfirmTool as unknown as CanonicalTool<unknown>,
     ...(options?.attachMemoryTools
       ? [
@@ -501,6 +504,34 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
     const defaults = await getOptiMateDefaultModels();
     modelRequested = defaults.defaultChatModel;
   }
+  const shortcutText = extractLastUserText(messages);
+  if (shouldUsePortfolioBudgetDraftShortcut(shortcutText, selectedAccountRefs, restrictExternalContextActions)) {
+    const runId = crypto.randomUUID();
+    const shortcutResult = await createPortfolioBudgetPacingGmailDraftsTool.execute(
+      { accountRefs: selectedAccountRefs ?? [] },
+      {
+        agentName: AGENT_NAME,
+        agentRunId: runId,
+        context: {
+          mode: "portfolio",
+          ...(selectedAccountRefs && selectedAccountRefs.length > 0 ? { selectedAccountRefs } : {}),
+          ...(userId !== undefined ? { userId } : {}),
+        },
+        log: () => undefined,
+      },
+    );
+    return {
+      reply: buildPortfolioBudgetDraftShortcutReply(shortcutResult),
+      runId,
+      modelRequested,
+      modelUsed: modelRequested,
+      source: "api-key",
+      totalUsage: { inputTokens: 0, outputTokens: 0 },
+      proposals: [],
+      confirmRequests: [],
+    };
+  }
+
   const result = await runAgent({
     agentName: AGENT_NAME,
     systemPrompt,
@@ -713,6 +744,50 @@ function extractLastUserText(messages: Message[]): string {
     if (text.trim().length > 0) return text;
   }
   return "";
+}
+
+interface PortfolioBudgetDraftShortcutData {
+  createdCount?: number;
+  requestedCount?: number;
+  drafts?: Array<{ displayName?: string; subject?: string; gmailUrl?: string; summary?: string }>;
+  failures?: Array<{ displayName?: string; error?: string }>;
+  skipped?: Array<{ displayName?: string; reason?: string }>;
+  capped?: boolean;
+  message?: string;
+}
+
+function shouldUsePortfolioBudgetDraftShortcut(
+  text: string,
+  selectedAccountRefs: Array<string | number> | undefined,
+  restrictExternalContextActions: boolean | undefined,
+): boolean {
+  if (restrictExternalContextActions) return false;
+  if (!selectedAccountRefs || selectedAccountRefs.length < 2) return false;
+  const lower = text.toLowerCase();
+  return (
+    /\b(gmail|draft|email)\b/.test(lower) &&
+    /\b(budget|pacing|spend)\b/.test(lower) &&
+    /\b(separate|each|per[- ]account|for each)\b/.test(lower)
+  );
+}
+
+function buildPortfolioBudgetDraftShortcutReply(result: { ok: boolean; data?: unknown; error?: string }): string {
+  if (!result.ok) return result.error || "Could not create the portfolio budget pacing Gmail drafts.";
+  const data = (result.data ?? {}) as PortfolioBudgetDraftShortcutData;
+  const lines = [data.message || `Created ${data.createdCount ?? 0} separate Gmail drafts.`];
+  for (const draft of data.drafts ?? []) {
+    const name = draft.displayName || draft.subject || "Client";
+    const link = draft.gmailUrl ? `, ${draft.gmailUrl}` : "";
+    lines.push(`- ${name}: ${draft.subject || "Gmail draft"}${link}`);
+  }
+  for (const failure of data.failures ?? []) {
+    lines.push(`- Failed, ${failure.displayName || "account"}: ${failure.error || "unknown error"}`);
+  }
+  for (const skipped of data.skipped ?? []) {
+    lines.push(`- Skipped, ${skipped.displayName || "account"}: ${skipped.reason || "not audit-backed"}`);
+  }
+  if (data.capped) lines.push("Processed the first 10 selected accounts to keep the request bounded.");
+  return lines.join("\n");
 }
 
 function extractConversationText(messages: Message[]): string {

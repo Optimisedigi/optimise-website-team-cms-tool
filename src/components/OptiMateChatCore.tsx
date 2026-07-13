@@ -160,6 +160,8 @@ export interface OptiMateChatCoreProps {
   messageContextPrefix?: string
   /** Account refs selected for the synthetic selected-accounts portfolio tab. */
   selectedAccountRefs?: Array<string | number>
+  /** Display labels matching selectedAccountRefs, used for the tiny multi-account progress pill. */
+  selectedAccountLabels?: string[]
   /**
    * Resume an existing chat thread on mount. When set, the component fetches
    * the thread's turns from /api/optimate-chat-history and seeds `messages`.
@@ -607,6 +609,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       hideInput = false,
       messageContextPrefix,
       selectedAccountRefs = [],
+      selectedAccountLabels = [],
       initialSessionId,
     },
     ref,
@@ -614,6 +617,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
+    const [progressAccountIndex, setProgressAccountIndex] = useState(0)
     const [error, setError] = useState<string | null>(null)
     const abortControllerRef = useRef<AbortController | null>(null)
     // Portal target for the active voice controls (under the account name).
@@ -621,9 +625,22 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     // portal has a valid container on the first active render.
     const voiceControlsRef = useRef<HTMLDivElement | null>(null)
     const [voiceControlsEl, setVoiceControlsEl] = useState<HTMLDivElement | null>(null)
+    const progressAccountLabels = selectedAccountLabels.length > 0
+      ? selectedAccountLabels
+      : selectedAccountRefs.map((ref) => `Account ${String(ref)}`)
     useEffect(() => {
       setVoiceControlsEl(voiceControlsRef.current)
     }, [])
+    useEffect(() => {
+      if (!loading || progressAccountLabels.length < 2) {
+        setProgressAccountIndex(0)
+        return
+      }
+      const timer = window.setInterval(() => {
+        setProgressAccountIndex((current) => Math.min(current + 1, progressAccountLabels.length - 1))
+      }, 2500)
+      return () => window.clearInterval(timer)
+    }, [loading, progressAccountLabels.length])
 
     // Insert or update a voice turn inside the SAME message thread as typed
     // chat. Streaming assistant deltas reuse the same voiceId so they update
@@ -2085,6 +2102,37 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   gap: 8,
                 }}
               >
+                {mode === 'portfolio' && progressAccountLabels.length > 1 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 5,
+                      minWidth: 160,
+                      maxWidth: 240,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 11 }}>
+                      <span style={{ color: '#374151', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {progressAccountLabels[progressAccountIndex] ?? progressAccountLabels[0]}
+                      </span>
+                      <span style={{ color: '#6b7280', flexShrink: 0 }}>
+                        {Math.min(progressAccountIndex + 1, progressAccountLabels.length)} of {progressAccountLabels.length}
+                      </span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 999, background: '#e5e7eb', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${((Math.min(progressAccountIndex + 1, progressAccountLabels.length)) / progressAccountLabels.length) * 100}%`,
+                          height: '100%',
+                          borderRadius: 999,
+                          background: '#2563eb',
+                          transition: 'width 240ms ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
                 <OptiMateTypingLoader />
                 <button
                   type="button"

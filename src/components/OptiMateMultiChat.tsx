@@ -29,6 +29,7 @@ export type OptiMateChatTarget =
       initialSessionId?: string
       messageContextPrefix?: string
       selectedAccountRefs?: Array<string | number>
+      selectedAccountLabels?: string[]
     }
 
 export interface OptiMateMultiChatHandle {
@@ -58,6 +59,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
       const auditTargets = targets.filter((t) => t.mode !== 'portfolio')
       if (auditTargets.length < 2) return null
       const selectedAccountRefs = auditTargets.map((t) => t.id)
+      const selectedAccountLabels = auditTargets.map((t) => t.businessName || t.customerId)
       const accountLines = auditTargets.map((t) => {
         const label = t.businessName || t.customerId
         const ref = String(t.id)
@@ -73,6 +75,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
           'When the user asks for an email or draft, compare/summarise these selected accounts together and create one combined Gmail draft if requested.\n' +
           accountLines.join('\n'),
         selectedAccountRefs,
+        selectedAccountLabels,
       }
     }, [targets])
     const chatTargets = useMemo(
@@ -136,6 +139,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
           initialSessionId={t.initialSessionId}
           messageContextPrefix={t.mode === 'portfolio' ? t.messageContextPrefix : undefined}
           selectedAccountRefs={t.mode === 'portfolio' ? t.selectedAccountRefs ?? [] : []}
+          selectedAccountLabels={t.mode === 'portfolio' ? t.selectedAccountLabels ?? [] : []}
         />
       )
     }
@@ -217,6 +221,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
                   initialSessionId={t.initialSessionId}
                   messageContextPrefix={t.mode === 'portfolio' ? t.messageContextPrefix : undefined}
                   selectedAccountRefs={t.mode === 'portfolio' ? t.selectedAccountRefs ?? [] : []}
+                  selectedAccountLabels={t.mode === 'portfolio' ? t.selectedAccountLabels ?? [] : []}
                 />
               </div>
             )
