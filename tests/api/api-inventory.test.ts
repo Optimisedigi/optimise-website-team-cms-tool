@@ -22,7 +22,7 @@ describe('API endpoint inventory', () => {
     expect(existsSync('docs/api-endpoint-inventory.md')).toBe(true)
     const doc = readFileSync('docs/api-endpoint-inventory.md', 'utf8')
 
-    expect(doc).toContain('CMS route files inventoried: 307')
+    expect(doc).toContain('CMS route files inventoried: 308')
     expect(doc).toContain('Growth Tools route registrations inventoried: 269')
     expect(doc).toContain('CMS → Growth Tools calls detected: 50')
     expect(doc).toContain('`/api/dashboard`')
