@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatGmailDraftHtml } from "@/lib/gmail-service";
+import { appendGmailSignature, formatGmailDraftHtml } from "@/lib/gmail-service";
 
 describe("formatGmailDraftHtml", () => {
   it("wraps draft HTML in Verdana normal-size Gmail styling", () => {
@@ -22,6 +22,15 @@ describe("formatGmailDraftHtml", () => {
   it("turns paragraph blocks into editable Gmail blank lines", () => {
     expect(formatGmailDraftHtml("<p>Hi Jane,</p><p>Thanks,</p><p>Peter</p>")).toBe(
       '<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;margin:0;padding:0;">Hi Jane,<br><br>Thanks,<br><br>Peter</div>',
+    );
+  });
+
+  it("keeps one blank line between a wrapped report and the Gmail signature", () => {
+    const report = '<div><p>Reach out if you have any questions.</p></div>';
+    const signed = appendGmailSignature(report, "Thanks,<br>Peter");
+
+    expect(signed).toBe(
+      '<div><p>Reach out if you have any questions.</p></div><br>Thanks,<br>Peter',
     );
   });
 

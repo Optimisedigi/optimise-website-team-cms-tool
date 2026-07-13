@@ -206,11 +206,14 @@ export function formatGmailDraftHtml(htmlBody: string): string {
   return `<div data-optimate-gmail-draft-font="true" style="${GMAIL_DRAFT_FONT_STYLE}">${normalised}</div>`;
 }
 
-function appendGmailSignature(htmlBody: string, signatureHtml: string): string {
+export function appendGmailSignature(htmlBody: string, signatureHtml: string): string {
   const signature = signatureHtml.trim();
   if (!signature) return htmlBody;
   if (htmlBody.includes(signature)) return htmlBody;
-  return `${htmlBody}<br><br>${signature}`;
+
+  const body = htmlBody.trimEnd();
+  const separator = /<\/p>$/i.test(body) ? "" : /<\/div>$/i.test(body) ? "<br>" : "<br><br>";
+  return `${body}${separator}${signature}`;
 }
 
 /**
