@@ -9,9 +9,10 @@ import {
 } from "@/lib/sheets-service";
 import { logActivity } from "@/lib/activity-log";
 import { parseBrandTerms } from "@/lib/brand-terms";
+import { callLLM } from "@/lib/agents/_shared/llm";
+import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 
-const KIMI_BASE_URL = process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1";
-const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2-0905-preview";
+const AUTONOMOUS_FALLBACK_MODELS = ["claude-sonnet-4.6", "kimi-k2.6"];
 
 const WEEKDAYS = [
   "sunday",
@@ -37,7 +38,7 @@ interface SweepCandidate {
 /**
  * GET /api/negative-sweep/cron
  * Weekly cron that calls Growth Tools' negative sweep endpoint to get candidates,
- * then uses Kimi AI to classify and suggest smarter negative keywords.
+ * then uses the configured OptiMate model to classify and suggest smarter negative keywords.
  * Authenticated via CRON_SECRET bearer token.
  *
  * Manual trigger: ?clientId=123&force=true — bypasses weekday check, runs for one client.
@@ -274,8 +275,8 @@ async function processClient(
     return { created: 0 };
   }
 
-  // 5. AI classification with Kimi — classifies candidates and suggests
-  // smarter negative keywords (e.g. "salary" phrase match instead of "plumber salary" exact)
+  // 5. AI classification — classifies candidates and suggests smarter negative
+  // keywords (e.g. "salary" phrase match instead of "plumber salary" exact)
   const classified = await classifyWithAI(newCandidates, client, sheetListsInfo);
 
   // 6. Create candidate records
@@ -328,18 +329,6 @@ async function classifyWithAI(
   client: any,
   sheetLists: { name: string; column: string; regex: string }[]
 ): Promise<ClassifiedTerm[]> {
-  const KIMI_API_KEY = process.env.KIMI_API_KEY;
-
-  if (!KIMI_API_KEY) {
-    // Fallback: treat all terms as candidates with the raw search term
-    return terms.map((t) => ({
-      ...t,
-      isCandidate: true,
-      suggestedNegative: t.searchTerm,
-      reasoning: "AI classification unavailable — flagged by spend/conversion filters",
-    }));
-  }
-
   const listsInfo =
     sheetLists.length > 0
       ? sheetLists
@@ -396,33 +385,23 @@ For each term, return a JSON object with:
 - reasoning: brief explanation`;
 
   try {
-    const res = await fetch(`${KIMI_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${KIMI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: KIMI_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        temperature: 0.3,
-        max_tokens: 4000,
-      }),
-      signal: AbortSignal.timeout(60_000),
+    const defaults = await getOptiMateDefaultModels();
+    const model = defaults.negativeSweepModel ?? defaults.defaultAutonomousModel;
+    const response = await callLLM({
+      model,
+      ...(!defaults.negativeSweepModel
+        ? { fallbackModels: AUTONOMOUS_FALLBACK_MODELS }
+        : {}),
+      messages: [{ role: "user", content: [{ type: "text", text: userMessage }] }],
+      system: systemPrompt,
+      temperature: 0.3,
+      maxTokens: 4000,
     });
-
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      console.error(`[negative-sweep/cron] Kimi API error ${res.status}: ${detail}`);
-      throw new Error(`Kimi API error: ${res.status}`);
-    }
-
-    const data = await res.json();
-    const text = data.choices?.[0]?.message?.content?.trim() || "";
-    // Strip potential markdown code fences
+    const text = response.message.content
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("")
+      .trim();
+    // Strip potential markdown code fences.
     const jsonStr = text.replace(/^```json?\s*/i, "").replace(/```\s*$/i, "");
     const parsed = JSON.parse(jsonStr);
 

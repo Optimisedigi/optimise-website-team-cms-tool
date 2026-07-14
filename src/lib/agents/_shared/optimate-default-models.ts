@@ -42,6 +42,14 @@ export interface OptiMateDefaultModels {
   invoiceAssistantModel?: CanonicalModelName;
   /** Optional task-specific model for GmailMate / OptiMate Gmail. */
   emailAssistantModel?: CanonicalModelName;
+  /** Optional task-specific model for Match Type Violations research. */
+  searchTermResearchModel?: CanonicalModelName;
+  /** Optional task-specific model for Weekly Negative Sweep classification. */
+  negativeSweepModel?: CanonicalModelName;
+  /** OpenAI model used for OptiMate Realtime input transcription. */
+  voiceTranscriptionModel: string;
+  /** Gemini Imagen model used for blog hero image generation. */
+  blogImageGenerationModel: string;
   /** Approximate token budget for chat history before compacting older turns. */
   chatHistoryTokenLimit: number;
   /** Starter prompt chips for single-account Google Mate chats. */
@@ -78,10 +86,17 @@ function resolvePickerModel(value: unknown): CanonicalModelName | undefined {
 }
 
 export const DEFAULT_VOICE_REALTIME_MODEL: OptiMateRealtimeModel = "gpt-realtime-mini";
+export const DEFAULT_VOICE_TRANSCRIPTION_MODEL = "gpt-4o-transcribe";
+export const DEFAULT_BLOG_IMAGE_GENERATION_MODEL = "imagen-4.0-fast-generate-001";
 
 const DEFAULT_CHAT_HISTORY_TOKEN_LIMIT = 6000;
 const MIN_CHAT_HISTORY_TOKEN_LIMIT = 1000;
 const MAX_CHAT_HISTORY_TOKEN_LIMIT = 30000;
+
+function resolveNativeModel(value: unknown, fallback: string): string {
+  const model = typeof value === "string" ? value.trim() : "";
+  return model || fallback;
+}
 
 function resolveChatHistoryTokenLimit(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -117,6 +132,10 @@ export async function getOptiMateDefaultModels(
       blogPrompterModel?: unknown;
       invoiceAssistantModel?: unknown;
       emailAssistantModel?: unknown;
+      searchTermResearchModel?: unknown;
+      negativeSweepModel?: unknown;
+      voiceTranscriptionModel?: unknown;
+      blogImageGenerationModel?: unknown;
       voiceRealtimeModel?: unknown;
       chatHistoryTokenLimit?: unknown;
       googleMateStarterQuestions?: unknown;
@@ -127,11 +146,21 @@ export async function getOptiMateDefaultModels(
     const blogPrompterModel = resolvePickerModel(global?.blogPrompterModel);
     const invoiceAssistantModel = resolvePickerModel(global?.invoiceAssistantModel);
     const emailAssistantModel = resolvePickerModel(global?.emailAssistantModel);
+    const searchTermResearchModel = resolvePickerModel(global?.searchTermResearchModel);
+    const negativeSweepModel = resolvePickerModel(global?.negativeSweepModel);
 
     return {
       defaultChatModel: resolvePickerModel(global?.defaultChatModel) ?? DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: resolvePickerModel(global?.defaultAutonomousModel) ?? DEFAULT_AUTONOMOUS_MODEL,
       voiceRealtimeModel: resolveVoiceRealtimeModel(global?.voiceRealtimeModel),
+      voiceTranscriptionModel: resolveNativeModel(
+        global?.voiceTranscriptionModel,
+        DEFAULT_VOICE_TRANSCRIPTION_MODEL,
+      ),
+      blogImageGenerationModel: resolveNativeModel(
+        global?.blogImageGenerationModel,
+        DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
+      ),
       chatHistoryTokenLimit: resolveChatHistoryTokenLimit(global?.chatHistoryTokenLimit),
       googleMateStarterQuestions: resolveStarterQuestions(
         global?.googleMateStarterQuestions,
@@ -148,6 +177,8 @@ export async function getOptiMateDefaultModels(
       ...(blogPrompterModel ? { blogPrompterModel } : {}),
       ...(invoiceAssistantModel ? { invoiceAssistantModel } : {}),
       ...(emailAssistantModel ? { emailAssistantModel } : {}),
+      ...(searchTermResearchModel ? { searchTermResearchModel } : {}),
+      ...(negativeSweepModel ? { negativeSweepModel } : {}),
     };
   } catch (err) {
     console.warn(
@@ -158,6 +189,8 @@ export async function getOptiMateDefaultModels(
       defaultChatModel: DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: DEFAULT_AUTONOMOUS_MODEL,
       voiceRealtimeModel: DEFAULT_VOICE_REALTIME_MODEL,
+      voiceTranscriptionModel: DEFAULT_VOICE_TRANSCRIPTION_MODEL,
+      blogImageGenerationModel: DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
       chatHistoryTokenLimit: DEFAULT_CHAT_HISTORY_TOKEN_LIMIT,
       googleMateStarterQuestions: [...DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS],
       googleMatePortfolioStarterQuestions: [...DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS],

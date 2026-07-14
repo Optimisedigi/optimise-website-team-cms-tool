@@ -18,8 +18,12 @@ import type { TermResearchResponse } from "@/lib/search-term-research";
 // ---------------------------------------------------------------------------
 
 const mockCallLLM = vi.hoisted(() => vi.fn());
+const mockGetOptiMateDefaultModels = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/agents/_shared/llm", () => ({
   callLLM: (opts: unknown) => mockCallLLM(opts),
+}));
+vi.mock("@/lib/agents/_shared/optimate-default-models", () => ({
+  getOptiMateDefaultModels: () => mockGetOptiMateDefaultModels(),
 }));
 
 const ORIG = {
@@ -72,6 +76,8 @@ beforeEach(() => {
   mockFetch.mockReset();
   mockCallLLM.mockReset();
   mockCallLLM.mockResolvedValue(llmResponse({})); // default: no summaries
+  mockGetOptiMateDefaultModels.mockReset();
+  mockGetOptiMateDefaultModels.mockResolvedValue({ defaultAutonomousModel: "minimax-m3" });
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.resetModules();
   process.env.GROWTH_TOOLS_URL = GT_URL;
@@ -188,6 +194,20 @@ describe("researchSearchTerms", () => {
     const opts = mockCallLLM.mock.calls[0][0];
     expect(opts.model).toBe("minimax-m3");
     expect(opts.fallbackModels).toEqual(["claude-sonnet-4.6", "kimi-k2.6"]);
+  });
+
+  it("uses the configured Research Terms model without the autonomous fallback chain", async () => {
+    mockGetOptiMateDefaultModels.mockResolvedValue({
+      defaultAutonomousModel: "minimax-m3",
+      searchTermResearchModel: "claude-haiku-4.5",
+    });
+    routeFetch({});
+
+    const { researchSearchTerms } = await importModule();
+    await researchSearchTerms(["acme"]);
+
+    expect(mockCallLLM.mock.calls[0][0]).toMatchObject({ model: "claude-haiku-4.5" });
+    expect(mockCallLLM.mock.calls[0][0].fallbackModels).toBeUndefined();
   });
 
   it("(5) duplicate / whitespace / empty input terms are deduped before grounding", async () => {

@@ -31,6 +31,15 @@ vi.mock('@/lib/activity-log', () => ({
   logActivity: vi.fn(() => Promise.resolve()),
 }))
 
+const mockCallLLM = vi.hoisted(() => vi.fn())
+const mockGetOptiMateDefaultModels = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/agents/_shared/llm', () => ({
+  callLLM: (opts: unknown) => mockCallLLM(opts),
+}))
+vi.mock('@/lib/agents/_shared/optimate-default-models', () => ({
+  getOptiMateDefaultModels: () => mockGetOptiMateDefaultModels(),
+}))
+
 import { GET } from '@/app/(frontend)/api/negative-sweep/cron/route'
 import { NextRequest } from 'next/server'
 
@@ -131,6 +140,10 @@ describe('GET /api/negative-sweep/cron', () => {
     process.env.GROWTH_TOOLS_URL = 'https://growth-tools.test'
     process.env.INTERNAL_API_KEY = 'test-key'
     process.env.KIMI_API_KEY = 'test-kimi-key'
+    mockGetOptiMateDefaultModels.mockResolvedValue({ defaultAutonomousModel: 'minimax-m3' })
+    mockCallLLM.mockResolvedValue({
+      message: { role: 'assistant', content: [{ type: 'text', text: JSON.stringify(kimiClassification) }] },
+    })
 
     // Default: no existing candidates
     mockPayload.find.mockResolvedValue({ docs: [] })
@@ -293,6 +306,14 @@ describe('GET /api/negative-sweep/cron', () => {
     expect(firstCall.data.suggestedNegative).toBe('salary')
     expect(firstCall.data.matchType).toBe('phrase')
     expect(firstCall.data.aiReasoning).toContain('Job seeker')
+    expect(mockCallLLM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'minimax-m3',
+        fallbackModels: ['claude-sonnet-4.6', 'kimi-k2.6'],
+        temperature: 0.3,
+        maxTokens: 4000,
+      }),
+    )
 
     // Second candidate: "how to fix tap diy" → suggested "diy" phrase
     const secondCall = mockPayload.create.mock.calls[1][0]
@@ -301,10 +322,10 @@ describe('GET /api/negative-sweep/cron', () => {
     expect(secondCall.data.matchType).toBe('phrase')
   })
 
-  it('falls back to raw terms when KIMI_API_KEY is missing', async () => {
-    delete process.env.KIMI_API_KEY
+  it('falls back to raw terms when shared LLM classification is unavailable', async () => {
     mockPayload.findByID.mockResolvedValue(mockClient)
     mockPayload.find.mockResolvedValue({ docs: [] })
+    mockCallLLM.mockRejectedValueOnce(new Error('No configured LLM credentials'))
 
     const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>
     mockFetch.mockResolvedValueOnce({
@@ -322,25 +343,21 @@ describe('GET /api/negative-sweep/cron', () => {
     // Fallback uses the raw search term as suggestedNegative
     const firstCall = mockPayload.create.mock.calls[0][0]
     expect(firstCall.data.suggestedNegative).toBe('plumber salary')
-    expect(firstCall.data.aiReasoning).toContain('AI classification unavailable')
+    expect(firstCall.data.aiReasoning).toContain('AI classification failed')
   })
 
-  it('falls back when Kimi returns invalid JSON', async () => {
+  it('falls back when the shared LLM returns invalid JSON', async () => {
     mockPayload.findByID.mockResolvedValue(mockClient)
     mockPayload.find.mockResolvedValue({ docs: [] })
+    mockCallLLM.mockResolvedValueOnce({
+      message: { role: 'assistant', content: [{ type: 'text', text: 'This is not JSON at all' }] },
+    })
 
     const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ candidates: growthToolsCandidates }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          choices: [{ message: { content: 'This is not JSON at all' } }],
-        }),
-      })
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ candidates: growthToolsCandidates }),
+    })
 
     const res = await GET(makeRequest({ clientId: '1', force: 'true' }))
     const json = await res.json()
@@ -348,6 +365,28 @@ describe('GET /api/negative-sweep/cron', () => {
     expect(json.ok).toBe(true)
     // Fallback: all flagged as candidates
     expect(json.summary[0].candidatesCreated).toBe(3)
+  })
+
+  it('uses the configured Weekly Negative Sweep model without autonomous fallbacks', async () => {
+    mockGetOptiMateDefaultModels.mockResolvedValue({
+      defaultAutonomousModel: 'minimax-m3',
+      negativeSweepModel: 'claude-haiku-4.5',
+    })
+    mockPayload.findByID.mockResolvedValue(mockClient)
+    mockPayload.find.mockResolvedValue({ docs: [] })
+
+    const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ candidates: growthToolsCandidates }),
+    })
+
+    await GET(makeRequest({ clientId: '1', force: 'true' }))
+
+    expect(mockCallLLM).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'claude-haiku-4.5' }),
+    )
+    expect(mockCallLLM.mock.calls[0][0].fallbackModels).toBeUndefined()
   })
 
   // ─── Filtering ────────────────────────────────────────────

@@ -78,6 +78,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const defaults = await getOptiMateDefaultModels(payload)
     const session = buildRealtimeSession({
       model: defaults.voiceRealtimeModel,
+      transcriptionModel: defaults.voiceTranscriptionModel,
       instructions,
       tools: Array.isArray(requestedSession.tools) ? requestedSession.tools : [],
       turnDetection: normalizeTurnDetection(requestedSession.turnDetection),
@@ -152,6 +153,7 @@ function describeEnvScope(): { env: string; commit: string | null; url: string |
 
 function buildRealtimeSession(input: {
   model: string
+  transcriptionModel: string
   instructions: string
   tools: unknown[]
   turnDetection: TurnDetectionConfig
@@ -168,7 +170,7 @@ function buildRealtimeSession(input: {
       input: {
         format: { type: 'audio/pcm', rate: DEFAULT_SAMPLE_RATE },
         noise_reduction: { type: 'near_field' },
-        transcription: { model: 'gpt-4o-transcribe' },
+        transcription: { model: input.transcriptionModel },
         turn_detection: input.turnDetection,
       },
       output: {

@@ -10,7 +10,11 @@ import {
   DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
   DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
 } from "../lib/agents/_shared/optimate-starter-questions";
-import { DEFAULT_VOICE_REALTIME_MODEL } from "../lib/agents/_shared/optimate-default-models";
+import {
+  DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
+  DEFAULT_VOICE_REALTIME_MODEL,
+  DEFAULT_VOICE_TRANSCRIPTION_MODEL,
+} from "../lib/agents/_shared/optimate-default-models";
 
 /**
  * OptiMate agent settings.
@@ -66,6 +70,11 @@ function normaliseRealtimeModel(value: unknown): string {
     : DEFAULT_VOICE_REALTIME_MODEL;
 }
 
+function normaliseRequiredNativeModel(value: unknown, fallback: string): string {
+  const model = typeof value === "string" ? value.trim() : "";
+  return model || fallback;
+}
+
 function starterQuestionDefaults(questions: readonly string[]): Array<{ question: string }> {
   return questions.map((question) => ({ question }));
 }
@@ -117,6 +126,16 @@ export const OptiMateSettings: GlobalConfig = {
         data.blogPrompterModel = normaliseOptionalPickerModel(data.blogPrompterModel);
         data.invoiceAssistantModel = normaliseOptionalPickerModel(data.invoiceAssistantModel);
         data.emailAssistantModel = normaliseOptionalPickerModel(data.emailAssistantModel);
+        data.searchTermResearchModel = normaliseOptionalPickerModel(data.searchTermResearchModel);
+        data.negativeSweepModel = normaliseOptionalPickerModel(data.negativeSweepModel);
+        data.voiceTranscriptionModel = normaliseRequiredNativeModel(
+          data.voiceTranscriptionModel,
+          DEFAULT_VOICE_TRANSCRIPTION_MODEL,
+        );
+        data.blogImageGenerationModel = normaliseRequiredNativeModel(
+          data.blogImageGenerationModel,
+          DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
+        );
 
         return data;
       },
@@ -228,6 +247,48 @@ export const OptiMateSettings: GlobalConfig = {
               admin: {
                 description:
                   "Optional. Model used by GmailMate / OptiMate Gmail. Leave blank to use the autonomous default. Users can still switch models at the bottom of GmailMate.",
+              },
+            },
+            {
+              name: "searchTermResearchModel",
+              type: "select",
+              options: MODEL_OPTIONS,
+              label: "Research Terms model",
+              admin: {
+                description:
+                  "Optional. Model used to research Match Type Violations terms. Leave blank to use the autonomous default.",
+              },
+            },
+            {
+              name: "negativeSweepModel",
+              type: "select",
+              options: MODEL_OPTIONS,
+              label: "Weekly Negative Sweep model",
+              admin: {
+                description:
+                  "Optional. Model used to classify weekly negative-keyword sweep terms. Leave blank to use the autonomous default.",
+              },
+            },
+            {
+              name: "voiceTranscriptionModel",
+              type: "text",
+              label: "Voice input transcription model",
+              defaultValue: DEFAULT_VOICE_TRANSCRIPTION_MODEL,
+              required: true,
+              admin: {
+                description:
+                  "OpenAI transcription model used for OptiMate Realtime voice input.",
+              },
+            },
+            {
+              name: "blogImageGenerationModel",
+              type: "text",
+              label: "Blog image generation model",
+              defaultValue: DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
+              required: true,
+              admin: {
+                description:
+                  "Gemini Imagen model used to generate blog hero images.",
               },
             },
           ],

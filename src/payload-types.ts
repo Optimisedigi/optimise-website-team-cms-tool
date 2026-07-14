@@ -13784,6 +13784,52 @@ export interface OptimateSetting {
       )
     | null;
   /**
+   * Optional. Model used to research Match Type Violations terms. Leave blank to use the autonomous default.
+   */
+  searchTermResearchModel?:
+    | (
+        | 'claude-sonnet-4.6'
+        | 'claude-opus-4-8'
+        | 'claude-haiku-4.5'
+        | 'kimi-for-coding'
+        | 'kimi-k2.6'
+        | 'minimax-m3'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5-codex'
+        | 'grok-build'
+        | 'grok-composer-2.5-fast'
+      )
+    | null;
+  /**
+   * Optional. Model used to classify weekly negative-keyword sweep terms. Leave blank to use the autonomous default.
+   */
+  negativeSweepModel?:
+    | (
+        | 'claude-sonnet-4.6'
+        | 'claude-opus-4-8'
+        | 'claude-haiku-4.5'
+        | 'kimi-for-coding'
+        | 'kimi-k2.6'
+        | 'minimax-m3'
+        | 'gpt-5.6-sol'
+        | 'gpt-5.6-terra'
+        | 'gpt-5.6-luna'
+        | 'gpt-5.5-codex'
+        | 'grok-build'
+        | 'grok-composer-2.5-fast'
+      )
+    | null;
+  /**
+   * OpenAI transcription model used for OptiMate Realtime voice input.
+   */
+  voiceTranscriptionModel: string;
+  /**
+   * Gemini Imagen model used to generate blog hero images.
+   */
+  blogImageGenerationModel: string;
+  /**
    * Starter prompt chips shown on the empty OptiMate chat screen. Users can click a chip to send that question immediately.
    */
   googleMateStarterQuestions?:
@@ -14011,6 +14057,10 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
   blogPrompterModel?: T;
   invoiceAssistantModel?: T;
   emailAssistantModel?: T;
+  searchTermResearchModel?: T;
+  negativeSweepModel?: T;
+  voiceTranscriptionModel?: T;
+  blogImageGenerationModel?: T;
   googleMateStarterQuestions?:
     | T
     | {

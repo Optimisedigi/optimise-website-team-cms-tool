@@ -14,20 +14,19 @@
  *
  * The one-sentence summaries run through the shared `callLLM` layer so this task
  * uses the model registry + provider failover instead of a single hardcoded
- * provider. The default model is MiniMax; the intent is to promote this to a
- * task-specific field in OptiMate Settings (like `blogPrompterModel`) so it can
- * be changed without a deploy.
+ * provider. The model is selected in OptiMate Settings, falling back to the
+ * configured autonomous default when no task-specific model is set.
  */
 
 import { callLLM } from '@/lib/agents/_shared/llm'
+import { getOptiMateDefaultModels } from '@/lib/agents/_shared/optimate-default-models'
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
 
-// Default model for the business summaries, with a resilient fallback chain.
-// Canonical registry names — see src/lib/agents/_shared/llm/registry.ts.
-const SUMMARY_MODEL = 'minimax-m3'
-const SUMMARY_FALLBACK_MODELS = ['claude-sonnet-4.6', 'kimi-k2.6']
+// Retain the established resilient fallback chain only when the configured
+// autonomous default is selected for this task.
+const AUTONOMOUS_FALLBACK_MODELS = ['claude-sonnet-4.6', 'kimi-k2.6']
 
 export interface TermResearchSource {
   title: string
@@ -167,11 +166,15 @@ async function summariseGroundedTerms(grounded: GroundedTerm[]): Promise<Map<str
   ].join('\n')
 
   try {
-    // Generous token budget: MiniMax/thinking models spend tokens on a reasoning
+    // Generous token budget: thinking models can spend tokens on a reasoning
     // pass before emitting the visible JSON array.
+    const defaults = await getOptiMateDefaultModels()
+    const model = defaults.searchTermResearchModel ?? defaults.defaultAutonomousModel
     const response = await callLLM({
-      model: SUMMARY_MODEL,
-      fallbackModels: SUMMARY_FALLBACK_MODELS,
+      model,
+      ...(!defaults.searchTermResearchModel
+        ? { fallbackModels: AUTONOMOUS_FALLBACK_MODELS }
+        : {}),
       maxTokens: 4000,
       temperature: 0.2,
       system: systemPrompt,

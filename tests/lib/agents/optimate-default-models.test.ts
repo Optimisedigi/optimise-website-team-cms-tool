@@ -26,7 +26,9 @@ vi.mock("payload", () => ({
 vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
 
 import {
+  DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
   DEFAULT_VOICE_REALTIME_MODEL,
+  DEFAULT_VOICE_TRANSCRIPTION_MODEL,
   getOptiMateDefaultModels,
 } from "@/lib/agents/_shared/optimate-default-models";
 import {
@@ -47,12 +49,20 @@ describe("getOptiMateDefaultModels", () => {
       defaultChatModel: "gpt-5.5-codex-medium",
       defaultAutonomousModel: "minimax-m3",
       blogPrompterModel: "claude-sonnet-4.6",
+      searchTermResearchModel: "kimi-k2.6",
+      negativeSweepModel: "claude-haiku-4.5",
+      voiceTranscriptionModel: " custom-openai ",
+      blogImageGenerationModel: " custom-imagen ",
       voiceRealtimeModel: "gpt-realtime-2",
     };
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe("gpt-5.5-codex");
     expect(result.defaultAutonomousModel).toBe("minimax-m3");
     expect(result.blogPrompterModel).toBe("claude-sonnet-4.6");
+    expect(result.searchTermResearchModel).toBe("kimi-k2.6");
+    expect(result.negativeSweepModel).toBe("claude-haiku-4.5");
+    expect(result.voiceTranscriptionModel).toBe("custom-openai");
+    expect(result.blogImageGenerationModel).toBe("custom-imagen");
     expect(result.voiceRealtimeModel).toBe("gpt-realtime-2");
   });
 
@@ -62,6 +72,10 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.defaultChatModel).toBe(DEFAULT_CHAT_MODEL);
     expect(result.defaultAutonomousModel).toBe(DEFAULT_AUTONOMOUS_MODEL);
     expect(result.blogPrompterModel).toBeUndefined();
+    expect(result.searchTermResearchModel).toBeUndefined();
+    expect(result.negativeSweepModel).toBeUndefined();
+    expect(result.voiceTranscriptionModel).toBe(DEFAULT_VOICE_TRANSCRIPTION_MODEL);
+    expect(result.blogImageGenerationModel).toBe(DEFAULT_BLOG_IMAGE_GENERATION_MODEL);
     expect(result.voiceRealtimeModel).toBe(DEFAULT_VOICE_REALTIME_MODEL);
   });
 
@@ -70,12 +84,20 @@ describe("getOptiMateDefaultModels", () => {
       defaultChatModel: "totally-made-up-model",
       defaultAutonomousModel: "",
       blogPrompterModel: "not-real",
+      searchTermResearchModel: "not-real",
+      negativeSweepModel: "not-real",
+      voiceTranscriptionModel: 42,
+      blogImageGenerationModel: null,
       voiceRealtimeModel: "not-realtime",
     };
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe(DEFAULT_CHAT_MODEL);
     expect(result.defaultAutonomousModel).toBe(DEFAULT_AUTONOMOUS_MODEL);
     expect(result.blogPrompterModel).toBeUndefined();
+    expect(result.searchTermResearchModel).toBeUndefined();
+    expect(result.negativeSweepModel).toBeUndefined();
+    expect(result.voiceTranscriptionModel).toBe(DEFAULT_VOICE_TRANSCRIPTION_MODEL);
+    expect(result.blogImageGenerationModel).toBe(DEFAULT_BLOG_IMAGE_GENERATION_MODEL);
     expect(result.voiceRealtimeModel).toBe(DEFAULT_VOICE_REALTIME_MODEL);
   });
 
@@ -85,6 +107,8 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.defaultChatModel).toBe(DEFAULT_CHAT_MODEL);
     expect(result.defaultAutonomousModel).toBe(DEFAULT_AUTONOMOUS_MODEL);
     expect(result.voiceRealtimeModel).toBe(DEFAULT_VOICE_REALTIME_MODEL);
+    expect(result.voiceTranscriptionModel).toBe(DEFAULT_VOICE_TRANSCRIPTION_MODEL);
+    expect(result.blogImageGenerationModel).toBe(DEFAULT_BLOG_IMAGE_GENERATION_MODEL);
   });
 
   it("uses a caller-supplied payload instance without calling getPayload", async () => {

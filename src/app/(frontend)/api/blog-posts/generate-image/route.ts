@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
 import config from "@/payload.config";
+import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 
 export async function POST(req: NextRequest) {
   const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
@@ -33,6 +34,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const payloadConfig = await config;
+    const payload = await getPayload({ config: payloadConfig });
+    const defaults = await getOptiMateDefaultModels(payload);
+
     // 1. Generate image with Gemini Imagen 4 Fast
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
@@ -46,7 +51,7 @@ export async function POST(req: NextRequest) {
     const prompt = imagePromptOverride.trim();
 
     const response = await ai.models.generateImages({
-      model: "imagen-4.0-fast-generate-001",
+      model: defaults.blogImageGenerationModel,
       prompt,
       config: { numberOfImages: 1 },
     });
@@ -71,9 +76,6 @@ export async function POST(req: NextRequest) {
       .toBuffer();
 
     // 3. Upload to Payload Media collection
-    const payloadConfig = await config;
-    const payload = await getPayload({ config: payloadConfig });
-
     const slug = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
