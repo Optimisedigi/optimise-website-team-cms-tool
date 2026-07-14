@@ -64,6 +64,27 @@ describe("findCoveringNegative", () => {
     expect(match?.listName).toBe("Brand negatives");
   });
 
+  it("suppresses a phrase-negative match with leading words", () => {
+    const nkls: CoverageNkl[] = [
+      {
+        scope: "campaign",
+        campaignRegex: "Brand",
+        keywords: [{ keyword: "temp agency", matchType: "phrase" }],
+      },
+    ];
+    expect(isTermCoveredByCampaignNegatives("it temp agency", ctx, nkls)).toBe(true);
+  });
+
+  it("does not treat reversed phrase words as a phrase-negative match", () => {
+    const nkls: CoverageNkl[] = [
+      {
+        scope: "account",
+        keywords: [{ keyword: "temp agency", matchType: "phrase" }],
+      },
+    ];
+    expect(isTermCoveredByCampaignNegatives("agency temp", ctx, nkls)).toBe(false);
+  });
+
   it("honours a broad negative (all words, any order)", () => {
     const nkls: CoverageNkl[] = [
       {

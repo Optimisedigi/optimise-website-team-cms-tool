@@ -11,7 +11,6 @@
  */
 
 import { matchesPattern } from "@/lib/nkl-routing";
-import { termMatchesNegative } from "@/lib/negative-keyword-suppression";
 
 export type CoverageMatchType = "broad" | "phrase" | "exact";
 
@@ -76,12 +75,37 @@ export function nklAppliesToViolation(nkl: CoverageNkl, ctx: CoverageContext): b
  * Find the first negative that already covers `term` among NKLs that apply to
  * the violation's campaign, or `null` when the term is uncovered.
  *
- * Coverage semantics reuse `termMatchesNegative`:
+ * Coverage follows the Google Ads match type of the negative:
  *   - exact: the whole normalized term equals the keyword.
- *   - phrase / broad: every word of the keyword appears in the term (order
- *     independent). This is the same convention the monthly-suppression review
- *     uses, so "already covered" means the same thing across the product.
+ *   - phrase: keyword words appear consecutively and in order in the term.
+ *   - broad: every keyword word appears in the term, in any order.
+ *
+ * This deliberately does not reuse the monthly-review suppression helper: that
+ * view uses token-subset matching for phrase negatives, which would incorrectly
+ * hide a violation such as "agency temp" for the phrase negative "temp agency".
  */
+function normaliseText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function negativeCoversTerm(term: string, keyword: string, matchType: CoverageMatchType): boolean {
+  const normalisedTerm = normaliseText(term);
+  const normalisedKeyword = normaliseText(keyword);
+  if (!normalisedTerm || !normalisedKeyword) return false;
+  if (matchType === "exact") return normalisedTerm === normalisedKeyword;
+
+  const termWords = normalisedTerm.split(" ");
+  const keywordWords = normalisedKeyword.split(" ");
+  if (matchType === "phrase") {
+    return termWords.some((_, start) =>
+      termWords.slice(start, start + keywordWords.length).join(" ") === normalisedKeyword,
+    );
+  }
+
+  const termWordSet = new Set(termWords);
+  return keywordWords.every((word) => termWordSet.has(word));
+}
+
 export function findCoveringNegative(
   term: string,
   ctx: CoverageContext,
@@ -96,11 +120,7 @@ export function findCoveringNegative(
       const raw = String(kw?.matchType ?? "").toLowerCase();
       const matchType: CoverageMatchType =
         raw === "exact" ? "exact" : raw === "broad" ? "broad" : "phrase";
-      // broad and phrase negatives both block when every keyword word is present
-      // (broad = any order; our phrase check is also order-independent), so both
-      // map to the phrase token-subset check.
-      const checkType = matchType === "exact" ? "exact" : "phrase";
-      if (termMatchesNegative(term, { keyword, matchType: checkType })) {
+      if (negativeCoversTerm(term, keyword, matchType)) {
         return { keyword, matchType, listName: nkl.name || "Unnamed NKL" };
       }
     }

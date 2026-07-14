@@ -1823,11 +1823,18 @@ export default function MatchTypeViolationReview({
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
                 <th style={thStyle()}>
-                  <input
-                    type="checkbox"
-                    checked={pendingSelected.length > 0 && pendingSelected.length === visibleCandidates.filter(c => c.status === 'pending').length}
-                    onChange={(e) => toggleAll(e.target.checked)}
-                  />
+                  <label
+                    title="Select every pending search term currently shown"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label="Select all search terms"
+                      checked={pendingSelected.length > 0 && pendingSelected.length === visibleCandidates.filter(c => c.status === 'pending').length}
+                      onChange={(e) => toggleAll(e.target.checked)}
+                    />
+                    All search terms
+                  </label>
                 </th>
                 <th style={thStyle()}>Search Term</th>
                 {isVisible('triggeringKeyword') && <th style={thStyle()}>Triggering Keyword</th>}
@@ -1874,7 +1881,25 @@ export default function MatchTypeViolationReview({
                   <tr style={{ background: '#f8fafc', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
                     <td colSpan={tableColumnCount} style={{ padding: '10px 12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                        <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+                          {group.pendingCount > 0 && (
+                            <button
+                              onClick={() => toggleGroupSelection(group)}
+                              style={{ ...btnStyle('ghost'), fontSize: 11, padding: '5px 10px' }}
+                            >
+                              {groupAllSelected ? 'Unselect ad group' : 'Select ad group'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => void openGroupResearch(group)}
+                            disabled={researchLoading}
+                            title={groupSelectedCount > 0 ? `Research the ${groupSelectedCount} selected search term(s) in this ad group` : 'Research every search term in this ad group with a one-sentence Google summary'}
+                            style={{ ...btnStyle('ghost'), fontSize: 11, padding: '5px 10px' }}
+                          >
+                            {groupSelectedCount > 0 ? `Research ${groupSelectedCount} selected` : 'Research terms'}
+                          </button>
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <strong style={{ color: '#111827', fontSize: 13 }}>{group.adGroupName}</strong>
                             <span style={badgeStyle('#e0f2fe', '#075985')}>{group.pendingCount} pending</span>
@@ -1895,22 +1920,8 @@ export default function MatchTypeViolationReview({
                           <div style={{ color: '#6b7280', fontSize: 12, marginTop: 3 }}>Campaign: {group.campaignName} · Route: auto-create/use this ad group’s negative list</div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button
-                            onClick={() => void openGroupResearch(group)}
-                            disabled={researchLoading}
-                            title={groupSelectedCount > 0 ? `Research the ${groupSelectedCount} selected search term(s) in this ad group` : 'Research every search term in this ad group with a one-sentence Google summary'}
-                            style={{ ...btnStyle('ghost'), fontSize: 11, padding: '5px 10px' }}
-                          >
-                            {groupSelectedCount > 0 ? `Research ${groupSelectedCount} selected` : 'Research terms'}
-                          </button>
                           {group.pendingCount > 0 && (
                             <>
-                              <button
-                                onClick={() => toggleGroupSelection(group)}
-                                style={{ ...btnStyle('ghost'), fontSize: 11, padding: '5px 10px' }}
-                              >
-                                {groupAllSelected ? 'Unselect ad group' : 'Select ad group'}
-                              </button>
                               <button
                                 onClick={() => void openGroupPicker(group)}
                                 disabled={bulkLoading}
