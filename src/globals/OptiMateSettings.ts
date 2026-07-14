@@ -169,6 +169,7 @@ export const OptiMateSettings: GlobalConfig = {
                   defaultValue: DEFAULT_CHAT_MODEL,
                   required: true,
                   admin: {
+                    width: "50%",
                     description:
                       "Model the OptiMate chat picker defaults to, and the model used when a chat request doesn't pick one. Users can still switch models per-conversation.",
                   },
@@ -180,6 +181,7 @@ export const OptiMateSettings: GlobalConfig = {
                   defaultValue: DEFAULT_AUTONOMOUS_MODEL,
                   required: true,
                   admin: {
+                    width: "50%",
                     description:
                       "Model used for unattended Google Ads runs (scheduled tasks, cron) where no human picks a model.",
                   },
@@ -195,6 +197,7 @@ export const OptiMateSettings: GlobalConfig = {
                   options: MODEL_OPTIONS,
                   label: "Blog and copy model",
                   admin: {
+                    width: "50%",
                     description:
                       "Optional. Model used by blog and copy features — the Blog Prompter AI Suggest button, blog draft generation, blog post image-prompt generation, and Google Ads ad copy generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
                   },
@@ -205,6 +208,7 @@ export const OptiMateSettings: GlobalConfig = {
                   options: MODEL_OPTIONS,
                   label: "Invoice Assistant model",
                   admin: {
+                    width: "50%",
                     description:
                       "Optional. Model used by the Xero invoice assistant. Leave blank to use the autonomous default.",
                   },
@@ -220,6 +224,7 @@ export const OptiMateSettings: GlobalConfig = {
                   options: MODEL_OPTIONS,
                   label: "Email Assistant model",
                   admin: {
+                    width: "50%",
                     description:
                       "Optional. Model used by GmailMate / OptiMate Gmail. Leave blank to use the autonomous default. Users can still switch models at the bottom of GmailMate.",
                   },
@@ -230,6 +235,7 @@ export const OptiMateSettings: GlobalConfig = {
                   options: MODEL_OPTIONS,
                   label: "Research Terms model",
                   admin: {
+                    width: "50%",
                     description:
                       "Optional. Model used to research Match Type Violations terms. Leave blank to use the autonomous default.",
                   },
@@ -245,6 +251,7 @@ export const OptiMateSettings: GlobalConfig = {
                   options: MODEL_OPTIONS,
                   label: "Weekly Negative Sweep model",
                   admin: {
+                    width: "50%",
                     description:
                       "Optional. Model used to classify weekly negative-keyword sweep terms. Leave blank to use the autonomous default.",
                   },
@@ -256,6 +263,7 @@ export const OptiMateSettings: GlobalConfig = {
                   defaultValue: DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
                   required: true,
                   admin: {
+                    width: "50%",
                     description:
                       "Gemini Imagen model used to generate blog hero images.",
                   },
@@ -273,6 +281,7 @@ export const OptiMateSettings: GlobalConfig = {
                   defaultValue: DEFAULT_VOICE_REALTIME_MODEL,
                   required: true,
                   admin: {
+                    width: "50%",
                     description:
                       "Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests.",
                   },
@@ -285,6 +294,7 @@ export const OptiMateSettings: GlobalConfig = {
                   min: 1000,
                   max: 30000,
                   admin: {
+                    width: "50%",
                     description:
                       "Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.",
                   },
