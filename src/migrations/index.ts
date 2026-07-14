@@ -1,5 +1,6 @@
 import * as migration_20260210_034208_add_client_analysis_fields from './20260210_034208_add_client_analysis_fields';
 import * as migration_20260803_120000_add_optimate_task_models from './20260803_120000_add_optimate_task_models';
+import * as migration_20260804_120000_remove_voice_transcription_model from './20260804_120000_remove_voice_transcription_model';
 import * as migration_20260304_120000_add_gsc_indexing_audits from './20260304_120000_add_gsc_indexing_audits';
 import * as migration_20260306_120000_add_contracts from './20260306_120000_add_contracts';
 import * as migration_20260305_120000_contracts_signature_upload_template from './20260305_120000_contracts_signature_upload_template';
@@ -881,5 +882,10 @@ export const migrations = [
     up: migration_20260803_120000_add_optimate_task_models.up,
     down: migration_20260803_120000_add_optimate_task_models.down,
     name: '20260803_120000_add_optimate_task_models'
+  },
+  {
+    up: migration_20260804_120000_remove_voice_transcription_model.up,
+    down: migration_20260804_120000_remove_voice_transcription_model.down,
+    name: '20260804_120000_remove_voice_transcription_model'
   },
 ];

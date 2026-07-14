@@ -13,7 +13,6 @@ import {
 import {
   DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
   DEFAULT_VOICE_REALTIME_MODEL,
-  DEFAULT_VOICE_TRANSCRIPTION_MODEL,
 } from "../lib/agents/_shared/optimate-default-models";
 
 /**
@@ -128,10 +127,6 @@ export const OptiMateSettings: GlobalConfig = {
         data.emailAssistantModel = normaliseOptionalPickerModel(data.emailAssistantModel);
         data.searchTermResearchModel = normaliseOptionalPickerModel(data.searchTermResearchModel);
         data.negativeSweepModel = normaliseOptionalPickerModel(data.negativeSweepModel);
-        data.voiceTranscriptionModel = normaliseRequiredNativeModel(
-          data.voiceTranscriptionModel,
-          DEFAULT_VOICE_TRANSCRIPTION_MODEL,
-        );
         data.blogImageGenerationModel = normaliseRequiredNativeModel(
           data.blogImageGenerationModel,
           DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
@@ -165,38 +160,136 @@ export const OptiMateSettings: GlobalConfig = {
               },
             },
             {
-              name: "defaultChatModel",
-              type: "select",
-              options: MODEL_OPTIONS,
-              defaultValue: DEFAULT_CHAT_MODEL,
-              required: true,
-              admin: {
-                description:
-                  "Model the OptiMate chat picker defaults to, and the model used when a chat request doesn't pick one. Users can still switch models per-conversation.",
-              },
+              type: "row",
+              fields: [
+                {
+                  name: "defaultChatModel",
+                  type: "select",
+                  options: MODEL_OPTIONS,
+                  defaultValue: DEFAULT_CHAT_MODEL,
+                  required: true,
+                  admin: {
+                    description:
+                      "Model the OptiMate chat picker defaults to, and the model used when a chat request doesn't pick one. Users can still switch models per-conversation.",
+                  },
+                },
+                {
+                  name: "defaultAutonomousModel",
+                  type: "select",
+                  options: MODEL_OPTIONS,
+                  defaultValue: DEFAULT_AUTONOMOUS_MODEL,
+                  required: true,
+                  admin: {
+                    description:
+                      "Model used for unattended Google Ads runs (scheduled tasks, cron) where no human picks a model.",
+                  },
+                },
+              ],
             },
             {
-              name: "defaultAutonomousModel",
-              type: "select",
-              options: MODEL_OPTIONS,
-              defaultValue: DEFAULT_AUTONOMOUS_MODEL,
-              required: true,
-              admin: {
-                description:
-                  "Model used for unattended Google Ads runs (scheduled tasks, cron) where no human picks a model.",
-              },
+              type: "row",
+              fields: [
+                {
+                  name: "blogPrompterModel",
+                  type: "select",
+                  options: MODEL_OPTIONS,
+                  label: "Blog and copy model",
+                  admin: {
+                    description:
+                      "Optional. Model used by blog and copy features — the Blog Prompter AI Suggest button, blog draft generation, blog post image-prompt generation, and Google Ads ad copy generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
+                  },
+                },
+                {
+                  name: "invoiceAssistantModel",
+                  type: "select",
+                  options: MODEL_OPTIONS,
+                  label: "Invoice Assistant model",
+                  admin: {
+                    description:
+                      "Optional. Model used by the Xero invoice assistant. Leave blank to use the autonomous default.",
+                  },
+                },
+              ],
             },
             {
-              name: "voiceRealtimeModel",
-              type: "select",
-              label: "Voice model",
-              options: REALTIME_MODEL_OPTIONS,
-              defaultValue: DEFAULT_VOICE_REALTIME_MODEL,
-              required: true,
-              admin: {
-                description:
-                  "Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests.",
-              },
+              type: "row",
+              fields: [
+                {
+                  name: "emailAssistantModel",
+                  type: "select",
+                  options: MODEL_OPTIONS,
+                  label: "Email Assistant model",
+                  admin: {
+                    description:
+                      "Optional. Model used by GmailMate / OptiMate Gmail. Leave blank to use the autonomous default. Users can still switch models at the bottom of GmailMate.",
+                  },
+                },
+                {
+                  name: "searchTermResearchModel",
+                  type: "select",
+                  options: MODEL_OPTIONS,
+                  label: "Research Terms model",
+                  admin: {
+                    description:
+                      "Optional. Model used to research Match Type Violations terms. Leave blank to use the autonomous default.",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "negativeSweepModel",
+                  type: "select",
+                  options: MODEL_OPTIONS,
+                  label: "Weekly Negative Sweep model",
+                  admin: {
+                    description:
+                      "Optional. Model used to classify weekly negative-keyword sweep terms. Leave blank to use the autonomous default.",
+                  },
+                },
+                {
+                  name: "blogImageGenerationModel",
+                  type: "text",
+                  label: "Blog image generation model",
+                  defaultValue: DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
+                  required: true,
+                  admin: {
+                    description:
+                      "Gemini Imagen model used to generate blog hero images.",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "voiceRealtimeModel",
+                  type: "select",
+                  label: "Voice model",
+                  options: REALTIME_MODEL_OPTIONS,
+                  defaultValue: DEFAULT_VOICE_REALTIME_MODEL,
+                  required: true,
+                  admin: {
+                    description:
+                      "Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests.",
+                  },
+                },
+                {
+                  name: "chatHistoryTokenLimit",
+                  type: "number",
+                  label: "Chat history token limit",
+                  defaultValue: 6000,
+                  min: 1000,
+                  max: 30000,
+                  admin: {
+                    description:
+                      "Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.",
+                  },
+                },
+              ],
             },
             {
               name: "voiceUsageTracker",
@@ -205,90 +298,6 @@ export const OptiMateSettings: GlobalConfig = {
                 components: {
                   Field: "./components/agent/RealtimeVoiceUsagePanel",
                 },
-              },
-            },
-            {
-              name: "chatHistoryTokenLimit",
-              type: "number",
-              label: "Chat history token limit",
-              defaultValue: 6000,
-              min: 1000,
-              max: 30000,
-              admin: {
-                description:
-                  "Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.",
-              },
-            },
-            {
-              name: "blogPrompterModel",
-              type: "select",
-              options: MODEL_OPTIONS,
-              label: "Blog and copy model",
-              admin: {
-                description:
-                  "Optional. Model used by blog and copy features — the Blog Prompter AI Suggest button, blog draft generation, blog post image-prompt generation, and Google Ads ad copy generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
-              },
-            },
-            {
-              name: "invoiceAssistantModel",
-              type: "select",
-              options: MODEL_OPTIONS,
-              label: "Invoice Assistant model",
-              admin: {
-                description:
-                  "Optional. Model used by the Xero invoice assistant. Leave blank to use the autonomous default.",
-              },
-            },
-            {
-              name: "emailAssistantModel",
-              type: "select",
-              options: MODEL_OPTIONS,
-              label: "Email Assistant model",
-              admin: {
-                description:
-                  "Optional. Model used by GmailMate / OptiMate Gmail. Leave blank to use the autonomous default. Users can still switch models at the bottom of GmailMate.",
-              },
-            },
-            {
-              name: "searchTermResearchModel",
-              type: "select",
-              options: MODEL_OPTIONS,
-              label: "Research Terms model",
-              admin: {
-                description:
-                  "Optional. Model used to research Match Type Violations terms. Leave blank to use the autonomous default.",
-              },
-            },
-            {
-              name: "negativeSweepModel",
-              type: "select",
-              options: MODEL_OPTIONS,
-              label: "Weekly Negative Sweep model",
-              admin: {
-                description:
-                  "Optional. Model used to classify weekly negative-keyword sweep terms. Leave blank to use the autonomous default.",
-              },
-            },
-            {
-              name: "voiceTranscriptionModel",
-              type: "text",
-              label: "Voice input transcription model",
-              defaultValue: DEFAULT_VOICE_TRANSCRIPTION_MODEL,
-              required: true,
-              admin: {
-                description:
-                  "OpenAI transcription model used for OptiMate Realtime voice input.",
-              },
-            },
-            {
-              name: "blogImageGenerationModel",
-              type: "text",
-              label: "Blog image generation model",
-              defaultValue: DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
-              required: true,
-              admin: {
-                description:
-                  "Gemini Imagen model used to generate blog hero images.",
               },
             },
           ],

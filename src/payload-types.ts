@@ -13719,14 +13719,6 @@ export interface OptimateSetting {
     | 'grok-build'
     | 'grok-composer-2.5-fast';
   /**
-   * Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests.
-   */
-  voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2';
-  /**
-   * Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.
-   */
-  chatHistoryTokenLimit?: number | null;
-  /**
    * Optional. Model used by blog and copy features — the Blog Prompter AI Suggest button, blog draft generation, blog post image-prompt generation, and Google Ads ad copy generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.
    */
   blogPrompterModel?:
@@ -13822,13 +13814,17 @@ export interface OptimateSetting {
       )
     | null;
   /**
-   * OpenAI transcription model used for OptiMate Realtime voice input.
-   */
-  voiceTranscriptionModel: string;
-  /**
    * Gemini Imagen model used to generate blog hero images.
    */
   blogImageGenerationModel: string;
+  /**
+   * Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests.
+   */
+  voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2';
+  /**
+   * Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.
+   */
+  chatHistoryTokenLimit?: number | null;
   /**
    * Starter prompt chips shown on the empty OptiMate chat screen. Users can click a chip to send that question immediately.
    */
@@ -14052,15 +14048,14 @@ export interface CronSettingsSelect<T extends boolean = true> {
 export interface OptimateSettingsSelect<T extends boolean = true> {
   defaultChatModel?: T;
   defaultAutonomousModel?: T;
-  voiceRealtimeModel?: T;
-  chatHistoryTokenLimit?: T;
   blogPrompterModel?: T;
   invoiceAssistantModel?: T;
   emailAssistantModel?: T;
   searchTermResearchModel?: T;
   negativeSweepModel?: T;
-  voiceTranscriptionModel?: T;
   blogImageGenerationModel?: T;
+  voiceRealtimeModel?: T;
+  chatHistoryTokenLimit?: T;
   googleMateStarterQuestions?:
     | T
     | {

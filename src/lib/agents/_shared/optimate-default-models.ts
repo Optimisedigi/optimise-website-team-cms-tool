@@ -46,8 +46,6 @@ export interface OptiMateDefaultModels {
   searchTermResearchModel?: CanonicalModelName;
   /** Optional task-specific model for Weekly Negative Sweep classification. */
   negativeSweepModel?: CanonicalModelName;
-  /** OpenAI model used for OptiMate Realtime input transcription. */
-  voiceTranscriptionModel: string;
   /** Gemini Imagen model used for blog hero image generation. */
   blogImageGenerationModel: string;
   /** Approximate token budget for chat history before compacting older turns. */
@@ -86,7 +84,6 @@ function resolvePickerModel(value: unknown): CanonicalModelName | undefined {
 }
 
 export const DEFAULT_VOICE_REALTIME_MODEL: OptiMateRealtimeModel = "gpt-realtime-mini";
-export const DEFAULT_VOICE_TRANSCRIPTION_MODEL = "gpt-4o-transcribe";
 export const DEFAULT_BLOG_IMAGE_GENERATION_MODEL = "imagen-4.0-fast-generate-001";
 
 const DEFAULT_CHAT_HISTORY_TOKEN_LIMIT = 6000;
@@ -134,7 +131,6 @@ export async function getOptiMateDefaultModels(
       emailAssistantModel?: unknown;
       searchTermResearchModel?: unknown;
       negativeSweepModel?: unknown;
-      voiceTranscriptionModel?: unknown;
       blogImageGenerationModel?: unknown;
       voiceRealtimeModel?: unknown;
       chatHistoryTokenLimit?: unknown;
@@ -153,10 +149,6 @@ export async function getOptiMateDefaultModels(
       defaultChatModel: resolvePickerModel(global?.defaultChatModel) ?? DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: resolvePickerModel(global?.defaultAutonomousModel) ?? DEFAULT_AUTONOMOUS_MODEL,
       voiceRealtimeModel: resolveVoiceRealtimeModel(global?.voiceRealtimeModel),
-      voiceTranscriptionModel: resolveNativeModel(
-        global?.voiceTranscriptionModel,
-        DEFAULT_VOICE_TRANSCRIPTION_MODEL,
-      ),
       blogImageGenerationModel: resolveNativeModel(
         global?.blogImageGenerationModel,
         DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
@@ -189,7 +181,6 @@ export async function getOptiMateDefaultModels(
       defaultChatModel: DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: DEFAULT_AUTONOMOUS_MODEL,
       voiceRealtimeModel: DEFAULT_VOICE_REALTIME_MODEL,
-      voiceTranscriptionModel: DEFAULT_VOICE_TRANSCRIPTION_MODEL,
       blogImageGenerationModel: DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
       chatHistoryTokenLimit: DEFAULT_CHAT_HISTORY_TOKEN_LIMIT,
       googleMateStarterQuestions: [...DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS],
