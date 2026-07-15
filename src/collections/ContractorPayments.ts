@@ -1,5 +1,5 @@
 import type { CollectionConfig } from "payload";
-import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { canAccess, adminOnlyDelete } from "../lib/access";
 
 function fmtShort(d: Date): string {
   return `${String(d.getUTCDate()).padStart(2, "0")}${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -31,7 +31,7 @@ export const ContractorPayments: CollectionConfig = {
       "status",
     ],
     description: "Fortnightly payments. Generated from approved time entries.",
-    hidden: hideUnlessFeature("contractors"),
+    hidden: true,
   },
   access: {
     read: canAccess("contractors"),

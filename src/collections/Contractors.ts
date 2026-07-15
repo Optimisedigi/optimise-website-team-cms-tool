@@ -1,6 +1,6 @@
 import type { CollectionConfig } from "payload";
 import crypto from "crypto";
-import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { canAccess, adminOnlyDelete } from "../lib/access";
 
 /**
  * One row per contractor (e.g. Lorenzo). Holds the rate card + portal
@@ -16,7 +16,7 @@ export const Contractors: CollectionConfig = {
     useAsTitle: "name",
     defaultColumns: ["name", "email", "hourlyRate", "defaultWeeklyHours", "isActive"],
     description: "Contractors and their rate cards. Each contractor gets a portal token they use to log hours.",
-    hidden: hideUnlessFeature("contractors"),
+    hidden: true,
   },
   access: {
     read: canAccess("contractors"),

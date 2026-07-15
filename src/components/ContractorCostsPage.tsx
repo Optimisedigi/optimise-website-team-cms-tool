@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import RocketSplash from './RocketSplash';
 
 interface ContractorRow {
@@ -9,466 +9,169 @@ interface ContractorRow {
   email: string | null;
   currency: string;
   hourlyRate: number;
-  defaultWeeklyHours: number;
-  portalUrl: string | null;
   mtd: { hours: number; cost: number };
-  ytd: { hours: number; cost: number };
-  lastPaid: {
-    fortnightStartDate: string;
-    transferAmount: number;
-    transferReference: string;
-    paymentDate: string | null;
+  totalHours: number;
+  totalPaid: number;
+  latestWeek: {
+    weekCommencing: string;
+    hours: number;
+    clientAllocations: { clientName: string; hours: number }[];
   } | null;
-  next: {
-    id: number;
-    fortnightStartDate: string;
-    transferAmount: number;
-    transferReference: string;
-  } | null;
-  estimatedFortnightCost: number;
-  pendingCount: number;
 }
 
 interface PaymentRow {
   id: number;
-  contractorId: number;
   contractorName: string;
   currency: string;
   fortnightStartDate: string;
-  fortnightEndDate: string;
+  fortnightEndDate: string | null;
+  totalHours: number;
+  subtotal: number;
   transferAmount: number;
   transferReference: string;
   status: 'scheduled' | 'sent';
-  paymentDate: string | null;
-  sentAt: string | null;
-}
-
-interface PendingEntry {
-  id: number;
-  contractorId: number;
-  contractorName: string;
-  currency: string;
-  weekCommencing: string;
-  hours: number;
-  totalFee: number;
-  notes: string;
+  paidDate: string | null;
 }
 
 interface Globals {
   activeContractors: number;
-  mtdHours: number;
   mtdCost: number;
-  ytdHours: number;
-  ytdCost: number;
-  pendingCount: number;
+  totalPaid: number;
+  totalHours: number;
 }
 
-const fmtMoney = (n: number, currency: string = 'AUD') =>
-  new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(n);
+const fmtMoney = (amount: number, currency = 'AUD') => new Intl.NumberFormat('en-AU', {
+  style: 'currency', currency, maximumFractionDigits: 0,
+}).format(amount);
 
-const fmtDate = (iso: string | null) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtDate = (iso: string | null) => iso
+  ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  : '—';
+
+const fmtFortnight = (start: string, end: string | null) => {
+  if (!end) return fmtDate(start);
+  const options = { day: '2-digit', month: 'short' } as const;
+  return `${new Date(start).toLocaleDateString('en-GB', options)} to ${new Date(end).toLocaleDateString('en-GB', options)}`;
 };
 
-const fmtFortnight = (start: string, end: string) => {
-  const s = new Date(start);
-  const e = new Date(end);
-  return `${s.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} – ${e.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`;
-};
+const thStyle = { padding: '10px 12px', textAlign: 'left' as const, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' as const };
+const tdStyle = { padding: '12px', verticalAlign: 'top' as const, color: '#334155' };
+const tooltipButtonStyle = { padding: 0, border: 0, background: 'none', color: '#0f172a', cursor: 'help', font: 'inherit', fontWeight: 600, textAlign: 'left' as const, textDecoration: 'underline', textUnderlineOffset: 3 };
+
+function HoverTooltip({ label, children }: { label: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const tooltipId = useId();
+  return (
+    <span style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        style={tooltipButtonStyle}
+        aria-describedby={open ? tooltipId : undefined}
+      >
+        {label}
+      </button>
+      {open && (
+        <span id={tooltipId} role="tooltip" style={{ position: 'absolute', zIndex: 2, top: 'calc(100% + 6px)', left: 0, minWidth: 190, maxWidth: 300, padding: '8px 10px', borderRadius: 4, background: '#0f172a', color: '#fff', fontSize: 12, fontWeight: 400, lineHeight: 1.45, boxShadow: '0 4px 12px rgba(15, 23, 42, .2)' }}>
+          {children}
+        </span>
+      )}
+    </span>
+  );
+}
 
 export default function ContractorCostsPage() {
   const [contractors, setContractors] = useState<ContractorRow[]>([]);
   const [recentPayments, setRecentPayments] = useState<PaymentRow[]>([]);
-  const [pendingEntries, setPendingEntries] = useState<PendingEntry[]>([]);
-  const [globals, setGlobals] = useState<Globals>({
-    activeContractors: 0,
-    mtdHours: 0,
-    mtdCost: 0,
-    ytdHours: 0,
-    ytdCost: 0,
-    pendingCount: 0,
-  });
+  const [globals, setGlobals] = useState<Globals>({ activeContractors: 0, mtdCost: 0, totalPaid: 0, totalHours: 0 });
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
-  const [approving, setApproving] = useState<number | null>(null);
 
-  const refresh = () => {
+  useEffect(() => {
     fetch('/api/contractor-overview', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : { contractors: [], recentPayments: [], pendingEntries: [], globals: {} }))
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Could not load contractor costs.')))
       .then((data) => {
         setContractors(data.contractors || []);
         setRecentPayments(data.recentPayments || []);
-        setPendingEntries(data.pendingEntries || []);
-        setGlobals(data.globals || globals);
-        setLoading(false);
+        setGlobals(data.globals || { activeContractors: 0, mtdCost: 0, totalPaid: 0, totalHours: 0 });
       })
-      .catch(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(key);
-      setTimeout(() => setCopied(null), 1500);
-    });
-  };
-
-  const approveEntry = async (id: number) => {
-    setApproving(id);
+  const currency = useMemo(() => contractors[0]?.currency || 'AUD', [contractors]);
+  const handleCopy = async (text: string, key: string) => {
     try {
-      const r = await fetch(`/api/contractor-time-entries/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status: 'approved' }),
-      });
-      if (!r.ok) throw new Error(`Failed (${r.status})`);
-      refresh();
-    } catch (err) {
-      alert(`Failed to approve: ${(err as Error).message}`);
-    } finally {
-      setApproving(null);
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      window.setTimeout(() => setCopied(null), 1500);
+    } catch {
+      setCopied(null);
     }
   };
-
-  const currencyForGlobals = useMemo(() => {
-    const c = contractors[0]?.currency;
-    return c || 'AUD';
-  }, [contractors]);
 
   if (loading) return <RocketSplash />;
 
   return (
-    <div className="od-settings">
-      <h2 className="od-settings__title">Contractors</h2>
-      <p className="od-settings__subtitle">
-        Per-contractor rates and totals, fortnightly payments with copyable Wise references, and time entries waiting on agency review. Auto-generated portal links for each contractor below — share the link, they log hours, you approve.
-      </p>
-
-      {/* Summary stats */}
+    <main className="od-settings" aria-labelledby="contractor-costs-heading">
       <div className="od-box" style={{ marginBottom: 16 }}>
-        <div className="od-box__stats od-box__stats--4">
-          <div className="od-box__stat">
-            <span className="od-box__stat-value">{globals.activeContractors}</span>
-            <span className="od-box__stat-label">Active contractors</span>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', paddingBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
+          <div>
+            <h2 id="contractor-costs-heading" className="od-settings__title" style={{ marginBottom: 4 }}>Contractor costs</h2>
+            <p className="od-settings__subtitle" style={{ margin: 0 }}>Prepare fortnightly transfers from logged contractor hours.</p>
           </div>
-          <div className="od-box__stat">
-            <span className="od-box__stat-value">{fmtMoney(globals.mtdCost, currencyForGlobals)}</span>
-            <span className="od-box__stat-label">MTD cost ({globals.mtdHours.toFixed(1)}h)</span>
-          </div>
-          <div className="od-box__stat">
-            <span className="od-box__stat-value">{fmtMoney(globals.ytdCost, currencyForGlobals)}</span>
-            <span className="od-box__stat-label">YTD cost ({globals.ytdHours.toFixed(0)}h)</span>
-          </div>
-          <div className="od-box__stat">
-            <span className="od-box__stat-value" style={{ color: globals.pendingCount > 0 ? '#d97706' : undefined }}>
-              {globals.pendingCount}
-            </span>
-            <span className="od-box__stat-label">Pending review</span>
-          </div>
+          <nav aria-label="Contractor cost actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <a href="/admin/collections/contractors/create" className="od-settings__btn od-settings__btn--primary" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>New contractor</a>
+            <a href="/admin/collections/contractor-payments/create" className="od-settings__btn" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>New fortnightly payment</a>
+            <a href="/admin/collections/contractor-time-entries" className="od-settings__btn" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>All time entries</a>
+          </nav>
+        </div>
+        <div className="od-box__stats od-box__stats--4" style={{ paddingTop: 16 }}>
+          <div className="od-box__stat"><span className="od-box__stat-value">{globals.activeContractors}</span><span className="od-box__stat-label">Active contractors</span></div>
+          <div className="od-box__stat"><span className="od-box__stat-value">{fmtMoney(globals.mtdCost, currency)}</span><span className="od-box__stat-label">Monthly cost</span></div>
+          <div className="od-box__stat"><span className="od-box__stat-value">{fmtMoney(globals.totalPaid, currency)}</span><span className="od-box__stat-label">Total paid</span></div>
+          <div className="od-box__stat"><span className="od-box__stat-value">{globals.totalHours.toFixed(1)}h</span><span className="od-box__stat-label">Total hours worked</span></div>
         </div>
       </div>
 
-      {/* Quick actions row */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-        <a href="/admin/collections/contractors/create" className="od-settings__btn od-settings__btn--primary" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>
-          + New contractor
-        </a>
-        <a href="/admin/collections/contractor-payments/create" className="od-settings__btn" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>
-          + New fortnightly payment
-        </a>
-        <a href="/admin/collections/contractor-time-entries" className="od-settings__btn" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>
-          All time entries
-        </a>
-      </div>
-
-      {/* Contractors */}
-      <SectionHeader title="Contractors" subtitle="Rates, weekly hours, and per-contractor totals." />
-      <div className="od-box" style={{ padding: 0, overflow: 'hidden', marginBottom: 24 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-            <tr>
-              <th style={thStyle}>Contractor</th>
-              <th style={thStyle}>Rate</th>
-              <th style={thStyle}>MTD hrs / cost</th>
-              <th style={thStyle}>YTD hrs / cost</th>
-              <th style={thStyle}>Next fortnight</th>
-              <th style={thStyle}>Last paid</th>
-              <th style={{ ...thStyle, textAlign: 'right', paddingRight: 16 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {contractors.length === 0 && (
-              <tr>
-                <td colSpan={7} style={{ padding: 32, textAlign: 'center', color: '#6b7280' }}>
-                  No active contractors yet. Click <strong>+ New contractor</strong> above to add one.
-                </td>
+      <section aria-labelledby="payments-heading">
+        <h3 id="payments-heading" style={{ margin: '0 0 8px', fontSize: 16, color: '#0f172a' }}>Fortnightly payments</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>Copy each transfer reference directly into Wise, then mark it paid in the payment workflow.</p>
+        <div className="od-box" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
+          <table style={{ width: '100%', minWidth: 820, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr>
+              <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Transfer amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th><th style={thStyle}>Paid date</th>
+            </tr></thead>
+            <tbody>{recentPayments.length === 0 ? <tr><td colSpan={7} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No fortnightly payments yet.</td></tr> : recentPayments.map((payment) => (
+              <tr key={payment.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <td style={tdStyle}><strong>{payment.contractorName}</strong></td><td style={tdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td><td style={tdStyle}>{payment.totalHours.toFixed(2)}h</td><td style={tdStyle}><strong>{fmtMoney(payment.transferAmount, payment.currency)}</strong></td>
+                <td style={tdStyle}>{payment.transferReference ? <button type="button" onClick={() => handleCopy(payment.transferReference, `payment-${payment.id}`)} style={{ padding: '3px 7px', border: '1px solid #cbd5e1', borderRadius: 3, background: '#f8fafc', color: '#334155', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}>{copied === `payment-${payment.id}` ? 'Copied' : payment.transferReference}</button> : '—'}</td>
+                <td style={tdStyle}><span style={{ fontWeight: 600, color: payment.status === 'sent' ? '#166534' : '#1e40af' }}>{payment.status === 'sent' ? 'Sent' : 'Scheduled'}</span></td><td style={tdStyle}>{fmtDate(payment.paidDate)}</td>
               </tr>
-            )}
-            {contractors.map((r) => (
-              <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={tdStyle}>
-                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{r.name}</div>
-                  {r.email && <div style={{ fontSize: 12, color: '#64748b' }}>{r.email}</div>}
-                  {r.pendingCount > 0 && (
-                    <a
-                      href={`/admin/collections/contractor-time-entries?where[and][0][contractor][equals]=${r.id}&where[and][1][status][equals]=submitted`}
-                      style={{ display: 'inline-block', marginTop: 4, padding: '2px 8px', background: '#fef3c7', color: '#92400e', borderRadius: 12, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}
-                    >
-                      {r.pendingCount} entry{r.pendingCount === 1 ? '' : 'ies'} to review
-                    </a>
-                  )}
-                </td>
-                <td style={tdStyle}>
-                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{fmtMoney(r.hourlyRate, r.currency)}/hr</div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>{r.defaultWeeklyHours}h/week default</div>
-                </td>
-                <td style={tdStyle}>
-                  <div style={{ color: '#0f172a' }}>{r.mtd.hours.toFixed(1)}h</div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>{fmtMoney(r.mtd.cost, r.currency)}</div>
-                </td>
-                <td style={tdStyle}>
-                  <div style={{ color: '#0f172a' }}>{r.ytd.hours.toFixed(0)}h</div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>{fmtMoney(r.ytd.cost, r.currency)}</div>
-                </td>
-                <td style={tdStyle}>
-                  {r.next ? (
-                    <>
-                      <div style={{ fontWeight: 600, color: '#0f172a' }}>{fmtMoney(r.next.transferAmount, r.currency)}</div>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>{fmtDate(r.next.fortnightStartDate)}</div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ color: '#9ca3af', fontSize: 12 }}>None scheduled</div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>Est: {fmtMoney(r.estimatedFortnightCost, r.currency)}</div>
-                    </>
-                  )}
-                </td>
-                <td style={tdStyle}>
-                  {r.lastPaid ? (
-                    <>
-                      <div style={{ color: '#0f172a' }}>{fmtMoney(r.lastPaid.transferAmount, r.currency)}</div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>{fmtDate(r.lastPaid.paymentDate || r.lastPaid.fortnightStartDate)}</div>
-                    </>
-                  ) : (
-                    <span style={{ color: '#9ca3af' }}>—</span>
-                  )}
-                </td>
-                <td style={{ ...tdStyle, textAlign: 'right', paddingRight: 16, whiteSpace: 'nowrap' }}>
-                  <a href={`/admin/collections/contractors/${r.id}`} style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 500, fontSize: 13 }}>
-                    Open →
-                  </a>
-                  {r.portalUrl && (
-                    <div style={{ marginTop: 4 }}>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(`${window.location.origin}${r.portalUrl}`, `portal-${r.id}`)}
-                        style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 11, padding: 0 }}
-                        title="Copy contractor portal link"
-                      >
-                        {copied === `portal-${r.id}` ? 'Copied!' : 'Copy portal link'}
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pending time entries */}
-      <SectionHeader
-        title="Time entries to review"
-        subtitle={pendingEntries.length === 0 ? 'No submissions waiting.' : 'Submitted by contractors and waiting on agency approval before they can roll into a fortnightly payment.'}
-        rightAction={
-          pendingEntries.length > 0 ? (
-            <a href="/admin/collections/contractor-time-entries?where[status][equals]=submitted" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
-              Filter all submitted →
-            </a>
-          ) : null
-        }
-      />
-      {pendingEntries.length > 0 && (
-        <div className="od-box" style={{ padding: 0, overflow: 'hidden', marginBottom: 24 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-              <tr>
-                <th style={thStyle}>Contractor</th>
-                <th style={thStyle}>Week</th>
-                <th style={thStyle}>Hours</th>
-                <th style={thStyle}>Notes</th>
-                <th style={{ ...thStyle, textAlign: 'right', paddingRight: 16 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingEntries.map((e) => (
-                <tr key={e.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 500, color: '#0f172a' }}>{e.contractorName}</div>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ color: '#0f172a' }}>{fmtDate(e.weekCommencing)}</div>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 600, color: '#0f172a' }}>{e.hours.toFixed(2)}h</div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>{fmtMoney(e.totalFee, e.currency)}</div>
-                  </td>
-                  <td style={{ ...tdStyle, color: '#475569', maxWidth: 280, whiteSpace: 'pre-wrap' }}>
-                    {e.notes || <span style={{ color: '#cbd5e1' }}>—</span>}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right', paddingRight: 16, whiteSpace: 'nowrap' }}>
-                    <button
-                      type="button"
-                      onClick={() => approveEntry(e.id)}
-                      disabled={approving === e.id}
-                      className="od-settings__btn od-settings__btn--primary"
-                      style={{ padding: '4px 10px', fontSize: 12, marginRight: 6 }}
-                    >
-                      {approving === e.id ? 'Approving…' : 'Approve'}
-                    </button>
-                    <a
-                      href={`/admin/collections/contractor-time-entries/${e.id}`}
-                      style={{ fontSize: 12, color: '#64748b', textDecoration: 'none' }}
-                    >
-                      Open
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            ))}</tbody>
           </table>
         </div>
-      )}
+      </section>
 
-      {/* Recent payments */}
-      <SectionHeader
-        title="Recent fortnightly payments"
-        subtitle="Latest fortnightly transfers across all contractors. Click a reference to copy it into Wise."
-        rightAction={
-          <a href="/admin/collections/contractor-payments" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
-            View all payments →
-          </a>
-        }
-      />
-      <div className="od-box" style={{ padding: 0, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-            <tr>
-              <th style={thStyle}>Contractor</th>
-              <th style={thStyle}>Fortnight</th>
-              <th style={thStyle}>Amount</th>
-              <th style={thStyle}>Reference</th>
-              <th style={thStyle}>Status</th>
-              <th style={thStyle}>Sent</th>
-              <th style={{ ...thStyle, textAlign: 'right', paddingRight: 16 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentPayments.length === 0 && (
-              <tr>
-                <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
-                  No payments yet.
-                </td>
+      <details style={{ marginBottom: 24 }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a', padding: '8px 0' }}>Contractors ({contractors.length})</summary>
+        <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#64748b' }}>Rates, monthly costs, all-time totals, and the latest submitted week.</p>
+        <div className="od-box" style={{ padding: 0, overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr><th style={thStyle}>Contractor</th><th style={thStyle}>Rate</th><th style={thStyle}>Monthly cost</th><th style={thStyle}>Total paid / hours</th><th style={thStyle}>Latest logged week</th></tr></thead>
+            <tbody>{contractors.length === 0 ? <tr><td colSpan={5} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No active contractors yet.</td></tr> : contractors.map((contractor) => (
+              <tr key={contractor.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <td style={tdStyle}><HoverTooltip label={contractor.name}>{contractor.latestWeek ? `Latest week: ${contractor.latestWeek.hours.toFixed(2)} hours` : 'No logged weeks yet.'}</HoverTooltip>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}</td>
+                <td style={tdStyle}>{fmtMoney(contractor.hourlyRate, contractor.currency)}/hr</td><td style={tdStyle}>{fmtMoney(contractor.mtd.cost, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.mtd.hours.toFixed(1)}h this month</div></td><td style={tdStyle}>{fmtMoney(contractor.totalPaid, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.totalHours.toFixed(1)}h logged</div></td>
+                <td style={tdStyle}>{contractor.latestWeek ? <HoverTooltip label={fmtDate(contractor.latestWeek.weekCommencing)}>{contractor.latestWeek.clientAllocations.length ? contractor.latestWeek.clientAllocations.map((allocation) => <span key={allocation.clientName} style={{ display: 'block' }}>{allocation.clientName}: {allocation.hours.toFixed(2)}h</span>) : 'No client allocations'}</HoverTooltip> : 'No logged weeks'}</td>
               </tr>
-            )}
-            {recentPayments.map((p) => (
-              <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={tdStyle}>
-                  <div style={{ fontWeight: 500, color: '#0f172a' }}>{p.contractorName}</div>
-                </td>
-                <td style={tdStyle}>
-                  <div style={{ color: '#0f172a' }}>{fmtFortnight(p.fortnightStartDate, p.fortnightEndDate)}</div>
-                </td>
-                <td style={tdStyle}>
-                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{fmtMoney(p.transferAmount, p.currency)}</div>
-                </td>
-                <td style={tdStyle}>
-                  {p.transferReference ? (
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(p.transferReference, `pay-${p.id}`)}
-                      style={{
-                        padding: '2px 6px',
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        background: '#f8fafc',
-                        color: '#475569',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 3,
-                        cursor: 'pointer',
-                      }}
-                      title="Click to copy"
-                    >
-                      {copied === `pay-${p.id}` ? 'Copied!' : p.transferReference}
-                    </button>
-                  ) : (
-                    <span style={{ color: '#9ca3af' }}>—</span>
-                  )}
-                </td>
-                <td style={tdStyle}>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '2px 8px',
-                    borderRadius: 12,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: p.status === 'sent' ? '#dcfce7' : '#dbeafe',
-                    color: p.status === 'sent' ? '#166534' : '#1e40af',
-                  }}>
-                    {p.status === 'sent' ? 'Sent' : 'Scheduled'}
-                  </span>
-                </td>
-                <td style={tdStyle}>
-                  <span style={{ color: '#475569' }}>{fmtDate(p.paymentDate || p.sentAt)}</span>
-                </td>
-                <td style={{ ...tdStyle, textAlign: 'right', paddingRight: 16 }}>
-                  <a href={`/admin/collections/contractor-payments/${p.id}`} style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
-                    Open
-                  </a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+            ))}</tbody>
+          </table>
+        </div>
+      </details>
+    </main>
   );
 }
-
-function SectionHeader({ title, subtitle, rightAction }: { title: string; subtitle?: string; rightAction?: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-      <div>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#0f172a' }}>{title}</h3>
-        {subtitle && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>{subtitle}</p>}
-      </div>
-      {rightAction}
-    </div>
-  );
-}
-
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '10px 12px',
-  fontSize: 12,
-  fontWeight: 600,
-  color: '#475569',
-  textTransform: 'uppercase',
-  letterSpacing: 0.3,
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '12px',
-  verticalAlign: 'top',
-};
