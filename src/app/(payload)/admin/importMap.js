@@ -196,6 +196,7 @@ import { default as default_e04f18ecb5b37d25b0e6d09a3fc98708 } from '../../../co
 import { default as default_f79b4ca75381164e95f118cd1e894463 } from '../../../components/FirstLoginSetup'
 import { default as default_74b6b86d3385b0ec4a17d6136dd3b989 } from '../../../components/DashboardGate'
 import { default as default_30b462c31bfed4dfe63e7ef34d180475 } from '../../../components/NavigationRecovery'
+import { default as default_7b841ae42b1266db317f625d89ba57fd } from '../../../components/IdleSessionKeepAlive'
 import { default as default_47cb45239198beef21a512f6c005e728 } from '../../../components/MiniSidebar'
 import { default as default_2e2d792095b9faaa93311c4bd3638e8e } from '../../../components/OptiMateLauncher'
 import { default as default_8c91d6ed757c0622a0f1976e63b1d36b } from '../../../components/PayloadShiftSelect'
@@ -405,6 +406,7 @@ export const importMap = {
   "./components/FirstLoginSetup#default": default_f79b4ca75381164e95f118cd1e894463,
   "./components/DashboardGate#default": default_74b6b86d3385b0ec4a17d6136dd3b989,
   "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
+  "./components/IdleSessionKeepAlive#default": default_7b841ae42b1266db317f625d89ba57fd,
   "./components/MiniSidebar#default": default_47cb45239198beef21a512f6c005e728,
   "./components/OptiMateLauncher#default": default_2e2d792095b9faaa93311c4bd3638e8e,
   "./components/PayloadShiftSelect#default": default_8c91d6ed757c0622a0f1976e63b1d36b,

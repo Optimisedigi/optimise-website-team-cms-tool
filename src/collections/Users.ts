@@ -9,6 +9,12 @@ export const Users: CollectionConfig = {
     // calls use the shared AUDIT_API_KEY env var checked via the
     // x-api-key header (see src/collections/api-key-access.ts).
     maxLoginAttempts: 5,
+    // 2-hour token lifetime, but treated as an IDLE timeout rather than an
+    // absolute one: src/components/IdleSessionKeepAlive.tsx slides this window
+    // forward on user activity (across all open tabs), so the "stay logged in"
+    // prompt only appears after ~2h of genuine inactivity. Keep this value in
+    // sync with SESSION_TTL_MS in that component.
+    tokenExpiration: 7200,
   },
   admin: {
     useAsTitle: "email",
