@@ -8,50 +8,64 @@ vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }));
 
 import { GET } from '@/app/(frontend)/api/contractor-overview/route';
 
+/** Weeks commencing 29 Jun 2026 and 6 Jul 2026 both fall in the first fortnight (29 Jun → 12 Jul). */
+const contractor = { id: 1, name: 'Ada', currency: 'AUD', hourlyRate: 20, chatGptReimbursementPerFortnight: 30, transferFeeDefault: 4, transferReferenceTemplate: '{startShort}-{endShort} Optimise' };
+
 describe('GET /api/contractor-overview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     auth.mockResolvedValue({ user: { id: 1 } });
-    find.mockImplementation(({ collection }: { collection: string }) => {
-      if (collection === 'contractors') return { docs: [{ id: 1, name: 'Ada', currency: 'AUD', hourlyRate: 20, isActive: true }] };
-      if (collection === 'contractor-time-entries') return { docs: [{ id: 9, contractor: { id: 1 }, weekCommencing: '2026-07-06', hours: 8, totalFee: 160, clientAllocations: [{ client: { name: 'Acme' }, hours: 8 }] }] };
-      return { docs: [{ id: 3, contractor: { id: 1, name: 'Ada', currency: 'AUD' }, fortnightStartDate: '2026-07-06', fortnightEndDate: '2026-07-19', totalHours: 8, subtotal: 160, transferAmount: 196, transferReference: '0607-1907 Optimise', status: 'sent', paymentDate: '2026-07-20' }] };
-    });
   });
 
-  it('returns payment transfer fields and truthful logged-hour allocation rollups', async () => {
-    const response = await GET();
-    const body = await response.json();
-
-    expect(body.globals).toMatchObject({ activeContractors: 1, totalPaid: 196, totalHours: 8 });
-    expect(body.contractors[0]).toMatchObject({ totalHours: 8, totalPaid: 196, latestWeek: { hours: 8, clientAllocations: [{ clientName: 'Acme', hours: 8 }] } });
-    expect(body.recentPayments[0]).toMatchObject({ totalHours: 8, subtotal: 160, transferAmount: 196, transferReference: '0607-1907 Optimise', status: 'sent', paidDate: '2026-07-20' });
-  });
-
-  it('aggregates totals across every Payload result page', async () => {
-    find.mockImplementation(({ collection, page, limit, where }: { collection: string; page?: number; limit?: number; where?: unknown }) => {
-      if (collection === 'contractors') return { docs: [{ id: 1, name: 'Ada', currency: 'AUD', hourlyRate: 20 }] };
+  it('derives one unpaid fortnight from approved time entries anchored at 29 Jun 2026', async () => {
+    find.mockImplementation(({ collection, limit }: { collection: string; limit?: number }) => {
+      if (collection === 'contractors') return { docs: [contractor] };
+      if (collection === 'contractor-payments') return { docs: [] };
       if (collection === 'contractor-time-entries' && limit === 1) {
-        return { docs: [{ id: 12, contractor: { id: 1 }, weekCommencing: '2026-07-13', hours: 3, totalFee: 60, clientAllocations: [] }] };
+        return { docs: [{ id: 9, contractor: { id: 1 }, weekCommencing: '2026-07-06', hours: 8, clientAllocations: [] }] };
       }
-      if (collection === 'contractor-time-entries') {
-        return page === 2
-          ? { docs: [{ id: 11, contractor: 1, weekCommencing: '2026-07-06', hours: 5, totalFee: 100 }], totalPages: 2 }
-          : { docs: [{ id: 10, contractor: 1, weekCommencing: '2026-07-13', hours: 3, totalFee: 60 }], totalPages: 2 };
-      }
-      if (where) {
-        return page === 2
-          ? { docs: [{ id: 21, contractor: 1, transferAmount: 80, status: 'sent' }], totalPages: 2 }
-          : { docs: [{ id: 20, contractor: 1, transferAmount: 120, status: 'sent' }], totalPages: 2 };
-      }
-      return { docs: [] };
+      return {
+        docs: [
+          { id: 9, contractor: { id: 1 }, weekCommencing: '2026-07-06', hours: 8, totalFee: 160, status: 'approved' },
+          { id: 8, contractor: { id: 1 }, weekCommencing: '2026-06-29', hours: 8, totalFee: 160, status: 'approved' },
+        ],
+      };
     });
 
     const response = await GET();
     const body = await response.json();
 
-    expect(body.globals).toMatchObject({ totalHours: 8, totalPaid: 200 });
-    expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'contractor-time-entries', page: 2 }));
-    expect(find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'contractor-payments', page: 2 }));
+    expect(body.fortnightlyPayments).toHaveLength(1);
+    expect(body.fortnightlyPayments[0]).toMatchObject({
+      contractorId: 1,
+      fortnightStartDate: '2026-06-29',
+      fortnightEndDate: '2026-07-12',
+      totalHours: 16,
+      subtotal: 320,
+      reimbursement: 30,
+      fee: 4,
+      amount: 354,
+      status: 'unpaid',
+      transferReference: '2906-1207 Optimise',
+    });
+    expect(body.globals).toMatchObject({ owingNow: 354, totalPaid: 0 });
+  });
+
+  it('marks the fortnight paid when a sent payment covers its start date', async () => {
+    find.mockImplementation(({ collection, where, limit }: { collection: string; where?: any; limit?: number }) => {
+      if (collection === 'contractors') return { docs: [contractor] };
+      if (collection === 'contractor-payments') {
+        const sentOnly = where?.status?.equals === 'sent';
+        return { docs: sentOnly ? [{ id: 3, contractor: { id: 1 }, fortnightStartDate: '2026-06-29', transferAmount: 354, transferReference: 'REF', paymentDate: '2026-07-13' }] : [] };
+      }
+      if (collection === 'contractor-time-entries' && limit === 1) return { docs: [] };
+      return { docs: [{ id: 9, contractor: { id: 1 }, weekCommencing: '2026-06-29', hours: 8, totalFee: 160, status: 'approved' }] };
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.fortnightlyPayments[0]).toMatchObject({ status: 'paid', amount: 354, transferReference: 'REF', paidDate: '2026-07-13' });
+    expect(body.globals).toMatchObject({ owingNow: 0, totalPaid: 354 });
   });
 });

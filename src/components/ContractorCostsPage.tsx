@@ -19,26 +19,31 @@ interface ContractorRow {
   } | null;
 }
 
-interface PaymentRow {
-  id: number;
+interface FortnightPayment {
+  id: string;
+  contractorId: number;
   contractorName: string;
   currency: string;
   fortnightStartDate: string;
   fortnightEndDate: string | null;
   totalHours: number;
   subtotal: number;
-  transferAmount: number;
+  reimbursement: number;
+  fee: number;
+  amount: number;
   transferReference: string;
-  status: 'scheduled' | 'sent';
+  status: 'paid' | 'unpaid';
   paidDate: string | null;
 }
 
 interface Globals {
   activeContractors: number;
-  mtdCost: number;
+  owingNow: number;
   totalPaid: number;
   totalHours: number;
 }
+
+const EMPTY_GLOBALS: Globals = { activeContractors: 0, owingNow: 0, totalPaid: 0, totalHours: 0 };
 
 const fmtMoney = (amount: number, currency = 'AUD') => new Intl.NumberFormat('en-AU', {
   style: 'currency', currency, maximumFractionDigits: 0,
@@ -85,22 +90,47 @@ function HoverTooltip({ label, children }: { label: ReactNode; children: ReactNo
 
 export default function ContractorCostsPage() {
   const [contractors, setContractors] = useState<ContractorRow[]>([]);
-  const [recentPayments, setRecentPayments] = useState<PaymentRow[]>([]);
-  const [globals, setGlobals] = useState<Globals>({ activeContractors: 0, mtdCost: 0, totalPaid: 0, totalHours: 0 });
+  const [payments, setPayments] = useState<FortnightPayment[]>([]);
+  const [globals, setGlobals] = useState<Globals>(EMPTY_GLOBALS);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
+  const [marking, setMarking] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => fetch('/api/contractor-overview', { credentials: 'include' })
+    .then((response) => response.ok ? response.json() : Promise.reject(new Error('Could not load contractor costs.')))
+    .then((data) => {
+      setContractors(data.contractors || []);
+      setPayments(data.fortnightlyPayments || []);
+      setGlobals(data.globals || EMPTY_GLOBALS);
+      setError(null);
+    })
+    .catch(() => setError('Could not load contractor costs. Refresh to try again.'));
 
   useEffect(() => {
-    fetch('/api/contractor-overview', { credentials: 'include' })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Could not load contractor costs.')))
-      .then((data) => {
-        setContractors(data.contractors || []);
-        setRecentPayments(data.recentPayments || []);
-        setGlobals(data.globals || { activeContractors: 0, mtdCost: 0, totalPaid: 0, totalHours: 0 });
-      })
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
+    load().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const markPaid = async (payment: FortnightPayment) => {
+    if (marking) return;
+    setMarking(payment.id);
+    setError(null);
+    try {
+      const response = await fetch('/api/contractor-payments/mark-paid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ contractorId: payment.contractorId, fortnightStartDate: payment.fortnightStartDate }),
+      });
+      if (!response.ok) throw new Error('mark-paid failed');
+      await load();
+    } catch {
+      setError('Could not mark this fortnight as paid. Try again.');
+    } finally {
+      setMarking(null);
+    }
+  };
 
   const currency = useMemo(() => contractors[0]?.currency || 'AUD', [contractors]);
   const handleCopy = async (text: string, key: string) => {
@@ -125,31 +155,48 @@ export default function ContractorCostsPage() {
           </div>
           <nav aria-label="Contractor cost actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <a href="/admin/collections/contractors/create" className="od-settings__btn od-settings__btn--primary" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>New contractor</a>
-            <a href="/admin/collections/contractor-payments/create" className="od-settings__btn" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>New fortnightly payment</a>
             <a href="/admin/collections/contractor-time-entries" className="od-settings__btn" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>All time entries</a>
           </nav>
         </div>
         <div className="od-box__stats od-box__stats--4" style={{ paddingTop: 16 }}>
           <div className="od-box__stat"><span className="od-box__stat-value">{globals.activeContractors}</span><span className="od-box__stat-label">Active contractors</span></div>
-          <div className="od-box__stat"><span className="od-box__stat-value">{fmtMoney(globals.mtdCost, currency)}</span><span className="od-box__stat-label">Monthly cost</span></div>
+          <div className="od-box__stat"><span className="od-box__stat-value" style={{ color: globals.owingNow > 0 ? '#b45309' : undefined }}>{fmtMoney(globals.owingNow, currency)}</span><span className="od-box__stat-label">Owing now (unpaid)</span></div>
           <div className="od-box__stat"><span className="od-box__stat-value">{fmtMoney(globals.totalPaid, currency)}</span><span className="od-box__stat-label">Total paid</span></div>
           <div className="od-box__stat"><span className="od-box__stat-value">{globals.totalHours.toFixed(1)}h</span><span className="od-box__stat-label">Total hours worked</span></div>
         </div>
       </div>
 
+      {error && (
+        <div role="alert" style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 6, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 13 }}>{error}</div>
+      )}
+
       <section aria-labelledby="payments-heading">
         <h3 id="payments-heading" style={{ margin: '0 0 8px', fontSize: 16, color: '#0f172a' }}>Fortnightly payments</h3>
-        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>Copy each transfer reference directly into Wise, then mark it paid in the payment workflow.</p>
+        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>Auto-built from approved time entries in 14-day fortnights (anchored 29 Jun 2026). Copy the transfer reference into Wise, then mark the fortnight paid.</p>
         <div className="od-box" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
-          <table style={{ width: '100%', minWidth: 820, borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr>
-              <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Transfer amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th><th style={thStyle}>Paid date</th>
+              <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th><th style={{ ...thStyle, textAlign: 'right' }}>Action</th>
             </tr></thead>
-            <tbody>{recentPayments.length === 0 ? <tr><td colSpan={7} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No fortnightly payments yet.</td></tr> : recentPayments.map((payment) => (
+            <tbody>{payments.length === 0 ? <tr><td colSpan={7} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : payments.map((payment) => (
               <tr key={payment.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={tdStyle}><strong>{payment.contractorName}</strong></td><td style={tdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td><td style={tdStyle}>{payment.totalHours.toFixed(2)}h</td><td style={tdStyle}><strong>{fmtMoney(payment.transferAmount, payment.currency)}</strong></td>
-                <td style={tdStyle}>{payment.transferReference ? <button type="button" onClick={() => handleCopy(payment.transferReference, `payment-${payment.id}`)} style={{ padding: '3px 7px', border: '1px solid #cbd5e1', borderRadius: 3, background: '#f8fafc', color: '#334155', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}>{copied === `payment-${payment.id}` ? 'Copied' : payment.transferReference}</button> : '—'}</td>
-                <td style={tdStyle}><span style={{ fontWeight: 600, color: payment.status === 'sent' ? '#166534' : '#1e40af' }}>{payment.status === 'sent' ? 'Sent' : 'Scheduled'}</span></td><td style={tdStyle}>{fmtDate(payment.paidDate)}</td>
+                <td style={tdStyle}><strong>{payment.contractorName}</strong></td>
+                <td style={tdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td>
+                <td style={tdStyle}>{payment.totalHours.toFixed(2)}h</td>
+                <td style={tdStyle}>
+                  <HoverTooltip label={fmtMoney(payment.amount, payment.currency)}>
+                    <span style={{ display: 'block' }}>Hours: {fmtMoney(payment.subtotal, payment.currency)}</span>
+                    <span style={{ display: 'block' }}>Reimbursement: {fmtMoney(payment.reimbursement, payment.currency)}</span>
+                    <span style={{ display: 'block' }}>Transfer fee: {fmtMoney(payment.fee, payment.currency)}</span>
+                  </HoverTooltip>
+                </td>
+                <td style={tdStyle}>{payment.transferReference ? <button type="button" onClick={() => handleCopy(payment.transferReference, payment.id)} style={{ padding: '3px 7px', border: '1px solid #cbd5e1', borderRadius: 3, background: '#f8fafc', color: '#334155', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}>{copied === payment.id ? 'Copied' : payment.transferReference}</button> : '—'}</td>
+                <td style={tdStyle}>{payment.status === 'paid'
+                  ? <span style={{ fontWeight: 600, color: '#166534' }}>Paid{payment.paidDate ? ` · ${fmtDate(payment.paidDate)}` : ''}</span>
+                  : <span style={{ fontWeight: 600, color: '#b45309' }}>Unpaid</span>}</td>
+                <td style={{ ...tdStyle, textAlign: 'right' }}>{payment.status === 'unpaid'
+                  ? <button type="button" onClick={() => markPaid(payment)} disabled={marking === payment.id} className="od-settings__btn od-settings__btn--primary" style={{ padding: '5px 11px', fontSize: 12, cursor: marking === payment.id ? 'default' : 'pointer', opacity: marking === payment.id ? 0.6 : 1 }}>{marking === payment.id ? 'Saving…' : 'Mark paid'}</button>
+                  : <span style={{ color: '#94a3b8' }}>—</span>}</td>
               </tr>
             ))}</tbody>
           </table>

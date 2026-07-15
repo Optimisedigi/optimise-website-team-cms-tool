@@ -35,7 +35,7 @@ export default async function Page() {
       visibleEntities={visibleEntities}
     >
       <AdminStepNavSetter items={[{ label: "Contractor Costs" }]} />
-      <div className="gutter--left gutter--right" style={{ maxWidth: 1440 }}>
+      <div className="gutter--left gutter--right" style={{ width: '100%' }}>
         <ContractorCostsPage />
       </div>
     </DefaultTemplate>
