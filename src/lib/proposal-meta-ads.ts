@@ -34,11 +34,95 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-function cleanDomain(domain: string): string {
+export function cleanMetaAdsDomain(domain: string): string {
   return domain
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
     .replace(/\/.*$/, "");
+}
+
+// Back-compat internal alias.
+const cleanDomain = cleanMetaAdsDomain;
+
+/**
+ * Fetch Meta Ad Library data for a single competitor object. This is the focused
+ * unit reused by both the concurrent batch helper and the resumable job worker.
+ * It reuses a stored Facebook link when present, falls back to a bounded
+ * social-link scrape, then runs the Scrapling Meta Ad Library check and uploads
+ * any ad screenshots to Vercel Blob. Throws on any failure so callers can record
+ * an explicit per-item error.
+ */
+async function scrapeCompetitorMetaAds(
+  competitor: any,
+  domain: string,
+  timeoutMs: number,
+): Promise<{ domain: string; metaAds: any; socialLinks: any }> {
+  // Reuse social links captured by the core competitor audit. Starting a
+  // second browser job for the same homepage needlessly doubles Scrapling
+  // load; extract them only when the audit did not save a Facebook link.
+  const storedSocialLinks = competitor?.socialLinks;
+  const storedFacebook = typeof storedSocialLinks?.facebook === "string"
+    ? storedSocialLinks.facebook.trim()
+    : "";
+  const socialLinks = storedFacebook
+    ? storedSocialLinks
+    : await extractSocialLinks(domain, {
+        timeout: SOCIAL_LINK_TIMEOUT_MS / 1000,
+        signal: AbortSignal.timeout(SOCIAL_LINK_TIMEOUT_MS),
+      }).catch(() => null);
+
+  // Use the Facebook handle for Meta Ad Library (fall back to domain).
+  const searchTerm = socialLinks?.facebook || domain;
+  if (socialLinks?.facebook) {
+    console.log(`[meta-ads] Using Facebook handle "${socialLinks.facebook}" for ${domain}`);
+  }
+
+  const result = await withTimeout(checkMetaAdsViaScrapling(searchTerm), timeoutMs);
+
+  // Upload base64 ad screenshots to Vercel Blob
+  if (result.adScreenshots.length > 0) {
+    const uploadedUrls: string[] = [];
+    for (const b64 of result.adScreenshots) {
+      try {
+        const buffer = Buffer.from(b64, "base64");
+        const blobUrl = await uploadScreenshotToBlob(buffer, `meta-ad-${domain}`);
+        if (blobUrl) uploadedUrls.push(blobUrl);
+      } catch {
+        // Skip failed uploads
+      }
+    }
+    result.adScreenshots = uploadedUrls;
+  }
+
+  return { domain, metaAds: result, socialLinks };
+}
+
+export type FetchSingleMetaAdsOutcome =
+  | { ok: true; domain: string; metaAds: any; socialLinks: any }
+  | { ok: false; domain: string; error: string };
+
+/**
+ * Run the Meta Ad Library fetch for exactly one competitor and return an
+ * explicit success/failure outcome (never throws for an expected fetch error).
+ * The resumable job worker uses this so it can record a bounded per-item error
+ * and advance rather than inferring failure from object identity.
+ */
+export async function fetchMetaAdsForCompetitor(
+  competitor: any,
+  opts?: { timeoutMs?: number },
+): Promise<FetchSingleMetaAdsOutcome> {
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_ITEM_TIMEOUT_MS;
+  const domain = competitor?.domain ? cleanDomain(String(competitor.domain)) : "";
+  if (!domain) {
+    return { ok: false, domain: "", error: "Competitor has no domain" };
+  }
+  try {
+    const { metaAds, socialLinks } = await scrapeCompetitorMetaAds(competitor, domain, timeoutMs);
+    return { ok: true, domain, metaAds, socialLinks };
+  } catch (err: any) {
+    const message = err?.message ? String(err.message) : "Meta Ads fetch failed";
+    return { ok: false, domain, error: message.slice(0, 500) };
+  }
 }
 
 async function allSettledWithConcurrency<T, R>(
@@ -118,44 +202,7 @@ export async function fetchMetaAdsForCompetitors(
         throw new Error("Skipped — audit deadline reached");
       }
 
-      // Reuse social links captured by the core competitor audit. Starting a
-      // second browser job for the same homepage needlessly doubles Scrapling
-      // load; extract them only when the audit did not save a Facebook link.
-      const storedSocialLinks = competitor?.socialLinks;
-      const storedFacebook = typeof storedSocialLinks?.facebook === "string"
-        ? storedSocialLinks.facebook.trim()
-        : "";
-      const socialLinks = storedFacebook
-        ? storedSocialLinks
-        : await extractSocialLinks(domain, {
-            timeout: SOCIAL_LINK_TIMEOUT_MS / 1000,
-            signal: AbortSignal.timeout(SOCIAL_LINK_TIMEOUT_MS),
-          }).catch(() => null);
-
-      // Use the Facebook handle for Meta Ad Library (fall back to domain).
-      const searchTerm = socialLinks?.facebook || domain;
-      if (socialLinks?.facebook) {
-        console.log(`[meta-ads] Using Facebook handle "${socialLinks.facebook}" for ${domain}`);
-      }
-
-      const result = await withTimeout(checkMetaAdsViaScrapling(searchTerm), timeoutMs);
-
-      // Step 3: upload base64 ad screenshots to Vercel Blob
-      if (result.adScreenshots.length > 0) {
-        const uploadedUrls: string[] = [];
-        for (const b64 of result.adScreenshots) {
-          try {
-            const buffer = Buffer.from(b64, "base64");
-            const blobUrl = await uploadScreenshotToBlob(buffer, `meta-ad-${domain}`);
-            if (blobUrl) uploadedUrls.push(blobUrl);
-          } catch {
-            // Skip failed uploads
-          }
-        }
-        result.adScreenshots = uploadedUrls;
-      }
-
-      return { domain, metaAds: result, socialLinks };
+      return scrapeCompetitorMetaAds(competitor, domain, timeoutMs);
     },
   );
 

@@ -4,21 +4,56 @@ import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
 import { useState, useRef, useCallback, useEffect } from 'react'
 
 /**
- * Re-runs ONLY the Meta Ad Library fetch for a proposal's competitors and
- * merges the results back into the linked competitor-analyses record.
+ * Starts / retries ONLY the Meta Ad Library fetch for a proposal's competitors.
  *
- * Meta Ads is the slowest/flakiest audit stage, so the main pipeline no longer
- * blocks on it — if it fails the proposal still completes and this button lets
- * you backfill just that section afterwards.
+ * The refresh now runs as a durable, resumable server job that processes two
+ * competitors per invocation and persists progress. This button shows real
+ * completed/total progress, keeps polling across page reloads while a job is
+ * running, and offers a Retry action on terminal failure. The backend lease /
+ * recovery / terminal state is authoritative — there is no client-side stuck
+ * timer.
  */
+
+type MetaProgress = {
+  completed: number
+  failed: number
+  processed: number
+  total: number
+  percent: number
+}
+
+const EMPTY_PROGRESS: MetaProgress = { completed: 0, failed: 0, processed: 0, total: 0, percent: 0 }
+
+function readProgress(job: unknown): MetaProgress {
+  if (!job || typeof job !== 'object') return EMPTY_PROGRESS
+  const j = job as Record<string, unknown>
+  const total = typeof j.total === 'number' ? j.total : 0
+  const completed = typeof j.completed === 'number' ? j.completed : 0
+  const failed = typeof j.failed === 'number' ? j.failed : 0
+  const processed =
+    typeof j.processed === 'number' ? j.processed : completed + failed
+  const percent =
+    typeof j.percent === 'number'
+      ? j.percent
+      : total > 0
+        ? Math.round((processed / total) * 100)
+        : 0
+  return { completed, failed, processed, total, percent }
+}
+
 const RefreshMetaAdsButton = () => {
   const { id } = useDocumentInfo()
   const [fields] = useAllFormFields()
-  const [loading, setLoading] = useState(false)
+
+  const savedStatus = fields?.metaAdsStatus?.value as string | undefined
+  const savedJobState = fields?.metaAdsJobState?.value
+
+  const [status, setStatus] = useState<string>(savedStatus || 'idle')
+  const [progress, setProgress] = useState<MetaProgress>(() => readProgress(savedJobState))
+  const [loading, setLoading] = useState<boolean>(savedStatus === 'running')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const startedAtRef = useRef<number | null>(null)
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -37,41 +72,46 @@ const RefreshMetaAdsButton = () => {
         if (!res.ok) return
         const data = await res.json()
 
-        if (startedAtRef.current && Date.now() - startedAtRef.current > 10 * 60 * 1000) {
-          stopPolling()
-          setLoading(false)
-          setError('Meta Ads refresh has run for over 10 minutes — it is probably stuck. Refresh the page and try again.')
-          return
-        }
+        if (data.metaAds) setProgress(readProgress(data.metaAds))
+        setStatus(data.metaAdsStatus || 'idle')
 
         if (data.metaAdsStatus === 'completed') {
           stopPolling()
           setLoading(false)
-          setMessage('Meta Ads refreshed. Refresh the page to see the updated competitor data.')
+          setMessage('Meta Ads refreshed. Refresh the document to see the updated competitor data.')
         } else if (data.metaAdsStatus === 'failed') {
           stopPolling()
           setLoading(false)
-          setError(data.metaAdsError || 'Meta Ads refresh failed. You can try again.')
+          setError(data.metaAdsError || 'Meta Ads refresh failed. You can retry.')
         }
       } catch {
-        // Network hiccup — keep polling
+        // Network hiccup — keep polling; backend recovery is authoritative.
       }
     }, 3000)
   }, [id, stopPolling])
 
-  useEffect(() => () => stopPolling(), [stopPolling])
+  // Resume polling automatically if the saved job is still running after a
+  // reload, so progress visibility is never lost.
+  useEffect(() => {
+    if (savedStatus === 'running') {
+      setLoading(true)
+      startPolling()
+    }
+    return () => stopPolling()
+    // Only re-run when the document id changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
 
   if (!id) return null
 
-  const metaAdsStatus = fields?.metaAdsStatus?.value as string | undefined
-  const isRunning = loading
-  const previousFailed = metaAdsStatus === 'failed' && !loading
+  const isRunning = loading || status === 'running'
+  const previousFailed = status === 'failed' && !loading
 
   const handleClick = async () => {
     setLoading(true)
     setMessage(null)
     setError(null)
-    startedAtRef.current = Date.now()
+    setStatus('running')
 
     try {
       const res = await fetch(`/api/proposals/${id}/refresh-meta-ads`, {
@@ -84,6 +124,17 @@ const RefreshMetaAdsButton = () => {
       if (!res.ok) {
         setError(data.error || `Failed (${res.status})`)
         setLoading(false)
+        setStatus(savedStatus || 'idle')
+        return
+      }
+
+      if (data && (typeof data.total === 'number' || typeof data.processed === 'number')) {
+        setProgress(readProgress(data))
+      }
+      if (data.status === 'completed') {
+        setLoading(false)
+        setStatus('completed')
+        setMessage('Meta Ads refreshed. Refresh the document to see the updated competitor data.')
         return
       }
 
@@ -91,11 +142,22 @@ const RefreshMetaAdsButton = () => {
     } catch {
       setError('Network error — check your connection and try again.')
       setLoading(false)
+      setStatus(savedStatus || 'idle')
     }
   }
 
+  const showProgress = isRunning || (progress.total > 0 && (status === 'completed' || status === 'failed'))
+  const progressLabel = `${progress.processed} of ${progress.total || '…'} processed${
+    progress.failed > 0 ? ` · ${progress.failed} failed` : ''
+  }`
+  const buttonLabel = isRunning
+    ? 'Refreshing Meta Ads…'
+    : previousFailed
+      ? 'Retry Meta Ads'
+      : 'Refresh Meta Ads'
+
   return (
-    <div style={{ marginBottom: 20, minHeight: 148, padding: 16, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
+    <div style={{ marginBottom: 20, minHeight: 168, padding: 16, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
       <button
         type="button"
         onClick={handleClick}
@@ -114,16 +176,49 @@ const RefreshMetaAdsButton = () => {
           cursor: isRunning ? 'not-allowed' : 'pointer',
         }}
       >
-        {isRunning ? 'Refreshing Meta Ads…' : 'Refresh Meta Ads'}
+        {buttonLabel}
       </button>
 
       <p style={{ marginTop: 8, fontSize: 13, color: '#4b5563' }}>
-        <strong>Partial refresh.</strong> Re-runs only the Meta Ad Library lookup for this proposal&apos;s competitors. Everything else is preserved.
+        <strong>Partial refresh.</strong> Re-runs only the Meta Ad Library lookup for this proposal&apos;s competitors, two at a time. Everything else is preserved and progress survives reloads.
       </p>
 
-      {previousFailed && (
+      {showProgress && (
+        <div role="status" aria-live="polite" style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>{progressLabel}</div>
+          <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress.percent}
+            aria-label="Meta Ads refresh progress"
+            style={{
+              marginTop: 6,
+              height: 8,
+              width: '100%',
+              maxWidth: 320,
+              background: '#e5e7eb',
+              borderRadius: 999,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${Math.min(100, Math.max(0, progress.percent))}%`,
+                background: status === 'failed' ? '#dc2626' : '#7c3aed',
+                transition: 'width 300ms ease',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {previousFailed && !error && (
         <p style={{ marginTop: 8, fontSize: 13, color: '#f59e0b' }}>
-          Meta Ads did not complete on the last audit. Click to fetch just that section.
+          {progress.total > 0
+            ? `Meta Ads finished with ${progress.completed} completed and ${progress.failed} failed. Click Retry to run it again.`
+            : 'Meta Ads did not complete. Click Retry to run it again.'}
         </p>
       )}
 

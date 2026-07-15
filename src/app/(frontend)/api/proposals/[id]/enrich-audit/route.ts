@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { captureAndUploadScreenshot, type ScreenshotOptions } from '@/lib/screenshots'
-import { fetchMetaAdsForCompetitors } from '@/lib/proposal-meta-ads'
+import { dispatchMetaAdsWorker, initMetaAdsJob } from '@/lib/proposal-meta-ads-job'
 import {
   explicitUnavailableTraffic,
   extractRootDomain,
@@ -20,14 +20,11 @@ export const maxDuration = 300
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
+// Per-item budget for the screenshot / traffic / GBP lookups that still run
+// inline here. Meta Ad Library enrichment is no longer inline — it runs in the
+// durable resumable job (see proposal-meta-ads-job). Overall runtime is bounded
+// by deadlineAt below.
 const ITEM_TIMEOUT_MS = 20_000
-// Meta Ad Library scrapes are slower than a traffic lookup: each one drives a
-// headless browser (social-link extraction + clicking into individual ads) and
-// queues behind the Scrapling service's browser-concurrency gate. A 20s cap
-// killed jobs while they were still waiting in that queue, so give the Meta
-// pipeline a dedicated, larger budget. Overall runtime is still bounded by
-// deadlineAt, which skips remaining competitors once the route budget is spent.
-const META_ITEM_TIMEOUT_MS = 50_000
 const DEADLINE_SAFETY_MS = 45_000
 
 function relationshipId(value: unknown): number | string | null {
@@ -73,7 +70,7 @@ async function fetchTrafficRecoverable(rootDomain: string, deadlineAt: number): 
   return explicitUnavailableTraffic(unavailableReason)
 }
 
-async function runEnrichment(proposalId: string): Promise<void> {
+async function runEnrichment(proposalId: string, origin?: string): Promise<void> {
   const deadlineAt = Date.now() + maxDuration * 1_000 - DEADLINE_SAFETY_MS
   const payload = await getPayload({ config })
   const proposal: any = await payload.findByID({
@@ -155,31 +152,10 @@ async function runEnrichment(proposalId: string): Promise<void> {
     }),
   )
 
-  // Meta Ad Library data comes exclusively from the Scrapling scrape (public
-  // facebook.com/ads/library). Growth Tools no longer performs a Meta check, so
-  // run the scrape for every competitor that has a domain.
-  const metaCandidates = competitors.filter((c: any) =>
-    Boolean(cleanProposalDomain(c?.domain || c?.website || c?.url)),
-  )
-  let metaAdsStatus: 'completed' | 'failed' = 'completed'
-  let metaAdsError: string | null = null
-  if (metaCandidates.length > 0) {
-    const metaResult = await fetchMetaAdsForCompetitors(metaCandidates, {
-      timeoutMs: META_ITEM_TIMEOUT_MS,
-      deadlineAt,
-    })
-    const refreshedByDomain = new Map(
-      metaResult.updated.map((profile: any) => [cleanProposalDomain(profile?.domain), profile]),
-    )
-    for (let index = 0; index < competitors.length; index++) {
-      const refreshed = refreshedByDomain.get(cleanProposalDomain(competitors[index]?.domain))
-      if (refreshed) competitors[index] = { ...competitors[index], ...refreshed }
-    }
-    if (metaResult.failed > 0 || metaResult.skipped > 0) {
-      metaAdsStatus = 'failed'
-      metaAdsError = `Meta Ads incomplete: ${metaResult.failed} failed, ${metaResult.skipped} skipped (deadline) of ${metaResult.attempted}. Use "Refresh Meta Ads" to retry.`
-    }
-  }
+  // Meta Ad Library enrichment no longer runs inline here. It is the slowest,
+  // flakiest stage, so it is handled by the durable resumable job that processes
+  // two competitors per invocation (see proposal-meta-ads-job). We persist the
+  // (possibly newly added) competitors below, then enqueue that job.
 
   // Preserve the former pipeline's GBP enrichment for manually entered
   // competitors that have a Google Maps URL but no saved profile data.
@@ -260,9 +236,6 @@ async function runEnrichment(proposalId: string): Promise<void> {
     collection: 'client-proposals',
     id: proposalId,
     data: {
-      metaAdsStatus,
-      metaAdsError,
-      metaAdsUpdatedAt: new Date().toISOString(),
       ...(gbpUpdates.size > 0 ? { competitors: updatedProposalCompetitors } : {}),
       keywordCategories: proposal.keywordCategories ?? [],
       googleMapsUrls: proposal.googleMapsUrls ?? [],
@@ -272,8 +245,14 @@ async function runEnrichment(proposalId: string): Promise<void> {
     overrideAccess: true,
   })
 
+  // Enqueue the durable Meta Ads job now that the persisted competitor list
+  // (including any manually added competitors) is the source of truth for its
+  // snapshot. Dispatch its first two-competitor worker batch.
+  const init = await initMetaAdsJob(payload, proposalId)
+  if (init.shouldDispatch) await dispatchMetaAdsWorker(proposalId, origin)
+
   console.log(
-    `[enrich-audit] Proposal ${proposalId}: screenshots=${screenshotProfiles.length}, traffic=${trafficProfiles.length}, meta=${metaCandidates.length}, metaStatus=${metaAdsStatus}`,
+    `[enrich-audit] Proposal ${proposalId}: screenshots=${screenshotProfiles.length}, traffic=${trafficProfiles.length}, metaJob=${init.state.jobId} total=${init.state.total}`,
   )
 }
 
@@ -298,38 +277,28 @@ export async function POST(
     if (relationshipId(proposal.competitorAnalysis) == null) {
       return NextResponse.json({ error: 'No linked competitor analysis found' }, { status: 422 })
     }
-    await payload.update({
-      collection: 'client-proposals',
-      id,
-      data: {
-        metaAdsStatus: 'running',
-        metaAdsError: null,
-        metaAdsUpdatedAt: new Date().toISOString(),
-      } as any,
-      overrideAccess: true,
-    })
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'Proposal not found' }, { status: 404 })
   }
 
+  const origin = new URL(req.url).origin
+
   after(async () => {
+    // Screenshot/traffic/GBP enrichment is optional. A failure here must NOT
+    // mark Meta failed — the Meta job runs independently below.
     try {
-      await runEnrichment(id)
+      await runEnrichment(id, origin)
     } catch (error: any) {
-      console.error(`[enrich-audit] Proposal ${id} failed:`, error?.message || error)
-      const payload = await getPayload({ config })
-      await payload.update({
-        collection: 'client-proposals',
-        id,
-        data: {
-          metaAdsStatus: 'failed',
-          metaAdsError: error?.message || 'Optional proposal enrichment failed.',
-          metaAdsUpdatedAt: new Date().toISOString(),
-        } as any,
-        overrideAccess: true,
-      }).catch((statusError: any) => {
-        console.error(`[enrich-audit] Failed to persist failure for proposal ${id}:`, statusError?.message || statusError)
-      })
+      console.error(`[enrich-audit] Optional enrichment failed for proposal ${id}:`, error?.message || error)
+      // Best-effort: still enqueue the Meta job so it isn't blocked by an
+      // unrelated screenshot/traffic/GBP error.
+      try {
+        const payload = await getPayload({ config })
+        const init = await initMetaAdsJob(payload, id)
+        if (init.shouldDispatch) await dispatchMetaAdsWorker(id, origin)
+      } catch (metaError: any) {
+        console.error(`[enrich-audit] Failed to enqueue Meta job for proposal ${id}:`, metaError?.message || metaError)
+      }
     }
   })
 

@@ -63,7 +63,10 @@
       "maxDuration": 300
     },
     "src/app/(frontend)/api/proposals/[id]/refresh-meta-ads/route.ts": {
-      "maxDuration": 300
+      "maxDuration": 60
+    },
+    "src/app/(frontend)/api/proposals/[id]/refresh-meta-ads/worker/route.ts": {
+      "maxDuration": 180
     },
     "src/app/(frontend)/api/proposals/[id]/refresh-content-questions/route.ts": {
       "maxDuration": 300

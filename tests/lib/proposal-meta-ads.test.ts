@@ -9,7 +9,7 @@ vi.mock("@/lib/blob-upload", () => ({
   uploadScreenshotToBlob: vi.fn(),
 }));
 
-import { fetchMetaAdsForCompetitors } from "@/lib/proposal-meta-ads";
+import { fetchMetaAdsForCompetitors, fetchMetaAdsForCompetitor } from "@/lib/proposal-meta-ads";
 import { extractSocialLinks, checkMetaAdsViaScrapling } from "@/lib/scrapling-service";
 import { uploadScreenshotToBlob } from "@/lib/blob-upload";
 
@@ -169,6 +169,57 @@ describe("fetchMetaAdsForCompetitors", () => {
     const result = await fetchMetaAdsForCompetitors([{ name: "no domain" }]);
     expect(result.attempted).toBe(0);
     expect(result.updated).toEqual([{ name: "no domain" }]);
+    expect(mockMeta).not.toHaveBeenCalled();
+  });
+});
+
+describe("fetchMetaAdsForCompetitor (single item)", () => {
+  it("returns an explicit success outcome with merged meta ads + blob urls", async () => {
+    mockSocial.mockResolvedValue({ facebook: "acme", instagram: null, linkedin: null });
+    mockMeta.mockResolvedValue({ isRunningAds: true, activeAdCount: 2, adScreenshots: ["aGk="] });
+    mockBlob.mockResolvedValue("https://blob.test/meta-ad.png");
+
+    const outcome = await fetchMetaAdsForCompetitor({ domain: "acme.com" });
+
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.domain).toBe("acme.com");
+      expect(outcome.metaAds.isRunningAds).toBe(true);
+      expect(outcome.metaAds.adScreenshots).toEqual(["https://blob.test/meta-ad.png"]);
+      expect(outcome.socialLinks.facebook).toBe("acme");
+    }
+  });
+
+  it("reuses a stored Facebook link without a second social scrape", async () => {
+    mockMeta.mockResolvedValue({ isRunningAds: false, activeAdCount: 0, adScreenshots: [] });
+
+    const outcome = await fetchMetaAdsForCompetitor({
+      domain: "acme.com",
+      socialLinks: { facebook: "https://www.facebook.com/acme" },
+    });
+
+    expect(outcome.ok).toBe(true);
+    expect(mockSocial).not.toHaveBeenCalled();
+    expect(mockMeta).toHaveBeenCalledWith("https://www.facebook.com/acme");
+  });
+
+  it("returns an explicit failure outcome with a bounded error (never throws)", async () => {
+    mockSocial.mockResolvedValue({ facebook: null, instagram: null, linkedin: null });
+    mockMeta.mockRejectedValue(new Error("scrapling down"));
+
+    const outcome = await fetchMetaAdsForCompetitor({ domain: "acme.com" });
+
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.domain).toBe("acme.com");
+      expect(outcome.error).toContain("scrapling down");
+      expect(outcome.error.length).toBeLessThanOrEqual(500);
+    }
+  });
+
+  it("fails cleanly when the competitor has no domain", async () => {
+    const outcome = await fetchMetaAdsForCompetitor({ name: "no domain" });
+    expect(outcome.ok).toBe(false);
     expect(mockMeta).not.toHaveBeenCalled();
   });
 });

@@ -1,25 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { fetchMetaAdsForCompetitors } from "@/lib/proposal-meta-ads";
+import { computeProgress, dispatchMetaAdsWorker, initMetaAdsJob } from "@/lib/proposal-meta-ads-job";
 
-// Meta Ad Library scraping is slow/flaky; give it the full Vercel Pro budget.
-export const maxDuration = 300;
-
-// Each Meta Ad Library scrape drives a headless browser (social-link extraction
-// + clicking into individual ads) and queues behind the Scrapling service's
-// browser-concurrency gate. A 20s cap killed jobs while they were still waiting
-// in that queue. Give each item a realistic budget; total runtime stays bounded
-// by deadlineAt, which skips remaining competitors once the budget is spent.
-const ITEM_TIMEOUT_MS = 50_000;
-const DEADLINE_SAFETY_MS = 20_000;
-
-function relationshipId(value: any): number | string | null {
-  if (!value) return null;
-  if (typeof value === "object") return value.id ?? null;
-  return value;
-}
+// This route now only initializes/resumes the durable job and returns
+// immediately; the actual scraping happens in the internal worker route, two
+// competitors per invocation. Keep a small budget — no long work runs here.
+export const maxDuration = 60;
 
 export async function POST(
   req: NextRequest,
@@ -35,113 +22,27 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let proposal: any;
+  let init;
   try {
-    proposal = await payload.findByID({
-      collection: "client-proposals",
-      id,
-      overrideAccess: true,
-    });
+    init = await initMetaAdsJob(payload, id);
   } catch (err: any) {
-    console.error(`[refresh-meta-ads] Failed to fetch proposal ${id}:`, err?.message || err);
-    return NextResponse.json({ error: "Proposal not found", detail: err?.message }, { status: 404 });
+    const message = err?.message || "Failed to start Meta Ads refresh.";
+    console.error(`[refresh-meta-ads] Init failed for proposal ${id}:`, message);
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const competitorAnalysisId = relationshipId(proposal.competitorAnalysis);
-  if (competitorAnalysisId == null) {
-    return NextResponse.json(
-      { error: "No linked competitor analysis found for this proposal. Run the general audit first." },
-      { status: 400 },
-    );
+  // New job or a stale (interrupted) job needs a worker kicked off.
+  if (init.shouldDispatch) {
+    const origin = new URL(req.url).origin;
+    await dispatchMetaAdsWorker(id, origin);
   }
 
-  const now = new Date().toISOString();
-  await payload.update({
-    collection: "client-proposals",
-    id,
-    data: {
-      metaAdsStatus: "running",
-      metaAdsError: null,
-      metaAdsUpdatedAt: now,
-    } as any,
-    overrideAccess: true,
-  });
-
-  const refreshWork = async () => {
-    const deadlineAt = Date.now() + maxDuration * 1000 - DEADLINE_SAFETY_MS;
-    try {
-      const analysis = await payload.findByID({
-        collection: "competitor-analyses",
-        id: competitorAnalysisId as any,
-        overrideAccess: true,
-      });
-
-      const competitors = Array.isArray((analysis as any)?.competitors)
-        ? (analysis as any).competitors
-        : [];
-
-      if (competitors.length === 0) {
-        await payload.update({
-          collection: "client-proposals",
-          id,
-          data: {
-            metaAdsStatus: "completed",
-            metaAdsError: "No competitors to check.",
-            metaAdsUpdatedAt: new Date().toISOString(),
-          } as any,
-          overrideAccess: true,
-        });
-        return;
-      }
-
-      const result = await fetchMetaAdsForCompetitors(competitors, {
-        timeoutMs: ITEM_TIMEOUT_MS,
-        deadlineAt,
-      });
-
-      // Persist merged metaAds/socialLinks back onto the competitor-analyses record.
-      await payload.update({
-        collection: "competitor-analyses",
-        id: competitorAnalysisId as any,
-        data: { competitors: result.updated } as any,
-        overrideAccess: true,
-      });
-
-      const incomplete = result.failed > 0 || result.skipped > 0;
-      await payload.update({
-        collection: "client-proposals",
-        id,
-        data: {
-          metaAdsStatus: incomplete ? "failed" : "completed",
-          metaAdsError: incomplete
-            ? `Meta Ads incomplete: ${result.failed} failed, ${result.skipped} skipped (deadline) of ${result.attempted}. Try again.`
-            : null,
-          metaAdsUpdatedAt: new Date().toISOString(),
-        } as any,
-        overrideAccess: true,
-      });
-
-      console.log(
-        `[refresh-meta-ads] Proposal ${id}: attempted=${result.attempted} withAds=${result.withAds} failed=${result.failed} skipped=${result.skipped}`,
-      );
-    } catch (e: any) {
-      console.error("[refresh-meta-ads] Unexpected error:", e?.message || e);
-      await payload
-        .update({
-          collection: "client-proposals",
-          id,
-          data: {
-            metaAdsStatus: "failed",
-            metaAdsError: e?.message || "Unexpected error while refreshing Meta Ads.",
-            metaAdsUpdatedAt: new Date().toISOString(),
-          } as any,
-          overrideAccess: true,
-        })
-        .catch(() => {});
-    }
-  };
-
-  after(refreshWork);
-
-  return NextResponse.json({ ok: true, status: "running" });
+  return NextResponse.json(
+    {
+      ok: true,
+      status: init.terminal ? "completed" : "running",
+      ...computeProgress(init.state),
+    },
+    { status: 202 },
+  );
 }

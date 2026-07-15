@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { sweepStuckProposalAudits } from "@/lib/proposal-audit-watchdog";
+import { sweepStaleMetaJobs } from "@/lib/proposal-meta-ads-job";
 
 export const maxDuration = 60;
 
@@ -31,7 +32,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const payload = await getPayload({ config });
     const recovered = await sweepStuckProposalAudits(payload);
-    return NextResponse.json({ ok: true, recovered });
+    const meta = await sweepStaleMetaJobs(payload);
+    return NextResponse.json({
+      ok: true,
+      recovered,
+      metaResumed: meta.resumed,
+      metaFailed: meta.failed,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Watchdog failed";
     console.error("[proposal-audit-watchdog]", message);

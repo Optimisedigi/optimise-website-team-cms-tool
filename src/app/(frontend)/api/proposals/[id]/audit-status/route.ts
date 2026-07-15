@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { isProposalAuditStuck, failStuckProposalAudit } from "@/lib/proposal-audit-watchdog";
+import { computeProgress, parseJobState, recoverStaleMetaJob } from "@/lib/proposal-meta-ads-job";
 
 export async function GET(
   req: NextRequest,
@@ -50,6 +51,24 @@ export async function GET(
       percent = parseInt(pStr, 10) || 0;
     }
 
+    // Guarded stale-job resume: if the Meta job's heartbeat is old, kick one
+    // recovery (resume while attempts remain, else terminal failed). Reflect the
+    // new status in this response so the polling UI reacts immediately.
+    if (p.metaAdsStatus === "running") {
+      const origin = new URL(req.url).origin;
+      const outcome = await recoverStaleMetaJob(payload, p, origin).catch(() => "none" as const);
+      if (outcome === "failed") {
+        const refreshed = await payload.findByID({
+          collection: "client-proposals",
+          id,
+          overrideAccess: true,
+        });
+        p = refreshed as any;
+      }
+    }
+
+    const metaJob = computeProgress(parseJobState(p.metaAdsJobState));
+
     return NextResponse.json({
       status: p.auditStatus || "pending",
       stage,
@@ -58,6 +77,16 @@ export async function GET(
       metaAdsStatus: p.metaAdsStatus || "idle",
       metaAdsError: p.metaAdsError || null,
       metaAdsUpdatedAt: p.metaAdsUpdatedAt || null,
+      metaAds: {
+        jobId: metaJob.jobId,
+        completed: metaJob.completed,
+        failed: metaJob.failed,
+        processed: metaJob.processed,
+        total: metaJob.total,
+        percent: metaJob.percent,
+        startedAt: metaJob.startedAt,
+        updatedAt: p.metaAdsUpdatedAt || null,
+      },
     });
   } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -2126,14 +2126,46 @@ export interface ClientProposal {
    */
   targetLocation?:
     | (
-        | 'au:sydney'
-        | 'au:melbourne'
         | 'au:brisbane'
+        | 'au:melbourne'
         | 'au:perth'
-        | 'gb:london'
-        | 'us:new-york'
-        | 'us:los-angeles'
+        | 'au:sydney'
+        | 'br:rio-de-janeiro'
+        | 'br:sao-paulo'
+        | 'ca:montreal'
         | 'ca:toronto'
+        | 'ca:vancouver'
+        | 'fr:lyon'
+        | 'fr:marseille'
+        | 'fr:paris'
+        | 'de:berlin'
+        | 'de:hamburg'
+        | 'de:munich'
+        | 'in:bangalore'
+        | 'in:delhi'
+        | 'in:mumbai'
+        | 'it:milan'
+        | 'it:rome'
+        | 'jp:osaka'
+        | 'jp:tokyo'
+        | 'mx:mexico-city'
+        | 'nl:amsterdam'
+        | 'kr:seoul'
+        | 'es:barcelona'
+        | 'es:madrid'
+        | 'gb:birmingham'
+        | 'gb:london'
+        | 'gb:manchester'
+        | 'us:atlanta'
+        | 'us:chicago'
+        | 'us:denver'
+        | 'us:houston'
+        | 'us:los-angeles'
+        | 'us:miami'
+        | 'us:new-york'
+        | 'us:seattle'
+        | 'vn:hanoi'
+        | 'vn:ho-chi-minh'
         | 'af'
         | 'ax'
         | 'al'
@@ -2611,6 +2643,18 @@ export interface ClientProposal {
   metaAdsStatus?: ('idle' | 'running' | 'completed' | 'failed') | null;
   metaAdsError?: string | null;
   metaAdsUpdatedAt?: string | null;
+  /**
+   * Durable resumable Meta Ads job state (cursor, counts, lease). Managed by the refresh worker — do not edit.
+   */
+  metaAdsJobState?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   /**
    * Local SimilarWeb helper job status for competitor monthly visits.
    */
@@ -3841,14 +3885,46 @@ export interface GoogleAdsAudit {
    */
   proposalTargetLocation?:
     | (
-        | 'au:sydney'
-        | 'au:melbourne'
         | 'au:brisbane'
+        | 'au:melbourne'
         | 'au:perth'
-        | 'gb:london'
-        | 'us:new-york'
-        | 'us:los-angeles'
+        | 'au:sydney'
+        | 'br:rio-de-janeiro'
+        | 'br:sao-paulo'
+        | 'ca:montreal'
         | 'ca:toronto'
+        | 'ca:vancouver'
+        | 'fr:lyon'
+        | 'fr:marseille'
+        | 'fr:paris'
+        | 'de:berlin'
+        | 'de:hamburg'
+        | 'de:munich'
+        | 'in:bangalore'
+        | 'in:delhi'
+        | 'in:mumbai'
+        | 'it:milan'
+        | 'it:rome'
+        | 'jp:osaka'
+        | 'jp:tokyo'
+        | 'mx:mexico-city'
+        | 'nl:amsterdam'
+        | 'kr:seoul'
+        | 'es:barcelona'
+        | 'es:madrid'
+        | 'gb:birmingham'
+        | 'gb:london'
+        | 'gb:manchester'
+        | 'us:atlanta'
+        | 'us:chicago'
+        | 'us:denver'
+        | 'us:houston'
+        | 'us:los-angeles'
+        | 'us:miami'
+        | 'us:new-york'
+        | 'us:seattle'
+        | 'vn:hanoi'
+        | 'vn:ho-chi-minh'
         | 'af'
         | 'ax'
         | 'al'
@@ -4949,14 +5025,46 @@ export interface SeoAuditProposal {
    */
   location?:
     | (
-        | 'au:sydney'
-        | 'au:melbourne'
         | 'au:brisbane'
+        | 'au:melbourne'
         | 'au:perth'
-        | 'gb:london'
-        | 'us:new-york'
-        | 'us:los-angeles'
+        | 'au:sydney'
+        | 'br:rio-de-janeiro'
+        | 'br:sao-paulo'
+        | 'ca:montreal'
         | 'ca:toronto'
+        | 'ca:vancouver'
+        | 'fr:lyon'
+        | 'fr:marseille'
+        | 'fr:paris'
+        | 'de:berlin'
+        | 'de:hamburg'
+        | 'de:munich'
+        | 'in:bangalore'
+        | 'in:delhi'
+        | 'in:mumbai'
+        | 'it:milan'
+        | 'it:rome'
+        | 'jp:osaka'
+        | 'jp:tokyo'
+        | 'mx:mexico-city'
+        | 'nl:amsterdam'
+        | 'kr:seoul'
+        | 'es:barcelona'
+        | 'es:madrid'
+        | 'gb:birmingham'
+        | 'gb:london'
+        | 'gb:manchester'
+        | 'us:atlanta'
+        | 'us:chicago'
+        | 'us:denver'
+        | 'us:houston'
+        | 'us:los-angeles'
+        | 'us:miami'
+        | 'us:new-york'
+        | 'us:seattle'
+        | 'vn:hanoi'
+        | 'vn:ho-chi-minh'
         | 'af'
         | 'ax'
         | 'al'
@@ -10892,6 +11000,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   metaAdsStatus?: T;
   metaAdsError?: T;
   metaAdsUpdatedAt?: T;
+  metaAdsJobState?: T;
   competitorTrafficJobStatus?: T;
   competitorTrafficJobId?: T;
   competitorTrafficJobDomains?: T;

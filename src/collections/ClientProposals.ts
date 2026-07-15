@@ -1779,6 +1779,15 @@ export const ClientProposals: CollectionConfig = {
               admin: { readOnly: true },
             },
             {
+              name: "metaAdsJobState",
+              type: "json",
+              admin: {
+                readOnly: true,
+                description:
+                  "Durable resumable Meta Ads job state (cursor, counts, lease). Managed by the refresh worker — do not edit.",
+              },
+            },
+            {
               name: "competitorTrafficJobStatus",
               type: "select",
               defaultValue: "idle",
