@@ -2666,6 +2666,13 @@ export async function runMigrations(
     await run("client_proposals.meta_ads_status", "ALTER TABLE `client_proposals` ADD `meta_ads_status` text DEFAULT 'idle'");
     await run("client_proposals.meta_ads_error", "ALTER TABLE `client_proposals` ADD `meta_ads_error` text");
     await run("client_proposals.meta_ads_updated_at", "ALTER TABLE `client_proposals` ADD `meta_ads_updated_at` text");
+
+    // ── Durable resumable Meta Ads job state (2026-08-01) ──
+    // The Refresh Meta Ads flow is now a durable job (cursor/counts/lease stored
+    // as JSON) so a killed Vercel invocation resumes instead of losing all work.
+    // Payload selects this column on every proposal read; without it the read
+    // 500s with "no such column: meta_ads_job_state".
+    await run("client_proposals.meta_ads_job_state", "ALTER TABLE `client_proposals` ADD `meta_ads_job_state` text");
   
     // ── Allow keyword categories to be saved without keywords (2026-07-04) ──
     // Legacy DB column is NOT NULL; a category saved with just a name (keywords
