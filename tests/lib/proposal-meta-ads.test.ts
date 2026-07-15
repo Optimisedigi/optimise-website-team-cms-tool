@@ -69,6 +69,29 @@ describe("fetchMetaAdsForCompetitors", () => {
     expect(result.updated[0].socialLinks).toEqual(competitors[0].socialLinks);
   });
 
+  it("never runs more than two Meta Ads competitor requests at once", async () => {
+    let activeRequests = 0;
+    let maxActiveRequests = 0;
+    mockMeta.mockImplementation(async () => {
+      activeRequests++;
+      maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      activeRequests--;
+      return { isRunningAds: false, activeAdCount: 0, adScreenshots: [] };
+    });
+
+    const competitors = Array.from({ length: 6 }, (_, index) => ({
+      domain: `competitor-${index}.example`,
+      socialLinks: { facebook: `https://facebook.com/competitor-${index}` },
+    }));
+    const result = await fetchMetaAdsForCompetitors(competitors);
+
+    expect(result.attempted).toBe(6);
+    expect(result.failed).toBe(0);
+    expect(mockMeta).toHaveBeenCalledTimes(6);
+    expect(maxActiveRequests).toBe(2);
+  });
+
   it("counts a rejected fetch as failed and leaves that competitor untouched", async () => {
     mockSocial.mockResolvedValue({ facebook: null, instagram: null, linkedin: null });
     mockMeta.mockRejectedValue(new Error("scrapling down"));

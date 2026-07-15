@@ -19,6 +19,10 @@ import { uploadScreenshotToBlob } from "@/lib/blob-upload";
 // browser-concurrency gate. Keep the per-item budget well above that so items
 // aren't killed mid-flight or while waiting in the queue.
 const DEFAULT_ITEM_TIMEOUT_MS = 50_000;
+// Match the Scrapling service's MAX_BROWSER_CONCURRENCY. Bounding the whole
+// competitor job also prevents social-link fallbacks and Meta scrapes from
+// competing for more browser slots than the service can run.
+const META_ADS_CONCURRENCY = 2;
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -34,6 +38,30 @@ function cleanDomain(domain: string): string {
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
     .replace(/\/.*$/, "");
+}
+
+async function allSettledWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  work: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      try {
+        results[index] = { status: "fulfilled", value: await work(items[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 export interface FetchMetaAdsResult {
@@ -80,8 +108,10 @@ export async function fetchMetaAdsForCompetitors(
 
   let skipped = 0;
 
-  const results = await Promise.allSettled(
-    workItems.map(async ({ competitor, domain }) => {
+  const results = await allSettledWithConcurrency(
+    workItems,
+    META_ADS_CONCURRENCY,
+    async ({ competitor, domain }) => {
       if (deadlineAt != null && Date.now() >= deadlineAt) {
         skipped++;
         throw new Error("Skipped — audit deadline reached");
@@ -122,7 +152,7 @@ export async function fetchMetaAdsForCompetitors(
       }
 
       return { domain, metaAds: result, socialLinks };
-    }),
+    },
   );
 
   // Build a lookup of successful results keyed by clean domain
