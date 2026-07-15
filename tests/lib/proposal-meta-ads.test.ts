@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock the scrapling service + blob upload the helper depends on.
 vi.mock("@/lib/scrapling-service", () => ({
@@ -21,6 +21,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("fetchMetaAdsForCompetitors", () => {
@@ -46,7 +50,10 @@ describe("fetchMetaAdsForCompetitors", () => {
     expect(comp.metaAds.adScreenshots).toEqual(["https://blob.test/meta-ad.png"]);
     expect(comp.socialLinks.facebook).toBe("acme");
     // Falls back to extraction when the audit has no saved Facebook link.
-    expect(mockSocial).toHaveBeenCalledWith("acme.com");
+    expect(mockSocial).toHaveBeenCalledWith(
+      "acme.com",
+      expect.objectContaining({ timeout: 10, signal: expect.any(AbortSignal) }),
+    );
     expect(mockMeta).toHaveBeenCalledWith("acme");
   });
 
@@ -90,6 +97,45 @@ describe("fetchMetaAdsForCompetitors", () => {
     expect(result.failed).toBe(0);
     expect(mockMeta).toHaveBeenCalledTimes(6);
     expect(maxActiveRequests).toBe(2);
+  });
+
+  it("falls back to the domain when social-link extraction times out", async () => {
+    const timeoutSignal = AbortSignal.abort(new DOMException("Timed out", "TimeoutError"));
+    vi.spyOn(AbortSignal, "timeout").mockReturnValue(timeoutSignal);
+    mockSocial.mockImplementation(async (_domain: string, opts: { signal: AbortSignal }) => {
+      expect(opts.signal).toBe(timeoutSignal);
+      throw timeoutSignal.reason;
+    });
+    mockMeta.mockResolvedValue({ isRunningAds: false, activeAdCount: 0, adScreenshots: [] });
+
+    await fetchMetaAdsForCompetitors([{ domain: "timeout.example" }]);
+
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(10_000);
+    expect(mockMeta).toHaveBeenCalledWith("timeout.example");
+  });
+
+  it("falls back to the domain when social-link extraction errors or crashes", async () => {
+    mockSocial.mockRejectedValue(new Error("Page.goto: Page crashed"));
+    mockMeta.mockResolvedValue({ isRunningAds: false, activeAdCount: 0, adScreenshots: [] });
+
+    const result = await fetchMetaAdsForCompetitors([{ domain: "crashed.example" }]);
+
+    expect(result.failed).toBe(0);
+    expect(mockMeta).toHaveBeenCalledWith("crashed.example");
+  });
+
+  it("falls back to the domain when extraction returns no Facebook link", async () => {
+    mockSocial.mockResolvedValue({
+      facebook: null,
+      instagram: "https://instagram.com/no-facebook",
+      linkedin: null,
+    });
+    mockMeta.mockResolvedValue({ isRunningAds: false, activeAdCount: 0, adScreenshots: [] });
+
+    const result = await fetchMetaAdsForCompetitors([{ domain: "no-facebook.example" }]);
+
+    expect(result.failed).toBe(0);
+    expect(mockMeta).toHaveBeenCalledWith("no-facebook.example");
   });
 
   it("counts a rejected fetch as failed and leaves that competitor untouched", async () => {

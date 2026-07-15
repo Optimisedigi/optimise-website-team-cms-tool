@@ -76,7 +76,7 @@ const SOCIAL_LINKS_FALLBACK: SocialLinksResult = { facebook: null, instagram: nu
 
 export async function extractSocialLinks(
   url: string,
-  opts?: { timeout?: number },
+  opts?: { timeout?: number; signal?: AbortSignal },
 ): Promise<SocialLinksResult> {
   if (!SCRAPLING_SERVICE_URL || !SCRAPLING_SERVICE_KEY) {
     console.error('[scrapling] SCRAPLING_SERVICE_URL or SCRAPLING_SERVICE_KEY not set')
@@ -97,7 +97,7 @@ export async function extractSocialLinks(
         url: fullUrl,
         timeout,
       }),
-      signal: AbortSignal.timeout(timeout * 1000 + 15_000),
+      signal: opts?.signal ?? AbortSignal.timeout(timeout * 1000 + 15_000),
     })
 
     if (!res.ok) {

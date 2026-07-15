@@ -23,6 +23,7 @@ const DEFAULT_ITEM_TIMEOUT_MS = 50_000;
 // competitor job also prevents social-link fallbacks and Meta scrapes from
 // competing for more browser slots than the service can run.
 const META_ADS_CONCURRENCY = 2;
+const SOCIAL_LINK_TIMEOUT_MS = 10_000;
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -126,7 +127,10 @@ export async function fetchMetaAdsForCompetitors(
         : "";
       const socialLinks = storedFacebook
         ? storedSocialLinks
-        : await withTimeout(extractSocialLinks(domain), timeoutMs).catch(() => null);
+        : await extractSocialLinks(domain, {
+            timeout: SOCIAL_LINK_TIMEOUT_MS / 1000,
+            signal: AbortSignal.timeout(SOCIAL_LINK_TIMEOUT_MS),
+          }).catch(() => null);
 
       // Use the Facebook handle for Meta Ad Library (fall back to domain).
       const searchTerm = socialLinks?.facebook || domain;
