@@ -8379,7 +8379,7 @@ export interface Contractor {
   /**
    * How often the reimbursement is added. Leave blank to keep the legacy per-fortnight amount above.
    */
-  reimbursementRecurrence?: ('none' | 'per-fortnight' | 'monthly' | 'one-off') | null;
+  reimbursementRecurrence?: ('none' | 'weekly' | 'per-fortnight' | 'monthly' | 'one-off') | null;
   /**
    * The date the reimbursement first appears. Monthly recurrence repeats on this day-of-month.
    */

@@ -84,6 +84,7 @@ export const Contractors: CollectionConfig = {
       label: "Reimbursement recurrence",
       options: [
         { label: "None", value: "none" },
+        { label: "Weekly", value: "weekly" },
         { label: "Every fortnight", value: "per-fortnight" },
         { label: "Monthly", value: "monthly" },
         { label: "One-off", value: "one-off" },

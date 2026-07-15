@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import RocketSplash from './RocketSplash';
 
@@ -107,8 +107,17 @@ function HoverTooltip({ label, children }: { label: ReactNode; children: ReactNo
   );
 }
 
+const RECURRENCE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'per-fortnight', label: 'Every fortnight' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'one-off', label: 'One-off' },
+];
+
 const RECURRENCE_LABEL: Record<string, string> = {
   none: 'none',
+  weekly: 'weekly',
   'per-fortnight': 'every fortnight',
   monthly: 'monthly',
   'one-off': 'one-off',
@@ -121,6 +130,87 @@ function reimbursementSummary(reimbursement: ContractorRow['reimbursement'], cur
   return `${fmtMoney(reimbursement.amount, currency)} ${recurrence}${from}`;
 }
 
+const fieldLabelStyle = { display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 } as const;
+const fieldInputStyle = { width: '100%', padding: '7px 9px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' as const };
+
+function ReimbursementEditor({ contractor, onClose, onSave }: {
+  contractor: ContractorRow;
+  onClose: () => void;
+  onSave: (values: { hourlyRate: number; reimbursementAmount: number; reimbursementRecurrence: string; reimbursementStartDate: string | null }) => Promise<void>;
+}) {
+  const [hourlyRate, setHourlyRate] = useState(String(contractor.hourlyRate ?? ''));
+  const [amount, setAmount] = useState(String(contractor.reimbursement.amount ?? ''));
+  const [recurrence, setRecurrence] = useState(contractor.reimbursement.recurrence || 'none');
+  const [startDate, setStartDate] = useState(contractor.reimbursement.startDate?.slice(0, 10) || '');
+  const [saving, setSaving] = useState(false);
+  const titleId = useId();
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await onSave({
+        hourlyRate: Number(hourlyRate) || 0,
+        reimbursementAmount: Number(amount) || 0,
+        reimbursementRecurrence: recurrence,
+        reimbursementStartDate: startDate || null,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 23, 42, .45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+    >
+      <form onSubmit={submit} style={{ width: 360, maxWidth: '100%', background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 12px 32px rgba(15, 23, 42, .25)' }}>
+        <h3 id={titleId} style={{ margin: '0 0 2px', fontSize: 16, color: '#0f172a' }}>Rate &amp; reimbursement</h3>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: '#64748b' }}>{contractor.name}</p>
+
+        <label style={{ marginBottom: 12, display: 'block' }}>
+          <span style={fieldLabelStyle}>Hourly rate ({contractor.currency})</span>
+          <input type="number" min={0} step="0.01" value={hourlyRate} onChange={(event) => setHourlyRate(event.target.value)} style={fieldInputStyle} />
+        </label>
+
+        <label style={{ marginBottom: 12, display: 'block' }}>
+          <span style={fieldLabelStyle}>Reimbursement amount ({contractor.currency})</span>
+          <input type="number" min={0} step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} style={fieldInputStyle} />
+        </label>
+
+        <label style={{ marginBottom: 12, display: 'block' }}>
+          <span style={fieldLabelStyle}>Frequency</span>
+          <select value={recurrence} onChange={(event) => setRecurrence(event.target.value)} style={fieldInputStyle}>
+            {RECURRENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+
+        <label style={{ marginBottom: 18, display: 'block', opacity: recurrence === 'none' ? 0.5 : 1 }}>
+          <span style={fieldLabelStyle}>Start date{recurrence === 'monthly' ? ' (repeats on this day-of-month)' : ''}</span>
+          <input type="date" value={startDate} disabled={recurrence === 'none'} onChange={(event) => setStartDate(event.target.value)} style={fieldInputStyle} />
+        </label>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button type="button" onClick={onClose} className="od-settings__btn" style={{ padding: '8px 14px', fontSize: 13 }}>Cancel</button>
+          <button type="submit" disabled={saving} className="od-settings__btn od-settings__btn--primary" style={{ padding: '8px 14px', fontSize: 13, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
+    </div>,
+    document.body,
+  );
+}
+
 export default function ContractorCostsPage() {
   const [contractors, setContractors] = useState<ContractorRow[]>([]);
   const [payments, setPayments] = useState<FortnightPayment[]>([]);
@@ -128,6 +218,7 @@ export default function ContractorCostsPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
   const [marking, setMarking] = useState<string | null>(null);
+  const [editing, setEditing] = useState<ContractorRow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => fetch('/api/contractor-overview', { credentials: 'include' })
@@ -162,6 +253,24 @@ export default function ContractorCostsPage() {
       setError('Could not mark this fortnight as paid. Try again.');
     } finally {
       setMarking(null);
+    }
+  };
+
+  const saveReimbursement = async (values: { hourlyRate: number; reimbursementAmount: number; reimbursementRecurrence: string; reimbursementStartDate: string | null }) => {
+    if (!editing) return;
+    setError(null);
+    try {
+      const response = await fetch('/api/contractor-reimbursement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ contractorId: editing.id, ...values }),
+      });
+      if (!response.ok) throw new Error('save failed');
+      setEditing(null);
+      await load();
+    } catch {
+      setError('Could not save the reimbursement. Try again.');
     }
   };
 
@@ -238,15 +347,15 @@ export default function ContractorCostsPage() {
 
       <details style={{ marginBottom: 24 }}>
         <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a', padding: '8px 0' }}>Contractors ({contractors.length})</summary>
-        <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#64748b' }}>Rates, reimbursements, monthly costs, all-time totals, and the latest submitted week. Open a contractor to edit its rate and reimbursement (amount, recurrence, and start date).</p>
+        <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#64748b' }}>Rates, reimbursements, monthly costs, all-time totals, and the latest submitted week. Click a reimbursement to edit the amount, frequency, and start date without leaving this page.</p>
         <div className="od-box" style={{ padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr><th style={thStyle}>Contractor</th><th style={thStyle}>Rate</th><th style={thStyle}>Reimbursement</th><th style={thStyle}>Monthly cost</th><th style={thStyle}>Total paid / hours</th><th style={thStyle}>Latest logged week</th></tr></thead>
             <tbody>{contractors.length === 0 ? <tr><td colSpan={6} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No active contractors yet.</td></tr> : contractors.map((contractor) => (
               <tr key={contractor.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={tdStyle}><HoverTooltip label={contractor.name}>{contractor.latestWeek ? `Latest week: ${contractor.latestWeek.hours.toFixed(2)} hours` : 'No logged weeks yet.'}</HoverTooltip>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}<div style={{ marginTop: 4 }}><a href={`/admin/collections/contractors/${contractor.id}`} style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}>Edit rate &amp; reimbursement</a></div></td>
+                <td style={tdStyle}><HoverTooltip label={contractor.name}>{contractor.latestWeek ? `Latest week: ${contractor.latestWeek.hours.toFixed(2)} hours` : 'No logged weeks yet.'}</HoverTooltip>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}</td>
                 <td style={tdStyle}>{fmtMoney(contractor.hourlyRate, contractor.currency)}/hr</td>
-                <td style={tdStyle}>{reimbursementSummary(contractor.reimbursement, contractor.currency)}</td>
+                <td style={tdStyle}><button type="button" onClick={() => setEditing(contractor)} style={{ padding: 0, border: 0, background: 'none', color: '#2563eb', cursor: 'pointer', font: 'inherit', textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: 3 }} title="Edit rate & reimbursement">{reimbursementSummary(contractor.reimbursement, contractor.currency)}</button></td>
                 <td style={tdStyle}>{fmtMoney(contractor.mtd.cost, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.mtd.hours.toFixed(1)}h this month</div></td>
                 <td style={tdStyle}>{fmtMoney(contractor.totalPaid, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.totalHours.toFixed(1)}h logged</div></td>
                 <td style={tdStyle}>{contractor.latestWeek ? <HoverTooltip label={fmtDate(contractor.latestWeek.weekCommencing)}>{contractor.latestWeek.clientAllocations.length ? contractor.latestWeek.clientAllocations.map((allocation) => <span key={allocation.clientName} style={{ display: 'block' }}>{allocation.clientName}: {allocation.hours.toFixed(2)}h</span>) : 'No client allocations'}</HoverTooltip> : 'No logged weeks'}</td>
@@ -255,6 +364,10 @@ export default function ContractorCostsPage() {
           </table>
         </div>
       </details>
+
+      {editing && (
+        <ReimbursementEditor contractor={editing} onClose={() => setEditing(null)} onSave={saveReimbursement} />
+      )}
     </main>
   );
 }

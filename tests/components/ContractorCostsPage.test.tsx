@@ -24,15 +24,37 @@ describe('ContractorCostsPage', () => {
     expect(screen.getByText('Contractors (1)').closest('details')).not.toHaveAttribute('open');
   });
 
-  it('shows the reimbursement summary and an edit link in the contractor section', async () => {
+  it('shows the reimbursement summary as an in-page editor trigger (no navigation link)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => overview }));
     render(<ContractorCostsPage />);
     await screen.findByRole('heading', { name: 'Fortnightly payments' });
     fireEvent.click(screen.getByText('Contractors (1)'));
 
-    expect(screen.getByText(/\$40 monthly from 01 Jul 2026/)).toBeInTheDocument();
-    const editLink = document.querySelector('a[href="/admin/collections/contractors/1"]');
-    expect(editLink).not.toBeNull();
+    expect(screen.getByRole('button', { name: /\$40 monthly from 01 Jul 2026/ })).toBeInTheDocument();
+    // The old link that 404'd must be gone.
+    expect(document.querySelector('a[href="/admin/collections/contractors/1"]')).toBeNull();
+  });
+
+  it('edits reimbursement inline via a popup and posts the new values', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => overview })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => overview });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ContractorCostsPage />);
+    await screen.findByRole('heading', { name: 'Fortnightly payments' });
+    fireEvent.click(screen.getByText('Contractors (1)'));
+    fireEvent.click(screen.getByRole('button', { name: /\$40 monthly from 01 Jul 2026/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Frequency/), { target: { value: 'weekly' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/contractor-reimbursement', expect.objectContaining({ method: 'POST' })));
+    const body = JSON.parse((fetchMock.mock.calls[1][1] as any).body);
+    expect(body).toMatchObject({ contractorId: 1, reimbursementRecurrence: 'weekly', reimbursementAmount: 40 });
   });
 
   it('marks a fortnight paid by posting the contractor id and fortnight start', async () => {

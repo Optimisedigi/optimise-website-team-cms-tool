@@ -11,7 +11,7 @@
  * field applied to every fortnight.
  */
 
-export type ReimbursementRecurrence = "none" | "per-fortnight" | "monthly" | "one-off";
+export type ReimbursementRecurrence = "none" | "weekly" | "per-fortnight" | "monthly" | "one-off";
 
 export interface ReimbursementConfig {
   reimbursementAmount?: number | null;
@@ -61,6 +61,19 @@ export function reimbursementForFortnight(
   if (recurrence === "per-fortnight") {
     if (startMs != null && fortnightEndMs < startMs) return 0;
     return amount;
+  }
+
+  if (recurrence === "weekly") {
+    // Every 7 days from the start date; a 14-day fortnight normally holds two.
+    if (startMs == null) {
+      // No anchor date: assume two weeks fall inside the fortnight.
+      return amount * 2;
+    }
+    let occurrences = 0;
+    for (let appearMs = startMs; appearMs <= fortnightEndMs; appearMs += 7 * DAY_MS) {
+      if (appearMs >= fortnightStartMs) occurrences += 1;
+    }
+    return amount * occurrences;
   }
 
   if (recurrence === "one-off") {

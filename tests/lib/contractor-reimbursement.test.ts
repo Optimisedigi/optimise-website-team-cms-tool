@@ -15,6 +15,14 @@ describe('reimbursementForFortnight', () => {
     expect(reimbursementForFortnight({ reimbursementRecurrence: 'none', reimbursementAmount: 50 }, F_START, F_END)).toBe(0);
   });
 
+  it('applies weekly reimbursement per 7-day occurrence inside the fortnight', () => {
+    const cfg = { reimbursementRecurrence: 'weekly' as const, reimbursementAmount: 10, reimbursementStartDate: '2026-06-29' };
+    // 29 Jun and 6 Jul both fall in the fortnight → two occurrences.
+    expect(reimbursementForFortnight(cfg, F_START, F_END)).toBe(20);
+    // Start mid-fortnight → only the later weeks count.
+    expect(reimbursementForFortnight({ ...cfg, reimbursementStartDate: '2026-07-06' }, F_START, F_END)).toBe(10);
+  });
+
   it('applies per-fortnight only on/after the start date', () => {
     const cfg = { reimbursementRecurrence: 'per-fortnight' as const, reimbursementAmount: 20, reimbursementStartDate: '2026-06-29' };
     expect(reimbursementForFortnight(cfg, F_START, F_END)).toBe(20);
