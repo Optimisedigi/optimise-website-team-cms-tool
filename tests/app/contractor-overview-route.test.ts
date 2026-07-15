@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const find = vi.fn();
+const findByID = vi.fn();
 const auth = vi.fn();
-vi.mock('payload', () => ({ getPayload: vi.fn(async () => ({ find, auth })) }));
+vi.mock('payload', () => ({ getPayload: vi.fn(async () => ({ find, findByID, auth })) }));
 vi.mock('@/payload.config', () => ({ default: Promise.resolve({}) }));
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }));
 
@@ -18,12 +19,10 @@ describe('GET /api/contractor-overview', () => {
   });
 
   it('derives one unpaid fortnight from approved time entries anchored at 29 Jun 2026', async () => {
-    find.mockImplementation(({ collection, limit }: { collection: string; limit?: number }) => {
+    find.mockImplementation(({ collection }: { collection: string }) => {
       if (collection === 'contractors') return { docs: [contractor] };
+      if (collection === 'users') return { docs: [] };
       if (collection === 'contractor-payments') return { docs: [] };
-      if (collection === 'contractor-time-entries' && limit === 1) {
-        return { docs: [{ id: 9, contractor: { id: 1 }, weekCommencing: '2026-07-06', hours: 8, clientAllocations: [] }] };
-      }
       return {
         docs: [
           { id: 9, contractor: { id: 1 }, weekCommencing: '2026-07-06', hours: 8, totalFee: 160, status: 'approved' },
@@ -31,6 +30,7 @@ describe('GET /api/contractor-overview', () => {
         ],
       };
     });
+    findByID.mockResolvedValue({ id: 9, contractor: { id: 1 }, weekCommencing: '2026-07-06', hours: 8, clientAllocations: [] });
 
     const response = await GET();
     const body = await response.json();
@@ -52,20 +52,42 @@ describe('GET /api/contractor-overview', () => {
   });
 
   it('marks the fortnight paid when a sent payment covers its start date', async () => {
-    find.mockImplementation(({ collection, where, limit }: { collection: string; where?: any; limit?: number }) => {
+    find.mockImplementation(({ collection, where }: { collection: string; where?: any }) => {
       if (collection === 'contractors') return { docs: [contractor] };
+      if (collection === 'users') return { docs: [] };
       if (collection === 'contractor-payments') {
         const sentOnly = where?.status?.equals === 'sent';
         return { docs: sentOnly ? [{ id: 3, contractor: { id: 1 }, fortnightStartDate: '2026-06-29', transferAmount: 354, transferReference: 'REF', paymentDate: '2026-07-13' }] : [] };
       }
-      if (collection === 'contractor-time-entries' && limit === 1) return { docs: [] };
       return { docs: [{ id: 9, contractor: { id: 1 }, weekCommencing: '2026-06-29', hours: 8, totalFee: 160, status: 'approved' }] };
     });
+    findByID.mockResolvedValue({ id: 9, contractor: { id: 1 }, weekCommencing: '2026-06-29', hours: 8, clientAllocations: [] });
 
     const response = await GET();
     const body = await response.json();
 
     expect(body.fortnightlyPayments[0]).toMatchObject({ status: 'paid', amount: 354, transferReference: 'REF', paidDate: '2026-07-13' });
     expect(body.globals).toMatchObject({ owingNow: 0, totalPaid: 354 });
+  });
+
+  it('attributes user-logged entries (contractor empty) to the matching contractor', async () => {
+    find.mockImplementation(({ collection }: { collection: string }) => {
+      if (collection === 'contractors') return { docs: [{ ...contractor, name: 'Lorenzo', email: null }] };
+      if (collection === 'users') return { docs: [{ id: 42, name: 'Lorenzo', email: null }] };
+      if (collection === 'contractor-payments') return { docs: [] };
+      return {
+        docs: [
+          { id: 9, contractor: null, user: { id: 42 }, weekCommencing: '2026-07-06', hours: 10, totalFee: 200, status: 'approved' },
+        ],
+      };
+    });
+    findByID.mockResolvedValue({ id: 9, user: { id: 42 }, weekCommencing: '2026-07-06', hours: 10, clientAllocations: [] });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.fortnightlyPayments).toHaveLength(1);
+    expect(body.fortnightlyPayments[0]).toMatchObject({ contractorId: 1, fortnightStartDate: '2026-06-29', totalHours: 10, subtotal: 200, status: 'unpaid' });
+    expect(body.globals).toMatchObject({ owingNow: 234, totalHours: 10 });
   });
 });

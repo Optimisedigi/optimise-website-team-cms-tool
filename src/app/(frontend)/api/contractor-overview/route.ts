@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import { buildUserToContractorMap, resolveEntryContractorId } from "@/lib/contractor-user-link";
 
 const TOTALS_PAGE_LIMIT = 100;
 
@@ -86,20 +87,27 @@ export async function GET() {
     overrideAccess: true,
   });
   const contractors = contractorsResult.docs as any[];
-  const contractorsById = new Map(contractors.map((contractor) => [String(contractor.id), contractor]));
-  const contractorIds = new Set(contractorsById.keys());
+  const contractorIds = new Set(contractors.map((contractor) => String(contractor.id)));
   const monthStart = startOfMonthIso();
 
-  const allEntries = await findAllDocs(payload, {
-    collection: "contractor-time-entries",
-    where: { contractor: { exists: true } },
+  // Bridge internal time-entry users to their contractor record so hours logged
+  // through the admin grid (user set, contractor empty) still build payments.
+  const users = await findAllDocs(payload, {
+    collection: "users",
     depth: 0,
     overrideAccess: true,
   });
-  const entries = allEntries.filter((entry) => {
-    const contractorId = typeof entry.contractor === "object" ? entry.contractor?.id : entry.contractor;
-    return contractorIds.has(String(contractorId));
+  const userToContractor = buildUserToContractorMap(contractors as any[], users as any[]);
+
+  const allEntries = await findAllDocs(payload, {
+    collection: "contractor-time-entries",
+    where: { or: [{ contractor: { exists: true } }, { user: { exists: true } }] },
+    depth: 0,
+    overrideAccess: true,
   });
+  const entries = allEntries.filter((entry) =>
+    contractorIds.has(resolveEntryContractorId(entry, userToContractor) ?? ""),
+  );
 
   // Existing "sent" payment records mark a fortnight as actually transferred.
   const allSentPayments = await findAllDocs(payload, {
@@ -119,27 +127,31 @@ export async function GET() {
   }
 
   const entriesByContractor = new Map<string, any[]>();
-  const latestWeekByContractor = new Map<string, any>();
   for (const entry of entries) {
-    const contractorId = String(typeof entry.contractor === "object" ? entry.contractor?.id : entry.contractor);
+    const contractorId = resolveEntryContractorId(entry, userToContractor);
+    if (!contractorId) continue;
     const list = entriesByContractor.get(contractorId);
     if (list) list.push(entry);
     else entriesByContractor.set(contractorId, [entry]);
   }
 
-  // Latest logged week per contractor (depth 2 for client-allocation labels).
-  const latestWeeks = await Promise.all(contractors.map(async (contractor) => {
-    const result = await payload.find({
+  // Latest logged week per contractor (depth 2 for client-allocation labels),
+  // resolved from the grouped entries so user-logged weeks are included.
+  const latestWeekByContractor = new Map<string, any>();
+  await Promise.all([...entriesByContractor.entries()].map(async ([contractorId, contractorEntries]) => {
+    const latest = contractorEntries.reduce(
+      (best, entry) => (best && String(best.weekCommencing) >= String(entry.weekCommencing) ? best : entry),
+      null as any,
+    );
+    if (!latest) return;
+    const detailed = await payload.findByID({
       collection: "contractor-time-entries",
-      where: { contractor: { equals: contractor.id } },
-      limit: 1,
+      id: latest.id,
       depth: 2,
-      sort: "-weekCommencing",
       overrideAccess: true,
-    });
-    return { id: String(contractor.id), doc: result.docs[0] || null };
+    }).catch(() => latest);
+    latestWeekByContractor.set(contractorId, detailed || latest);
   }));
-  for (const { id, doc } of latestWeeks) if (doc) latestWeekByContractor.set(id, doc);
 
   // ── Derive fortnightly payments from approved/paid time entries ──
   type Bucket = { hours: number; subtotal: number; allPaid: boolean };

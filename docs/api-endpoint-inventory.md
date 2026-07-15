@@ -81,7 +81,7 @@ CMS → Growth Tools unmatched calls: 4
 | `/api/consolidation-candidates` | GET | payload-session | json-body, query-params |  | `src/app/(frontend)/api/consolidation-candidates/route.ts` |
 | `/api/contract-reminders/tick` | GET | cron-or-bearer-secret | json-body | fetch, email | `src/app/(frontend)/api/contract-reminders/tick/route.ts` |
 | `/api/contractor-overview` | GET | payload-session | json-body, schema-or-parse | email | `src/app/(frontend)/api/contractor-overview/route.ts` |
-| `/api/contractor-payments/mark-paid` | POST | payload-session | json-body, 400-validation |  | `src/app/(frontend)/api/contractor-payments/mark-paid/route.ts` |
+| `/api/contractor-payments/mark-paid` | POST | payload-session | json-body, schema-or-parse, 400-validation |  | `src/app/(frontend)/api/contractor-payments/mark-paid/route.ts` |
 | `/api/contractor-time-entries/grid` | GET, POST, PATCH, DELETE | payload-session | json-body, query-params, 400-validation | email | `src/app/(frontend)/api/contractor-time-entries/grid/route.ts` |
 | `/api/contractor/[token]` | GET, POST | token-param | json-body, query-params, 400-validation |  | `src/app/(frontend)/api/contractor/[token]/route.ts` |
 | `/api/contracts/[id]/agency-sign` | POST | payload-session | json-body, 400-validation |  | `src/app/(frontend)/api/contracts/[id]/agency-sign/route.ts` |
@@ -665,7 +665,7 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
 
 ```json
 {
-  "generatedAt": "2026-07-15T04:51:48.051Z",
+  "generatedAt": "2026-07-15T05:25:26.601Z",
   "cmsRows": [
     {
       "route": "/api/ad-copy-comments",
@@ -1533,7 +1533,7 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
         "POST"
       ],
       "auth": "payload-session",
-      "validation": "json-body, 400-validation",
+      "validation": "json-body, schema-or-parse, 400-validation",
       "external": "",
       "hasTryCatch": true,
       "growthToolsCalls": [],

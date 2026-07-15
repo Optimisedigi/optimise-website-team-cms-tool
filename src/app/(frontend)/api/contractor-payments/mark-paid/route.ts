@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import { buildUserToContractorMap, resolveEntryContractorId } from "@/lib/contractor-user-link";
+
+function addDaysIso(dateIso: string, days: number): string {
+  const ms = Date.parse(`${dateIso}T00:00:00.000Z`) + days * 24 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
 
 /**
  * Marks a derived fortnight as paid by creating (or updating) a sent
@@ -28,6 +34,42 @@ export async function POST(req: NextRequest) {
   const fortnightStartDate = String(body.fortnightStartDate || "").slice(0, 10);
   if (!contractorId || !/^\d{4}-\d{2}-\d{2}$/.test(fortnightStartDate)) {
     return NextResponse.json({ error: "contractorId and fortnightStartDate are required" }, { status: 400 });
+  }
+
+  // Backfill the `contractor` link on this fortnight's user-logged entries so
+  // the ContractorPayments rollup hook can pick them up and flip them to paid.
+  const fortnightEndDate = addDaysIso(fortnightStartDate, 13);
+  const [contractor, usersResult, fortnightEntries] = await Promise.all([
+    payload.findByID({ collection: "contractors", id: contractorId, depth: 0, overrideAccess: true }).catch(() => null),
+    payload.find({ collection: "users", limit: 1000, depth: 0, overrideAccess: true }),
+    payload.find({
+      collection: "contractor-time-entries",
+      where: {
+        and: [
+          { contractor: { exists: false } },
+          { weekCommencing: { greater_than_equal: fortnightStartDate } },
+          { weekCommencing: { less_than_equal: fortnightEndDate } },
+          { status: { in: ["approved", "submitted"] } },
+        ],
+      },
+      limit: 200,
+      depth: 0,
+      overrideAccess: true,
+    }),
+  ]);
+
+  if (contractor) {
+    const userToContractor = buildUserToContractorMap([contractor as any], (usersResult.docs as any[]));
+    for (const entry of fortnightEntries.docs as any[]) {
+      if (resolveEntryContractorId(entry, userToContractor) === String(contractorId)) {
+        await payload.update({
+          collection: "contractor-time-entries",
+          id: entry.id,
+          data: { contractor: contractorId },
+          overrideAccess: true,
+        });
+      }
+    }
   }
 
   const existing = await payload.find({
