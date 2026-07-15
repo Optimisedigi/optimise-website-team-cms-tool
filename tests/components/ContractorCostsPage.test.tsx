@@ -8,17 +8,24 @@ afterEach(() => vi.restoreAllMocks());
 
 const overview = {
   globals: { activeContractors: 1, owingNow: 354, totalPaid: 1200, totalHours: 32 },
-  fortnightlyPayments: [{ id: '1-0', contractorId: 1, contractorName: 'Ada Lovelace', currency: 'AUD', fortnightStartDate: '2026-06-29', fortnightEndDate: '2026-07-12', totalHours: 16, subtotal: 320, reimbursement: 30, fee: 4, amount: 354, transferReference: '2906-1207 Optimise', status: 'unpaid', paidDate: null }],
+  fortnightlyPayments: [{ id: '1-0', contractorId: 1, contractorName: 'Ada Lovelace', currency: 'AUD', fortnightStartDate: '2026-06-29', fortnightEndDate: '2026-07-12', totalHours: 16, subtotal: 320, reimbursement: 30, fee: 4, amount: 354, transferReference: '2906-1207 Optimise', status: 'paid', paidDate: '2026-07-13' }],
   contractors: [{ id: 1, name: 'Ada Lovelace', email: 'ada@example.com', currency: 'AUD', hourlyRate: 20, reimbursement: { amount: 40, recurrence: 'monthly', startDate: '2026-07-01' }, mtd: { hours: 16, cost: 320 }, totalPaid: 1200, totalHours: 32, latestWeek: { weekCommencing: '2026-07-06', hours: 16, clientAllocations: [{ clientName: 'Example Client', hours: 16 }] } }],
 };
 
 describe('ContractorCostsPage', () => {
   it('shows the derived unpaid fortnight and hides the removed manual payment button', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => overview }));
+    const unpaidOverview = {
+      ...overview,
+      fortnightlyPayments: [{ ...overview.fortnightlyPayments[0], status: 'unpaid', paidDate: null }],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => unpaidOverview }));
     render(<ContractorCostsPage />);
     await screen.findByRole('heading', { name: 'Fortnightly payments' });
+    await waitFor(() => expect(document.querySelector('select[aria-label="Date range"]')).toBeTruthy());
+    fireEvent.change(document.querySelector('select[aria-label="Date range"]') as HTMLSelectElement, { target: { value: 'all' } });
+    await screen.findByRole('cell', { name: /Unpaid/ });
 
-    expect(screen.getByText('Unpaid')).toBeInTheDocument();
+    expect(screen.getAllByText('Unpaid').length).toBeGreaterThan(0);
     expect(screen.getByText('Owing now (unpaid)')).toBeInTheDocument();
     expect(document.querySelector('a[href*="/collections/contractor-payments/create"]')).toBeNull();
     expect(screen.getByText('Contractors (1)').closest('details')).not.toHaveAttribute('open');
@@ -58,18 +65,21 @@ describe('ContractorCostsPage', () => {
   });
 
   it('marks a fortnight paid by posting the contractor id and fortnight start', async () => {
+    const unpaid = { ...overview, fortnightlyPayments: [{ ...overview.fortnightlyPayments[0], status: 'unpaid', paidDate: null }] };
     const paid = {
-      ...overview,
-      globals: { ...overview.globals, owingNow: 0, totalPaid: 1554 },
-      fortnightlyPayments: [{ ...overview.fortnightlyPayments[0], status: 'paid', paidDate: '2026-07-13' }],
+      ...unpaid,
+      globals: { ...unpaid.globals, owingNow: 0, totalPaid: 1554 },
+      fortnightlyPayments: [{ ...unpaid.fortnightlyPayments[0], status: 'paid', paidDate: '2026-07-13' }],
     };
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => overview })
+      .mockResolvedValueOnce({ ok: true, json: async () => unpaid })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, paymentId: 3 }) })
       .mockResolvedValueOnce({ ok: true, json: async () => paid });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<ContractorCostsPage />);
+    await waitFor(() => expect(document.querySelector('select[aria-label="Date range"]')).toBeTruthy());
+    fireEvent.change(document.querySelector('select[aria-label="Date range"]') as HTMLSelectElement, { target: { value: 'all' } });
     const markButton = await screen.findByRole('button', { name: 'Mark paid' });
     fireEvent.click(markButton);
 
@@ -85,6 +95,9 @@ describe('ContractorCostsPage', () => {
     Object.assign(navigator, { clipboard: { writeText } });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => overview }));
     render(<ContractorCostsPage />);
+    await waitFor(() => expect(document.querySelector('select[aria-label="Date range"]')).toBeTruthy());
+    fireEvent.change(document.querySelector('select[aria-label="Date range"]') as HTMLSelectElement, { target: { value: 'all' } });
+    fireEvent.change(document.querySelector('select[aria-label="Status"]') as HTMLSelectElement, { target: { value: 'paid' } });
     const reference = await screen.findByRole('button', { name: '2906-1207 Optimise' });
     fireEvent.click(reference);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('2906-1207 Optimise'));

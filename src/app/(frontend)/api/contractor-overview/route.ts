@@ -208,6 +208,32 @@ export async function GET() {
         paidDate: sentPayment?.paymentDate || sentPayment?.sentAt || null,
       });
     }
+
+    // Historical imported payments predate the live fortnight anchor, so they
+    // cannot be recreated from the current schedule. Surface their stored
+    // snapshots exactly as paid, including the historical fee/reimbursement.
+    for (const payment of sentPaymentsByContractor.get(contractorId) || []) {
+      const startIso = String(payment.fortnightStartDate).slice(0, 10);
+      if (Date.parse(`${startIso}T00:00:00.000Z`) >= FORTNIGHT_ANCHOR_MS) continue;
+      const endIso = payment.fortnightEndDate ? String(payment.fortnightEndDate).slice(0, 10) : null;
+      const reference = payment.transferReference || (endIso ? buildReference(contractor.transferReferenceTemplate, Date.parse(`${startIso}T00:00:00.000Z`), Date.parse(`${endIso}T00:00:00.000Z`)) : startIso.replace(/-/g, ''));
+      fortnightlyPayments.push({
+        id: `payment-${payment.id}`,
+        contractorId: Number(contractor.id),
+        contractorName: contractor.name,
+        currency,
+        fortnightStartDate: startIso,
+        fortnightEndDate: endIso,
+        totalHours: Number(payment.totalHours || 0),
+        subtotal: Number(payment.subtotal || 0),
+        reimbursement: Number(payment.chatGptReimbursement || 0),
+        fee: Number(payment.transferFee || 0),
+        amount: Number(payment.transferAmount || 0),
+        transferReference: reference,
+        status: "paid",
+        paidDate: payment.paymentDate || payment.sentAt || null,
+      });
+    }
   }
 
   fortnightlyPayments.sort((a, b) =>
@@ -253,6 +279,10 @@ export async function GET() {
         cost: round(mtdEntries.reduce((sum, entry) => sum + entryFee(entry), 0)),
       },
       totalHours: round(contractorEntries.reduce((sum, entry) => sum + Number(entry.hours || 0), 0)),
+      startDate: contractorEntries.reduce<string | null>((earliest, entry) => {
+        const week = String(entry.weekCommencing).slice(0, 10);
+        return !earliest || week < earliest ? week : earliest;
+      }, null),
       totalPaid: round(totalPaid),
       latestWeek: latestWeek
         ? {

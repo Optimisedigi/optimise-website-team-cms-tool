@@ -13,6 +13,7 @@ interface ContractorRow {
   reimbursement: { amount: number; recurrence: string; startDate: string | null };
   mtd: { hours: number; cost: number };
   totalHours: number;
+  startDate: string | null;
   totalPaid: number;
   latestWeek: {
     weekCommencing: string;
@@ -54,6 +55,51 @@ const fmtMoney = (amount: number, currency = 'AUD') => new Intl.NumberFormat('en
 const fmtDate = (iso: string | null) => iso
   ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   : '—';
+
+function tenureLabel(startIso: string | null): string {
+  if (!startIso) return 'No logged weeks';
+  const start = new Date(startIso).getTime();
+  if (isNaN(start)) return 'No logged weeks';
+  const now = Date.now();
+  if (start > now) return 'Less than a week';
+  const totalDays = Math.floor((now - start) / (24 * 60 * 60 * 1000));
+  if (totalDays < 7) return `${totalDays} day${totalDays === 1 ? '' : 's'}`;
+  const totalWeeks = Math.floor(totalDays / 7);
+  if (totalWeeks < 8) return `${totalWeeks} week${totalWeeks === 1 ? '' : 's'}`;
+  const totalMonthsApprox = Math.floor(totalDays / 30.4375);
+  if (totalMonthsApprox < 12) return `${totalMonthsApprox} month${totalMonthsApprox === 1 ? '' : 's'}`;
+  const startDate = new Date(startIso);
+  const nowYmd = new Date(now);
+  let years = nowYmd.getUTCFullYear() - startDate.getUTCFullYear();
+  let months = nowYmd.getUTCMonth() - startDate.getUTCMonth();
+  if (nowYmd.getUTCDate() < startDate.getUTCDate()) months -= 1;
+  if (months < 0) { years -= 1; months += 12; }
+  return months === 0 ? `${years} year${years === 1 ? '' : 's'}` : `${years} year${years === 1 ? '' : 's'} ${months} month${months === 1 ? '' : 's'}`;
+}
+
+type PaymentRange = 'this-month' | 'last-month' | 'all';
+type PaymentFilter = 'unpaid' | 'paid';
+const PAYMENT_RANGE_OPTIONS: { value: PaymentRange; label: string }[] = [
+  { value: 'this-month', label: 'This month' },
+  { value: 'last-month', label: 'Last month' },
+  { value: 'all', label: 'All time' },
+];
+const PAYMENT_STATUS_OPTIONS: { value: PaymentFilter; label: string }[] = [
+  { value: 'unpaid', label: 'Unpaid' },
+  { value: 'paid', label: 'Paid' },
+];
+function paymentRangeStartMs(range: PaymentRange): number | null {
+  const today = new Date();
+  if (range === 'this-month') return Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1);
+  if (range === 'last-month') return Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1);
+  return null;
+}
+function paymentRangeEndMs(range: PaymentRange): number | null {
+  const today = new Date();
+  if (range === 'this-month') return Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1) - 1;
+  if (range === 'last-month') return Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1) - 1;
+  return null;
+}
 
 const fmtFortnight = (start: string, end: string | null) => {
   if (!end) return fmtDate(start);
@@ -220,6 +266,8 @@ export default function ContractorCostsPage() {
   const [marking, setMarking] = useState<string | null>(null);
   const [editing, setEditing] = useState<ContractorRow | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paymentRange, setPaymentRange] = useState<PaymentRange>('this-month');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('unpaid');
 
   const load = () => fetch('/api/contractor-overview', { credentials: 'include' })
     .then((response) => response.ok ? response.json() : Promise.reject(new Error('Could not load contractor costs.')))
@@ -275,6 +323,27 @@ export default function ContractorCostsPage() {
   };
 
   const currency = useMemo(() => contractors[0]?.currency || 'AUD', [contractors]);
+
+  const filteredPayments = useMemo(() => {
+    const rangeStart = paymentRangeStartMs(paymentRange);
+    const rangeEnd = paymentRangeEndMs(paymentRange);
+    return payments.filter((payment) => {
+      if (paymentFilter === 'unpaid' && payment.status !== 'unpaid') return false;
+      if (paymentFilter === 'paid' && payment.status !== 'paid') return false;
+      if (rangeStart === null && rangeEnd === null) return true;
+      const startMs = Date.parse(`${payment.fortnightStartDate}T00:00:00.000Z`);
+      if (Number.isNaN(startMs)) return false;
+      if (rangeStart !== null && startMs < rangeStart) return false;
+      if (rangeEnd !== null && startMs > rangeEnd) return false;
+      return true;
+    });
+  }, [payments, paymentRange, paymentFilter]);
+
+  const filterOwing = useMemo(() => filteredPayments.filter((p) => p.status === 'unpaid').reduce((sum, p) => sum + p.amount, 0), [filteredPayments]);
+  const filterLabel = PAYMENT_RANGE_OPTIONS.find((option) => option.value === paymentRange)?.label?.toLowerCase() || '';
+  const owingStat = paymentFilter === 'unpaid' && paymentRange !== 'all'
+    ? { value: filterOwing, label: `Owing (${filterLabel})` }
+    : { value: globals.owingNow, label: 'Owing now (unpaid)' };
   const handleCopy = async (text: string, key: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -288,7 +357,7 @@ export default function ContractorCostsPage() {
   if (loading) return <RocketSplash />;
 
   return (
-    <main className="od-settings" aria-labelledby="contractor-costs-heading">
+    <main className="od-settings" aria-labelledby="contractor-costs-heading" style={{ maxWidth: 'none', width: '100%' }}>
       <div className="od-box" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', paddingBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
           <div>
@@ -302,7 +371,7 @@ export default function ContractorCostsPage() {
         </div>
         <div className="od-box__stats od-box__stats--4" style={{ paddingTop: 16 }}>
           <div className="od-box__stat"><span className="od-box__stat-value">{globals.activeContractors}</span><span className="od-box__stat-label">Active contractors</span></div>
-          <div className="od-box__stat"><span className="od-box__stat-value" style={{ color: globals.owingNow > 0 ? '#b45309' : undefined }}>{fmtMoney(globals.owingNow, currency)}</span><span className="od-box__stat-label">Owing now (unpaid)</span></div>
+          <div className="od-box__stat"><span className="od-box__stat-value" style={{ color: owingStat.value > 0 ? '#b45309' : undefined }}>{fmtMoney(owingStat.value, currency)}</span><span className="od-box__stat-label">{owingStat.label}</span></div>
           <div className="od-box__stat"><span className="od-box__stat-value">{fmtMoney(globals.totalPaid, currency)}</span><span className="od-box__stat-label">Total paid</span></div>
           <div className="od-box__stat"><span className="od-box__stat-value">{globals.totalHours.toFixed(1)}h</span><span className="od-box__stat-label">Total hours worked</span></div>
         </div>
@@ -315,12 +384,27 @@ export default function ContractorCostsPage() {
       <section aria-labelledby="payments-heading">
         <h3 id="payments-heading" style={{ margin: '0 0 8px', fontSize: 16, color: '#0f172a' }}>Fortnightly payments</h3>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>Auto-built from approved time entries in 14-day fortnights (anchored 29 Jun 2026). Copy the transfer reference into Wise, then mark the fortnight paid.</p>
+        <div role="group" aria-label="Payment filters" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#475569', fontWeight: 600 }}>
+            Date range
+            <select aria-label="Date range" value={paymentRange} onChange={(event) => setPaymentRange(event.target.value as PaymentRange)} style={fieldInputStyle}>
+              {PAYMENT_RANGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#475569', fontWeight: 600 }}>
+            Status
+            <select aria-label="Status" value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value as PaymentFilter)} style={fieldInputStyle}>
+              {PAYMENT_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <span style={{ fontSize: 12, color: '#64748b', paddingBottom: 8 }}>{filteredPayments.length} of {payments.length} shown</span>
+        </div>
         <div className="od-box" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
-          <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', minWidth: 1280, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr>
               <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th><th style={{ ...thStyle, textAlign: 'right' }}>Action</th>
             </tr></thead>
-            <tbody>{payments.length === 0 ? <tr><td colSpan={7} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : payments.map((payment) => (
+            <tbody>{payments.length === 0 ? <tr><td colSpan={7} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : filteredPayments.map((payment) => (
               <tr key={payment.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                 <td style={tdStyle}><strong>{payment.contractorName}</strong></td>
                 <td style={tdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td>
@@ -349,11 +433,13 @@ export default function ContractorCostsPage() {
         <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a', padding: '8px 0' }}>Contractors ({contractors.length})</summary>
         <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#64748b' }}>Rates, reimbursements, monthly costs, all-time totals, and the latest submitted week. Click a reimbursement to edit the amount, frequency, and start date without leaving this page.</p>
         <div className="od-box" style={{ padding: 0, overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr><th style={thStyle}>Contractor</th><th style={thStyle}>Rate</th><th style={thStyle}>Reimbursement</th><th style={thStyle}>Monthly cost</th><th style={thStyle}>Total paid / hours</th><th style={thStyle}>Latest logged week</th></tr></thead>
-            <tbody>{contractors.length === 0 ? <tr><td colSpan={6} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No active contractors yet.</td></tr> : contractors.map((contractor) => (
+          <table style={{ width: '100%', minWidth: 1180, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr><th style={thStyle}>Contractor</th><th style={thStyle}>Start date</th><th style={thStyle}>Tenure</th><th style={thStyle}>Rate</th><th style={thStyle}>Reimbursement</th><th style={thStyle}>Monthly cost</th><th style={thStyle}>Total paid / hours</th><th style={thStyle}>Latest logged week</th></tr></thead>
+            <tbody>{contractors.length === 0 ? <tr><td colSpan={8} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No active contractors yet.</td></tr> : contractors.map((contractor) => (
               <tr key={contractor.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                 <td style={tdStyle}><HoverTooltip label={contractor.name}>{contractor.latestWeek ? `Latest week: ${contractor.latestWeek.hours.toFixed(2)} hours` : 'No logged weeks yet.'}</HoverTooltip>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}</td>
+                <td style={tdStyle}>{fmtDate(contractor.startDate)}</td>
+                <td style={tdStyle}>{tenureLabel(contractor.startDate)}</td>
                 <td style={tdStyle}>{fmtMoney(contractor.hourlyRate, contractor.currency)}/hr</td>
                 <td style={tdStyle}><button type="button" onClick={() => setEditing(contractor)} style={{ padding: 0, border: 0, background: 'none', color: '#2563eb', cursor: 'pointer', font: 'inherit', textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: 3 }} title="Edit rate & reimbursement">{reimbursementSummary(contractor.reimbursement, contractor.currency)}</button></td>
                 <td style={tdStyle}>{fmtMoney(contractor.mtd.cost, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.mtd.hours.toFixed(1)}h this month</div></td>
