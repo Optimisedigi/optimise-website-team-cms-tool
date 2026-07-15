@@ -5342,6 +5342,11 @@ export async function runMigrations(
     await run("shared_working_docs_change_log_order_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_change_log_order_idx` ON `shared_working_docs_change_log` (`_order`)");
     await run("shared_working_docs_change_log_parent_id_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_change_log_parent_id_idx` ON `shared_working_docs_change_log` (`_parent_id`)");
     await run("locked_docs_rels.shared_working_docs_id", "ALTER TABLE `payload_locked_documents_rels` ADD `shared_working_docs_id` integer REFERENCES `shared_working_docs`(`id`) ON DELETE cascade");
+
+    // ── contractor reimbursement config (2026-07-15) ──
+    await run("contractors.reimbursement_amount", "ALTER TABLE `contractors` ADD `reimbursement_amount` numeric");
+    await run("contractors.reimbursement_recurrence", "ALTER TABLE `contractors` ADD `reimbursement_recurrence` text");
+    await run("contractors.reimbursement_start_date", "ALTER TABLE `contractors` ADD `reimbursement_start_date` text");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
