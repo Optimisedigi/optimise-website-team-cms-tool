@@ -12,7 +12,6 @@ import {
 } from '@/lib/proposal-audit-backfill'
 import {
   cleanProposalDomain,
-  needsMetaAdsRefresh,
   needsScreenshotRefresh,
   needsTrafficRefresh,
 } from '@/lib/proposal-audit-enrichment'
@@ -22,6 +21,13 @@ export const maxDuration = 300
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
 const ITEM_TIMEOUT_MS = 20_000
+// Meta Ad Library scrapes are slower than a traffic lookup: each one drives a
+// headless browser (social-link extraction + clicking into individual ads) and
+// queues behind the Scrapling service's browser-concurrency gate. A 20s cap
+// killed jobs while they were still waiting in that queue, so give the Meta
+// pipeline a dedicated, larger budget. Overall runtime is still bounded by
+// deadlineAt, which skips remaining competitors once the route budget is spent.
+const META_ITEM_TIMEOUT_MS = 50_000
 const DEADLINE_SAFETY_MS = 45_000
 
 function relationshipId(value: unknown): number | string | null {
@@ -149,14 +155,17 @@ async function runEnrichment(proposalId: string): Promise<void> {
     }),
   )
 
-  // A positive/advertised Growth result is authoritative. Retry only missing or
-  // empty fallback shapes, which Growth currently emits when Meta provider calls fail.
-  const metaCandidates = competitors.filter(needsMetaAdsRefresh)
+  // Meta Ad Library data comes exclusively from the Scrapling scrape (public
+  // facebook.com/ads/library). Growth Tools no longer performs a Meta check, so
+  // run the scrape for every competitor that has a domain.
+  const metaCandidates = competitors.filter((c: any) =>
+    Boolean(cleanProposalDomain(c?.domain || c?.website || c?.url)),
+  )
   let metaAdsStatus: 'completed' | 'failed' = 'completed'
   let metaAdsError: string | null = null
   if (metaCandidates.length > 0) {
     const metaResult = await fetchMetaAdsForCompetitors(metaCandidates, {
-      timeoutMs: ITEM_TIMEOUT_MS,
+      timeoutMs: META_ITEM_TIMEOUT_MS,
       deadlineAt,
     })
     const refreshedByDomain = new Map(

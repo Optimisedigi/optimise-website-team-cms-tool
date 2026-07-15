@@ -18,20 +18,6 @@ export function needsTrafficRefresh(profile: any): boolean {
     && !hasTrafficCoverage(profile)
 }
 
-export function needsMetaAdsRefresh(profile: any): boolean {
-  if (!cleanProposalDomain(profile?.domain || profile?.website || profile?.url)) return false
-  const metaAds = profile?.metaAds
-  if (!metaAds || typeof metaAds !== 'object') return true
-  if (metaAds.providerStatus === 'completed') return false
-  if (metaAds.providerStatus === 'failed') return true
-  if (metaAds.isRunningAds === true) return false
-  const activeAds = Number(metaAds.activeAdCount ?? metaAds.adCount ?? 0)
-  const screenshots = Array.isArray(metaAds.adScreenshots) ? metaAds.adScreenshots : []
-  // Growth Tools currently returns this empty shape when its Meta provider fails,
-  // so it is not sufficient evidence that the competitor genuinely has no ads.
-  return activeAds === 0 && screenshots.length === 0
-}
-
 export async function dispatchProposalAuditEnrichment({
   origin,
   proposalId,

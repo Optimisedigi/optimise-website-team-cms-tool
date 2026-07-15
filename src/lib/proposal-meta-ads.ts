@@ -14,7 +14,11 @@
 import { checkMetaAdsViaScrapling, extractSocialLinks } from "@/lib/scrapling-service";
 import { uploadScreenshotToBlob } from "@/lib/blob-upload";
 
-const DEFAULT_ITEM_TIMEOUT_MS = 20_000;
+// A Meta Ad Library scrape (headless browser + clicking into individual ads)
+// realistically takes ~15-25s, plus time queued behind the Scrapling service's
+// browser-concurrency gate. Keep the per-item budget well above that so items
+// aren't killed mid-flight or while waiting in the queue.
+const DEFAULT_ITEM_TIMEOUT_MS = 50_000;
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   return Promise.race([

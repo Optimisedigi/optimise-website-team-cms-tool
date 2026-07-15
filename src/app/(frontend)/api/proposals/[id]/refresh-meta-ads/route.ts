@@ -7,7 +7,12 @@ import { fetchMetaAdsForCompetitors } from "@/lib/proposal-meta-ads";
 // Meta Ad Library scraping is slow/flaky; give it the full Vercel Pro budget.
 export const maxDuration = 300;
 
-const ITEM_TIMEOUT_MS = 20_000;
+// Each Meta Ad Library scrape drives a headless browser (social-link extraction
+// + clicking into individual ads) and queues behind the Scrapling service's
+// browser-concurrency gate. A 20s cap killed jobs while they were still waiting
+// in that queue. Give each item a realistic budget; total runtime stays bounded
+// by deadlineAt, which skips remaining competitors once the budget is spent.
+const ITEM_TIMEOUT_MS = 50_000;
 const DEADLINE_SAFETY_MS = 20_000;
 
 function relationshipId(value: any): number | string | null {
