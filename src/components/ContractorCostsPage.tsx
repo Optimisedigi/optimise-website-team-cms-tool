@@ -109,6 +109,7 @@ const fmtFortnight = (start: string, end: string | null) => {
 
 const thStyle = { padding: '10px 12px', textAlign: 'left' as const, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' as const };
 const tdStyle = { padding: '12px', verticalAlign: 'top' as const, color: '#334155' };
+const paymentTdStyle = { padding: '5px 12px', verticalAlign: 'middle' as const, color: '#334155' };
 const tooltipButtonStyle = { padding: 0, border: 0, background: 'none', color: '#0f172a', cursor: 'help', font: 'inherit', fontWeight: 600, textAlign: 'left' as const, textDecoration: 'underline', textUnderlineOffset: 3 };
 
 function HoverTooltip({ label, children }: { label: ReactNode; children: ReactNode }) {
@@ -331,9 +332,16 @@ export default function ContractorCostsPage() {
       if (paymentFilter === 'unpaid' && payment.status !== 'unpaid') return false;
       if (paymentFilter === 'paid' && payment.status !== 'paid') return false;
       if (rangeStart === null && rangeEnd === null) return true;
+      // A fortnight belongs to a month if any of its days fall in that month,
+      // so 29 Jun–12 Jul shows for both June and July. Test range overlap
+      // against the fortnight span rather than just its start date.
       const startMs = Date.parse(`${payment.fortnightStartDate}T00:00:00.000Z`);
       if (Number.isNaN(startMs)) return false;
-      if (rangeStart !== null && startMs < rangeStart) return false;
+      const endMs = payment.fortnightEndDate
+        ? Date.parse(`${payment.fortnightEndDate}T00:00:00.000Z`)
+        : startMs;
+      const spanEndMs = Number.isNaN(endMs) ? startMs : endMs;
+      if (rangeStart !== null && spanEndMs < rangeStart) return false;
       if (rangeEnd !== null && startMs > rangeEnd) return false;
       return true;
     });
@@ -404,23 +412,23 @@ export default function ContractorCostsPage() {
             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr>
               <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th><th style={{ ...thStyle, textAlign: 'right' }}>Action</th>
             </tr></thead>
-            <tbody>{payments.length === 0 ? <tr><td colSpan={7} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : filteredPayments.map((payment) => (
+            <tbody>{payments.length === 0 ? <tr><td colSpan={7} style={{ ...paymentTdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : filteredPayments.map((payment) => (
               <tr key={payment.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={tdStyle}><strong>{payment.contractorName}</strong></td>
-                <td style={tdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td>
-                <td style={tdStyle}>{payment.totalHours.toFixed(2)}h</td>
-                <td style={tdStyle}>
+                <td style={paymentTdStyle}><strong>{payment.contractorName}</strong></td>
+                <td style={paymentTdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td>
+                <td style={paymentTdStyle}>{payment.totalHours.toFixed(2)}h</td>
+                <td style={paymentTdStyle}>
                   <HoverTooltip label={fmtMoney(payment.amount, payment.currency)}>
                     <span style={{ display: 'block' }}>Hours: {fmtMoney(payment.subtotal, payment.currency)}</span>
                     <span style={{ display: 'block' }}>Reimbursement: {fmtMoney(payment.reimbursement, payment.currency)}</span>
                     <span style={{ display: 'block' }}>Transfer fee: {fmtMoney(payment.fee, payment.currency)}</span>
                   </HoverTooltip>
                 </td>
-                <td style={tdStyle}>{payment.transferReference ? <button type="button" onClick={() => handleCopy(payment.transferReference, payment.id)} style={{ padding: '3px 7px', border: '1px solid #cbd5e1', borderRadius: 3, background: '#f8fafc', color: '#334155', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}>{copied === payment.id ? 'Copied' : payment.transferReference}</button> : '—'}</td>
-                <td style={tdStyle}>{payment.status === 'paid'
+                <td style={paymentTdStyle}>{payment.transferReference ? <button type="button" onClick={() => handleCopy(payment.transferReference, payment.id)} style={{ padding: '3px 7px', border: '1px solid #cbd5e1', borderRadius: 3, background: '#f8fafc', color: '#334155', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}>{copied === payment.id ? 'Copied' : payment.transferReference}</button> : '—'}</td>
+                <td style={paymentTdStyle}>{payment.status === 'paid'
                   ? <span style={{ fontWeight: 600, color: '#166534' }}>Paid{payment.paidDate ? ` · ${fmtDate(payment.paidDate)}` : ''}</span>
                   : <span style={{ fontWeight: 600, color: '#b45309' }}>Unpaid</span>}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{payment.status === 'unpaid'
+                <td style={{ ...paymentTdStyle, textAlign: 'right' }}>{payment.status === 'unpaid'
                   ? <button type="button" onClick={() => markPaid(payment)} disabled={marking === payment.id} className="od-settings__btn od-settings__btn--primary" style={{ padding: '5px 11px', fontSize: 12, cursor: marking === payment.id ? 'default' : 'pointer', opacity: marking === payment.id ? 0.6 : 1 }}>{marking === payment.id ? 'Saving…' : 'Mark paid'}</button>
                   : <span style={{ color: '#94a3b8' }}>—</span>}</td>
               </tr>
@@ -437,7 +445,7 @@ export default function ContractorCostsPage() {
             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr><th style={thStyle}>Contractor</th><th style={thStyle}>Start date</th><th style={thStyle}>Tenure</th><th style={thStyle}>Rate</th><th style={thStyle}>Reimbursement</th><th style={thStyle}>Monthly cost</th><th style={thStyle}>Total paid / hours</th><th style={thStyle}>Latest logged week</th></tr></thead>
             <tbody>{contractors.length === 0 ? <tr><td colSpan={8} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No active contractors yet.</td></tr> : contractors.map((contractor) => (
               <tr key={contractor.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={tdStyle}><HoverTooltip label={contractor.name}>{contractor.latestWeek ? `Latest week: ${contractor.latestWeek.hours.toFixed(2)} hours` : 'No logged weeks yet.'}</HoverTooltip>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}</td>
+                <td style={tdStyle}><strong>{contractor.name}</strong>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}</td>
                 <td style={tdStyle}>{fmtDate(contractor.startDate)}</td>
                 <td style={tdStyle}>{tenureLabel(contractor.startDate)}</td>
                 <td style={tdStyle}>{fmtMoney(contractor.hourlyRate, contractor.currency)}/hr</td>
