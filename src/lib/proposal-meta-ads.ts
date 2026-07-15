@@ -67,25 +67,38 @@ export async function fetchMetaAdsForCompetitors(
   const deadlineAt = opts?.deadlineAt;
 
   const source = Array.isArray(competitors) ? competitors : [];
-  const domains = source.map((c) => (c?.domain ? cleanDomain(String(c.domain)) : "")).filter(Boolean);
+  const workItems = source
+    .map((competitor) => ({
+      competitor,
+      domain: competitor?.domain ? cleanDomain(String(competitor.domain)) : "",
+    }))
+    .filter(({ domain }) => Boolean(domain));
 
-  if (domains.length === 0) {
+  if (workItems.length === 0) {
     return { updated: source, attempted: 0, withAds: 0, failed: 0, skipped: 0 };
   }
 
   let skipped = 0;
 
   const results = await Promise.allSettled(
-    domains.map(async (domain) => {
+    workItems.map(async ({ competitor, domain }) => {
       if (deadlineAt != null && Date.now() >= deadlineAt) {
         skipped++;
         throw new Error("Skipped — audit deadline reached");
       }
 
-      // Step 1: extract social links to find the Facebook handle
-      const socialLinks = await withTimeout(extractSocialLinks(domain), timeoutMs).catch(() => null);
+      // Reuse social links captured by the core competitor audit. Starting a
+      // second browser job for the same homepage needlessly doubles Scrapling
+      // load; extract them only when the audit did not save a Facebook link.
+      const storedSocialLinks = competitor?.socialLinks;
+      const storedFacebook = typeof storedSocialLinks?.facebook === "string"
+        ? storedSocialLinks.facebook.trim()
+        : "";
+      const socialLinks = storedFacebook
+        ? storedSocialLinks
+        : await withTimeout(extractSocialLinks(domain), timeoutMs).catch(() => null);
 
-      // Step 2: use the Facebook handle for Meta Ad Library (fall back to domain)
+      // Use the Facebook handle for Meta Ad Library (fall back to domain).
       const searchTerm = socialLinks?.facebook || domain;
       if (socialLinks?.facebook) {
         console.log(`[meta-ads] Using Facebook handle "${socialLinks.facebook}" for ${domain}`);
@@ -138,5 +151,5 @@ export async function fetchMetaAdsForCompetitors(
     return next;
   });
 
-  return { updated, attempted: domains.length, withAds, failed, skipped };
+  return { updated, attempted: workItems.length, withAds, failed, skipped };
 }

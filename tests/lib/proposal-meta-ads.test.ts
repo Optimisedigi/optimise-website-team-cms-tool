@@ -45,8 +45,28 @@ describe("fetchMetaAdsForCompetitors", () => {
     expect(comp.metaAds.isRunningAds).toBe(true);
     expect(comp.metaAds.adScreenshots).toEqual(["https://blob.test/meta-ad.png"]);
     expect(comp.socialLinks.facebook).toBe("acme");
-    // Uses the Facebook handle as the Ad Library search term
+    // Falls back to extraction when the audit has no saved Facebook link.
+    expect(mockSocial).toHaveBeenCalledWith("acme.com");
     expect(mockMeta).toHaveBeenCalledWith("acme");
+  });
+
+  it("reuses a stored Facebook URL without requesting another social-link scrape", async () => {
+    mockMeta.mockResolvedValue({ isRunningAds: true, activeAdCount: 1, adScreenshots: [] });
+
+    const competitors = [{
+      domain: "acme.com",
+      socialLinks: {
+        facebook: "https://www.facebook.com/acme",
+        instagram: "https://www.instagram.com/acme",
+        linkedin: null,
+      },
+    }];
+    const result = await fetchMetaAdsForCompetitors(competitors);
+
+    expect(result.failed).toBe(0);
+    expect(mockSocial).not.toHaveBeenCalled();
+    expect(mockMeta).toHaveBeenCalledWith("https://www.facebook.com/acme");
+    expect(result.updated[0].socialLinks).toEqual(competitors[0].socialLinks);
   });
 
   it("counts a rejected fetch as failed and leaves that competitor untouched", async () => {
