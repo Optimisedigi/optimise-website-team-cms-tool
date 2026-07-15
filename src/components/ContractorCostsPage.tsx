@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import RocketSplash from './RocketSplash';
 
 interface ContractorRow {
@@ -9,6 +10,7 @@ interface ContractorRow {
   email: string | null;
   currency: string;
   hourlyRate: number;
+  reimbursement: { amount: number; recurrence: string; startDate: string | null };
   mtd: { hours: number; cost: number };
   totalHours: number;
   totalPaid: number;
@@ -65,10 +67,22 @@ const tooltipButtonStyle = { padding: 0, border: 0, background: 'none', color: '
 
 function HoverTooltip({ label, children }: { label: ReactNode; children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const tooltipId = useId();
+
+  // Position a fixed-layer tooltip below the trigger. Rendering in a portal
+  // escapes the table's horizontal-scroll clipping so it is never cut off.
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setCoords({ top: rect.bottom + 6, left: rect.left });
+  }, [open]);
+
   return (
-    <span style={{ position: 'relative', display: 'inline-block' }}>
+    <span style={{ display: 'inline-block' }}>
       <button
+        ref={triggerRef}
         type="button"
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
@@ -79,13 +93,32 @@ function HoverTooltip({ label, children }: { label: ReactNode; children: ReactNo
       >
         {label}
       </button>
-      {open && (
-        <span id={tooltipId} role="tooltip" style={{ position: 'absolute', zIndex: 2, top: 'calc(100% + 6px)', left: 0, minWidth: 190, maxWidth: 300, padding: '8px 10px', borderRadius: 4, background: '#0f172a', color: '#fff', fontSize: 12, fontWeight: 400, lineHeight: 1.45, boxShadow: '0 4px 12px rgba(15, 23, 42, .2)' }}>
+      {open && coords && typeof document !== 'undefined' && createPortal(
+        <span
+          id={tooltipId}
+          role="tooltip"
+          style={{ position: 'fixed', zIndex: 9999, top: coords.top, left: coords.left, minWidth: 190, maxWidth: 300, padding: '8px 10px', borderRadius: 4, background: '#0f172a', color: '#fff', fontSize: 12, fontWeight: 400, lineHeight: 1.45, boxShadow: '0 4px 12px rgba(15, 23, 42, .2)', pointerEvents: 'none' }}
+        >
           {children}
-        </span>
+        </span>,
+        document.body,
       )}
     </span>
   );
+}
+
+const RECURRENCE_LABEL: Record<string, string> = {
+  none: 'none',
+  'per-fortnight': 'every fortnight',
+  monthly: 'monthly',
+  'one-off': 'one-off',
+};
+
+function reimbursementSummary(reimbursement: ContractorRow['reimbursement'], currency: string): string {
+  if (!reimbursement.amount || reimbursement.recurrence === 'none') return 'No reimbursement';
+  const recurrence = RECURRENCE_LABEL[reimbursement.recurrence] || reimbursement.recurrence;
+  const from = reimbursement.startDate ? ` from ${fmtDate(reimbursement.startDate)}` : '';
+  return `${fmtMoney(reimbursement.amount, currency)} ${recurrence}${from}`;
 }
 
 export default function ContractorCostsPage() {
@@ -205,14 +238,17 @@ export default function ContractorCostsPage() {
 
       <details style={{ marginBottom: 24 }}>
         <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a', padding: '8px 0' }}>Contractors ({contractors.length})</summary>
-        <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#64748b' }}>Rates, monthly costs, all-time totals, and the latest submitted week.</p>
+        <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#64748b' }}>Rates, reimbursements, monthly costs, all-time totals, and the latest submitted week. Open a contractor to edit its rate and reimbursement (amount, recurrence, and start date).</p>
         <div className="od-box" style={{ padding: 0, overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr><th style={thStyle}>Contractor</th><th style={thStyle}>Rate</th><th style={thStyle}>Monthly cost</th><th style={thStyle}>Total paid / hours</th><th style={thStyle}>Latest logged week</th></tr></thead>
-            <tbody>{contractors.length === 0 ? <tr><td colSpan={5} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No active contractors yet.</td></tr> : contractors.map((contractor) => (
+          <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr><th style={thStyle}>Contractor</th><th style={thStyle}>Rate</th><th style={thStyle}>Reimbursement</th><th style={thStyle}>Monthly cost</th><th style={thStyle}>Total paid / hours</th><th style={thStyle}>Latest logged week</th></tr></thead>
+            <tbody>{contractors.length === 0 ? <tr><td colSpan={6} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No active contractors yet.</td></tr> : contractors.map((contractor) => (
               <tr key={contractor.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={tdStyle}><HoverTooltip label={contractor.name}>{contractor.latestWeek ? `Latest week: ${contractor.latestWeek.hours.toFixed(2)} hours` : 'No logged weeks yet.'}</HoverTooltip>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}</td>
-                <td style={tdStyle}>{fmtMoney(contractor.hourlyRate, contractor.currency)}/hr</td><td style={tdStyle}>{fmtMoney(contractor.mtd.cost, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.mtd.hours.toFixed(1)}h this month</div></td><td style={tdStyle}>{fmtMoney(contractor.totalPaid, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.totalHours.toFixed(1)}h logged</div></td>
+                <td style={tdStyle}><HoverTooltip label={contractor.name}>{contractor.latestWeek ? `Latest week: ${contractor.latestWeek.hours.toFixed(2)} hours` : 'No logged weeks yet.'}</HoverTooltip>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}<div style={{ marginTop: 4 }}><a href={`/admin/collections/contractors/${contractor.id}`} style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}>Edit rate &amp; reimbursement</a></div></td>
+                <td style={tdStyle}>{fmtMoney(contractor.hourlyRate, contractor.currency)}/hr</td>
+                <td style={tdStyle}>{reimbursementSummary(contractor.reimbursement, contractor.currency)}</td>
+                <td style={tdStyle}>{fmtMoney(contractor.mtd.cost, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.mtd.hours.toFixed(1)}h this month</div></td>
+                <td style={tdStyle}>{fmtMoney(contractor.totalPaid, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.totalHours.toFixed(1)}h logged</div></td>
                 <td style={tdStyle}>{contractor.latestWeek ? <HoverTooltip label={fmtDate(contractor.latestWeek.weekCommencing)}>{contractor.latestWeek.clientAllocations.length ? contractor.latestWeek.clientAllocations.map((allocation) => <span key={allocation.clientName} style={{ display: 'block' }}>{allocation.clientName}: {allocation.hours.toFixed(2)}h</span>) : 'No client allocations'}</HoverTooltip> : 'No logged weeks'}</td>
               </tr>
             ))}</tbody>

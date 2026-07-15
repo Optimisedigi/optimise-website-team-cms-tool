@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import { buildUserToContractorMap, resolveEntryContractorId } from "@/lib/contractor-user-link";
+import { reimbursementForFortnight } from "@/lib/contractor-reimbursement";
 
 const TOTALS_PAGE_LIMIT = 100;
 
@@ -159,7 +160,7 @@ export async function GET() {
 
   for (const contractor of contractors) {
     const contractorId = String(contractor.id);
-    const reimbursement = Number(contractor.chatGptReimbursementPerFortnight || 0);
+    const rate = Number(contractor.hourlyRate || 0);
     const fee = Number(contractor.transferFeeDefault || 0);
     const currency = contractor.currency || "AUD";
     const buckets = new Map<number, Bucket>();
@@ -169,8 +170,11 @@ export async function GET() {
       const index = fortnightIndex(entry.weekCommencing);
       if (index < 0) continue;
       const bucket = buckets.get(index) || { hours: 0, subtotal: 0, allPaid: true };
-      bucket.hours += Number(entry.hours || 0);
-      bucket.subtotal += Number(entry.totalFee || 0);
+      const hours = Number(entry.hours || 0);
+      // User-logged grid entries have no stored `totalFee`; fall back to hours × rate.
+      const storedFee = Number(entry.totalFee);
+      bucket.hours += hours;
+      bucket.subtotal += Number.isFinite(storedFee) && storedFee > 0 ? storedFee : hours * rate;
       if (String(entry.status) !== "paid") bucket.allPaid = false;
       buckets.set(index, bucket);
     }
@@ -182,6 +186,7 @@ export async function GET() {
       const sentPayment = sentPaymentsByKey.get(`${contractorId}:${startIso}`);
       const paid = Boolean(sentPayment) || bucket.allPaid;
       const subtotal = round(bucket.subtotal);
+      const reimbursement = round(reimbursementForFortnight(contractor, startMs, endMs));
       const amount = sentPayment
         ? Number(sentPayment.transferAmount || 0)
         : round(subtotal + reimbursement + fee);
@@ -213,6 +218,11 @@ export async function GET() {
 
   const contractorsRows = contractors.map((contractor) => {
     const contractorId = String(contractor.id);
+    const rate = Number(contractor.hourlyRate || 0);
+    const entryFee = (entry: any) => {
+      const stored = Number(entry.totalFee);
+      return Number.isFinite(stored) && stored > 0 ? stored : Number(entry.hours || 0) * rate;
+    };
     const contractorEntries = entriesByContractor.get(contractorId) || [];
     const mtdEntries = contractorEntries.filter((entry) => String(entry.weekCommencing).slice(0, 10) >= monthStart);
     const latestWeek = latestWeekByContractor.get(contractorId);
@@ -230,10 +240,17 @@ export async function GET() {
       name: contractor.name,
       email: contractor.email || null,
       currency: contractor.currency || "AUD",
-      hourlyRate: Number(contractor.hourlyRate || 0),
+      hourlyRate: rate,
+      reimbursement: {
+        amount: contractor.reimbursementRecurrence
+          ? Number(contractor.reimbursementAmount || 0)
+          : Number(contractor.chatGptReimbursementPerFortnight || 0),
+        recurrence: (contractor.reimbursementRecurrence as string) || "per-fortnight",
+        startDate: contractor.reimbursementStartDate || null,
+      },
       mtd: {
         hours: round(mtdEntries.reduce((sum, entry) => sum + Number(entry.hours || 0), 0)),
-        cost: round(mtdEntries.reduce((sum, entry) => sum + Number(entry.totalFee || 0), 0)),
+        cost: round(mtdEntries.reduce((sum, entry) => sum + entryFee(entry), 0)),
       },
       totalHours: round(contractorEntries.reduce((sum, entry) => sum + Number(entry.hours || 0), 0)),
       totalPaid: round(totalPaid),

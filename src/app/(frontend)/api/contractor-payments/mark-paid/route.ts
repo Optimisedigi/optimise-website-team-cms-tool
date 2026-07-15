@@ -92,13 +92,16 @@ export async function POST(req: NextRequest) {
     ? await payload.update({
         collection: "contractor-payments",
         id: existingPayment.id,
-        data: { status: "sent", paymentDate: existingPayment.paymentDate || today },
+        // Re-send the fortnight window so the beforeChange rollup recomputes
+        // subtotal/reimbursement/transferAmount (Payload passes only changed
+        // fields to the hook, so omitting these would zero the amount).
+        data: { fortnightStartDate, fortnightEndDate, status: "sent", paymentDate: existingPayment.paymentDate || today },
         overrideAccess: true,
         user,
       })
     : await payload.create({
         collection: "contractor-payments",
-        data: { contractor: contractorId, fortnightStartDate, status: "sent", paymentDate: today },
+        data: { contractor: contractorId, fortnightStartDate, fortnightEndDate, status: "sent", paymentDate: today },
         overrideAccess: true,
         user,
       });

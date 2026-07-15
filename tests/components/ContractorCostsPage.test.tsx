@@ -9,7 +9,7 @@ afterEach(() => vi.restoreAllMocks());
 const overview = {
   globals: { activeContractors: 1, owingNow: 354, totalPaid: 1200, totalHours: 32 },
   fortnightlyPayments: [{ id: '1-0', contractorId: 1, contractorName: 'Ada Lovelace', currency: 'AUD', fortnightStartDate: '2026-06-29', fortnightEndDate: '2026-07-12', totalHours: 16, subtotal: 320, reimbursement: 30, fee: 4, amount: 354, transferReference: '2906-1207 Optimise', status: 'unpaid', paidDate: null }],
-  contractors: [{ id: 1, name: 'Ada Lovelace', email: 'ada@example.com', currency: 'AUD', hourlyRate: 20, mtd: { hours: 16, cost: 320 }, totalPaid: 1200, totalHours: 32, latestWeek: { weekCommencing: '2026-07-06', hours: 16, clientAllocations: [{ clientName: 'Example Client', hours: 16 }] } }],
+  contractors: [{ id: 1, name: 'Ada Lovelace', email: 'ada@example.com', currency: 'AUD', hourlyRate: 20, reimbursement: { amount: 40, recurrence: 'monthly', startDate: '2026-07-01' }, mtd: { hours: 16, cost: 320 }, totalPaid: 1200, totalHours: 32, latestWeek: { weekCommencing: '2026-07-06', hours: 16, clientAllocations: [{ clientName: 'Example Client', hours: 16 }] } }],
 };
 
 describe('ContractorCostsPage', () => {
@@ -22,6 +22,17 @@ describe('ContractorCostsPage', () => {
     expect(screen.getByText('Owing now (unpaid)')).toBeInTheDocument();
     expect(document.querySelector('a[href*="/collections/contractor-payments/create"]')).toBeNull();
     expect(screen.getByText('Contractors (1)').closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('shows the reimbursement summary and an edit link in the contractor section', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => overview }));
+    render(<ContractorCostsPage />);
+    await screen.findByRole('heading', { name: 'Fortnightly payments' });
+    fireEvent.click(screen.getByText('Contractors (1)'));
+
+    expect(screen.getByText(/\$40 monthly from 01 Jul 2026/)).toBeInTheDocument();
+    const editLink = document.querySelector('a[href="/admin/collections/contractors/1"]');
+    expect(editLink).not.toBeNull();
   });
 
   it('marks a fortnight paid by posting the contractor id and fortnight start', async () => {

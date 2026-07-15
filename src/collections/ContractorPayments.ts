@@ -1,5 +1,6 @@
 import type { CollectionConfig } from "payload";
 import { canAccess, adminOnlyDelete } from "../lib/access";
+import { reimbursementForFortnight } from "../lib/contractor-reimbursement";
 
 function fmtShort(d: Date): string {
   return `${String(d.getUTCDate()).padStart(2, "0")}${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -64,8 +65,10 @@ export const ContractorPayments: CollectionConfig = {
         } catch { /* fall through */ }
 
         if (contractor) {
-          if (data.chatGptReimbursement == null) {
-            data.chatGptReimbursement = Number(contractor.chatGptReimbursementPerFortnight || 0);
+          if (data.chatGptReimbursement == null && data.fortnightStartDate) {
+            const start = new Date(data.fortnightStartDate);
+            const end = data.fortnightEndDate ? new Date(data.fortnightEndDate) : new Date(start.getTime() + 13 * 24 * 60 * 60 * 1000);
+            data.chatGptReimbursement = Math.round(reimbursementForFortnight(contractor, start.getTime(), end.getTime()) * 100) / 100;
           }
           if (data.transferFee == null) {
             data.transferFee = Number(contractor.transferFeeDefault || 4);
@@ -115,10 +118,11 @@ export const ContractorPayments: CollectionConfig = {
             depth: 0,
             overrideAccess: true,
           });
-          const subtotal = (entries.docs as any[]).reduce(
-            (s, e) => s + Number(e.totalFee || 0),
-            0,
-          );
+          const rate = Number((contractor as any)?.hourlyRate || 0);
+          const subtotal = (entries.docs as any[]).reduce((s, e) => {
+            const stored = Number(e.totalFee);
+            return s + (Number.isFinite(stored) && stored > 0 ? stored : Number(e.hours || 0) * rate);
+          }, 0);
           data.subtotal = Math.round(subtotal * 100) / 100;
           data.totalHours = (entries.docs as any[]).reduce(
             (s, e) => s + Number(e.hours || 0),

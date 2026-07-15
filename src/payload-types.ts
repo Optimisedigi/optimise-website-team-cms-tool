@@ -8369,9 +8369,21 @@ export interface Contractor {
    */
   defaultWeeklyHours?: number | null;
   /**
-   * Tool reimbursement bundled into each fortnightly payment. Set to 0 if none.
+   * Legacy per-fortnight reimbursement. Used only when Reimbursement recurrence below is left as its default. Prefer the Reimbursement fields.
    */
   chatGptReimbursementPerFortnight?: number | null;
+  /**
+   * Tool/expense reimbursement rate. Applied according to the recurrence below.
+   */
+  reimbursementAmount?: number | null;
+  /**
+   * How often the reimbursement is added. Leave blank to keep the legacy per-fortnight amount above.
+   */
+  reimbursementRecurrence?: ('none' | 'per-fortnight' | 'monthly' | 'one-off') | null;
+  /**
+   * The date the reimbursement first appears. Monthly recurrence repeats on this day-of-month.
+   */
+  reimbursementStartDate?: string | null;
   /**
    * Default Wise transfer fee per fortnight. Override per payment if it differs.
    */
@@ -12587,6 +12599,9 @@ export interface ContractorsSelect<T extends boolean = true> {
   currency?: T;
   defaultWeeklyHours?: T;
   chatGptReimbursementPerFortnight?: T;
+  reimbursementAmount?: T;
+  reimbursementRecurrence?: T;
+  reimbursementStartDate?: T;
   transferFeeDefault?: T;
   transferReferenceTemplate?: T;
   fortnightAnchorDate?: T;

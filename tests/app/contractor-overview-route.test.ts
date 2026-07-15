@@ -90,4 +90,42 @@ describe('GET /api/contractor-overview', () => {
     expect(body.fortnightlyPayments[0]).toMatchObject({ contractorId: 1, fortnightStartDate: '2026-06-29', totalHours: 10, subtotal: 200, status: 'unpaid' });
     expect(body.globals).toMatchObject({ owingNow: 234, totalHours: 10 });
   });
+
+  it('computes subtotal as hours x rate when the entry has no stored totalFee', async () => {
+    find.mockImplementation(({ collection }: { collection: string }) => {
+      if (collection === 'contractors') return { docs: [{ ...contractor, hourlyRate: 21, chatGptReimbursementPerFortnight: 0, transferFeeDefault: 0 }] };
+      if (collection === 'users') return { docs: [] };
+      if (collection === 'contractor-payments') return { docs: [] };
+      return { docs: [{ id: 9, contractor: { id: 1 }, weekCommencing: '2026-07-06', hours: 25, status: 'approved' }] };
+    });
+    findByID.mockResolvedValue({ id: 9, contractor: { id: 1 }, weekCommencing: '2026-07-06', hours: 25, clientAllocations: [] });
+
+    const response = await GET();
+    const body = await response.json();
+
+    // 25h x $21 = $525, no reimbursement/fee.
+    expect(body.fortnightlyPayments[0]).toMatchObject({ totalHours: 25, subtotal: 525, reimbursement: 0, fee: 0, amount: 525 });
+  });
+
+  it('applies a monthly reimbursement only to the fortnight containing its start day', async () => {
+    find.mockImplementation(({ collection }: { collection: string }) => {
+      if (collection === 'contractors') return { docs: [{ ...contractor, hourlyRate: 20, transferFeeDefault: 0, reimbursementRecurrence: 'monthly', reimbursementAmount: 40, reimbursementStartDate: '2026-07-01' }] };
+      if (collection === 'users') return { docs: [] };
+      if (collection === 'contractor-payments') return { docs: [] };
+      return {
+        docs: [
+          { id: 9, contractor: { id: 1 }, weekCommencing: '2026-06-29', hours: 10, totalFee: 200, status: 'approved' },
+          { id: 8, contractor: { id: 1 }, weekCommencing: '2026-07-13', hours: 10, totalFee: 200, status: 'approved' },
+        ],
+      };
+    });
+    findByID.mockResolvedValue({ id: 9, contractor: { id: 1 }, weekCommencing: '2026-07-13', hours: 10, clientAllocations: [] });
+
+    const response = await GET();
+    const body = await response.json();
+
+    const byStart = Object.fromEntries(body.fortnightlyPayments.map((p: any) => [p.fortnightStartDate, p]));
+    expect(byStart['2026-06-29']).toMatchObject({ reimbursement: 40, amount: 240 });
+    expect(byStart['2026-07-13']).toMatchObject({ reimbursement: 0, amount: 200 });
+  });
 });

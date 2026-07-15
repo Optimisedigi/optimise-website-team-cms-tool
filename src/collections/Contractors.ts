@@ -66,7 +66,40 @@ export const Contractors: CollectionConfig = {
       name: "chatGptReimbursementPerFortnight",
       type: "number",
       defaultValue: 31.83,
-      admin: { description: "Tool reimbursement bundled into each fortnightly payment. Set to 0 if none." },
+      admin: {
+        description: "Legacy per-fortnight reimbursement. Used only when Reimbursement recurrence below is left as its default. Prefer the Reimbursement fields.",
+      },
+    },
+    {
+      name: "reimbursementAmount",
+      type: "number",
+      label: "Reimbursement amount",
+      admin: {
+        description: "Tool/expense reimbursement rate. Applied according to the recurrence below.",
+      },
+    },
+    {
+      name: "reimbursementRecurrence",
+      type: "select",
+      label: "Reimbursement recurrence",
+      options: [
+        { label: "None", value: "none" },
+        { label: "Every fortnight", value: "per-fortnight" },
+        { label: "Monthly", value: "monthly" },
+        { label: "One-off", value: "one-off" },
+      ],
+      admin: {
+        description: "How often the reimbursement is added. Leave blank to keep the legacy per-fortnight amount above.",
+      },
+    },
+    {
+      name: "reimbursementStartDate",
+      type: "date",
+      label: "Reimbursement start date",
+      admin: {
+        description: "The date the reimbursement first appears. Monthly recurrence repeats on this day-of-month.",
+        date: { pickerAppearance: "dayOnly" },
+      },
     },
     {
       name: "transferFeeDefault",
