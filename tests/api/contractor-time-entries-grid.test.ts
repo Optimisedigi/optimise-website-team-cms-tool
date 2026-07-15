@@ -158,7 +158,7 @@ describe("contractor time entries grid RBAC", () => {
       })
       .mockResolvedValueOnce({ docs: [{ id: 100, key: "contractor-time-entries.visible-client-ids", value: { clientIds: ["5", "999"] } }] });
 
-    const res = await GET(getRequest({ month: "2026-07" }));
+    const res = await GET(getRequest({ month: "2026-07", weekMode: "this-month", monthlyMode: "this-month" }));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -171,16 +171,16 @@ describe("contractor time entries grid RBAC", () => {
     ]);
     expect(body.columnClientIds).toEqual(["5"]);
     expect(body.monthlyTotals).toHaveLength(2);
-    expect(body.monthlyTotals[0]).toEqual(expect.objectContaining({ month: "2026-07", totals: [expect.objectContaining({ clientId: "5", hours: 2 })] }));
-    expect(body.monthlyTotals[1]).toEqual(expect.objectContaining({ month: "2026-08", totals: [expect.objectContaining({ clientId: "5", hours: 4 })] }));
+    expect(body.monthlyTotals[0]).toEqual(expect.objectContaining({ month: "2026-08", totals: [expect.objectContaining({ clientId: "5", hours: 4 })] }));
+    expect(body.monthlyTotals[1]).toEqual(expect.objectContaining({ month: "2026-07", totals: [expect.objectContaining({ clientId: "5", hours: 2 })] }));
     expect(mockPayload.find).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
         collection: "contractor-time-entries",
         where: {
           and: expect.arrayContaining([
-            { weekCommencing: { greater_than_equal: "2026-01-01T00:00:00.000Z" } },
-            { weekCommencing: { less_than: "2027-01-01T00:00:00.000Z" } },
+            { weekCommencing: { greater_than_equal: "2026-07-01T00:00:00.000Z" } },
+            { weekCommencing: { less_than: "2026-08-01T00:00:00.000Z" } },
           ]),
         },
         select: { weekCommencing: true, clientAllocations: true },
@@ -203,6 +203,30 @@ describe("contractor time entries grid RBAC", () => {
         overrideAccess: true,
       }),
     );
+  });
+
+  it("sorts all weeks with the most recent week first and leaves all-month summaries unbounded", async () => {
+    const { GET } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    mockPayload.auth.mockResolvedValue({ user: adminUser });
+    mockPayload.find
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] });
+
+    const res = await GET(getRequest({ month: "2026-07", weekMode: "all", monthlyMode: "all" }));
+
+    expect(res.status).toBe(200);
+    expect(mockPayload.find).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      collection: "contractor-time-entries",
+      where: {},
+      sort: "-weekCommencing",
+    }));
+    expect(mockPayload.find).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      collection: "contractor-time-entries",
+      where: {},
+    }));
   });
 
   it("PATCH persists shared client columns without an entry id", async () => {

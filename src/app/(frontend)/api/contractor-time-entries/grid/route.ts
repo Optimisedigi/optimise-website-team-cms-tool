@@ -66,10 +66,16 @@ function monthRange(month: string) {
   const start = new Date(`${safeMonth}-01T00:00:00.000Z`);
   const end = new Date(start);
   end.setUTCMonth(end.getUTCMonth() + 1);
-  const yearStart = new Date(`${safeMonth.slice(0, 4)}-01-01T00:00:00.000Z`);
-  const yearEnd = new Date(yearStart);
-  yearEnd.setUTCFullYear(yearEnd.getUTCFullYear() + 1);
-  return { safeMonth, startIso: start.toISOString(), endIso: end.toISOString(), yearStartIso: yearStart.toISOString(), yearEndIso: yearEnd.toISOString() };
+  return { safeMonth, startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+function previousMonthRange(month: string) {
+  const currentMonth = /^\d{4}-\d{2}$/.test(month) ? month : new Date().toISOString().slice(0, 7);
+  const start = new Date(`${currentMonth}-01T00:00:00.000Z`);
+  start.setUTCMonth(start.getUTCMonth() - 1);
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
 }
 
 function weekRange(week: string) {
@@ -130,8 +136,10 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const { startIso, endIso, safeMonth, yearStartIso, yearEndIso } = monthRange(searchParams.get("month") || "");
-    const weekMode = searchParams.get("weekMode") || "month";
+    const { startIso, endIso, safeMonth } = monthRange(searchParams.get("month") || "");
+    const weekMode = searchParams.get("weekMode") || "week";
+    const monthlyMode = searchParams.get("monthlyMode") || "this-month";
+    const { startIso: lastMonthStartIso, endIso: lastMonthEndIso } = previousMonthRange(safeMonth);
     const { weekStartIso, weekEndIso } = weekRange(searchParams.get("week") || "");
     const selectedUser = searchParams.get("user") || "";
 
@@ -142,24 +150,40 @@ export async function GET(req: NextRequest) {
       ownerScope.push({ user: { equals: user.id } });
     }
 
-    const entryStartIso = weekMode === "all" ? yearStartIso : weekMode === "week" ? weekStartIso : startIso;
-    const entryEndIso = weekMode === "all" ? yearEndIso : weekMode === "week" ? weekEndIso : endIso;
-    const and: any[] = [
-      { weekCommencing: { greater_than_equal: entryStartIso } },
-      { weekCommencing: { less_than: entryEndIso } },
+    const weekRangeByMode = weekMode === "week"
+      ? { startIso: weekStartIso, endIso: weekEndIso }
+      : weekMode === "last-month"
+        ? { startIso: lastMonthStartIso, endIso: lastMonthEndIso }
+        : weekMode === "this-month"
+          ? { startIso, endIso }
+          : null;
+    const monthlyRangeByMode = monthlyMode === "last-month"
+      ? { startIso: lastMonthStartIso, endIso: lastMonthEndIso }
+      : monthlyMode === "this-month"
+        ? { startIso, endIso }
+        : null;
+    const entryAnd: any[] = [
+      ...(weekRangeByMode ? [
+        { weekCommencing: { greater_than_equal: weekRangeByMode.startIso } },
+        { weekCommencing: { less_than: weekRangeByMode.endIso } },
+      ] : []),
       ...ownerScope,
     ];
     const summaryAnd: any[] = [
-      { weekCommencing: { greater_than_equal: yearStartIso } },
-      { weekCommencing: { less_than: yearEndIso } },
+      ...(monthlyRangeByMode ? [
+        { weekCommencing: { greater_than_equal: monthlyRangeByMode.startIso } },
+        { weekCommencing: { less_than: monthlyRangeByMode.endIso } },
+      ] : []),
       ...ownerScope,
     ];
+    const entryWhere: any = entryAnd.length ? { and: entryAnd } : {};
+    const summaryWhere: any = summaryAnd.length ? { and: summaryAnd } : {};
 
     const [entriesResult, clientsResult, summaryEntriesResult, usersResult, savedColumnClientIds] = await Promise.all([
       payload.find({
         collection: "contractor-time-entries" as any,
-        where: { and },
-        sort: "weekCommencing",
+        where: entryWhere,
+        sort: weekMode === "all" ? "-weekCommencing" : "weekCommencing",
         limit: 500,
         depth: 1,
         select: ENTRY_SELECT as any,
@@ -176,7 +200,7 @@ export async function GET(req: NextRequest) {
       }),
       payload.find({
         collection: "contractor-time-entries" as any,
-        where: { and: summaryAnd },
+        where: summaryWhere,
         sort: "weekCommencing",
         limit: 5000,
         depth: 1,
@@ -209,7 +233,7 @@ export async function GET(req: NextRequest) {
       totalsByMonth.set(entryMonth, totalsByClient);
     }
     const monthlyTotals = Array.from(totalsByMonth.entries())
-      .sort(([monthA], [monthB]) => monthA.localeCompare(monthB))
+      .sort(([monthA], [monthB]) => monthB.localeCompare(monthA))
       .map(([month, totalsByClient]) => ({
         month,
         monthLabel: new Date(`${month}-01T00:00:00`).toLocaleDateString("en-AU", { month: "long", year: "numeric" }),

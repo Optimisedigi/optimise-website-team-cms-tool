@@ -84,12 +84,18 @@ function firstMondayInMonth(month: string): string {
   return mondayKey(first)
 }
 
+function previousMonthKey(month: string): string {
+  const date = new Date(`${month}-01T00:00:00`)
+  date.setMonth(date.getMonth() - 1)
+  return monthKey(date)
+}
+
 function weekLabel(weekStart: string): string {
   const start = new Date(`${weekStart.slice(0, 10)}T00:00:00`)
   const end = new Date(start)
   end.setDate(end.getDate() + 6)
-  const startMonth = start.toLocaleDateString('en-AU', { month: 'long' })
-  const endMonth = end.toLocaleDateString('en-AU', { month: 'long' })
+  const startMonth = start.toLocaleDateString('en-AU', { month: 'short' })
+  const endMonth = end.toLocaleDateString('en-AU', { month: 'short' })
   if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) return `${start.getDate()}-${end.getDate()} ${endMonth}`
   return `${start.getDate()} ${startMonth} - ${end.getDate()} ${endMonth}`
 }
@@ -153,9 +159,10 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const [users, setUsers] = useState<Option[]>([])
   const [currentUser, setCurrentUser] = useState<Option | null>(null)
   const [monthlyTotals, setMonthlyTotals] = useState<MonthlyAllocationRow[]>([])
-  const [weekMode, setWeekMode] = useState<'week' | 'all'>('week')
+  const [weekMode, setWeekMode] = useState<'week' | 'this-month' | 'last-month' | 'all'>('week')
+  const [monthlyMode, setMonthlyMode] = useState<'this-month' | 'last-month' | 'all'>('this-month')
   const [weekStart, setWeekStart] = useState(() => mondayKey())
-  const month = weekStart.slice(0, 7)
+  const month = monthKey()
   const [userFilter, setUserFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | number | null>(null)
@@ -177,7 +184,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
     setLoading(true)
     setError('')
     try {
-      const params = new URLSearchParams({ month, weekMode, week: weekStart })
+      const params = new URLSearchParams({ month, weekMode, monthlyMode, week: weekStart })
       if (userFilter) params.set('user', userFilter)
       const res = await fetch(`/api/contractor-time-entries/grid?${params.toString()}`)
       const json = await res.json()
@@ -207,7 +214,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
     }
   }
 
-  useEffect(() => { void load() }, [month, weekMode, weekStart, userFilter])
+  useEffect(() => { void load() }, [month, weekMode, monthlyMode, weekStart, userFilter])
 
   const leadingColumnCount = 1
   const totalColumnCount = leadingColumnCount + visibleClients.length + 4 + (isAdmin ? 1 : 0)
@@ -314,7 +321,8 @@ export default function ContractorTimeEntriesSpreadsheet() {
     setSavingId('new')
     setError('')
     try {
-      let target = weekMode === 'week' ? weekStart : firstMondayInMonth(month)
+      const targetMonth = weekMode === 'last-month' ? previousMonthKey(month) : month
+      let target = weekMode === 'week' ? weekStart : firstMondayInMonth(targetMonth)
       const existing = new Set(entries.filter((entry) => relId(entry.user) === owner).map((entry) => entry.weekCommencing.slice(0, 10)))
       if (weekMode === 'week' && existing.has(target)) {
         setError('This week already has a time entry. Edit the existing row or switch to All weeks to add another week.')
@@ -361,27 +369,17 @@ export default function ContractorTimeEntriesSpreadsheet() {
   return (
     <div style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
       <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Time entries</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: '150px 170px minmax(220px, 1fr) auto', gap: 8, alignItems: 'end', marginBottom: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '150px minmax(220px, 1fr) auto', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
-          Weeks
-          <select value={weekMode} onChange={(event) => setWeekMode(event.target.value as 'week' | 'all')} style={inputStyle}>
-            <option value="week">This week</option>
-            <option value="all">All weeks</option>
+          Months
+          <select value={monthlyMode} onChange={(event) => setMonthlyMode(event.target.value as 'this-month' | 'last-month' | 'all')} style={inputStyle}>
+            <option value="this-month">This month</option>
+            <option value="last-month">Last month</option>
+            <option value="all">All months</option>
           </select>
         </label>
-        <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700, opacity: weekMode === 'week' ? 1 : .55 }}>
-          Week
-          <input
-            type="date"
-            value={weekStart}
-            disabled={weekMode !== 'week'}
-            onClick={(event) => openDatePicker(event.currentTarget)}
-            onChange={(event) => setWeekStart(mondayKey(new Date(`${event.target.value}T00:00:00`)))}
-            style={{ ...inputStyle, cursor: weekMode === 'week' ? 'pointer' : 'default' }}
-          />
-        </label>
         <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)', paddingBottom: 8 }}>
-          Showing <strong>{weekMode === 'all' ? 'all weeks' : weekLabel(weekStart)}</strong>. {isAdmin ? 'Use the user selector above the time boxes to show everyone or add/edit one person.' : 'Add your own weekly time and allocate hours across active client columns.'}
+          Monthly allocations for the selected period.
         </div>
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', paddingBottom: 1 }}>
           <button type="button" onClick={() => setShowColumnPicker((open) => !open)} style={{ ...inputStyle, width: 'auto', minWidth: 0, padding: '5px 9px', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: 'transparent', color: 'var(--theme-elevation-500)' }}>
@@ -437,15 +435,26 @@ export default function ContractorTimeEntriesSpreadsheet() {
         </table>
       </div>
 
-      {isAdmin && (
-        <label style={{ display: 'grid', gap: 4, maxWidth: 180, margin: '0 0 8px', fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
-          User
-          <select value={userFilter} onChange={(event) => setUserFilter(event.target.value)} style={inputStyle}>
-            <option value="">All users</option>
-            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'end', marginBottom: 8, flexWrap: 'wrap' }}>
+        <label style={{ display: 'grid', gap: 4, width: 180, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
+          Weeks
+          <select value={weekMode} onChange={(event) => setWeekMode(event.target.value as 'week' | 'this-month' | 'last-month' | 'all')} style={inputStyle}>
+            <option value="week">This week</option>
+            <option value="this-month">This month</option>
+            <option value="last-month">Last month</option>
+            <option value="all">All weeks</option>
           </select>
         </label>
-      )}
+        {isAdmin && (
+          <label style={{ display: 'grid', gap: 4, width: 180, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
+            User
+            <select value={userFilter} onChange={(event) => setUserFilter(event.target.value)} style={inputStyle}>
+              <option value="">All users</option>
+              {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
 
       <div style={{ width: '100%', maxWidth: 'none', border: '1px solid var(--theme-elevation-250)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)', boxShadow: '0 1px 0 rgba(0,0,0,.04)' }}>
         <table style={{ width: '100%', minWidth: tableMinWidth, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
