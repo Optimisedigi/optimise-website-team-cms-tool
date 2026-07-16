@@ -202,7 +202,17 @@ export const NegativeKeywordLists: CollectionConfig = {
           const exclusionChanged =
             (previousDoc?.relevancyExclusion ?? "none") !== (doc?.relevancyExclusion ?? "none");
           const activeChanged = previousDoc?.isActive !== doc?.isActive;
-          if (clientId && (setsDiffer || exclusionChanged || activeChanged)) {
+          const scopeChanged = previousDoc?.scope !== doc?.scope;
+          const campaignRegexChanged = (previousDoc?.campaignRegex ?? "") !== (doc?.campaignRegex ?? "");
+          const adGroupChanged = (previousDoc?.adGroupName ?? "") !== (doc?.adGroupName ?? "");
+          const campaignNames = (value: any) =>
+            (Array.isArray(value) ? value : [])
+              .map((campaign: any) => String(campaign?.campaignName ?? "").trim().toLowerCase())
+              .filter(Boolean)
+              .sort()
+              .join("|");
+          const campaignsChanged = campaignNames(previousDoc?.campaigns) !== campaignNames(doc?.campaigns);
+          if (clientId && (setsDiffer || exclusionChanged || activeChanged || scopeChanged || campaignRegexChanged || adGroupChanged || campaignsChanged)) {
             await req.payload.delete({
               collection: "negative-keyword-monthly-waste-relevancy-cache",
               where: { client: { equals: clientId } },

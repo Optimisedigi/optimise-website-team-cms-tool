@@ -27,10 +27,10 @@ describe("collectRelevancyNegativeKeywords", () => {
     ]);
 
     expect(keywords).toEqual([
-      { text: "bad fit", matchType: "PHRASE", exclusion: "none", scope: "account", campaigns: [], adGroupName: null },
-      { text: "competitor name", matchType: "EXACT", exclusion: "competitor", scope: "account", campaigns: [], adGroupName: null },
-      { text: "own brand", matchType: "BROAD", exclusion: "brand", scope: "account", campaigns: [], adGroupName: null },
-      { text: "cheap maybe", matchType: "PHRASE", exclusion: "low_relevancy", scope: "account", campaigns: [], adGroupName: null },
+      { text: "bad fit", matchType: "PHRASE", exclusion: "none", scope: "account", campaigns: [], campaignRegex: null, adGroupName: null },
+      { text: "competitor name", matchType: "EXACT", exclusion: "competitor", scope: "account", campaigns: [], campaignRegex: null, adGroupName: null },
+      { text: "own brand", matchType: "BROAD", exclusion: "brand", scope: "account", campaigns: [], campaignRegex: null, adGroupName: null },
+      { text: "cheap maybe", matchType: "PHRASE", exclusion: "low_relevancy", scope: "account", campaigns: [], campaignRegex: null, adGroupName: null },
     ]);
     expect(keywords.map((keyword) => keyword.text)).not.toContain("relevant service");
   });
@@ -40,6 +40,7 @@ describe("collectRelevancyNegativeKeywords", () => {
       {
         scope: "campaign",
         campaigns: [{ campaignName: "Generic" }],
+        campaignRegex: "Generic|Search",
         keywords: [{ keyword: "same term", matchType: "exact" }],
       },
       {
@@ -50,7 +51,7 @@ describe("collectRelevancyNegativeKeywords", () => {
     ]);
 
     expect(keywords).toHaveLength(2);
-    expect(keywords[0]).toMatchObject({ scope: "campaign", campaigns: ["Generic"] });
+    expect(keywords[0]).toMatchObject({ scope: "campaign", campaigns: ["Generic"], campaignRegex: "Generic|Search" });
     expect(keywords[1]).toMatchObject({ scope: "ad_group", adGroupName: "Brand Ad Group" });
   });
 });

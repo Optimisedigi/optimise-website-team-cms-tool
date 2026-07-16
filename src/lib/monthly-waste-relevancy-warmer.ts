@@ -53,6 +53,7 @@ type RelevancyNegativeKeyword = {
   exclusion: "none" | "competitor" | "brand" | "low_relevancy";
   scope: "account" | "campaign" | "ad_group";
   campaigns: string[];
+  campaignRegex: string | null;
   adGroupName: string | null;
 };
 
@@ -87,9 +88,11 @@ export function collectRelevancyNegativeKeywords(nkls: any[]): RelevancyNegative
         : [];
       const legacyCampaign = String(list?.campaignName ?? "").trim();
       if (legacyCampaign && !campaigns.includes(legacyCampaign)) campaigns.push(legacyCampaign);
+      const campaignRegex = typeof list?.campaignRegex === "string" ? list.campaignRegex.trim() || null : null;
       const adGroupName = typeof list?.adGroupName === "string" ? list.adGroupName.trim() || null : null;
       const sameScope = (item: RelevancyNegativeKeyword) =>
         item.scope === scope
+        && item.campaignRegex === campaignRegex
         && item.adGroupName === adGroupName
         && item.campaigns.length === campaigns.length
         && item.campaigns.every((campaign) => campaigns.includes(campaign));
@@ -113,6 +116,7 @@ export function collectRelevancyNegativeKeywords(nkls: any[]): RelevancyNegative
         exclusion: listExclusion,
         scope,
         campaigns,
+        campaignRegex,
         adGroupName,
       });
     }
