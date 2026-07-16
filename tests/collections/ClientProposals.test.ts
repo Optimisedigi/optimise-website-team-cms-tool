@@ -43,6 +43,16 @@ function findField(fields: any[], name: string): any {
   return undefined;
 }
 
+function findTab(label: string): any {
+  for (const field of ClientProposals.fields as any[]) {
+    if ("tabs" in field) {
+      const tab = field.tabs.find((candidate: any) => candidate.label === label);
+      if (tab) return tab;
+    }
+  }
+  return undefined;
+}
+
 function getBeforeChangeHooks() {
   return ClientProposals.hooks?.beforeChange ?? [];
 }
@@ -96,6 +106,15 @@ describe("ClientProposals Collection", () => {
     const field = findField(ClientProposals.fields, "websiteUrl");
     expect(field).toBeDefined();
     expect(field.required).toBe(true);
+  });
+
+  it("puts the Google Ads setup and audit action in a dedicated tab", () => {
+    const tab = findTab("Google Ads Audit");
+
+    expect(tab).toBeDefined();
+    expect(findField(tab.fields, "googleAdsCustomerId")).toBeDefined();
+    expect(findField(tab.fields, "runGoogleAdsAudit")).toBeDefined();
+    expect(findField(tab.fields, "googleAdsAudit")).toBeDefined();
   });
 
   it("should have proposalStatus field in the main compact form with correct options", () => {

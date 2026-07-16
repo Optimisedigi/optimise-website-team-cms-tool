@@ -1077,25 +1077,6 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
-              name: "googleAdsCustomerId",
-              type: "text",
-              hooks: {
-                beforeChange: [
-                  ({ value }) =>
-                    typeof value === "string"
-                      ? value.replace(/\D/g, "").slice(0, 10)
-                      : value,
-                ],
-              },
-              admin: {
-                description:
-                  "Google Ads customer ID (e.g. 955-493-5739). Required to run a Google Ads audit from this proposal. Client must give MCC access to peter@optimisedigital.online for this audit to work.",
-                components: {
-                  Field: "./components/GoogleAdsCustomerIdField#GoogleAdsCustomerIdField",
-                },
-              },
-            },
-            {
               name: "ga4PropertyId",
               type: "text",
               admin: {
@@ -1148,6 +1129,50 @@ export const ClientProposals: CollectionConfig = {
                 components: {
                   Field: "./components/MockupUpload",
                 },
+              },
+            },
+          ],
+        },
+        {
+          label: "Google Ads Audit",
+          description:
+            "Connect the prospect's Google Ads account and run a standalone Google Ads audit.",
+          fields: [
+            {
+              name: "googleAdsCustomerId",
+              type: "text",
+              hooks: {
+                beforeChange: [
+                  ({ value }) =>
+                    typeof value === "string"
+                      ? value.replace(/\D/g, "").slice(0, 10)
+                      : value,
+                ],
+              },
+              admin: {
+                description:
+                  "Enter the 10-digit client account ID, not the manager account ID. The client must grant the Optimise Digital MCC access before the audit can run.",
+                components: {
+                  Field: "./components/GoogleAdsCustomerIdField#GoogleAdsCustomerIdField",
+                },
+              },
+            },
+            {
+              name: "runGoogleAdsAudit",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunGoogleAdsAuditFromProposalButton",
+                },
+              },
+            },
+            {
+              name: "googleAdsAudit",
+              type: "relationship",
+              relationTo: "google-ads-audits",
+              admin: {
+                readOnly: true,
+                description: "Linked Google Ads audit",
               },
             },
           ],
@@ -1888,24 +1913,6 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Linked content research results",
-              },
-            },
-            {
-              name: "runGoogleAdsAudit",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/RunGoogleAdsAuditFromProposalButton",
-                },
-              },
-            },
-            {
-              name: "googleAdsAudit",
-              type: "relationship",
-              relationTo: "google-ads-audits",
-              admin: {
-                readOnly: true,
-                description: "Linked Google Ads audit",
               },
             },
             // ── SERP Displacement — mirrors clients.serpMonitor ──
