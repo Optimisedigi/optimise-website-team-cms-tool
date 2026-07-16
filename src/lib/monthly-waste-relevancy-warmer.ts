@@ -196,6 +196,7 @@ export async function warmMonthlyWasteRelevancyForClient(
   // brand split. Without this hook past months are isFinal=true and never
   // refetched, so brand spend stays zero forever after upgrading.
   const BRAND_SPEND_DEPLOY_TS = Date.parse("2026-05-06T11:00:00Z");
+  const CATEGORY_BUCKET_DEPLOY_TS = Date.parse("2026-06-04T11:40:20+10:00");
   const now = Date.now();
   const missingMonths: string[] = [];
   for (const m of months) {
@@ -212,9 +213,16 @@ export async function warmMonthlyWasteRelevancyForClient(
       }
     }
     // Category-bucket backfill: rows written before competitor/brand/low-
-    // relevancy buckets existed have undefined fields, which made the dashboard
-    // hide the toggles and silently omit that spend. Refetch those rows once.
-    if (row.competitorExcludedSpend == null || row.brandExcludedSpend == null || row.lowRelevancyExcludedSpend == null) {
+    // relevancy buckets existed may have undefined or default-zero fields, which
+    // made the dashboard hide the toggles and silently omit that spend. Refetch
+    // those rows once.
+    const categoryFetchedAtMs = new Date(row.fetchedAt).getTime();
+    if (
+      row.competitorExcludedSpend == null ||
+      row.brandExcludedSpend == null ||
+      row.lowRelevancyExcludedSpend == null ||
+      (!Number.isNaN(categoryFetchedAtMs) && categoryFetchedAtMs < CATEGORY_BUCKET_DEPLOY_TS)
+    ) {
       missingMonths.push(m);
       continue;
     }
