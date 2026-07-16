@@ -1124,28 +1124,44 @@ min-height: 100vh;
   pointer-events: none;
   z-index: 100;
 }
-[data-label="09 Competitor Analysis"] .v2-comp-thumb img,
-[data-label="18 Paid Activation"] .v2-comp-thumb img {
+/* Slide 9 (website screenshots) — crop to the above-the-fold top strip. */
+[data-label="09 Competitor Analysis"] .v2-comp-thumb img {
   display: block;
   width: 100%;
   height: auto;
-  /* Show only the top of the page — above-the-fold preview. */
   max-height: 240px;
   object-fit: cover;
   object-position: top;
 }
 
-/* Paid Activation only — when a competitor has more than one ad creative,
-   tile the first few in a small 2-column grid instead of a single image. */
+/* Slide 18 (ad creatives) — show the FULL ad, never cropped. `contain` keeps
+   the whole creative visible; the max-heights keep the popover inside the
+   1080px-tall slide window. */
+[data-label="18 Paid Activation"] .v2-comp-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 760px;
+  object-fit: contain;
+}
+
+/* Paid Activation single ad — widen so a portrait Facebook card reads clearly. */
+[data-label="18 Paid Activation"] .v2-comp-thumb {
+  width: 520px;
+}
+
+/* Paid Activation multiple ads — tile the first few in a 2-column grid. Each
+   cell shows its full creative (contain), sized so a 2x2 grid still fits. */
 [data-label="18 Paid Activation"] .v2-comp-thumb--grid {
-  width: 460px;
+  width: 680px;
+  max-width: 80vw;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 4px;
+  gap: 6px;
+  padding: 6px;
 }
 [data-label="18 Paid Activation"] .v2-comp-thumb--grid img {
-  max-height: 150px;
+  max-height: 360px;
   border-radius: 6px;
 }
 [data-label="09 Competitor Analysis"] .v2-comp-domain:hover .v2-comp-thumb,
