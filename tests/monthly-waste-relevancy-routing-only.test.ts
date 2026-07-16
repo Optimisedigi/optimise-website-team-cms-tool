@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { collectRelevancyNegativeKeywords } from "@/lib/monthly-waste-relevancy-warmer";
+import {
+  collectRelevancyNegativeKeywords,
+  compactRelevancyNegativeKeywordsForRequest,
+} from "@/lib/monthly-waste-relevancy-warmer";
 
 describe("collectRelevancyNegativeKeywords", () => {
   it("excludes routing-only NKLs while keeping normal, competitor, brand, and low-relevancy lists", () => {
@@ -53,5 +56,29 @@ describe("collectRelevancyNegativeKeywords", () => {
     expect(keywords).toHaveLength(2);
     expect(keywords[0]).toMatchObject({ scope: "campaign", campaigns: ["Generic"], campaignRegex: "Generic|Search" });
     expect(keywords[1]).toMatchObject({ scope: "ad_group", adGroupName: "Brand Ad Group" });
+  });
+
+  it("compacts repeated defaults and match-all campaign arrays before sending upstream", () => {
+    const keywords = collectRelevancyNegativeKeywords([
+      {
+        scope: "campaign",
+        campaigns: [
+          { campaignName: "Campaign A" },
+          { campaignName: "Campaign B" },
+        ],
+        campaignRegex: ".*",
+        relevancyExclusion: "none",
+        keywords: [{ keyword: "irrelevant query", matchType: "phrase" }],
+      },
+    ]);
+
+    expect(compactRelevancyNegativeKeywordsForRequest(keywords)).toEqual([
+      {
+        text: "irrelevant query",
+        matchType: "PHRASE",
+        scope: "campaign",
+        campaignRegex: ".*",
+      },
+    ]);
   });
 });

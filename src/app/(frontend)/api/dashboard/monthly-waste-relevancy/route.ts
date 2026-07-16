@@ -54,10 +54,17 @@ export async function GET(req: NextRequest) {
     monthsBack,
   );
 
-  // If the upstream config is missing entirely, return the empty shape so
-  // the dashboard falls back gracefully (matches the pre-cache behaviour).
-  if (result.error === "missing upstream config" && result.cache.size === 0) {
-    return NextResponse.json({ success: false, monthsBack, monthly: [] });
+  // Never turn an upstream failure with an empty cache into one synthetic
+  // zero-valued row per month. The Progress tab interprets those rows as real
+  // history and reports 100% relevancy. An empty array keeps the existing
+  // fallback active until a successful refresh populates the cache.
+  if (result.error && result.cache.size === 0) {
+    return NextResponse.json({
+      success: false,
+      stale: true,
+      monthsBack,
+      monthly: [],
+    });
   }
 
   const built = buildMonthlyWasteRelevancyResponse(result);

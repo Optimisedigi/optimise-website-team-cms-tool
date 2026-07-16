@@ -124,6 +124,31 @@ export function collectRelevancyNegativeKeywords(nkls: any[]): RelevancyNegative
   return irrelevantKeywords;
 }
 
+type RelevancyNegativeKeywordRequest = Pick<RelevancyNegativeKeyword, "text" | "matchType"> &
+  Partial<Pick<RelevancyNegativeKeyword, "exclusion" | "scope" | "campaigns" | "campaignRegex" | "adGroupName">>;
+
+/**
+ * Keep large NKL requests below Growth Tools' JSON body limit. Default values
+ * are restored by Growth Tools, so repeating them for every keyword only wastes
+ * bytes. A `.*` campaign regex already matches every campaign, making the
+ * accompanying campaign-name array redundant as well.
+ */
+export function compactRelevancyNegativeKeywordsForRequest(
+  keywords: RelevancyNegativeKeyword[],
+): RelevancyNegativeKeywordRequest[] {
+  return keywords.map((keyword) => ({
+    text: keyword.text,
+    matchType: keyword.matchType,
+    ...(keyword.exclusion !== "none" ? { exclusion: keyword.exclusion } : {}),
+    ...(keyword.scope !== "account" ? { scope: keyword.scope } : {}),
+    ...(keyword.campaigns.length > 0 && keyword.campaignRegex !== ".*"
+      ? { campaigns: keyword.campaigns }
+      : {}),
+    ...(keyword.campaignRegex ? { campaignRegex: keyword.campaignRegex } : {}),
+    ...(keyword.adGroupName ? { adGroupName: keyword.adGroupName } : {}),
+  }));
+}
+
 /**
  * Pull NKLs (the "currently irrelevant" term set), compute misses against
  * the cache, refresh missing months from Growth Tools, and return the
@@ -283,7 +308,7 @@ export async function warmMonthlyWasteRelevancyForClient(
           customerId: cleanCustomerId,
           // Preferred: structured negatives with match types so Growth Tools
           // applies true EXACT/PHRASE/BROAD matching.
-          irrelevantKeywords,
+          irrelevantKeywords: compactRelevancyNegativeKeywordsForRequest(irrelevantKeywords),
           // Legacy field kept for older Growth Tools deploys (treated as BROAD).
           irrelevantTerms,
           brandKeywords,
