@@ -1135,33 +1135,35 @@ min-height: 100vh;
 }
 
 /* Slide 18 (ad creatives) — show the FULL ad, never cropped. `contain` keeps
-   the whole creative visible; the max-heights keep the popover inside the
-   1080px-tall slide window. */
+   the whole creative visible. The slide is a fixed 1920×1080 box scaled to the
+   window, so bounding the popover within the slide == bounding it within the
+   window at any browser size. The popover opens upward from a row, and the
+   top-most ad row leaves ~500px of headroom to the slide top — so the whole
+   popover is capped below that so it can never run off the top of the window. */
+[data-label="18 Paid Activation"] .v2-comp-thumb {
+  width: 480px;
+  max-height: 480px;
+}
 [data-label="18 Paid Activation"] .v2-comp-thumb img {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 760px;
+  max-height: 460px;
   object-fit: contain;
 }
 
-/* Paid Activation single ad — widen so a portrait Facebook card reads clearly. */
-[data-label="18 Paid Activation"] .v2-comp-thumb {
-  width: 520px;
-}
-
 /* Paid Activation multiple ads — tile the first few in a 2-column grid. Each
-   cell shows its full creative (contain), sized so a 2x2 grid still fits. */
+   cell shows its full creative (contain); the whole grid stays within the
+   480px popover cap so a 2×2 grid never overflows the window. */
 [data-label="18 Paid Activation"] .v2-comp-thumb--grid {
-  width: 680px;
-  max-width: 80vw;
+  width: 620px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   padding: 6px;
 }
 [data-label="18 Paid Activation"] .v2-comp-thumb--grid img {
-  max-height: 360px;
+  max-height: 224px;
   border-radius: 6px;
 }
 [data-label="09 Competitor Analysis"] .v2-comp-domain:hover .v2-comp-thumb,
