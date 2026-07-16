@@ -1149,7 +1149,10 @@ min-height: 100vh;
   border-radius: 6px;
 }
 [data-label="09 Competitor Analysis"] .v2-comp-domain:hover .v2-comp-thumb,
-[data-label="18 Paid Activation"] .v2-comp-domain:hover .v2-comp-thumb {
+[data-label="18 Paid Activation"] .v2-comp-domain:hover .v2-comp-thumb,
+/* Paid Activation: hovering anywhere on the row (incl. the active-ad count)
+   reveals the ad previews, not just the domain text. */
+[data-label="18 Paid Activation"] .v2-comp-adrow:hover .v2-comp-thumb {
   opacity: 1;
   visibility: visible;
   transform: translateY(0) scale(1);

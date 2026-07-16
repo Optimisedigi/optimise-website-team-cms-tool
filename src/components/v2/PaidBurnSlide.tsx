@@ -162,6 +162,7 @@ function AdCard({
           {rows.map((row, i) => (
             <li
               key={`${row.domain}-${i}`}
+              className="v2-comp-adrow"
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
