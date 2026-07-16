@@ -26,6 +26,7 @@ import { getDashboardEmailComponents } from "./tools/get-dashboard-email-compone
 import { getWeeklyTrendNote } from "./tools/get-weekly-trend-note";
 import { getWeeklyMetricTable } from "./tools/get-weekly-metric-table";
 import { getMonthlyMetricTable } from "./tools/get-monthly-metric-table";
+import { getKeywordIdeas } from "./tools/get-keyword-ideas";
 import { growthToolsRead } from "./tools/growth-tools-read";
 import { createGmailDraftTool } from "./tools/create-gmail-draft";
 import { createWeeklyBudgetGmailDraftTool } from "./tools/create-weekly-budget-gmail-draft";
@@ -201,6 +202,7 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
     getDashboardEmailComponents as unknown as CanonicalTool<unknown>,
     getWeeklyMetricTable as unknown as CanonicalTool<unknown>,
     getMonthlyMetricTable as unknown as CanonicalTool<unknown>,
+    getKeywordIdeas as unknown as CanonicalTool<unknown>,
     growthToolsRead as unknown as CanonicalTool<unknown>,
     getWeeklyTrendNote as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
@@ -269,7 +271,7 @@ function applyToolRestrictions(
 }
 
 const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown>[]> = {
-  performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, growthToolsRead, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
+  performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, getKeywordIdeas, growthToolsRead, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
   negative_keywords: [getSearchTerms, getNegativeKeywordLists, proposeNegativeKeywords, proposeNklCreate, proposeNklUpdate, proposeNklPushLive] as unknown as CanonicalTool<unknown>[],
   budget_email: [createWeeklyBudgetGmailDraftTool, createMonthlyBudgetGmailDraftTool, getBudgetManagementEmail, getDashboardEmailComponents, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool, proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
   ad_copy: [getAdAssetPerformance, proposeAdCopyGenerate, proposeAdCopyDeploy] as unknown as CanonicalTool<unknown>[],
@@ -326,7 +328,7 @@ function detectInitialToolBundles(messages: Message[]): GoogleMateToolBundleName
   addIf("scheduled_tasks", /schedule|scheduled task|remind|recurring|cron/);
   addIf("decks", /deck|slides|stakeholder|presentation|template/);
   addIf("actions", /\b(apply|execute|create|update|pause|enable|publish|deploy|push|set up|setup|make live|go live)\b|audience|key event|gtm|tag manager|tag|trigger|variable/);
-  addIf("performance", /performance|campaign|ad group|metric|cpa|roas|conversion|click|impression|ctr|cpc|weekly|monthly|trend/);
+  addIf("performance", /performance|campaign|ad group|metric|cpa|roas|conversion|click|impression|ctr|cpc|weekly|monthly|trend|keyword planner|keyword idea|search volume|keyword research/);
   return Array.from(bundles);
 }
 

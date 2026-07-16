@@ -181,6 +181,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   get_dashboard_email_components: "read-google-ads",
   get_weekly_metric_table: "read-google-ads",
   get_monthly_metric_table: "read-google-ads",
+  get_keyword_ideas: "read-google-ads",
   growth_tools_read: "read-google-ads",
   get_weekly_trend_note: "read-google-ads",
 
