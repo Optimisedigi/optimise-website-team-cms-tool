@@ -121,6 +121,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // chart's wasteRate / relevancy lines reflect actual historical search-
   // term spend per month against today's NKL.
   const [monthlyWasteRelevancy, setMonthlyWasteRelevancy] = useState<GoogleAdsDashboardMonthlyWasteRelevancy[] | null>(null);
+  const [relevancyNegativeKeywordCount, setRelevancyNegativeKeywordCount] = useState<number | null>(null);
   // Avoided-spend (negative keyword value) data — fetched once on mount when
   // both clientId and customerId are available. Stays null otherwise so the
   // Progress tab gracefully hides the section.
@@ -266,6 +267,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       .then((data) => {
         if (data?.success && Array.isArray(data.monthly)) {
           setMonthlyWasteRelevancy(data.monthly);
+          if (typeof data.irrelevantTermCount === "number") setRelevancyNegativeKeywordCount(data.irrelevantTermCount);
         }
       })
       .catch(() => {});
@@ -975,8 +977,10 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             // "This month" on the 1st collapses the chart to a single point.
             <ProgressTab
               monthlyTrend={chartTrendMonths}
+              range={range}
               budgetWasters={data.budgetWasters}
               irrelevantTerms={data.irrelevantTerms}
+              relevancyNegativeKeywordCount={relevancyNegativeKeywordCount ?? undefined}
               kpis={data.kpis}
               avoidedSpend={avoidedSpend}
               trendBudgetWasters={trendBudgetWasters ?? undefined}

@@ -11,11 +11,15 @@ import type {
 
 interface ProgressTabProps {
   monthlyTrend: GoogleAdsDashboardMonthly[];
+  /** Active dashboard range, used to aggregate the matching monthly NKL buckets. */
+  range?: string;
   budgetWasters: GoogleAdsDashboardSearchTerm[];
-  /** Terms the team or client flagged as irrelevant (deep-dive submits, NKL
-   *  members surfaced as having recent spend). Used by the Keyword Relevancy
-   *  metric — spend on these terms counts against the relevancy rate. */
+  /** Search terms from the upstream deep-dive response are not the NKL set;
+   *  they remain useful for the review table but are not used for this metric
+   *  once monthly NKL-backed data is available. */
   irrelevantTerms: GoogleAdsDashboardSearchTerm[];
+  /** Number of active NKL keywords included in the historical calculation. */
+  relevancyNegativeKeywordCount?: number;
   kpis: GoogleAdsDashboardKpis;
   /** "Estimated Avoided Spend" data for the negative keyword value section.
    *  Null until the dashboard fetch resolves; gated on clientId + customerId
@@ -559,8 +563,10 @@ const METRIC_ORDER: ProgressMetric[] = ["spend", "conversions", "cpa", "wasteRat
 
 export function ProgressTab({
   monthlyTrend,
+  range = "this_month",
   budgetWasters,
   irrelevantTerms,
+  relevancyNegativeKeywordCount,
   kpis,
   avoidedSpend,
   trendBudgetWasters,
@@ -585,12 +591,12 @@ export function ProgressTab({
   }, []);
 
   const [clearingCache, setClearingCache] = useState(false);
-  // Brand / low-relevancy negatives are excluded from the relevancy % by
-  // default; competitor negatives are folded in by default (toggle off to
-  // exclude). Toggling folds each bucket in/out of the metric, useful when
-  // showing a client the full picture.
+  // Competitor and brand negatives affect the relevancy % by default and can
+  // be toggled off. Low-relevancy and routing-only negatives remain excluded
+  // unless explicitly folded in. Toggling folds each bucket in/out of the
+  // metric, useful when showing a client the full picture.
   const [includeCompetitor, setIncludeCompetitor] = useState(true);
-  const [includeBrand, setIncludeBrand] = useState(false);
+  const [includeBrand, setIncludeBrand] = useState(true);
   const [includeLowRelevancy, setIncludeLowRelevancy] = useState(false);
   const handleClearRelevancyCache = useCallback(async () => {
     if (!clientId) return;
@@ -649,28 +655,49 @@ export function ProgressTab({
   // against relevancy until someone reviews and flags it. Brand searches
   // sit outside the metric entirely (you don't negate your own brand) so
   // the rate reflects acquisition / generic spend quality only.
+  // Keyword Relevancy is authoritative when the NKL-backed monthly pull has
+  // loaded. The dashboard search-term list is a heuristic review list (top
+  // low-CTR terms), not the client's active NKLs, so using it here made the
+  // card disagree with the graph and undercounted accounts with many NKLs.
   const totalSpend = kpis.spend ?? 0;
-  const irrelevantSpend = irrelevantTerms.reduce((s, t) => s + t.spend, 0);
-  // Approximate the period's brand share from the trend-window cached
-  // monthly data. Imperfect when the selected range differs heavily from
-  // the 14-month window, but matches how the chart line is computed.
-  const trendBrandTotal = (monthlyWasteRelevancy || []).reduce(
-    (s, m) => s + (m.brandSpend || 0),
-    0,
+  const historicalRows = (() => {
+    if (!monthlyWasteRelevancy?.length) return [];
+    const monthCount = { this_month: 1, last_3_months: 3, last_6_months: 6, last_12_months: 12 }[range];
+    return monthCount ? monthlyWasteRelevancy.slice(-monthCount) : monthlyWasteRelevancy;
+  })();
+  const historicalAggregate = historicalRows.reduce(
+    (total, row) => ({
+      totalSpend: total.totalSpend + (row.totalSpend || 0),
+      brandSpend: total.brandSpend + (row.brandSpend || 0),
+      irrelevantSpend: total.irrelevantSpend + (row.irrelevantSpend || 0),
+      competitorExcludedSpend: total.competitorExcludedSpend + (row.competitorExcludedSpend || 0),
+      brandExcludedSpend: total.brandExcludedSpend + (row.brandExcludedSpend || 0),
+      lowRelevancyExcludedSpend: total.lowRelevancyExcludedSpend + (row.lowRelevancyExcludedSpend || 0),
+    }),
+    { totalSpend: 0, brandSpend: 0, irrelevantSpend: 0, competitorExcludedSpend: 0, brandExcludedSpend: 0, lowRelevancyExcludedSpend: 0 },
   );
-  const trendTotalForBrand = (monthlyWasteRelevancy || []).reduce(
-    (s, m) => s + (m.totalSpend || 0),
-    0,
-  );
-  const brandRatio =
-    trendTotalForBrand > 0 ? Math.min(0.95, trendBrandTotal / trendTotalForBrand) : 0;
+  const historicalBrandRatio = historicalAggregate.totalSpend > 0
+    ? Math.min(0.95, historicalAggregate.brandSpend / historicalAggregate.totalSpend)
+    : null;
+  const brandRatio = historicalBrandRatio ?? 0;
   const periodBrandSpend = totalSpend * brandRatio;
   const periodNonBrandSpend = Math.max(0, totalSpend - periodBrandSpend);
-  const relevancyDenominator = periodNonBrandSpend > 0 ? periodNonBrandSpend : totalSpend;
+  const fallbackIrrelevantSpend = irrelevantTerms.reduce((s, t) => s + t.spend, 0);
+  const historicalCountedIrrelevant = historicalRows.length > 0
+    ? historicalAggregate.irrelevantSpend
+      + (includeCompetitor ? historicalAggregate.competitorExcludedSpend : 0)
+      + (includeBrand ? historicalAggregate.brandExcludedSpend : 0)
+      + (includeLowRelevancy ? historicalAggregate.lowRelevancyExcludedSpend : 0)
+    : null;
+  const irrelevantSpend = historicalCountedIrrelevant ?? fallbackIrrelevantSpend;
+  const relevancyDenominator = historicalRows.length > 0 && historicalAggregate.totalSpend > 0
+    ? Math.max(0, historicalAggregate.totalSpend - historicalAggregate.brandSpend)
+    : periodNonBrandSpend > 0 ? periodNonBrandSpend : totalSpend;
   const relevancyRate =
     relevancyDenominator > 0
       ? Math.max(0, Math.min(100, ((relevancyDenominator - irrelevantSpend) / relevancyDenominator) * 100))
       : null;
+  const activeNegativeCount = relevancyNegativeKeywordCount ?? irrelevantTerms.length;
 
   // Fallback aggregates — used only when the per-month historical data
   // (monthlyWasteRelevancy) hasn't loaded yet. Falls back further to
@@ -839,9 +866,9 @@ export function ProgressTab({
           hint={
             relevancyRate == null
               ? "The share of your budget that reached relevant searches. We set aside people searching for your brand name (always a good match) and look at the rest. We'll start tracking this once spend data is available."
-              : irrelevantTerms.length === 0
+              : activeNegativeCount === 0
                 ? `The share of your budget that reached relevant searches \u2014 higher is better. We set aside people searching for your brand name (always a good match) and look at the rest. ${brandRatio > 0 ? `Right now about ${Math.round(brandRatio * 100)}% of total spend is brand searches. ` : ""}No searches have been marked as a poor match yet \u2014 the team reviews these regularly to keep the figure accurate.`
-                : `The share of your budget that reached relevant searches \u2014 higher is better. We set aside people searching for your brand name (always a good match) and look at the rest. ${brandRatio > 0 ? `About ${Math.round(brandRatio * 100)}% of total spend is brand searches and isn't counted here. ` : ""}Right now $${Math.round(irrelevantSpend).toLocaleString()} across ${irrelevantTerms.length} search term${irrelevantTerms.length !== 1 ? "s" : ""} went to poor matches \u2014 about ${(100 - relevancyRate).toFixed(0)}% of the non-brand budget. As the team blocks these search terms, less budget is wasted on them and this figure rises in the next reporting period.`
+                : `The share of your budget that reached relevant searches \u2014 higher is better. We set aside people searching for your brand name (always a good match) and look at the rest. ${brandRatio > 0 ? `About ${Math.round(brandRatio * 100)}% of total spend is brand searches and isn't counted here. ` : ""}Right now $${Math.round(irrelevantSpend).toLocaleString()} across ${activeNegativeCount} active negative keyword${activeNegativeCount !== 1 ? "s" : ""} went to poor matches \u2014 about ${(100 - relevancyRate).toFixed(0)}% of the non-brand budget. As the team blocks these search terms, less budget is wasted on them and this figure rises in the next reporting period.`
           }
         />
         <StatCard
@@ -880,7 +907,7 @@ export function ProgressTab({
               <button
                 type="button"
                 onClick={() => setIncludeCompetitor((v) => !v)}
-                title="Fold competitor-negative spend back into Keyword Relevancy %. Off by default — competitor terms are blocked but not counted as irrelevant."
+                title="Include competitor-negative spend in Keyword Relevancy %. On by default; turn off to exclude competitor terms from the score."
                 className={`text-[11px] font-medium px-2 py-1 rounded border transition-colors ${
                   includeCompetitor
                     ? "bg-violet-50 text-violet-700 border-violet-300"
@@ -894,7 +921,7 @@ export function ProgressTab({
               <button
                 type="button"
                 onClick={() => setIncludeBrand((v) => !v)}
-                title="Fold brand-negative spend back into Keyword Relevancy %. Off by default."
+                title="Include brand-negative spend in Keyword Relevancy %. On by default; turn off to exclude brand terms from the score."
                 className={`text-[11px] font-medium px-2 py-1 rounded border transition-colors ${
                   includeBrand
                     ? "bg-violet-50 text-violet-700 border-violet-300"

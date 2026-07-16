@@ -197,10 +197,12 @@ export const NegativeKeywordLists: CollectionConfig = {
           const setsDiffer = prevSet.size !== nextSet.size || [...nextSet].some((k) => !prevSet.has(k));
           // Changing the relevancy-exclusion tag re-buckets this list's spend
           // (normal vs competitor vs brand) without touching keywords, so it
-          // must also invalidate the cache.
+          // must also invalidate the cache. Activating/deactivating a list
+          // changes the set sent upstream just as materially.
           const exclusionChanged =
             (previousDoc?.relevancyExclusion ?? "none") !== (doc?.relevancyExclusion ?? "none");
-          if (clientId && (setsDiffer || exclusionChanged)) {
+          const activeChanged = previousDoc?.isActive !== doc?.isActive;
+          if (clientId && (setsDiffer || exclusionChanged || activeChanged)) {
             await req.payload.delete({
               collection: "negative-keyword-monthly-waste-relevancy-cache",
               where: { client: { equals: clientId } },
@@ -498,7 +500,7 @@ export const NegativeKeywordLists: CollectionConfig = {
           admin: {
             width: "50%",
             description:
-              "Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor', 'brand', or 'low relevancy' for negatives that are excluded by default but can be toggled back on in the dashboard. Low relevancy means the traffic can convert, just at a lower rate. Choose 'routing only' for fully relevant negatives used only to steer spend to the correct campaign/ad group. The keywords are still synced to Google Ads regardless. Tip: use the dashboard '?' tooltip beside Low relevancy for the short client-facing explanation.",
+              "Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Competitor and brand negatives are included by default but can be toggled off in the dashboard. Low relevancy means the traffic can convert, just at a lower rate, and is excluded by default. Choose 'routing only' for fully relevant negatives used only to steer spend to the correct campaign/ad group. The keywords are still synced to Google Ads regardless. Tip: use the dashboard '?' tooltip beside Low relevancy for the short client-facing explanation.",
           },
         },
       ],

@@ -51,6 +51,9 @@ type RelevancyNegativeKeyword = {
   text: string;
   matchType: "EXACT" | "PHRASE" | "BROAD";
   exclusion: "none" | "competitor" | "brand" | "low_relevancy";
+  scope: "account" | "campaign" | "ad_group";
+  campaigns: string[];
+  adGroupName: string | null;
 };
 
 export function collectRelevancyNegativeKeywords(nkls: any[]): RelevancyNegativeKeyword[] {
@@ -58,12 +61,11 @@ export function collectRelevancyNegativeKeywords(nkls: any[]): RelevancyNegative
   // a structured matchType (exact/phrase/broad); forwarding it lets Growth
   // Tools apply true Google Ads match semantics instead of substring-matching
   // every term as BROAD (which over-credits irrelevant spend and craters the
-  // relevancy %). Dedup on (text|matchType|exclusion).
-  const seen = new Set<string>();
+  // relevancy %). Dedup identical text/match/scope entries, keeping the strongest classification.
   const irrelevantKeywords: RelevancyNegativeKeyword[] = [];
   for (const list of nkls) {
-    // Lists tagged competitor/brand/low_relevancy are kept OUT of the default
-    // relevancy % (foldable back in via dashboard toggles). "none" lists
+    // Lists tagged competitor/brand/low_relevancy are bucketed separately so
+    // the dashboard can include or exclude them via toggles. "none" lists
     // count normally. "routing_only" lists are fully relevant negatives used
     // only to steer spend to the correct campaign/ad group, so they are not
     // sent to Growth Tools as relevancy negatives at all.
@@ -77,10 +79,42 @@ export function collectRelevancyNegativeKeywords(nkls: any[]): RelevancyNegative
       const mt = String(kw?.matchType ?? "").toUpperCase();
       const matchType: "EXACT" | "PHRASE" | "BROAD" =
         mt === "EXACT" || mt === "PHRASE" || mt === "BROAD" ? mt : "EXACT";
-      const dedupKey = `${text.toLowerCase()}|${matchType}|${listExclusion}`;
-      if (seen.has(dedupKey)) continue;
-      seen.add(dedupKey);
-      irrelevantKeywords.push({ text, matchType, exclusion: listExclusion });
+      const scopeValue = String(list?.scope ?? "account").toLowerCase();
+      const scope: "account" | "campaign" | "ad_group" =
+        scopeValue === "campaign" || scopeValue === "ad_group" ? scopeValue : "account";
+      const campaigns = Array.isArray(list?.campaigns)
+        ? list.campaigns.map((campaign: any) => String(campaign?.campaignName ?? "").trim()).filter(Boolean)
+        : [];
+      const legacyCampaign = String(list?.campaignName ?? "").trim();
+      if (legacyCampaign && !campaigns.includes(legacyCampaign)) campaigns.push(legacyCampaign);
+      const adGroupName = typeof list?.adGroupName === "string" ? list.adGroupName.trim() || null : null;
+      const sameScope = (item: RelevancyNegativeKeyword) =>
+        item.scope === scope
+        && item.adGroupName === adGroupName
+        && item.campaigns.length === campaigns.length
+        && item.campaigns.every((campaign) => campaigns.includes(campaign));
+      const existingIndex = irrelevantKeywords.findIndex(
+        (item) => item.text.toLowerCase() === text.toLowerCase() && item.matchType === matchType && sameScope(item),
+      );
+      if (existingIndex >= 0) {
+        // A keyword can be present in multiple NKLs. Keep the strongest
+        // classification so a normal list cannot be hidden by an excluded list,
+        // and avoid sending duplicate matchers upstream.
+        const existing = irrelevantKeywords[existingIndex]!;
+        const priority = { none: 0, competitor: 1, brand: 2, low_relevancy: 3 };
+        if (priority[listExclusion] < priority[existing.exclusion]) {
+          irrelevantKeywords[existingIndex] = { ...existing, text, exclusion: listExclusion };
+        }
+        continue;
+      }
+      irrelevantKeywords.push({
+        text,
+        matchType,
+        exclusion: listExclusion,
+        scope,
+        campaigns,
+        adGroupName,
+      });
     }
   }
   return irrelevantKeywords;
