@@ -211,6 +211,13 @@ export async function warmMonthlyWasteRelevancyForClient(
         continue;
       }
     }
+    // Category-bucket backfill: rows written before competitor/brand/low-
+    // relevancy buckets existed have undefined fields, which made the dashboard
+    // hide the toggles and silently omit that spend. Refetch those rows once.
+    if (row.competitorExcludedSpend == null || row.brandExcludedSpend == null || row.lowRelevancyExcludedSpend == null) {
+      missingMonths.push(m);
+      continue;
+    }
     // Brand-spend backfill: refetch any past row whose fetchedAt predates
     // the brand_spend column deploy AND the client now has brand keywords
     // configured. One-time per row — once refetched, fetchedAt advances
