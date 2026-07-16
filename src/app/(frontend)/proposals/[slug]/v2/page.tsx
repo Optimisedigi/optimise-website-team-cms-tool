@@ -545,6 +545,9 @@ export async function ProposalReportV2PageContent({
             proposalWebsiteUrl={p.websiteUrl ?? null}
             competitorAnalysis={buildCompetitorAnalysisForSlide(competitorAnalysisDoc)}
             proposalCompetitors={filteredProposalCompetitors}
+            overrideMonthlyVisits={p.overrideMonthlyVisits ?? null}
+            overrideAvgPosition={p.overrideAvgPosition ?? null}
+            overrideKeywordsFound={p.overrideKeywordsFound ?? null}
           />
         )}
 
@@ -848,8 +851,8 @@ type RawCompetitorProfile = {
   domain?: string | null
   manualMonthlyVisits?: number | string | null
   traffic?: TrafficData
-  googleAds?: { isRunningAds?: boolean | null; adCount?: number | null } | null
-  metaAds?: { isRunningAds?: boolean | null; activeAdCount?: number | null } | null
+  googleAds?: { isRunningAds?: boolean | null; adCount?: number | null; adScreenshots?: string[] | null } | null
+  metaAds?: { isRunningAds?: boolean | null; activeAdCount?: number | null; adScreenshots?: string[] | null } | null
   avgPosition?: number | null
   averagePosition?: number | null
   keywordsFound?: number | null
@@ -1155,8 +1158,13 @@ function buildCompetitorAnalysisForPaidBurn(
             activeAdCount: c.metaAds.activeAdCount ?? null,
           }
         : null,
-      manualGoogleAdScreenshotUrls: c?.manualGoogleAdScreenshotUrls,
-      manualMetaAdScreenshotUrls: c?.manualMetaAdScreenshotUrls,
+      // Manual uploads override scraped creatives (see field description);
+      // fall back to the Meta/Google Ad Library screenshots the audit captured
+      // so the Paid Activation hover shows real ads without a manual upload.
+      manualGoogleAdScreenshotUrls:
+        c?.manualGoogleAdScreenshotUrls ?? c?.googleAds?.adScreenshots ?? undefined,
+      manualMetaAdScreenshotUrls:
+        c?.manualMetaAdScreenshotUrls ?? c?.metaAds?.adScreenshots ?? undefined,
     }))
 
   for (const competitor of manualCompetitors) {

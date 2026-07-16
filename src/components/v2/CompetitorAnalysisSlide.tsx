@@ -104,12 +104,31 @@ export function CompetitorAnalysisSlide({
   proposalWebsiteUrl,
   competitorAnalysis,
   proposalCompetitors,
+  overrideMonthlyVisits,
+  overrideAvgPosition,
+  overrideKeywordsFound,
 }: {
   proposalWebsiteUrl: string | null
   competitorAnalysis: CompetitorAnalysisLike
   proposalCompetitors: ProposalCompetitor[] | null
+  overrideMonthlyVisits?: number | null
+  overrideAvgPosition?: number | null
+  overrideKeywordsFound?: number | null
 }): ReactElement {
-  const yourProfile = competitorAnalysis?.yourProfile ?? null
+  const rawYourProfile = competitorAnalysis?.yourProfile ?? null
+  // Client-level overrides from the proposal win over the fetched "you" data.
+  const yourProfile: CompetitorProfile | null = rawYourProfile
+    ? {
+        ...rawYourProfile,
+        manualMonthlyVisits:
+          overrideMonthlyVisits ?? rawYourProfile.manualMonthlyVisits ?? null,
+        avgPosition: overrideAvgPosition ?? rawYourProfile.avgPosition ?? null,
+        averagePosition:
+          overrideAvgPosition ?? rawYourProfile.averagePosition ?? null,
+        keywordsFound:
+          overrideKeywordsFound ?? rawYourProfile.keywordsFound ?? null,
+      }
+    : null
   const competitors = competitorAnalysis?.competitors ?? []
 
   // Sort automated competitors by monthly visits descending.
@@ -150,6 +169,19 @@ export function CompetitorAnalysisSlide({
 
   const allCompetitors = [...sortedAutomated, ...manualOnly]
 
+  // Hide the Avg. position / Keywords columns entirely when no row (you or any
+  // competitor) has data for them — leaving Domain, Monthly visits, Google ads
+  // and Meta ads only.
+  const rowPos = (c: CompetitorProfile | null | undefined): number | null =>
+    c?.avgPosition ?? c?.averagePosition ?? null
+  const rowKeywords = (c: CompetitorProfile | null | undefined): number | null =>
+    c?.keywordsFound ?? null
+  const showAvgPosition =
+    rowPos(yourProfile) != null || allCompetitors.some((c) => rowPos(c) != null)
+  const showKeywords =
+    rowKeywords(yourProfile) != null ||
+    allCompetitors.some((c) => rowKeywords(c) != null)
+
   const yourDomain = yourProfile?.domain || domainFromUrl(proposalWebsiteUrl)
   return (
     <section className="slide" data-label="09 Competitor Analysis">
@@ -169,8 +201,12 @@ export function CompetitorAnalysisSlide({
           <tr>
             <th>Domain</th>
             <th className="num" style={{ textAlign: 'right' }}>Monthly visits</th>
-            <th className="num" style={{ textAlign: 'right' }}>Avg. position</th>
-            <th className="num" style={{ textAlign: 'right' }}>Keywords</th>
+            {showAvgPosition && (
+              <th className="num" style={{ textAlign: 'right' }}>Avg. position</th>
+            )}
+            {showKeywords && (
+              <th className="num" style={{ textAlign: 'right' }}>Keywords</th>
+            )}
             <th>Google ads</th>
             <th>Meta ads</th>
           </tr>
@@ -182,10 +218,10 @@ export function CompetitorAnalysisSlide({
                 <span className="v2-comp-domain">
                   {yourDomain ? (
                     <a
+                      className="v2-comp-link"
                       href={`https://${yourDomain}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: 'inherit', textDecoration: 'none' }}
                     >
                       {yourDomain}
                     </a>
@@ -205,16 +241,16 @@ export function CompetitorAnalysisSlide({
                 <span className="you-tag">You</span>
               </td>
               <td className="num" style={{ textAlign: 'right' }}>{formatVisits(yourProfile)}</td>
-              <td className="num" style={{ textAlign: 'right' }}>
-                {yourProfile.avgPosition != null
-                  ? `#${yourProfile.avgPosition}`
-                  : yourProfile.averagePosition != null
-                    ? `#${yourProfile.averagePosition}`
-                    : ''}
-              </td>
-              <td className="num" style={{ textAlign: 'right' }}>
-                {yourProfile.keywordsFound ?? ''}
-              </td>
+              {showAvgPosition && (
+                <td className="num" style={{ textAlign: 'right' }}>
+                  {rowPos(yourProfile) != null ? `#${rowPos(yourProfile)}` : ''}
+                </td>
+              )}
+              {showKeywords && (
+                <td className="num" style={{ textAlign: 'right' }}>
+                  {yourProfile.keywordsFound ?? ''}
+                </td>
+              )}
               <td className={yourProfile.googleAds?.isRunningAds ? 'ok' : 'no'}>
                 {yourProfile.googleAds?.isRunningAds ? 'Yes' : 'No'}
               </td>
@@ -232,10 +268,10 @@ export function CompetitorAnalysisSlide({
                   <span className="v2-comp-domain">
                     {c.domain ? (
                       <a
+                        className="v2-comp-link"
                         href={`https://${c.domain.replace(/^https?:\/\//, '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: 'inherit', textDecoration: 'none' }}
                       >
                         {c.domain}
                       </a>
@@ -253,12 +289,16 @@ export function CompetitorAnalysisSlide({
                 <td className="num" style={{ textAlign: 'right' }}>
                   {formatVisits(c)}
                 </td>
-                <td className="num" style={{ textAlign: 'right' }}>
-                  {pos != null ? `#${pos}` : ''}
-                </td>
-                <td className="num" style={{ textAlign: 'right' }}>
-                  {c.keywordsFound ?? ''}
-                </td>
+                {showAvgPosition && (
+                  <td className="num" style={{ textAlign: 'right' }}>
+                    {pos != null ? `#${pos}` : ''}
+                  </td>
+                )}
+                {showKeywords && (
+                  <td className="num" style={{ textAlign: 'right' }}>
+                    {c.keywordsFound ?? ''}
+                  </td>
+                )}
                 <td className={c.googleAds?.isRunningAds ? 'ok' : 'no'}>
                   {c.googleAds?.isRunningAds ? 'Yes' : 'No'}
                 </td>

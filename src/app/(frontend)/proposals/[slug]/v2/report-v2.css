@@ -1134,11 +1134,41 @@ min-height: 100vh;
   object-fit: cover;
   object-position: top;
 }
+
+/* Paid Activation only — when a competitor has more than one ad creative,
+   tile the first few in a small 2-column grid instead of a single image. */
+[data-label="18 Paid Activation"] .v2-comp-thumb--grid {
+  width: 460px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+}
+[data-label="18 Paid Activation"] .v2-comp-thumb--grid img {
+  max-height: 150px;
+  border-radius: 6px;
+}
 [data-label="09 Competitor Analysis"] .v2-comp-domain:hover .v2-comp-thumb,
 [data-label="18 Paid Activation"] .v2-comp-domain:hover .v2-comp-thumb {
   opacity: 1;
   visibility: visible;
   transform: translateY(0) scale(1);
+}
+
+/* Competitor domain links read as plain text until hovered, then turn blue
+   with an underline so it's obvious each name is clickable. */
+[data-label="09 Competitor Analysis"] .v2-comp-link,
+[data-label="18 Paid Activation"] .v2-comp-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+[data-label="09 Competitor Analysis"] .v2-comp-link:hover,
+[data-label="18 Paid Activation"] .v2-comp-link:hover {
+  color: var(--purple-deep, #0066FF);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* Closing-slide "Download PDF" button. Sits bottom-right on the closing

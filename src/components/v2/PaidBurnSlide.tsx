@@ -39,8 +39,11 @@ type CompetitorAnalysisLike = {
 type AdRow = {
   domain: string
   count: number
-  screenshotUrl: string | null
+  screenshotUrls: string[]
 }
+
+// Cap the hover preview at four creatives — a small 2x2 stack, no more.
+const MAX_PREVIEWS = 4
 
 // Curated category fallback screenshots living in /public/v2/paid-activation/.
 // File names are stable so the team can swap the source images without code
@@ -72,23 +75,23 @@ function adCount(ads: AdsInfo, key: 'google' | 'meta'): number {
   return typeof raw === 'number' && raw > 0 ? raw : 0
 }
 
-function pickScreenshot(
+function pickScreenshots(
   c: CompetitorProfile,
   domain: string,
   kind: 'google' | 'meta',
-): string | null {
-  // 1. Manual upload wins — first image only (matches competitor-analysis
-  //    slide's single-thumbnail pattern).
+): string[] {
+  // 1. Manual uploads / scraped creatives win — show up to MAX_PREVIEWS in a
+  //    small stack. If there's only one, only one is shown.
   const manual =
     kind === 'google'
       ? c.manualGoogleAdScreenshotUrls
       : c.manualMetaAdScreenshotUrls
-  if (manual && manual.length > 0) return manual[0]
+  if (manual && manual.length > 0) return manual.slice(0, MAX_PREVIEWS)
 
-  // 2. Curated fallback, deterministic per-domain.
+  // 2. Single curated fallback, deterministic per-domain.
   const pool = kind === 'google' ? FALLBACK_GOOGLE : FALLBACK_META
-  if (pool.length === 0) return null
-  return pool[hashIndex(`${kind}:${domain}`, pool.length)]
+  if (pool.length === 0) return []
+  return [pool[hashIndex(`${kind}:${domain}`, pool.length)]]
 }
 
 function collectAdRows(
@@ -107,7 +110,7 @@ function collectAdRows(
     rows.push({
       domain,
       count: adCount(ads, kind),
-      screenshotUrl: pickScreenshot(c, domain, kind),
+      screenshotUrls: pickScreenshots(c, domain, kind),
     })
   }
   // Sort: highest count first, then alpha by domain for stability.
@@ -169,10 +172,17 @@ function AdCard({
             >
               <span className="v2-comp-domain">
                 {row.domain}
-                {row.screenshotUrl && (
-                  <span className="v2-comp-thumb" aria-hidden="true">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={row.screenshotUrl} alt="" />
+                {row.screenshotUrls.length > 0 && (
+                  <span
+                    className={`v2-comp-thumb${
+                      row.screenshotUrls.length > 1 ? ' v2-comp-thumb--grid' : ''
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {row.screenshotUrls.map((url, j) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={`${url}-${j}`} src={url} alt="" />
+                    ))}
                   </span>
                 )}
               </span>
