@@ -6,9 +6,10 @@ describe("Users Collection", () => {
     expect(Users.slug).toBe("users");
   });
 
-  it("should have auth enabled with max login attempts (no per-user API key)", () => {
+  it("should configure login attempts and the two-hour idle-session token", () => {
     expect(Users.auth).toEqual({
       maxLoginAttempts: 5,
+      tokenExpiration: 7200,
     });
   });
 

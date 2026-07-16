@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { GoogleAdsDashboardMonthlyWasteRelevancy, HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
 
-type MetricKey = "paidLeads" | "meetings" | "totalMeetings" | "googleAdsConversions" | "meetingRate" | "disqualifiedRate" | "cpaGoogleAdsConversions" | "cpaPaidLeads" | "cpaMeetings";
+type MetricKey = "paidLeads" | "meetings" | "totalMeetings" | "googleAdsConversions" | "meetingRate" | "disqualifiedRate" | "cpaGoogleAdsConversions" | "cpaPaidLeads" | "cpaMeetings" | "googleAdsSpend";
 type MonthlyPoint = HubSpotPostClickDashboardData["monthly"][number];
 type MonthlySalesPoint = MonthlyPoint & {
   totalMeetings: number;
@@ -19,7 +19,7 @@ type AttributionRow = HubSpotPostClickDashboardData["attributionRows"][number];
 type LeadDetail = HubSpotPostClickDashboardData["leadDetails"][number];
 type MeetingFilter = "all" | "yes" | "no";
 
-const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; tooltip: string; color: string; kind: "bar" | "line"; unit?: "rate" | "currency" }> = [
+const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; tooltip: string; color: string; kind: "bar" | "line"; unit?: "rate" | "currency" | "spend" }> = [
   { key: "googleAdsConversions", label: "Google Ads conversions", shortLabel: "Google Ads conversions", tooltip: "Actual Google Ads conversions for the selected conversion actions in the dashboard conversion selector. This is ad-platform conversion volume, not HubSpot contact count.", color: "#60a5fa", kind: "bar" },
   {
     key: "paidLeads",
@@ -36,6 +36,7 @@ const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; toolti
   { key: "cpaGoogleAdsConversions", label: "CPA by Google Ads conversions", shortLabel: "CPA / GA conv.", tooltip: "Google Ads spend divided by selected Google Ads conversions. This is the ad-platform CPA.", color: "#0f766e", kind: "line", unit: "currency" },
   { key: "cpaPaidLeads", label: "CPA by HubSpot paid leads", shortLabel: "CPA / paid lead", tooltip: "Google Ads spend divided by HubSpot paid-search contacts. This shows the cost per HubSpot-captured paid lead.", color: "#f97316", kind: "line", unit: "currency" },
   { key: "cpaMeetings", label: "CPA by total HubSpot meetings", shortLabel: "CPA / total meeting", tooltip: "Google Ads spend divided by total HubSpot meetings generated from paid-search leads. This shows cost per booked or recorded meeting, including repeat meetings.", color: "#15803d", kind: "line", unit: "currency" },
+  { key: "googleAdsSpend", label: "Google Ads spend", shortLabel: "Spend", tooltip: "Total Google Ads spend for each month.", color: "#334155", kind: "line", unit: "spend" },
 ];
 
 const CONFIDENCE_LABELS: Record<string, string> = {
@@ -94,6 +95,12 @@ function formatCurrency(value: number | null | undefined): string {
 function formatCompactCurrency(value: number | null | undefined): string {
   if (value == null) return "—";
   if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return formatCurrency(value);
+}
+
+function formatCompactSpend(value: number | null | undefined): string {
+  if (value == null) return "—";
+  if (Math.abs(value) >= 1000) return `$${Math.round(value / 1000)}k`;
   return formatCurrency(value);
 }
 
@@ -232,12 +239,14 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
   const showLine = lineSeries.length > 0;
   const rateMax = Math.max(100, Math.ceil(Math.max(...data.flatMap((row) => rateSeries.map((series) => Number(row[series.key] ?? 0)))) / 25) * 25);
   const currencyMax = Math.max(1, Math.ceil(Math.max(...data.flatMap((row) => currencySeries.map((series) => Number(row[series.key] ?? 0)))) / 100) * 100);
+  const spendMax = Math.max(1, Math.max(...data.map((row) => row.googleAdsSpend || 0)));
   const disqualifiedRateMax = Math.max(10, Math.ceil(Math.max(...data.map((row) => row.disqualifiedRate ?? 0)) / 5) * 5);
   const slot = chartWidth / data.length;
   const barWidth = Math.max(8, Math.min(17, slot * 0.22));
   const yCount = (value: number) => top + chartHeight - (value / barMax) * chartHeight;
   const yRate = (value: number | null) => top + chartHeight - ((value ?? 0) / rateMax) * chartHeight;
   const yCurrency = (value: number | null) => top + chartHeight - ((value ?? 0) / currencyMax) * chartHeight;
+  const ySpend = (value: number | null) => top + chartHeight - ((value ?? 0) / spendMax) * chartHeight;
   const yDisqualifiedRate = (value: number | null) => top + chartHeight - ((value ?? 0) / disqualifiedRateMax) * chartHeight;
   const linePaths = lineSeries.map((series) => {
     const points = data
@@ -247,7 +256,7 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
         const raw = Number(value);
         return {
           x: left + slot * index + slot / 2,
-          y: series.unit === "currency" ? yCurrency(raw) : series.key === "disqualifiedRate" ? yDisqualifiedRate(raw) : yRate(raw),
+          y: series.unit === "spend" ? ySpend(raw) : series.unit === "currency" ? yCurrency(raw) : series.key === "disqualifiedRate" ? yDisqualifiedRate(raw) : yRate(raw),
           value: raw,
         };
       })
@@ -341,7 +350,7 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
                   <g key={index} opacity={0.68}>
                     <circle cx={point.x} cy={point.y} r={4} fill={series.color} />
                     <text x={point.x} y={Math.max(11, point.y - 9)} textAnchor="middle" fontSize="10" fontWeight="600" fill={series.color}>
-                      {series.unit === "currency" ? formatCompactCurrency(point.value) : formatRate(point.value)}
+                      {series.unit === "spend" ? formatCompactSpend(point.value) : series.unit === "currency" ? formatCompactCurrency(point.value) : formatRate(point.value)}
                     </text>
                   </g>
                 ))}
@@ -641,7 +650,7 @@ function exportLeadDetailsCsv(leads: LeadDetail[]): void {
   URL.revokeObjectURL(url);
 }
 export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: HubSpotPostClickDashboardData; monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[] }) {
-  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(["googleAdsConversions", "paidLeads", "meetings", "totalMeetings", "meetingRate"]);
+  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(["googleAdsConversions", "paidLeads", "meetings", "totalMeetings", "meetingRate", "googleAdsSpend"]);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadMonthFilter, setLeadMonthFilter] = useState("all");
   const [leadMeetingFilter, setLeadMeetingFilter] = useState<MeetingFilter>("all");
