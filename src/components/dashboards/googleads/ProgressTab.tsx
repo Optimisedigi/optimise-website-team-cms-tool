@@ -662,8 +662,20 @@ export function ProgressTab({
   const totalSpend = kpis.spend ?? 0;
   const historicalRows = (() => {
     if (!monthlyWasteRelevancy?.length) return [];
-    const monthCount = { this_month: 1, last_3_months: 3, last_6_months: 6, last_12_months: 12 }[range];
-    return monthCount ? monthlyWasteRelevancy.slice(-monthCount) : monthlyWasteRelevancy;
+    const monthCount = {
+      this_month: 1,
+      last_week: 1,
+      last_month: 1,
+      last_30_days: 1,
+      last_60_days: 2,
+      last_3_months: 3,
+      last_6_months: 6,
+      this_year: 12,
+      last_year: 12,
+    }[range];
+    return range === "all_time"
+      ? monthlyWasteRelevancy
+      : monthlyWasteRelevancy.slice(-(monthCount ?? 1));
   })();
   const historicalAggregate = historicalRows.reduce(
     (total, row) => ({
