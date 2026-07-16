@@ -61,8 +61,11 @@ export async function GET(req: NextRequest) {
   }
 
   const built = buildMonthlyWasteRelevancyResponse(result);
+  const hasCachedData = result.cache.size > 0;
   const out = NextResponse.json({
-    success: !result.error,
+    // A refresh error must not hide valid cached history from the dashboard.
+    success: hasCachedData || !result.error,
+    stale: Boolean(result.error),
     monthsBack: built.monthsBack,
     monthly: built.monthly,
     irrelevantTermCount: built.irrelevantTermCount,

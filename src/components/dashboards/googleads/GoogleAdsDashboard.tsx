@@ -265,7 +265,10 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     fetch(`/api/dashboard/monthly-waste-relevancy?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.success && Array.isArray(data.monthly)) {
+        // Cached history remains usable when the upstream refresh reports an
+        // error. Rejecting it here made the chart fall back to the unrelated
+        // low-CTR heuristic and hid competitor/brand toggles.
+        if (Array.isArray(data?.monthly) && data.monthly.length > 0) {
           setMonthlyWasteRelevancy(data.monthly);
           if (typeof data.irrelevantTermCount === "number") setRelevancyNegativeKeywordCount(data.irrelevantTermCount);
         }
