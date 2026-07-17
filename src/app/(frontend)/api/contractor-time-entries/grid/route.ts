@@ -324,17 +324,25 @@ export async function PATCH(req: NextRequest) {
     if (user.role !== "admin" && String((current as any).user) !== String(user.id)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if ((current as any).status === "paid") {
-      return NextResponse.json({ error: "Paid entries are locked" }, { status: 409 });
+    const isPaidEntry = (current as any).status === "paid";
+    if (isPaidEntry) {
+      const paidEntryFields = Object.keys(body).filter((key) => key !== "id");
+      const onlyUpdatesAllocations = paidEntryFields.length === 1 && paidEntryFields[0] === "clientAllocations";
+      if (!onlyUpdatesAllocations) {
+        return NextResponse.json(
+          { error: "Paid entries only allow client allocation updates" },
+          { status: 409 },
+        );
+      }
     }
 
     const data: Record<string, unknown> = {};
-    if (Object.prototype.hasOwnProperty.call(body, "user") && user.role === "admin") data.user = relationshipId(body.user) ?? null;
-    if (Object.prototype.hasOwnProperty.call(body, "contractor") && user.role === "admin") data.contractor = relationshipId(body.contractor) ?? null;
-    if (Object.prototype.hasOwnProperty.call(body, "weekCommencing")) data.weekCommencing = normalizeWeekCommencing(body.weekCommencing);
-    if (Object.prototype.hasOwnProperty.call(body, "hours")) data.hours = Math.max(0, Number(body.hours || 0));
-    if (Object.prototype.hasOwnProperty.call(body, "status")) data.status = body.status || "draft";
-    if (Object.prototype.hasOwnProperty.call(body, "notes")) data.notes = body.notes || null;
+    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "user") && user.role === "admin") data.user = relationshipId(body.user) ?? null;
+    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "contractor") && user.role === "admin") data.contractor = relationshipId(body.contractor) ?? null;
+    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "weekCommencing")) data.weekCommencing = normalizeWeekCommencing(body.weekCommencing);
+    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "hours")) data.hours = Math.max(0, Number(body.hours || 0));
+    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "status")) data.status = body.status || "draft";
+    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "notes")) data.notes = body.notes || null;
     if (Object.prototype.hasOwnProperty.call(body, "clientAllocations")) data.clientAllocations = normalizeAllocations(body.clientAllocations);
 
     const entry = await payload.update({

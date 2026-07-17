@@ -172,6 +172,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
   const [showColumnPicker, setShowColumnPicker] = useState(false)
   const [autoTotalEntryIds, setAutoTotalEntryIds] = useState<Set<string | number>>(() => new Set())
+  const [paidUpdateEntryIds, setPaidUpdateEntryIds] = useState<Set<string | number>>(() => new Set())
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({})
   const selectedClientIdSet = useMemo(() => new Set(selectedClientIds), [selectedClientIds])
   const visibleClients = useMemo(() => clients.filter((client) => selectedClientIdSet.has(String(client.id))), [clients, selectedClientIdSet])
@@ -192,9 +193,10 @@ export default function ContractorTimeEntriesSpreadsheet() {
       const nextClients = json.clients || []
       const nextEntries = json.entries || []
       setEntries(nextEntries)
+      setPaidUpdateEntryIds(new Set())
       setAutoTotalEntryIds(new Set(nextEntries.filter((entry: TimeEntry) => {
         const hours = Number(entry.hours || 0)
-        return hours === 0 || Math.abs(hours - allocatedTotal(entry)) < 0.01
+        return entry.status !== 'paid' && (hours === 0 || Math.abs(hours - allocatedTotal(entry)) < 0.01)
       }).map((entry: TimeEntry) => entry.id)))
       setClients(nextClients)
       setUsers(json.users || [])
@@ -267,7 +269,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
     map.set(String(clientId), { client: clientId, hours })
     const clientAllocations = Array.from(map.values()).filter((allocation) => allocation.hours > 0)
     const nextAllocatedTotal = clientAllocations.reduce((sum, allocation) => sum + Number(allocation.hours || 0), 0)
-    const shouldAutoTotal = autoTotalEntryIds.has(entry.id)
+    const shouldAutoTotal = entry.status !== 'paid' && autoTotalEntryIds.has(entry.id)
     if (shouldAutoTotal) setAutoTotalEntryIds((current) => new Set(current).add(entry.id))
     void patch(entry.id, { clientAllocations, ...(shouldAutoTotal ? { hours: Math.round(nextAllocatedTotal * 100) / 100 } : {}) }, { quiet: true })
   }
@@ -485,39 +487,57 @@ export default function ContractorTimeEntriesSpreadsheet() {
               <tr><td colSpan={totalColumnCount} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No time entries for this period — add the first week below.</td></tr>
             ) : entries.map((entry) => {
               const allocated = allocatedTotal(entry)
-              const autoTotal = autoTotalEntryIds.has(entry.id)
+              const isPaid = entry.status === 'paid'
+              const isUpdatingPaidAllocation = isPaid && paidUpdateEntryIds.has(entry.id)
+              const autoTotal = !isPaid && autoTotalEntryIds.has(entry.id)
               const effectiveTotal = autoTotal ? allocated : Number(entry.hours || 0)
               const discrepancy = effectiveTotal - allocated
-              const locked = entry.status === 'paid'
               const totalKey = draftKey(entry.id, 'total')
               return (
                 <Fragment key={entry.id}>
                   <tr style={{ height: 58, ...(savingId === entry.id ? { opacity: .6 } : undefined) }}>
                     <td style={tdStyle}>
-                      <WeekDateCell value={entry.weekCommencing} locked={locked} onChange={(date) => void patch(entry.id, { weekCommencing: date })} />
+                      <WeekDateCell value={entry.weekCommencing} locked={isPaid} onChange={(date) => void patch(entry.id, { weekCommencing: date })} />
                     </td>
                     {visibleClients.map((client) => {
                       const key = draftKey(entry.id, `client:${client.id}`)
                       return (
                         <td key={client.id} style={{ ...tdStyle, borderLeft: '1px solid var(--theme-elevation-100)' }}>
-                          <input type="number" min={0} max={168} step={0.25} placeholder="0" value={inputDrafts[key] ?? allocationInputValue(entry, client.id)} onChange={(event) => patchAllocation(entry, client.id, event.target.value)} onBlur={() => clearInputDraft(key)} disabled={locked} style={{ ...inputStyle, textAlign: 'right', padding: '7px 4px' }} />
+                          <input type="number" min={0} max={168} step={0.25} placeholder="0" value={inputDrafts[key] ?? allocationInputValue(entry, client.id)} onChange={(event) => patchAllocation(entry, client.id, event.target.value)} onBlur={() => clearInputDraft(key)} disabled={isPaid && !isUpdatingPaidAllocation} title={isPaid && !isUpdatingPaidAllocation ? 'Choose Update in the status field to edit this allocation' : undefined} style={{ ...inputStyle, textAlign: 'right', padding: '7px 4px' }} />
                         </td>
                       )
                     })}
                     <td style={tdStyle}>
-                      <input type="number" min={0} max={168} step={0.25} placeholder={allocated > 0 ? String(Math.round(allocated * 100) / 100) : 'Auto'} value={inputDrafts[totalKey] ?? (autoTotal ? '' : entry.hours ?? '')} onChange={(event) => patchTotalHours(entry, event.target.value)} onBlur={() => clearInputDraft(totalKey)} disabled={locked} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800, padding: '7px 4px' }} />
+                      <input type="number" min={0} max={168} step={0.25} placeholder={allocated > 0 ? String(Math.round(allocated * 100) / 100) : 'Auto'} value={inputDrafts[totalKey] ?? (autoTotal ? '' : entry.hours ?? '')} onChange={(event) => patchTotalHours(entry, event.target.value)} onBlur={() => clearInputDraft(totalKey)} disabled={isPaid} title={isPaid ? 'Total hours are fixed after payment' : undefined} style={{ ...inputStyle, textAlign: 'right', fontWeight: 800, padding: '7px 4px' }} />
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 900, color: Math.abs(discrepancy) < 0.01 ? '#15803d' : '#b45309' }}>
                       {discrepancy.toFixed(2)}
                     </td>
                     <td style={{ ...tdStyle, paddingRight: 2 }}>
-                      <select value={entry.status || 'draft'} onChange={(event) => void patch(entry.id, { status: event.target.value })} disabled={locked} style={{ ...inputStyle, ...statusTone(entry.status), maxWidth: 86, padding: '7px 4px' }}>
-                        {statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                      </select>
+                      {isPaid ? (
+                        <select
+                          aria-label="Paid entry edit mode"
+                          value={isUpdatingPaidAllocation ? 'update' : 'paid'}
+                          onChange={(event) => setPaidUpdateEntryIds((current) => {
+                            const next = new Set(current)
+                            if (event.target.value === 'update') next.add(entry.id)
+                            else next.delete(entry.id)
+                            return next
+                          })}
+                          style={{ ...inputStyle, ...statusTone(entry.status), maxWidth: 86, padding: '7px 4px' }}
+                        >
+                          <option value="paid">Paid</option>
+                          <option value="update">Update</option>
+                        </select>
+                      ) : (
+                        <select value={entry.status || 'draft'} onChange={(event) => void patch(entry.id, { status: event.target.value })} style={{ ...inputStyle, ...statusTone(entry.status), maxWidth: 86, padding: '7px 4px' }}>
+                          {statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        </select>
+                      )}
                     </td>
                     {isAdmin && (
                       <td style={{ ...tdStyle, paddingLeft: 2, paddingRight: 2 }} title={relName(entry.user, users)}>
-                        <select value={relId(entry.user)} onChange={(event) => void patch(entry.id, { user: event.target.value })} disabled={locked} style={{ ...inputStyle, maxWidth: 96, padding: '7px 4px' }}>
+                        <select value={relId(entry.user)} onChange={(event) => void patch(entry.id, { user: event.target.value })} disabled={isPaid} style={{ ...inputStyle, maxWidth: 96, padding: '7px 4px' }}>
                           <option value="">Unassigned</option>
                           {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                         </select>
@@ -525,7 +545,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
                     )}
                     <td style={{ ...tdStyle, padding: '4px 2px' }}>
                       <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
-                        {canDelete && !locked && <button type="button" onClick={() => void deleteEntry(entry.id)} disabled={savingId === entry.id} title="Delete row" style={{ ...inputStyle, width: 32, height: 36, padding: 0, cursor: 'pointer', color: '#991b1b', fontWeight: 900 }}>×</button>}
+                        {canDelete && !isPaid && <button type="button" onClick={() => void deleteEntry(entry.id)} disabled={savingId === entry.id} title="Delete row" style={{ ...inputStyle, width: 32, height: 36, padding: 0, cursor: 'pointer', color: '#991b1b', fontWeight: 900 }}>×</button>}
                       </div>
                     </td>
                   </tr>

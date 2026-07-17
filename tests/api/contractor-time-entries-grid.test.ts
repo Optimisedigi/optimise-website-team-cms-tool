@@ -248,4 +248,43 @@ describe("contractor time entries grid RBAC", () => {
     }));
     expect(mockPayload.findByID).not.toHaveBeenCalled();
   });
+
+  it("PATCH lets an owner update only the client allocation on a paid entry", async () => {
+    const { PATCH } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    mockPayload.auth.mockResolvedValue({ user: ownUser });
+    mockPayload.findByID.mockResolvedValue({ id: 12, user: 42, hours: 8, status: "paid" });
+    mockPayload.update.mockResolvedValue({
+      id: 12,
+      user: 42,
+      hours: 8,
+      status: "paid",
+      clientAllocations: [{ client: 5, hours: 3 }, { client: 7, hours: 5 }],
+    });
+
+    const res = await PATCH(patchRequest({
+      id: 12,
+      clientAllocations: [{ client: 5, hours: 3 }, { client: 7, hours: 5 }],
+    }));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.entry).toEqual(expect.objectContaining({ hours: 8, status: "paid" }));
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
+      id: 12,
+      data: { clientAllocations: [{ client: 5, hours: 3 }, { client: 7, hours: 5 }] },
+    }));
+  });
+
+  it("PATCH keeps total hours fixed on a paid entry", async () => {
+    const { PATCH } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    mockPayload.auth.mockResolvedValue({ user: ownUser });
+    mockPayload.findByID.mockResolvedValue({ id: 12, user: 42, hours: 8, status: "paid" });
+
+    const res = await PATCH(patchRequest({ id: 12, hours: 10 }));
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error).toBe("Paid entries only allow client allocation updates");
+    expect(mockPayload.update).not.toHaveBeenCalled();
+  });
 });
