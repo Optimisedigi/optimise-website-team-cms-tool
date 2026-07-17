@@ -1,4 +1,4 @@
-import { kimiAuthHeaders } from "../auth/oauth/kimi-coding";
+import { kimiAuthHeaders, KIMI_CODING_MODEL_ID } from "../auth/oauth/kimi-coding";
 import { resolveCredential } from "../auth/resolver";
 import { withRetry, HttpError } from "../retry";
 import { fromOpenAI } from "../transformers/from-openai";
@@ -9,14 +9,30 @@ const DEFAULT_LLM_TIMEOUT_MS = 120_000;
 const CHAT_COMPLETIONS_PATH = "/chat/completions";
 const PROMPT_CACHE_KEY = "content-cms-optimate";
 
+// Kimi's router serves the `k3` wire model only when Thinking is on; a request
+// with thinking disabled is silently downgraded to K2.6 server-side. Autonomous
+// runs (cron, scheduled tasks) call this adapter without a reasoning mode, so
+// force thinking on for K3 at the cheapest effort to guarantee we get K3.
+const KIMI_K3_WIRE_MODEL = "k3";
+
 type KimiRequestBody = ReturnType<typeof toOpenAI> & {
   prompt_cache_key?: string;
   thinking?: { type: "enabled" | "disabled" };
   reasoning_effort?: "low" | "medium" | "high";
 };
 
-function applyReasoning(body: KimiRequestBody, reasoningMode: ReasoningMode | undefined): void {
+function applyReasoning(
+  body: KimiRequestBody,
+  reasoningMode: ReasoningMode | undefined,
+  wireModel: string,
+): void {
   if (!reasoningMode || reasoningMode === "off") {
+    // K3 must never go out with thinking disabled or Kimi routes it to K2.6.
+    if (wireModel === KIMI_K3_WIRE_MODEL) {
+      body.thinking = { type: "enabled" };
+      body.reasoning_effort = "low";
+      return;
+    }
     body.thinking = { type: "disabled" };
     delete body.reasoning_effort;
     return;
@@ -36,12 +52,19 @@ export async function callKimiCoding(
   }
 
   const credential = auth.credential;
-  const body: KimiRequestBody = toOpenAI(opts, credential.kimiModelId ?? providerModel);
+  // The credential's discovered kimiModelId corrects the wire id for the generic
+  // K2.7 Code default. An explicit registry model (e.g. `k3`) must win over it so
+  // distinct models on the same subscription route to the right one.
+  const wireModel =
+    providerModel && providerModel !== KIMI_CODING_MODEL_ID
+      ? providerModel
+      : credential.kimiModelId ?? providerModel;
+  const body: KimiRequestBody = toOpenAI(opts, wireModel);
   body.prompt_cache_key = PROMPT_CACHE_KEY;
   // Kimi For Coding rejects arbitrary temperatures; if a caller supplied one
   // through the shared LLM options, normalize it to the only accepted value.
   if (body.temperature !== undefined) body.temperature = 0.6;
-  applyReasoning(body, opts.reasoningMode);
+  applyReasoning(body, opts.reasoningMode, wireModel);
 
   const json = await withRetry(async () => {
     const res = await fetch(`${config.baseUrl.replace(/\/+$/, "")}${CHAT_COMPLETIONS_PATH}`, {

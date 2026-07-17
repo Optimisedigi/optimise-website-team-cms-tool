@@ -26,7 +26,7 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
 
 // Retain the established resilient fallback chain only when the configured
 // autonomous default is selected for this task.
-const AUTONOMOUS_FALLBACK_MODELS = ['claude-sonnet-4.6', 'kimi-k2.6']
+const AUTONOMOUS_FALLBACK_MODELS = ['claude-sonnet-4.6', 'minimax-m3']
 
 export interface TermResearchSource {
   title: string

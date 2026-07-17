@@ -5,6 +5,7 @@ import {
   CHAT_PICKER_MODELS,
   DEFAULT_CHAT_MODEL,
   isCanonicalModel,
+  modelRequiresReasoning,
 } from '@/lib/agents/_shared/llm/registry'
 
 type ReasoningMode = 'off' | 'low' | 'medium' | 'high'
@@ -803,6 +804,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             CHAT_PICKER_MODELS.some((m) => m.canonical === next)
           ) {
             setSelectedModel(next)
+            if (modelRequiresReasoning(next)) {
+              setReasoningMode((prev) => (prev === 'off' ? 'low' : prev))
+            }
           }
           if (!cancelled && Array.isArray(json.googleMateStarterQuestions)) {
             setStarterQuestions(json.googleMateStarterQuestions)
@@ -2627,10 +2631,20 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 value={reasoningMode}
                 onChange={(e) => {
                   const next = e.target.value as ReasoningMode
+                  // The current model needs reasoning on (e.g. Kimi K3); ignore
+                  // an attempt to turn it off and keep at least the lowest level.
+                  if (next === 'off' && modelRequiresReasoning(selectedModel)) {
+                    setReasoningMode('low')
+                    return
+                  }
                   setReasoningMode(next)
                 }}
                 disabled={loading}
-                title="Reasoning mode for the next request. Off is fastest/cheapest."
+                title={
+                  modelRequiresReasoning(selectedModel)
+                    ? 'This model requires reasoning on. Off is unavailable.'
+                    : 'Reasoning mode for the next request. Off is fastest/cheapest.'
+                }
                 style={{
                   fontSize: 11,
                   padding: '4px 8px',
@@ -2643,7 +2657,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   maxWidth: '100%',
                 }}
               >
-                <option value="off">Reasoning off</option>
+                <option value="off" disabled={modelRequiresReasoning(selectedModel)}>
+                  Reasoning off
+                </option>
                 <option value="low">Reasoning low</option>
                 <option value="medium">Reasoning medium</option>
                 <option value="high">Reasoning high</option>
@@ -2651,8 +2667,15 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               <select
                 value={selectedModel}
                 onChange={(e) => {
+                  const nextModel = e.target.value
                   modelManuallyChangedRef.current = true
-                  setSelectedModel(e.target.value)
+                  setSelectedModel(nextModel)
+                  // Kimi routes K3 to K2.6 unless Thinking is on, so selecting a
+                  // reasoning-required model auto-enables reasoning at the lowest
+                  // (cheapest) on-level if it's currently off.
+                  if (modelRequiresReasoning(nextModel)) {
+                    setReasoningMode((prev) => (prev === 'off' ? 'low' : prev))
+                  }
                 }}
                 disabled={loading}
                 title="Model used for the next message"

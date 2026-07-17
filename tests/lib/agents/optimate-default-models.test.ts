@@ -48,7 +48,7 @@ describe("getOptiMateDefaultModels", () => {
       defaultChatModel: "gpt-5.5-codex-medium",
       defaultAutonomousModel: "minimax-m3",
       blogPrompterModel: "claude-sonnet-4.6",
-      searchTermResearchModel: "kimi-k2.6",
+      searchTermResearchModel: "kimi-k3",
       negativeSweepModel: "claude-haiku-4.5",
       blogImageGenerationModel: " custom-imagen ",
       voiceRealtimeModel: "gpt-realtime-2",
@@ -57,7 +57,7 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.defaultChatModel).toBe("gpt-5.5-codex");
     expect(result.defaultAutonomousModel).toBe("minimax-m3");
     expect(result.blogPrompterModel).toBe("claude-sonnet-4.6");
-    expect(result.searchTermResearchModel).toBe("kimi-k2.6");
+    expect(result.searchTermResearchModel).toBe("kimi-k3");
     expect(result.negativeSweepModel).toBe("claude-haiku-4.5");
     expect(result.blogImageGenerationModel).toBe("custom-imagen");
     expect(result.voiceRealtimeModel).toBe("gpt-realtime-2");

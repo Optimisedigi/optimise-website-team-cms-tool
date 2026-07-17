@@ -193,7 +193,7 @@ describe("researchSearchTerms", () => {
     expect(mockCallLLM).toHaveBeenCalledTimes(1);
     const opts = mockCallLLM.mock.calls[0][0];
     expect(opts.model).toBe("minimax-m3");
-    expect(opts.fallbackModels).toEqual(["claude-sonnet-4.6", "kimi-k2.6"]);
+    expect(opts.fallbackModels).toEqual(["claude-sonnet-4.6", "minimax-m3"]);
   });
 
   it("uses the configured Research Terms model without the autonomous fallback chain", async () => {
