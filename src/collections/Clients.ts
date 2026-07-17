@@ -16,6 +16,7 @@ import {
   sensitiveFieldAccess,
 } from "../lib/access";
 import { hasValidApiKey } from "./api-key-access";
+import { createSnapshotForAudit } from "../lib/google-ads-audit-snapshots";
 
 const trackRetainerChange: CollectionBeforeChangeHook = async ({
   data,
@@ -228,6 +229,40 @@ export const Clients: CollectionConfig = {
           });
         } catch (err) {
           req.payload.logger?.warn?.(`[Clients] waste-relevancy cache flush failed: ${err}`);
+        }
+      },
+      // First account access: create one audit and freeze its immutable snapshot window.
+      async ({ doc, previousDoc, operation, req }) => {
+        if (operation !== "update") return;
+        const previousCustomerId = String(previousDoc?.googleAdsCustomerId || "").trim();
+        const customerId = String(doc?.googleAdsCustomerId || "").trim();
+        if (previousCustomerId || !customerId) return;
+        try {
+          const existing = await req.payload.find({
+            collection: "google-ads-audits",
+            where: { and: [{ client: { equals: doc.id } }, { customerId: { equals: customerId } }] },
+            limit: 1,
+            depth: 0,
+            overrideAccess: true,
+          });
+          const audit = existing.docs[0] ?? await req.payload.create({
+            collection: "google-ads-audits",
+            data: {
+              businessName: doc.name,
+              customerId,
+              websiteUrl: doc.websiteUrl || undefined,
+              client: doc.id,
+              presentationPin: doc.clientPin || undefined,
+              auditStatus: "pending",
+            } as any,
+            overrideAccess: true,
+          });
+          await createSnapshotForAudit(req.payload, audit.id);
+        } catch (error) {
+          req.payload.logger.error(`[Clients] Automatic Google Ads snapshot failed for client ${doc.id}: ${error instanceof Error ? error.message : error}`);
+          const audits = await req.payload.find({ collection: "google-ads-audits", where: { client: { equals: doc.id } }, sort: "-createdAt", limit: 1, depth: 0, overrideAccess: true }).catch(() => null);
+          const audit = audits?.docs?.[0];
+          if (audit) await req.payload.update({ collection: "google-ads-audits", id: audit.id, data: { auditStatus: "failed", snapshotState: "failed", auditError: error instanceof Error ? error.message : String(error) } as any, overrideAccess: true }).catch(() => undefined);
         }
       },
       // Wipe the per-month waste/relevancy cache whenever the client's

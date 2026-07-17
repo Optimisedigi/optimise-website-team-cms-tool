@@ -35,6 +35,8 @@ import { ContractorTimeEntries } from "./collections/ContractorTimeEntries";
 import { ContractorPayments } from "./collections/ContractorPayments";
 import { BlogPrompts } from "./collections/BlogPrompts";
 import { GoogleAdsAudits } from "./collections/GoogleAdsAudits";
+import { GoogleAdsAuditSnapshots } from "./collections/GoogleAdsAuditSnapshots";
+import { GoogleAdsAuditSnapshotChunks } from "./collections/GoogleAdsAuditSnapshotChunks";
 import { GoogleAdsCampaignBudgets } from "./collections/GoogleAdsCampaignBudgets";
 import { GoogleAdsAdExtensions } from "./collections/GoogleAdsAdExtensions";
 import { GscDaily } from "./collections/GscDaily";
@@ -144,7 +146,7 @@ export default buildConfig({
     // SEO
     InternalLinkSuggestions,
     // Audits
-    SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, NegativeKeywordLists, KeywordDeepDiveSessions, MonthlyKeywordSelections, SiteHealthReports,
+    SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, GoogleAdsAuditSnapshots, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, NegativeKeywordLists, KeywordDeepDiveSessions, MonthlyKeywordSelections, SiteHealthReports,
     // Reports
     ForecastScenarios, AgencyKpiSnapshots, ClientMetricSnapshots, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance
@@ -155,7 +157,7 @@ export default buildConfig({
     // Optimate agents
     AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, RealtimeVoiceUsage, OptimateChatTurns,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsAccountStructureSnapshots, GoogleAdsChangeTrackers, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, MonthlyKeywordSelectionRows, MonthlyKeywordTermsCache, ClientPulseHistory, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSynonymRules, MatchTypeAllowListTerms, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
+    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsAuditSnapshotChunks, GoogleAdsAccountStructureSnapshots, GoogleAdsChangeTrackers, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, MonthlyKeywordSelectionRows, MonthlyKeywordTermsCache, ClientPulseHistory, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSynonymRules, MatchTypeAllowListTerms, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
   ].map((c) => {
     const collection = c as CollectionConfig
     return {

@@ -397,6 +397,33 @@ export const GoogleAdsAudits: CollectionConfig = {
               },
             },
             {
+              name: "snapshot",
+              type: "relationship",
+              relationTo: "google-ads-audit-snapshots" as any,
+              admin: { readOnly: true, description: "Frozen evidence snapshot used by this audit" },
+            },
+            {
+              name: "snapshotState",
+              type: "select",
+              admin: { readOnly: true, description: "Immutable snapshot capture state" },
+              options: ["pending", "running", "completed", "failed"],
+            },
+            {
+              name: "snapshotPeriodStart",
+              type: "date",
+              admin: { readOnly: true, description: "Earliest available account activity" },
+            },
+            {
+              name: "snapshotPeriodEnd",
+              type: "date",
+              admin: { readOnly: true, description: "Final day of the previous calendar month in the account timezone" },
+            },
+            {
+              name: "snapshotCapturedAt",
+              type: "date",
+              admin: { readOnly: true },
+            },
+            {
               name: "auditStatus",
               type: "select",
               admin: {
@@ -556,6 +583,31 @@ export const GoogleAdsAudits: CollectionConfig = {
         {
           label: "Presentation",
           fields: [
+            {
+              name: "deckReview",
+              type: "ui",
+              admin: { components: { Field: "./components/GoogleAdsAuditDeckReview" } },
+            },
+            {
+              name: "deckGeneratedAt",
+              type: "date",
+              admin: { readOnly: true },
+            },
+            {
+              name: "deckVersion",
+              type: "number",
+              admin: { readOnly: true },
+            },
+            {
+              name: "generatedDeckPayload",
+              type: "json",
+              admin: { hidden: true },
+            },
+            {
+              name: "deckSlideVisibility",
+              type: "json",
+              admin: { hidden: true, description: "Stable slide ID to hidden-state map" },
+            },
             {
               name: "presentationPublished",
               type: "checkbox",

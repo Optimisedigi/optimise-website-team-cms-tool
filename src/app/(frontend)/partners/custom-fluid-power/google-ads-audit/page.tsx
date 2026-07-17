@@ -11,25 +11,52 @@ import './custom-fluid-power.css'
 import AuditPasswordGate from '@/components/AuditPasswordGate'
 import Starfield from './Starfield'
 import DeckScrollEffects from './DeckScrollEffects'
-import AccountGlanceChart, { type Row as AccountGlanceRow } from './AccountGlanceChart'
+import AccountGlanceChart, {
+  type ConversionAction,
+  type Row as AccountGlanceRow,
+} from './AccountGlanceChart'
+import PdfConversionAccounting from './PdfConversionAccounting'
 
 const ACCOUNT_GLANCE_ROWS: AccountGlanceRow[] = [
-  { m: '2025-03', s: 1848.79, c: 581, v: 54 },
-  { m: '2025-04', s: 1301.97, c: 342, v: 60 },
-  { m: '2025-05', s: 1458.9, c: 319, v: 31 },
-  { m: '2025-06', s: 1684.37, c: 494, v: 60 },
-  { m: '2025-07', s: 1696.91, c: 518, v: 80.5 },
-  { m: '2025-08', s: 1664.25, c: 525, v: 88 },
-  { m: '2025-09', s: 1673.55, c: 543, v: 58 },
-  { m: '2025-10', s: 625.9, c: 184, v: 22.5 },
-  { m: '2025-12', s: 2468.48, c: 500, v: 58.5 },
-  { m: '2026-01', s: 2769.3, c: 524, v: 64.5 },
-  { m: '2026-02', s: 2626.83, c: 586, v: 84.5 },
-  { m: '2026-03', s: 2779.8, c: 671, v: 66.5 },
-  { m: '2026-04', s: 2790.54, c: 600, v: 53 },
-  { m: '2026-05', s: 2703.37, c: 639, v: 69 },
-  { m: '2026-06', s: 3212.77, c: 638, v: 67 },
-  { m: '2026-07', s: 1757.06, c: 394, v: 50 },
+  { m: '2025-03', s: 1848.79, c: 581, v: 54, pdf: 22 },
+  { m: '2025-04', s: 1301.97, c: 342, v: 60, pdf: 32 },
+  { m: '2025-05', s: 1458.9, c: 319, v: 31, pdf: 16 },
+  { m: '2025-06', s: 1684.37, c: 494, v: 60, pdf: 25 },
+  { m: '2025-07', s: 1696.91, c: 518, v: 80.5, pdf: 30.5 },
+  { m: '2025-08', s: 1664.25, c: 525, v: 88, pdf: 42 },
+  { m: '2025-09', s: 1673.55, c: 543, v: 58, pdf: 27 },
+  { m: '2025-10', s: 625.9, c: 184, v: 22.5, pdf: 11.5 },
+  { m: '2025-12', s: 2468.48, c: 500, v: 58.5, pdf: 28.5 },
+  { m: '2026-01', s: 2769.3, c: 524, v: 64.5, pdf: 44.5 },
+  { m: '2026-02', s: 2626.83, c: 586, v: 84.5, pdf: 52.5 },
+  { m: '2026-03', s: 2779.8, c: 671, v: 66.5, pdf: 35.5 },
+  { m: '2026-04', s: 2790.54, c: 600, v: 53, pdf: 33 },
+  { m: '2026-05', s: 2703.37, c: 639, v: 69, pdf: 33 },
+  { m: '2026-06', s: 3212.77, c: 638, v: 67, pdf: 35 },
+  { m: '2026-07', s: 1757.06, c: 394, v: 50, pdf: 24 },
+]
+
+const CONVERSION_ACTIONS: ConversionAction[] = [
+  {
+    id: 'pdf-download',
+    label: 'PDF downloads',
+    values: [22, 32, 16, 25, 30.5, 42, 27, 11.5, 28.5, 44.5, 52.5, 35.5, 33, 33, 35, 24],
+  },
+  {
+    id: 'click-to-call',
+    label: 'Click to call',
+    values: [20, 21, 9, 22, 40, 26, 23, 6, 21, 8, 20, 18, 12, 19, 25, 12],
+  },
+  {
+    id: 'calls-from-ads',
+    label: 'Calls from ads',
+    values: [7, 3, 4, 8, 4, 10, 4, 4, 3, 5, 10, 6, 4, 8, 3, 7],
+  },
+  {
+    id: 'ga4-enquiry',
+    label: 'GA4 enquiry',
+    values: [5, 4, 2, 5, 6, 10, 4, 1, 6, 7, 2, 7, 4, 9, 4, 7],
+  },
 ]
 
 type AuditScoreBar = {
@@ -132,266 +159,6 @@ const AUDIT_SCORE_BARS: readonly AuditScoreBar[] = [
     scoreColor: 'text-green-500',
     barColor: 'bg-green-500',
   },
-]
-
-type NbTrendMonth = {
-  /** X position of the bar (rect x attribute) */
-  x: number
-  /** Centered X used for the rotated month label and total label */
-  centerX: number
-  /** Month label */
-  label: string
-  /** Y position of the total label above the stack */
-  totalY: number
-  /** Total dollars text shown above the stack */
-  total: string
-  /** Stacked segments in draw order: blue, violet, orange, teal */
-  segments: readonly [
-    { y: number; height: number },
-    { y: number; height: number },
-    { y: number; height: number },
-    { y: number; height: number },
-  ]
-}
-
-const NB_TREND_SEGMENT_COLORS = [
-  'rgb(59,130,246)',
-  'rgb(168,85,247)',
-  'rgb(245,158,11)',
-  'rgb(16,185,129)',
-] as const
-
-const NB_TREND_MONTHS: readonly NbTrendMonth[] = [
-  {
-    x: 48.0,
-    centerX: 60.0,
-    label: '2025-03',
-    totalY: 102.4,
-    total: '$1,849',
-    segments: [
-      { y: 106.4, height: 103.6 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 90.7,
-    centerX: 102.7,
-    label: '2025-04',
-    totalY: 133.1,
-    total: '$1,302',
-    segments: [
-      { y: 137.1, height: 72.9 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 133.3,
-    centerX: 145.3,
-    label: '2025-05',
-    totalY: 124.3,
-    total: '$1,459',
-    segments: [
-      { y: 128.3, height: 81.7 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 176.0,
-    centerX: 188.0,
-    label: '2025-06',
-    totalY: 111.6,
-    total: '$1,684',
-    segments: [
-      { y: 115.6, height: 94.4 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 218.7,
-    centerX: 230.7,
-    label: '2025-07',
-    totalY: 110.9,
-    total: '$1,697',
-    segments: [
-      { y: 114.9, height: 95.1 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 261.3,
-    centerX: 273.3,
-    label: '2025-08',
-    totalY: 112.8,
-    total: '$1,664',
-    segments: [
-      { y: 116.8, height: 93.2 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 304.0,
-    centerX: 316.0,
-    label: '2025-09',
-    totalY: 112.2,
-    total: '$1,674',
-    segments: [
-      { y: 116.2, height: 93.8 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 346.7,
-    centerX: 358.7,
-    label: '2025-10',
-    totalY: 170.9,
-    total: '$626',
-    segments: [
-      { y: 174.9, height: 35.1 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 389.3,
-    centerX: 401.3,
-    label: '2025-12',
-    totalY: 67.7,
-    total: '$2,468',
-    segments: [
-      { y: 71.7, height: 138.3 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 432.0,
-    centerX: 444.0,
-    label: '2026-01',
-    totalY: 50.8,
-    total: '$2,769',
-    segments: [
-      { y: 54.8, height: 155.2 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 474.7,
-    centerX: 486.7,
-    label: '2026-02',
-    totalY: 58.8,
-    total: '$2,627',
-    segments: [
-      { y: 62.8, height: 147.2 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 517.3,
-    centerX: 529.3,
-    label: '2026-03',
-    totalY: 50.3,
-    total: '$2,780',
-    segments: [
-      { y: 54.3, height: 155.7 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 560.0,
-    centerX: 572.0,
-    label: '2026-04',
-    totalY: 49.7,
-    total: '$2,791',
-    segments: [
-      { y: 53.7, height: 156.3 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 602.7,
-    centerX: 614.7,
-    label: '2026-05',
-    totalY: 54.5,
-    total: '$2,703',
-    segments: [
-      { y: 58.5, height: 151.5 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 645.3,
-    centerX: 657.3,
-    label: '2026-06',
-    totalY: 26.0,
-    total: '$3,213',
-    segments: [
-      { y: 30.0, height: 180.0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-  {
-    x: 688.0,
-    centerX: 700.0,
-    label: '2026-07',
-    totalY: 107.6,
-    total: '$1,757',
-    segments: [
-      { y: 111.6, height: 98.4 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-      { y: 210, height: 0 },
-    ],
-  },
-]
-
-type NbTrendGridLine = { y: number; label: string }
-
-const NB_TREND_GRID_LINES: readonly NbTrendGridLine[] = [
-  { y: 20.0, label: '$3.2k' },
-  { y: 67.5, label: '$2.4k' },
-  { y: 115.0, label: '$1.6k' },
-  { y: 162.5, label: '$0.8k' },
-  { y: 210.0, label: '$0' },
-]
-
-type NbTrendLegendEntry = {
-  /** Legend swatch X (text labels are offset by +17) */
-  x: number
-  color: string
-  name: string
-  cpl: string
-}
-
-const NB_TREND_LEGEND: readonly NbTrendLegendEntry[] = [
-  { x: 0, color: 'rgb(59,130,246)', name: 'Account spend', cpl: '$56 primary-conversion CPA' },
 ]
 
 type AdGroupRow = {
@@ -632,54 +399,6 @@ const SEARCH_TERM_TOP_ROWS: readonly SearchTermRow[] = [
   },
 ]
 
-type NegativePatternRow = {
-  label: string
-  detail: string
-  examples: string
-  wasted: string
-  terms: string
-}
-
-const NEGATIVE_PATTERN_ROWS: readonly NegativePatternRow[] = [
-  {
-    label: 'Heuristic likely-irrelevant terms',
-    detail: ' (top-100 review queue)',
-    examples:
-      'Brembo, Wilwood, PBR, Girlock, trailer brakes, bike brakes, brake pads and brake parts near me',
-    wasted: '$831',
-    terms: '12',
-  },
-  {
-    label: 'Shared negative coverage',
-    detail: ' (coverage opportunity, not a target for its own sake)',
-    examples:
-      '237 shared negatives versus the supplied 340 comparator; also review campaign and ad-group coverage',
-    wasted: '$0',
-    terms: '237',
-  },
-  {
-    label: 'Known conflict',
-    detail: ' (manual review required)',
-    examples:
-      'sun hydraulics australia historically converted but appears as an exact shared negative on Manifolds',
-    wasted: '$0',
-    terms: '1',
-  },
-]
-
-type LandingPageRow = {
-  path: string
-  href: string
-  spend: string
-  clicks: string
-  conv: string
-  cpl: string
-  /** Colour treatment for the CPL cell */
-  cplTone: 'rose' | 'amber' | 'emerald'
-}
-
-const LANDING_PAGE_ROWS: readonly LandingPageRow[] = []
-
 type ScoringMethodologyCard = {
   /** Step number (1-13) */
   n: number
@@ -802,12 +521,6 @@ const SCORING_METHODOLOGY_CARDS: readonly ScoringMethodologyCard[] = [
   },
 ]
 
-function landingPageCplClass(tone: LandingPageRow['cplTone']): string {
-  if (tone === 'rose') return 'text-right py-2 pl-2 tabular-nums font-bold text-rose-700'
-  if (tone === 'amber') return 'text-right py-2 pl-2 tabular-nums font-semibold text-amber-700'
-  return 'text-right py-2 pl-2 tabular-nums font-semibold text-emerald-700'
-}
-
 function adGroupNameClass(variant: AdGroupRow['variant']): string {
   if (variant === 'rose') return 'py-1 px-2 font-semibold text-rose-700'
   if (variant === 'muted') return 'py-1 px-2 text-slate-500'
@@ -891,13 +604,6 @@ export default function AwayDigitalAuditPage() {
                 <span className="cover-meta">February 2021 &ndash; July 2026</span>
               </div>
               <h1 className="cover-h1 text-4xl md:text-6xl">Custom Fluid Power</h1>
-              <p
-                className="text-base md:text-lg text-white/70 max-w-2xl leading-snug"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                A positive optimisation review of account health, measurement quality, search intent
-                and evidence-backed growth opportunities.
-              </p>
             </div>
           </div>
           <a
@@ -933,7 +639,7 @@ export default function AwayDigitalAuditPage() {
               <p className="text-blue-500 font-semibold text-sm uppercase tracking-widest mb-1">
                 TL;DR
               </p>
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900">
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-[-10px]">
                 The audit, in one slide
               </h2>
             </div>
@@ -967,15 +673,6 @@ export default function AwayDigitalAuditPage() {
               </div>
               <div className="rounded-lg border border-slate-200 bg-white p-3">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 mb-0.5">
-                  Duplicate tracking
-                </div>
-                <p className="text-[12px] text-slate-700 leading-snug">
-                  Enquiry and phone/call actions may overlap. Historical configuration and
-                  deduplication need validation before conversion goals change.
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 mb-0.5">
                   Search terms
                 </div>
                 <p className="text-[12px] text-slate-700 leading-snug">
@@ -1001,15 +698,6 @@ export default function AwayDigitalAuditPage() {
                   must be confirmed before any relaunch.
                 </p>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 mb-0.5">
-                  Recommendations
-                </div>
-                <p className="text-[12px] text-slate-700 leading-snug">
-                  Prioritise lead-quality validation, controlled budget tests, generic growth,
-                  negative coverage and high-intent SEO landing pages.
-                </p>
-              </div>
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 md:col-span-2">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 mb-0.5">
                   The opportunity
@@ -1026,7 +714,7 @@ export default function AwayDigitalAuditPage() {
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
             aria-hidden="true"
           >
-            2 / 15
+            2 / 12
           </div>
         </section>
         <section
@@ -1035,21 +723,54 @@ export default function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-5 pb-2 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-3 max-w-4xl mx-auto text-slate-900">
-              Let&rsquo;s get context around the rising cost per lead
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[2px] max-w-4xl mx-auto text-slate-900">
+              PDF downloads make reported CPA look better than it is
             </h2>
             <AccountGlanceChart
               rows={ACCOUNT_GLANCE_ROWS}
+              conversionActions={CONVERSION_ACTIONS}
               clientName="Custom Fluid Power"
               periodLabel="Latest 16 reported months"
               geoAvailable={false}
             />
+            <div className="max-w-4xl mx-auto w-full mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-950">
+              <span className="font-bold">
+                51% of reported primary conversions are PDF downloads.
+              </span>{' '}
+              Move PDF downloads to a secondary conversion so bidding and CPA report qualified lead
+              actions, not content engagement.
+            </div>
           </div>
           <div
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
             aria-hidden="true"
           >
-            3 / 15
+            3 / 12
+          </div>
+        </section>
+        <section
+          id="pdf-download-accounting"
+          data-label="PDF conversion accounting"
+          className="relative min-h-screen flex flex-col bg-white"
+        >
+          <div className="flex-1 flex flex-col justify-center px-6 py-8 max-w-5xl mx-auto w-full">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-700 text-center mb-2">
+              Conversion accounting
+            </p>
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-2px] text-slate-900">
+              PDF downloads materially lower reported CPA
+            </h2>
+            <p className="text-center text-sm pb-5 max-w-3xl mx-auto text-slate-500">
+              Toggle PDF downloads to see the reported CPA. PDFs should be recorded as a secondary
+              conversion, not used as a qualified-lead bidding signal.
+            </p>
+            <PdfConversionAccounting />
+          </div>
+          <div
+            className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
+            aria-hidden="true"
+          >
+            4 / 12
           </div>
         </section>
         <section
@@ -1058,7 +779,7 @@ export default function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-8 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-2 text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-2px] text-slate-900">
               Google Ads account audit score
             </h2>
             <p className="text-center text-sm md:text-base pb-5 max-w-3xl mx-auto text-slate-500">
@@ -1148,7 +869,7 @@ export default function AwayDigitalAuditPage() {
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
             aria-hidden="true"
           >
-            4 / 15
+            5 / 12
           </div>
         </section>
         <section
@@ -1157,35 +878,57 @@ export default function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-4 pt-5 pb-3 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-3 max-w-4xl mx-auto text-slate-900">
-              Separate brand efficiency from generic growth
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[2px] max-w-4xl mx-auto text-slate-900">
+              Brand conversions make blended CPA look better than it is
             </h2>
             <p className="text-center text-xs pb-4 max-w-3xl mx-auto text-slate-500">
-              Brand demand makes blended CPA look stronger than incremental acquisition performance.
+              Brand consumes only 15% of search-term spend but generates 46% of primary conversions,
+              making blended account CPA look materially stronger than incremental acquisition
+              performance.
             </p>
             <div className="max-w-4xl mx-auto w-full">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                <div
+                  tabIndex={0}
+                  role="group"
+                  aria-label="Owned-brand search terms. Focus or hover to reveal the top terms by spend."
+                  className="group relative rounded-lg border border-purple-200 bg-purple-50 p-4 outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
+                >
                   <div className="text-xs font-semibold uppercase tracking-wider text-purple-700 mb-2">
                     Owned-brand search terms
                   </div>
-                  <div className="text-3xl font-bold text-purple-700 mb-1">14.63% spend</div>
+                  <div className="text-3xl font-bold text-purple-700 mb-1">15% spend</div>
                   <div className="text-sm font-semibold text-slate-800 mb-2">
-                    45.57% of primary conversions
+                    46% of primary conversions
                   </div>
                   <p className="text-sm text-slate-700">
                     Custom Fluid Power, Custom Fluidpower, Custom Safe Brakes and Custom Storm
                     Brakes are classified as owned brand. Their conversion share is
                     disproportionately high.
                   </p>
+                  <div className="mt-3 rounded-md border border-purple-200 bg-white/90 p-2.5 text-xs shadow-sm md:absolute md:left-4 md:right-4 md:top-full md:z-20 md:mt-1 md:invisible md:opacity-0 md:pointer-events-none md:transition-[opacity,visibility] md:duration-150 md:group-hover:visible md:group-hover:opacity-100 md:group-hover:pointer-events-auto md:group-focus:visible md:group-focus:opacity-100 md:group-focus:pointer-events-auto">
+                    <p className="font-semibold text-purple-900 mb-1">
+                      Top owned-brand terms by spend
+                    </p>
+                    <ul className="space-y-1 text-slate-700">
+                      {SEARCH_TERM_TOP_ROWS.filter((row) => row.classification === 'Brand').map(
+                        (row) => (
+                          <li key={row.term} className="flex items-center justify-between gap-3">
+                            <span className="font-mono text-[11px]">{row.term}</span>
+                            <span className="font-semibold tabular-nums">{row.spend}</span>
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
                 </div>
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                   <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700 mb-2">
                     Generic / non-owned demand
                   </div>
-                  <div className="text-3xl font-bold text-emerald-700 mb-1">85.37% spend</div>
+                  <div className="text-3xl font-bold text-emerald-700 mb-1">85% spend</div>
                   <div className="text-sm font-semibold text-slate-800 mb-2">
-                    54.43% of primary conversions
+                    54% of primary conversions
                   </div>
                   <p className="text-sm text-slate-700">
                     HYDAC, Parker and Sun Hydraulics remain generic/non-owned. Generic campaign
@@ -1196,9 +939,9 @@ export default function AwayDigitalAuditPage() {
               </div>
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
                 <p className="text-sm text-slate-800">
-                  <span className="font-bold text-blue-800">Recommendation:</span> keep defensive
-                  brand coverage, report brand separately, and test additional generic budget only
-                  where search budget loss, CPA and lead quality all support it.
+                  <span className="font-bold text-blue-800">Interpretation:</span> report brand
+                  separately. The blended CPA is not a reliable measure of incremental acquisition
+                  until brand demand and qualified-lead quality are separated.
                 </p>
               </div>
             </div>
@@ -1207,178 +950,54 @@ export default function AwayDigitalAuditPage() {
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
             aria-hidden="true"
           >
-            5 / 15
+            6 / 12
           </div>
         </section>
         <section
-          id="nb-trend"
-          data-label="Non-brand trend"
+          id="brand-incrementality"
+          data-label="Brand incrementality"
           className="relative min-h-screen flex flex-col bg-slate-50"
         >
-          <div className="flex-1 flex flex-col justify-center px-6 pt-20 pb-12 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-2 mx-auto text-slate-900 md:whitespace-nowrap">
-              Monthly account spend has stayed controlled while conversion volume remains active
-            </h2>
-            <p className="text-center text-sm text-slate-500 mb-4 max-w-3xl mx-auto">
-              <span className="font-semibold text-slate-900">Latest 16 reported months:</span> spend
-              peaked at $3,213 in June 2026. Use qualified enquiries, not blended micro-conversions,
-              to decide where additional budget belongs.
+          <div className="flex-1 flex flex-col justify-center px-6 py-8 max-w-5xl mx-auto w-full">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-700 text-center mb-2">
+              Brand spend
             </p>
-            <div className="max-w-4xl mx-auto w-full">
-              <div className="bg-white rounded-lg p-4 border border-slate-200 mb-4">
-                <svg
-                  id="chart-svg-nb"
-                  viewBox="0 0 760 280"
-                  className="w-full h-auto"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <g>
-                    {NB_TREND_GRID_LINES.map((line) => (
-                      <g key={line.label}>
-                        <line
-                          x1="60"
-                          x2="700"
-                          y1={line.y}
-                          y2={line.y}
-                          stroke="rgb(226,232,240)"
-                          strokeDasharray="2,3"
-                          strokeWidth="1"
-                        />
-                        <text
-                          x="56"
-                          y={line.y + 4}
-                          textAnchor="end"
-                          fontSize="10"
-                          fill="rgb(100,116,139)"
-                        >
-                          {line.label}
-                        </text>
-                      </g>
-                    ))}
-                  </g>
-                  <g>
-                    {NB_TREND_MONTHS.map((month) =>
-                      month.segments.map((seg, segIdx) => (
-                        <rect
-                          key={`${month.x}-${segIdx}`}
-                          x={month.x}
-                          y={seg.y}
-                          width="24"
-                          height={seg.height}
-                          fill={NB_TREND_SEGMENT_COLORS[segIdx]}
-                          opacity="0.85"
-                          rx="1"
-                        />
-                      )),
-                    )}
-                  </g>
-                  <g>
-                    {NB_TREND_MONTHS.map((month, idx) => (
-                      <text
-                        key={`month-${idx}`}
-                        x={month.centerX}
-                        y="228"
-                        textAnchor="middle"
-                        fontSize="9"
-                        fill="rgb(100,116,139)"
-                        transform={`rotate(-45 ${month.centerX} 228)`}
-                      >
-                        {month.label}
-                      </text>
-                    ))}
-                  </g>
-                  <g>
-                    {NB_TREND_MONTHS.map((month, idx) => (
-                      <text
-                        key={`total-${idx}`}
-                        x={month.centerX}
-                        y={month.totalY}
-                        textAnchor="middle"
-                        fontSize="8"
-                        fill="rgb(100,116,139)"
-                      >
-                        {month.total}
-                      </text>
-                    ))}
-                  </g>
-                  <g transform="translate(80, 248)">
-                    {NB_TREND_LEGEND.map((entry) => (
-                      <g key={entry.name}>
-                        <rect x={entry.x} y="0" width="12" height="12" fill={entry.color} rx="2" />
-                        <text
-                          x={entry.x + 17}
-                          y="10"
-                          fontSize="10"
-                          fontWeight="600"
-                          fill="rgb(51,65,85)"
-                        >
-                          {entry.name}
-                        </text>
-                        <text
-                          x={entry.x + 17}
-                          y="24"
-                          fontSize="10"
-                          fontWeight="700"
-                          fill={entry.color}
-                        >
-                          {entry.cpl}
-                        </text>
-                      </g>
-                    ))}
-                  </g>
-                </svg>
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[6px] text-slate-900">
+              Paying for brand clicks you already get organically
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl mx-auto w-full mb-4">
+              <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-center">
+                <div className="text-xs font-semibold uppercase tracking-wider text-violet-700 mb-1">
+                  Organic position
+                </div>
+                <div className="text-3xl font-bold text-violet-800">#1</div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-                    Generic hydraulic engineering
-                  </div>
-                  <div className="text-sm font-bold text-blue-600 mb-1">$27–$34 blended CPA</div>
-                  <p className="text-sm text-slate-800">
-                    Newcastle, Brisbane and Perth show efficient blended CPA with 43–45% search
-                    budget loss. Validate qualified lead quality, then test incremental budget.
-                  </p>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center">
+                <div className="text-xs font-semibold uppercase tracking-wider text-amber-700 mb-1">
+                  Brand spend
                 </div>
-                <div className="rounded-lg border border-violet-200 bg-violet-50 p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-violet-700">
-                    Custom Safe Brakes
-                  </div>
-                  <div className="text-sm font-bold text-violet-700 mb-1">$36 blended CPA</div>
-                  <p className="text-sm text-slate-800">
-                    The largest conversion contributor, but its conversion mix still includes
-                    account-wide primary micro-actions. Scale only after lead-quality validation.
-                  </p>
+                <div className="text-2xl font-bold text-amber-900">15% of total spend</div>
+              </div>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-center">
+                <div className="text-xs font-semibold uppercase tracking-wider text-rose-700 mb-1">
+                  Brand conversion share
                 </div>
-                <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-orange-700">
-                    Audience / mining coverage
-                  </div>
-                  <div className="text-sm font-bold text-orange-700 mb-1">$341 blended CPA</div>
-                  <p className="text-sm text-slate-800">
-                    This is the weakest major campaign by blended CPA. Lead quality and targeting
-                    should be reviewed before any budget increase.
-                  </p>
-                </div>
-                <div className="rounded-lg border border-teal-200 bg-teal-50 p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-teal-700">
-                    HYDAC
-                  </div>
-                  <div className="text-sm font-bold text-teal-700 mb-1">
-                    $67 blended CPA · paused
-                  </div>
-                  <p className="text-sm text-slate-800">
-                    The account can show historical performance, but not the operational reason for
-                    pausing. Confirm the business context before relaunching.
-                  </p>
-                </div>
+                <div className="text-3xl font-bold text-rose-900">46%</div>
               </div>
             </div>
+            <figure className="max-w-4xl mx-auto w-full rounded-xl border border-slate-200 bg-white p-3">
+              <img
+                src="/partners/custom-fluid-power/organic-brand-search-result.png"
+                alt="Google search result for Custom Fluid Power showing the company in the top organic position"
+                className="w-full max-h-[430px] object-contain rounded-lg border border-slate-100 bg-white"
+              />
+            </figure>
           </div>
           <div
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
             aria-hidden="true"
           >
-            6 / 15
+            7 / 12
           </div>
         </section>
         <section
@@ -1387,11 +1006,12 @@ export default function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-12 max-w-6xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-1 max-w-4xl mx-auto text-slate-900">
-              Campaign-level performance and budget-loss evidence
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-6px] max-w-6xl mx-auto text-slate-900 md:whitespace-nowrap">
+              Campaigns can scale beyond the $3,500 budget
             </h2>
             <p className="text-center text-xs text-slate-500 mb-4">
-              Spend, blended primary-conversion CPA and search budget loss by campaign theme.
+              Efficient CPA and lost impression share reveal missed opportunities that need active
+              identification and testing.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {AD_GROUP_CATEGORIES.map((category) => (
@@ -1434,264 +1054,12 @@ export default function AwayDigitalAuditPage() {
                 </div>
               ))}
             </div>
-            <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <p className="text-xs text-slate-700">
-                <span className="font-bold text-slate-900">Decision rule:</span> budget loss shows
-                available impression share, not guaranteed incremental leads. Validate qualified
-                enquiries and search intent before scaling.
-              </p>
-            </div>
           </div>
           <div
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
             aria-hidden="true"
           >
-            7 / 15
-          </div>
-        </section>
-        <section
-          id="search-terms"
-          data-label="Search terms"
-          className="relative min-h-screen flex flex-col bg-slate-50"
-        >
-          <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-8 max-w-6xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-1 max-w-4xl mx-auto text-slate-900">
-              Search-term evidence separates demand capture from waste
-            </h2>
-            <p className="text-center text-xs text-slate-500 mb-4">
-              80,429 returned rows &middot; 46,702 distinct terms &middot; brand and generic shown
-              separately
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Top 20 by conversion */}
-              <div className="rounded-lg border border-emerald-200 bg-white overflow-hidden flex flex-col">
-                <div className="px-3 py-1.5 bg-emerald-50 border-b border-emerald-200 flex items-baseline justify-between">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                    Top search terms by spend
-                  </div>
-                  <div className="text-[10px] text-slate-500">
-                    Primary conversions &middot; micro-conversion caveat applies
-                  </div>
-                </div>
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="text-left py-1 px-2 font-semibold">Search term</th>
-                      <th className="text-right py-1 px-2 font-semibold">Spend</th>
-                      <th className="text-right py-1 px-2 font-semibold">Conv</th>
-                      <th className="text-right py-1 px-2 font-semibold">CPL</th>
-                      <th className="text-right py-1 pl-2 pr-3 font-semibold">Classification</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {SEARCH_TERM_TOP_ROWS.map((row) => (
-                      <tr key={row.term}>
-                        <td className="py-1 px-2 text-[11px] text-slate-700 font-mono">
-                          {row.term}
-                        </td>
-                        <td className="text-right py-1 px-2 text-[11px] tabular-nums text-slate-600">
-                          {row.spend}
-                        </td>
-                        <td className="text-right py-1 px-2 text-[11px] tabular-nums text-slate-700 font-semibold">
-                          {row.conv}
-                        </td>
-                        <td className="text-right py-1 px-2 text-[11px] tabular-nums font-semibold text-emerald-700">
-                          {row.cpl}
-                        </td>
-                        <td className="text-right py-1 pl-2 pr-3 text-[11px]">
-                          <span
-                            className={
-                              row.classificationHighlight === false
-                                ? 'text-slate-500'
-                                : 'text-amber-700 font-semibold'
-                            }
-                          >
-                            {row.classification}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="mt-auto px-3 py-1.5 bg-emerald-50/40 text-[10px] text-emerald-800 border-t border-emerald-200">
-                  <span className="font-semibold">Classification</span> separates brand demand,
-                  HYDAC review items, intent questions and known negative-keyword conflicts.
-                </div>
-              </div>
-              {/* Negative-keyword candidates */}
-              <div className="rounded-lg border border-rose-200 bg-white overflow-hidden flex flex-col">
-                <div className="px-3 py-1.5 bg-rose-50 border-b border-rose-200 flex items-baseline justify-between">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-rose-700">
-                    Negative coverage &amp; intent review
-                  </div>
-                  <div className="text-[10px] text-slate-500">
-                    $831 across 12 heuristic review terms
-                  </div>
-                </div>
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="text-left py-1 px-2 font-semibold">
-                        Pattern {'\u2014'} example queries
-                      </th>
-                      <th className="text-right py-1 px-2 font-semibold">Review spend</th>
-                      <th className="text-right py-1 pl-2 pr-3 font-semibold">Count</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {NEGATIVE_PATTERN_ROWS.map((row) => (
-                      <tr key={row.label}>
-                        <td className="py-1 px-2 text-[11px]">
-                          <span className="font-semibold text-slate-700">{row.label}</span>
-                          {row.detail}
-                          <br />
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {row.examples}
-                          </span>
-                        </td>
-                        <td className="text-right py-1 px-2 text-[11px] tabular-nums font-semibold text-rose-700">
-                          {row.wasted}
-                        </td>
-                        <td className="text-right py-1 pl-2 pr-3 text-[11px] tabular-nums text-slate-600">
-                          {row.terms}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="mt-auto px-3 py-1.5 bg-rose-50/40 text-[10px] text-rose-800 border-t border-rose-200">
-                  <span className="font-semibold">
-                    Treat this as a review queue, not automatic exclusions.
-                  </span>{' '}
-                  Validate intent and historical conversion quality before adding negatives; review
-                  campaign, ad-group and shared-list coverage separately.
-                </div>
-              </div>
-            </div>
-            <p className="mt-3 text-[11px] text-slate-500 italic text-center">
-              Budget limitation is assessed at campaign level elsewhere in the audit; search-term
-              classifications above are review signals only.
-            </p>
-          </div>
-          <div
-            className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
-            aria-hidden="true"
-          >
-            8 / 15
-          </div>
-        </section>
-        <section
-          id="landing-pages"
-          data-label="Landing pages"
-          className="relative min-h-screen flex flex-col bg-white"
-        >
-          <div className="flex-1 flex flex-col justify-center px-6 pt-20 pb-12 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-3 mx-auto text-slate-900">
-              Landing-page performance is not available in this audit export
-            </h2>
-            <p className="text-center text-sm md:text-base pb-6 max-w-3xl mx-auto text-slate-500">
-              No destination-page metrics were supplied, so this first deck does not invent
-              landing-page CPA evidence.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-4xl mx-auto w-full">
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                <div className="text-xs font-semibold uppercase tracking-wider text-blue-700 mb-2">
-                  Paid search opportunity
-                </div>
-                <p className="text-sm text-slate-800">
-                  Align generic hydraulic engineering campaigns with high-intent pages and clear
-                  enquiry paths. Validate page-level conversion quality before budget increases.
-                </p>
-              </div>
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700 mb-2">
-                  SEO opportunity
-                </div>
-                <p className="text-sm text-slate-800">
-                  Strengthen pages for hydraulic repair, manifolds, valves, pumps, cylinders and
-                  industrial braking using the language proven in search-term demand.
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 max-w-4xl mx-auto w-full">
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">Next measurement step:</span> add destination-page
-                performance to the next export so spend, clicks, qualified enquiries and CPA can be
-                assessed without assumptions.
-              </p>
-            </div>
-          </div>
-          <div
-            className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
-            aria-hidden="true"
-          >
-            9 / 15
-          </div>
-        </section>
-        <section
-          id="ai-erosion"
-          data-label="Measurement"
-          className="relative min-h-screen flex flex-col bg-slate-50"
-        >
-          <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-8 max-w-6xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-2 max-w-4xl mx-auto text-slate-900">
-              The account is healthy, but measurement quality limits the headline CPA
-            </h2>
-            <p className="text-center text-sm md:text-base pb-5 max-w-3xl mx-auto text-slate-500">
-              Primary conversions mix qualified enquiries with downloads, click-to-call and other
-              micro-actions.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-              <div className="rounded-lg border border-blue-200 bg-white p-4">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 mb-2">
-                  Reported performance
-                </div>
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <div className="text-center">
-                    <div className="text-[9px] uppercase text-slate-400">Spend</div>
-                    <div className="text-lg font-bold text-slate-900">$127,314</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-[9px] uppercase text-slate-400">Primary conv.</div>
-                    <div className="text-lg font-bold text-slate-900">2,292</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-[9px] uppercase text-slate-400">Blended CPA</div>
-                    <div className="text-lg font-bold text-blue-700">$55.55</div>
-                  </div>
-                </div>
-                <p className="text-[12px] text-slate-700 leading-snug">
-                  <span className="font-semibold text-slate-900">Important:</span> this is not a
-                  qualified-lead CPA because primary goals include micro-conversions.
-                </p>
-              </div>
-              <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-rose-700 mb-2">
-                  Duplicate-tracking review
-                </div>
-                <p className="text-[12px] text-slate-700 leading-snug mb-2">
-                  Possible overlap exists across Custom Fluid / GA4 enquiry / enquiry submission
-                  actions and across phone / call actions.
-                </p>
-                <p className="text-[12px] text-slate-700 leading-snug">
-                  The aggregate API pull cannot prove historical configuration or deduplication.
-                  Validate source events in Google Ads, GA4 and GTM.
-                </p>
-              </div>
-            </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-              <p className="text-sm text-slate-800">
-                <strong className="text-blue-700">Bidding implication:</strong> keep the positive
-                account framing, but optimise toward confirmed enquiries and calls before treating
-                low blended CPA as acquisition efficiency.
-              </p>
-            </div>
-          </div>
-          <div
-            className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
-            aria-hidden="true"
-          >
-            10 / 15
+            8 / 12
           </div>
         </section>
         <section
@@ -1700,7 +1068,7 @@ export default function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-10 pb-8 max-w-6xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-1 max-w-4xl mx-auto text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-6px] max-w-4xl mx-auto text-slate-900">
               Recommendations to strengthen performance
             </h2>
             <p className="text-center text-xs text-slate-500 mb-4">
@@ -1774,7 +1142,7 @@ export default function AwayDigitalAuditPage() {
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
             aria-hidden="true"
           >
-            11 / 15
+            9 / 12
           </div>
         </section>
         <section
@@ -1782,11 +1150,11 @@ export default function AwayDigitalAuditPage() {
           data-label="Opportunity"
           className="relative min-h-screen flex flex-col bg-slate-900"
         >
-          <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-8 max-w-4xl mx-auto w-full text-center">
+          <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-8 max-w-6xl mx-auto w-full text-center">
             <p className="text-blue-400 text-xs font-semibold tracking-widest uppercase mb-4">
               The opportunity
             </p>
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
+            <h2 className="text-2xl md:text-3xl font-bold text-white mb-[14px] md:whitespace-nowrap">
               Turn a healthy account into more incremental generic demand
             </h2>
             <p className="text-slate-300 text-sm md:text-base leading-relaxed mb-8 max-w-2xl mx-auto">
@@ -1821,7 +1189,7 @@ export default function AwayDigitalAuditPage() {
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-500 select-none pointer-events-none"
             aria-hidden="true"
           >
-            12 / 15
+            10 / 12
           </div>
         </section>
         <section
@@ -1830,7 +1198,7 @@ export default function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-8 max-w-4xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-2 text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-2px] text-slate-900">
               How we work differently as an agency
             </h2>
             <div className="pb-4" />
@@ -2221,98 +1589,7 @@ export default function AwayDigitalAuditPage() {
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
             aria-hidden="true"
           >
-            13 / 15
-          </div>
-        </section>
-        <section
-          id="working-together"
-          data-label="Working together"
-          className="relative flex flex-col bg-white"
-          style={{ minHeight: 'calc(100vh - 100px)' }}
-        >
-          <div className="flex-1 flex flex-col justify-center px-6 pt-2 pb-8 max-w-3xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-2 text-slate-900">
-              Working together
-            </h2>
-            <p className="text-center text-sm md:text-base pb-5 max-w-2xl mx-auto text-slate-500">
-              Month-to-month because we earn the business through results.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <h3 className="text-xs font-semibold text-slate-900 mb-2">Google Ads management</h3>
-                <ul className="space-y-1 text-xs text-slate-600">
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 shrink-0">✓</span>No lock-in contracts
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 shrink-0">✓</span>Expert team and strategy, not
-                    juniors
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 shrink-0">✓</span>AI-powered monitoring and
-                    recommendations
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 shrink-0">✓</span>Clear bespoke dashboards
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 shrink-0">✓</span>Transparent reporting against
-                    commercial goals
-                  </li>
-                </ul>
-              </div>
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <h3 className="text-xs font-semibold text-slate-900 mb-2">What’s included</h3>
-                <ul className="space-y-1 text-xs text-slate-600">
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 shrink-0">✓</span>Week 1: Quick wins (negatives,
-                    routing and defensive brand coverage)
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 shrink-0">✓</span>Weeks 2–6: Restructure
-                    (broad-match → phrase/exact, ad-group refinement)
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 shrink-0">✓</span>Month 2+: Scale (form-on-LP
-                    rollout, QS lift, ongoing review)
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 shrink-0">✓</span>Ongoing: Fortnightly
-                    optimisation + monthly optimisation plans
-                  </li>
-                </ul>
-              </div>
-            </div>
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-900">
-                    <th className="text-left text-white font-semibold px-4 py-2"></th>
-                    <th className="text-right text-white font-semibold px-4 py-2">Approach</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="bg-white">
-                    <td className="px-4 py-2 font-medium text-slate-900">Management scope</td>
-                    <td className="px-4 py-2 text-right text-slate-700 font-semibold">
-                      Agree after measurement validation
-                    </td>
-                  </tr>
-                  <tr className="bg-slate-50">
-                    <td className="px-4 py-2 font-medium text-slate-900">Media budget</td>
-                    <td className="px-4 py-2 text-right text-slate-700 font-semibold">
-                      Controlled tests from current baseline
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div
-            className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
-            aria-hidden="true"
-          >
-            14 / 15
+            11 / 12
           </div>
         </section>
         <div id="space-transition" className="v2-space-transition" aria-hidden="true" />
@@ -2359,7 +1636,7 @@ export default function AwayDigitalAuditPage() {
             </a>
           </div>
           <div className="relative z-10 flex-1 flex flex-col justify-center px-8 md:px-12 pb-0 w-full gap-10">
-            <h2 className="closing-h1 text-4xl md:text-6xl max-w-3xl">
+            <h2 className="closing-h1 text-4xl md:text-6xl max-w-3xl mb-[-10px]">
               Ready to <em>discuss</em>?
             </h2>
             <div className="closing-who max-w-4xl">
@@ -2385,7 +1662,7 @@ export default function AwayDigitalAuditPage() {
           id="appendix-cover"
           className="relative min-h-screen flex flex-col items-center justify-center bg-slate-900 text-center px-6"
         >
-          <h2 className="text-5xl md:text-6xl font-bold text-white">Appendix</h2>
+          <h2 className="text-5xl md:text-6xl font-bold text-white mb-[-10px]">Appendix</h2>
         </section>
         <section id="appendix" className="relative min-h-screen flex flex-col bg-white px-6 py-8">
           <div className="max-w-6xl mx-auto w-full">
@@ -2394,7 +1671,9 @@ export default function AwayDigitalAuditPage() {
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
                   Appendix
                 </p>
-                <h2 className="text-lg md:text-xl font-bold text-slate-900">Scoring methodology</h2>
+                <h2 className="text-lg md:text-xl font-bold text-slate-900 mb-[-10px]">
+                  Scoring methodology
+                </h2>
               </div>
               <a
                 href="#audit-score"

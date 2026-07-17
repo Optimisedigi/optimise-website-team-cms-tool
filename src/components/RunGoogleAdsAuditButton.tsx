@@ -1,7 +1,9 @@
 'use client'
 
-import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useAllFormFields, useDocumentInfo } from '@payloadcms/ui'
+import { useState } from 'react'
+
+const dateLabel = (value: unknown) => typeof value === 'string' && value ? value.slice(0, 10) : null
 
 const RunGoogleAdsAuditButton = () => {
   const { id } = useDocumentInfo()
@@ -9,161 +11,52 @@ const RunGoogleAdsAuditButton = () => {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [stage, setStage] = useState('')
-  const [percent, setPercent] = useState(0)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current)
-      pollRef.current = null
-    }
-  }, [])
-
-  const startPolling = useCallback(() => {
-    stopPolling()
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/google-ads-audits/${id}/audit-status`, {
-          credentials: 'include',
-        })
-        if (!res.ok) return
-        const data = await res.json()
-
-        if (data.stage) setStage(data.stage)
-        if (typeof data.percent === 'number') setPercent(data.percent)
-
-        if (data.status === 'completed') {
-          stopPolling()
-          setLoading(false)
-          setPercent(100)
-          setStage('Complete')
-          setMessage('Audit completed. Refresh the page to see results.')
-        } else if (data.status === 'failed') {
-          stopPolling()
-          setLoading(false)
-          setPercent(100)
-          setStage('Failed')
-          setError(data.error || 'Audit failed')
-        }
-      } catch {
-        // Network hiccup — keep polling
-      }
-    }, 3000)
-  }, [id, stopPolling])
-
-  useEffect(() => () => stopPolling(), [stopPolling])
-
   if (!id) return null
 
-  const customerId = fields?.customerId?.value as string | undefined
-  const auditStatus = fields?.auditStatus?.value as string | undefined
-
-  const isRunning = loading
-  const isStuck = auditStatus === 'running' && !loading
-
-  const missingFields: string[] = []
-  if (!customerId?.trim()) missingFields.push('Customer ID')
+  const customerId = String(fields?.customerId?.value ?? '').trim()
+  const state = String(fields?.snapshotState?.value ?? fields?.auditStatus?.value ?? '')
+  const periodStart = dateLabel(fields?.snapshotPeriodStart?.value)
+  const periodEnd = dateLabel(fields?.snapshotPeriodEnd?.value)
+  const active = loading || state === 'pending' || state === 'running'
+  const completed = state === 'completed'
+  const label = loading ? 'Starting snapshot…' : state === 'failed' ? 'Retry frozen snapshot' : completed ? 'Create newer snapshot' : 'Capture Google Ads snapshot'
 
   const handleClick = async () => {
+    const confirmNew = completed
+    if (confirmNew && !window.confirm('Create a new point-in-time snapshot? This changes the evidence baseline and keeps the completed snapshot unchanged.')) return
     setLoading(true)
     setMessage(null)
     setError(null)
-    setStage('Starting...')
-    setPercent(0)
-
     try {
-      const res = await fetch(`/api/google-ads-audits/${id}/run-audit`, {
-        method: 'POST',
-        credentials: 'include',
+      const response = await fetch(`/api/google-ads-audits/${id}/snapshot`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirmNew }),
       })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error || `Failed (${res.status})`)
-        setLoading(false)
-        return
-      }
-
-      startPolling()
-    } catch (err) {
-      setError('Network error — check your connection and try again.')
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || `Failed (${response.status})`)
+      setMessage(`Snapshot ${data.status}. Frozen window: ${String(data.periodStart).slice(0, 10)} to ${String(data.periodEnd).slice(0, 10)}.`)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Snapshot request failed')
+    } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div style={{ marginBottom: 20 }}>
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={isRunning || missingFields.length > 0}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '10px 20px',
-          background: isRunning ? '#6b7280' : missingFields.length > 0 ? '#9ca3af' : '#2563eb',
-          color: '#fff',
-          borderRadius: 8,
-          border: 'none',
-          fontWeight: 600,
-          fontSize: 14,
-          cursor: isRunning || missingFields.length > 0 ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {isRunning ? 'Running Audit...' : 'Run Google Ads Audit'}
+    <section style={{ marginBottom: 20 }} aria-labelledby="snapshot-control-title">
+      <h3 id="snapshot-control-title" style={{ margin: '0 0 8px', fontSize: 15 }}>Immutable audit snapshot</h3>
+      <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--theme-elevation-600)' }}>
+        {periodStart && periodEnd ? `Frozen window: ${periodStart} to ${periodEnd}.` : 'The first capture ends on the final day of the previous month in the Google Ads account timezone.'} State: {state || 'not created'}.
+      </p>
+      <button type="button" className="btn btn--style-primary" onClick={handleClick} disabled={active || !customerId} style={{ minHeight: 44 }}>
+        {label}
       </button>
-
-      {missingFields.length > 0 && (
-        <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>
-          Fill in {missingFields.join(', ')} before running the audit.
-        </p>
-      )}
-
-      {isStuck && (
-        <p style={{ marginTop: 8, fontSize: 13, color: '#f59e0b' }}>
-          Previous audit appears stuck. You can safely re-run.
-        </p>
-      )}
-
-      {isRunning && (
-        <div style={{ marginTop: 12 }}>
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 400,
-              height: 8,
-              background: '#e5e7eb',
-              borderRadius: 4,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                width: `${percent}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, #2563eb, #3b82f6)',
-                borderRadius: 4,
-                transition: 'width 0.5s ease',
-              }}
-            />
-          </div>
-          <p style={{ marginTop: 6, fontSize: 13, color: '#6b7280' }}>
-            {stage || 'Starting...'} {percent > 0 && `— ${percent}%`}
-          </p>
-        </div>
-      )}
-
-      {message && (
-        <p style={{ marginTop: 8, fontSize: 13, color: '#16a34a' }}>{message}</p>
-      )}
-
-      {error && (
-        <p style={{ marginTop: 8, fontSize: 13, color: '#dc2626' }}>{error}</p>
-      )}
-    </div>
+      {!customerId && <p style={{ marginTop: 8, fontSize: 13 }}>Enter a Customer ID before capturing.</p>}
+      {active && !loading && <p role="status" style={{ marginTop: 8, fontSize: 13 }}>Capture is active. Duplicate dispatch is blocked.</p>}
+      <div aria-live="polite">
+        {message && <p style={{ marginTop: 8, fontSize: 13, color: 'var(--theme-success-600)' }}>{message}</p>}
+        {error && <p role="alert" style={{ marginTop: 8, fontSize: 13, color: 'var(--theme-error-600)' }}>{error}</p>}
+      </div>
+    </section>
   )
 }
 

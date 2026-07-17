@@ -5,10 +5,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 /**
  * Monthly performance chart for the Account-at-a-glance slide.
  * - 16 monthly bars (Spend, AUD)
- * - Clicks line (left axis)
- * - Conversions OR CPL overlay (right axis)
+ * - Spend bars (left axis)
+ * - Conversions OR CPA overlay (right axis)
  * - Geo toggle: All / AU / US
- * - View toggle: Conversions vs CPL
+ * - View toggle: Conversions vs CPA
  *
  * Real data from scripts/audit-away-digital/data/02_monthly_by_campaign.json,
  * bucketed by AU/US via campaign-name suffix; legacy "ADT Traffic" → AU.
@@ -18,7 +18,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
  * (cheaper than re-keying ~150 SVG nodes through React for a static dataset).
  */
 
-export type Row = { m: string; s: number; c: number; v: number }
+export type Row = { m: string; s: number; c: number; v: number; pdf?: number }
+export type ConversionAction = { id: string; label: string; values: number[] }
 type Geo = 'all' | 'AU' | 'US'
 type View = 'cpa' | 'convs'
 
@@ -126,22 +127,43 @@ function addTitle(parent: SVGElement, txt: string) {
 
 export default function AccountGlanceChart({
   rows,
+  conversionActions,
   clientName = 'Custom Fluid Power',
   periodLabel = '16 months',
   geoAvailable = true,
 }: {
   rows?: Row[]
+  conversionActions?: ConversionAction[]
   clientName?: string
   periodLabel?: string
   geoAvailable?: boolean
 }) {
+  const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(
+    () => new Set(conversionActions?.map((action) => action.id) ?? []),
+  )
+  const filteredRows = useMemo(
+    () =>
+      rows?.map((row, index) => ({
+        ...row,
+        v: conversionActions
+          ? conversionActions.reduce(
+              (total, action) =>
+                selectedActionIds.has(action.id) ? total + (action.values[index] ?? 0) : total,
+              0,
+            )
+          : row.v,
+      })),
+    [conversionActions, rows, selectedActionIds],
+  )
   const chartSeries = useMemo<Record<Geo, Row[]>>(
     () => ({
-      all: rows ?? CHART_SERIES.all,
-      AU: rows ?? CHART_SERIES.AU,
-      US: rows ? rows.map((row) => ({ ...row, s: 0, c: 0, v: 0 })) : CHART_SERIES.US,
+      all: filteredRows ?? CHART_SERIES.all,
+      AU: filteredRows ?? CHART_SERIES.AU,
+      US: filteredRows
+        ? filteredRows.map((row) => ({ ...row, s: 0, c: 0, v: 0 }))
+        : CHART_SERIES.US,
     }),
-    [rows],
+    [filteredRows],
   )
   const spendMax = rows ? Math.max(1, ...chartSeries.all.map((row) => row.s)) * 1.15 : G.spendMax
   const clicksMax = rows ? Math.max(1, ...chartSeries.all.map((row) => row.c)) * 1.15 : G.clicksMax
@@ -150,10 +172,18 @@ export default function AccountGlanceChart({
     ? Math.max(1, ...chartSeries.all.map((row) => (row.v > 0 ? row.s / row.v : 0))) * 1.15
     : G.cpaMax
   const [geo, setGeo] = useState<Geo>('all')
-  const [view, setView] = useState<View>('cpa')
+  const [view] = useState<View>('cpa')
   const dataGroupRef = useRef<SVGGElement | null>(null)
+  const toggleAction = (actionId: string) => {
+    setSelectedActionIds((current) => {
+      const next = new Set(current)
+      if (next.has(actionId)) next.delete(actionId)
+      else next.add(actionId)
+      return next
+    })
+  }
 
-  const cplCard = useMemo(() => {
+  const cpaCard = useMemo(() => {
     const series = chartSeries[geo]
     let s = 0
     let v = 0
@@ -161,11 +191,11 @@ export default function AccountGlanceChart({
       s += series[i].s
       v += series[i].v
     }
-    const cpl = v > 0 ? Math.round(s / v) : 0
+    const cpa = v > 0 ? Math.round(s / v) : 0
     const labelMap: Record<Geo, string> = { all: 'Account', AU: 'AU', US: 'US' }
     return {
       label: labelMap[geo],
-      value: cpl > 0 ? '~$' + cpl.toLocaleString() : '-',
+      value: cpa > 0 ? '~$' + cpa.toLocaleString() : '-',
     }
   }, [chartSeries, geo])
 
@@ -176,7 +206,7 @@ export default function AccountGlanceChart({
 
     const data = chartSeries[geo]
 
-    // Bars + spend labels
+    // Spend bars
     for (let i = 0; i < data.length; i++) {
       const d = data[i]
       if (d.s <= 0) continue
@@ -194,60 +224,9 @@ export default function AccountGlanceChart({
       })
       addTitle(rect, d.m + ': $' + Math.round(d.s).toLocaleString())
       root.appendChild(rect)
-      const lbl = makeEl(
-        'text',
-        {
-          x: x.toFixed(1),
-          y: (y - 4).toFixed(1),
-          'text-anchor': 'middle',
-          'font-size': '8',
-          fill: 'rgb(30,58,138)',
-          'font-weight': '700',
-        },
-        fmtSpend(d.s),
-      )
-      root.appendChild(lbl)
     }
 
-    // Clicks line + dots
-    let clickPts: string[] = []
-    if (geo === 'US') {
-      clickPts = data
-        .map((d, k) =>
-          d.c > 0 ? G.xs[k].toFixed(1) + ',' + scaleY(d.c, clicksMax).toFixed(1) : null,
-        )
-        .filter((p): p is string => p !== null)
-    } else {
-      for (let j = 0; j < data.length; j++) {
-        clickPts.push(G.xs[j].toFixed(1) + ',' + scaleY(data[j].c, clicksMax).toFixed(1))
-      }
-    }
-    if (clickPts.length > 1) {
-      root.appendChild(
-        makeEl('polyline', {
-          points: clickPts.join(' '),
-          fill: 'none',
-          stroke: 'rgb(5,150,105)',
-          'stroke-width': '2',
-          'stroke-linejoin': 'round',
-        }),
-      )
-    }
-    for (let k = 0; k < data.length; k++) {
-      const dk = data[k]
-      if (geo === 'US' && dk.c <= 0) continue
-      const cy = scaleY(dk.c, clicksMax)
-      const dot = makeEl('circle', {
-        cx: G.xs[k].toFixed(1),
-        cy: cy.toFixed(1),
-        r: '2.75',
-        fill: 'rgb(5,150,105)',
-      })
-      addTitle(dot, dk.m + ': ' + fmtNum(dk.c) + ' clicks')
-      root.appendChild(dot)
-    }
-
-    // Conversions OR CPL overlay (right axis) across the supplied period
+    // Conversions OR CPA overlay (right axis) across the supplied period
     if (view === 'convs') {
       let convPts: string[] = []
       if (geo === 'US') {
@@ -305,7 +284,7 @@ export default function AccountGlanceChart({
         )
       }
     } else {
-      // CPL: spend / conversions across the supplied period, only where v > 0
+      // CPA: spend / conversions across the supplied period, only where v > 0
       type CpaItem = { x: number; cpa: number; m: string; s: number }
       const cpaItems: CpaItem[] = []
       for (let r = 0; r < data.length; r++) {
@@ -328,15 +307,10 @@ export default function AccountGlanceChart({
         )
       }
 
-      // Build index from x -> clicks Y and spend-label Y for collision detection
+      // Build an index from x -> clicks Y for CPA-label collision detection.
       const clicksYByX: Record<string, number> = {}
-      const spendLblYByX: Record<string, number> = {}
       for (let ci = 0; ci < data.length; ci++) {
         clicksYByX[G.xs[ci].toFixed(1)] = scaleY(data[ci].c, clicksMax)
-        if (data[ci].s > 0) {
-          const spendH = (data[ci].s / spendMax) * (G.yBot - G.yTop)
-          spendLblYByX[G.xs[ci].toFixed(1)] = G.yBot - spendH - 4
-        }
       }
 
       for (const it of cpaItems) {
@@ -347,17 +321,13 @@ export default function AccountGlanceChart({
           r: '2.75',
           fill: 'rgb(139,92,246)',
         })
-        addTitle(dot, it.m + ': $' + Math.round(it.cpa) + ' CPL')
+        addTitle(dot, it.m + ': $' + Math.round(it.cpa) + ' CPA')
         root.appendChild(dot)
         const clicksY = clicksYByX[it.x.toFixed(1)] ?? -100
-        const spendY = spendLblYByX[it.x.toFixed(1)]
         let lblY = cy - 6
         if (cy <= G.yTop + 0.5) lblY = G.yTop - 6
         if (Math.abs(lblY - clicksY) < 9 || Math.abs(lblY - (clicksY - 4)) < 9) {
           lblY = Math.min(clicksY, cy) - 12
-        }
-        if (spendY != null && Math.abs(lblY - spendY) < 9) {
-          lblY = spendY - 10
         }
         root.appendChild(
           makeEl(
@@ -386,7 +356,7 @@ export default function AccountGlanceChart({
     <>
       {/* Top stat cards */}
       <div className="max-w-4xl mx-auto w-full">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
           <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-center">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-0">
               Total Spend
@@ -395,15 +365,6 @@ export default function AccountGlanceChart({
               {fmtSpend(chartSeries.all.reduce((sum, row) => sum + row.s, 0))}
             </div>
             <div className="text-[10px] text-slate-500">{periodLabel}</div>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-center">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-0">
-              Total Clicks
-            </div>
-            <div className="text-xl font-bold text-slate-900">
-              {fmtNum(chartSeries.all.reduce((sum, row) => sum + row.c, 0))}
-            </div>
-            <div className="text-[10px] text-slate-500">all channels</div>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-center">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-0">
@@ -416,9 +377,9 @@ export default function AccountGlanceChart({
           </div>
           <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-center">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-0">
-              <span>{cplCard.label}</span> CPL
+              <span>{cpaCard.label}</span> CPA
             </div>
-            <div className="text-xl font-bold text-slate-900">{cplCard.value}</div>
+            <div className="text-xl font-bold text-slate-900">{cpaCard.value}</div>
             <div className="text-[10px] text-slate-500">reported-period average</div>
           </div>
         </div>
@@ -460,12 +421,39 @@ export default function AccountGlanceChart({
                 Monthly performance
               </span>
             </div>
-            <button
-              onClick={() => setView(view === 'cpa' ? 'convs' : 'cpa')}
-              className="text-xs font-medium px-3 py-1.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              {view === 'cpa' ? 'Switch to Conversions' : 'Switch to CPL'}
-            </button>
+            {conversionActions && (
+              <div
+                className="flex flex-wrap items-center justify-end gap-1.5"
+                aria-label="Conversion actions"
+              >
+                <span className="text-[11px] font-semibold text-rose-700 whitespace-nowrap">
+                  Press this to see <span aria-hidden="true">→</span>
+                </span>
+                {conversionActions.map((action) => {
+                  const selected = selectedActionIds.has(action.id)
+                  return (
+                    <button
+                      key={action.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => toggleAction(action.id)}
+                      className={`text-[11px] font-medium px-2.5 py-1.5 rounded border transition-colors ${
+                        selected
+                          ? 'border-violet-300 bg-violet-50 text-violet-800'
+                          : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="inline-block w-1.5 h-1.5 rounded-full mr-1.5"
+                        style={{ backgroundColor: selected ? '#7c3aed' : '#cbd5e1' }}
+                      />
+                      {action.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <svg viewBox="0 0 960 365" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
@@ -686,8 +674,7 @@ export default function AccountGlanceChart({
               textAnchor="middle"
               transform="rotate(-90 28 165.0)"
             >
-              <tspan fill="rgb(37,99,235)">Spend (AUD)</tspan>{' '}
-              <tspan fill="rgb(71,85,105)">/</tspan> <tspan fill="rgb(5,150,105)">Clicks</tspan>
+              <tspan fill="rgb(37,99,235)">Spend (AUD)</tspan>
             </text>
             {view === 'convs' ? (
               <text
@@ -711,7 +698,7 @@ export default function AccountGlanceChart({
                 textAnchor="middle"
                 transform="rotate(90 930 165.0)"
               >
-                CPL (AUD)
+                CPA (AUD)
               </text>
             )}
 
@@ -759,13 +746,6 @@ export default function AccountGlanceChart({
                 Spend (bars)
               </text>
             </g>
-            <g>
-              <line x1="203.6" x2="217.6" y1="12" y2="12" stroke="rgb(5,150,105)" strokeWidth="2" />
-              <circle cx="210.6" cy="12" r="2.75" fill="rgb(5,150,105)" />
-              <text x="221.6" y="15" fontSize="9.5" fill="rgb(51,65,85)" fontWeight="600">
-                Clicks
-              </text>
-            </g>
             {view === 'convs' ? (
               <g>
                 <line
@@ -795,19 +775,11 @@ export default function AccountGlanceChart({
                 />
                 <circle cx="279.4" cy="12" r="2.75" fill="rgb(139,92,246)" />
                 <text x="290.4" y="15" fontSize="9.5" fill="rgb(51,65,85)" fontWeight="600">
-                  CPL
+                  CPA
                 </text>
               </g>
             )}
           </svg>
-
-          <div className="mt-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-xs text-slate-500 italic">
-              The chart uses the supplied monthly account rows. Primary conversions include the
-              account&apos;s current conversion action set and should not be read as qualified
-              leads.
-            </p>
-          </div>
         </div>
       </div>
     </>
