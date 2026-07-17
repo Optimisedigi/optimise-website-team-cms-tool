@@ -5350,6 +5350,33 @@ export async function runMigrations(
     await run("shared_working_docs_change_log_parent_id_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_change_log_parent_id_idx` ON `shared_working_docs_change_log` (`_parent_id`)");
     await run("locked_docs_rels.shared_working_docs_id", "ALTER TABLE `payload_locked_documents_rels` ADD `shared_working_docs_id` integer REFERENCES `shared_working_docs`(`id`) ON DELETE cascade");
 
+    // ── Locked-document relations for Google Ads audit snapshots ───────────
+    // These FKs are selected by Payload's lock query for every collection.
+    // Create their parent tables before adding the relations so SQLite can
+    // maintain the foreign keys during lock cleanup.
+    await run("google_ads_audit_snapshots", `CREATE TABLE IF NOT EXISTS \`google_ads_audit_snapshots\` (
+      \`id\` integer PRIMARY KEY NOT NULL, \`audit_id\` integer NOT NULL, \`client_id\` integer NOT NULL, \`proposal_id\` integer,
+      \`customer_id\` text NOT NULL, \`account_time_zone\` text NOT NULL, \`currency_code\` text NOT NULL,
+      \`requested_at\` text NOT NULL, \`captured_at\` text, \`finalized_at\` text, \`period_start\` text NOT NULL, \`period_end\` text NOT NULL,
+      \`earliest_available_activity_date\` text NOT NULL, \`retention_caveat\` text, \`schema_version\` numeric DEFAULT 1 NOT NULL,
+      \`status\` text DEFAULT 'pending' NOT NULL, \`progress\` numeric DEFAULT 0, \`error\` text, \`retry_count\` numeric DEFAULT 0,
+      \`growth_tools_job_id\` text, \`source_row_counts\` text, \`chunk_manifest\` text, \`manifest_checksum\` text, \`analysis\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`audit_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("google_ads_audit_snapshot_chunks", `CREATE TABLE IF NOT EXISTS \`google_ads_audit_snapshot_chunks\` (
+      \`id\` integer PRIMARY KEY NOT NULL, \`identity\` text NOT NULL, \`snapshot_id\` integer NOT NULL, \`dataset_key\` text NOT NULL,
+      \`chunk_index\` numeric NOT NULL, \`row_count\` numeric NOT NULL, \`checksum\` text NOT NULL, \`rows\` text NOT NULL,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`snapshot_id\`) REFERENCES \`google_ads_audit_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("locked_docs_rels.google_ads_audit_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_audit_snapshots_id` integer REFERENCES `google_ads_audit_snapshots`(`id`) ON UPDATE no action ON DELETE cascade");
+    await run("locked_docs_rels.google_ads_audit_snapshot_chunks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_audit_snapshot_chunks_id` integer REFERENCES `google_ads_audit_snapshot_chunks`(`id`) ON UPDATE no action ON DELETE cascade");
+
     // ── contractor reimbursement config (2026-07-15) ──
     await run("contractors.reimbursement_amount", "ALTER TABLE `contractors` ADD `reimbursement_amount` numeric");
     await run("contractors.reimbursement_recurrence", "ALTER TABLE `contractors` ADD `reimbursement_recurrence` text");
