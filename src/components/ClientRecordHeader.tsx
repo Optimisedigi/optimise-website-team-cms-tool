@@ -414,6 +414,7 @@ function ClientHeaderCard({
   clientPin,
   onLogoClick,
   onServiceToggle,
+  clientProfileHref,
 }: {
   data: SavedData
   selectedServices: Set<ServiceValue>
@@ -421,6 +422,7 @@ function ClientHeaderCard({
   clientPin?: string
   onLogoClick?: () => void
   onServiceToggle?: (value: ServiceValue) => void
+  clientProfileHref?: string
 }) {
   const { name, websiteUrl, slug, isActive, logoThumbUrl } = data
   const domain = displayDomain(websiteUrl)
@@ -459,7 +461,15 @@ function ClientHeaderCard({
       <div className="od-client-head__body">
         <div className="od-client-head__topline">
           <div className="od-client-head__identity">
-            <h1 className="od-client-head__name">{name || 'Untitled client'}</h1>
+            <h1 className="od-client-head__name">
+              {clientProfileHref ? (
+                <a href={clientProfileHref} className="od-client-head__name-link">
+                  {name || 'Untitled client'}
+                </a>
+              ) : (
+                name || 'Untitled client'
+              )}
+            </h1>
             {domain && (
               <a
                 className="od-client-head__meta-item"
@@ -625,6 +635,7 @@ function GoogleAdsLinkedClientHeader() {
       selectedServices={selected}
       showRevenue={false}
       clientPin={data.clientPin}
+      clientProfileHref={clientId ? `/admin/collections/clients/${clientId}` : undefined}
     />
   )
 }
