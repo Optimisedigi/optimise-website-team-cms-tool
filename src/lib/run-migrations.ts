@@ -5350,17 +5350,20 @@ export async function runMigrations(
     await run("shared_working_docs_change_log_parent_id_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_change_log_parent_id_idx` ON `shared_working_docs_change_log` (`_parent_id`)");
     await run("locked_docs_rels.shared_working_docs_id", "ALTER TABLE `payload_locked_documents_rels` ADD `shared_working_docs_id` integer REFERENCES `shared_working_docs`(`id`) ON DELETE cascade");
 
-    // ── Locked-document relations for Google Ads audit snapshots ───────────
-    // These FKs are selected by Payload's lock query for every collection.
-    // Create their parent tables before adding the relations so SQLite can
-    // maintain the foreign keys during lock cleanup.
+    // ── Google Ads audit evidence snapshots ───────────────────────────────
+    // Keep this idempotent sweep aligned with the bundled Payload migrations:
+    // production deploys call /api/migrate rather than Payload's migration CLI.
     await run("google_ads_audit_snapshots", `CREATE TABLE IF NOT EXISTS \`google_ads_audit_snapshots\` (
       \`id\` integer PRIMARY KEY NOT NULL, \`audit_id\` integer NOT NULL, \`client_id\` integer NOT NULL, \`proposal_id\` integer,
-      \`customer_id\` text NOT NULL, \`account_time_zone\` text NOT NULL, \`currency_code\` text NOT NULL,
+      \`customer_id\` text NOT NULL, \`account_time_zone\` text NOT NULL, \`account_name\` text, \`currency_code\` text NOT NULL,
       \`requested_at\` text NOT NULL, \`captured_at\` text, \`finalized_at\` text, \`period_start\` text NOT NULL, \`period_end\` text NOT NULL,
       \`earliest_available_activity_date\` text NOT NULL, \`retention_caveat\` text, \`schema_version\` numeric DEFAULT 1 NOT NULL,
+      \`rubric_version\` text, \`website_url\` text, \`business_name\` text, \`business_type\` text, \`brand_terms\` text,
+      \`conversion_objectives\` text, \`search_location\` text, \`search_language\` text, \`competitor_seed_queries\` text, \`capture_context\` text,
       \`status\` text DEFAULT 'pending' NOT NULL, \`progress\` numeric DEFAULT 0, \`error\` text, \`retry_count\` numeric DEFAULT 0,
       \`growth_tools_job_id\` text, \`source_row_counts\` text, \`chunk_manifest\` text, \`manifest_checksum\` text, \`analysis\` text,
+      \`analysis_blob_url\` text, \`analysis_blob_pathname\` text, \`analysis_blob_checksum\` text, \`analysis_blob_encoding\` text,
+      \`analysis_blob_compressed_bytes\` numeric, \`analysis_blob_uncompressed_bytes\` numeric,
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
       FOREIGN KEY (\`audit_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade,
@@ -5369,11 +5372,67 @@ export async function runMigrations(
     )`);
     await run("google_ads_audit_snapshot_chunks", `CREATE TABLE IF NOT EXISTS \`google_ads_audit_snapshot_chunks\` (
       \`id\` integer PRIMARY KEY NOT NULL, \`identity\` text NOT NULL, \`snapshot_id\` integer NOT NULL, \`dataset_key\` text NOT NULL,
-      \`chunk_index\` numeric NOT NULL, \`row_count\` numeric NOT NULL, \`checksum\` text NOT NULL, \`rows\` text NOT NULL,
+      \`chunk_index\` numeric NOT NULL, \`row_count\` numeric NOT NULL, \`checksum\` text NOT NULL,
+      \`storage_mode\` text DEFAULT 'database_json' NOT NULL, \`blob_url\` text, \`blob_pathname\` text, \`encoding\` text,
+      \`compressed_bytes\` numeric, \`uncompressed_bytes\` numeric, \`rows\` text,
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
       FOREIGN KEY (\`snapshot_id\`) REFERENCES \`google_ads_audit_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
     )`);
+
+    for (const [column, type] of [
+      ["account_name", "text"], ["rubric_version", "text"], ["website_url", "text"], ["business_name", "text"],
+      ["business_type", "text"], ["brand_terms", "text"], ["conversion_objectives", "text"], ["search_location", "text"],
+      ["search_language", "text"], ["competitor_seed_queries", "text"], ["capture_context", "text"],
+      ["analysis_blob_url", "text"], ["analysis_blob_pathname", "text"], ["analysis_blob_checksum", "text"],
+      ["analysis_blob_encoding", "text"], ["analysis_blob_compressed_bytes", "numeric"], ["analysis_blob_uncompressed_bytes", "numeric"],
+    ] as const) {
+      await run(`google_ads_audit_snapshots.${column}`, `ALTER TABLE \`google_ads_audit_snapshots\` ADD COLUMN \`${column}\` ${type}`);
+    }
+
+    for (const [column, type] of [
+      ["score_rubric_version", "text"], ["score_status", "text"], ["audit_detail_url", "text"],
+      ["search_location", "text"], ["search_language", "text"], ["competitor_seed_queries", "text"],
+    ] as const) {
+      await run(`google_ads_audits.${column}`, `ALTER TABLE \`google_ads_audits\` ADD COLUMN \`${column}\` ${type}`);
+    }
+
+    const chunkTableInfo = await client.execute("PRAGMA table_info(`google_ads_audit_snapshot_chunks`)") as {
+      rows?: Array<{ name?: string; notnull?: number | string }>;
+    };
+    const chunkColumns = chunkTableInfo.rows ?? [];
+    const storageModeColumn = chunkColumns.find((column) => column.name === "storage_mode");
+    const rowsColumn = chunkColumns.find((column) => column.name === "rows");
+    if (!storageModeColumn || Number(rowsColumn?.notnull ?? 0) === 1) {
+      await client.execute("PRAGMA foreign_keys=OFF");
+      await client.execute("DROP TABLE IF EXISTS `google_ads_audit_snapshot_chunks_new`");
+      await client.execute(`CREATE TABLE \`google_ads_audit_snapshot_chunks_new\` (
+        \`id\` integer PRIMARY KEY NOT NULL, \`identity\` text NOT NULL, \`snapshot_id\` integer NOT NULL, \`dataset_key\` text NOT NULL,
+        \`chunk_index\` numeric NOT NULL, \`row_count\` numeric NOT NULL, \`checksum\` text NOT NULL,
+        \`storage_mode\` text DEFAULT 'database_json' NOT NULL, \`blob_url\` text, \`blob_pathname\` text, \`encoding\` text,
+        \`compressed_bytes\` numeric, \`uncompressed_bytes\` numeric, \`rows\` text,
+        \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+        \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+        FOREIGN KEY (\`snapshot_id\`) REFERENCES \`google_ads_audit_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
+      )`);
+      await client.execute(`INSERT INTO \`google_ads_audit_snapshot_chunks_new\` (
+        id, identity, snapshot_id, dataset_key, chunk_index, row_count, checksum, storage_mode, rows, updated_at, created_at
+      ) SELECT id, identity, snapshot_id, dataset_key, chunk_index, row_count, checksum, 'database_json', rows, updated_at, created_at
+      FROM \`google_ads_audit_snapshot_chunks\``);
+      await client.execute("DROP TABLE `google_ads_audit_snapshot_chunks`");
+      await client.execute("ALTER TABLE `google_ads_audit_snapshot_chunks_new` RENAME TO `google_ads_audit_snapshot_chunks`");
+      await client.execute("PRAGMA foreign_keys=ON");
+      const rebuilt: MigrationResult = { label: "google_ads_audit_snapshot_chunks_private_blob", status: "ok" };
+      opts?.onProgress?.(rebuilt);
+      results.push(rebuilt);
+    }
+
+    await run("google_ads_audit_snapshots_one_active_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshots_one_active_idx` ON `google_ads_audit_snapshots` (`audit_id`) WHERE `status` IN ('pending', 'running')");
+    await run("google_ads_audit_snapshots_analysis_blob_pathname_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_analysis_blob_pathname_idx` ON `google_ads_audit_snapshots` (`analysis_blob_pathname`)");
+    await run("google_ads_audit_snapshot_chunks_identity_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_identity_idx` ON `google_ads_audit_snapshot_chunks` (`identity`)");
+    await run("google_ads_audit_snapshot_chunks_natural_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_natural_idx` ON `google_ads_audit_snapshot_chunks` (`snapshot_id`, `dataset_key`, `chunk_index`)");
+    await run("google_ads_audit_snapshot_chunks_storage_mode_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_storage_mode_idx` ON `google_ads_audit_snapshot_chunks` (`storage_mode`)");
+    await run("google_ads_audit_snapshot_chunks_blob_pathname_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_blob_pathname_idx` ON `google_ads_audit_snapshot_chunks` (`blob_pathname`)");
     await run("locked_docs_rels.google_ads_audit_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_audit_snapshots_id` integer REFERENCES `google_ads_audit_snapshots`(`id`) ON UPDATE no action ON DELETE cascade");
     await run("locked_docs_rels.google_ads_audit_snapshot_chunks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_audit_snapshot_chunks_id` integer REFERENCES `google_ads_audit_snapshot_chunks`(`id`) ON UPDATE no action ON DELETE cascade");
 
