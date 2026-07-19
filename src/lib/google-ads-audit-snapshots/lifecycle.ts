@@ -66,7 +66,7 @@ export async function dispatchSnapshot(payload: Payload, snapshot: any): Promise
       searchLocation: snapshot.searchLocation ?? context.searchLocation,
       searchLanguage: snapshot.searchLanguage ?? context.searchLanguage,
       competitorSeedQueries: snapshot.competitorSeedQueries ?? context.competitorSeedQueries,
-      ...(process.env.GOOGLE_ADS_EVIDENCE_BLOB_READ_WRITE_TOKEN ? { storageMode: "private_blob_gzip_v1" } : {}),
+      ...(process.env.GOOGLE_ADS_EVIDENCE_BLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN ? { storageMode: "private_blob_gzip_v1" } : {}),
     }),
   });
   if (!response.ok) throw new Error(`Growth Tools snapshot dispatch failed (${response.status}): ${await response.text()}`);
