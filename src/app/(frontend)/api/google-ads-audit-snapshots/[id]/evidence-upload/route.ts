@@ -31,7 +31,7 @@ function parseClientPayload(value: string | null): { checksum: string; compresse
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const internalKey = req.headers.get("authorization")?.split(/\s+/).at(-1);
   if (!process.env.INTERNAL_API_KEY || internalKey !== process.env.INTERNAL_API_KEY) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const evidenceToken = process.env.GOOGLE_ADS_EVIDENCE_BLOB_READ_WRITE_TOKEN;
+  const evidenceToken = process.env.GOOGLE_ADS_EVIDENCE_BLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
   if (!evidenceToken) return NextResponse.json({ error: "Private evidence storage is unavailable" }, { status: 503 });
 
   try {
