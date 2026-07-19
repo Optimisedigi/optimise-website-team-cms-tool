@@ -43,7 +43,7 @@ export async function dispatchSnapshot(payload: Payload, snapshot: any): Promise
   const context = snapshot.captureContext ?? {};
   const response = await fetch(`${GROWTH_TOOLS_URL}/api/google-ads/comprehensive-audit-snapshot`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-internal-key": INTERNAL_API_KEY },
+    headers: { "content-type": "application/json", authorization: `Bearer ${INTERNAL_API_KEY}` },
     body: JSON.stringify({
       snapshotId: String(snapshot.id),
       customerId: snapshot.customerId,

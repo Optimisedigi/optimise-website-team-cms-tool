@@ -21,7 +21,7 @@ async function fetchMetadata(customerId: string, periodEnd?: string): Promise<Re
   if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) throw new Error("Missing GROWTH_TOOLS_URL or INTERNAL_API_KEY");
   const response = await fetch(`${GROWTH_TOOLS_URL}/api/google-ads/audit-snapshot-metadata`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-internal-key": INTERNAL_API_KEY },
+    headers: { "content-type": "application/json", authorization: `Bearer ${INTERNAL_API_KEY}` },
     body: JSON.stringify({ customerId, periodEnd }),
   });
   if (!response.ok) throw new Error(`Google Ads metadata lookup failed (${response.status}): ${await response.text()}`);
