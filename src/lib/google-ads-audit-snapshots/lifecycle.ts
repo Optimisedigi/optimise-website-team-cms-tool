@@ -109,7 +109,6 @@ export async function createSnapshotForAudit(payload: Payload, auditId: string |
     collection: "google-ads-audits", id: auditId, depth: 0, overrideAccess: true,
     select: {
       customerId: true, client: true, proposal: true, websiteUrl: true, businessName: true, businessType: true,
-      brandTerms: true, conversionObjectives: true, searchLocation: true, searchLanguage: true, competitorSeedQueries: true,
       snapshot: true,
     },
   });
