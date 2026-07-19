@@ -233,7 +233,7 @@ export const Clients: CollectionConfig = {
       },
       // First account access: create one audit and freeze its immutable snapshot window.
       async ({ doc, previousDoc, operation, req }) => {
-        if (operation !== "update") return;
+        if (operation !== "create" && operation !== "update") return;
         const previousCustomerId = String(previousDoc?.googleAdsCustomerId || "").trim();
         const customerId = String(doc?.googleAdsCustomerId || "").trim();
         if (previousCustomerId || !customerId) return;

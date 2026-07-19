@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react'
 import { useAuth } from '@payloadcms/ui'
+import type { ClientUser } from 'payload'
 
 /**
  * Turns Payload's absolute session timeout into a sliding IDLE timeout.
@@ -12,11 +13,11 @@ import { useAuth } from '@payloadcms/ui'
  * always appears a fixed ~2h after login, even for someone actively working.
  *
  * This provider listens for real user activity and, while the user is active,
- * periodically calls Payload's own `refreshCookieAsync()`. That re-issues the
- * cookie (sliding `exp` forward) AND resets the AuthProvider's reminder /
- * force-logout timers, so the prompt is pushed back. When activity stops
- * everywhere, no refresh happens and the token lapses ~2h after the last
- * activity — a true idle timeout.
+ * refreshes the session through Payload's endpoint. Successful responses update
+ * AuthProvider (sliding the cookie and its reminder / force-logout timers); failed
+ * responses leave the current user intact and retry, so navigation does not vanish.
+ * When activity stops everywhere, no refresh happens and the token lapses ~2h
+ * after the last activity — a true idle timeout.
  *
  * Cross-tab: activity in ANY open CMS window is broadcast over a
  * BroadcastChannel. Every tab treats a remote signal like local activity and
@@ -39,6 +40,14 @@ const TICK_MS = 60 * 1000 // 1 minute
 const BROADCAST_THROTTLE_MS = 30 * 1000 // 30 seconds
 
 const CHANNEL_NAME = 'cms-session-activity'
+const REFRESH_ENDPOINT = '/api/users/refresh-token'
+
+type SessionRefreshResponse = {
+  exp: number
+  refreshedToken?: string
+  token?: string
+  user: ClientUser
+}
 
 const ACTIVITY_EVENTS = [
   'mousedown',
@@ -51,13 +60,13 @@ const ACTIVITY_EVENTS = [
 ] as const
 
 const IdleSessionKeepAlive: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, refreshCookieAsync } = useAuth()
+  const { user, setUser } = useAuth()
   const userId = user?.id ?? null
 
-  // Keep the latest refresh fn in a ref so effect setup runs once per session,
-  // not on every AuthProvider re-render.
-  const refreshRef = useRef(refreshCookieAsync)
-  refreshRef.current = refreshCookieAsync
+  // Keep the latest setter in a ref so effect setup runs once per session, not
+  // whenever AuthProvider recreates its context value.
+  const setUserRef = useRef(setUser)
+  setUserRef.current = setUser
 
   const activeSinceRefreshRef = useRef(false)
   const lastRefreshAtRef = useRef(Date.now())
@@ -123,7 +132,27 @@ const IdleSessionKeepAlive: React.FC<{ children: React.ReactNode }> = ({ childre
       activeSinceRefreshRef.current = false
       refreshInFlightRef.current = true
 
-      Promise.resolve(refreshRef.current?.())
+      // Use the endpoint directly instead of refreshCookieAsync: Payload clears
+      // its in-memory user on any non-200 response, which unmounts MiniSidebar
+      // and removes feature-gated links. Only commit a successful refresh.
+      fetch(REFRESH_ENDPOINT, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      })
+        .then(async (response) => {
+          if (response.status === 401 || response.status === 403) {
+            window.location.assign('/admin/login')
+            throw new Error('Session expired')
+          }
+          if (!response.ok) throw new Error(`Session refresh failed (${response.status})`)
+          const session = (await response.json()) as SessionRefreshResponse
+          const token = session.token ?? session.refreshedToken
+          if (!session.user || !session.exp || !token) {
+            throw new Error('Session refresh returned an incomplete response')
+          }
+          setUserRef.current({ ...session, token })
+        })
         .catch(() => {
           // A failed refresh must stay eligible for retry: roll the throttle
           // clock back and re-arm the activity flag so the next tick tries

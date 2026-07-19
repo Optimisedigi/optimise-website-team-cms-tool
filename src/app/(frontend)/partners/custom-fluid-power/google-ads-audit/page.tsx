@@ -16,6 +16,12 @@ import AccountGlanceChart, {
   type Row as AccountGlanceRow,
 } from './AccountGlanceChart'
 import PdfConversionAccounting from './PdfConversionAccounting'
+import { getPayload } from 'payload'
+import { createClient } from '@libsql/client'
+import config from '@payload-config'
+import { CATEGORY_WEIGHTS, type AuditCategoryScorecard, type GoogleAdsAuditCategoryId } from '@/lib/google-ads-audit-snapshots/scoring'
+
+export const dynamic = 'force-dynamic'
 
 const ACCOUNT_GLANCE_ROWS: AccountGlanceRow[] = [
   { m: '2025-03', s: 1848.79, c: 581, v: 54, pdf: 22 },
@@ -59,107 +65,71 @@ const CONVERSION_ACTIONS: ConversionAction[] = [
   },
 ]
 
-type AuditScoreBar = {
-  step: number
-  label: string
-  score: number
-  scoreColor: string
-  barColor: string
+type AuditScoreBar = { step: number; label: string; score: number | null; maximum: number; scoreColor: string; barColor: string; scorecard: AuditCategoryScorecard }
+const CATEGORY_STEPS: Record<string, number> = { website: 1, accountStructure: 2, keywordIntent: 3, tracking: 4, campaignStructure: 5, channelPerformance: 6, searchQueries: 7, negativeKeywords: 8, adsAssets: 9, brandGeneric: 10, historicalPerformance: 11, audienceStrategy: 12, competition: 13 }
+function scoreClass(score: number | null, maximum: number) { const ratio = score === null ? 0 : score / maximum; return ratio >= .8 ? ['text-green-500', 'bg-green-500'] : ratio >= .5 ? ['text-amber-500', 'bg-amber-500'] : ['text-red-500', 'bg-red-500'] }
+async function loadLegacyAuditDirect(): Promise<any | null> {
+  const database = createClient({
+    url: process.env.DATABASE_URL || 'file:./content.db',
+    authToken: process.env.DATABASE_AUTH_TOKEN,
+  })
+  try {
+    const result = await database.execute({
+      sql: 'SELECT business_name, scored_report FROM google_ads_audits WHERE business_name = ? ORDER BY updated_at DESC LIMIT 1',
+      args: ['Custom Fluid Power'],
+    })
+    const row = result.rows[0]
+    if (!row) return null
+    const scoredReport = typeof row.scored_report === 'string' ? JSON.parse(row.scored_report) : row.scored_report
+    return { businessName: row.business_name, scoredReport }
+  } finally {
+    database.close()
+  }
 }
 
-const AUDIT_SCORE_BARS: readonly AuditScoreBar[] = [
-  {
-    step: 4,
-    label: 'Tracking & measurement setup',
-    score: 3,
-    scoreColor: 'text-red-500',
-    barColor: 'bg-red-500',
-  },
-  {
-    step: 1,
-    label: 'Website & business analysis',
-    score: 5,
-    scoreColor: 'text-amber-500',
-    barColor: 'bg-amber-500',
-  },
-  {
-    step: 9,
-    label: 'Ad copy & assets review',
-    score: 5,
-    scoreColor: 'text-amber-500',
-    barColor: 'bg-amber-500',
-  },
-  {
-    step: 10,
-    label: 'Brand vs generic split',
-    score: 5,
-    scoreColor: 'text-amber-500',
-    barColor: 'bg-amber-500',
-  },
-  {
-    step: 12,
-    label: 'Audience strategy',
-    score: 5,
-    scoreColor: 'text-amber-500',
-    barColor: 'bg-amber-500',
-  },
-  {
-    step: 13,
-    label: 'Competitive landscape',
-    score: 5,
-    scoreColor: 'text-amber-500',
-    barColor: 'bg-amber-500',
-  },
-  {
-    step: 6,
-    label: 'Channel performance',
-    score: 6,
-    scoreColor: 'text-lime-600',
-    barColor: 'bg-lime-500',
-  },
-  {
-    step: 8,
-    label: 'Negative keyword management',
-    score: 8,
-    scoreColor: 'text-lime-600',
-    barColor: 'bg-lime-500',
-  },
-  {
-    step: 3,
-    label: 'Keyword & search intent',
-    score: 9,
-    scoreColor: 'text-green-500',
-    barColor: 'bg-green-500',
-  },
-  {
-    step: 7,
-    label: 'Search query analysis',
-    score: 9,
-    scoreColor: 'text-green-500',
-    barColor: 'bg-green-500',
-  },
-  {
-    step: 2,
-    label: 'Account structure overview',
-    score: 10,
-    scoreColor: 'text-green-500',
-    barColor: 'bg-green-500',
-  },
-  {
-    step: 5,
-    label: 'Campaign structure analysis',
-    score: 10,
-    scoreColor: 'text-green-500',
-    barColor: 'bg-green-500',
-  },
-  {
-    step: 11,
-    label: 'Historical performance',
-    score: 10,
-    scoreColor: 'text-green-500',
-    barColor: 'bg-green-500',
-  },
-]
+async function loadScorecardPayload(): Promise<{ bars: AuditScoreBar[]; total: number | null; issue?: string }> {
+  let audit: any
+  try {
+    const payload = await getPayload({ config: await config })
+    const result = await payload.find({
+      collection: 'google-ads-audits',
+      where: { businessName: { equals: 'Custom Fluid Power' } },
+      sort: '-updatedAt', limit: 1, depth: 1, overrideAccess: true,
+      select: { businessName: true, snapshot: true, scoredReport: true },
+    })
+    audit = result.docs[0]
+  } catch {
+    audit = null
+  }
+  if (!audit) audit = await loadLegacyAuditDirect()
+  const scoring = audit?.snapshot?.analysis?.scoring
+  const categories = Array.isArray(scoring?.categories) ? scoring.categories as AuditCategoryScorecard[] : []
+  if (categories.length) {
+    const bars = categories.map((scorecard) => { const [scoreColor, barColor] = scoreClass(scorecard.score, scorecard.maximum || 1); return { step: CATEGORY_STEPS[scorecard.id] ?? 99, label: scorecard.label, score: scorecard.score, maximum: scorecard.maximum, scoreColor, barColor, scorecard } }).sort((a, b) => a.step - b.step)
+    return { total: typeof scoring.total === 'number' ? scoring.total : null, bars }
+  }
+
+  const legacy = audit?.scoredReport
+  const legacySteps = Array.isArray(legacy?.steps) ? legacy.steps : []
+  const categoryIds = Object.entries(CATEGORY_STEPS).sort((a, b) => a[1] - b[1]).map(([id]) => id as GoogleAdsAuditCategoryId)
+  const bars = legacySteps.slice(0, categoryIds.length).map((step: any, index: number): AuditScoreBar => {
+    const id = categoryIds[index]
+    const score = typeof step.score === 'number' ? step.score : null
+    const findings = Array.isArray(step.findings) ? step.findings.map(String) : []
+    const scorecard: AuditCategoryScorecard = {
+      id, label: String(step.name ?? step.title ?? `Audit area ${index + 1}`), weight: CATEGORY_WEIGHTS[id], score, maximum: 10,
+      status: score === null ? 'insufficient_evidence' : 'scored', evidenceSummary: findings.join(' '),
+      checks: findings.map((finding: string, findingIndex: number) => ({ id: `legacy-${index + 1}-${findingIndex + 1}`, label: finding, state: 'unknown', score: 0, maximum: 1, rationale: finding, formula: 'Legacy stored audit result', threshold: 'Not available in the legacy report', applicability: 'unknown', evidence: [] })),
+    }
+    const [scoreColor, barColor] = scoreClass(score, 10)
+    return { step: index + 1, label: scorecard.label, score, maximum: 10, scoreColor, barColor, scorecard }
+  })
+  return {
+    total: typeof legacy?.overallScore === 'number' ? legacy.overallScore : null,
+    bars,
+    issue: bars.length ? 'Showing the stored 12-month audit result. A new immutable evidence snapshot has not been captured yet.' : audit ? 'The latest audit does not have a completed scorecard yet.' : 'No Custom Fluid Power audit record is available yet.',
+  }
+}
 
 type AdGroupRow = {
   name: string
@@ -399,127 +369,6 @@ const SEARCH_TERM_TOP_ROWS: readonly SearchTermRow[] = [
   },
 ]
 
-type ScoringMethodologyCard = {
-  /** Step number (1-13) */
-  n: number
-  /** Category name */
-  name: string
-  /** Weight (importance) */
-  weight: number
-  /** Score (0-10) */
-  score: number
-  /** Tailwind class for the score colour */
-  scoreClass: string
-  /** Short description of what this step covers */
-  desc: string
-}
-
-const SCORING_METHODOLOGY_CARDS: readonly ScoringMethodologyCard[] = [
-  {
-    n: 1,
-    name: 'Website & business analysis',
-    weight: 5,
-    score: 5,
-    scoreClass: 'text-amber-500',
-    desc: 'Site readiness to convert paid traffic: landing page quality, CTA clarity, conversion paths, and category-specific pages.',
-  },
-  {
-    n: 2,
-    name: 'Account structure overview',
-    weight: 8,
-    score: 10,
-    scoreClass: 'text-green-500',
-    desc: 'Campaign hierarchy, budget allocation logic, ad group organisation, and whether the structure supports effective bidding.',
-  },
-  {
-    n: 3,
-    name: 'Keyword & search intent',
-    weight: 10,
-    score: 9,
-    scoreClass: 'text-green-500',
-    desc: 'Match type distribution, search intent alignment, keyword relevance, and spend on irrelevant or non-converting terms.',
-  },
-  {
-    n: 4,
-    name: 'Tracking & measurement setup',
-    weight: 12,
-    score: 3,
-    scoreClass: 'text-red-500',
-    desc: 'Conversion action setup, GA4 integration, enhanced conversions, attribution, and conversion signal quality for bidding.',
-  },
-  {
-    n: 5,
-    name: 'Campaign structure analysis',
-    weight: 8,
-    score: 10,
-    scoreClass: 'text-green-500',
-    desc: 'Budget allocation vs performance, geo-targeting, device adjustments, ad scheduling, and bid strategy alignment.',
-  },
-  {
-    n: 6,
-    name: 'Channel performance',
-    weight: 8,
-    score: 6,
-    scoreClass: 'text-lime-600',
-    desc: 'ROAS & CPL across Search, Display, PMax, Shopping; cross-channel cannibalisation; budget flow to best performers.',
-  },
-  {
-    n: 7,
-    name: 'Search query analysis',
-    weight: 10,
-    score: 9,
-    scoreClass: 'text-green-500',
-    desc: 'Actual queries triggering ads: relevance %, wasted query spend, intent alignment, and YoY search term quality.',
-  },
-  {
-    n: 8,
-    name: 'Negative keyword management',
-    weight: 7,
-    score: 8,
-    scoreClass: 'text-lime-600',
-    desc: 'Negative keyword coverage, themed list organisation, regular addition history, and estimated preventable waste.',
-  },
-  {
-    n: 9,
-    name: 'Ad copy & assets review',
-    weight: 8,
-    score: 5,
-    scoreClass: 'text-amber-500',
-    desc: 'RSA quality, pin strategy, ad strength scores, extension coverage, and landing page relevance per ad group.',
-  },
-  {
-    n: 10,
-    name: 'Brand vs generic split',
-    weight: 10,
-    score: 5,
-    scoreClass: 'text-amber-500',
-    desc: 'Three-way segmentation (brand / brand+ / generic), per-tier bidding, incrementality, and competitor brand bidding.',
-  },
-  {
-    n: 11,
-    name: 'Historical performance',
-    weight: 7,
-    score: 10,
-    scoreClass: 'text-green-500',
-    desc: 'Monthly spend, conversions, CPL, ROAS trends since account start. Identifies trajectory, seasonality, inflection points.',
-  },
-  {
-    n: 12,
-    name: 'Audience strategy',
-    weight: 5,
-    score: 5,
-    scoreClass: 'text-amber-500',
-    desc: 'Remarketing coverage, customer match & first-party data, in-market audience targeting, and bid adjustments.',
-  },
-  {
-    n: 13,
-    name: 'Competitive landscape',
-    weight: 5,
-    score: 5,
-    scoreClass: 'text-amber-500',
-    desc: 'Auction insights per campaign (impression share, overlap rate, outranking share), competitor ad benchmarking, strategic positioning.',
-  },
-]
 
 function adGroupNameClass(variant: AdGroupRow['variant']): string {
   if (variant === 'rose') return 'py-1 px-2 font-semibold text-rose-700'
@@ -550,7 +399,8 @@ function adGroupIsClass(row: AdGroupRow): string {
   return 'text-right py-1 pl-2 pr-3 tabular-nums text-slate-700'
 }
 
-export default function AwayDigitalAuditPage() {
+export default async function AwayDigitalAuditPage() {
+  const scorecardPayload = await loadScorecardPayload().catch(() => ({ bars: [], total: null, issue: 'The stored audit scorecard could not be loaded.' }))
   return (
     <AuditPasswordGate
       auditSlug="custom-fluid-power/google-ads-audit"
@@ -807,63 +657,86 @@ export default function AwayDigitalAuditPage() {
                       strokeWidth="10"
                       strokeLinecap="round"
                       strokeDasharray="339.292"
-                      strokeDashoffset="105.181"
+                      strokeDashoffset={scorecardPayload.total === null ? "339.292" : String(339.292 * (1 - scorecardPayload.total / 100))}
                       className="stroke-lime-500"
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-3xl font-bold text-slate-900">69</span>
+                    <span className="text-3xl font-bold text-slate-900">{scorecardPayload.total ?? '—'}</span>
                     <span className="text-xs text-slate-500">/ 100</span>
                   </div>
                 </div>
                 <span className="text-sm font-semibold text-lime-600">Room for improvement</span>
               </div>
-              {/* Step bars, sorted worst -> best */}
-              <div className="flex-1 w-full space-y-2">
-                {AUDIT_SCORE_BARS.map((bar) => (
-                  <div key={bar.step} className="flex items-center gap-3">
-                    <span className="text-xs text-slate-500 w-5 text-right shrink-0">
-                      {bar.step}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs font-medium text-slate-700 truncate">
-                          {bar.label}
-                        </span>
-                        <span className={`text-xs font-semibold ml-2 shrink-0 ${bar.scoreColor}`}>
-                          {bar.score}/10
-                        </span>
-                      </div>
-                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${bar.barColor}`}
-                          style={{ width: `${bar.score * 10}%` }}
-                        />
-                      </div>
-                    </div>
+              {/* Hover or focus a methodology area to reveal what its score covers. */}
+              <div className="flex-1 w-full space-y-1.5">
+                {scorecardPayload.issue && (
+                  <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-snug text-amber-900">
+                    <span className="font-semibold">{scorecardPayload.bars.length ? 'Stored audit result.' : 'No scorecard yet.'}</span> {scorecardPayload.issue}
                   </div>
-                ))}
+                )}
+                {scorecardPayload.bars.map((bar) => {
+                  const methodology = bar.scorecard
+                  return (
+                    <div
+                      key={bar.step}
+                      tabIndex={0}
+                      role="group"
+                      aria-label={`${bar.step}. ${bar.label}. ${bar.score === null ? 'Insufficient evidence' : `Score ${bar.score} out of ${bar.maximum}`}. ${methodology.evidenceSummary}`}
+                      className="group relative rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-inset"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-500 w-5 text-right shrink-0">
+                          {bar.step}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs font-medium text-slate-700 truncate">
+                              {bar.label}
+                            </span>
+                            <span className={`text-xs font-semibold ml-2 shrink-0 ${bar.scoreColor}`}>
+                              {bar.score === null ? 'Insufficient evidence' : `${bar.score}/${bar.maximum}`}
+                            </span>
+                          </div>
+                          <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${bar.barColor}`}
+                              style={{ width: `${bar.score === null ? 0 : (bar.score / bar.maximum) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      {methodology && (
+                        <>
+                          <p className="mt-1.5 pl-8 text-[10px] leading-snug text-slate-600 md:hidden">
+                            <span className="font-semibold text-slate-700">{bar.score === null ? 'Insufficient evidence' : `Score ${bar.score}/${bar.maximum}`} · Weight {methodology.weight}.</span>{' '}
+                            {methodology.evidenceSummary}
+                          </p>
+                          <div
+                            role="tooltip"
+                            className="pointer-events-none absolute right-full top-1/2 z-20 mr-3 hidden w-72 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] leading-snug text-slate-600 shadow-lg md:group-hover:block md:group-focus:block"
+                          >
+                            <span className="font-semibold text-slate-800">{bar.score === null ? 'Insufficient evidence' : `Score ${bar.score}/${bar.maximum}`} · Weight {methodology.weight}</span>
+                            <span className="block mt-1">{methodology.evidenceSummary}</span>
+                            <span className="block mt-1">{methodology.checks.map((check) => `${check.label}: ${check.state}`).join('; ')}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
             <div className="mt-5 max-w-4xl mx-auto w-full md:pl-[184px]">
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-xs text-slate-700">
-                  <span className="font-bold text-amber-700">Caveat:</span> the 13-step engine
-                  grades structural items e.g. do negative keyword lists exist, etc. Some categories
-                  look stronger than they really are. Negative-keyword management scores 8/10
-                  because lists exist, while the current top-100 review queue still identifies $831
-                  across 12 heuristic likely-irrelevant terms.
+                  <span className="font-bold text-amber-700">Evidence policy:</span> categories without captured evidence are marked insufficient and excluded from the weighted denominator. Open each category to review its stored checks and references.
                 </p>
               </div>
             </div>
-            <div className="mt-3 text-center">
-              <a
-                href="#appendix"
-                className="text-xs text-blue-600 hover:text-blue-700 underline underline-offset-2"
-              >
-                How is each category scored?
-              </a>
-            </div>
+            <p className="mt-3 text-center text-xs text-slate-600">
+              Hover, focus, or use touch to review the stored scoring checks and evidence.
+            </p>
           </div>
           <div
             className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none pointer-events-none"
@@ -1655,61 +1528,6 @@ export default function AwayDigitalAuditPage() {
                   <a href="tel:0493053188">0493 053 188</a>
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
-        <section
-          id="appendix-cover"
-          className="relative min-h-screen flex flex-col items-center justify-center bg-slate-900 text-center px-6"
-        >
-          <h2 className="text-5xl md:text-6xl font-bold text-white mb-[-10px]">Appendix</h2>
-        </section>
-        <section id="appendix" className="relative min-h-screen flex flex-col bg-white px-6 py-8">
-          <div className="max-w-6xl mx-auto w-full">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
-                  Appendix
-                </p>
-                <h2 className="text-lg md:text-xl font-bold text-slate-900 mb-[-10px]">
-                  Scoring methodology
-                </h2>
-              </div>
-              <a
-                href="#audit-score"
-                className="text-[11px] text-blue-600 hover:text-blue-700 underline underline-offset-2 shrink-0"
-              >
-                Back to score overview
-              </a>
-            </div>
-            <p className="text-[11px] text-slate-600 mb-3">
-              Each step is scored 0&ndash;10 and weighted by importance. The overall score is the
-              weighted average across all 13 steps, normalised to 0&ndash;100. Higher-weight areas
-              have a larger impact on the total.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {SCORING_METHODOLOGY_CARDS.map((card) => (
-                <div
-                  key={card.n}
-                  className={
-                    card.n === 13
-                      ? 'bg-slate-50 rounded-lg p-2.5 border border-slate-200 md:col-span-2'
-                      : 'bg-slate-50 rounded-lg p-2.5 border border-slate-200'
-                  }
-                >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <h3 className="text-[12px] font-semibold text-slate-900">
-                      <span className="text-blue-500 mr-1.5">{card.n}.</span>
-                      {card.name}
-                    </h3>
-                    <div className="flex items-center gap-2 text-[10px] shrink-0">
-                      <span className="text-slate-500">W: {card.weight}</span>
-                      <span className={`font-semibold ${card.scoreClass}`}>{card.score}/10</span>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-slate-600 leading-snug">{card.desc}</p>
-                </div>
-              ))}
             </div>
           </div>
         </section>

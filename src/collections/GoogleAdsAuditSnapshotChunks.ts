@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { SNAPSHOT_DATASET_KEYS } from "@/lib/google-ads-audit-snapshots/types";
 
 const isAdmin = ({ req }: { req: { user?: { role?: string } | null } }) => req.user?.role === "admin";
 
@@ -13,10 +14,10 @@ export const GoogleAdsAuditSnapshotChunks: CollectionConfig = {
       return data;
     }],
     beforeChange: [({ operation, req }) => {
-      if (operation === "update" && !req.context?.googleAdsSnapshotInternal) throw new Error("Audit source chunks are immutable");
+      if (operation === "update" && !req.context?.googleAdsSnapshotInternal && req.user?.role !== "admin") throw new Error("Audit source chunks are immutable");
     }],
     beforeDelete: [({ req }) => {
-      if (!req.context?.googleAdsSnapshotInternal) throw new Error("Audit source chunks cannot be deleted through ordinary requests");
+      if (!req.context?.googleAdsSnapshotInternal && req.user?.role !== "admin") throw new Error("Audit source chunks cannot be deleted through ordinary requests");
     }],
   },
   indexes: [{ fields: ["snapshot", "datasetKey", "chunkIndex"], unique: true }],
@@ -25,15 +26,17 @@ export const GoogleAdsAuditSnapshotChunks: CollectionConfig = {
     { name: "snapshot", type: "relationship", relationTo: "google-ads-audit-snapshots" as any, required: true, index: true },
     {
       name: "datasetKey", type: "select", required: true, index: true,
-      options: [
-        "customer_metadata", "monthly_account_metrics", "monthly_campaign_metrics", "campaigns", "ad_groups", "keywords",
-        "search_terms", "conversion_actions", "conversion_action_performance", "campaign_impression_share", "auction_insights",
-        "campaign_negative_keywords", "shared_negative_keywords", "campaign_shared_set_assignments", "ads", "ad_assets", "landing_page_views",
-      ],
+      options: [...SNAPSHOT_DATASET_KEYS],
     },
     { name: "chunkIndex", type: "number", required: true, min: 0, index: true },
     { name: "rowCount", type: "number", required: true, min: 0 },
     { name: "checksum", type: "text", required: true },
-    { name: "rows", type: "json", required: true },
+    { name: "storageMode", type: "select", required: true, defaultValue: "database_json", options: ["database_json", "private_blob_gzip_v1"], index: true },
+    { name: "rows", type: "json" },
+    { name: "blobUrl", type: "text" },
+    { name: "blobPathname", type: "text", index: true },
+    { name: "encoding", type: "select", options: ["gzip"] },
+    { name: "compressedBytes", type: "number", min: 0 },
+    { name: "uncompressedBytes", type: "number", min: 0 }
   ],
 };

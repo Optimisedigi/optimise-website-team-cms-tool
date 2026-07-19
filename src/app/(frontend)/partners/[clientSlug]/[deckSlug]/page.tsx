@@ -19,6 +19,7 @@ type Presentation = {
   title?: string;
   templateSlug?: TemplateRef;
   deckPayload?: unknown;
+  isPublic?: boolean;
 };
 
 /**
@@ -172,7 +173,7 @@ export default async function PartnerDeckPage({
     const normalisedSlug = extractDeckSlug(p.deckSlug ?? '', p.deckUrl);
     return normalisedSlug === deckSlug;
   });
-  if (!presentation) notFound();
+  if (!presentation || presentation.isPublic === false) notFound();
 
   // templateSlug is a relationship to `deck-templates`. With depth=0 Payload
   // returns just the id; with depth>0 it returns the full populated doc.

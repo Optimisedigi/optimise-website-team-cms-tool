@@ -10,33 +10,27 @@
    spacing isn't blown out by the parent's h1 { margin: 40px 0 }.
    Mirrors team-session-may-2026/globals.css.
    =========================================================================== */
-h1, h2, h3, h4, h5, h6, p {
+.google-ads-audit-deck :is(h1, h2, h3, h4, h5, h6, p) {
   margin-block: 0;
 }
 
-html, body {
+.google-ads-audit-deck {
   background: white;
   color: rgb(15, 23, 42);
   font-size: 16px;
   line-height: 1.5;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-}
-
-/* Smooth scroll + scroll-snap (lifted from source HTML <html> rules) */
-html { scroll-behavior: smooth; scroll-snap-type: y proximity; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; }
-
-/* ===========================================================================
-   Cover slide — lifted from CMS proposals v2 (In the Picture deck).
-   Dark starfield background with orbit rings, pill eyebrow, mono meta-tag.
-   =========================================================================== */
-:root {
   --bg-night: #07091a;
   --purple: #4d94ff;
   --purple-soft: #99c0ff;
   --star: rgba(255,255,255,0.85);
 }
+
+/* ===========================================================================
+   Cover slide — lifted from CMS proposals v2 (In the Picture deck).
+   Dark starfield background with orbit rings, pill eyebrow, mono meta-tag.
+   =========================================================================== */
 .cover-v2 {
   background: var(--bg-night) !important;
   color: #f4f4f5;
@@ -193,13 +187,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system
   margin-top: -1px;
 }
 /* Slide headers — Space Grotesk to match the cover */
-main h2, main h1 {
+.google-ads-audit-deck h2, .google-ads-audit-deck h1 {
   font-family: 'Space Grotesk', 'Inter', sans-serif;
   letter-spacing: -0.02em;
 }
-/* Bump every h2 inside <main> up one Tailwind size tier. */
-main h2 { font-size: 1.5rem; line-height: 2rem; }            /* text-xl → text-2xl */
-@media (min-width: 768px) { main h2 { font-size: 1.875rem; line-height: 2.25rem; } } /* md:text-2xl → md:text-3xl */
+/* Bump every h2 inside the deck up one Tailwind size tier. */
+.google-ads-audit-deck h2 { font-size: 1.5rem; line-height: 2rem; }            /* text-xl → text-2xl */
+@media (min-width: 768px) { .google-ads-audit-deck h2 { font-size: 1.875rem; line-height: 2.25rem; } } /* md:text-2xl → md:text-3xl */
 .cover-v2 .cover-dot {
   width: 10px;
   height: 10px;
@@ -221,13 +215,13 @@ main h2 { font-size: 1.5rem; line-height: 2rem; }            /* text-xl → text
     box-shadow: 0 0 14px rgba(77,148,255,0.85), 0 0 28px rgba(77,148,255,0.45);
   }
 }
-section { scroll-snap-align: start; }
+.google-ads-audit-deck > section { scroll-snap-align: start; }
 @media print {
   @page { size: A4 landscape; margin: 0; }
-  html, body { background: white !important; }
-  section { page-break-after: always; min-height: auto !important; }
-  button, [aria-label="Go to next section"], .rocket-fixed, .flame-trail, .flame-trail-hit, .rocket-hint { display: none !important; }
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .google-ads-audit-deck { background: white !important; }
+  .google-ads-audit-deck > section { page-break-after: always; min-height: auto !important; }
+  .google-ads-audit-deck :is(button, [aria-label="Go to next section"], .rocket-fixed, .flame-trail, .flame-trail-hit, .rocket-hint) { display: none !important; }
+  .google-ads-audit-deck * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 
 /* ===========================================================================

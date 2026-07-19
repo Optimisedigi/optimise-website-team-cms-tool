@@ -374,6 +374,31 @@ export const GoogleAdsAudits: CollectionConfig = {
               },
             },
             {
+              type: "row",
+              fields: [
+                {
+                  name: "searchLocation",
+                  type: "select",
+                  options: SEARCH_LOCATION_OPTIONS,
+                  defaultValue: "au:sydney",
+                  hooks: { beforeValidate: [({ value }) => normalizeSearchLocation(value)] },
+                  admin: { description: "Paid SERP audit target; defaults to Sydney, Australia." },
+                },
+                {
+                  name: "searchLanguage",
+                  type: "select",
+                  options: GOOGLE_SEARCH_LANGUAGE_OPTIONS,
+                  defaultValue: "en",
+                  admin: { description: "Search language used for paid SERP evidence." },
+                },
+              ],
+            },
+            {
+              name: "competitorSeedQueries",
+              type: "textarea",
+              admin: { description: "Optional representative generic queries, one per line. Leave blank for deterministic selection from captured spend, conversions and volume (maximum 10)." },
+            },
+            {
               name: "notes",
               type: "textarea",
               admin: {
@@ -497,6 +522,9 @@ export const GoogleAdsAudits: CollectionConfig = {
                 },
               },
             },
+            { name: "scoreRubricVersion", type: "text", admin: { readOnly: true, description: "Versioned evidence rubric used for this score" } },
+            { name: "scoreStatus", type: "select", options: ["scored", "insufficient_evidence"], admin: { readOnly: true, description: "Unknown datasets are excluded from the weighted denominator" } },
+            { name: "auditDetailUrl", type: "text", admin: { readOnly: true, description: "Generated deck and evidence detail link" } },
             {
               name: "overallScore",
               type: "number",
@@ -532,7 +560,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               admin: {
                 readOnly: true,
                 hidden: true,
-                description: "Generated email HTML (preview in Presentation tab)",
+                description: "Generated email HTML (preview in Google Ads Audit tab)",
               },
             },
             {
@@ -579,9 +607,9 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 5: Presentation ──
+        // ── Tab 5: Google Ads Audit ──
         {
-          label: "Presentation",
+          label: "Google Ads Audit",
           fields: [
             {
               name: "deckReview",
@@ -613,7 +641,8 @@ export const GoogleAdsAudits: CollectionConfig = {
               type: "checkbox",
               defaultValue: false,
               admin: {
-                description: "Toggle on to make the presentation publicly accessible (with PIN)",
+                readOnly: true,
+                description: "Publishing is managed by the reviewed deck controls above.",
               },
             },
             {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
 import RunGoogleAdsAuditFromClientButton from '@/components/RunGoogleAdsAuditFromClientButton'
@@ -10,22 +10,33 @@ vi.mock('@payloadcms/ui', () => ({
 
 const mockUseDocumentInfo = useDocumentInfo as Mock
 const mockUseAllFormFields = useAllFormFields as Mock
+const originalFetch = globalThis.fetch
 
 function buildFields(overrides: Record<string, unknown> = {}) {
   const defaults: Record<string, unknown> = {
     name: 'Acme Corp',
     websiteUrl: 'https://acme.com',
-    businessType: 'ecommerce',
     googleAdsCustomerId: '123-456-7890',
     contactEmail: 'test@acme.com',
   }
-  const merged = { ...defaults, ...overrides }
-  const fields: Record<string, { value: unknown }> = {}
-  for (const [key, value] of Object.entries(merged)) {
-    fields[key] = { value }
-  }
-  return fields
+  return Object.fromEntries(
+    Object.entries({ ...defaults, ...overrides }).map(([key, value]) => [key, { value }]),
+  )
 }
+
+const response = (body: unknown, ok = true) => ({
+  ok,
+  json: () => Promise.resolve(body),
+})
+
+const findNone = () => response({ docs: [] })
+const createdAudit = (id = 99) => response({ doc: { id, snapshotState: 'not_started' } })
+const startedSnapshot = () =>
+  response({
+    status: 'running',
+    periodStart: '2026-06-01T00:00:00.000Z',
+    periodEnd: '2026-06-30T23:59:59.999Z',
+  })
 
 describe('RunGoogleAdsAuditFromClientButton', () => {
   let fetchMock: Mock
@@ -34,238 +45,143 @@ describe('RunGoogleAdsAuditFromClientButton', () => {
     vi.clearAllMocks()
     fetchMock = vi.fn()
     globalThis.fetch = fetchMock
+    mockUseDocumentInfo.mockReturnValue({ id: 1 })
+    mockUseAllFormFields.mockReturnValue([buildFields()])
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
   })
 
   it('returns null when no document id', () => {
     mockUseDocumentInfo.mockReturnValue({ id: undefined })
-    mockUseAllFormFields.mockReturnValue([buildFields()])
-
     const { container } = render(<RunGoogleAdsAuditFromClientButton />)
     expect(container.innerHTML).toBe('')
   })
 
-  it('disables button when googleAdsCustomerId is missing', () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields({ googleAdsCustomerId: undefined })])
+  it.each([undefined, '', '   '])('disables snapshots when customer ID is %s', (customerId) => {
+    mockUseAllFormFields.mockReturnValue([
+      buildFields({ googleAdsCustomerId: customerId }),
+    ])
 
     render(<RunGoogleAdsAuditFromClientButton />)
 
-    const button = screen.getByRole('button', { name: /run google ads audit/i })
-    expect(button).toBeDisabled()
-  })
-
-  it('disables button when googleAdsCustomerId is empty string', () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields({ googleAdsCustomerId: '' })])
-
-    render(<RunGoogleAdsAuditFromClientButton />)
-
-    const button = screen.getByRole('button', { name: /run google ads audit/i })
-    expect(button).toBeDisabled()
-  })
-
-  it('disables button when googleAdsCustomerId is whitespace only', () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields({ googleAdsCustomerId: '   ' })])
-
-    render(<RunGoogleAdsAuditFromClientButton />)
-
-    const button = screen.getByRole('button', { name: /run google ads audit/i })
-    expect(button).toBeDisabled()
-  })
-
-  it('shows "Enter Google Ads Customer ID first" message when missing', () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields({ googleAdsCustomerId: undefined })])
-
-    render(<RunGoogleAdsAuditFromClientButton />)
-
+    expect(
+      screen.getByRole('button', { name: /create or resume audit snapshot/i }),
+    ).toBeDisabled()
     expect(screen.getByText(/enter a google ads customer id first/i)).toBeInTheDocument()
   })
 
-  it('enables button when googleAdsCustomerId is present', () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields()])
-
+  it('enables snapshots when the customer ID is present', () => {
+    fetchMock.mockResolvedValue(findNone())
     render(<RunGoogleAdsAuditFromClientButton />)
-
-    const button = screen.getByRole('button', { name: /run google ads audit/i })
-    expect(button).not.toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /create or resume audit snapshot/i }),
+    ).not.toBeDisabled()
   })
 
-  it('does not show "Enter Google Ads Customer ID" message when ID is present', () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields()])
-
-    render(<RunGoogleAdsAuditFromClientButton />)
-
-    expect(screen.queryByText(/enter a google ads customer id first/i)).not.toBeInTheDocument()
-  })
-
-  it('clicking creates audit and triggers run, then shows success link', async () => {
+  it('finds or creates an audit, starts a snapshot, and links the audit', async () => {
     mockUseDocumentInfo.mockReturnValue({ id: 42 })
-    mockUseAllFormFields.mockReturnValue([buildFields()])
-
     fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ doc: { id: 99 } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      })
+      .mockResolvedValueOnce(findNone())
+      .mockResolvedValueOnce(findNone())
+      .mockResolvedValueOnce(createdAudit())
+      .mockResolvedValueOnce(startedSnapshot())
 
     render(<RunGoogleAdsAuditFromClientButton />)
-
-    fireEvent.click(screen.getByRole('button', { name: /run google ads audit/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    fireEvent.click(
+      screen.getByRole('button', { name: /create or resume audit snapshot/i }),
+    )
 
     await waitFor(() => {
-      expect(screen.getByText(/audit created and running/i)).toBeInTheDocument()
+      expect(screen.getByText(/snapshot running/i)).toBeInTheDocument()
     })
-
-    const link = screen.getByText(/view audit/i)
-    expect(link).toHaveAttribute('href', '/admin/collections/google-ads-audits/99')
-
-    // Verify fetch calls
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-
-    const [createUrl, createOpts] = fetchMock.mock.calls[0]
-    expect(createUrl).toBe('/api/google-ads-audits')
-    expect(createOpts.method).toBe('POST')
-    const createBody = JSON.parse(createOpts.body)
-    expect(createBody.client).toBe(42)
-    expect(createBody.customerId).toBe('123-456-7890')
-    expect(createBody.businessName).toBe('Acme Corp')
-
-    const [runUrl, runOpts] = fetchMock.mock.calls[1]
-    expect(runUrl).toBe('/api/google-ads-audits/99/run-audit')
-    expect(runOpts.method).toBe('POST')
+    expect(screen.getByRole('link', { name: /review audit/i })).toHaveAttribute(
+      'href',
+      '/admin/collections/google-ads-audits/99',
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/api/google-ads-audits?')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/api/google-ads-audits?')
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/google-ads-audits')
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual(
+      expect.objectContaining({
+        client: 42,
+        customerId: '123-456-7890',
+        businessName: 'Acme Corp',
+      }),
+    )
+    expect(fetchMock.mock.calls[3][0]).toBe('/api/google-ads-audits/99/snapshot')
   })
 
-  it('uses audit.id fallback when doc.id is not present', async () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields()])
-
+  it('resumes an existing incomplete snapshot without creating another audit', async () => {
     fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ id: 55 }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      })
+      .mockResolvedValueOnce(
+        response({ docs: [{ id: 55, snapshotState: 'collecting' }] }),
+      )
+      .mockResolvedValueOnce(
+        response({ docs: [{ id: 55, snapshotState: 'collecting' }] }),
+      )
+      .mockResolvedValueOnce(startedSnapshot())
 
     render(<RunGoogleAdsAuditFromClientButton />)
-    fireEvent.click(screen.getByRole('button', { name: /run google ads audit/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    fireEvent.click(
+      screen.getByRole('button', { name: /create or resume audit snapshot/i }),
+    )
 
     await waitFor(() => {
-      expect(screen.getByText(/view audit/i)).toHaveAttribute(
+      expect(screen.getByRole('link', { name: /review audit/i })).toHaveAttribute(
         'href',
-        '/admin/collections/google-ads-audits/55'
+        '/admin/collections/google-ads-audits/55',
       )
     })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
-  it('shows error message when create audit fails', async () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields()])
-
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: () => Promise.resolve({ errors: [{ message: 'Duplicate record' }] }),
-    })
-
-    render(<RunGoogleAdsAuditFromClientButton />)
-    fireEvent.click(screen.getByRole('button', { name: /run google ads audit/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('Duplicate record')).toBeInTheDocument()
-    })
-  })
-
-  it('shows generic error message when create fails and json parsing fails', async () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields()])
-
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: () => Promise.reject(new Error('parse error')),
-    })
-
-    render(<RunGoogleAdsAuditFromClientButton />)
-    fireEvent.click(screen.getByRole('button', { name: /run google ads audit/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('Failed to create audit (500)')).toBeInTheDocument()
-    })
-  })
-
-  it('shows error message when run-audit fails', async () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields()])
-
+  it('shows lookup, creation, and snapshot errors', async () => {
     fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ doc: { id: 10 } }),
-      })
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 502,
-        json: () => Promise.resolve({ error: 'Service unavailable' }),
-      })
+      .mockResolvedValueOnce(findNone())
+      .mockResolvedValueOnce(response({}, false))
 
-    render(<RunGoogleAdsAuditFromClientButton />)
-    fireEvent.click(screen.getByRole('button', { name: /run google ads audit/i }))
+    const { rerender } = render(<RunGoogleAdsAuditFromClientButton />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    fireEvent.click(
+      screen.getByRole('button', { name: /create or resume audit snapshot/i }),
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not check for an existing audit',
+    )
 
-    await waitFor(() => {
-      expect(screen.getByText('Service unavailable')).toBeInTheDocument()
-    })
+    fetchMock.mockReset()
+    fetchMock
+      .mockResolvedValueOnce(findNone())
+      .mockResolvedValueOnce(response({ errors: [{ message: 'Duplicate record' }] }, false))
+    rerender(<RunGoogleAdsAuditFromClientButton />)
+    fireEvent.click(
+      screen.getByRole('button', { name: /create or resume audit snapshot/i }),
+    )
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Duplicate record'))
+
+    fetchMock.mockReset()
+    fetchMock
+      .mockResolvedValueOnce(response({ docs: [{ id: 10, snapshotState: 'collecting' }] }))
+      .mockResolvedValueOnce(response({ error: 'Service unavailable' }, false))
+    fireEvent.click(
+      screen.getByRole('button', { name: /create or resume audit snapshot/i }),
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Service unavailable'),
+    )
   })
 
-  it('shows loading text while in progress', async () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([buildFields()])
-
-    // Never-resolving promise to keep loading state
+  it('shows loading state while checking the snapshot', async () => {
     fetchMock.mockReturnValue(new Promise(() => {}))
-
     render(<RunGoogleAdsAuditFromClientButton />)
-    fireEvent.click(screen.getByRole('button', { name: /run google ads audit/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/creating & running audit/i)).toBeInTheDocument()
-    })
-  })
-
-  it('sends optional fields as undefined when empty', async () => {
-    mockUseDocumentInfo.mockReturnValue({ id: 1 })
-    mockUseAllFormFields.mockReturnValue([
-      buildFields({ businessType: undefined, contactEmail: undefined, name: undefined }),
-    ])
-
-    fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ doc: { id: 1 } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({}),
-      })
-
-    render(<RunGoogleAdsAuditFromClientButton />)
-    fireEvent.click(screen.getByRole('button', { name: /run google ads audit/i }))
-
-    await waitFor(() => {
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body)
-      expect(body.businessName).toBe('')
-      expect(body.businessType).toBeUndefined()
-      expect(body.contactEmail).toBeUndefined()
-    })
+    fireEvent.click(
+      screen.getByRole('button', { name: /create or resume audit snapshot/i }),
+    )
+    expect(await screen.findByText(/checking snapshot/i)).toBeInTheDocument()
   })
 })

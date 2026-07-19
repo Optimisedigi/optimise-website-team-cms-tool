@@ -26,6 +26,9 @@ export interface AuditScoreBar {
   scoreColor: string;
   /** Tailwind bg colour class, e.g. "bg-red-500". */
   barColor: string;
+  /** When `false`, the category had insufficient evidence: render "N/A" /
+   *  "Not assessed" instead of a fabricated numeric score. Defaults to true. */
+  assessed?: boolean;
 }
 
 export interface NbTrendSegment {
@@ -129,6 +132,8 @@ export interface ScoringMethodologyCard {
   /** Tailwind class for the score colour, e.g. "text-amber-500". */
   scoreClass: string;
   desc: string;
+  /** When `false`, render "Not assessed" instead of a numeric score. */
+  assessed?: boolean;
 }
 
 export interface RecommendationItem {
@@ -144,11 +149,50 @@ export interface FrameworkStep {
   desc: string;
 }
 
+export interface SemanticAuditSlide {
+  id: string;
+  title: string;
+  required: boolean;
+  evidence: unknown;
+  assessment: "opportunity" | "mixed" | "strength" | "not_applicable";
+  completeness: "complete" | "partial" | "unavailable";
+  hidden: boolean;
+}
+
+export interface SemanticGoogleAdsAuditPayload {
+  version: 2;
+  templateSlug: "google-ads-audit-15-slide";
+  auditId: string;
+  snapshotId: string;
+  clientName: string;
+  provenance: {
+    requestedAt: string;
+    capturedAt: string;
+    periodStart: string;
+    periodEnd: string;
+    accountTimeZone: string;
+    currencyCode: string;
+    earliestAvailableActivityDate: string;
+    retentionCaveat?: string;
+    sourceRowCounts?: Record<string, number>;
+    rubricVersion?: string;
+    unknownDataPolicy?: "exclude_from_weighted_denominator";
+  };
+  analysis: Record<string, any>;
+  scorecards?: Array<{ id: string; label: string; weight: number; score: number | null; maximum: 10; status: "scored" | "insufficient_evidence"; evidenceSummary?: string }>;
+  slides: SemanticAuditSlide[];
+}
+
 export interface GoogleAdsAudit15SlidePayload {
   /** Client display name, e.g. "Away Digital Teams". */
   clientName: string;
   /** External-facing website for the closing CTA link, no trailing slash. */
   clientWebsite: string;
+  /** Gate for the "Account at a glance" slide. `AccountGlanceChart` currently
+   *  hardcodes Away Digital's monthly series, so the evidence adapter only sets
+   *  this true for that client; other clients hide the slide rather than show
+   *  another client's data. Undefined (legacy hand-authored decks) = show. */
+  showAccountGlance?: boolean;
   /** Cover-card period label, e.g. "January 2025 – April 2026". */
   auditPeriodLabel: string;
   /** Subtitle paragraph on the cover slide. */
@@ -215,7 +259,8 @@ function isAuditScoreBar(v: unknown): v is AuditScoreBar {
     isStr(v.label) &&
     isNum(v.score) &&
     isStr(v.scoreColor) &&
-    isStr(v.barColor)
+    isStr(v.barColor) &&
+    (v.assessed === undefined || isBool(v.assessed))
   );
 }
 
@@ -306,7 +351,8 @@ function isScoringMethodologyCard(v: unknown): v is ScoringMethodologyCard {
     isNum(v.weight) &&
     isNum(v.score) &&
     isStr(v.scoreClass) &&
-    isStr(v.desc)
+    isStr(v.desc) &&
+    (v.assessed === undefined || isBool(v.assessed))
   );
 }
 
@@ -367,9 +413,14 @@ function parsePayload(input: unknown): GoogleAdsAudit15SlidePayload {
     );
   }
 
+  if (input.showAccountGlance !== undefined && !isBool(input.showAccountGlance)) {
+    throw new TypeError('google-ads-audit-15-slide payload: field "showAccountGlance" must be a boolean');
+  }
+
   return {
     clientName: requireStr("clientName"),
     clientWebsite: requireStr("clientWebsite"),
+    ...(input.showAccountGlance !== undefined ? { showAccountGlance: input.showAccountGlance as boolean } : {}),
     auditPeriodLabel: requireStr("auditPeriodLabel"),
     coverTagline: requireStr("coverTagline"),
     contactName: requireStr("contactName"),
@@ -396,12 +447,41 @@ function parsePayload(input: unknown): GoogleAdsAudit15SlidePayload {
   };
 }
 
-export const googleAdsAudit15SlideSchema: PayloadSchema<GoogleAdsAudit15SlidePayload> = {
+function parseSemanticPayload(input: unknown): SemanticGoogleAdsAuditPayload {
+  if (!isObj(input) || input.version !== 2 || input.templateSlug !== "google-ads-audit-15-slide") throw new TypeError("Invalid semantic Google Ads audit payload");
+  if (!isStr(input.auditId) || !isStr(input.snapshotId) || !isStr(input.clientName) || !isObj(input.provenance) || !isObj(input.analysis) || !Array.isArray(input.slides)) throw new TypeError("Semantic Google Ads audit payload is incomplete");
+  const provenance = input.provenance;
+  for (const field of ["requestedAt", "capturedAt", "periodStart", "periodEnd", "accountTimeZone", "currencyCode", "earliestAvailableActivityDate"] as const) {
+    if (!isStr(provenance[field]) || !provenance[field]) throw new TypeError(`Semantic Google Ads audit provenance field is invalid: ${field}`);
+  }
+  if (provenance.retentionCaveat !== undefined && !isStr(provenance.retentionCaveat)) throw new TypeError("Semantic Google Ads audit retention caveat must be a string");
+  if (provenance.sourceRowCounts !== undefined && (!isObj(provenance.sourceRowCounts) || Object.values(provenance.sourceRowCounts).some((count) => !isNum(count) || count < 0))) throw new TypeError("Semantic Google Ads audit source row counts are invalid");
+  const ids = new Set<string>();
+  for (const slide of input.slides) {
+    if (!isObj(slide) || !isStr(slide.id) || !isStr(slide.title) || !isBool(slide.required) || !isBool(slide.hidden) || !["opportunity", "mixed", "strength", "not_applicable"].includes(String(slide.assessment)) || !["complete", "partial", "unavailable"].includes(String(slide.completeness))) throw new TypeError("Invalid semantic Google Ads audit slide");
+    if (ids.has(slide.id)) throw new TypeError(`Duplicate semantic slide ID: ${slide.id}`);
+    if (slide.required && slide.hidden) throw new TypeError(`Required semantic slide cannot be hidden: ${slide.id}`);
+    ids.add(slide.id);
+  }
+  for (const required of ["cover", "executive-summary", "recommendations", "closing"]) {
+    const slide = input.slides.find((candidate) => isObj(candidate) && candidate.id === required);
+    if (!slide || slide.required !== true) throw new TypeError(`Missing required semantic slide: ${required}`);
+  }
+  return input as unknown as SemanticGoogleAdsAuditPayload;
+}
+
+export type GoogleAdsAuditTemplatePayload = GoogleAdsAudit15SlidePayload | SemanticGoogleAdsAuditPayload;
+
+function parseVersionedPayload(input: unknown): GoogleAdsAuditTemplatePayload {
+  return isObj(input) && input.version === 2 ? parseSemanticPayload(input) : parsePayload(input);
+}
+
+export const googleAdsAudit15SlideSchema: PayloadSchema<GoogleAdsAuditTemplatePayload> = {
   name: "google-ads-audit-15-slide payload",
-  parse: parsePayload,
+  parse: parseVersionedPayload,
   safeParse(input) {
     try {
-      return { ok: true, value: parsePayload(input) };
+      return { ok: true, value: parseVersionedPayload(input) };
     } catch (err) {
       return {
         ok: false,

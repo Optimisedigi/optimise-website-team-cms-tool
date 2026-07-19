@@ -1,16 +1,37 @@
-import { MigrateDownArgs, MigrateUpArgs, sql } from "@payloadcms/db-sqlite";
+import { MigrateDownArgs, MigrateUpArgs, sql } from '@payloadcms/db-sqlite'
 
-async function runIgnoringExisting(db: MigrateUpArgs["db"], statement: string): Promise<void> {
+function errorChainMessage(error: unknown): string {
+  const messages: string[] = []
+  let current: unknown = error
+  while (current) {
+    messages.push(current instanceof Error ? current.message : String(current))
+    current =
+      typeof current === 'object' && 'cause' in current
+        ? (current as { cause?: unknown }).cause
+        : undefined
+  }
+  return messages.join('\n')
+}
+
+async function runIgnoringExisting(db: MigrateUpArgs['db'], statement: string): Promise<void> {
   try {
-    await db.run(sql.raw(statement));
+    await db.run(sql.raw(statement))
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!/duplicate column|already exists/i.test(message)) throw error;
+    if (!/duplicate column|already exists/i.test(errorChainMessage(error))) throw error
+  }
+}
+
+async function runIgnoringMissing(db: MigrateDownArgs['db'], statement: string): Promise<void> {
+  try {
+    await db.run(sql.raw(statement))
+  } catch (error) {
+    if (!/no such column|no such index|no such table/i.test(errorChainMessage(error))) throw error
   }
 }
 
 export async function up({ db }: MigrateUpArgs): Promise<void> {
-  await db.run(sql.raw(`
+  await db.run(
+    sql.raw(`
     CREATE TABLE IF NOT EXISTS "google_ads_audit_snapshots" (
       "id" integer PRIMARY KEY NOT NULL,
       "audit_id" integer NOT NULL,
@@ -42,8 +63,10 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
       FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON UPDATE no action ON DELETE cascade,
       FOREIGN KEY ("proposal_id") REFERENCES "client_proposals"("id") ON UPDATE no action ON DELETE set null
     );
-  `));
-  await db.run(sql.raw(`
+  `),
+  )
+  await db.run(
+    sql.raw(`
     CREATE TABLE IF NOT EXISTS "google_ads_audit_snapshot_chunks" (
       "id" integer PRIMARY KEY NOT NULL,
       "identity" text NOT NULL,
@@ -57,38 +80,68 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
       "created_at" text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
       FOREIGN KEY ("snapshot_id") REFERENCES "google_ads_audit_snapshots"("id") ON UPDATE no action ON DELETE cascade
     );
-  `));
+  `),
+  )
 
   const indexes = [
-    "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_audit_idx` ON `google_ads_audit_snapshots` (`audit_id`)",
-    "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_client_idx` ON `google_ads_audit_snapshots` (`client_id`)",
-    "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_status_idx` ON `google_ads_audit_snapshots` (`status`)",
-    "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_requested_at_idx` ON `google_ads_audit_snapshots` (`requested_at`)",
-    "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_job_idx` ON `google_ads_audit_snapshots` (`growth_tools_job_id`)",
-    "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_identity_idx` ON `google_ads_audit_snapshot_chunks` (`identity`)",
-    "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_natural_idx` ON `google_ads_audit_snapshot_chunks` (`snapshot_id`, `dataset_key`, `chunk_index`)",
-  ];
-  for (const statement of indexes) await db.run(sql.raw(statement));
+    'CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_audit_idx` ON `google_ads_audit_snapshots` (`audit_id`)',
+    'CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_client_idx` ON `google_ads_audit_snapshots` (`client_id`)',
+    'CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_status_idx` ON `google_ads_audit_snapshots` (`status`)',
+    'CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_requested_at_idx` ON `google_ads_audit_snapshots` (`requested_at`)',
+    'CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_job_idx` ON `google_ads_audit_snapshots` (`growth_tools_job_id`)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_identity_idx` ON `google_ads_audit_snapshot_chunks` (`identity`)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_natural_idx` ON `google_ads_audit_snapshot_chunks` (`snapshot_id`, `dataset_key`, `chunk_index`)',
+  ]
+  for (const statement of indexes) await db.run(sql.raw(statement))
 
   const auditColumns = [
-    "ALTER TABLE `google_ads_audits` ADD `snapshot_id` integer REFERENCES `google_ads_audit_snapshots`(`id`) ON UPDATE no action ON DELETE set null",
-    "ALTER TABLE `google_ads_audits` ADD `snapshot_state` text",
-    "ALTER TABLE `google_ads_audits` ADD `snapshot_period_start` text",
-    "ALTER TABLE `google_ads_audits` ADD `snapshot_period_end` text",
-    "ALTER TABLE `google_ads_audits` ADD `snapshot_captured_at` text",
-    "ALTER TABLE `google_ads_audits` ADD `deck_generated_at` text",
-    "ALTER TABLE `google_ads_audits` ADD `deck_version` numeric",
-    "ALTER TABLE `google_ads_audits` ADD `generated_deck_payload` text",
-    "ALTER TABLE `google_ads_audits` ADD `deck_slide_visibility` text",
-  ];
-  for (const statement of auditColumns) await runIgnoringExisting(db, statement);
-  await db.run(sql.raw("CREATE INDEX IF NOT EXISTS `google_ads_audits_snapshot_idx` ON `google_ads_audits` (`snapshot_id`)"));
+    'ALTER TABLE `google_ads_audits` ADD `snapshot_id` integer REFERENCES `google_ads_audit_snapshots`(`id`) ON UPDATE no action ON DELETE set null',
+    'ALTER TABLE `google_ads_audits` ADD `snapshot_state` text',
+    'ALTER TABLE `google_ads_audits` ADD `snapshot_period_start` text',
+    'ALTER TABLE `google_ads_audits` ADD `snapshot_period_end` text',
+    'ALTER TABLE `google_ads_audits` ADD `snapshot_captured_at` text',
+    'ALTER TABLE `google_ads_audits` ADD `deck_generated_at` text',
+    'ALTER TABLE `google_ads_audits` ADD `deck_version` numeric',
+    'ALTER TABLE `google_ads_audits` ADD `generated_deck_payload` text',
+    'ALTER TABLE `google_ads_audits` ADD `deck_slide_visibility` text',
+  ]
+  for (const statement of auditColumns) await runIgnoringExisting(db, statement)
+  await db.run(
+    sql.raw(
+      'CREATE INDEX IF NOT EXISTS `google_ads_audits_snapshot_idx` ON `google_ads_audits` (`snapshot_id`)',
+    ),
+  )
 
-  await runIgnoringExisting(db, "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_audit_snapshots_id` integer REFERENCES `google_ads_audit_snapshots`(`id`) ON UPDATE no action ON DELETE cascade");
-  await runIgnoringExisting(db, "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_audit_snapshot_chunks_id` integer REFERENCES `google_ads_audit_snapshot_chunks`(`id`) ON UPDATE no action ON DELETE cascade");
+  await runIgnoringExisting(
+    db,
+    'ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_audit_snapshots_id` integer REFERENCES `google_ads_audit_snapshots`(`id`) ON UPDATE no action ON DELETE cascade',
+  )
+  await runIgnoringExisting(
+    db,
+    'ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_audit_snapshot_chunks_id` integer REFERENCES `google_ads_audit_snapshot_chunks`(`id`) ON UPDATE no action ON DELETE cascade',
+  )
 }
 
 export async function down({ db }: MigrateDownArgs): Promise<void> {
-  await db.run(sql.raw("DROP TABLE IF EXISTS `google_ads_audit_snapshot_chunks`;"));
-  await db.run(sql.raw("DROP TABLE IF EXISTS `google_ads_audit_snapshots`;"));
+  await db.run(sql.raw('DROP INDEX IF EXISTS `google_ads_audits_snapshot_idx`'))
+  for (const column of [
+    'snapshot_id',
+    'snapshot_state',
+    'snapshot_period_start',
+    'snapshot_period_end',
+    'snapshot_captured_at',
+    'deck_generated_at',
+    'deck_version',
+    'generated_deck_payload',
+    'deck_slide_visibility',
+  ])
+    await runIgnoringMissing(db, `ALTER TABLE \`google_ads_audits\` DROP COLUMN \`${column}\``)
+  for (const column of ['google_ads_audit_snapshots_id', 'google_ads_audit_snapshot_chunks_id']) {
+    await runIgnoringMissing(
+      db,
+      `ALTER TABLE \`payload_locked_documents_rels\` DROP COLUMN \`${column}\``,
+    )
+  }
+  await db.run(sql.raw('DROP TABLE IF EXISTS `google_ads_audit_snapshot_chunks`;'))
+  await db.run(sql.raw('DROP TABLE IF EXISTS `google_ads_audit_snapshots`;'))
 }

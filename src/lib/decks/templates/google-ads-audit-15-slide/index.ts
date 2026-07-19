@@ -6,7 +6,7 @@
  * registry barrel rather than this file directly.
  */
 import { registerTemplate } from "../../types";
-import { Component } from "./Component";
+import { VersionedComponent } from "./VersionedComponent";
 import {
   googleAdsAudit15SlideSchema,
   googleAdsAudit15SlideSamplePayload,
@@ -15,10 +15,10 @@ import {
 registerTemplate({
   kind: "live",
   slug: "google-ads-audit-15-slide",
-  name: "Google Ads Audit — 15-slide deck",
+  name: "Google Ads Audit standardized deck",
   description:
-    "Full 15-slide Google Ads account audit deck. Cover, TL;DR, account-at-a-glance, audit score, category breakdown, non-brand trend, ad-group breakdown, search terms, landing pages, AI Overviews impact, recommendations, opportunity, how we work, working together, closing.",
+    "Versioned semantic Google Ads audit deck with traceable evidence, conditional diagnostic slides, and visible-only numbering. Legacy Away Digital payloads remain supported.",
   payloadSchema: googleAdsAudit15SlideSchema,
   samplePayload: googleAdsAudit15SlideSamplePayload,
-  Component,
+  Component: VersionedComponent,
 });

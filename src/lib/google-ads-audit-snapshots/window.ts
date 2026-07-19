@@ -1,4 +1,4 @@
-import type { SnapshotWindow } from "./types";
+import type { FrozenAuditContext, SnapshotWindow } from "./types";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -28,7 +28,7 @@ async function fetchMetadata(customerId: string, periodEnd?: string): Promise<Re
   return response.json() as Promise<Record<string, string>>;
 }
 
-export async function discoverSnapshotWindow(customerId: string, requestedAt = new Date().toISOString()): Promise<SnapshotWindow> {
+export async function discoverSnapshotWindow(customerId: string, requestedAt = new Date().toISOString(), auditContext: Partial<FrozenAuditContext> = {}): Promise<SnapshotWindow> {
   const normalizedCustomerId = customerId.replace(/-/g, "");
   const account = await fetchMetadata(normalizedCustomerId);
   const periodEnd = previousCalendarMonthEnd(requestedAt, account.accountTimeZone);
@@ -41,7 +41,20 @@ export async function discoverSnapshotWindow(customerId: string, requestedAt = n
     periodEnd,
     earliestAvailableActivityDate: periodStart,
     accountTimeZone: account.accountTimeZone,
+    accountName: account.descriptiveName || `Customer ${normalizedCustomerId}`,
     currencyCode: account.currencyCode,
     retentionCaveat: activity.retentionCaveat,
+    captureContext: {
+      websiteUrl: auditContext.websiteUrl,
+      businessName: auditContext.businessName || account.descriptiveName || `Customer ${normalizedCustomerId}`,
+      businessType: auditContext.businessType,
+      brandTerms: auditContext.brandTerms ?? [],
+      conversionObjectives: auditContext.conversionObjectives ?? [],
+      searchLocation: auditContext.searchLocation ?? "",
+      searchLanguage: auditContext.searchLanguage ?? "",
+      competitorSeedQueries: auditContext.competitorSeedQueries ?? [],
+      schemaVersion: auditContext.schemaVersion ?? 3,
+      rubricVersion: auditContext.rubricVersion ?? "2026-07-complete-evidence-v2",
+    },
   };
 }

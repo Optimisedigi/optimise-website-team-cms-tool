@@ -3288,6 +3288,364 @@ export interface GoogleAdsAudit {
    */
   brandTerms?: string | null;
   /**
+   * Paid SERP audit target; defaults to Sydney, Australia.
+   */
+  searchLocation?:
+    | (
+        | 'au:brisbane'
+        | 'au:melbourne'
+        | 'au:perth'
+        | 'au:sydney'
+        | 'br:rio-de-janeiro'
+        | 'br:sao-paulo'
+        | 'ca:montreal'
+        | 'ca:toronto'
+        | 'ca:vancouver'
+        | 'fr:lyon'
+        | 'fr:marseille'
+        | 'fr:paris'
+        | 'de:berlin'
+        | 'de:hamburg'
+        | 'de:munich'
+        | 'in:bangalore'
+        | 'in:delhi'
+        | 'in:mumbai'
+        | 'it:milan'
+        | 'it:rome'
+        | 'jp:osaka'
+        | 'jp:tokyo'
+        | 'mx:mexico-city'
+        | 'nl:amsterdam'
+        | 'kr:seoul'
+        | 'es:barcelona'
+        | 'es:madrid'
+        | 'gb:birmingham'
+        | 'gb:london'
+        | 'gb:manchester'
+        | 'us:atlanta'
+        | 'us:chicago'
+        | 'us:denver'
+        | 'us:houston'
+        | 'us:los-angeles'
+        | 'us:miami'
+        | 'us:new-york'
+        | 'us:seattle'
+        | 'vn:hanoi'
+        | 'vn:ho-chi-minh'
+        | 'af'
+        | 'ax'
+        | 'al'
+        | 'dz'
+        | 'as'
+        | 'ad'
+        | 'ao'
+        | 'ai'
+        | 'aq'
+        | 'ag'
+        | 'ar'
+        | 'am'
+        | 'aw'
+        | 'au'
+        | 'at'
+        | 'az'
+        | 'bs'
+        | 'bh'
+        | 'bd'
+        | 'bb'
+        | 'by'
+        | 'be'
+        | 'bz'
+        | 'bj'
+        | 'bm'
+        | 'bt'
+        | 'bo'
+        | 'ba'
+        | 'bw'
+        | 'bv'
+        | 'br'
+        | 'io'
+        | 'vg'
+        | 'bn'
+        | 'bg'
+        | 'bf'
+        | 'bi'
+        | 'kh'
+        | 'cm'
+        | 'ca'
+        | 'cv'
+        | 'bq'
+        | 'ky'
+        | 'cf'
+        | 'td'
+        | 'cl'
+        | 'cn'
+        | 'cx'
+        | 'cc'
+        | 'co'
+        | 'km'
+        | 'cg'
+        | 'cd'
+        | 'ck'
+        | 'cr'
+        | 'ci'
+        | 'hr'
+        | 'cu'
+        | 'cw'
+        | 'cy'
+        | 'cz'
+        | 'dk'
+        | 'dj'
+        | 'dm'
+        | 'do'
+        | 'ec'
+        | 'eg'
+        | 'sv'
+        | 'gq'
+        | 'er'
+        | 'ee'
+        | 'sz'
+        | 'et'
+        | 'fk'
+        | 'fo'
+        | 'fj'
+        | 'fi'
+        | 'fr'
+        | 'gf'
+        | 'pf'
+        | 'tf'
+        | 'ga'
+        | 'gm'
+        | 'ge'
+        | 'de'
+        | 'gh'
+        | 'gi'
+        | 'gr'
+        | 'gl'
+        | 'gd'
+        | 'gp'
+        | 'gu'
+        | 'gt'
+        | 'gg'
+        | 'gn'
+        | 'gw'
+        | 'gy'
+        | 'ht'
+        | 'hm'
+        | 'hn'
+        | 'hk'
+        | 'hu'
+        | 'is'
+        | 'in'
+        | 'id'
+        | 'ir'
+        | 'iq'
+        | 'ie'
+        | 'im'
+        | 'il'
+        | 'it'
+        | 'jm'
+        | 'jp'
+        | 'je'
+        | 'jo'
+        | 'kz'
+        | 'ke'
+        | 'ki'
+        | 'kw'
+        | 'kg'
+        | 'la'
+        | 'lv'
+        | 'lb'
+        | 'ls'
+        | 'lr'
+        | 'ly'
+        | 'li'
+        | 'lt'
+        | 'lu'
+        | 'mo'
+        | 'mg'
+        | 'mw'
+        | 'my'
+        | 'mv'
+        | 'ml'
+        | 'mt'
+        | 'mh'
+        | 'mq'
+        | 'mr'
+        | 'mu'
+        | 'yt'
+        | 'mx'
+        | 'fm'
+        | 'md'
+        | 'mc'
+        | 'mn'
+        | 'me'
+        | 'ms'
+        | 'ma'
+        | 'mz'
+        | 'mm'
+        | 'na'
+        | 'nr'
+        | 'np'
+        | 'nl'
+        | 'nc'
+        | 'nz'
+        | 'ni'
+        | 'ne'
+        | 'ng'
+        | 'nu'
+        | 'nf'
+        | 'kp'
+        | 'mk'
+        | 'mp'
+        | 'no'
+        | 'om'
+        | 'pk'
+        | 'pw'
+        | 'ps'
+        | 'pa'
+        | 'pg'
+        | 'py'
+        | 'pe'
+        | 'ph'
+        | 'pn'
+        | 'pl'
+        | 'pt'
+        | 'pr'
+        | 'qa'
+        | 're'
+        | 'ro'
+        | 'ru'
+        | 'rw'
+        | 'ws'
+        | 'sm'
+        | 'st'
+        | 'sa'
+        | 'sn'
+        | 'rs'
+        | 'sc'
+        | 'sl'
+        | 'sg'
+        | 'sx'
+        | 'sk'
+        | 'si'
+        | 'sb'
+        | 'so'
+        | 'za'
+        | 'gs'
+        | 'kr'
+        | 'ss'
+        | 'es'
+        | 'lk'
+        | 'bl'
+        | 'sh'
+        | 'kn'
+        | 'lc'
+        | 'mf'
+        | 'pm'
+        | 'vc'
+        | 'sd'
+        | 'sr'
+        | 'sj'
+        | 'se'
+        | 'ch'
+        | 'sy'
+        | 'tw'
+        | 'tj'
+        | 'tz'
+        | 'th'
+        | 'tl'
+        | 'tg'
+        | 'tk'
+        | 'to'
+        | 'tt'
+        | 'tn'
+        | 'tr'
+        | 'tm'
+        | 'tc'
+        | 'tv'
+        | 'um'
+        | 'vi'
+        | 'ug'
+        | 'ua'
+        | 'ae'
+        | 'gb'
+        | 'us'
+        | 'uy'
+        | 'uz'
+        | 'vu'
+        | 'va'
+        | 've'
+        | 'vn'
+        | 'wf'
+        | 'eh'
+        | 'ye'
+        | 'zm'
+        | 'zw'
+      )
+    | null;
+  /**
+   * Search language used for paid SERP evidence.
+   */
+  searchLanguage?:
+    | (
+        | 'ar'
+        | 'bn'
+        | 'bg'
+        | 'ca'
+        | 'zh'
+        | 'zh-tw'
+        | 'hr'
+        | 'cs'
+        | 'da'
+        | 'nl'
+        | 'en'
+        | 'et'
+        | 'tl'
+        | 'fi'
+        | 'fr'
+        | 'de'
+        | 'el'
+        | 'gu'
+        | 'he'
+        | 'hi'
+        | 'hu'
+        | 'is'
+        | 'id'
+        | 'it'
+        | 'ja'
+        | 'kn'
+        | 'ko'
+        | 'lv'
+        | 'lt'
+        | 'ms'
+        | 'ml'
+        | 'mr'
+        | 'no'
+        | 'fa'
+        | 'pl'
+        | 'pt'
+        | 'pa'
+        | 'ro'
+        | 'ru'
+        | 'sr'
+        | 'sk'
+        | 'sl'
+        | 'es'
+        | 'sv'
+        | 'ta'
+        | 'te'
+        | 'th'
+        | 'tr'
+        | 'uk'
+        | 'ur'
+        | 'vi'
+      )
+    | null;
+  /**
+   * Optional representative generic queries, one per line. Leave blank for deterministic selection from captured spend, conversions and volume (maximum 10).
+   */
+  competitorSeedQueries?: string | null;
+  /**
    * Internal team notes about this client
    */
   notes?: string | null;
@@ -3329,6 +3687,18 @@ export interface GoogleAdsAudit {
    */
   auditError?: string | null;
   /**
+   * Versioned evidence rubric used for this score
+   */
+  scoreRubricVersion?: string | null;
+  /**
+   * Unknown datasets are excluded from the weighted denominator
+   */
+  scoreStatus?: ('scored' | 'insufficient_evidence') | null;
+  /**
+   * Generated deck and evidence detail link
+   */
+  auditDetailUrl?: string | null;
+  /**
    * Overall audit score (0-100)
    */
   overallScore?: number | null;
@@ -3357,7 +3727,7 @@ export interface GoogleAdsAudit {
     | boolean
     | null;
   /**
-   * Generated email HTML (preview in Presentation tab)
+   * Generated email HTML (preview in Google Ads Audit tab)
    */
   emailHtml?: string | null;
   /**
@@ -3400,7 +3770,7 @@ export interface GoogleAdsAudit {
     | boolean
     | null;
   /**
-   * Toggle on to make the presentation publicly accessible (with PIN)
+   * Publishing is managed by the reviewed deck controls above.
    */
   presentationPublished?: boolean | null;
   /**
@@ -4449,7 +4819,7 @@ export interface GoogleAdsAudit {
   createdAt: string;
 }
 /**
- * Immutable audit evidence and deterministic analysis. Raw source rows are stored in bounded hidden chunks.
+ * Immutable audit evidence metadata and compact deterministic analysis. Raw evidence is stored in private compressed objects when configured.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "google-ads-audit-snapshots".
@@ -4461,6 +4831,7 @@ export interface GoogleAdsAuditSnapshot {
   proposal?: (number | null) | ClientProposal;
   customerId: string;
   accountTimeZone: string;
+  accountName: string;
   currencyCode: string;
   requestedAt: string;
   capturedAt?: string | null;
@@ -4470,6 +4841,51 @@ export interface GoogleAdsAuditSnapshot {
   earliestAvailableActivityDate: string;
   retentionCaveat?: string | null;
   schemaVersion: number;
+  rubricVersion: string;
+  websiteUrl?: string | null;
+  businessName: string;
+  businessType?: string | null;
+  brandTerms:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  conversionObjectives:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  searchLocation: string;
+  searchLanguage: string;
+  competitorSeedQueries:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Frozen business, targeting, and rubric context for reproducible evidence capture
+   */
+  captureContext:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress?: number | null;
   error?: string | null;
@@ -4503,6 +4919,12 @@ export interface GoogleAdsAuditSnapshot {
     | number
     | boolean
     | null;
+  analysisBlobUrl?: string | null;
+  analysisBlobPathname?: string | null;
+  analysisBlobChecksum?: string | null;
+  analysisBlobEncoding?: 'gzip' | null;
+  analysisBlobCompressedBytes?: number | null;
+  analysisBlobUncompressedBytes?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -9160,17 +9582,30 @@ export interface GoogleAdsAuditSnapshotChunk {
     | 'conversion_actions'
     | 'conversion_action_performance'
     | 'campaign_impression_share'
-    | 'auction_insights'
     | 'campaign_negative_keywords'
     | 'shared_negative_keywords'
     | 'campaign_shared_set_assignments'
     | 'ads'
     | 'ad_assets'
-    | 'landing_page_views';
+    | 'landing_page_views'
+    | 'customer_conversion_goals'
+    | 'campaign_conversion_goals'
+    | 'campaign_goal_configs'
+    | 'campaign_location_criteria'
+    | 'campaign_language_criteria'
+    | 'campaign_ad_schedules'
+    | 'device_performance'
+    | 'audience_segments'
+    | 'negative_change_history'
+    | 'website_assessment'
+    | 'paid_serp_competitors'
+    | 'competitor_ad_creatives'
+    | 'capture_diagnostics';
   chunkIndex: number;
   rowCount: number;
   checksum: string;
-  rows:
+  storageMode: 'database_json' | 'private_blob_gzip_v1';
+  rows?:
     | {
         [k: string]: unknown;
       }
@@ -9179,6 +9614,11 @@ export interface GoogleAdsAuditSnapshotChunk {
     | number
     | boolean
     | null;
+  blobUrl?: string | null;
+  blobPathname?: string | null;
+  encoding?: 'gzip' | null;
+  compressedBytes?: number | null;
+  uncompressedBytes?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -12010,6 +12450,9 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   contactEmail?: T;
   conversionObjectives?: T;
   brandTerms?: T;
+  searchLocation?: T;
+  searchLanguage?: T;
+  competitorSeedQueries?: T;
   notes?: T;
   snapshot?: T;
   snapshotState?: T;
@@ -12021,6 +12464,9 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   auditStartedAt?: T;
   auditCompletedAt?: T;
   auditError?: T;
+  scoreRubricVersion?: T;
+  scoreStatus?: T;
+  auditDetailUrl?: T;
   overallScore?: T;
   rawData?: T;
   scoredReport?: T;
@@ -12225,6 +12671,7 @@ export interface GoogleAdsAuditSnapshotsSelect<T extends boolean = true> {
   proposal?: T;
   customerId?: T;
   accountTimeZone?: T;
+  accountName?: T;
   currencyCode?: T;
   requestedAt?: T;
   capturedAt?: T;
@@ -12234,6 +12681,16 @@ export interface GoogleAdsAuditSnapshotsSelect<T extends boolean = true> {
   earliestAvailableActivityDate?: T;
   retentionCaveat?: T;
   schemaVersion?: T;
+  rubricVersion?: T;
+  websiteUrl?: T;
+  businessName?: T;
+  businessType?: T;
+  brandTerms?: T;
+  conversionObjectives?: T;
+  searchLocation?: T;
+  searchLanguage?: T;
+  competitorSeedQueries?: T;
+  captureContext?: T;
   status?: T;
   progress?: T;
   error?: T;
@@ -12243,6 +12700,12 @@ export interface GoogleAdsAuditSnapshotsSelect<T extends boolean = true> {
   chunkManifest?: T;
   manifestChecksum?: T;
   analysis?: T;
+  analysisBlobUrl?: T;
+  analysisBlobPathname?: T;
+  analysisBlobChecksum?: T;
+  analysisBlobEncoding?: T;
+  analysisBlobCompressedBytes?: T;
+  analysisBlobUncompressedBytes?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -13245,7 +13708,13 @@ export interface GoogleAdsAuditSnapshotChunksSelect<T extends boolean = true> {
   chunkIndex?: T;
   rowCount?: T;
   checksum?: T;
+  storageMode?: T;
   rows?: T;
+  blobUrl?: T;
+  blobPathname?: T;
+  encoding?: T;
+  compressedBytes?: T;
+  uncompressedBytes?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -14,7 +14,8 @@ const RunGoogleAdsAuditButton = () => {
   if (!id) return null
 
   const customerId = String(fields?.customerId?.value ?? '').trim()
-  const state = String(fields?.snapshotState?.value ?? fields?.auditStatus?.value ?? '')
+  const hasSnapshot = Boolean(fields?.snapshot?.value)
+  const state = String(fields?.snapshotState?.value || (hasSnapshot ? fields?.auditStatus?.value : '') || '')
   const periodStart = dateLabel(fields?.snapshotPeriodStart?.value)
   const periodEnd = dateLabel(fields?.snapshotPeriodEnd?.value)
   const active = loading || state === 'pending' || state === 'running'

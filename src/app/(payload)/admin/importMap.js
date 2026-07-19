@@ -72,6 +72,7 @@ import { default as default_201383597744ca0c337b337d4f7fc6d4 } from '../../../co
 import { default as default_81632eb6d14ae90ef8820b753fa1481c } from '../../../components/list-cells/TitleAvatarCell'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../components/MockupUpload'
+import { default as default_524269742a06f6b5480b96a4c642a8de } from '../../../components/RunGoogleAdsAuditFromProposalButton'
 import { default as default_56b28aa1b7f83ad9678320a990503af7 } from '../../../components/KeywordResearchAutofill'
 import { default as default_9cd4c7b63c4660809e24cc71ebe72a8e } from '../../../components/CompetitorRowLabel'
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
@@ -84,7 +85,6 @@ import { default as default_6b25e602ba027d4f7fb24eed36bf14df } from '../../../co
 import { default as default_6cb5456de2161232bfdf180a4e78e3fa } from '../../../components/RefreshProposalKeywordDataButton'
 import { default as default_a087138d05f6fdc79a220a1ae9afa2ee } from '../../../components/ManualCompetitorTrafficFields'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
-import { default as default_524269742a06f6b5480b96a4c642a8de } from '../../../components/RunGoogleAdsAuditFromProposalButton'
 import { default as default_6fd4378acdcb6cb05df32bae3ab16a5b } from '../../../components/RunSerpDisplacementFromProposalButton'
 import { default as default_6f9f267498ebf96dc66363123e90c687 } from '../../../components/RunAiVisibilityFromProposalButton'
 import { default as default_ff1f7e2a5c260c68ee659d6117e5331e } from '../../../components/ProposalSlideRemovalPicker'
@@ -137,6 +137,7 @@ import { default as default_47af8c78950b0c47a8049a44d7cef06c } from '../../../co
 import { default as default_9c631d4925e49d9cfb3fb118c0ff4010 } from '../../../components/DownloadAuditDataButton'
 import { default as default_909a54b4f02f1428884a878a4fce4a5f } from '../../../components/GoogleAdsFindingCuration'
 import { default as default_10fccc7885acbd99c8b1f5d8e310047f } from '../../../components/RegenerateEmailButton'
+import { default as default_02d3554f3ddfaf4b28ba78d8bf1fb123 } from '../../../components/GoogleAdsAuditDeckReview'
 import { default as default_2eca85eea20f05062ddd72e60518b25f } from '../../../components/RunCampaignProposalButton'
 import { default as default_60c16b01b604a3bf2312f924f0ece75b } from '../../../components/CampaignProposalPreview'
 import { default as default_e52447bfa5fc6cde09e57d3c9412148e } from '../../../components/RunProposalCompetitorWorkflowButton'
@@ -282,6 +283,7 @@ export const importMap = {
   "./components/list-cells/TitleAvatarCell#default": default_81632eb6d14ae90ef8820b753fa1481c,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/MockupUpload#default": default_da47157ebc74588a3650c3de3faf920e,
+  "./components/RunGoogleAdsAuditFromProposalButton#default": default_524269742a06f6b5480b96a4c642a8de,
   "./components/KeywordResearchAutofill#default": default_56b28aa1b7f83ad9678320a990503af7,
   "./components/CompetitorRowLabel#default": default_9cd4c7b63c4660809e24cc71ebe72a8e,
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
@@ -294,7 +296,6 @@ export const importMap = {
   "./components/RefreshProposalKeywordDataButton#default": default_6cb5456de2161232bfdf180a4e78e3fa,
   "./components/ManualCompetitorTrafficFields#default": default_a087138d05f6fdc79a220a1ae9afa2ee,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
-  "./components/RunGoogleAdsAuditFromProposalButton#default": default_524269742a06f6b5480b96a4c642a8de,
   "./components/RunSerpDisplacementFromProposalButton#default": default_6fd4378acdcb6cb05df32bae3ab16a5b,
   "./components/RunAiVisibilityFromProposalButton#default": default_6f9f267498ebf96dc66363123e90c687,
   "./components/ProposalSlideRemovalPicker#default": default_ff1f7e2a5c260c68ee659d6117e5331e,
@@ -347,6 +348,7 @@ export const importMap = {
   "./components/DownloadAuditDataButton#default": default_9c631d4925e49d9cfb3fb118c0ff4010,
   "./components/GoogleAdsFindingCuration#default": default_909a54b4f02f1428884a878a4fce4a5f,
   "./components/RegenerateEmailButton#default": default_10fccc7885acbd99c8b1f5d8e310047f,
+  "./components/GoogleAdsAuditDeckReview#default": default_02d3554f3ddfaf4b28ba78d8bf1fb123,
   "./components/RunCampaignProposalButton#default": default_2eca85eea20f05062ddd72e60518b25f,
   "./components/CampaignProposalPreview#default": default_60c16b01b604a3bf2312f924f0ece75b,
   "./components/RunProposalCompetitorWorkflowButton#default": default_e52447bfa5fc6cde09e57d3c9412148e,

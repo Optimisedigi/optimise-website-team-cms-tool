@@ -12,8 +12,9 @@
  * Reuses the same `template.css`, `AccountGlanceChart`, `DeckScrollEffects`,
  * and `Starfield` modules already present in this directory.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import "./template.css";
 import Starfield from "./Starfield";
 import DeckScrollEffects from "./DeckScrollEffects";
 import AccountGlanceChart from "./AccountGlanceChart";
@@ -100,7 +101,7 @@ function SlideWrapper({
   return (
     <section
       id={id}
-      className={`min-h-[680px] lg:min-h-[780px] flex flex-col justify-center px-6 pt-20 pb-12 max-w-5xl mx-auto w-full ${bg}`}
+      className={`relative min-h-screen flex flex-col justify-center px-6 pt-20 pb-12 max-w-5xl mx-auto w-full ${bg}`}
       style={{ scrollSnapAlign: "start" }}
     >
       {children}
@@ -117,131 +118,65 @@ function SlideWrapper({
 /* ─── Slide 1: Cover ──────────────────────────────────────────────── */
 function CoverSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
   return (
-    <SlideWrapper id="cover" dark>
+    <section id="cover" className="cover-v2 relative min-h-screen flex flex-col" style={{ scrollSnapAlign: "start" }}>
       <Starfield id="cover-starfield" />
-      {/* Orbit rings */}
-      <div className="cover-v2 orbit-deco" style={{ width: 280, height: 280, top: "10%", left: "5%" }} />
-      <div className="cover-v2 orbit-deco" style={{ width: 440, height: 440, top: "2%", left: "-2%" }} />
-
-      <div className="relative z-10 text-center">
-        <div className="cover-pill mb-8 inline-block">
-          Google Ads Account Audit
+      <div className="orbit-deco" style={{ width: 1100, height: 1100, right: -380, top: -300 }} />
+      <div className="orbit-deco" style={{ width: 720, height: 720, right: -160, top: -80, borderColor: "rgba(77,148,255,0.1)" }} />
+      <div className="relative z-10 px-8 md:px-12 pt-10 w-full">
+        <div className="flex items-center gap-3">
+          <span className="cover-dot" aria-hidden="true" />
+          <img src="/optimise-digital-logo-white.webp" alt="Optimise Digital" className="w-auto h-[22.8px] md:h-[30.4px]" />
         </div>
-        <h1
-          className="cover-h1 text-5xl md:text-7xl mb-6"
-          style={{ fontSize: "clamp(2.5rem, 6vw, 4.5rem)" }}
-        >
-          {p.clientName}
-        </h1>
-        <p className="text-white/60 text-lg md:text-xl max-w-2xl mx-auto mb-4">
-          {p.auditPeriodLabel}
-        </p>
-        <p className="text-white/50 text-sm max-w-xl mx-auto">{p.coverTagline}</p>
-        <div className="cover-meta mt-12 text-sm">{p.auditPeriodLabel} · Google Ads</div>
       </div>
-
-      {/* Rocket UI */}
-      <div id="rocket-fixed" className="rocket-fixed">
-        <img src="/optimise-digital-rocket.png" alt="" className="rocket-img" />
-        <div className="rocket-flame" />
+      <div className="relative z-10 flex-1 flex flex-col justify-center px-8 md:px-12 pb-12 w-full -mt-[20px]">
+        <div className="flex flex-col items-start gap-5 text-left max-w-3xl">
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="cover-pill">Google Ads Account Audit</span>
+            <span className="cover-meta">{p.auditPeriodLabel}</span>
+          </div>
+          <h1 className="cover-h1 text-4xl md:text-6xl">{p.clientName}</h1>
+          <p className="text-base md:text-lg text-white/70 max-w-2xl leading-snug" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{p.coverTagline}</p>
+        </div>
       </div>
-      <div className="flame-trail" />
-      <div className="flame-trail-hit" id="flame-trail-hit" />
-      <div className="rocket-hint" id="rocket-hint">
-        <span className="rocket-hint-text">Scroll up</span>
-        <span className="rocket-hint-arrow">←</span>
-      </div>
-    </SlideWrapper>
+      <a href="#tldr" className="absolute z-10 bottom-6 left-8 md:left-12 inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 transition-colors cursor-pointer" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+        <span className="text-[11px] font-medium tracking-widest uppercase" style={{ color: "var(--purple-soft)" }}>TL;DR</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--purple-soft)" }} aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+      </a>
+      <div id="rocket-fixed" className="rocket-fixed"><img src="/optimise-digital-rocket.png" alt="" className="rocket-img" /><div className="rocket-flame" /></div>
+      <div className="flame-trail" /><div className="flame-trail-hit" id="flame-trail-hit" />
+      <div className="rocket-hint" id="rocket-hint"><span className="rocket-hint-text">Scroll up</span><span className="rocket-hint-arrow">←</span></div>
+      <div className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-white/50 select-none" aria-hidden="true">1 / {SLIDES.length}</div>
+    </section>
   );
 }
 
 /* ─── Slide 2: TL;DR ──────────────────────────────────────────────── */
+/* Matches the established template's eyebrow + 2-column card-grid layout;
+ * cards are generated from the evidence scorecard so content stays per-client. */
 function TlDrSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
-  const bars = p.auditScoreBars.slice().sort((a, b) => b.score - a.score);
-  const top3 = bars.slice(0, 3);
-  const bottom3 = bars.slice(-3);
-
+  const cards = p.scoringMethodologyCards.slice().sort((a, b) => b.weight - a.weight).slice(0, 8);
+  const scoreText = p.overallScore === 0 && p.overallScoreLabel === "Not assessed" ? "Not assessed" : `${p.overallScore}/100`;
   return (
     <SlideWrapper id="tldr" light>
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-2">
-        TL;DR — at a glance
-      </h2>
-      <p className="text-center text-slate-500 dark:text-slate-400 mb-8">
-        {p.clientName} · {p.auditPeriodLabel}
-      </p>
-
-      {/* Overall score ring */}
-      <div className="flex justify-center mb-8">
-        <div className="relative inline-flex items-center justify-center">
-          <svg viewBox="0 0 100 100" className="w-32 h-32 -rotate-90">
-            <circle cx="50" cy="50" r="54" fill="none" stroke="rgb(71,85,105)" strokeWidth="8" />
-            <circle
-              cx="50"
-              cy="50"
-              r="54"
-              fill="none"
-              className={p.scoreRingStrokeClass}
-              strokeWidth="8"
-              strokeDasharray={`${2 * Math.PI * 54}`}
-              strokeDashoffset={p.scoreRingDashoffset}
-              strokeLinecap="round"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-4xl font-bold text-slate-900 dark:text-white">
-              {p.overallScore}
-            </div>
-            <div className={`text-xs font-semibold ${p.overallScoreLabelClass}`}>
-              {p.overallScoreLabel}
-            </div>
-          </div>
-        </div>
+      <div className="mb-4 max-w-5xl mx-auto w-full">
+        <p className="text-blue-500 font-semibold text-sm uppercase tracking-widest mb-1">TL;DR</p>
+        <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">The audit, in one slide</h2>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-        {/* Strengths */}
-        <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800 overflow-hidden">
-          <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-950 border-b border-emerald-200 dark:border-emerald-800">
-            <div className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-              Strengths
-            </div>
-          </div>
-          <ul className="p-4 space-y-2">
-            {top3.map((b) => (
-              <li key={b.step} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${b.barColor}`} />
-                <span>{b.label}</span>
-                <span className={`ml-auto text-xs font-bold ${b.scoreColor}`}>{b.score}/10</span>
-              </li>
-            ))}
-          </ul>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-w-5xl mx-auto w-full">
+        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-0.5">Overall audit score</div>
+          <p className="text-[12px] text-slate-700 dark:text-slate-200 leading-snug">{scoreText} · {p.overallScoreLabel}. Weighted across {p.scoringMethodologyCards.length} evidence-scored dimensions.</p>
         </div>
-
-        {/* Areas to improve */}
-        <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-800 overflow-hidden">
-          <div className="px-4 py-2 bg-rose-50 dark:bg-rose-950 border-b border-rose-200 dark:border-rose-800">
-            <div className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">
-              Areas to improve
-            </div>
+        {cards.map((card) => (
+          <div key={card.n} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-0.5">{card.name} · {card.assessed === false ? "Not assessed" : `${card.score}/10`}</div>
+            <p className="text-[12px] text-slate-700 dark:text-slate-200 leading-snug">{card.desc}</p>
           </div>
-          <ul className="p-4 space-y-2">
-            {bottom3.map((b) => (
-              <li key={b.step} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${b.barColor}`} />
-                <span>{b.label}</span>
-                <span className={`ml-auto text-xs font-bold ${b.scoreColor}`}>{b.score}/10</span>
-              </li>
-            ))}
-          </ul>
+        ))}
+        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 p-3 md:col-span-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-0.5">Recommendations</div>
+          <p className="text-[12px] text-slate-700 dark:text-slate-200 leading-snug">{p.recommendations.length} prioritised {p.recommendations.length === 1 ? "action" : "actions"} identified from the captured evidence. Detail covered in the engagement.</p>
         </div>
-      </div>
-
-      {/* Recommendations count */}
-      <div className="mt-6 text-center">
-        <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-2 text-sm text-blue-700 dark:text-blue-300">
-          <span className="font-bold">{p.recommendations.length}</span>
-          recommendations identified
-        </span>
       </div>
     </SlideWrapper>
   );
@@ -251,12 +186,9 @@ function TlDrSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 function AccountGlanceSlide() {
   return (
     <SlideWrapper id="account-glance">
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-2">
-        Account at a glance
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-3 max-w-4xl mx-auto text-slate-900 dark:text-white">
+        Let&apos;s get context around the rising cost per lead
       </h2>
-      <p className="text-center text-slate-500 dark:text-slate-400 mb-6">
-        16 months of Google Ads performance · Away Digital Teams
-      </p>
       <AccountGlanceChart />
     </SlideWrapper>
   );
@@ -264,56 +196,48 @@ function AccountGlanceSlide() {
 
 /* ─── Slide 4: Audit Score ───────────────────────────────────────── */
 function AuditScoreSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
+  const totalLabel = p.overallScore === 0 && p.overallScoreLabel === "Not assessed" ? "Not assessed" : String(p.overallScore);
   return (
-    <SlideWrapper id="audit-score" light>
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
-        Audit score by category
-      </h2>
-      <p className="text-center text-slate-500 dark:text-slate-400 mb-6 text-sm">
-        13 scoring dimensions · weighted average = {p.overallScore}/100
-      </p>
-
-      <div className="max-w-3xl mx-auto w-full space-y-2">
-        {p.auditScoreBars.map((bar) => (
-          <div key={bar.step} className="flex items-center gap-3">
-            <span className="w-5 text-right text-xs font-mono text-slate-400 select-none">
-              {bar.step}
-            </span>
-            <span className="w-44 text-sm text-slate-700 dark:text-slate-200 truncate">
-              {bar.label}
-            </span>
-            <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${bar.barColor}`}
-                style={{ width: `${(bar.score / 10) * 100}%` }}
-              />
+    <SlideWrapper id="audit-score">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-2 text-slate-900 dark:text-white">Google Ads account audit score</h2>
+      <p className="text-center text-sm md:text-base pb-5 max-w-3xl mx-auto text-slate-500 dark:text-slate-400">Assessed across 13 areas. Well-managed accounts typically score 65–80.</p>
+      <div className="flex flex-col md:flex-row items-center md:items-start gap-8 max-w-4xl mx-auto w-full">
+        <div className="flex flex-col items-center gap-2 shrink-0">
+          <div className="relative inline-flex items-center justify-center">
+            <svg width="140" height="140" className="-rotate-90" aria-hidden="true">
+              <circle cx="70" cy="70" r="54" fill="none" stroke="currentColor" strokeWidth="10" className="text-slate-200" />
+              <circle cx="70" cy="70" r="54" fill="none" strokeWidth="10" strokeLinecap="round" strokeDasharray={2 * Math.PI * 54} strokeDashoffset={p.scoreRingDashoffset} className={p.scoreRingStrokeClass} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-bold text-slate-900 dark:text-white">{totalLabel}</span>
+              {p.overallScoreLabel !== "Not assessed" && <span className="text-xs text-slate-500">/ 100</span>}
             </div>
-            <span className={`w-10 text-right text-xs font-bold ${bar.scoreColor}`}>
-              {bar.score}
-            </span>
           </div>
-        ))}
-      </div>
-
-      {/* Methodology collapsible */}
-      <details className="mt-6 max-w-3xl mx-auto rounded-lg border border-slate-200 dark:border-slate-700">
-        <summary className="px-4 py-2 cursor-pointer text-sm font-medium text-slate-600 dark:text-slate-300 select-none">
-          Scoring methodology ({p.scoringMethodologyCards.length} dimensions)
-        </summary>
-        <div className="border-t border-slate-200 dark:border-slate-700 p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-          {p.scoringMethodologyCards.map((card) => (
-            <div key={card.n} className="text-xs">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-slate-800 dark:text-slate-100">
-                  {card.n}. {card.name}
-                </span>
-                <span className={`font-bold ml-auto ${card.scoreClass}`}>{card.score}/10</span>
+          <span className={`text-sm font-semibold ${p.overallScoreLabelClass}`}>{p.overallScoreLabel}</span>
+        </div>
+        <div className="flex-1 w-full space-y-2">
+          {p.auditScoreBars.map((bar) => (
+            <div key={bar.step} className="flex items-center gap-3">
+              <span className="text-xs text-slate-500 w-5 text-right shrink-0">{bar.step}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{bar.label}</span>
+                  <span className={`text-xs font-semibold ml-2 shrink-0 ${bar.scoreColor}`}>{bar.assessed === false ? "Not assessed" : `${bar.score}/10`}</span>
+                </div>
+                <div className="h-2 bg-slate-200 rounded-full overflow-hidden"><div className={`h-full rounded-full ${bar.barColor}`} style={{ width: bar.assessed === false ? "0%" : `${bar.score * 10}%` }} /></div>
               </div>
-              <p className="text-slate-500 dark:text-slate-400 leading-snug">{card.desc}</p>
-              <p className="text-slate-400 dark:text-slate-500 mt-0.5">Weight: {card.weight}</p>
             </div>
           ))}
         </div>
+      </div>
+      <div className="mt-5 max-w-4xl mx-auto w-full md:pl-[184px]">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-xs text-slate-700"><span className="font-bold text-amber-700">Evidence note:</span> Scores use completed collectors only. Unavailable evidence remains Not assessed rather than receiving a placeholder score.</p>
+        </div>
+      </div>
+      <details className="mt-3 max-w-4xl mx-auto w-full md:pl-[184px]">
+        <summary className="text-xs text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer">How is each category scored?</summary>
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">{p.scoringMethodologyCards.map((card) => <div key={card.n} className="bg-slate-50 rounded-lg p-2.5 border border-slate-200 text-xs"><div className="flex justify-between gap-2"><strong>{card.n}. {card.name}</strong><span className={card.scoreClass}>{card.assessed === false ? "Not assessed" : `${card.score}/10`}</span></div><p className="text-slate-500 mt-1">{card.desc}</p></div>)}</div>
       </details>
     </SlideWrapper>
   );
@@ -325,7 +249,7 @@ function CategoryBreakdownSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 
   return (
     <SlideWrapper id="category-breakdown">
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-1">
         Spend by category
       </h2>
       <p className="text-center text-slate-500 dark:text-slate-400 mb-6 text-sm">
@@ -427,7 +351,7 @@ function NonBrandTrendSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 
   return (
     <SlideWrapper id="non-brand-trend" light>
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-1">
         Non-brand spend trend
       </h2>
       <p className="text-center text-slate-500 dark:text-slate-400 mb-4 text-sm">
@@ -530,7 +454,7 @@ function AdGroupsSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 
   return (
     <SlideWrapper id="ad-groups">
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-1">
         Ad group deep dive
       </h2>
       <p className="text-center text-slate-500 dark:text-slate-400 mb-6 text-sm">
@@ -602,7 +526,7 @@ function AdGroupsSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 function SearchTermsSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
   return (
     <SlideWrapper id="search-terms" light>
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-1">
         Search terms — top spend
       </h2>
       <p className="text-center text-slate-500 dark:text-slate-400 mb-4 text-sm">
@@ -664,7 +588,7 @@ function LandingPagesSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 
   return (
     <SlideWrapper id="landing-pages">
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-1">
         Landing page performance
       </h2>
       <p className="text-center text-slate-500 dark:text-slate-400 mb-4 text-sm">
@@ -720,7 +644,7 @@ function NegativePatternsSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 
   return (
     <SlideWrapper id="ai-overviews" light>
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-1">
         Wasted spend patterns
       </h2>
       <p className="text-center text-slate-500 dark:text-slate-400 mb-4 text-sm">
@@ -774,7 +698,7 @@ function RecommendationsSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 
   return (
     <SlideWrapper id="recommendations">
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-1">
         Recommendations
       </h2>
       <p className="text-center text-slate-500 dark:text-slate-400 mb-6 text-sm">
@@ -832,7 +756,7 @@ function OpportunitySlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 
   return (
     <SlideWrapper id="opportunity" light>
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-1">
         Where the biggest wins are
       </h2>
       <p className="text-center text-slate-500 dark:text-slate-400 mb-6 text-sm">
@@ -866,7 +790,7 @@ function OpportunitySlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 function HowWeWorkSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
   return (
     <SlideWrapper id="how-we-work">
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-1">
+      <h2 className="text-xl md:text-2xl font-bold text-center mb-1">
         How we work
       </h2>
       <p className="text-center text-slate-500 dark:text-slate-400 mb-6 text-sm">
@@ -895,131 +819,71 @@ function HowWeWorkSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 
 /* ─── Slide 14: Working Together ────────────────────────────────── */
 function WorkingTogetherSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
+  const Tick = () => <svg className="mt-0.5 h-3 w-3 shrink-0 text-blue-500" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="m2 6 2.3 2.3L10 2.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
   return (
-    <SlideWrapper id="working-together">
-      <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">
-        Ready to improve your Google Ads performance?
-      </h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto w-full mb-8">
-        {/* Timeline */}
-        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-5 text-center">
-          <div className="text-4xl mb-2">📅</div>
-          <div className="font-semibold text-sm text-slate-800 dark:text-slate-100 mb-1">
-            Discovery call
+    <section id="working-together" className="relative flex min-h-[calc(100vh-100px)] flex-col bg-white" style={{ scrollSnapAlign: "start" }}>
+      <div className="flex-1 flex flex-col justify-center px-6 pt-2 pb-8 max-w-3xl mx-auto w-full">
+        <h2 className="text-xl md:text-2xl font-bold text-center mb-2 text-slate-900">Working together</h2>
+        <p className="text-center text-sm md:text-base pb-5 max-w-2xl mx-auto text-slate-500">A focused engagement that turns this audit&apos;s evidence into measurable account improvements.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <h3 className="text-xs font-semibold text-slate-900 mb-2">Google Ads management</h3>
+            <ul className="space-y-1 text-xs text-slate-600">
+              <li className="flex items-start gap-2"><Tick />Strategy led by an experienced Google Ads team</li>
+              <li className="flex items-start gap-2"><Tick />Evidence-led account monitoring and recommendations</li>
+              <li className="flex items-start gap-2"><Tick />Clear dashboards tied to commercial goals</li>
+              <li className="flex items-start gap-2"><Tick />Transparent reporting on changes and outcomes</li>
+              <li className="flex items-start gap-2"><Tick />Priorities reviewed as new performance data arrives</li>
+            </ul>
           </div>
-          <div className="text-xs text-slate-600 dark:text-slate-300">
-            30-minute session to align on goals, constraints, and priorities
-          </div>
-        </div>
-
-        {/* Audit */}
-        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-5 text-center">
-          <div className="text-4xl mb-2">🔍</div>
-          <div className="font-semibold text-sm text-slate-800 dark:text-slate-100 mb-1">
-            Full account audit
-          </div>
-          <div className="text-xs text-slate-600 dark:text-slate-300">
-            Structured review of every campaign, ad group, keyword, and negative
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <h3 className="text-xs font-semibold text-slate-900 mb-2">What&apos;s included</h3>
+            <ul className="space-y-1 text-xs text-slate-600">
+              <li className="flex items-start gap-2"><Tick />Week 1: Validate tracking and deploy low-risk quick wins</li>
+              <li className="flex items-start gap-2"><Tick />Weeks 2–6: Implement the highest-priority audit actions</li>
+              <li className="flex items-start gap-2"><Tick />Month 2+: Scale proven improvements and test new opportunities</li>
+              <li className="flex items-start gap-2"><Tick />Ongoing: Optimisation, monitoring and performance reporting</li>
+            </ul>
           </div>
         </div>
-
-        {/* Implementation */}
-        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-5 text-center">
-          <div className="text-4xl mb-2">🚀</div>
-          <div className="font-semibold text-sm text-slate-800 dark:text-slate-100 mb-1">
-            Rollout &amp; optimise
-          </div>
-          <div className="text-xs text-slate-600 dark:text-slate-300">
-            Phased implementation with weekly reviews and performance tracking
-          </div>
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-900"><th className="text-left text-white font-semibold px-4 py-2">Next step</th><th className="text-right text-white font-semibold px-4 py-2">Scope</th></tr></thead>
+            <tbody>
+              <tr className="bg-white"><td className="px-4 py-2 font-medium text-slate-900">Audit review</td><td className="px-4 py-2 text-right text-slate-700 font-semibold">Confirm priorities together</td></tr>
+              <tr className="bg-slate-50"><td className="px-4 py-2 font-medium text-slate-900">Management plan</td><td className="px-4 py-2 text-right text-slate-700 font-semibold">Tailored to {p.clientName}</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
-
-      <div className="text-center">
-        <a
-          href={`mailto:${p.contactEmail}?subject=Google Ads enquiry — ${p.clientName}`}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-3 transition-colors"
-        >
-          Get in touch →
-        </a>
-        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-          {p.contactName} · {p.contactPhoneDisplay}
-        </p>
-      </div>
-    </SlideWrapper>
+      <div className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-slate-400 select-none" aria-hidden="true">14 / {SLIDES.length}</div>
+    </section>
   );
 }
 
 /* ─── Slide 15: Closing ────────────────────────────────────────── */
 function ClosingSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
   return (
-    <SlideWrapper id="closing" dark>
+    <section id="closing" className="closing-v2 relative flex min-h-[calc(100vh-100px)] flex-col" style={{ scrollSnapAlign: "start" }}>
       <Starfield id="closing-starfield" />
-      <div className="closing-v2 orbit-deco" style={{ width: 260, height: 260, bottom: "10%", right: "4%", top: "auto" }} />
-      <div className="closing-v2 orbit-deco" style={{ width: 380, height: 380, bottom: "5%", right: "-5%", top: "auto" }} />
-
-      <div className="relative z-10 text-center">
-        <h2 className="closing-h1 text-4xl md:text-5xl mb-2">
-          Thank you
-        </h2>
-        <p className="text-white/60 mb-10">for your time — let's get to work</p>
-
-        {/* Contact card */}
-        <div className="closing-who">
-          <div>
-            <div className="lbl">Contact</div>
-            <div className="val">{p.contactName}</div>
-          </div>
-          <div>
-            <div className="lbl">Email</div>
-            <div className="val">
-              <a href={`mailto:${p.contactEmail}`}>{p.contactEmail}</a>
-            </div>
-          </div>
-          <div>
-            <div className="lbl">Phone</div>
-            <div className="val">{p.contactPhoneDisplay}</div>
-          </div>
-          <div>
-            <div className="lbl">Website</div>
-            <div className="val">
-              <a href={p.clientWebsite} target="_blank" rel="noopener noreferrer">
-                {p.clientWebsite.replace(/^https?:\/\//, "")}
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* OptiMate box */}
-        <div className="optimate-box rounded-xl border border-slate-700 px-6 py-4 mt-8 max-w-sm mx-auto text-left">
-          <div className="flex items-center gap-3">
-            <div className="optimate-icon">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="32" height="32" rx="8" fill="rgb(30,58,138)" />
-                <path d="M10 16h12M16 10v12" stroke="rgb(96,165,250)" strokeWidth="2.5" strokeLinecap="round" />
-                <circle cx="16" cy="16" r="5" stroke="rgb(96,165,250)" strokeWidth="2" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-blue-300 mb-0.5">
-                Powered by
-              </div>
-              <div className="text-sm font-bold text-white">OptiMate AI</div>
-              <div className="text-xs text-slate-400">Autonomous Google Ads agent</div>
-            </div>
-          </div>
+      <div className="orbit-deco" style={{ width: 1100, height: 1100, right: -440, bottom: -380 }} />
+      <div className="orbit-deco" style={{ width: 760, height: 760, right: -260, bottom: -200, borderColor: "rgba(77,148,255,0.1)" }} />
+      <div className="closing-station" aria-hidden="true"><img src="/slides/Space-station-optimise-digital.png" alt="" /></div>
+      <div className="relative z-10 px-8 md:px-12 pt-10 w-full">
+        <a href="https://optimisedigital.online?utm_source=audit&utm_medium=closing" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3" aria-label="Visit Optimise Digital">
+          <span className="cover-dot" aria-hidden="true" />
+          <img src="/optimise-digital-logo-white.webp" alt="Optimise Digital" className="w-auto h-[22.8px] md:h-[30.4px]" />
+        </a>
+      </div>
+      <div className="relative z-10 flex-1 flex flex-col justify-center px-8 md:px-12 pb-0 w-full gap-10">
+        <h2 className="closing-h1 text-4xl md:text-6xl max-w-3xl">Ready to <em>discuss</em>?</h2>
+        <div className="closing-who max-w-4xl">
+          <div><div className="lbl">For</div><div className="val"><a href={p.clientWebsite} target="_blank" rel="noopener noreferrer">{p.clientName}</a></div></div>
+          <div><div className="lbl">{p.contactName}</div><div className="val"><a href={`mailto:${p.contactEmail}`}>{p.contactEmail}</a></div><div className="val" style={{ marginTop: 4 }}><a href={`tel:${p.contactPhoneDisplay.replace(/\s/g, "")}`}>{p.contactPhoneDisplay}</a></div></div>
         </div>
       </div>
-
-      {/* Rocket */}
-      <div id="rocket-fixed-closing" className="rocket-fixed">
-        <img src="/optimise-digital-rocket.png" alt="" className="rocket-img" />
-        <div className="rocket-flame" />
-      </div>
-      <div className="flame-trail" />
-      <div className="flame-trail-hit" id="flame-trail-hit-closing" />
-    </SlideWrapper>
+      <div className="absolute bottom-3 right-[36px] text-xs font-mono tabular-nums text-white/50 select-none" aria-hidden="true">15 / {SLIDES.length}</div>
+    </section>
   );
 }
 
@@ -1035,14 +899,36 @@ function SpaceTransition() {
 }
 
 /* ─── Main export ───────────────────────────────────────────────── */
-export function Component({ payload: p }: { payload: GoogleAdsAudit15SlidePayload }) {
+/**
+ * `previewSlideId` renders the deck in the admin review iframe. Preview mode
+ * disables the public deck's scroll machinery (column-reverse layout, the
+ * DeckScrollEffects jump-to-bottom / scroll-hijack, and y-proximity snapping)
+ * because inside the short 16:9 preview frame that machinery fights the user —
+ * scrolling up snaps straight back down. Instead it renders top-to-bottom and
+ * scrolls the selected slide into view once.
+ */
+export function Component({ payload: p, previewSlideId }: { payload: GoogleAdsAudit15SlidePayload; previewSlideId?: string }) {
+  const preview = previewSlideId !== undefined;
+
+  useEffect(() => {
+    if (!preview || !previewSlideId) return;
+    const el = document.getElementById(previewSlideId);
+    if (!el) return;
+    // Scroll the iframe's OWN window only. `element.scrollIntoView()` would also
+    // scroll every ancestor scroll container (the parent admin page) to reveal
+    // the iframe, which yanks the whole tab view down on mount/re-render.
+    window.scrollTo({ top: el.offsetTop, behavior: "auto" });
+  }, [preview, previewSlideId]);
+
   return (
-    <div className="relative">
-      <style dangerouslySetInnerHTML={{ __html: `section { scroll-snap-align: start; }` }} />
+    <main className={`google-ads-audit-deck relative ${preview ? "flex flex-col" : "flex flex-col-reverse"}`}>
+      <style dangerouslySetInnerHTML={{ __html: preview
+        ? `.google-ads-audit-deck > section { scroll-snap-align: none !important; }`
+        : `.google-ads-audit-deck > section { scroll-snap-align: start; }` }} />
 
       <CoverSlide p={p} />
       <TlDrSlide p={p} />
-      <AccountGlanceSlide />
+      {p.showAccountGlance !== false && <AccountGlanceSlide />}
       <AuditScoreSlide p={p} />
       <CategoryBreakdownSlide p={p} />
       <NonBrandTrendSlide p={p} />
@@ -1057,7 +943,7 @@ export function Component({ payload: p }: { payload: GoogleAdsAudit15SlidePayloa
       <SpaceTransition />
       <ClosingSlide p={p} />
 
-      <DeckScrollEffects />
-    </div>
+      {!preview && <DeckScrollEffects />}
+    </main>
   );
 }

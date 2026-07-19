@@ -24,6 +24,16 @@ import { useEffect } from 'react'
 export default function DeckScrollEffects() {
   useEffect(() => {
     const SCROLL_OFFSET = 16
+    const doc = document.documentElement
+    const previousScrollBehavior = doc.style.scrollBehavior
+    const previousScrollSnapType = doc.style.scrollSnapType
+    const previousScrollRestoration = 'scrollRestoration' in history ? history.scrollRestoration : undefined
+
+    // Document-level scroll behavior belongs to the standalone deck only. It
+    // must not live in template.css, because that stylesheet is bundled by Next
+    // and otherwise turns every CMS admin section into a scroll-snap target.
+    doc.style.scrollBehavior = 'smooth'
+    doc.style.scrollSnapType = 'y proximity'
 
     const measureLastSlideHeight = (): number => {
       // Deck is column-reverse, user scrolls UP. The slides at the TOP of the
@@ -44,7 +54,6 @@ export default function DeckScrollEffects() {
     }
 
     const updateRocketScroll = () => {
-      const doc = document.documentElement
       const scrollTop = window.scrollY || doc.scrollTop
       const scrollHeight = document.body.scrollHeight - window.innerHeight || 1
       const progress = 1 - Math.min(1, Math.max(0, scrollTop / scrollHeight))
@@ -137,6 +146,9 @@ export default function DeckScrollEffects() {
       window.removeEventListener('scroll', updateRocketScroll)
       window.removeEventListener('resize', onResize)
       for (const c of cleanups) c()
+      doc.style.scrollBehavior = previousScrollBehavior
+      doc.style.scrollSnapType = previousScrollSnapType
+      if (previousScrollRestoration !== undefined) history.scrollRestoration = previousScrollRestoration
     }
   }, [])
 

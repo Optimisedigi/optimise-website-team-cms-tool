@@ -13,7 +13,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       auditId: audit.id, businessName: (audit as any).businessName, published: (audit as any).presentationPublished,
       generatedAt: (audit as any).deckGeneratedAt, deck: (audit as any).generatedDeckPayload ?? null,
-      snapshot: snapshot ? { id: snapshot.id, status: snapshot.status, requestedAt: snapshot.requestedAt, capturedAt: snapshot.capturedAt, periodStart: snapshot.periodStart, periodEnd: snapshot.periodEnd, accountTimeZone: snapshot.accountTimeZone, currencyCode: snapshot.currencyCode, earliestAvailableActivityDate: snapshot.earliestAvailableActivityDate, sourceRowCounts: snapshot.sourceRowCounts, error: snapshot.error } : null,
+      snapshot: snapshot ? {
+        id: snapshot.id, status: snapshot.status, requestedAt: snapshot.requestedAt, capturedAt: snapshot.capturedAt,
+        periodStart: snapshot.periodStart, periodEnd: snapshot.periodEnd, accountTimeZone: snapshot.accountTimeZone,
+        currencyCode: snapshot.currencyCode, earliestAvailableActivityDate: snapshot.earliestAvailableActivityDate,
+        sourceRowCounts: snapshot.sourceRowCounts, error: snapshot.error, schemaVersion: snapshot.schemaVersion,
+        rubricVersion: snapshot.rubricVersion, evidenceCoverage: snapshot.analysis?.evidenceCoverage,
+        scorecards: snapshot.analysis?.scoring?.categories ?? [],
+      } : null,
     });
   } catch {
     return NextResponse.json({ error: "Audit not found" }, { status: 404 });

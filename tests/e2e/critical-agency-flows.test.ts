@@ -47,6 +47,11 @@ vi.mock("@/lib/blob-upload", () => ({
   uploadScreenshotToBlob: vi.fn(async () => "https://blob.test/uploaded.png"),
 }));
 
+const mockCreateSnapshotForAudit = vi.fn();
+vi.mock("@/lib/google-ads-audit-snapshots", () => ({
+  createSnapshotForAudit: (...args: unknown[]) => mockCreateSnapshotForAudit(...args),
+}));
+
 function jsonRequest(url: string, body: unknown): NextRequest {
   return new NextRequest(url, {
     method: "POST",
@@ -310,127 +315,49 @@ describe("critical agency flows — E2E route contracts", () => {
     );
   });
 
-  it("triggers Google Ads audits, normalizes inputs, and persists running-to-completed transitions", async () => {
+  it("starts Google Ads snapshot capture and returns the frozen period", async () => {
     const { POST } = await import("@/app/(frontend)/api/google-ads-audits/[id]/run-audit/route");
     mockPayload.auth.mockResolvedValue({ user: { id: 1, role: "admin" } });
-    mockPayload.findByID.mockImplementation(async ({ collection }: { collection: string }) => {
-      if (collection === "clients") return { id: 7, brandKeywords: "Acme\nAcme Dental" };
-      return {
-        id: 222,
-        customerId: "123-456-7890",
-        businessName: "Acme Dental",
-        monthlySpend: 5000,
-        conversionObjectives: "Calls\nForms",
-        client: 7,
-        actionItems: [],
-      };
+    mockCreateSnapshotForAudit.mockResolvedValue({
+      id: 301,
+      status: "running",
+      periodStart: "2026-06-01T00:00:00.000Z",
+      periodEnd: "2026-06-30T23:59:59.999Z",
     });
-    mockPayload.update.mockResolvedValue({});
-    const fetchMock = vi.fn(async () => Response.json({
-      raw: { account: "raw" },
-      scored: {
-        overallScore: 88,
-        steps: [{ step: 1, name: "Tracking", score: 90, findings: ["Good"], recommendations: ["Improve"] }],
-        quickWins: ["Add negatives"],
-      },
-      emailHtml: "<p>Audit</p>",
-    }));
-    vi.stubGlobal("fetch", fetchMock);
 
     const res = await POST(
       new NextRequest("http://localhost/api/google-ads-audits/222/run-audit", { method: "POST" }),
       { params: Promise.resolve({ id: "222" }) },
     );
 
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true, status: "running" });
-    await runAfterCallbacks();
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://growth-tools.test/api/google-ads/comprehensive-audit",
-      expect.objectContaining({ method: "POST" }),
-    );
-    const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(String(requestInit.body))).toEqual(expect.objectContaining({
-      customerId: "1234567890",
-      brandTerms: ["Acme", "Acme Dental"],
-      conversionObjectives: ["Calls", "Forms"],
-      monthlySpend: 5000,
-    }));
-    expect(mockPayload.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        collection: "google-ads-audits",
-        id: "222",
-        data: expect.objectContaining({ auditStatus: "running", auditProgress: "Starting audit|0" }),
-      }),
-    );
-    expect(mockPayload.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        collection: "google-ads-audits",
-        id: "222",
-        data: expect.objectContaining({
-          rawData: { account: "raw" },
-          overallScore: 88,
-          auditProgress: "Storing results|90",
-        }),
-      }),
-    );
-    expect(mockPayload.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        collection: "google-ads-audits",
-        id: "222",
-        data: expect.objectContaining({
-          auditStatus: "completed",
-          auditProgress: "Complete|100",
-          auditCompletedAt: expect.any(String),
-        }),
-      }),
-    );
+    expect(res.status).toBe(202);
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      status: "running",
+      snapshotId: 301,
+      periodStart: "2026-06-01T00:00:00.000Z",
+      periodEnd: "2026-06-30T23:59:59.999Z",
+    });
+    expect(mockCreateSnapshotForAudit).toHaveBeenCalledWith(mockPayload, "222");
   });
 
-  it("rejects invalid Google Ads audit triggers and marks upstream failures on the audit", async () => {
+  it("rejects unauthenticated and failed Google Ads snapshot requests", async () => {
     const { POST } = await import("@/app/(frontend)/api/google-ads-audits/[id]/run-audit/route");
 
+    mockPayload.auth.mockResolvedValueOnce({ user: null });
+    const unauthorized = await POST(
+      new NextRequest("http://localhost/api/google-ads-audits/222/run-audit", { method: "POST" }),
+      { params: Promise.resolve({ id: "222" }) },
+    );
+    expect(unauthorized.status).toBe(401);
+
     mockPayload.auth.mockResolvedValueOnce({ user: { id: 1, role: "admin" } });
-    mockPayload.findByID.mockRejectedValueOnce(new Error("missing"));
+    mockCreateSnapshotForAudit.mockRejectedValueOnce(new Error("Audit not found"));
     const missing = await POST(
       new NextRequest("http://localhost/api/google-ads-audits/missing/run-audit", { method: "POST" }),
       { params: Promise.resolve({ id: "missing" }) },
     );
-    expect(missing.status).toBe(404);
-
-    mockPayload.auth.mockResolvedValueOnce({ user: { id: 1, role: "admin" } });
-    mockPayload.findByID.mockResolvedValueOnce({ id: 223, customerId: "" });
-    const invalid = await POST(
-      new NextRequest("http://localhost/api/google-ads-audits/223/run-audit", { method: "POST" }),
-      { params: Promise.resolve({ id: "223" }) },
-    );
-    expect(invalid.status).toBe(400);
-    await expect(invalid.json()).resolves.toEqual({ error: "Missing required field: customerId" });
-
-    mockPayload.auth.mockResolvedValueOnce({ user: { id: 1, role: "admin" } });
-    mockPayload.findByID.mockResolvedValueOnce({
-      id: 224,
-      customerId: "123-456-7890",
-      actionItems: [],
-    });
-    mockPayload.update.mockResolvedValue({});
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("bad gateway", { status: 502 })));
-    const upstreamFailure = await POST(
-      new NextRequest("http://localhost/api/google-ads-audits/224/run-audit", { method: "POST" }),
-      { params: Promise.resolve({ id: "224" }) },
-    );
-    expect(upstreamFailure.status).toBe(200);
-    await runAfterCallbacks();
-    expect(mockPayload.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        collection: "google-ads-audits",
-        id: "224",
-        data: expect.objectContaining({
-          auditStatus: "failed",
-          auditProgress: "Failed|100",
-          auditError: "Growth tools audit failed (502): bad gateway",
-        }),
-      }),
-    );
+    expect(missing.status).toBe(400);
+    await expect(missing.json()).resolves.toEqual({ error: "Audit not found" });
   });
 });

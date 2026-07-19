@@ -1,15 +1,24 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 
-// ── useAuth mock ─────────────────────────────────────────────────────────
-// The component slides Payload's session window by calling refreshCookieAsync
-// from the Auth provider. We stub it so we can assert exactly when it fires.
-const refreshCookieAsync = vi.fn()
+// ── useAuth + refresh endpoint mocks ──────────────────────────────────────
+const setUser = vi.fn()
+const fetchMock = vi.fn()
+const originalFetch = globalThis.fetch
 let mockUser: { id: number } | null = { id: 1 }
 
 vi.mock('@payloadcms/ui', () => ({
-  useAuth: () => ({ user: mockUser, refreshCookieAsync }),
+  useAuth: () => ({ user: mockUser, setUser }),
 }))
+
+const successfulRefresh = () =>
+  new Response(
+    JSON.stringify({ exp: 2_000_000_000, refreshedToken: 'refreshed', user: { id: 1 } }),
+    {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  )
 
 // ── BroadcastChannel polyfill (jsdom has none) ───────────────────────────
 // Minimal in-memory implementation that connects instances by channel name so
@@ -56,8 +65,10 @@ async function advancePastThrottle() {
 describe('IdleSessionKeepAlive', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    refreshCookieAsync.mockReset()
-    refreshCookieAsync.mockResolvedValue({ id: 1 })
+    setUser.mockReset()
+    fetchMock.mockReset()
+    fetchMock.mockImplementation(async () => successfulRefresh())
+    globalThis.fetch = fetchMock as typeof fetch
     mockUser = { id: 1 }
     FakeBroadcastChannel.registry.clear()
     ;(globalThis as unknown as { BroadcastChannel: typeof FakeBroadcastChannel }).BroadcastChannel =
@@ -66,6 +77,7 @@ describe('IdleSessionKeepAlive', () => {
 
   afterEach(() => {
     cleanup()
+    globalThis.fetch = originalFetch
     vi.useRealTimers()
   })
 
@@ -75,7 +87,7 @@ describe('IdleSessionKeepAlive', () => {
     // Sit idle well beyond the throttle window across many ticks.
     await vi.advanceTimersByTimeAsync(THROTTLE_MS * 3)
 
-    expect(refreshCookieAsync).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('refreshes once after local activity, then throttles further activity', async () => {
@@ -83,18 +95,28 @@ describe('IdleSessionKeepAlive', () => {
 
     fireActivity()
     await advancePastThrottle()
-    expect(refreshCookieAsync).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/users/refresh-token',
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    )
+    expect(setUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: 'refreshed',
+        user: expect.objectContaining({ id: 1 }),
+      }),
+    )
 
     // A burst of activity inside the throttle window must NOT trigger more refreshes.
     fireActivity()
     await vi.advanceTimersByTimeAsync(TICK_MS)
     fireActivity()
     await vi.advanceTimersByTimeAsync(TICK_MS)
-    expect(refreshCookieAsync).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
 
     // Once the throttle elapses, a single further refresh is allowed.
     await advancePastThrottle()
-    expect(refreshCookieAsync).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the session alive when another tab reports activity', async () => {
@@ -106,26 +128,41 @@ describe('IdleSessionKeepAlive', () => {
     otherTab.postMessage({ type: 'activity' })
 
     await advancePastThrottle()
-    expect(refreshCookieAsync).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('retries after a failed refresh instead of waiting a full window', async () => {
-    // First refresh rejects; the failure must leave the session eligible for
-    // an immediate retry on the next tick rather than consuming the window.
-    refreshCookieAsync
+  it('retries after a network failure instead of waiting a full window', async () => {
+    fetchMock
       .mockRejectedValueOnce(new Error('network down'))
-      .mockResolvedValue({ id: 1 })
+      .mockImplementation(async () => successfulRefresh())
 
     render(<IdleSessionKeepAlive>child</IdleSessionKeepAlive>)
 
     fireActivity()
-    // Advance to exactly the first throttle boundary so only one attempt fires.
     await vi.advanceTimersByTimeAsync(THROTTLE_MS)
-    expect(refreshCookieAsync).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(setUser).not.toHaveBeenCalled()
 
-    // No new activity — but because the previous attempt failed, the very next
-    // tick should retry rather than waiting another full throttle window.
+    // No new activity: the failed attempt remains eligible on the next tick.
     await vi.advanceTimersByTimeAsync(TICK_MS)
-    expect(refreshCookieAsync).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(setUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the current user and retries after a non-200 refresh', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockImplementation(async () => successfulRefresh())
+
+    render(<IdleSessionKeepAlive>child</IdleSessionKeepAlive>)
+
+    fireActivity()
+    await vi.advanceTimersByTimeAsync(THROTTLE_MS)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(setUser).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(TICK_MS)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(setUser).toHaveBeenCalledTimes(1)
   })
 })
