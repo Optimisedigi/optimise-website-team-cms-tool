@@ -61,6 +61,7 @@ import { default as default_9ad3230f60ec6dd4da19d1c01b8cf1ba } from '../../../co
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
 import { default as default_c8dab20425f2b2eab04984a9a36002da } from '../../../components/ClientTopicMap'
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
+import { default as default_393c119240b8bfc6d99ad874d4764ea6 } from '../../../components/ClientWorkingDocsPanel'
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
 import { default as default_d1caac617b36c18c78bd0a0c14911f8f } from '../../../components/ClientWishlistLink'
@@ -208,6 +209,7 @@ import { default as default_e842b8d1d5d4fd0e0c4e3c9f6c6394a5 } from '../../../co
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
+/** @type import('payload').ImportMap */
 export const importMap = {
   "./components/BillingSummaryCell#default": default_5164bc2f3a3226d7b1d82146ff4ed3f0,
   "./components/clients-list/MonthsActiveCell#default": default_4aab2fbdea9dfe40f4fe8faf27c0b0d1,
@@ -272,6 +274,7 @@ export const importMap = {
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
   "./components/ClientTopicMap#default": default_c8dab20425f2b2eab04984a9a36002da,
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
+  "/components/ClientWorkingDocsPanel#default": default_393c119240b8bfc6d99ad874d4764ea6,
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
   "./components/ClientWishlistLink#default": default_d1caac617b36c18c78bd0a0c14911f8f,

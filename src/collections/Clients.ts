@@ -3912,6 +3912,20 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Working Docs",
+          fields: [
+            {
+              name: "sharedWorkingDocsPanel",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "/components/ClientWorkingDocsPanel",
+                },
+              },
+            },
+          ],
+        },
+        {
           label: "Presentations",
           fields: [
             {

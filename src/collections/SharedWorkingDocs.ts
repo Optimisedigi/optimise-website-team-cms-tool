@@ -7,9 +7,12 @@ export const SharedWorkingDocs: CollectionConfig = {
   // payload_locked_documents_rels column before migrations have run.
   lockDocuments: false,
   admin: {
+    hidden: true,
     group: "Clients",
     useAsTitle: "title",
     defaultColumns: ["title", "slug", "updatedAt"],
+    description:
+      "Working documents are managed from the Working Docs tab on each client profile.",
   },
   access: {
     read: ({ req }) => Boolean(req.user),
