@@ -105,11 +105,21 @@ async function dispatchWithFailureRecording(payload: Payload, snapshot: any): Pr
 }
 
 export async function createSnapshotForAudit(payload: Payload, auditId: string | number, options: { requestedAt?: string; allowNew?: boolean; dispatch?: boolean } = {}): Promise<any> {
-  const audit = await (payload as any).findByID({ collection: "google-ads-audits", id: auditId, depth: 0, overrideAccess: true });
+  const audit = await (payload as any).findByID({
+    collection: "google-ads-audits", id: auditId, depth: 0, overrideAccess: true,
+    select: {
+      customerId: true, client: true, proposal: true, websiteUrl: true, businessName: true, businessType: true,
+      brandTerms: true, conversionObjectives: true, searchLocation: true, searchLanguage: true, competitorSeedQueries: true,
+      snapshot: true,
+    },
+  });
   if (!audit?.customerId) throw new Error("Audit has no Google Ads customer ID");
   const clientId = relationId(audit.client);
   if (!clientId) throw new Error("Audit must be linked to a client before a snapshot can be created");
-  const client = await (payload as any).findByID({ collection: "clients", id: clientId, depth: 0, overrideAccess: true });
+  const client = await (payload as any).findByID({
+    collection: "clients", id: clientId, depth: 0, overrideAccess: true,
+    select: { brandKeywords: true, websiteUrl: true },
+  });
   const existing = await (payload as any).find({
     collection: "google-ads-audit-snapshots", depth: 0, limit: 1, sort: "-requestedAt",
     where: { audit: { equals: auditId } }, overrideAccess: true,
