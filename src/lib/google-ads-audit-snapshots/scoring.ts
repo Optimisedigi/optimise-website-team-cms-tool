@@ -1,11 +1,16 @@
 import type { SnapshotDatasetKey } from "./types";
 
-export const GOOGLE_ADS_AUDIT_RUBRIC_VERSION = "2026-07-complete-evidence-v2";
+export const GOOGLE_ADS_AUDIT_RUBRIC_VERSION = "2026-07-complete-evidence-v3";
+export const GOOGLE_ADS_AUDIT_LEGACY_RUBRIC_VERSION = "2026-07-complete-evidence-v2";
 export const GOOGLE_ADS_AUDIT_CATEGORY_IDS = [
+  "website", "accountStructure", "keywordIntent", "tracking", "campaignStructure", "searchQueries",
+  "negativeKeywords", "adsAssets", "brandGeneric", "historicalPerformance", "audienceStrategy", "competition",
+] as const;
+export const GOOGLE_ADS_AUDIT_LEGACY_CATEGORY_IDS = [
   "website", "accountStructure", "keywordIntent", "tracking", "campaignStructure", "channelPerformance",
   "searchQueries", "negativeKeywords", "adsAssets", "brandGeneric", "historicalPerformance", "audienceStrategy", "competition",
 ] as const;
-export type GoogleAdsAuditCategoryId = (typeof GOOGLE_ADS_AUDIT_CATEGORY_IDS)[number];
+export type GoogleAdsAuditCategoryId = (typeof GOOGLE_ADS_AUDIT_CATEGORY_IDS)[number] | (typeof GOOGLE_ADS_AUDIT_LEGACY_CATEGORY_IDS)[number];
 export type EvidenceState = "pass" | "fail" | "unknown";
 
 export interface ScorecardCheck {

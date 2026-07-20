@@ -49,7 +49,7 @@ export const GoogleAdsAuditSnapshots: CollectionConfig = {
     { name: "earliestAvailableActivityDate", type: "date", required: true },
     { name: "retentionCaveat", type: "textarea" },
     { name: "schemaVersion", type: "number", required: true, defaultValue: 3 },
-    { name: "rubricVersion", type: "text", required: true, defaultValue: "2026-07-complete-evidence-v2", admin: { readOnly: true } },
+    { name: "rubricVersion", type: "text", required: true, defaultValue: "2026-07-complete-evidence-v3", admin: { readOnly: true } },
     { name: "websiteUrl", type: "text", admin: { readOnly: true } },
     { name: "businessName", type: "text", required: true, admin: { readOnly: true } },
     { name: "businessType", type: "text", admin: { readOnly: true } },
