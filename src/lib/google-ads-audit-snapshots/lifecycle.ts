@@ -243,7 +243,7 @@ export async function ingestSnapshotChunk(payload: Payload, snapshotId: string, 
 export async function finalizeSnapshot(payload: Payload, snapshotId: string, input: any): Promise<any> {
   if (!Array.isArray(input.manifest) || !input.analysis) throw new Error("Final manifest and analysis are required");
   if (input.schemaVersion !== SNAPSHOT_SCHEMA_VERSION || input.rubricVersion !== GOOGLE_ADS_AUDIT_RUBRIC_VERSION) throw new Error("Final snapshot schema or rubric version mismatch");
-  if (input.analysis?.scoring?.rubricVersion !== GOOGLE_ADS_AUDIT_RUBRIC_VERSION || input.analysis?.scoring?.categories?.length !== 13) throw new Error("Final analysis does not contain the complete active 13-area rubric");
+  if (input.analysis?.scoring?.rubricVersion !== GOOGLE_ADS_AUDIT_RUBRIC_VERSION || input.analysis?.scoring?.categories?.length !== 12) throw new Error("Final analysis does not contain the complete active 12-area rubric");
   for (const item of input.manifest as SnapshotManifestItem[]) {
     if (!SNAPSHOT_DATASET_KEYS.includes(item?.datasetKey) || !Number.isInteger(item?.chunkIndex) || item.chunkIndex < 0 || !Number.isInteger(item?.rowCount) || item.rowCount < 0 || !/^[a-f0-9]{64}$/.test(String(item?.checksum ?? ""))) throw new Error("Final manifest contains an invalid item");
   }
