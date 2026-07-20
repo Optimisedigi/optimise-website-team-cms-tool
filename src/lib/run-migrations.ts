@@ -5279,6 +5279,16 @@ export async function runMigrations(
       \`kind\` text DEFAULT 'other',
       FOREIGN KEY (\`_parent_id\`) REFERENCES \`team_tasks\`(\`id\`) ON UPDATE no action ON DELETE cascade
     )`);
+    await run("team_tasks_screenshots", `CREATE TABLE IF NOT EXISTS \`team_tasks_screenshots\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`label\` text NOT NULL,
+      \`url\` text NOT NULL,
+      \`thumbnail_url\` text,
+      \`media_id\` numeric NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`team_tasks\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
     await run("team_tasks_client_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_client_idx` ON `team_tasks` (`client_id`)");
     await run("team_tasks_assigned_to_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_assigned_to_idx` ON `team_tasks` (`assigned_to_id`)");
     await run("team_tasks_created_by_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_created_by_idx` ON `team_tasks` (`created_by_id`)");
@@ -5288,6 +5298,8 @@ export async function runMigrations(
     await run("team_tasks_updated_at_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_updated_at_idx` ON `team_tasks` (`updated_at`)");
     await run("team_tasks_related_links_order_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_related_links_order_idx` ON `team_tasks_related_links` (`_order`)");
     await run("team_tasks_related_links_parent_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_related_links_parent_idx` ON `team_tasks_related_links` (`_parent_id`)");
+    await run("team_tasks_screenshots_order_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_screenshots_order_idx` ON `team_tasks_screenshots` (`_order`)");
+    await run("team_tasks_screenshots_parent_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_screenshots_parent_idx` ON `team_tasks_screenshots` (`_parent_id`)");
     await run("locked_docs_rels.team_tasks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `team_tasks_id` integer REFERENCES `team_tasks`(`id`) ON DELETE cascade");
 
     await run("team_task_comments", `CREATE TABLE IF NOT EXISTS \`team_task_comments\` (
