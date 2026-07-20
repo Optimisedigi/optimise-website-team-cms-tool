@@ -5,6 +5,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 type Option = { id: string | number; name: string; email?: string; role?: string }
 type Rel = Option | string | number | null | undefined
 type LinkRow = { id?: string; label?: string; url?: string; kind?: string }
+type ScreenshotRow = {
+  id?: string
+  label: string
+  url: string
+  thumbnailUrl?: string | null
+  mediaId: string | number
+}
 type TeamTask = {
   id: string | number
   title: string
@@ -17,6 +24,7 @@ type TeamTask = {
   instructions?: string | null
   sourceUrl?: string | null
   relatedLinks?: LinkRow[] | null
+  screenshots?: ScreenshotRow[] | null
 }
 type CommentRow = {
   id: string | number
@@ -254,13 +262,46 @@ function CommentComposer({ value, users, onChange }: { value: string; users: Opt
   )
 }
 
+function ScreenshotPreview({ screenshot, removing, onRemove }: { screenshot: ScreenshotRow; removing: boolean; onRemove: () => void }) {
+  const [showPreview, setShowPreview] = useState(false)
+
+  return (
+    <div
+      onMouseEnter={() => setShowPreview(true)}
+      onMouseLeave={() => setShowPreview(false)}
+      onFocus={() => setShowPreview(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setShowPreview(false)
+      }}
+      style={{ position: 'relative', display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr) auto', gap: 10, alignItems: 'center', padding: 8, border: '1px solid var(--theme-elevation-100)', borderRadius: 10, background: 'var(--theme-elevation-50)' }}
+    >
+      <a href={screenshot.url} target="_blank" rel="noreferrer" aria-label={`Open ${screenshot.label} in a new tab`} style={{ display: 'block', height: 60, borderRadius: 7, overflow: 'hidden', border: '1px solid var(--theme-elevation-150)', background: 'var(--theme-bg)' }}>
+        <img src={screenshot.thumbnailUrl || screenshot.url} alt="" style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }} />
+      </a>
+      <div style={{ minWidth: 0 }}>
+        <a href={screenshot.url} target="_blank" rel="noreferrer" style={{ display: 'block', color: '#2563eb', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{screenshot.label}</a>
+        <span style={{ display: 'block', marginTop: 3, color: 'var(--theme-elevation-500)', fontSize: 12 }}>Hover to preview · Click to open</span>
+      </div>
+      <button type="button" onClick={onRemove} disabled={removing} aria-label={`Delete ${screenshot.label} permanently`} style={{ ...fieldStyle, width: 38, color: '#991b1b', cursor: removing ? 'wait' : 'pointer' }}>{removing ? '…' : '×'}</button>
+      {showPreview && (
+        <div role="tooltip" style={{ position: 'absolute', left: 96, bottom: 'calc(100% + 8px)', zIndex: 12, width: 'min(560px, 70vw)', maxHeight: 'min(440px, 60vh)', padding: 8, borderRadius: 12, border: '1px solid var(--theme-elevation-150)', background: 'var(--theme-bg)', boxShadow: '0 18px 42px rgba(15,23,42,.24)', pointerEvents: 'none' }}>
+          <img src={screenshot.url} alt="" style={{ display: 'block', width: '100%', maxHeight: 'calc(min(440px, 60vh) - 16px)', objectFit: 'contain', borderRadius: 7 }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: { taskId: string | number; onClose: () => void; onTaskUpdated?: (task: TeamTask) => void }) {
   const [data, setData] = useState<DetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [deletingMediaId, setDeletingMediaId] = useState<string | number | null>(null)
   const [error, setError] = useState('')
   const [comment, setComment] = useState('')
   const [linkDraft, setLinkDraft] = useState<LinkRow>({ label: '', url: '' })
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -339,6 +380,52 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
     void patchTask({ relatedLinks: nextLinks })
   }
 
+  const uploadScreenshots = async (files: FileList | null) => {
+    if (!files?.length) return
+    setUploading(true)
+    setError('')
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await fetch(`/api/team-tasks/${taskId}/screenshots`, {
+          method: 'POST',
+          body: formData,
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error || `Failed to upload ${file.name}`)
+        setData((current) => current ? { ...current, task: json.task } : current)
+        onTaskUpdated?.(json.task)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload image')
+    } finally {
+      setUploading(false)
+      if (imageInputRef.current) imageInputRef.current.value = ''
+    }
+  }
+
+  const removeScreenshot = async (screenshot: ScreenshotRow) => {
+    if (!data || !window.confirm(`Permanently delete “${screenshot.label}”? This also removes it from storage.`)) return
+    setDeletingMediaId(screenshot.mediaId)
+    setError('')
+    try {
+      const res = await fetch(`/api/team-tasks/${taskId}/screenshots`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mediaId: screenshot.mediaId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to delete image')
+      setData((current) => current ? { ...current, task: json.task } : current)
+      onTaskUpdated?.(json.task)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete image')
+    } finally {
+      setDeletingMediaId(null)
+    }
+  }
+
   const task = data?.task
   const users = data?.users || []
 
@@ -406,6 +493,28 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
                   <input value={linkDraft.url || ''} onChange={(e) => setLinkDraft({ ...linkDraft, url: e.target.value })} placeholder="Link URL" style={fieldStyle} />
                   <button type="button" onClick={addLink} style={{ ...fieldStyle, width: 82, cursor: 'pointer', fontWeight: 800 }}>Add</button>
                 </div>
+              </div>
+
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                  <strong>Screenshots / images</strong>
+                  <button type="button" onClick={() => imageInputRef.current?.click()} disabled={uploading} style={{ ...fieldStyle, width: 'auto', minWidth: 126, cursor: uploading ? 'wait' : 'pointer', color: '#2563eb', fontWeight: 800 }}>
+                    {uploading ? 'Uploading…' : 'Add images'}
+                  </button>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    multiple
+                    onChange={(event) => void uploadScreenshots(event.target.files)}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+                {(task.screenshots || []).length === 0 ? (
+                  <div style={{ padding: 14, border: '1px dashed var(--theme-elevation-150)', borderRadius: 10, color: 'var(--theme-elevation-500)', fontSize: 13 }}>Add PNG, JPEG, or WebP images up to 8 MB each.</div>
+                ) : (task.screenshots || []).map((screenshot, index) => (
+                  <ScreenshotPreview key={screenshot.id || `${screenshot.mediaId}-${index}`} screenshot={screenshot} removing={String(deletingMediaId) === String(screenshot.mediaId)} onRemove={() => void removeScreenshot(screenshot)} />
+                ))}
               </div>
             </section>
 

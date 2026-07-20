@@ -298,6 +298,20 @@ export const TeamTasks: CollectionConfig = {
                 },
               ],
             },
+            {
+              name: "screenshots",
+              label: "Screenshots / Images",
+              type: "array",
+              admin: {
+                description: "Images attached from the Team Task detail pane.",
+              },
+              fields: [
+                { name: "label", type: "text", required: true },
+                { name: "url", type: "text", required: true },
+                { name: "thumbnailUrl", type: "text" },
+                { name: "mediaId", type: "number", required: true },
+              ],
+            },
           ],
         },
         {

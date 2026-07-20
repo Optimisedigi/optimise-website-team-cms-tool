@@ -7460,6 +7460,18 @@ export interface TeamTask {
       }[]
     | null;
   /**
+   * Images attached from the Team Task detail pane.
+   */
+  screenshots?:
+    | {
+        label: string;
+        url: string;
+        thumbnailUrl?: string | null;
+        mediaId: number;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Assignee notes, blockers, issue links, completion remarks, or questions.
    */
   staffNotes?: string | null;
@@ -12073,6 +12085,15 @@ export interface TeamTasksSelect<T extends boolean = true> {
         label?: T;
         url?: T;
         kind?: T;
+        id?: T;
+      };
+  screenshots?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        thumbnailUrl?: T;
+        mediaId?: T;
         id?: T;
       };
   staffNotes?: T;
