@@ -86,7 +86,10 @@ function evidenceForSlide(id: string, analysis: any): unknown {
 }
 
 export async function generateAuditDeck(payload: Payload, auditId: string): Promise<any> {
-  const audit = await (payload as any).findByID({ collection: "google-ads-audits", id: auditId, depth: 0, overrideAccess: true });
+  const audit = await (payload as any).findByID({
+    collection: "google-ads-audits", id: auditId, depth: 0, overrideAccess: true,
+    select: { snapshot: true, client: true, businessName: true, deckSlideVisibility: true, presentationPublished: true },
+  });
   const snapshotId = typeof audit.snapshot === "object" ? audit.snapshot?.id : audit.snapshot;
   const clientId = typeof audit.client === "object" ? audit.client?.id : audit.client;
   if (!snapshotId) throw new Error("Audit has no snapshot");
@@ -98,7 +101,10 @@ export async function generateAuditDeck(payload: Payload, auditId: string): Prom
     collection: "deck-templates", overrideAccess: true,
     data: { templateSlug: "google-ads-audit-15-slide", name: "Google Ads Audit standardized deck", description: "Generated from an immutable Google Ads audit snapshot", category: "google-ads-audit", isActive: true },
   });
-  const client = await (payload as any).findByID({ collection: "clients", id: clientId, depth: 0, overrideAccess: true });
+  const client = await (payload as any).findByID({
+    collection: "clients", id: clientId, depth: 0, overrideAccess: true,
+    select: { slug: true, presentations: true },
+  });
   const deckSlug = `google-ads-audit-${audit.id}`;
   const marker = `[google-ads-audit:${audit.id}]`;
   const presentations = Array.isArray(client.presentations) ? [...client.presentations] : [];
