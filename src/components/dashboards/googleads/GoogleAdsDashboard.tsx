@@ -48,6 +48,7 @@ function timeAgo(iso: string): string {
 
 const RANGE_OPTIONS = [
   { value: "this_month", label: "This month" },
+  { value: "this_week", label: "This week" },
   { value: "last_week", label: "Last week" },
   { value: "last_month", label: "Last month" },
   { value: "last_30_days", label: "Last 30 days" },

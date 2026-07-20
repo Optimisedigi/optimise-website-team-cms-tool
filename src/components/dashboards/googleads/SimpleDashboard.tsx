@@ -35,6 +35,7 @@ interface SimpleDashboardProps {
 
 const RANGE_OPTIONS = [
   { value: "this_month", label: "This month" },
+  { value: "this_week", label: "This week" },
   { value: "last_month", label: "Last month" },
   { value: "last_3_months", label: "Last 3 months" },
   { value: "this_year", label: "This year" },
@@ -671,6 +672,8 @@ export function SimpleDashboard({
  * Map between them so the channel data roughly matches the Ads period. */
 function ga4PeriodFor(adsRange: string): string {
   switch (adsRange) {
+    case "this_week":
+      return "7d";
     case "this_month":
     case "last_month":
       return "30d";

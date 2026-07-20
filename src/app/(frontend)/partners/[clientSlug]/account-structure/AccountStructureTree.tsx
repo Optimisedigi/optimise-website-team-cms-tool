@@ -214,6 +214,13 @@ function rangeFromDashboardRange(dashboardRange?: string): DateRange | null {
   const custom = (from: Date, to: Date = end): DateRange => ({ preset: "custom", from: isoDate(from), to: isoDate(to) });
 
   if (dashboardRange === "this_month") return computeRange("this_month");
+  if (dashboardRange === "this_week") {
+    const day = today.getDay();
+    const daysSinceMonday = (day + 6) % 7;
+    const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysSinceMonday);
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    return custom(monday, sunday);
+  }
   if (dashboardRange === "last_month") return computeRange("last_month");
   if (dashboardRange === "last_30_days") return computeRange("30d");
   if (dashboardRange === "last_60_days") return custom(new Date(end.getFullYear(), end.getMonth(), end.getDate() - 60));

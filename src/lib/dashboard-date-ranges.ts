@@ -5,13 +5,26 @@ export function formatDateOnly(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function getLastWeekRange(today = new Date()): { start: string; end: string } {
-  const date = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const day = date.getDay();
-  const daysSinceMonday = (day + 6) % 7;
-  const thisMonday = new Date(date);
-  thisMonday.setDate(date.getDate() - daysSinceMonday);
+function getMonday(date: Date): Date {
+  const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const daysSinceMonday = (localDate.getDay() + 6) % 7;
+  localDate.setDate(localDate.getDate() - daysSinceMonday);
+  return localDate;
+}
 
+export function getThisWeekRange(today = new Date()): { start: string; end: string } {
+  const monday = getMonday(today);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  return {
+    start: formatDateOnly(monday),
+    end: formatDateOnly(sunday),
+  };
+}
+
+export function getLastWeekRange(today = new Date()): { start: string; end: string } {
+  const thisMonday = getMonday(today);
   const lastMonday = new Date(thisMonday);
   lastMonday.setDate(thisMonday.getDate() - 7);
 
@@ -24,8 +37,14 @@ export function getLastWeekRange(today = new Date()): { start: string; end: stri
   };
 }
 
-export function normalizeDashboardRange(range: string): string {
-  if (range !== "last_week") return range;
-  const { start, end } = getLastWeekRange();
-  return `custom:${start},${end}`;
+export function normalizeDashboardRange(range: string, today = new Date()): string {
+  if (range === "this_week") {
+    const { start, end } = getThisWeekRange(today);
+    return `custom:${start},${end}`;
+  }
+  if (range === "last_week") {
+    const { start, end } = getLastWeekRange(today);
+    return `custom:${start},${end}`;
+  }
+  return range;
 }
