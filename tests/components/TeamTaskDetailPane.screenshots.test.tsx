@@ -38,10 +38,10 @@ describe('TeamTaskDetailPane screenshots', () => {
 
     render(<TeamTaskDetailPane taskId={7} onClose={() => undefined} />)
 
-    const imageLink = await screen.findByRole('link', { name: 'homepage-review.png' })
+    const imageLink = await screen.findByRole('link', { name: 'Open homepage-review.png in a new tab' })
     expect(imageLink).toHaveAttribute('href', screenshot.url)
 
-    fireEvent.mouseEnter(imageLink.parentElement!.parentElement!)
+    fireEvent.mouseEnter(imageLink)
     expect(screen.getByRole('tooltip')).toBeInTheDocument()
   })
 
@@ -57,10 +57,46 @@ describe('TeamTaskDetailPane screenshots', () => {
     const file = new File(['image'], 'homepage-review.png', { type: 'image/png' })
     fireEvent.change(input, { target: { files: [file] } })
 
-    await screen.findByRole('link', { name: 'homepage-review.png' })
+    await screen.findByRole('link', { name: 'Open homepage-review.png in a new tab' })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     expect(fetchMock.mock.calls[1][0]).toBe('/api/team-tasks/7/screenshots')
     expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'POST' })
+  })
+
+  it('uploads images dropped anywhere on the task details screen', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: async () => detailResponse([]) } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ screenshot, task: detailResponse().task }) } as Response)
+
+    const { container } = render(<TeamTaskDetailPane taskId={7} onClose={() => undefined} />)
+    await screen.findByText('Add PNG, JPEG, or WebP images up to 8 MB each.')
+    const taskScreen = container.firstElementChild as HTMLElement
+    const file = new File(['image'], 'homepage-review.png', { type: 'image/png' })
+
+    fireEvent.dragEnter(taskScreen, { dataTransfer: { types: ['Files'], files: [file] } })
+    expect(screen.getByRole('status')).toHaveTextContent('Drop images anywhere to attach them')
+    fireEvent.drop(taskScreen, { dataTransfer: { types: ['Files'], files: [file] } })
+
+    await screen.findByRole('link', { name: 'Open homepage-review.png in a new tab' })
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'POST' })
+  })
+
+  it('renames an attached image', async () => {
+    const renamedScreenshot = { ...screenshot, label: 'Updated homepage' }
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: async () => detailResponse() } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ task: detailResponse([renamedScreenshot]).task }) } as Response)
+
+    render(<TeamTaskDetailPane taskId={7} onClose={() => undefined} />)
+    const nameInput = await screen.findByRole('textbox', { name: 'Image name for homepage-review.png' })
+    fireEvent.change(nameInput, { target: { value: 'Updated homepage' } })
+    fireEvent.blur(nameInput)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+      method: 'PATCH',
+      body: JSON.stringify({ mediaId: screenshot.mediaId, label: 'Updated homepage' }),
+    })
   })
 
   it('permanently deletes the stored media after confirmation', async () => {

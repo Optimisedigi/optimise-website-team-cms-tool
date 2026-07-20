@@ -114,6 +114,57 @@ export async function POST(
   }
 }
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const payload = await getPayload({ config });
+    const { user } = await payload.auth({ headers: req.headers });
+    if (!user || !userHasFeature(user, "team-tasks")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = (await req.json().catch(() => null)) as { mediaId?: string | number; label?: string } | null;
+    const label = body?.label?.trim();
+    if (body?.mediaId === undefined || body.mediaId === null || !label) {
+      return NextResponse.json({ error: "Screenshot ID and name are required" }, { status: 400 });
+    }
+    if (label.length > 160) {
+      return NextResponse.json({ error: "Image name must be 160 characters or fewer" }, { status: 400 });
+    }
+
+    const task = await payload.findByID({
+      collection: "team-tasks" as any,
+      id,
+      depth: 0,
+      overrideAccess: true,
+    }) as any;
+    const screenshots = Array.isArray(task.screenshots) ? task.screenshots : [];
+    const screenshotIndex = screenshots.findIndex((item: any) => String(item.mediaId) === String(body.mediaId));
+    if (screenshotIndex < 0) {
+      return NextResponse.json({ error: "Screenshot not found on this task" }, { status: 404 });
+    }
+
+    const updatedScreenshots = screenshots.map((item: any, index: number) =>
+      index === screenshotIndex ? { ...item, label } : item,
+    );
+    const updatedTask = await payload.update({
+      collection: "team-tasks" as any,
+      id,
+      data: { screenshots: updatedScreenshots } as any,
+      depth: 0,
+      overrideAccess: true,
+    });
+
+    return NextResponse.json({ task: updatedTask });
+  } catch (error) {
+    console.error("[team-tasks/screenshots] PATCH error:", error);
+    return NextResponse.json({ error: "Failed to rename image" }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },

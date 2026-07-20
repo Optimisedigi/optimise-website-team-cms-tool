@@ -327,7 +327,7 @@ CMS → Growth Tools unmatched calls: 4
 | `/api/tag-setup-audits/[id]` | GET | payload-session | json-body |  | `src/app/(frontend)/api/tag-setup-audits/[id]/route.ts` |
 | `/api/team-tasks/[id]/comments` | GET, POST | payload-session | json-body, 400-validation | email | `src/app/(frontend)/api/team-tasks/[id]/comments/route.ts` |
 | `/api/team-tasks/[id]/detail` | GET, PATCH | payload-session | json-body | email | `src/app/(frontend)/api/team-tasks/[id]/detail/route.ts` |
-| `/api/team-tasks/[id]/screenshots` | POST, DELETE | payload-session | json-body, 400-validation |  | `src/app/(frontend)/api/team-tasks/[id]/screenshots/route.ts` |
+| `/api/team-tasks/[id]/screenshots` | POST, PATCH, DELETE | payload-session | json-body, 400-validation |  | `src/app/(frontend)/api/team-tasks/[id]/screenshots/route.ts` |
 | `/api/team-tasks/grid` | GET, POST, PATCH, DELETE | payload-session | json-body, query-params, 400-validation | email | `src/app/(frontend)/api/team-tasks/grid/route.ts` |
 | `/api/time-track` | POST | payload-session | json-body, 400-validation |  | `src/app/(frontend)/api/time-track/route.ts` |
 | `/api/transcribe` | POST | payload-session | json-body, 400-validation |  | `src/app/(frontend)/api/transcribe/route.ts` |
@@ -5062,6 +5062,7 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
       "file": "src/app/(frontend)/api/team-tasks/[id]/screenshots/route.ts",
       "methods": [
         "POST",
+        "PATCH",
         "DELETE"
       ],
       "auth": "payload-session",

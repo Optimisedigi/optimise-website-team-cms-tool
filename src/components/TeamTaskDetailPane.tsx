@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { DragEvent } from 'react'
 
 type Option = { id: string | number; name: string; email?: string; role?: string }
 type Rel = Option | string | number | null | undefined
@@ -262,30 +263,60 @@ function CommentComposer({ value, users, onChange }: { value: string; users: Opt
   )
 }
 
-function ScreenshotPreview({ screenshot, removing, onRemove }: { screenshot: ScreenshotRow; removing: boolean; onRemove: () => void }) {
+function ScreenshotPreview({ screenshot, removing, onRemove, onRename }: { screenshot: ScreenshotRow; removing: boolean; onRemove: () => void; onRename: (label: string) => Promise<boolean> }) {
   const [showPreview, setShowPreview] = useState(false)
+  const [draftLabel, setDraftLabel] = useState(screenshot.label)
+  const [renaming, setRenaming] = useState(false)
+
+  useEffect(() => setDraftLabel(screenshot.label), [screenshot.label])
+
+  const saveLabel = async () => {
+    const nextLabel = draftLabel.trim()
+    if (!nextLabel || nextLabel === screenshot.label) {
+      setDraftLabel(screenshot.label)
+      return
+    }
+    setRenaming(true)
+    const saved = await onRename(nextLabel)
+    if (!saved) setDraftLabel(screenshot.label)
+    setRenaming(false)
+  }
 
   return (
-    <div
-      onMouseEnter={() => setShowPreview(true)}
-      onMouseLeave={() => setShowPreview(false)}
-      onFocus={() => setShowPreview(true)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setShowPreview(false)
-      }}
-      style={{ position: 'relative', display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr) auto', gap: 10, alignItems: 'center', padding: 8, border: '1px solid var(--theme-elevation-100)', borderRadius: 10, background: 'var(--theme-elevation-50)' }}
-    >
-      <a href={screenshot.url} target="_blank" rel="noreferrer" aria-label={`Open ${screenshot.label} in a new tab`} style={{ display: 'block', height: 60, borderRadius: 7, overflow: 'hidden', border: '1px solid var(--theme-elevation-150)', background: 'var(--theme-bg)' }}>
+    <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr) auto', gap: 10, alignItems: 'center', padding: 8, border: '1px solid var(--theme-elevation-100)', borderRadius: 10, background: 'var(--theme-elevation-50)' }}>
+      <a
+        href={screenshot.url}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`Open ${screenshot.label} in a new tab`}
+        onMouseEnter={() => setShowPreview(true)}
+        onMouseLeave={() => setShowPreview(false)}
+        onFocus={() => setShowPreview(true)}
+        onBlur={() => setShowPreview(false)}
+        style={{ display: 'block', height: 60, borderRadius: 7, overflow: 'hidden', border: '1px solid var(--theme-elevation-150)', background: 'var(--theme-bg)' }}
+      >
         <img src={screenshot.thumbnailUrl || screenshot.url} alt="" style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }} />
       </a>
-      <div style={{ minWidth: 0 }}>
-        <a href={screenshot.url} target="_blank" rel="noreferrer" style={{ display: 'block', color: '#2563eb', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{screenshot.label}</a>
-        <span style={{ display: 'block', marginTop: 3, color: 'var(--theme-elevation-500)', fontSize: 12 }}>Hover to preview · Click to open</span>
+      <div style={{ minWidth: 0, display: 'grid', gap: 3 }}>
+        <input
+          value={draftLabel}
+          aria-label={`Image name for ${screenshot.label}`}
+          maxLength={160}
+          disabled={renaming}
+          onChange={(event) => setDraftLabel(event.target.value)}
+          onBlur={() => void saveLabel()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+            if (event.key === 'Escape') setDraftLabel(screenshot.label)
+          }}
+          style={{ ...fieldStyle, height: 34, padding: '5px 8px', fontWeight: 800 }}
+        />
+        <span style={{ color: 'var(--theme-elevation-500)', fontSize: 12 }}>{renaming ? 'Saving name…' : 'Hover image to preview · Click to open'}</span>
       </div>
       <button type="button" onClick={onRemove} disabled={removing} aria-label={`Delete ${screenshot.label} permanently`} style={{ ...fieldStyle, width: 38, color: '#991b1b', cursor: removing ? 'wait' : 'pointer' }}>{removing ? '…' : '×'}</button>
       {showPreview && (
-        <div role="tooltip" style={{ position: 'absolute', left: 96, bottom: 'calc(100% + 8px)', zIndex: 12, width: 'min(560px, 70vw)', maxHeight: 'min(440px, 60vh)', padding: 8, borderRadius: 12, border: '1px solid var(--theme-elevation-150)', background: 'var(--theme-bg)', boxShadow: '0 18px 42px rgba(15,23,42,.24)', pointerEvents: 'none' }}>
-          <img src={screenshot.url} alt="" style={{ display: 'block', width: '100%', maxHeight: 'calc(min(440px, 60vh) - 16px)', objectFit: 'contain', borderRadius: 7 }} />
+        <div role="tooltip" aria-label={`Large preview of ${screenshot.label}`} style={{ position: 'fixed', inset: 'clamp(16px, 4vw, 56px)', zIndex: 12, display: 'grid', placeItems: 'center', padding: 16, borderRadius: 14, border: '1px solid var(--theme-elevation-150)', background: 'rgba(15, 23, 42, .88)', boxShadow: '0 18px 42px rgba(15,23,42,.3)', pointerEvents: 'none', boxSizing: 'border-box' }}>
+          <img src={screenshot.url} alt="" style={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
         </div>
       )}
     </div>
@@ -297,11 +328,13 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
   const [deletingMediaId, setDeletingMediaId] = useState<string | number | null>(null)
   const [error, setError] = useState('')
   const [comment, setComment] = useState('')
   const [linkDraft, setLinkDraft] = useState<LinkRow>({ label: '', url: '' })
   const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const dragDepthRef = useRef(0)
 
   const load = async () => {
     setLoading(true)
@@ -380,8 +413,8 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
     void patchTask({ relatedLinks: nextLinks })
   }
 
-  const uploadScreenshots = async (files: FileList | null) => {
-    if (!files?.length) return
+  const uploadScreenshots = async (files: FileList | File[] | null) => {
+    if (!files?.length || uploading) return
     setUploading(true)
     setError('')
     try {
@@ -426,11 +459,74 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
     }
   }
 
+  const renameScreenshot = async (screenshot: ScreenshotRow, label: string) => {
+    setError('')
+    try {
+      const res = await fetch(`/api/team-tasks/${taskId}/screenshots`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mediaId: screenshot.mediaId, label }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to rename image')
+      setData((current) => current ? { ...current, task: json.task } : current)
+      onTaskUpdated?.(json.task)
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to rename image')
+      return false
+    }
+  }
+
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    dragDepthRef.current += 1
+    setDragActive(true)
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setDragActive(false)
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setDragActive(false)
+    const images = Array.from(event.dataTransfer.files).filter((file) => ['image/png', 'image/jpeg', 'image/webp'].includes(file.type))
+    if (images.length === 0) {
+      setError('Drop PNG, JPEG, or WebP images only.')
+      return
+    }
+    void uploadScreenshots(images)
+  }
+
   const task = data?.task
   const users = data?.users || []
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15, 23, 42, .35)', display: 'flex', justifyContent: 'flex-end', paddingInline: 5, boxSizing: 'border-box' }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15, 23, 42, .35)', display: 'flex', justifyContent: 'flex-end', paddingInline: 5, boxSizing: 'border-box' }}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {dragActive && (
+        <div role="status" aria-live="polite" style={{ position: 'fixed', inset: 12, zIndex: 20, display: 'grid', placeItems: 'center', border: '3px dashed #2563eb', borderRadius: 16, background: 'rgba(239, 246, 255, .94)', color: '#1d4ed8', fontSize: 22, fontWeight: 900, pointerEvents: 'none' }}>
+          Drop images anywhere to attach them
+        </div>
+      )}
       <aside style={{ width: 'min(1500px, calc(100vw - 10px))', height: '100%', background: 'var(--theme-bg)', boxShadow: '-18px 0 44px rgba(15,23,42,.22)', overflow: 'auto', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--theme-elevation-150)', position: 'sticky', top: 0, background: 'var(--theme-bg)', zIndex: 2 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '1 1 auto' }}>
@@ -513,7 +609,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
                 {(task.screenshots || []).length === 0 ? (
                   <div style={{ padding: 14, border: '1px dashed var(--theme-elevation-150)', borderRadius: 10, color: 'var(--theme-elevation-500)', fontSize: 13 }}>Add PNG, JPEG, or WebP images up to 8 MB each.</div>
                 ) : (task.screenshots || []).map((screenshot, index) => (
-                  <ScreenshotPreview key={screenshot.id || `${screenshot.mediaId}-${index}`} screenshot={screenshot} removing={String(deletingMediaId) === String(screenshot.mediaId)} onRemove={() => void removeScreenshot(screenshot)} />
+                  <ScreenshotPreview key={screenshot.id || `${screenshot.mediaId}-${index}`} screenshot={screenshot} removing={String(deletingMediaId) === String(screenshot.mediaId)} onRemove={() => void removeScreenshot(screenshot)} onRename={(label) => renameScreenshot(screenshot, label)} />
                 ))}
               </div>
             </section>
