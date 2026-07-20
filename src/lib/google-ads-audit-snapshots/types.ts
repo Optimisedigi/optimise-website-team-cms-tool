@@ -2,7 +2,7 @@ export const SNAPSHOT_SCHEMA_VERSION = 3;
 
 export const SNAPSHOT_DATASET_KEYS = [
   "customer_metadata", "monthly_account_metrics", "monthly_campaign_metrics", "campaigns", "ad_groups", "keywords",
-  "search_terms", "conversion_actions", "conversion_action_performance", "campaign_impression_share",
+  "search_terms", "conversion_actions", "conversion_action_performance", "campaign_conversion_action_performance_30d", "campaign_impression_share",
   "campaign_negative_keywords", "shared_negative_keywords", "campaign_shared_set_assignments", "ads", "ad_assets", "landing_page_views",
   "customer_conversion_goals", "campaign_conversion_goals", "campaign_goal_configs", "campaign_location_criteria",
   "campaign_language_criteria", "campaign_ad_schedules", "device_performance", "audience_segments", "negative_change_history",
