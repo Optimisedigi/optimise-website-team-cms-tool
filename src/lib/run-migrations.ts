@@ -5362,6 +5362,28 @@ export async function runMigrations(
     await run("shared_working_docs_change_log_parent_id_idx", "CREATE INDEX IF NOT EXISTS `shared_working_docs_change_log_parent_id_idx` ON `shared_working_docs_change_log` (`_parent_id`)");
     await run("locked_docs_rels.shared_working_docs_id", "ALTER TABLE `payload_locked_documents_rels` ADD `shared_working_docs_id` integer REFERENCES `shared_working_docs`(`id`) ON DELETE cascade");
 
+    // ── Working doc revisions (autosave conflict recovery, 2026-08-09) ──────
+    // Keep in sync with src/migrations/20260809_120000_add_working_doc_revisions.ts.
+    await run("shared_working_docs.revision", "ALTER TABLE `shared_working_docs` ADD `revision` integer NOT NULL DEFAULT 1");
+    await run("shared_working_doc_revisions", `CREATE TABLE IF NOT EXISTS \`shared_working_doc_revisions\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`working_doc_id\` integer NOT NULL,
+      \`revision\` integer NOT NULL,
+      \`content_markdown\` text NOT NULL,
+      \`content_hash\` text NOT NULL,
+      \`saved_by\` text NOT NULL,
+      \`saved_at\` text NOT NULL,
+      \`source\` text NOT NULL,
+      \`updated_at\` text NOT NULL,
+      \`created_at\` text NOT NULL,
+      FOREIGN KEY (\`working_doc_id\`) REFERENCES \`shared_working_docs\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("shared_working_doc_revisions_doc_revision_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `shared_working_doc_revisions_doc_revision_idx` ON `shared_working_doc_revisions` (`working_doc_id`, `revision`)");
+    await run("shared_working_doc_revisions_working_doc_idx", "CREATE INDEX IF NOT EXISTS `shared_working_doc_revisions_working_doc_idx` ON `shared_working_doc_revisions` (`working_doc_id`)");
+    await run("shared_working_doc_revisions_content_hash_idx", "CREATE INDEX IF NOT EXISTS `shared_working_doc_revisions_content_hash_idx` ON `shared_working_doc_revisions` (`content_hash`)");
+    await run("shared_working_doc_revisions_saved_at_idx", "CREATE INDEX IF NOT EXISTS `shared_working_doc_revisions_saved_at_idx` ON `shared_working_doc_revisions` (`saved_at`)");
+    await run("locked_docs_rels.shared_working_doc_revisions_id", "ALTER TABLE `payload_locked_documents_rels` ADD `shared_working_doc_revisions_id` integer REFERENCES `shared_working_doc_revisions`(`id`) ON DELETE cascade");
+
     // ── Google Ads audit evidence snapshots ───────────────────────────────
     // Keep this idempotent sweep aligned with the bundled Payload migrations:
     // production deploys call /api/migrate rather than Payload's migration CLI.
