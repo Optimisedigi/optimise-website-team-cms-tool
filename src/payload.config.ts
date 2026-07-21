@@ -49,6 +49,8 @@ import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { SeoMigrationChecks } from "./collections/SeoMigrationChecks";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
+import { SearchQueryVocabulary } from "./collections/SearchQueryVocabulary";
+import { SearchQueryReviewGroups } from "./collections/SearchQueryReviewGroups";
 import { MatchTypeViolationCandidates } from "./collections/MatchTypeViolationCandidates";
 import { MatchTypeSynonymRules } from "./collections/MatchTypeSynonymRules";
 import { MatchTypeAllowListTerms } from "./collections/MatchTypeAllowListTerms";
@@ -146,7 +148,7 @@ export default buildConfig({
     // SEO
     InternalLinkSuggestions,
     // Audits
-    SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, GoogleAdsAuditSnapshots, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, NegativeKeywordLists, KeywordDeepDiveSessions, MonthlyKeywordSelections, SiteHealthReports,
+    SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, GoogleAdsAuditSnapshots, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, SearchQueryVocabulary, SearchQueryReviewGroups, NegativeKeywordLists, KeywordDeepDiveSessions, MonthlyKeywordSelections, SiteHealthReports,
     // Reports
     ForecastScenarios, AgencyKpiSnapshots, ClientMetricSnapshots, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance
