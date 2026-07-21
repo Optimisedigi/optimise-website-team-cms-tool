@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
   }
   const persisted = await result.payload.find({ collection: "search-query-review-groups", where: { and: [{ snapshot: { equals: snapshot.id } }, { client: { equals: result.clientId } }] }, sort: "-metrics.spend", limit: 500, depth: 0, overrideAccess: true });
-  return NextResponse.json({ snapshotId: snapshot.id, groups: persisted.docs });
+  return NextResponse.json({ snapshotId: snapshot.id, audit: { businessName: result.audit.businessName, proposalId: idOf(result.audit.proposal) || undefined }, groups: persisted.docs });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
