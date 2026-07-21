@@ -717,11 +717,21 @@ export default async function AwayDigitalAuditPage() {
                           </p>
                           <div
                             role="tooltip"
-                            className="pointer-events-none absolute right-full top-1/2 z-20 mr-3 hidden w-72 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] leading-snug text-slate-600 shadow-lg md:group-hover:block md:group-focus:block"
+                            className="pointer-events-none absolute right-full top-1/2 z-20 mr-3 hidden w-80 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-[11px] leading-snug text-slate-600 shadow-lg md:group-hover:block md:group-focus:block"
                           >
                             <span className="font-semibold text-slate-800">{bar.score === null ? 'Insufficient evidence' : `Score ${bar.score}/${bar.maximum}`} · Weight {methodology.weight}</span>
                             <span className="block mt-1">{methodology.evidenceSummary}</span>
-                            <span className="block mt-1">{methodology.checks.map((check) => `${check.label}: ${check.state}`).join('; ')}</span>
+                            <ul className="mt-2 space-y-1">
+                              {methodology.checks.map((check) => {
+                                const outcome = check.state === 'pass' ? 'Full credit' : check.score > 0 ? 'Partial credit' : check.state === 'unknown' ? 'Insufficient evidence' : 'No credit'
+                                return (
+                                  <li key={check.id} className="flex gap-1.5">
+                                    <span aria-hidden="true" className="text-slate-400">•</span>
+                                    <span><span className="font-medium text-slate-700">{check.label}</span>: <span className="whitespace-nowrap">{check.score}/{check.maximum}</span> · {outcome}</span>
+                                  </li>
+                                )
+                              })}
+                            </ul>
                           </div>
                         </>
                       )}
