@@ -15,6 +15,8 @@ type WorkingDoc = {
   slug: string
   title: string
   contentMarkdown: string
+  revision: number
+  contentHash?: string
   lastEditedBy?: string | null
   lastSavedAt?: string | null
   updatedAt: string
@@ -44,6 +46,7 @@ export default function ClientWorkingDocsPanel() {
   const [error, setError] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
   const [savedId, setSavedId] = useState<string | null>(null)
+  const [conflictIds, setConflictIds] = useState<Set<string>>(() => new Set())
 
   const loadDocs = useCallback(
     async (signal?: AbortSignal) => {
@@ -64,6 +67,7 @@ export default function ClientWorkingDocsPanel() {
         const result = (await response.json()) as { docs?: WorkingDoc[] }
         const nextDocs = result.docs ?? []
         setDocs(nextDocs)
+        setConflictIds(new Set())
         setDrafts(Object.fromEntries(nextDocs.map((doc) => [String(doc.id), doc.contentMarkdown])))
       } catch (loadError) {
         if ((loadError as Error).name !== 'AbortError') {
@@ -86,8 +90,8 @@ export default function ClientWorkingDocsPanel() {
 
   async function saveDoc(doc: WorkingDoc) {
     const id = String(doc.id)
-    const contentMarkdown = drafts[id]?.trim()
-    if (!contentMarkdown) {
+    const contentMarkdown = drafts[id] ?? ''
+    if (!contentMarkdown.trim()) {
       setError('Document content cannot be empty.')
       return
     }
@@ -97,26 +101,37 @@ export default function ClientWorkingDocsPanel() {
     const now = new Date().toISOString()
     const savedBy = editorName(user)
     try {
-      const response = await fetch(`/api/shared-working-docs/${doc.id}`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/working-docs/${doc.slug}`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'save',
           contentMarkdown,
-          lastEditedBy: savedBy,
-          lastSavedAt: now,
-          changeLog: [
-            {
-              savedAt: now,
-              savedBy,
-              summary: 'Saved from the client profile Working Docs tab.',
-            },
-            ...(doc.changeLog ?? []),
-          ].slice(0, 50),
+          reviewerName: savedBy,
+          baseRevision: doc.revision,
+          localSubmissionId: crypto.randomUUID(),
         }),
       })
-      if (!response.ok) throw new Error('Could not save the working document.')
-      const result = (await response.json()) as { doc: WorkingDoc } | WorkingDoc
-      const updated = 'doc' in result ? result.doc : result
+      const result = (await response.json().catch(() => ({}))) as Partial<WorkingDoc> & {
+        conflict?: boolean
+        error?: string
+      }
+      if (response.status === 409 && result.conflict) {
+        setConflictIds((current) => new Set(current).add(id))
+        throw new Error(
+          `Conflict: ${result.lastEditedBy || 'another editor'} saved revision ${result.revision || 'unknown'}. Your textarea draft is unchanged. Refresh and review before saving again.`,
+        )
+      }
+      if (!response.ok || !result.revision) {
+        throw new Error(result.error || 'Could not save the working document.')
+      }
+      const updated: WorkingDoc = {
+        ...doc,
+        ...result,
+        contentMarkdown: result.contentMarkdown || contentMarkdown,
+        revision: result.revision,
+        updatedAt: result.updatedAt || now,
+      }
       setDocs((current) => current.map((item) => (String(item.id) === id ? updated : item)))
       setDrafts((current) => ({ ...current, [id]: updated.contentMarkdown }))
       setSavedId(id)
@@ -178,6 +193,7 @@ export default function ClientWorkingDocsPanel() {
         {docs.map((doc) => {
           const id = String(doc.id)
           const dirty = drafts[id] !== doc.contentMarkdown
+          const conflicted = conflictIds.has(id)
           return (
             <article className="working-doc-card" key={id}>
               <div className="working-doc-meta">
@@ -203,11 +219,11 @@ export default function ClientWorkingDocsPanel() {
               />
               <div className="working-doc-actions">
                 <span aria-live="polite">
-                  {savedId === id ? 'Saved' : dirty ? 'Unsaved changes' : 'Up to date'}
+                  {conflicted ? 'Conflict: refresh and review' : savedId === id ? 'Saved' : dirty ? 'Unsaved changes' : 'Up to date'}
                 </span>
                 <button
                   type="button"
-                  disabled={!dirty || savingId === id}
+                  disabled={!dirty || savingId === id || conflicted}
                   onClick={() => void saveDoc(doc)}
                 >
                   {savingId === id ? 'Saving…' : 'Save document'}

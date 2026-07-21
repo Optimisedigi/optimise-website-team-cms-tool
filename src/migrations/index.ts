@@ -6,6 +6,7 @@ import * as migration_20260806_120000_add_evidence_scorecard_provenance from './
 import * as migration_20260806_120000_add_google_ads_audit_evidence_context from './20260806_120000_add_google_ads_audit_evidence_context'
 import * as migration_20260807_120000_add_google_ads_private_evidence_storage from './20260807_120000_add_google_ads_private_evidence_storage'
 import * as migration_20260808_120000_add_snapshot_account_name_and_active_index from './20260808_120000_add_snapshot_account_name_and_active_index'
+import * as migration_20260809_120000_add_working_doc_revisions from './20260809_120000_add_working_doc_revisions'
 import * as migration_20260810_120000_add_team_task_screenshots from './20260810_120000_add_team_task_screenshots'
 import * as migration_20260811_120000_add_search_query_review from './20260811_120000_add_search_query_review'
 import * as migration_20260801_130000_add_proposal_meta_ads_job_state from './20260801_130000_add_proposal_meta_ads_job_state'
@@ -925,6 +926,11 @@ export const migrations = [
     up: migration_20260808_120000_add_snapshot_account_name_and_active_index.up,
     down: migration_20260808_120000_add_snapshot_account_name_and_active_index.down,
     name: '20260808_120000_add_snapshot_account_name_and_active_index',
+  },
+  {
+    up: migration_20260809_120000_add_working_doc_revisions.up,
+    down: migration_20260809_120000_add_working_doc_revisions.down,
+    name: '20260809_120000_add_working_doc_revisions',
   },
   {
     up: migration_20260811_120000_add_search_query_review.up,

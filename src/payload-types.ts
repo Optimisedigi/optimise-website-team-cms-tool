@@ -77,6 +77,7 @@ export interface Config {
     'process-templates': ProcessTemplate;
     'deck-templates': DeckTemplate;
     'shared-working-docs': SharedWorkingDoc;
+    'shared-working-doc-revisions': SharedWorkingDocRevision;
     'client-processes': ClientProcess;
     'team-tasks': TeamTask;
     'team-task-comments': TeamTaskComment;
@@ -101,6 +102,8 @@ export interface Config {
     'gsc-indexing-audits': GscIndexingAudit;
     'seo-migration-checks': SeoMigrationCheck;
     'negative-sweep-candidates': NegativeSweepCandidate;
+    'search-query-vocabulary': SearchQueryVocabulary;
+    'search-query-review-groups': SearchQueryReviewGroup;
     'negative-keyword-lists': NegativeKeywordList;
     'keyword-deep-dive-sessions': KeywordDeepDiveSession;
     'monthly-keyword-selections': MonthlyKeywordSelection;
@@ -183,6 +186,7 @@ export interface Config {
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
     'deck-templates': DeckTemplatesSelect<false> | DeckTemplatesSelect<true>;
     'shared-working-docs': SharedWorkingDocsSelect<false> | SharedWorkingDocsSelect<true>;
+    'shared-working-doc-revisions': SharedWorkingDocRevisionsSelect<false> | SharedWorkingDocRevisionsSelect<true>;
     'client-processes': ClientProcessesSelect<false> | ClientProcessesSelect<true>;
     'team-tasks': TeamTasksSelect<false> | TeamTasksSelect<true>;
     'team-task-comments': TeamTaskCommentsSelect<false> | TeamTaskCommentsSelect<true>;
@@ -207,6 +211,8 @@ export interface Config {
     'gsc-indexing-audits': GscIndexingAuditsSelect<false> | GscIndexingAuditsSelect<true>;
     'seo-migration-checks': SeoMigrationChecksSelect<false> | SeoMigrationChecksSelect<true>;
     'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
+    'search-query-vocabulary': SearchQueryVocabularySelect<false> | SearchQueryVocabularySelect<true>;
+    'search-query-review-groups': SearchQueryReviewGroupsSelect<false> | SearchQueryReviewGroupsSelect<true>;
     'negative-keyword-lists': NegativeKeywordListsSelect<false> | NegativeKeywordListsSelect<true>;
     'keyword-deep-dive-sessions': KeywordDeepDiveSessionsSelect<false> | KeywordDeepDiveSessionsSelect<true>;
     'monthly-keyword-selections': MonthlyKeywordSelectionsSelect<false> | MonthlyKeywordSelectionsSelect<true>;
@@ -7203,6 +7209,8 @@ export interface ProcessTemplate {
   createdAt: string;
 }
 /**
+ * Working documents are managed from the Working Docs tab on each client profile.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "shared-working-docs".
  */
@@ -7213,6 +7221,7 @@ export interface SharedWorkingDoc {
   clientSlug: string;
   deckSlug: string;
   contentMarkdown: string;
+  revision: number;
   lastEditedBy?: string | null;
   lastSavedAt?: string | null;
   /**
@@ -7226,6 +7235,24 @@ export interface SharedWorkingDoc {
         id?: string | null;
       }[]
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Immutable working-document snapshots retained for conflict recovery.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "shared-working-doc-revisions".
+ */
+export interface SharedWorkingDocRevision {
+  id: number;
+  workingDoc: number | SharedWorkingDoc;
+  revision: number;
+  contentMarkdown: string;
+  contentHash: string;
+  savedBy: string;
+  savedAt: string;
+  source: 'public-editor' | 'cms-editor' | 'legacy-handoff' | 'migration-seed';
   updatedAt: string;
   createdAt: string;
 }
@@ -8496,6 +8523,102 @@ export interface NegativeSweepCandidate {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "search-query-vocabulary".
+ */
+export interface SearchQueryVocabulary {
+  id: number;
+  client: number | Client;
+  phrase: string;
+  normalizedPhrase: string;
+  classification: 'relevant' | 'irrelevant';
+  scope: 'brand' | 'service' | 'product' | 'category' | 'universal';
+  source: 'frozen_audit' | 'client_managed' | 'team_decision' | 'universal_rule';
+  enabled?: boolean | null;
+  expiresAt?: string | null;
+  reviewNote?: string | null;
+  auditDecisionTrail?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "search-query-review-groups".
+ */
+export interface SearchQueryReviewGroup {
+  id: number;
+  snapshot: number | GoogleAdsAuditSnapshot;
+  client: number | Client;
+  fingerprint: string;
+  classificationState: 'relevant' | 'irrelevant' | 'review' | 'split';
+  representativeTerms:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  metrics:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  sourceRows:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  contexts?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  rationale?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  reviewerDecision?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  vocabulary?: (number | null) | SearchQueryVocabulary;
+  negativeCandidates?: (number | NegativeSweepCandidate)[] | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "monthly-keyword-selections".
  */
 export interface MonthlyKeywordSelection {
@@ -9593,6 +9716,7 @@ export interface GoogleAdsAuditSnapshotChunk {
     | 'search_terms'
     | 'conversion_actions'
     | 'conversion_action_performance'
+    | 'campaign_conversion_action_performance_30d'
     | 'campaign_impression_share'
     | 'campaign_negative_keywords'
     | 'shared_negative_keywords'
@@ -10824,6 +10948,14 @@ export interface PayloadLockedDocument {
         value: number | NegativeSweepCandidate;
       } | null)
     | ({
+        relationTo: 'search-query-vocabulary';
+        value: number | SearchQueryVocabulary;
+      } | null)
+    | ({
+        relationTo: 'search-query-review-groups';
+        value: number | SearchQueryReviewGroup;
+      } | null)
+    | ({
         relationTo: 'negative-keyword-lists';
         value: number | NegativeKeywordList;
       } | null)
@@ -11980,6 +12112,7 @@ export interface SharedWorkingDocsSelect<T extends boolean = true> {
   clientSlug?: T;
   deckSlug?: T;
   contentMarkdown?: T;
+  revision?: T;
   lastEditedBy?: T;
   lastSavedAt?: T;
   changeLog?:
@@ -11990,6 +12123,21 @@ export interface SharedWorkingDocsSelect<T extends boolean = true> {
         summary?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "shared-working-doc-revisions_select".
+ */
+export interface SharedWorkingDocRevisionsSelect<T extends boolean = true> {
+  workingDoc?: T;
+  revision?: T;
+  contentMarkdown?: T;
+  contentHash?: T;
+  savedBy?: T;
+  savedAt?: T;
+  source?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -12922,6 +13070,44 @@ export interface NegativeSweepCandidatesSelect<T extends boolean = true> {
   sweepDate?: T;
   writtenToSheet?: T;
   writtenAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "search-query-vocabulary_select".
+ */
+export interface SearchQueryVocabularySelect<T extends boolean = true> {
+  client?: T;
+  phrase?: T;
+  normalizedPhrase?: T;
+  classification?: T;
+  scope?: T;
+  source?: T;
+  enabled?: T;
+  expiresAt?: T;
+  reviewNote?: T;
+  auditDecisionTrail?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "search-query-review-groups_select".
+ */
+export interface SearchQueryReviewGroupsSelect<T extends boolean = true> {
+  snapshot?: T;
+  client?: T;
+  fingerprint?: T;
+  classificationState?: T;
+  representativeTerms?: T;
+  metrics?: T;
+  sourceRows?: T;
+  contexts?: T;
+  rationale?: T;
+  reviewerDecision?: T;
+  vocabulary?: T;
+  negativeCandidates?: T;
   updatedAt?: T;
   createdAt?: T;
 }

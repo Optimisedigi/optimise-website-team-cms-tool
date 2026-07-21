@@ -99,6 +99,7 @@ import { ForecastScenarios } from "./collections/ForecastScenarios";
 import { ClientValueLedgerItems } from "./collections/ClientValueLedgerItems";
 import { ClientPortalRequests } from "./collections/ClientPortalRequests";
 import { SharedWorkingDocs } from "./collections/SharedWorkingDocs";
+import { SharedWorkingDocRevisions } from "./collections/SharedWorkingDocRevisions";
 import { QuarterlyOrganicGrowthSnapshots } from "./collections/QuarterlyOrganicGrowthSnapshots";
 import { AgencyKpiSnapshots } from "./collections/AgencyKpiSnapshots";
 import { ClientMetricSnapshots } from "./collections/ClientMetricSnapshots";
@@ -142,7 +143,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientWishlistItems, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
+    Clients, ClientWishlistItems, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO

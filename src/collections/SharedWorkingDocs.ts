@@ -16,9 +16,9 @@ export const SharedWorkingDocs: CollectionConfig = {
   },
   access: {
     read: ({ req }) => Boolean(req.user),
-    create: ({ req }) => Boolean(req.user),
-    update: ({ req }) => Boolean(req.user),
-    delete: ({ req }) => Boolean(req.user),
+    create: () => false,
+    update: () => false,
+    delete: () => false,
   },
   fields: [
     {
@@ -49,6 +49,14 @@ export const SharedWorkingDocs: CollectionConfig = {
       name: "contentMarkdown",
       type: "textarea",
       required: true,
+    },
+    {
+      name: "revision",
+      type: "number",
+      required: true,
+      defaultValue: 1,
+      min: 1,
+      admin: { readOnly: true },
     },
     {
       name: "lastEditedBy",

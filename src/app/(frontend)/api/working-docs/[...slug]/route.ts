@@ -1,61 +1,49 @@
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 
+import { isKnownWorkingDocSlug, verifyWorkingDocPin } from "@/lib/working-doc-auth";
+import {
+  loadWorkingDoc,
+  saveWorkingDoc,
+  WorkingDocValidationError,
+} from "@/lib/working-doc-sync";
 import config from "@/payload.config";
-import { verifyWorkingDocPin } from "@/lib/working-doc-auth";
 
+const CIPHER_SLUG = "cipher/patient-journey-review";
 const seedPath = path.join(
   process.cwd(),
   "src/content/cipher-health-patient-journey-review.md",
 );
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
 
 function slugFromParts(parts: string[]) {
   return parts.map((part) => part.trim()).filter(Boolean).join("/");
 }
 
-async function seedMarkdown() {
-  return readFile(seedPath, "utf8");
+function authenticatedEditorName(user: unknown): string {
+  if (!user || typeof user !== "object") return "CMS user";
+  const record = user as { name?: string | null; email?: string | null };
+  return record.name?.trim() || record.email?.trim() || "CMS user";
 }
 
-async function findOrCreateDoc(slug: string) {
-  const [clientSlug, deckSlug] = slug.split("/", 2);
-  const payloadConfig = await config;
-  const payload = await getPayload({ config: payloadConfig });
-  const existing = await payload.find({
-    collection: "shared-working-docs",
-    where: { slug: { equals: slug } },
-    limit: 1,
-    overrideAccess: true,
-  });
-
-  const doc = existing.docs[0];
-  if (doc) return { payload, doc };
-
-  const created = await payload.create({
-    collection: "shared-working-docs",
-    data: {
-      slug,
-      title: "Cipher Health patient journey review",
-      clientSlug,
-      deckSlug,
-      contentMarkdown: await seedMarkdown(),
-      lastSavedAt: new Date().toISOString(),
-      lastEditedBy: "Seed",
-      changeLog: [
-        {
-          savedAt: new Date().toISOString(),
-          savedBy: "Seed",
-          summary: "Initial working document created from approved journey review.",
-        },
-      ],
-    },
-    overrideAccess: true,
-  });
-
-  return { payload, doc: created };
+async function authorize(request: NextRequest, slug: string, pin: string) {
+  const payload = await getPayload({ config: await config });
+  const authenticated = await payload.auth({ headers: request.headers });
+  if (authenticated.user) {
+    return { ok: true as const, editorName: authenticatedEditorName(authenticated.user), cms: true };
+  }
+  const pinResult = await verifyWorkingDocPin({ slug, pin });
+  return pinResult.ok
+    ? { ok: true as const, editorName: null, cms: false }
+    : { ok: false as const, status: pinResult.status, message: pinResult.message };
 }
 
 export async function POST(
@@ -68,69 +56,63 @@ export async function POST(
     action?: "load" | "save";
     contentMarkdown?: string;
     reviewerName?: string;
+    baseRevision?: number;
+    localSubmissionId?: string;
   } | null;
+  if (!body) return json({ ok: false, error: "A valid JSON request is required." }, 400);
 
-  const pin = body?.pin?.trim() ?? "";
-  const auth = await verifyWorkingDocPin({ slug, pin });
-  if (!auth.ok) {
-    return NextResponse.json(
-      { ok: false, error: auth.message },
-      { status: auth.status },
-    );
+  const auth = await authorize(request, slug, body.pin?.trim() ?? "");
+  if (!auth.ok) return json({ ok: false, error: auth.message }, auth.status);
+  // PIN sessions are limited to the whitelist; CMS sessions may reach any existing doc.
+  if (!auth.cms && !isKnownWorkingDocSlug(slug)) {
+    return json({ ok: false, error: "Document not found" }, 404);
   }
 
-  const { payload, doc } = await findOrCreateDoc(slug);
+  try {
+    const [clientSlug, deckSlug] = slug.split("/", 2);
+    const doc = await loadWorkingDoc({
+      slug,
+      seed:
+        slug === CIPHER_SLUG
+          ? {
+              title: "Cipher Health patient journey review",
+              clientSlug,
+              deckSlug,
+              contentMarkdown: await readFile(seedPath, "utf8"),
+            }
+          : undefined,
+    });
 
-  if (body?.action === "save") {
-    const contentMarkdown = body.contentMarkdown?.trim();
-    if (!contentMarkdown) {
-      return NextResponse.json(
-        { ok: false, error: "Document content is required" },
-        { status: 400 },
-      );
+    if (body.action === "save") {
+      const result = await saveWorkingDoc({
+        slug,
+        contentMarkdown: body.contentMarkdown ?? "",
+        savedBy: auth.cms ? auth.editorName ?? "CMS user" : body.reviewerName ?? "",
+        baseRevision: body.baseRevision,
+        localSubmissionId: body.localSubmissionId?.trim() || `legacy-${randomUUID()}`,
+        source: auth.cms ? "cms-editor" : "public-editor",
+      });
+      if (!result.ok) {
+        return json(
+          {
+            ok: false,
+            conflict: true,
+            error: "A newer shared revision was saved. Your edits were not overwritten.",
+            localSubmissionId: result.localSubmissionId,
+            ...result.doc,
+          },
+          409,
+        );
+      }
+      return json({ ok: true, source: result.source, ...result.doc });
     }
 
-    const reviewerName = body.reviewerName?.trim() || "Reviewer";
-    const now = new Date().toISOString();
-    const previousLog = Array.isArray((doc as any).changeLog)
-      ? (doc as any).changeLog
-      : [];
-    const updated = await payload.update({
-      collection: "shared-working-docs",
-      id: doc.id,
-      data: {
-        contentMarkdown,
-        lastEditedBy: reviewerName,
-        lastSavedAt: now,
-        changeLog: [
-          {
-            savedAt: now,
-            savedBy: reviewerName,
-            summary: "Saved document edits and reviewer notes.",
-          },
-          ...previousLog,
-        ].slice(0, 50),
-      },
-      overrideAccess: true,
-    });
-
-    return NextResponse.json({
-      ok: true,
-      contentMarkdown: (updated as any).contentMarkdown,
-      updatedAt: updated.updatedAt,
-      lastEditedBy: (updated as any).lastEditedBy,
-      lastSavedAt: (updated as any).lastSavedAt,
-      changeLog: (updated as any).changeLog ?? [],
-    });
+    return json({ ok: true, ...doc });
+  } catch (error) {
+    if (error instanceof WorkingDocValidationError) {
+      return json({ ok: false, error: error.message }, error.status);
+    }
+    console.error("Working document request failed", error);
+    return json({ ok: false, error: "Could not synchronize the working document." }, 500);
   }
-
-  return NextResponse.json({
-    ok: true,
-    title: (doc as any).title,
-    contentMarkdown: (doc as any).contentMarkdown,
-    updatedAt: doc.updatedAt,
-    lastEditedBy: (doc as any).lastEditedBy,
-    lastSavedAt: (doc as any).lastSavedAt,
-    changeLog: (doc as any).changeLog ?? [],
-  });
 }
