@@ -6,3 +6,4 @@
 .query-review__decision-column { min-width: 13rem; }
 .query-review__decisions { display:grid; gap:.5rem; }
 .query-review__decisions button { white-space:nowrap; width:100%; }
+.query-review__context-column,.query-review__context-cell { min-width: 40rem; white-space: nowrap; }
