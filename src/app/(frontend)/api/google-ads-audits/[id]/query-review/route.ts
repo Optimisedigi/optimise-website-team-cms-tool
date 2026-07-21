@@ -24,9 +24,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const snapshot = snapshots.docs[0];
   const clientId = Number(result.clientId);
   if (!snapshot) return NextResponse.json({ error: "No completed snapshot" }, { status: 404 });
-  const groups = (snapshot.analysis as { searchTerms?: { reviewGroups?: unknown[] } } | undefined)?.searchTerms?.reviewGroups ?? [];
-  for (const group of groups as Array<Record<string, unknown>>) {
-    await result.payload.create({ collection: "search-query-review-groups", data: { snapshot: snapshot.id, client: clientId, fingerprint: String(group.fingerprint), classificationState: "review", representativeTerms: Array.isArray(group.representativeTerms) ? group.representativeTerms : [], metrics: { spend: Number(group.totalSpend ?? 0), clicks: Number(group.totalClicks ?? 0), conversions: Number(group.totalConversions ?? 0), queryCount: Number(group.queryCount ?? 0) }, sourceRows: Array.isArray(group.sourceRows) ? group.sourceRows : [], contexts: Array.isArray(group.contexts) ? group.contexts : [], rationale: { initial: String(group.rationale ?? "Frozen deterministic group") } }, overrideAccess: true }).catch(() => undefined);
+  const existing = await result.payload.find({ collection: "search-query-review-groups", where: { and: [{ snapshot: { equals: snapshot.id } }, { client: { equals: result.clientId } }] }, limit: 1, depth: 0, overrideAccess: true });
+  if (!existing.totalDocs) {
+    const groups = (snapshot.analysis as { searchTerms?: { reviewGroups?: unknown[] } } | undefined)?.searchTerms?.reviewGroups ?? [];
+    for (const group of (groups as Array<Record<string, unknown>>).slice(0, 500)) {
+      await result.payload.create({ collection: "search-query-review-groups", data: { snapshot: snapshot.id, client: clientId, fingerprint: String(group.fingerprint), classificationState: "review", representativeTerms: Array.isArray(group.representativeTerms) ? group.representativeTerms : [], metrics: { spend: Number(group.totalSpend ?? 0), clicks: Number(group.totalClicks ?? 0), conversions: Number(group.totalConversions ?? 0), queryCount: Number(group.queryCount ?? 0) }, sourceRows: Array.isArray(group.sourceRows) ? group.sourceRows : [], contexts: Array.isArray(group.contexts) ? group.contexts : [], rationale: { initial: String(group.rationale ?? "Frozen deterministic group") } }, overrideAccess: true });
+    }
   }
   const persisted = await result.payload.find({ collection: "search-query-review-groups", where: { and: [{ snapshot: { equals: snapshot.id } }, { client: { equals: result.clientId } }] }, sort: "-metrics.spend", limit: 500, depth: 0, overrideAccess: true });
   return NextResponse.json({ snapshotId: snapshot.id, groups: persisted.docs });
