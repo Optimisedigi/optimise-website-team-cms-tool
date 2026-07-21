@@ -740,13 +740,6 @@ export default async function AwayDigitalAuditPage() {
                 })}
               </div>
             </div>
-            <div className="mt-5 max-w-4xl mx-auto w-full md:pl-[184px]">
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                <p className="text-xs text-slate-700">
-                  <span className="font-bold text-amber-700">Evidence policy:</span> categories without captured evidence are marked insufficient and excluded from the weighted denominator. Open each category to review its stored checks and references.
-                </p>
-              </div>
-            </div>
             <p className="mt-3 text-center text-xs text-slate-600">
               Hover, focus, or use touch to review the stored scoring checks and evidence.
             </p>
