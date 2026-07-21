@@ -33,10 +33,37 @@ function isTableLine(line: string) { return /^\s*\|.*\|\s*$/.test(line); }
 function isSeparator(line: string) { return /^\s*\|\s*:?-{3,}:?(\s*\|\s*:?-{3,}:?)*\s*\|\s*$/.test(line); }
 function splitRow(line: string) { return line.trim().slice(1, -1).split("|").map((cell) => cell.trim()); }
 function tableCellText(text: string) { return String(text || "").replace(/\|/g, "/").replace(/\n+/g, " ").trim(); }
-function noteTextFrom(note: Element | null | undefined) { return (note?.querySelector(".review-note-body") as HTMLElement | null)?.innerText.trim() || ""; }
+function noteTextFrom(note: Element | null | undefined) { return (note?.querySelector(":scope > .review-note-body") as HTMLElement | null)?.innerText.trim() || ""; }
 
-function reviewNoteHtml(author: string, noteText = "") {
-  return `<div class="review-note" data-author="${esc(author)}"><button class="note-delete no-print" type="button" aria-label="Delete reviewer note">Delete</button><strong>Reviewer note — ${esc(author)}</strong><div class="review-note-body" contenteditable="true" role="textbox" data-placeholder="Type note here...">${esc(noteText.trim())}</div></div>`;
+type ReviewReply = { author: string; text: string };
+
+function repliesFrom(note: Element | null | undefined): ReviewReply[] {
+  return [...(note?.querySelectorAll(":scope > .review-note-replies > .review-note-reply") ?? [])].map((reply) => ({
+    author: (reply as HTMLElement).dataset.author || "Reviewer",
+    text: (reply.querySelector(".review-note-reply-body") as HTMLElement | null)?.innerText.trim() || "",
+  }));
+}
+
+function parseReviewerNoteMarkdown(value: string) {
+  const match = /^>\s*\*\*Reviewer note(?:\s+—\s+([^:*]+))?:\*\*\s*(.*)$/.exec(value.trim());
+  if (!match) return null;
+  const replyMarker = /^(.*?)\s*<!--review-replies:([^>]+)-->\s*$/.exec(match[2] || "");
+  let replies: ReviewReply[] = [];
+  if (replyMarker) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(replyMarker[2])) as unknown;
+      replies = Array.isArray(parsed) ? parsed.filter((reply): reply is ReviewReply => Boolean(reply && typeof reply === "object" && typeof (reply as ReviewReply).author === "string" && typeof (reply as ReviewReply).text === "string")) : [];
+    } catch { /* Ignore malformed legacy reply markers. */ }
+  }
+  return { author: match[1]?.trim() || "Reviewer", text: (replyMarker?.[1] ?? match[2] ?? "").trim(), replies };
+}
+
+function reviewReplyHtml(reply: ReviewReply) {
+  return `<div class="review-note-reply" data-author="${esc(reply.author)}"><button class="reply-delete no-print" type="button" aria-label="Delete response from ${esc(reply.author)}">Delete</button><strong>Response — ${esc(reply.author)}</strong><div class="review-note-reply-body" contenteditable="true" role="textbox" data-placeholder="Type response here...">${esc(reply.text.trim())}</div></div>`;
+}
+
+function reviewNoteHtml(author: string, noteText = "", replies: ReviewReply[] = []) {
+  return `<div class="review-note" data-author="${esc(author)}"><div class="note-actions no-print"><button class="note-reply" type="button">Reply</button><button class="note-delete" type="button" aria-label="Delete reviewer note">Delete</button></div><strong>Reviewer note — ${esc(author)}</strong><div class="review-note-body" contenteditable="true" role="textbox" data-placeholder="Type note here...">${esc(noteText.trim())}</div><div class="review-note-replies">${replies.map(reviewReplyHtml).join("")}</div></div>`;
 }
 
 function markdownToHtml(markdown: string, nav: HTMLElement) {
@@ -64,8 +91,8 @@ function markdownToHtml(markdown: string, nav: HTMLElement) {
     const line = lines[i] ?? "";
     if (!line.trim()) { i++; continue; }
     if (/^---+$/.test(line.trim())) { closeDetails(); i++; continue; }
-    const note = /^>\s*\*\*Reviewer note(?:\s+—\s+([^:*]+))?:\*\*\s*(.*)$/.exec(line.trim());
-    if (note) { out += reviewNoteHtml(note[1] || "Reviewer", note[2] || "Add note text"); i++; continue; }
+    const note = parseReviewerNoteMarkdown(line);
+    if (note) { out += reviewNoteHtml(note.author, note.text, note.replies); i++; continue; }
     const heading = /^(#{1,3})\s+(.+)$/.exec(line);
     if (heading) {
       const level = heading[1].length;
@@ -93,6 +120,11 @@ function markdownToHtml(markdown: string, nav: HTMLElement) {
       out += "<th class=\"no-print row-tools\">Actions</th></tr></thead><tbody>";
       const addLabel = isQuestionTable ? "Add question after this question" : "Add row after this row";
       for (const row of bodyRows) {
+        const tableNote = parseReviewerNoteMarkdown(row[0] || "");
+        if (tableNote) {
+          out += `<tr class="review-note-row"><td colspan="${header.length + 1}">${reviewNoteHtml(tableNote.author, tableNote.text, tableNote.replies)}</td></tr>`;
+          continue;
+        }
         out += "<tr>" + header.map((_, idx) => `<td class="edit" contenteditable="true">${inline(row[idx] || "")}</td>`).join("") + `<td class="no-print row-tools"><button class="row-action add-row" type="button" title="${addLabel}" aria-label="${addLabel}">+</button><button class="row-action delete-row" type="button" title="Delete row" aria-label="Delete row">×</button></td></tr>`;
       }
       out += "</tbody></table></div>";
@@ -122,7 +154,9 @@ function serializeNode(node: Element, headingPrefix = "##") {
   let md = "";
   if (node.classList?.contains("review-note")) {
     const author = (node as HTMLElement).dataset.author || "Reviewer";
-    md += `> **Reviewer note — ${author}:** ${noteTextFrom(node)}\n\n`;
+    const replies = repliesFrom(node);
+    const replySuffix = replies.length ? ` <!--review-replies:${encodeURIComponent(JSON.stringify(replies))}-->` : "";
+    md += `> **Reviewer note — ${author}:** ${noteTextFrom(node)}${replySuffix}\n\n`;
   } else if (node.classList?.contains("table-wrap")) md += serializeNode(node.querySelector("table") as Element, headingPrefix);
   else if (node.tagName === "H3") md += `${headingPrefix} ${(node as HTMLElement).innerText.trim()}\n\n`;
   else if (node.tagName === "P") md += `${(node as HTMLElement).innerText.trim()}\n\n`;
@@ -136,7 +170,9 @@ function serializeNode(node: Element, headingPrefix = "##") {
         const note = tr.querySelector(".review-note");
         const author = (note as HTMLElement | null)?.dataset.author || "Reviewer";
         const text = tableCellText(noteTextFrom(note));
-        md += `| > **Reviewer note — ${tableCellText(author)}:** ${text} | ${headers.slice(1).map(() => "").join(" | ")} |\n`;
+        const replies = repliesFrom(note);
+        const replySuffix = replies.length ? ` <!--review-replies:${encodeURIComponent(JSON.stringify(replies))}-->` : "";
+        md += `| > **Reviewer note — ${tableCellText(author)}:** ${text}${replySuffix} | ${headers.slice(1).map(() => "").join(" | ")} |\n`;
       } else {
         const cells = [...tr.children].filter((td) => !td.classList.contains("no-print"));
         md += `| ${cells.map((td) => tableCellText((td as HTMLElement).innerText.trim())).join(" | ")} |\n`;
@@ -179,7 +215,7 @@ export function PatientJourneyReviewClient() {
     const app = appRef.current;
     if (!app) return;
     const remember = (node: Element) => { selectedAnchor.current = node.closest?.("tr") || node.closest?.(".review-note") || node; };
-    app.querySelectorAll(".edit,.review-note,.review-note-body").forEach((node) => {
+    app.querySelectorAll(".edit,.review-note,.review-note-body,.review-note-reply-body").forEach((node) => {
       (node as HTMLElement).onfocus = () => remember(node);
       (node as HTMLElement).onclick = (event) => { event.stopPropagation(); remember(node); };
     });
@@ -189,6 +225,26 @@ export function PatientJourneyReviewClient() {
         const row = button.closest(".review-note-row");
         if (row) row.remove();
         else button.closest(".review-note")?.remove();
+      };
+    });
+    app.querySelectorAll(".note-reply").forEach((button) => {
+      (button as HTMLButtonElement).onclick = (event) => {
+        event.stopPropagation();
+        const note = button.closest(".review-note");
+        if (!note) return;
+        const author = reviewerRef.current?.value.trim() || "Reviewer";
+        const reply = document.createElement("div");
+        reply.innerHTML = reviewReplyHtml({ author, text: "" });
+        const replyElement = reply.firstElementChild;
+        note.querySelector(".review-note-replies")?.appendChild(replyElement as Element);
+        attachHandlers();
+        (replyElement?.querySelector(".review-note-reply-body") as HTMLElement | null)?.focus();
+      };
+    });
+    app.querySelectorAll(".reply-delete").forEach((button) => {
+      (button as HTMLButtonElement).onclick = (event) => {
+        event.stopPropagation();
+        button.closest(".review-note-reply")?.remove();
       };
     });
     app.querySelectorAll("tbody tr").forEach((row) => {
@@ -377,8 +433,14 @@ export function PatientJourneyReviewClient() {
         .journey-editor .gap { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 16px; padding: 12px 14px; }
         .journey-editor .review-note { position: relative; margin: 12px 0 18px; padding: 14px 16px; border: 2px solid #f59e0b; border-left-width: 8px; border-radius: 16px; background: #fffbeb; color: #78350f; box-shadow: 0 8px 18px rgba(245,158,11,.12); min-height: 72px; }
         .journey-editor .review-note strong { display: block; margin-bottom: 6px; padding-right: 76px; color: #92400e; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
-        .journey-editor .review-note-body { cursor: text; outline: 2px solid transparent; border-radius: 8px; min-height: 24px; padding: 4px 6px; }
-        .journey-editor .note-delete { position: absolute; top: 10px; right: 10px; padding: 6px 9px; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; font-size: 12px; }
+        .journey-editor .review-note-body, .journey-editor .review-note-reply-body { cursor: text; outline: 2px solid transparent; border-radius: 8px; min-height: 18px; padding: 0 6px; }
+        .journey-editor .note-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+        .journey-editor .note-actions button, .journey-editor .reply-delete { padding: 6px 9px; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; font-size: 12px; }
+        .journey-editor .note-actions .note-reply { color: #78350f; border-color: #f59e0b; }
+        .journey-editor .review-note-replies { display: grid; gap: 6px; margin-top: 6px; }
+        .journey-editor .review-note-reply { position: relative; border-left: 3px solid #d97706; padding: 6px 40px 6px 10px; background: white; color: #4b2e0a; }
+        .journey-editor .review-note-reply strong { display: block; margin-bottom: 2px; padding: 0; color: #78350f; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+        .journey-editor .reply-delete { position: absolute; top: 5px; right: 5px; }
         .journey-editor details.compare { margin: 18px 0 24px; border: 1px solid #e5e7eb; border-radius: 18px; background: #fbfffc; overflow: hidden; }
         .journey-editor details.compare > summary { cursor: pointer; padding: 14px 16px; font-weight: 850; list-style: none; background: #eef7f1; }
         .journey-editor .details-content { padding: 14px 16px 2px; }
