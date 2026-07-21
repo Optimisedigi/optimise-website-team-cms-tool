@@ -19,7 +19,7 @@ import PdfConversionAccounting from './PdfConversionAccounting'
 import { getPayload } from 'payload'
 import { createClient } from '@libsql/client'
 import config from '@payload-config'
-import { CATEGORY_WEIGHTS, type AuditCategoryScorecard, type GoogleAdsAuditCategoryId } from '@/lib/google-ads-audit-snapshots/scoring'
+import { CATEGORY_WEIGHTS, GOOGLE_ADS_AUDIT_CATEGORY_IDS, GOOGLE_ADS_AUDIT_LEGACY_CATEGORY_IDS, GOOGLE_ADS_AUDIT_LEGACY_RUBRIC_VERSION, type AuditCategoryScorecard, type GoogleAdsAuditCategoryId } from '@/lib/google-ads-audit-snapshots/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,7 +66,8 @@ const CONVERSION_ACTIONS: ConversionAction[] = [
 ]
 
 type AuditScoreBar = { step: number; label: string; score: number | null; maximum: number; scoreColor: string; barColor: string; scorecard: AuditCategoryScorecard }
-const CATEGORY_STEPS: Record<string, number> = { website: 1, accountStructure: 2, keywordIntent: 3, tracking: 4, campaignStructure: 5, channelPerformance: 6, searchQueries: 7, negativeKeywords: 8, adsAssets: 9, brandGeneric: 10, historicalPerformance: 11, audienceStrategy: 12, competition: 13 }
+const CATEGORY_STEPS = Object.fromEntries(GOOGLE_ADS_AUDIT_CATEGORY_IDS.map((id, index) => [id, index + 1])) as Record<string, number>
+const LEGACY_CATEGORY_STEPS = Object.fromEntries(GOOGLE_ADS_AUDIT_LEGACY_CATEGORY_IDS.map((id, index) => [id, index + 1])) as Record<string, number>
 function scoreClass(score: number | null, maximum: number) { const ratio = score === null ? 0 : score / maximum; return ratio >= .8 ? ['text-green-500', 'bg-green-500'] : ratio >= .5 ? ['text-amber-500', 'bg-amber-500'] : ['text-red-500', 'bg-red-500'] }
 async function loadLegacyAuditDirect(): Promise<any | null> {
   const database = createClient({
@@ -93,9 +94,9 @@ async function loadScorecardPayload(): Promise<{ bars: AuditScoreBar[]; total: n
     const payload = await getPayload({ config: await config })
     const result = await payload.find({
       collection: 'google-ads-audits',
-      where: { businessName: { equals: 'Custom Fluid Power' } },
+      where: { slug: { equals: 'custom-fluidpower' } },
       sort: '-updatedAt', limit: 1, depth: 1, overrideAccess: true,
-      select: { businessName: true, snapshot: true, scoredReport: true },
+      select: { businessName: true, slug: true, snapshot: true, scoredReport: true },
     })
     audit = result.docs[0]
   } catch {
@@ -105,13 +106,15 @@ async function loadScorecardPayload(): Promise<{ bars: AuditScoreBar[]; total: n
   const scoring = audit?.snapshot?.analysis?.scoring
   const categories = Array.isArray(scoring?.categories) ? scoring.categories as AuditCategoryScorecard[] : []
   if (categories.length) {
-    const bars = categories.map((scorecard) => { const [scoreColor, barColor] = scoreClass(scorecard.score, scorecard.maximum || 1); return { step: CATEGORY_STEPS[scorecard.id] ?? 99, label: scorecard.label, score: scorecard.score, maximum: scorecard.maximum, scoreColor, barColor, scorecard } }).sort((a, b) => a.step - b.step)
-    return { total: typeof scoring.total === 'number' ? scoring.total : null, bars }
+    const isLegacy = scoring.rubricVersion === GOOGLE_ADS_AUDIT_LEGACY_RUBRIC_VERSION
+    const categorySteps = isLegacy ? LEGACY_CATEGORY_STEPS : CATEGORY_STEPS
+    const bars = categories.map((scorecard) => { const [scoreColor, barColor] = scoreClass(scorecard.score, scorecard.maximum || 1); return { step: categorySteps[scorecard.id] ?? 99, label: scorecard.label, score: scorecard.score, maximum: scorecard.maximum, scoreColor, barColor, scorecard } }).sort((a, b) => a.step - b.step)
+    return { total: typeof scoring.total === 'number' ? scoring.total : null, bars, issue: isLegacy ? 'Legacy 13-category evidence (v2). Its Channel Performance category is preserved as captured; create a v3 snapshot for the current 12-category scorecard.' : undefined }
   }
 
   const legacy = audit?.scoredReport
   const legacySteps = Array.isArray(legacy?.steps) ? legacy.steps : []
-  const categoryIds = Object.entries(CATEGORY_STEPS).sort((a, b) => a[1] - b[1]).map(([id]) => id as GoogleAdsAuditCategoryId)
+  const categoryIds = GOOGLE_ADS_AUDIT_LEGACY_CATEGORY_IDS as readonly GoogleAdsAuditCategoryId[]
   const bars = legacySteps.slice(0, categoryIds.length).map((step: any, index: number): AuditScoreBar => {
     const id = categoryIds[index]
     const score = typeof step.score === 'number' ? step.score : null
@@ -127,7 +130,7 @@ async function loadScorecardPayload(): Promise<{ bars: AuditScoreBar[]; total: n
   return {
     total: typeof legacy?.overallScore === 'number' ? legacy.overallScore : null,
     bars,
-    issue: bars.length ? 'Showing the stored 12-month audit result. A new immutable evidence snapshot has not been captured yet.' : audit ? 'The latest audit does not have a completed scorecard yet.' : 'No Custom Fluid Power audit record is available yet.',
+    issue: bars.length ? 'Legacy 13-category evidence. Its original Channel Performance category is preserved; a new v3 snapshot is required for the current 12-category scorecard.' : audit ? 'The latest audit does not have a completed scorecard yet.' : 'No Custom Fluid Power audit record is available yet.',
   }
 }
 
