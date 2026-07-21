@@ -493,7 +493,7 @@ export default async function AwayDigitalAuditPage() {
               <p className="text-blue-500 font-semibold text-sm uppercase tracking-widest mb-1">
                 TL;DR
               </p>
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-[-10px]">
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-[5px]">
                 The audit, in one slide
               </h2>
             </div>
@@ -577,7 +577,7 @@ export default async function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-5 pb-2 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-[2px] max-w-4xl mx-auto text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[5px] max-w-4xl mx-auto text-slate-900">
               PDF downloads make reported CPA look better than it is
             </h2>
             <AccountGlanceChart
@@ -611,7 +611,7 @@ export default async function AwayDigitalAuditPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-700 text-center mb-2">
               Conversion accounting
             </p>
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-2px] text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[5px] text-slate-900">
               PDF downloads materially lower reported CPA
             </h2>
             <p className="text-center text-sm pb-5 max-w-3xl mx-auto text-slate-500">
@@ -633,7 +633,7 @@ export default async function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-8 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-2px] text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[5px] text-slate-900">
               Google Ads account audit score
             </h2>
             <p className="text-center text-sm md:text-base pb-5 max-w-3xl mx-auto text-slate-500">
@@ -757,7 +757,7 @@ export default async function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-4 pt-5 pb-3 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-[2px] max-w-4xl mx-auto text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[5px] max-w-4xl mx-auto text-slate-900">
               Brand conversions make blended CPA look better than it is
             </h2>
             <p className="text-center text-xs pb-4 max-w-3xl mx-auto text-slate-500">
@@ -841,7 +841,7 @@ export default async function AwayDigitalAuditPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-700 text-center mb-2">
               Brand spend
             </p>
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-[6px] text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[5px] text-slate-900">
               Paying for brand clicks you already get organically
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl mx-auto w-full mb-4">
@@ -885,7 +885,7 @@ export default async function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-12 max-w-6xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-6px] max-w-6xl mx-auto text-slate-900 md:whitespace-nowrap">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[5px] max-w-6xl mx-auto text-slate-900 md:whitespace-nowrap">
               Campaigns can scale beyond the $3,500 budget
             </h2>
             <p className="text-center text-xs text-slate-500 mb-4">
@@ -947,7 +947,7 @@ export default async function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-10 pb-8 max-w-6xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-6px] max-w-4xl mx-auto text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[5px] max-w-4xl mx-auto text-slate-900">
               Recommendations to strengthen performance
             </h2>
             <p className="text-center text-xs text-slate-500 mb-4">
@@ -1033,7 +1033,7 @@ export default async function AwayDigitalAuditPage() {
             <p className="text-blue-400 text-xs font-semibold tracking-widest uppercase mb-4">
               The opportunity
             </p>
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-[14px] md:whitespace-nowrap">
+            <h2 className="text-2xl md:text-3xl font-bold text-white mb-[5px] md:whitespace-nowrap">
               Turn a healthy account into more incremental generic demand
             </h2>
             <p className="text-slate-300 text-sm md:text-base leading-relaxed mb-8 max-w-2xl mx-auto">
@@ -1077,7 +1077,7 @@ export default async function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-8 max-w-4xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-[-2px] text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-[5px] text-slate-900">
               How we work differently as an agency
             </h2>
             <div className="pb-4" />
