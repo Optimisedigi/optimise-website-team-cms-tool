@@ -94,7 +94,7 @@ async function loadScorecardPayload(): Promise<{ bars: AuditScoreBar[]; total: n
     const payload = await getPayload({ config: await config })
     const result = await payload.find({
       collection: 'google-ads-audits',
-      where: { slug: { equals: 'custom-fluidpower' } },
+      where: { slug: { equals: 'custom-fluid-power' } },
       sort: '-updatedAt', limit: 1, depth: 1, overrideAccess: true,
       select: { businessName: true, slug: true, snapshot: true, scoredReport: true },
     })
