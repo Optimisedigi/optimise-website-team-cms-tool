@@ -69,6 +69,7 @@ type AuditScoreBar = { step: number; label: string; score: number | null; maximu
 const CATEGORY_STEPS = Object.fromEntries(GOOGLE_ADS_AUDIT_CATEGORY_IDS.map((id, index) => [id, index + 1])) as Record<string, number>
 const LEGACY_CATEGORY_STEPS = Object.fromEntries(GOOGLE_ADS_AUDIT_LEGACY_CATEGORY_IDS.map((id, index) => [id, index + 1])) as Record<string, number>
 function scoreClass(score: number | null, maximum: number) { const ratio = score === null ? 0 : score / maximum; return ratio >= .8 ? ['text-green-500', 'bg-green-500'] : ratio >= .5 ? ['text-amber-500', 'bg-amber-500'] : ['text-red-500', 'bg-red-500'] }
+function formatScore(score: number) { return score.toFixed(2) }
 async function loadLegacyAuditDirect(): Promise<any | null> {
   const database = createClient({
     url: process.env.DATABASE_URL || 'file:./content.db',
@@ -685,7 +686,7 @@ export default async function AwayDigitalAuditPage() {
                       key={bar.step}
                       tabIndex={0}
                       role="group"
-                      aria-label={`${bar.step}. ${bar.label}. ${bar.score === null ? 'Insufficient evidence' : `Score ${bar.score} out of ${bar.maximum}`}. ${methodology.evidenceSummary}`}
+                      aria-label={`${bar.step}. ${bar.label}. ${bar.score === null ? 'Insufficient evidence' : `Score ${formatScore(bar.score)} out of ${bar.maximum}`}. ${methodology.evidenceSummary}`}
                       className="group relative rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-inset"
                     >
                       <div className="flex items-center gap-3">
@@ -698,7 +699,7 @@ export default async function AwayDigitalAuditPage() {
                               {bar.label}
                             </span>
                             <span className={`text-xs font-semibold ml-2 shrink-0 ${bar.scoreColor}`}>
-                              {bar.score === null ? 'Insufficient evidence' : `${bar.score}/${bar.maximum}`}
+                              {bar.score === null ? 'Insufficient evidence' : `${formatScore(bar.score)}/${bar.maximum}`}
                             </span>
                           </div>
                           <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
@@ -712,21 +713,21 @@ export default async function AwayDigitalAuditPage() {
                       {methodology && (
                         <>
                           <p className="mt-1.5 pl-8 text-[10px] leading-snug text-slate-600 md:hidden">
-                            <span className="font-semibold text-slate-700">{bar.score === null ? 'Insufficient evidence' : `Score ${bar.score}/${bar.maximum}`} · Weight {methodology.weight}.</span>{' '}
+                            <span className="font-semibold text-slate-700">{bar.score === null ? 'Insufficient evidence' : `Score ${formatScore(bar.score)}/${bar.maximum}`} · Weight {methodology.weight}.</span>{' '}
                             {methodology.evidenceSummary}
                           </p>
                           <div
                             role="tooltip"
                             className="pointer-events-none absolute right-full top-1/2 z-20 mr-3 hidden w-80 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-[11px] leading-snug text-slate-600 shadow-lg md:group-hover:block md:group-focus:block"
                           >
-                            <span className="font-semibold text-slate-800">{bar.score === null ? 'Insufficient evidence' : `Score ${bar.score}/${bar.maximum}`} · Weight {methodology.weight}</span>
+                            <span className="font-semibold text-slate-800">{bar.score === null ? 'Insufficient evidence' : `Score ${formatScore(bar.score)}/${bar.maximum}`} · Weight {methodology.weight}</span>
                             <ul className="mt-2 space-y-1">
                               {methodology.checks.map((check) => {
                                 const outcome = check.state === 'pass' ? 'Full credit' : check.score > 0 ? 'Partial credit' : check.state === 'unknown' ? 'Insufficient evidence' : 'No credit'
                                 return (
                                   <li key={check.id} className="flex gap-1.5">
                                     <span aria-hidden="true" className="text-slate-400">•</span>
-                                    <span><span className="font-medium text-slate-700">{check.label}</span>: <span className="whitespace-nowrap">{check.score}/{check.maximum}</span> · {outcome}</span>
+                                    <span><span className="font-medium text-slate-700">{check.label}</span>: <span className="whitespace-nowrap">{formatScore(check.score)}/{check.maximum}</span> · {outcome}</span>
                                   </li>
                                 )
                               })}
