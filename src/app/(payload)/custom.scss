@@ -2460,6 +2460,18 @@ body:has(.global-edit--optimate-settings) {
   gap: 10px;
   padding: 10px 20px;
   border-bottom: 1px solid #eef0f3;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 150ms ease;
+
+  &:hover {
+    background-color: #f8fafc;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: -2px;
+  }
 
   &:last-child {
     border-bottom: none;

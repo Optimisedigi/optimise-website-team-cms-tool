@@ -115,6 +115,7 @@ const logTeamTaskActivity: CollectionAfterChangeHook = async ({ doc, previousDoc
       description: `${taskTypeLabel} task submitted for review.`,
       user: req.user?.id,
       client: clientId,
+      targetUrl: `/admin/collections/team-tasks/${doc.id}`,
     }).catch(() => {});
   }
 
@@ -125,6 +126,7 @@ const logTeamTaskActivity: CollectionAfterChangeHook = async ({ doc, previousDoc
       description: `${taskTypeLabel} task completed.`,
       user: req.user?.id,
       client: clientId,
+      targetUrl: `/admin/collections/team-tasks/${doc.id}`,
     }).catch(() => {});
   }
 };

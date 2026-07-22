@@ -480,6 +480,7 @@ describe("BlogPosts: afterChange hook", () => {
       description: "A brief summary",
       user: 1,
       client: "c1",
+      targetUrl: "/admin/collections/blog-posts/p1",
     });
     expect(createLedgerItem).toHaveBeenCalledWith(
       mockPayload,

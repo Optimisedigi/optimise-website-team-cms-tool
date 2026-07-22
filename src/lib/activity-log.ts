@@ -71,6 +71,8 @@ interface ActivityEntry {
   description?: string;
   user?: string | number;
   client?: string | number;
+  /** Internal destination opened from the dashboard activity feed. */
+  targetUrl?: string;
 }
 
 export async function logActivity(

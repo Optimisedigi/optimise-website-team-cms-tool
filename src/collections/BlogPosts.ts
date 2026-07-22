@@ -47,6 +47,7 @@ export const BlogPosts: CollectionConfig = {
             description: doc.excerpt?.slice(0, 120) || "",
             user: req.user?.id,
             client: clientId,
+            targetUrl: `/admin/collections/blog-posts/${doc.id}`,
           }).catch(() => {});
 
           if (clientId) {

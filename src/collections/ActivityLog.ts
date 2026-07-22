@@ -120,6 +120,13 @@ export const ActivityLog: CollectionConfig = {
         description: "Related client",
       },
     },
+    {
+      name: "targetUrl",
+      type: "text",
+      admin: {
+        description: "Internal destination opened from the dashboard activity feed.",
+      },
+    },
     // Optimate agent step fields. All optional; populated only on agent-emitted rows.
     {
       name: "agentRunId",

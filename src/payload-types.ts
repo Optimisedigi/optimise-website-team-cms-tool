@@ -7866,6 +7866,10 @@ export interface ActivityLog {
    */
   client?: (number | null) | Client;
   /**
+   * Internal destination opened from the dashboard activity feed.
+   */
+  targetUrl?: string | null;
+  /**
    * Optimate agents: groups all step rows for one agent run.
    */
   agentRunId?: string | null;
@@ -13700,6 +13704,7 @@ export interface ActivityLogSelect<T extends boolean = true> {
   description?: T;
   user?: T;
   client?: T;
+  targetUrl?: T;
   agentRunId?: T;
   agentName?: T;
   step?: T;

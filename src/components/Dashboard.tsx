@@ -56,6 +56,7 @@ interface ActivityEntry {
   createdAt: string
   user?: { name?: string; email?: string } | null
   client?: { name?: string } | null
+  targetUrl?: string
 }
 
 interface CostHistoryEntry {
@@ -1373,6 +1374,12 @@ export function activityDescription(entry: ActivityEntry): string | undefined {
   return entry.description.replace(/^Client \d+:/, `${entry.client.name}:`)
 }
 
+export function activityHref(entry: ActivityEntry): string {
+  return entry.targetUrl?.startsWith('/admin/')
+    ? entry.targetUrl
+    : `/admin/collections/activity-log/${entry.id}`
+}
+
 function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
   const visibleEntries = entries.filter(isDashboardActivityVisible)
 
@@ -1391,7 +1398,7 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
       ) : (
         <div className="od-feed">
           {visibleEntries.map((entry) => (
-            <div key={entry.id} className="od-feed__item">
+            <a key={entry.id} href={activityHref(entry)} className="od-feed__item">
               <div className="od-feed__dot">{activityIcon(entry.type)}</div>
               <div className="od-feed__body">
                 <div className="od-feed__title">
@@ -1409,7 +1416,7 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
                   {timeAgo(entry.createdAt)}
                 </div>
               </div>
-            </div>
+            </a>
           ))}
         </div>
       )}

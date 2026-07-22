@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import Dashboard, { activityDescription, activityIcon } from '@/components/Dashboard'
+import Dashboard, { activityDescription, activityHref, activityIcon } from '@/components/Dashboard'
 
 vi.mock('@/components/RocketSplash', () => ({ default: () => <div>Loading</div> }))
 vi.mock('@/components/SalesFunnelDashboard', () => ({ default: () => null }))
@@ -70,5 +70,13 @@ describe('Dashboard activity panel', () => {
 
     expect(activityDescription(entry)).toBe('Acme Plumbing: 3 violations for "1234567890"')
     expect(activityIcon(entry.type)).toBe('≠')
+  })
+
+  it('opens linked activities at their source, with the activity log as a safe fallback', () => {
+    expect(activityHref({ ...dashboardData.activity[0], targetUrl: '/admin/collections/blog-posts/42' }))
+      .toBe('/admin/collections/blog-posts/42')
+    expect(activityHref(dashboardData.activity[0])).toBe('/admin/collections/activity-log/match-type-activity')
+    expect(activityHref({ ...dashboardData.activity[0], targetUrl: 'https://untrusted.example' }))
+      .toBe('/admin/collections/activity-log/match-type-activity')
   })
 })
