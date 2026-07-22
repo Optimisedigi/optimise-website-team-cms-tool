@@ -464,6 +464,7 @@ async function syncClient(
   clientDoc: any,
 ): Promise<{ processed: boolean; violationCount: number; skippedNegated: number; error?: string }> {
   const clientId = typeof clientDoc.id === "object" ? (clientDoc.id as any).id : clientDoc.id;
+  const clientName = typeof clientDoc.name === "string" && clientDoc.name.trim() ? clientDoc.name : "This client";
   const customerId = clientDoc.googleAdsCustomerId as string | null;
   if (!customerId) return { processed: false, violationCount: 0, skippedNegated: 0, error: "no customer ID" };
 
@@ -605,8 +606,8 @@ async function syncClient(
     title: `Match type violations sync: ${createdOrUpdated} violations found`,
     description:
       (skippedNegated > 0
-        ? `Client ${clientId}: ${createdOrUpdated} violations, ${skippedNegated} skipped (already negated)`
-        : `Client ${clientId}: ${createdOrUpdated} violations for "${customerId}"`) +
+        ? `${clientName}: ${createdOrUpdated} violations, ${skippedNegated} skipped (already negated)`
+        : `${clientName}: ${createdOrUpdated} violations for "${customerId}"`) +
       (scopeNote ? ` (${scopeNote})` : ""),
     client: clientId,
   });

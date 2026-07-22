@@ -40,6 +40,25 @@ const LLM_MONTHLY_AUD = {
   kimi: 0.0,          // Update when subscribed
 };
 
+// Dashboard Activity is an executive feed, not an audit trail. The full
+// activity log remains available in Payload admin for operational detail.
+export const DASHBOARD_EXCLUDED_ACTIVITY_TYPES = [
+  "agent_tool_call",
+  "agent_reasoning",
+  "agent_final_output",
+  "agent_error",
+  "agent_auth_event",
+  "template_created",
+  "timeline_created",
+  "keyword_analysis",
+  "gsc_snapshot",
+  "ai_visibility_snapshot_created",
+  "serp_displacement_snapshot_created",
+  "serp_displacement_alert_created",
+  "match_type_synonym_rule_created",
+  "match_type_allow_list_term_created",
+] as const;
+
 type AgencyKpiSnapshotValues = {
   activeClients: number;
   activeLeads: number;
@@ -385,6 +404,9 @@ export async function GET() {
 
     payload.find({
       collection: "activity-log" as any,
+      where: {
+        type: { not_in: [...DASHBOARD_EXCLUDED_ACTIVITY_TYPES] },
+      },
       limit: 20,
       sort: "-createdAt",
       depth: 1,

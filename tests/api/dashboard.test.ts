@@ -60,6 +60,34 @@ describe('GET /api/dashboard', () => {
     expect(res.status).toBe(401)
   })
 
+  it('excludes low-level operational events from the activity feed', async () => {
+    await GET()
+    const activityRequest = mockPayload.find.mock.calls
+      .map(([args]) => args)
+      .find((args) => args?.collection === 'activity-log')
+
+    expect(activityRequest?.where).toEqual({
+      type: {
+        not_in: expect.arrayContaining([
+          'agent_tool_call',
+          'agent_reasoning',
+          'agent_final_output',
+          'agent_error',
+          'agent_auth_event',
+          'template_created',
+          'timeline_created',
+          'keyword_analysis',
+          'gsc_snapshot',
+          'ai_visibility_snapshot_created',
+          'serp_displacement_snapshot_created',
+          'serp_displacement_alert_created',
+          'match_type_synonym_rule_created',
+          'match_type_allow_list_term_created',
+        ]),
+      },
+    })
+  })
+
   it('exposes monthlyRetainerNet, AAR, oneOffYTD, retainerYTD in the response', async () => {
     const res = await GET()
     expect(res.status).toBe(200)

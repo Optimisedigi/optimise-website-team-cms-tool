@@ -920,6 +920,17 @@ const Dashboard = () => {
             />
           )}
 
+          <ActivityFeed entries={data.activity} />
+
+          {/* Team Tasks */}
+          <TeamTasksCard teamTasks={data.teamTasks} />
+
+          {/* Action Items */}
+          <ActionItems
+            uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}
+            pendingStatements={statementsSummary?.pendingCount ?? 0}
+          />
+
           {/* Pending Statements banner */}
           {statementsSummary && statementsSummary.pendingCount > 0 && (
             <a
@@ -948,17 +959,6 @@ const Dashboard = () => {
               </div>
             </a>
           )}
-
-          <ActivityFeed entries={data.activity} />
-
-          {/* Team Tasks */}
-          <TeamTasksCard teamTasks={data.teamTasks} />
-
-          {/* Action Items */}
-          <ActionItems
-            uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}
-            pendingStatements={statementsSummary?.pendingCount ?? 0}
-          />
 
           {/* Realtime Voice Cost */}
           <RealtimeVoiceCostCard usage={data.realtimeVoiceCost} />
@@ -1354,7 +1354,8 @@ function CostBreakdown({ data, open }: { data: DashboardData; open: boolean }) {
 
 // ─── Activity Feed ────────────────────────────────────────
 
-function activityIcon(type: string): string {
+export function activityIcon(type: string): string {
+  if (type.includes('match_type_violation')) return '≠'
   if (type.includes('task')) return '🧭'
   if (type.includes('proposal')) return '📄'
   if (type.includes('invoice') || type.includes('cost')) return '💰'
@@ -1362,6 +1363,14 @@ function activityIcon(type: string): string {
   if (type.includes('deploy')) return '🚢'
   if (type.includes('gsc') || type.includes('analytics')) return '📊'
   return '✅'
+}
+
+export function activityDescription(entry: ActivityEntry): string | undefined {
+  if (!entry.description || !entry.type.includes('match_type_violation') || !entry.client?.name) {
+    return entry.description
+  }
+
+  return entry.description.replace(/^Client \d+:/, `${entry.client.name}:`)
 }
 
 function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
@@ -1388,8 +1397,8 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
                 <div className="od-feed__title">
                   {entry.title}
                 </div>
-                {entry.description && (
-                  <div className="od-feed__desc">{entry.description}</div>
+                {activityDescription(entry) && (
+                  <div className="od-feed__desc">{activityDescription(entry)}</div>
                 )}
                 <div className="od-feed__meta">
                   {entry.user?.name || entry.user?.email || 'System'}

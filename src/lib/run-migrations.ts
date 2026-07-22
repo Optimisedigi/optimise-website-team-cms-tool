@@ -1939,13 +1939,31 @@ export async function runMigrations(
     await run("clear_raw_data_for_413_fix", "UPDATE `google_ads_audits` SET `raw_data` = NULL WHERE `raw_data` IS NOT NULL");
   
     // ── Revert tag_audits back to tag_setup_audits (undo premature rename) ──
-    // These reverts run only when the old `tag_audits*` tables still exist; once
-    // renamed back to `tag_setup_audits*` a re-run hits "no such table", which is
-    // the expected already-applied signal.
+    // Some database snapshots contain both names because the current table was
+    // created before this revert ran. An empty duplicate is safe to remove;
+    // keeping it makes SQLite reject the rename and leaves the current schema
+    // pointing at the incomplete table.
+    const tagAuditTableResult = await client.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('tag_audits', 'tag_setup_audits')") as {
+      rows?: Array<{ name?: string }>;
+    };
+    const tagAuditTables = new Set((tagAuditTableResult.rows ?? []).map((row) => row.name));
+    if (tagAuditTables.has("tag_audits") && tagAuditTables.has("tag_setup_audits")) {
+      const [legacyCountResult, currentCountResult] = await Promise.all([
+        client.execute("SELECT COUNT(*) AS count FROM `tag_audits`"),
+        client.execute("SELECT COUNT(*) AS count FROM `tag_setup_audits`"),
+      ]);
+      const legacyCount = Number((legacyCountResult as { rows?: Array<{ count?: number | string }> }).rows?.[0]?.count ?? 0);
+      const currentCount = Number((currentCountResult as { rows?: Array<{ count?: number | string }> }).rows?.[0]?.count ?? 0);
+      if (currentCount === 0) {
+        await run("drop_empty_tag_setup_audits_for_revert", "DROP TABLE `tag_setup_audits`");
+      } else if (legacyCount === 0) {
+        await run("drop_empty_tag_audits_for_revert", "DROP TABLE `tag_audits`");
+      }
+    }
     await run("revert_tag_audits_to_tag_setup_audits", "ALTER TABLE `tag_audits` RENAME TO `tag_setup_audits`", ["no such table"]);
     await run("revert_tag_audits_audit_history", "ALTER TABLE `tag_audits_audit_history` RENAME TO `tag_setup_audits_audit_history`", ["no such table"]);
     await run("revert_tag_audits_verify_history", "ALTER TABLE `tag_audits_verify_history` RENAME TO `tag_setup_audits_verify_history`", ["no such table"]);
-    // Revert column rename
+    // Revert column rename.
     await run("revert_website_url_to_url", "ALTER TABLE `tag_setup_audits` RENAME COLUMN `website_url` TO `url`");
   
     // ── Campaign Proposal Layer 1 config fields ──
@@ -5474,6 +5492,21 @@ export async function runMigrations(
     await run("contractors.reimbursement_amount", "ALTER TABLE `contractors` ADD `reimbursement_amount` numeric");
     await run("contractors.reimbursement_recurrence", "ALTER TABLE `contractors` ADD `reimbursement_recurrence` text");
     await run("contractors.reimbursement_start_date", "ALTER TABLE `contractors` ADD `reimbursement_start_date` text");
+
+    // ── Search query review (2026-08-11 / 2026-08-12) ──
+    // Payload reads every locked-document relationship column on admin load.
+    // Keep this bundled runner aligned with the collection schema so a stale
+    // production snapshot does not make the whole admin fail before login.
+    await run("search_query_vocabulary", "CREATE TABLE IF NOT EXISTS `search_query_vocabulary` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `client_id` integer NOT NULL, `phrase` text NOT NULL, `normalized_phrase` text NOT NULL, `classification` text NOT NULL, `scope` text NOT NULL, `source` text NOT NULL, `enabled` integer DEFAULT 1, `expires_at` text, `review_note` text, `audit_decision_trail` text, `updated_at` text NOT NULL, `created_at` text NOT NULL, FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE cascade)");
+    await run("search_query_vocabulary_client_phrase_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `search_query_vocabulary_client_phrase_idx` ON `search_query_vocabulary` (`client_id`, `normalized_phrase`)");
+    await run("search_query_review_groups", "CREATE TABLE IF NOT EXISTS `search_query_review_groups` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `snapshot_id` integer NOT NULL, `client_id` integer NOT NULL, `fingerprint` text NOT NULL, `classification_state` text NOT NULL DEFAULT 'review', `representative_terms` text NOT NULL, `metrics` text NOT NULL, `source_rows` text NOT NULL, `contexts` text, `rationale` text, `reviewer_decision` text, `vocabulary_id` integer, `updated_at` text NOT NULL, `created_at` text NOT NULL, FOREIGN KEY (`snapshot_id`) REFERENCES `google_ads_audit_snapshots`(`id`) ON UPDATE no action ON DELETE cascade, FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE cascade, FOREIGN KEY (`vocabulary_id`) REFERENCES `search_query_vocabulary`(`id`) ON UPDATE no action ON DELETE set null)");
+    await run("search_query_review_groups_snapshot_fingerprint_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `search_query_review_groups_snapshot_fingerprint_idx` ON `search_query_review_groups` (`snapshot_id`, `fingerprint`)");
+    await run("search_query_review_groups_client_state_idx", "CREATE INDEX IF NOT EXISTS `search_query_review_groups_client_state_idx` ON `search_query_review_groups` (`client_id`, `classification_state`)");
+    await run("search_query_review_groups_negative_candidates", "CREATE TABLE IF NOT EXISTS `search_query_review_groups_negative_candidates` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `parent_id` integer NOT NULL, `negative_sweep_candidates_id` integer NOT NULL, `order` integer NOT NULL, FOREIGN KEY (`parent_id`) REFERENCES `search_query_review_groups`(`id`) ON UPDATE no action ON DELETE cascade, FOREIGN KEY (`negative_sweep_candidates_id`) REFERENCES `negative_sweep_candidates`(`id`) ON UPDATE no action ON DELETE cascade)");
+    await run("locked_docs_rels.search_query_vocabulary_id", "ALTER TABLE `payload_locked_documents_rels` ADD `search_query_vocabulary_id` integer REFERENCES `search_query_vocabulary`(`id`) ON UPDATE no action ON DELETE cascade");
+    await run("locked_docs_rels.search_query_review_groups_id", "ALTER TABLE `payload_locked_documents_rels` ADD `search_query_review_groups_id` integer REFERENCES `search_query_review_groups`(`id`) ON UPDATE no action ON DELETE cascade");
+    await run("search_query_review_groups_rels", "CREATE TABLE IF NOT EXISTS `search_query_review_groups_rels` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `order` integer, `parent_id` integer NOT NULL, `path` text NOT NULL, `negative_sweep_candidates_id` integer, FOREIGN KEY (`parent_id`) REFERENCES `search_query_review_groups`(`id`) ON UPDATE no action ON DELETE cascade, FOREIGN KEY (`negative_sweep_candidates_id`) REFERENCES `negative_sweep_candidates`(`id`) ON UPDATE no action ON DELETE cascade)");
+    await run("search_query_review_groups_rels_parent_idx", "CREATE INDEX IF NOT EXISTS `search_query_review_groups_rels_parent_idx` ON `search_query_review_groups_rels` (`parent_id`, `path`)");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
