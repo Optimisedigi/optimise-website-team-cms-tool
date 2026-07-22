@@ -14,10 +14,13 @@ import type {
   DeliveryRadiusReviewPayload,
   DeliverySplitRow,
   MonthlyBar,
+  ServiceItem,
   SourceSummaryRow,
+  ToplineMonth,
+  YoyPoint,
 } from "./payload";
 
-const SLIDES = ["cover", "monthly", "radius", "channels", "sources"] as const;
+const SLIDES = ["cover", "monthly", "radius", "channels", "sources", "appendix", "services", "yoy", "topline"] as const;
 type SlideId = (typeof SLIDES)[number];
 
 const NIGHT = "#07091a";
@@ -257,12 +260,12 @@ function RocketUi() {
 function RadiusSlide({ p }: { p: DeliveryRadiusReviewPayload }) {
   return (
     <SlideWrapper id="radius" light>
-      <SlideHeader title={`${p.radiusKm} km catchment performance`} subtitle={`${p.suburbCount} nearby suburbs · delivery sales and orders by postcode`} />
+      <SlideHeader title={`${p.radiusKm} km catchment performance`} subtitle={`${p.suburbCount} nearby suburbs · delivery sales and cake orders by postcode`} />
       <div className="responsive-grid" style={{ display: "grid", gridTemplateColumns: "0.95fr 1.05fr", gap: 28, alignItems: "center" }}>
         <div>
-          <AuditTable headers={["Suburb", "km", "PC", "Delivery", "Orders"]} widths={["31%", "10%", "13%", "25%", "21%"]} rows={p.suburbs.map((s) => [s.name, s.km, s.postcode, s.deliverySales, s.deliveryOrders])} />
+          <AuditTable headers={["Suburb", "km", "PC", "Delivery", "Cake orders"]} widths={["31%", "10%", "13%", "25%", "21%"]} rows={p.suburbs.map((s) => [s.name, s.km, s.postcode, s.deliverySales, s.deliveryOrders])} />
           <p style={{ marginTop: 18, color: SLATE, fontSize: 15, fontWeight: 700 }}>
-            {p.totalDeliverySales} from {p.totalDeliveryOrders} delivery orders · average order {p.totalAvgOrder}
+            {p.totalDeliverySales} from {p.totalDeliveryOrders} delivery cake orders · average order {p.totalAvgOrder}
           </p>
           {p.suburbFootnote ? <p style={{ marginTop: 8, color: MUTED, fontSize: 12 }}>{p.suburbFootnote}</p> : null}
         </div>
@@ -409,8 +412,7 @@ function ChannelSlide({ p }: { p: DeliveryRadiusReviewPayload }) {
       <SlideHeader title={`Delivery vs Roselands Pick-up · ${p.radiusKm} km`} subtitle="Channel totals · free vs paid delivery split" />
       <MetricGrid titles={p.channelTitles} values={p.channelValues} sub1={p.channelSub1} sub2={p.channelSub2} />
       <SectionEyebrow>Delivery split: free vs paid</SectionEyebrow>
-      <AuditTable headers={["Delivery type", "Sales", "Orders", "Avg order", "Share"]} widths={["34%", "18%", "16%", "18%", "14%"]} rows={p.deliverySplit.map(toDeliverySplitRow)} />
-      <Callout>{p.commentary.map((item) => <li key={item}>{item}</li>)}</Callout>
+      <AuditTable headers={["Delivery type", "Sales", "Cake orders", "Avg order", "Share"]} widths={["34%", "18%", "16%", "18%", "14%"]} rows={p.deliverySplit.map(toDeliverySplitRow)} />
     </SlideWrapper>
   );
 }
@@ -422,8 +424,230 @@ function SourcesSlide({ p }: { p: DeliveryRadiusReviewPayload }) {
       <MetricGrid titles={p.sourceCardTitles} values={p.sourceCardValues} sub1={p.sourceCardSub1} sub2={p.sourceCardSub2} />
       <SectionEyebrow>Source detail</SectionEyebrow>
       <AuditTable small headers={["Source", "Metric", "Clicks", "Window"]} widths={["31%", "38%", "14%", "17%"]} rows={p.sourceDetail.map(toSourceRow)} />
-      <Callout>{p.sourceInsight.map((item) => <li key={item}>{item}</li>)}</Callout>
     </SlideWrapper>
+  );
+}
+
+function AppendixSlide() {
+  return (
+    <SlideWrapper id="appendix" dark>
+      <Starfield id="delivery-appendix-starfield" />
+      <div className="orbit-deco" style={{ width: 360, height: 360, top: "8%", right: "4%" }} />
+      <div className="dark-inner">
+        <h2 className="cover-h1" style={{ fontSize: "clamp(2.2rem, 5vw, 3.8rem)", marginBottom: 20 }}>Appendix</h2>
+        <p style={{ color: "rgba(255,255,255,0.62)", fontSize: 18, margin: "0 auto", maxWidth: 640 }}>
+          Longer-term growth context
+        </p>
+      </div>
+    </SlideWrapper>
+  );
+}
+
+function ServicesSlide({ p }: { p: DeliveryRadiusReviewPayload }) {
+  if (!p.services || p.services.length === 0) return null;
+  return (
+    <SlideWrapper id="services" light>
+      <SlideHeader title={p.servicesTitle ?? "What we do"} subtitle={p.servicesSubtitle ?? ""} />
+      <div className="responsive-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        {p.services.map((svc, i) => <ServiceCard key={svc.title} index={i + 1} svc={svc} />)}
+      </div>
+    </SlideWrapper>
+  );
+}
+
+function ServiceCard({ index, svc }: { index: number; svc: ServiceItem }) {
+  const inactive = svc.inactive === true;
+  return (
+    <div
+      style={{
+        border: `1px solid ${inactive ? BORDER : "#bfdbfe"}`,
+        background: inactive ? SURFACE : "#eff6ff",
+        borderRadius: 12,
+        padding: 18,
+        opacity: inactive ? 0.55 : 1,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: "50%",
+            background: inactive ? "#cbd5e1" : "#1d4ed8",
+            color: "white",
+            fontSize: 13,
+            fontWeight: 800,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {index}
+        </span>
+        <h3 style={{ color: inactive ? MUTED : SLATE, fontSize: 15, fontWeight: 800 }}>{svc.title}</h3>
+      </div>
+      <p style={{ color: MUTED, fontSize: 12.5, lineHeight: 1.5 }}>{svc.description}</p>
+      {inactive && svc.inactiveNote ? (
+        <p style={{ color: MUTED, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "auto" }}>{svc.inactiveNote}</p>
+      ) : null}
+    </div>
+  );
+}
+
+const YOY_BAR = "#2563eb";
+const YOY_BAR_LATEST = "#1d4ed8";
+const YOY_LINE = "#f59e0b";
+
+function YoySlide({ p }: { p: DeliveryRadiusReviewPayload }) {
+  if (!p.yoyPoints || p.yoyPoints.length === 0) return null;
+  return (
+    <SlideWrapper id="yoy" light>
+      <SlideHeader title={p.yoyTitle ?? "Year-on-year growth"} subtitle={p.yoySubtitle ?? ""} />
+      <Panel pad={18}><YoyChart points={p.yoyPoints} xAxisLabel={p.yoyXAxisLabel} /></Panel>
+      <div style={{ display: "flex", gap: 28, marginTop: 16, justifyContent: "center", color: MUTED, fontSize: 13 }}>
+        <Legend color={YOY_BAR} label={p.yoyBarLabel ?? "Items sold"} />
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 18, height: 3, borderRadius: 2, background: YOY_LINE }} />
+          {p.yoyLineLabel ?? "Traffic"}
+        </span>
+      </div>
+    </SlideWrapper>
+  );
+}
+
+function YoyChart({ points, xAxisLabel }: { points: YoyPoint[]; xAxisLabel?: string }) {
+  const W = 940;
+  const H = 420;
+  const pad = { top: 56, right: 30, bottom: xAxisLabel ? 72 : 52, left: 30 };
+  const innerW = W - pad.left - pad.right;
+  const innerH = H - pad.top - pad.bottom;
+  const base = pad.top + innerH;
+  const maxBar = Math.max(...points.map((pt) => pt.barValue), 1);
+  const maxLine = Math.max(...points.map((pt) => pt.lineValue), 1);
+  const gap = 44;
+  const barW = (innerW - gap * (points.length - 1)) / points.length;
+  const cxAt = (i: number) => pad.left + i * (barW + gap) + barW / 2;
+  // Bars use ~78% of inner height so the line always sits above them.
+  const lineYAt = (v: number) => pad.top + (1 - v / maxLine) * (innerH - 24);
+  const linePath = points
+    .map((pt, i) => `${i === 0 ? "M" : "L"} ${cxAt(i).toFixed(1)} ${lineYAt(pt.lineValue).toFixed(1)}`)
+    .join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="auto" role="img" aria-label="Year-on-year items sold and traffic chart">
+      <rect x={pad.left} y={pad.top} width={innerW} height={innerH} fill="#fff" />
+      <line x1={pad.left} y1={base} x2={pad.left + innerW} y2={base} stroke={BORDER} strokeWidth={1} />
+      {points.map((pt, i) => {
+        const barH = (pt.barValue / maxBar) * innerH * 0.78;
+        const x = pad.left + i * (barW + gap);
+        const y = base - barH;
+        const latest = i === points.length - 1;
+        return (
+          <g key={pt.label}>
+            <rect x={x} y={y} width={barW} height={barH} rx={3} fill={latest ? YOY_BAR_LATEST : YOY_BAR} opacity={latest ? 1 : 0.55} />
+            <text x={x + barW / 2} y={y + 22} textAnchor="middle" fill="white" fontSize={14} fontWeight={800}>{pt.bar}</text>
+            <text x={x + barW / 2} y={H - (xAxisLabel ? 40 : 16)} textAnchor="middle" fill={SLATE} fontSize={13} fontWeight={800}>{pt.label}</text>
+          </g>
+        );
+      })}
+      <path d={linePath} fill="none" stroke={YOY_LINE} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+      {points.map((pt, i) => {
+        const cy = lineYAt(pt.lineValue);
+        return (
+          <g key={`${pt.label}-line`}>
+            <circle cx={cxAt(i)} cy={cy} r={5} fill="white" stroke={YOY_LINE} strokeWidth={3} />
+            <text x={cxAt(i)} y={cy - 14} textAnchor="middle" fill="#b45309" fontSize={13} fontWeight={800}>{pt.line}</text>
+          </g>
+        );
+      })}
+      {xAxisLabel ? (
+        <text x={pad.left + innerW / 2} y={H - 12} textAnchor="middle" fill={MUTED} fontSize={12}>{xAxisLabel}</text>
+      ) : null}
+    </svg>
+  );
+}
+
+const TOPLINE_COLORS = ["#fbd9b8", "#eab308", "#1d4ed8", "#16a34a"];
+
+function ToplineSlide({ p }: { p: DeliveryRadiusReviewPayload }) {
+  if (!p.toplineMonths || p.toplineMonths.length === 0 || !p.toplineYears) return null;
+  return (
+    <SlideWrapper id="topline" light>
+      <SlideHeader title={p.toplineTitle ?? "Topline Performance"} subtitle={p.toplineSubtitle ?? ""} />
+      <div style={{ display: "flex", gap: 24, marginBottom: 14, justifyContent: "center", color: MUTED, fontSize: 13 }}>
+        {p.toplineYears.map((year, i) => (
+          <Legend key={year} color={TOPLINE_COLORS[i % TOPLINE_COLORS.length]} label={year} />
+        ))}
+      </div>
+      <Panel pad={18}>
+        <ToplineChart months={p.toplineMonths} years={p.toplineYears} badge={p.toplineBadge} yAxisLabel={p.toplineYAxisLabel} />
+      </Panel>
+    </SlideWrapper>
+  );
+}
+
+function ToplineChart({ months, years, badge, yAxisLabel }: { months: ToplineMonth[]; years: string[]; badge?: string; yAxisLabel?: string }) {
+  const W = 1040;
+  const H = 440;
+  const pad = { top: 30, right: 16, bottom: 40, left: 74 };
+  const innerW = W - pad.left - pad.right;
+  const innerH = H - pad.top - pad.bottom;
+  const base = pad.top + innerH;
+  const maxVal = Math.max(...months.flatMap((m) => m.values.filter((v): v is number => v !== null)), 1);
+  // Round the axis top up to a clean step.
+  const step = maxVal > 40000 ? 20000 : 10000;
+  const axisMax = Math.ceil(maxVal / step) * step;
+  const groupGap = 14;
+  const groupW = (innerW - groupGap * (months.length - 1)) / months.length;
+  const barGap = 2;
+  const barW = (groupW - barGap * (years.length - 1)) / years.length;
+  const yAt = (v: number) => base - (v / axisMax) * innerH;
+  const ticks: number[] = [];
+  for (let t = 0; t <= axisMax; t += step) ticks.push(t);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="auto" role="img" aria-label="Monthly sales by year, grouped bar chart">
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={pad.left} y1={yAt(t)} x2={pad.left + innerW} y2={yAt(t)} stroke={t === 0 ? "#cbd5e1" : BORDER} strokeWidth={1} />
+          <text x={pad.left - 8} y={yAt(t) + 4} textAnchor="end" fill={MUTED} fontSize={11}>{`$${t.toLocaleString()}`}</text>
+        </g>
+      ))}
+      {yAxisLabel ? (
+        <text x={18} y={pad.top + innerH / 2} textAnchor="middle" fill={"#1d4ed8"} fontSize={14} fontWeight={800} transform={`rotate(-90 18 ${pad.top + innerH / 2})`} letterSpacing="0.08em">{yAxisLabel.toUpperCase()}</text>
+      ) : null}
+      {months.map((m, mi) => {
+        const gx = pad.left + mi * (groupW + groupGap);
+        return (
+          <g key={m.month}>
+            {m.values.map((v, yi) => {
+              if (v === null) return null;
+              const h = (v / axisMax) * innerH;
+              return (
+                <rect
+                  key={years[yi]}
+                  x={gx + yi * (barW + barGap)}
+                  y={base - h}
+                  width={barW}
+                  height={h}
+                  rx={1.5}
+                  fill={TOPLINE_COLORS[yi % TOPLINE_COLORS.length]}
+                />
+              );
+            })}
+            <text x={gx + groupW / 2} y={H - 14} textAnchor="middle" fill={SLATE} fontSize={12} fontWeight={700}>{m.month}</text>
+          </g>
+        );
+      })}
+      {badge ? (
+        <g>
+          <rect x={W / 2 - 78} y={pad.top + 6} width={156} height={40} rx={6} fill={PICKUP_GREEN} />
+          <text x={W / 2} y={pad.top + 31} textAnchor="middle" fill="white" fontSize={16} fontWeight={800}>{badge}</text>
+        </g>
+      ) : null}
+    </svg>
   );
 }
 
@@ -446,14 +670,6 @@ function SectionEyebrow({ children }: { children: ReactNode }) {
   return <h3 style={{ margin: "6px 0 12px", color: ROSE, fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>{children}</h3>;
 }
 
-function Callout({ children }: { children: ReactNode }) {
-  return (
-    <div style={{ marginTop: 22, border: `1px solid ${BORDER}`, background: CALLOUT_SURFACE, borderRadius: 12, padding: "18px 20px" }}>
-      <h3 style={{ margin: "0 0 10px", color: SLATE, fontSize: 13, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>What this tells us</h3>
-      <ul style={{ margin: 0, paddingLeft: 18, color: "#475569", fontSize: 13 }}>{children}</ul>
-    </div>
-  );
-}
 
 function toDeliverySplitRow(r: DeliverySplitRow) {
   return [r.label, r.sales, r.orders, r.avgOrder, r.share];
@@ -477,6 +693,10 @@ export function Component({ payload: p }: { payload: DeliveryRadiusReviewPayload
         <RadiusSlide p={p} />
         <ChannelSlide p={p} />
         <SourcesSlide p={p} />
+        <AppendixSlide />
+        <ServicesSlide p={p} />
+        <YoySlide p={p} />
+        <ToplineSlide p={p} />
       </main>
       <DeckScrollEffects />
     </>

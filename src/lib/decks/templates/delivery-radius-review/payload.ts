@@ -83,6 +83,38 @@ export interface SourceSummaryRow {
   window: string;
 }
 
+export interface YoyPoint {
+  /** X-axis label, e.g. "2021 - 22". */
+  label: string;
+  /** Bar value formatted for display, e.g. "2,329". */
+  bar: string;
+  /** Raw bar value — used for bar height. */
+  barValue: number;
+  /** Line value formatted for display, e.g. "37,865". */
+  line: string;
+  /** Raw line value — used for line position (independent scale). */
+  lineValue: number;
+}
+
+export interface ToplineMonth {
+  /** Month label, e.g. "January". */
+  month: string;
+  /** One raw sales value per year in toplineYears order. Use null when the
+   *  year has no data for that month (e.g. current FY not yet reached). */
+  values: (number | null)[];
+}
+
+export interface ServiceItem {
+  /** Service name, e.g. "SEO". */
+  title: string;
+  /** Short description of what the service covers. */
+  description: string;
+  /** Render greyed out with a "previously managed" treatment. */
+  inactive?: boolean;
+  /** Optional small note shown when inactive, e.g. "No longer managed". */
+  inactiveNote?: string;
+}
+
 export interface DeliveryRadiusReviewPayload {
   // --- Cover ---
   /** Client display name, e.g. "Profiterole Patisserie". */
@@ -123,7 +155,7 @@ export interface DeliveryRadiusReviewPayload {
   /** Pre-formatted monthly bars (delivery + pick-up per month). */
   monthlyBars: MonthlyBar[];
   /** Summary line under the chart, e.g.
-   *  "Delivery $4,441 (49 orders, 16.7%) · Roselands Pick-up $22,184 (316 orders, 83.3%) · Combined $26,625".
+   *  "Delivery $4,441 (49 cake orders, 15.8%) · Roselands Pick-up $23,602 (347 cake orders, 84.2%) · Combined $28,043".
    */
   monthlySummary: string;
 
@@ -156,6 +188,42 @@ export interface DeliveryRadiusReviewPayload {
   sourceDetail: SourceSummaryRow[];
   /** Strategic interpretation for the click-through / store-action slide. */
   sourceInsight: string[];
+
+  // --- Appendix: What we do (optional) ---
+  /** Slide title, e.g. "What we do". Omit to hide the slide. */
+  servicesTitle?: string;
+  /** Slide subtitle. */
+  servicesSubtitle?: string;
+  /** Service cards in display order. Slide renders only when non-empty. */
+  services?: ServiceItem[];
+
+  // --- Appendix: Year-on-year growth (optional) ---
+  /** Slide title, e.g. "Year-on-year growth". Omit to hide the slide. */
+  yoyTitle?: string;
+  /** Slide subtitle, e.g. "Items sold vs website traffic by financial year". */
+  yoySubtitle?: string;
+  /** Legend label for the bars, e.g. "Items sold". */
+  yoyBarLabel?: string;
+  /** Legend label for the line, e.g. "Traffic". */
+  yoyLineLabel?: string;
+  /** X-axis caption, e.g. "Financial Years". */
+  yoyXAxisLabel?: string;
+  /** One point per financial year. Slide renders only when non-empty. */
+  yoyPoints?: YoyPoint[];
+
+  // --- Appendix: Topline performance by month (optional) ---
+  /** Slide title, e.g. "Topline Performance". Omit to hide the slide. */
+  toplineTitle?: string;
+  /** Slide subtitle. */
+  toplineSubtitle?: string;
+  /** Year series labels in draw order, e.g. ["2023", "2024", "2025", "2026"]. */
+  toplineYears?: string[];
+  /** Twelve months of grouped values. Slide renders only when non-empty. */
+  toplineMonths?: ToplineMonth[];
+  /** Optional highlight badge, e.g. "Sales +8% YoY". */
+  toplineBadge?: string;
+  /** Y-axis label, e.g. "Sales". */
+  toplineYAxisLabel?: string;
 
   // --- Slide 6: Thank-you ---
   /** Closing line / CTA. */
@@ -219,6 +287,34 @@ function isSourceSummaryRow(v: unknown): v is SourceSummaryRow {
     isStr(v.metric) &&
     isStr(v.value) &&
     isStr(v.window)
+  );
+}
+
+function isServiceItem(v: unknown): v is ServiceItem {
+  if (!isObj(v)) return false;
+  if (!isStr(v.title) || !isStr(v.description)) return false;
+  if (v.inactive !== undefined && typeof v.inactive !== "boolean") return false;
+  if (v.inactiveNote !== undefined && !isStr(v.inactiveNote)) return false;
+  return true;
+}
+
+function isYoyPoint(v: unknown): v is YoyPoint {
+  return (
+    isObj(v) &&
+    isStr(v.label) &&
+    isStr(v.bar) &&
+    isNum(v.barValue) &&
+    isStr(v.line) &&
+    isNum(v.lineValue)
+  );
+}
+
+function isToplineMonth(v: unknown): v is ToplineMonth {
+  return (
+    isObj(v) &&
+    isStr(v.month) &&
+    Array.isArray(v.values) &&
+    v.values.every((x) => x === null || isNum(x))
   );
 }
 
@@ -293,6 +389,20 @@ function parsePayload(input: unknown): DeliveryRadiusReviewPayload {
     return v;
   };
 
+  const optionalArr = <T>(
+    k: keyof DeliveryRadiusReviewPayload,
+    item: (x: unknown) => x is T,
+  ): T[] | undefined => {
+    const v = input[k as string];
+    if (v === undefined) return undefined;
+    if (!isArr(v, item)) {
+      throw new TypeError(
+        `delivery-radius-review payload: field "${String(k)}" must be an array of valid items when provided`,
+      );
+    }
+    return v;
+  };
+
   return {
     clientName: requireStr("clientName"),
     clientWebsite: requireStr("clientWebsite"),
@@ -328,6 +438,33 @@ function parsePayload(input: unknown): DeliveryRadiusReviewPayload {
     sourceDetail: requireArr("sourceDetail", isSourceSummaryRow),
     sourceInsight: requireStrArr("sourceInsight"),
 
+    toplineTitle: optionalStr("toplineTitle"),
+    toplineSubtitle: optionalStr("toplineSubtitle"),
+    toplineYears: (() => {
+      const v = input["toplineYears"];
+      if (v === undefined) return undefined;
+      if (!isArr(v, isStr)) {
+        throw new TypeError(
+          'delivery-radius-review payload: field "toplineYears" must be an array of strings when provided',
+        );
+      }
+      return v;
+    })(),
+    toplineMonths: optionalArr("toplineMonths", isToplineMonth),
+    toplineBadge: optionalStr("toplineBadge"),
+    toplineYAxisLabel: optionalStr("toplineYAxisLabel"),
+
+    servicesTitle: optionalStr("servicesTitle"),
+    servicesSubtitle: optionalStr("servicesSubtitle"),
+    services: optionalArr("services", isServiceItem),
+
+    yoyTitle: optionalStr("yoyTitle"),
+    yoySubtitle: optionalStr("yoySubtitle"),
+    yoyBarLabel: optionalStr("yoyBarLabel"),
+    yoyLineLabel: optionalStr("yoyLineLabel"),
+    yoyXAxisLabel: optionalStr("yoyXAxisLabel"),
+    yoyPoints: optionalArr("yoyPoints", isYoyPoint),
+
     closingLine: requireStr("closingLine"),
     closingSubline: optionalStr("closingSubline"),
   };
@@ -360,8 +497,9 @@ export const deliveryRadiusReviewSamplePayload: DeliveryRadiusReviewPayload = {
   coverSources: "",
 
   radiusKm: 3,
-  suburbCount: 10,
+  suburbCount: 11,
   suburbs: [
+    { name: "Roselands",     km: "0.00", postcode: "2196", deliverySales: "$729",  deliveryOrders: "7",  lat: -33.9326, lon: 151.0750 },
     { name: "Kingsgrove",    km: "1.49", postcode: "2208", deliverySales: "$490",  deliveryOrders: "2",  lat: -33.9392, lon: 151.0987 },
     { name: "Lakemba",       km: "1.49", postcode: "2195", deliverySales: "$756",  deliveryOrders: "7",  lat: -33.9206, lon: 151.0762 },
     { name: "Wiley Park",    km: "1.86", postcode: "2195", deliverySales: "—",     deliveryOrders: "—" },
@@ -383,20 +521,20 @@ export const deliveryRadiusReviewSamplePayload: DeliveryRadiusReviewPayload = {
     "Shared postcodes (Wiley Park/Lakemba 2195, Narwee/Beverly Hills 2209): revenue shown on the first suburb in each pair.",
 
   monthlyBars: [
-    { label: "Jan", delivery: "$1,770", deliveryValue: 1770, pickup: "$1,382", pickupValue: 1382 },
-    { label: "Feb", delivery: "$355",   deliveryValue: 355,  pickup: "$3,142", pickupValue: 3142 },
-    { label: "Mar", delivery: "$643",   deliveryValue: 643,  pickup: "$3,410", pickupValue: 3410 },
-    { label: "Apr", delivery: "$561",   deliveryValue: 561,  pickup: "$4,265", pickupValue: 4265 },
-    { label: "May", delivery: "$604",   deliveryValue: 604,  pickup: "$6,451", pickupValue: 6451 },
-    { label: "Jun", delivery: "$508",   deliveryValue: 508,  pickup: "$3,534", pickupValue: 3534 },
+    { label: "Jan", delivery: "$1,770", deliveryValue: 1770, pickup: "$4,320", pickupValue: 4320 },
+    { label: "Feb", delivery: "$355",   deliveryValue: 355,  pickup: "$3,491", pickupValue: 3491 },
+    { label: "Mar", delivery: "$643",   deliveryValue: 643,  pickup: "$4,437", pickupValue: 4437 },
+    { label: "Apr", delivery: "$561",   deliveryValue: 561,  pickup: "$3,723", pickupValue: 3723 },
+    { label: "May", delivery: "$604",   deliveryValue: 604,  pickup: "$5,207", pickupValue: 5207 },
+    { label: "Jun", delivery: "$508",   deliveryValue: 508,  pickup: "$2,424", pickupValue: 2424 },
   ],
   monthlySummary:
-    "Delivery $4,441 (49 orders, 16.7%) · Roselands Pick-up $22,184 (316 orders, 83.3%) · Combined $26,625",
+    "Delivery $4,441 (49 cake orders, 15.8%) · Roselands Pick-up $23,602 (347 cake orders, 84.2%) · Combined $28,043",
 
   channelTitles: ["Delivery (3 km)", "Roselands Pick-up", "Combined"],
-  channelValues: ["$4,441", "$22,184", "$26,625"],
-  channelSub1:   ["49 orders",   "316 orders",    "365 orders"],
-  channelSub2:   ["16.7% share", "83.3% share",   "100%"],
+  channelValues: ["$4,441", "$23,602", "$28,043"],
+  channelSub1:   ["49 cake orders", "347 cake orders", "396 cake orders"],
+  channelSub2:   ["15.8% share", "84.2% share",   "100%"],
   deliverySplit: [
     { label: "Free delivery",  sales: "$4,016", orders: "45", avgOrder: "$89.24",  share: "90.4%" },
     { label: "Paid delivery",  sales: "$425",   orders: "4",  avgOrder: "$106.25", share: "9.6%"  },
@@ -404,8 +542,8 @@ export const deliveryRadiusReviewSamplePayload: DeliveryRadiusReviewPayload = {
   ],
   commentary: [
     "Pick-up is ~5× delivery revenue in the same 3 km catchment — distance is not the constraint.",
-    "Only 4 paid-delivery orders in 6 months — the paid-delivery mechanic is rarely being triggered.",
-    "Free-delivery orders average $89 — high enough that the free-delivery promo is paying for itself in AOV.",
+    "Only 4 paid-delivery cake orders in 6 months — the paid-delivery mechanic is rarely being triggered.",
+    "Free-delivery cake orders average $89 — high enough that the free-delivery promo is paying for itself in AOV.",
   ],
 
   sourceCardTitles: ["Google Ads", "Organic search", "Google Business Profile"],
@@ -419,12 +557,58 @@ export const deliveryRadiusReviewSamplePayload: DeliveryRadiusReviewPayload = {
     { source: "Google Business Profile", metric: "Direction requests",                           value: "2,961", window: "Jan–Jun 2026" },
     { source: "Google Business Profile", metric: "Calls from Business Profile",                  value: "1,165", window: "Jan–Jun 2026" },
     { source: "Google Business Profile", metric: "Non-branded profile visits",                   value: "~7,000", window: "Jan–Jun 2026" },
+    { source: "Email marketing",         metric: "Roselands orders added to newsletter (accepts marketing) · emailed 2–3×/month · 9,778 Sydney subscribers in total, many within a reasonable radius of Roselands", value: "226", window: "Jan–Jun 2026" },
   ],
   sourceInsight: [
     "Reminder: the work driving local demand is broader than one ad channel — SEO, Google Ads, Meta Ads, website/e-commerce updates, Google Review responses, Google Business Profile posts and organic articles all contribute.",
     "Google Business Profile produced 2,961 direction requests and 1,165 calls, showing the work is driving real store intent and foot traffic beyond website orders.",
     "There were ~7,000 Business Profile visits from non-Profiterole Patisserie searches from January to June, meaning discovery work is creating demand not fully counted in the delivery/pick-up sales data.",
   ],
+
+  servicesTitle: "What Optimise Digital does",
+  servicesSubtitle: "The digital marketing engine behind profiterole.com.au",
+  services: [
+    { title: "Website management", description: "We manage the entire website: ongoing updates, new store pages, individual store content, delivery content and product management, including editing products." },
+    { title: "SEO", description: "Search engine optimisation across the website: rankings, technical health and local visibility." },
+    { title: "Google Ads", description: "Campaign management and optimisation driving traffic and cake orders." },
+    { title: "Paid social ads", description: "Paid social advertising: planning, creative and performance." },
+    { title: "Social media", description: "Organic social content and community management.", inactive: true, inactiveNote: "No longer managed" },
+    { title: "Email marketing", description: "Newsletter campaigns to the accepts-marketing database, 2 to 3 sends per month." },
+    { title: "Google Business Profile", description: "Profile management, posts and review management across store locations." },
+    { title: "Marketing strategy", description: "Marketing strategy and tactics, plus photography for the website and campaigns." },
+  ],
+
+  yoyTitle: "Year-on-year growth",
+  yoySubtitle: "Cakes sold vs website traffic by financial year",
+  yoyBarLabel: "Cakes sold",
+  yoyLineLabel: "Traffic",
+  yoyXAxisLabel: "Financial Years",
+  yoyPoints: [
+    { label: "2021 - 22", bar: "2,329", barValue: 2329, line: "37,865", lineValue: 37865 },
+    { label: "2022 - 23", bar: "2,487", barValue: 2487, line: "38,813", lineValue: 38813 },
+    { label: "2023 - 24", bar: "2,948", barValue: 2948, line: "57,339", lineValue: 57339 },
+    { label: "2024 - 25", bar: "4,553", barValue: 4553, line: "64,799", lineValue: 64799 },
+    { label: "2025 - 26", bar: "6,393", barValue: 6393, line: "96,578", lineValue: 96578 },
+  ],
+
+  toplineTitle: "Month on Month Performance by Year",
+  toplineYears: ["2023", "2024", "2025", "2026"],
+  // 2023 values estimated from chart bar heights (no labels in source).
+  toplineMonths: [
+    { month: "Jan", values: [11500, 11495, 17753, 36254] },
+    { month: "Feb", values: [9000,  11663, 19351, 31486] },
+    { month: "Mar", values: [11000, 20405, 23937, 37294] },
+    { month: "Apr", values: [12500, 15905, 27231, 35682] },
+    { month: "May", values: [12000, 20257, 35008, 43211] },
+    { month: "Jun", values: [11500, 12543, 28143, 30309] },
+    { month: "Jul", values: [14500, 15615, 23431, null] },
+    { month: "Aug", values: [14000, 18471, 31641, null] },
+    { month: "Sep", values: [15000, 19978, 38557, null] },
+    { month: "Oct", values: [13000, 25153, 38009, null] },
+    { month: "Nov", values: [16000, 25177, 33668, null] },
+    { month: "Dec", values: [21500, 44084, 70989, null] },
+  ],
+  toplineYAxisLabel: "Sales",
 
   closingLine: "Thank you",
   closingSubline:
