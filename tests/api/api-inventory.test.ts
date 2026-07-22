@@ -10,7 +10,9 @@ function readInventoryJson(): any {
 }
 
 function currentCmsRouteFiles(): string[] {
-  return execFileSync('find', ['src/app/(frontend)/api', '-path', '*/route.ts', '-type', 'f'], { encoding: 'utf8' })
+  return execFileSync('find', ['src/app/(frontend)/api', '-path', '*/route.ts', '-type', 'f'], {
+    encoding: 'utf8',
+  })
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
@@ -22,8 +24,8 @@ describe('API endpoint inventory', () => {
     expect(existsSync('docs/api-endpoint-inventory.md')).toBe(true)
     const doc = readFileSync('docs/api-endpoint-inventory.md', 'utf8')
 
-    expect(doc).toContain('CMS route files inventoried: 324')
-    expect(doc).toContain('Growth Tools route registrations inventoried: 276')
+    expect(doc).toContain('CMS route files inventoried: 325')
+    expect(doc).toContain('Growth Tools route registrations inventoried: 289')
     expect(doc).toContain('CMS → Growth Tools calls detected: 50')
     expect(doc).toContain('`/api/dashboard`')
     expect(doc).toContain('`/api/proposals/[id]/run-audits`')
@@ -38,12 +40,16 @@ describe('API endpoint inventory', () => {
 
     expect(inventoriedFiles).toEqual(currentFiles)
     expect(inventory.cmsRows).toHaveLength(currentFiles.length)
-    expect(inventory.cmsRows.find((row: { route: string; file: string }) => row.route === '/api/dashboard')?.file).toBe(
-      'src/app/(frontend)/api/dashboard/route.ts',
-    )
-    expect(inventory.cmsRows.find((row: { route: string; file: string }) => row.route === '/api/google-ads-audits/[id]/chat')?.file).toBe(
-      'src/app/(frontend)/api/google-ads-audits/[id]/chat/route.ts',
-    )
+    expect(
+      inventory.cmsRows.find(
+        (row: { route: string; file: string }) => row.route === '/api/dashboard',
+      )?.file,
+    ).toBe('src/app/(frontend)/api/dashboard/route.ts')
+    expect(
+      inventory.cmsRows.find(
+        (row: { route: string; file: string }) => row.route === '/api/google-ads-audits/[id]/chat',
+      )?.file,
+    ).toBe('src/app/(frontend)/api/google-ads-audits/[id]/chat/route.ts')
   })
 
   it('maps CMS outbound Growth Tools calls to Growth Tools route registrations', () => {
@@ -78,10 +84,26 @@ describe('API endpoint inventory', () => {
   it('surfaces CMS Growth Tools calls that do not currently match the Growth Tools repo', () => {
     const inventory = readInventoryJson()
     expect(inventory.unmatchedGrowthToolsCalls).toEqual([
-      expect.objectContaining({ cmsRoute: '/api/consolidation-candidates/[id]/approve', method: 'POST', path: '/api/google-ads/consolidation-apply' }),
-      expect.objectContaining({ cmsRoute: '/api/match-type-violations/cron', method: 'POST', path: '/api/google-ads/consolidation-candidates' }),
-      expect.objectContaining({ cmsRoute: '/api/match-type-violations/cron', method: 'POST', path: '/api/google-ads/keywords/list' }),
-      expect.objectContaining({ cmsRoute: '/api/proposals/[id]/run-ai-visibility', method: 'POST', path: '/api/ai-visibility/run-once' }),
+      expect.objectContaining({
+        cmsRoute: '/api/consolidation-candidates/[id]/approve',
+        method: 'POST',
+        path: '/api/google-ads/consolidation-apply',
+      }),
+      expect.objectContaining({
+        cmsRoute: '/api/match-type-violations/cron',
+        method: 'POST',
+        path: '/api/google-ads/consolidation-candidates',
+      }),
+      expect.objectContaining({
+        cmsRoute: '/api/match-type-violations/cron',
+        method: 'POST',
+        path: '/api/google-ads/keywords/list',
+      }),
+      expect.objectContaining({
+        cmsRoute: '/api/proposals/[id]/run-ai-visibility',
+        method: 'POST',
+        path: '/api/ai-visibility/run-once',
+      }),
     ])
   })
 })

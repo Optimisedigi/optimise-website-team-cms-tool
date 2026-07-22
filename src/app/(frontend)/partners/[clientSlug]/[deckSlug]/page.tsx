@@ -214,11 +214,14 @@ export default async function PartnerDeckPage({
 
   const Component = template.Component;
   const businessName = (client as { name?: string }).name ?? clientSlug;
+  const featureLabel = templateSlug.includes("google-ads-audit")
+    ? "Google Ads Audit"
+    : presentation.title ?? "Presentation";
   return (
     <AuditPasswordGate
       auditSlug={`${clientSlug}/${deckSlug}`}
       businessName={businessName}
-      featureLabel={presentation.title ?? "Presentation"}
+      featureLabel={featureLabel}
     >
       <Component payload={parsed.value} />
     </AuditPasswordGate>

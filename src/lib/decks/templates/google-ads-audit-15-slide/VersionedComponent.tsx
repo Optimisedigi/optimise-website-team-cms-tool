@@ -1,6 +1,11 @@
-import { Component as LegacyComponent } from "./Component";
+import dynamic from "next/dynamic";
+
 import { buildV1PayloadFromEvidence } from "./evidence-to-v1";
 import type { GoogleAdsAudit15SlidePayload, GoogleAdsAuditTemplatePayload, SemanticGoogleAdsAuditPayload } from "./payload";
+
+const LegacyComponent = dynamic(() =>
+  import("./Component").then((module) => module.Component),
+);
 
 // Evidence-backed (version-2) snapshots are adapted into the rich v1 payload so
 // the published deck renders through the established Google Ads audit design.

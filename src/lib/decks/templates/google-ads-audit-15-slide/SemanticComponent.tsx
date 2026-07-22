@@ -56,7 +56,7 @@ function SlideContent({ slide, payload }: { slide: SemanticAuditSlide; payload: 
 }
 
 function CategoryScorecards({ categories }: { categories: any[] }) {
-  return <div className="gads-semantic__categories" aria-label="Thirteen audit category scores">
+  return <div className="gads-semantic__categories" aria-label={`${categories.length} audit category scores`}>
     {categories.map((category) => <article className="gads-semantic__category" data-status={category.status} key={category.id}>
       <div><strong>{category.label}</strong><small>Weight {category.weight}</small></div>
       <span>{category.score == null ? "Not assessed" : `${number(category.score)}/10`}</span>
