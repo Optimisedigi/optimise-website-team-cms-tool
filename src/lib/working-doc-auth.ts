@@ -2,12 +2,9 @@ import { getPayload } from "payload";
 
 import config from "@/payload.config";
 import { checkPinWithLockout } from "@/lib/pin-auth";
+import { isKnownWorkingDocSlug } from "@/lib/working-doc-seeds";
 
-const knownWorkingDocs = new Set(["cipher/patient-journey-review"]);
-
-export function isKnownWorkingDocSlug(slug: string) {
-  return knownWorkingDocs.has(slug);
-}
+export { isKnownWorkingDocSlug };
 
 export async function verifyWorkingDocPin(input: { slug: string; pin: string }) {
   const [clientSlug, deckSlug] = input.slug.split("/", 2);

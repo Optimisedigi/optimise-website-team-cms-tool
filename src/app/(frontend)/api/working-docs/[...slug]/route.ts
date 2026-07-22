@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
@@ -11,13 +9,9 @@ import {
   saveWorkingDoc,
   WorkingDocValidationError,
 } from "@/lib/working-doc-sync";
+import { workingDocSeed } from "@/lib/working-doc-seeds";
 import config from "@/payload.config";
 
-const CIPHER_SLUG = "cipher/patient-journey-review";
-const seedPath = path.join(
-  process.cwd(),
-  "src/content/cipher-health-patient-journey-review.md",
-);
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 function json(body: unknown, status = 200) {
@@ -69,18 +63,9 @@ export async function POST(
   }
 
   try {
-    const [clientSlug, deckSlug] = slug.split("/", 2);
     const doc = await loadWorkingDoc({
       slug,
-      seed:
-        slug === CIPHER_SLUG
-          ? {
-              title: "Cipher Health patient journey review",
-              clientSlug,
-              deckSlug,
-              contentMarkdown: await readFile(seedPath, "utf8"),
-            }
-          : undefined,
+      seed: await workingDocSeed(slug),
     });
 
     if (body.action === "save") {
