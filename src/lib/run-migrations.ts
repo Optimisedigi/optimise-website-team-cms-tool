@@ -3085,6 +3085,7 @@ export async function runMigrations(
     await run("activity_log.model", "ALTER TABLE `activity_log` ADD `model` text");
     await run("activity_log.source", "ALTER TABLE `activity_log` ADD `source` text");
     await run("activity_log.duration_ms", "ALTER TABLE `activity_log` ADD `duration_ms` numeric");
+    await run("activity_log.target_url", "ALTER TABLE `activity_log` ADD `target_url` text");
     await run("activity_log_agent_run_id_idx", "CREATE INDEX IF NOT EXISTS `activity_log_agent_run_id_idx` ON `activity_log` (`agent_run_id`)");
     await run("activity_log_agent_name_idx", "CREATE INDEX IF NOT EXISTS `activity_log_agent_name_idx` ON `activity_log` (`agent_name`)");
   
