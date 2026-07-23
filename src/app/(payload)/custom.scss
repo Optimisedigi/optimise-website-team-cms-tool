@@ -22,6 +22,17 @@ body:has(.login.template-minimal) {
   gap: 24px;
 }
 
+.od-splash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: var(--theme-elevation-0, #fff);
+
+  .od-splash {
+    min-height: 100%;
+  }
+}
+
 .od-splash__scene {
   position: relative;
   width: 80px;

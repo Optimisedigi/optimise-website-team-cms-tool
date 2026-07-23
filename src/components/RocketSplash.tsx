@@ -2,7 +2,7 @@
 
 export default function RocketSplash() {
   return (
-    <div className="od-splash">
+    <div className="od-splash" role="status" aria-live="polite" aria-label="Loading">
       <div className="od-splash__scene">
         <div className="od-splash__flames">
           <div className="od-splash__flame od-splash__flame--1" />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useState, useRef } from 'react'
+import { useEffect, useLayoutEffect, useState, useRef, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 
 // Clamp a portal tooltip's horizontal centre so it never runs off the left or
@@ -636,6 +636,7 @@ const CHART_COLORS = {
 const Dashboard = () => {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isNavigating, setIsNavigating] = useState(false)
   const [gscRefreshing, setGscRefreshing] = useState(false)
   const [gscSeeding, setGscSeeding] = useState(false)
   const [xeroInvoices, setXeroInvoices] = useState<XeroInvoiceSummary | null>(null)
@@ -716,7 +717,17 @@ const Dashboard = () => {
     return () => clearInterval(interval)
   }, [])
 
-  if (loading) {
+  const handleActivityNavigation = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return
+    }
+
+    event.preventDefault()
+    setIsNavigating(true)
+    requestAnimationFrame(() => window.location.assign(href))
+  }
+
+  if (loading || isNavigating) {
     return <RocketSplash />
   }
 
@@ -921,7 +932,7 @@ const Dashboard = () => {
             />
           )}
 
-          <ActivityFeed entries={data.activity} />
+          <ActivityFeed entries={data.activity} onNavigate={handleActivityNavigation} />
 
           {/* Team Tasks */}
           <TeamTasksCard teamTasks={data.teamTasks} />
@@ -1380,7 +1391,13 @@ export function activityHref(entry: ActivityEntry): string {
     : `/admin/collections/activity-log/${entry.id}`
 }
 
-function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
+function ActivityFeed({
+  entries,
+  onNavigate,
+}: {
+  entries: ActivityEntry[]
+  onNavigate: (event: MouseEvent<HTMLAnchorElement>, href: string) => void
+}) {
   const visibleEntries = entries.filter(isDashboardActivityVisible)
 
   return (
@@ -1398,7 +1415,12 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
       ) : (
         <div className="od-feed">
           {visibleEntries.map((entry) => (
-            <a key={entry.id} href={activityHref(entry)} className="od-feed__item">
+            <a
+              key={entry.id}
+              href={activityHref(entry)}
+              className="od-feed__item"
+              onClick={(event) => onNavigate(event, activityHref(entry))}
+            >
               <div className="od-feed__dot">{activityIcon(entry.type)}</div>
               <div className="od-feed__body">
                 <div className="od-feed__title">

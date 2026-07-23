@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Dashboard, { activityDescription, activityHref, activityIcon } from '@/components/Dashboard'
 
@@ -8,6 +8,7 @@ vi.mock('@/components/DripEmailTracker', () => ({ default: () => null }))
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 const dashboardData = {
@@ -63,6 +64,17 @@ describe('Dashboard activity panel', () => {
     expect(screen.getByText('≠')).toBeInTheDocument()
     expect(screen.getByText('Acme Plumbing: 3 violations for "1234567890"')).toBeInTheDocument()
     expect(screen.queryByText(/Client 6:/)).not.toBeInTheDocument()
+  })
+
+  it('shows the rocket loading screen while an activity destination opens', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn())
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({ ok: true, json: async () => responseFor(url) })))
+
+    render(<Dashboard />)
+
+    fireEvent.click(await screen.findByRole('link', { name: /match type violations sync/i }))
+
+    expect(screen.getByText('Loading')).toBeInTheDocument()
   })
 
   it('resolves legacy match-type activity client IDs to names and uses the mismatch icon', () => {

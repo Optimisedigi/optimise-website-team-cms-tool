@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, type ReactElement } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@payloadcms/ui";
+import RocketSplash from "./RocketSplash";
 import { useRouter } from "next/navigation";
 
 interface NotificationRow {
@@ -68,6 +70,7 @@ const NotificationsBell = (): ReactElement | null => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shaking, setShaking] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   // Track viewport so the dropdown can switch from an anchored popover (desktop)
   // to a fixed, viewport-clamped sheet (mobile) — otherwise it runs off-screen
@@ -194,6 +197,7 @@ const NotificationsBell = (): ReactElement | null => {
 
   const onItemClick = async (item: NotificationRow): Promise<void> => {
     setOpen(false);
+    if (item.url) setIsNavigating(true);
     await markItemRead(item);
     if (item.url) router.push(item.url);
   };
@@ -509,6 +513,13 @@ const NotificationsBell = (): ReactElement | null => {
           </div>
         </div>
       )}
+      {isNavigating &&
+        createPortal(
+          <div className="od-splash-overlay" aria-busy="true">
+            <RocketSplash />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };
