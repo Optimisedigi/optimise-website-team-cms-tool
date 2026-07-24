@@ -141,16 +141,6 @@ export const BlogPosts: CollectionConfig = {
         }
       },
     ],
-    beforeValidate: [
-      ({ data }) => {
-        if (data?.status === "published" && !data?.clientConfirmed) {
-          throw new Error(
-            "Please confirm the selected client is correct before publishing."
-          );
-        }
-        return data;
-      },
-    ],
     beforeChange: [
       ({ data }) => {
         // Sync Payload's _status with the custom status field
@@ -302,6 +292,12 @@ export const BlogPosts: CollectionConfig = {
       name: "clientConfirmed",
       type: "checkbox",
       defaultValue: false,
+      validate: (value: boolean | null | undefined, args: { siblingData: Record<string, unknown> }) => {
+        if (args.siblingData?.status === "published" && !value) {
+          return "Please confirm the selected client is correct before publishing.";
+        }
+        return true;
+      },
       admin: {
         position: "sidebar",
         description:

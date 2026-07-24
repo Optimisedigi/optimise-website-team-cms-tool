@@ -545,6 +545,12 @@ describe("BlogPosts: afterChange hook", () => {
 
 // ─── Field validation tests ────────────────────────────────────
 describe("BlogPosts: field validation", () => {
+  it("requires client confirmation before publishing", () => {
+    const clientConfirmedField = findField(BlogPosts.fields, "clientConfirmed");
+    const result = clientConfirmedField.validate(false, { siblingData: { status: "published" } });
+    expect(result).toContain("Please confirm the selected client is correct before publishing.");
+  });
+
   it("should reject excerpt > 200 chars when status is published", () => {
     const excerptField = findField(BlogPosts.fields, "excerpt");
     const longExcerpt = "A".repeat(201);
