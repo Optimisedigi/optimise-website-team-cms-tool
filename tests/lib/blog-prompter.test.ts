@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_GLOBAL_BLOG_RULES,
+  DEFAULT_GLOBAL_MARKDOWN_RULES,
   buildBlogPrompt,
+  buildServiceLinkingRequirements,
   findCategoryTone,
   formatPromptList,
 } from '@/lib/blog-prompter'
@@ -58,5 +60,20 @@ describe('blog-prompter helpers', () => {
 
     expect(DEFAULT_GLOBAL_BLOG_RULES).toContain('Never use em dashes or en dashes')
     expect(prompt).toContain('Never use em dashes or en dashes')
+  })
+
+  it('provides verified fallback URLs instead of asking the model to invent service paths', () => {
+    const requirements = buildServiceLinkingRequirements()
+
+    expect(requirements).toContain('SEO: /services/seo')
+    expect(requirements).toContain('Google Ads: /services/google-ads')
+    expect(requirements).toContain(
+      'Integrated digital growth strategy: /services/integrated-digital-growth-strategy',
+    )
+    expect(requirements).toContain('Use only the exact URLs listed above')
+  })
+
+  it('does not present the placeholder page path as a link the model can copy', () => {
+    expect(DEFAULT_GLOBAL_MARKDOWN_RULES).not.toContain('[text](/page-path)')
   })
 })

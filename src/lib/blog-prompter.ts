@@ -26,7 +26,13 @@ export interface BlogPromptContext {
   categoryBlogTone?: string | null
 }
 
-export const DEFAULT_SERVICES = 'SEO, Google Ads, GEO, CRO, Meta Ads, Integrated digital growth strategy and AI automation'
+export const DEFAULT_SERVICES = `SEO: /services/seo
+Google Ads: /services/google-ads
+GEO: /services/ai-search-optimisation
+CRO: /services/cro
+Meta Ads: /services/facebook-ads
+Integrated digital growth strategy: /services/integrated-digital-growth-strategy
+AI automation: /services/ai-automation`
 
 export const DEFAULT_GLOBAL_BLOG_RULES = `- Use Australian English spelling.
 - Never use em dashes or en dashes.
@@ -51,8 +57,8 @@ export const DEFAULT_GLOBAL_MARKDOWN_RULES = `- Make sure you stick to this mark
   - H1 Title: # Heading
   - H2 Section: ## Heading
   - H3 Subsection: ### Heading
-  - Link: [text](https://url.com)
-  - Internal Link: [text](/page-path)
+  - External Link: [descriptive anchor text](https://verified-url.com)
+  - Internal Link: [descriptive anchor text](/verified-path-from-the-service-page-list)
   - Bullet List: - Item
   - Numbered List: 1. Item
   - Inline Code: \`code\`
@@ -117,11 +123,20 @@ export function findCategoryTone(
 }
 
 export function buildServiceLinkingRequirements(servicePages?: string | null): string {
-  const services = servicePages?.trim()
-    ? parsePromptLines(servicePages).join(', ')
-    : DEFAULT_SERVICES
+  const services = parsePromptLines(servicePages?.trim() || DEFAULT_SERVICES)
+    .map((service) => `  - ${service}`)
+    .join('\n')
 
-  return `## Service and internal linking requirements\n- Blog content aligns with business services or products only where relevant and can link back to their service pages: ${services}.\n- If there are clear internal links, make it clear where they should be added in the blog post.\n- Do not add any internal links inside the TLDR section.\n- Each unique URL should only be linked once in the entire blog post. Do not link multiple anchor texts to the same destination.\n- If the blog mentions Facebook Ads, Instagram Ads, Meta Ads, and/or LinkedIn Ads and they all point to the same service page, only add one internal link using "Meta Ads" as the anchor text.\n- Support internal linking to service or product pages.`
+  return `## Service and internal linking requirements
+- Blog content should align with relevant business services or products.
+- These are the only approved service or product pages for internal links:
+${services}
+- Use only the exact URLs listed above. Never guess, derive, or invent a URL from a service name.
+- If an entry has no URL, mention the service without linking it.
+- Add a link only where it is contextually useful.
+- Do not add any internal links inside the TLDR section.
+- Each unique URL should only be linked once in the entire blog post. Do not link multiple anchor texts to the same destination.
+- If Facebook Ads, Instagram Ads, Meta Ads, and/or LinkedIn Ads share one supplied service URL, add only one link using "Meta Ads" as the anchor text.`
 }
 
 export function buildBlogPrompt(fields: BlogPrompterFields, context: BlogPromptContext = {}): string {
