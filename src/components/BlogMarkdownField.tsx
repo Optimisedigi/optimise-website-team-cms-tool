@@ -104,14 +104,17 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
   ) => {
     if (isReadOnly || uploading) return
 
+    const restoreFallbackText = () => {
+      if (!fallbackText) return
+      const before = valueRef.current.slice(0, selection.start)
+      const after = valueRef.current.slice(selection.end)
+      setValue(`${before}${fallbackText}${after}`)
+    }
+
     try {
       const files = await readClipboardImageFiles()
       if (files.length === 0) {
-        if (fallbackText) {
-          const before = valueRef.current.slice(0, selection.start)
-          const after = valueRef.current.slice(selection.end)
-          setValue(`${before}${fallbackText}${after}`)
-        }
+        restoreFallbackText()
         setMessage(
           'The clipboard contains a filename or link, not image data. Open the image in Preview, copy it, or use Add image.',
         )
@@ -119,6 +122,7 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
       }
       await addImages(files, selection)
     } catch {
+      restoreFallbackText()
       setMessage('The browser could not read the clipboard. Use Add image instead.')
     }
   }
