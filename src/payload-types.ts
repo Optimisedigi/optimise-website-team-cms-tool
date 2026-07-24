@@ -7636,7 +7636,7 @@ export interface BlogPost {
    */
   title: string;
   /**
-   * Brief card summary (max 200 characters). Use Meta Description for the 160-character SEO description.
+   * Brief card summary (max 200 characters). Use Meta Description for the 200-character SEO description.
    */
   excerpt?: string | null;
   /**

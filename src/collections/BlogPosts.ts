@@ -340,7 +340,7 @@ export const BlogPosts: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "Brief card summary (max 200 characters). Use Meta Description for the 160-character SEO description.",
+                  "Brief card summary (max 200 characters). Use Meta Description for the 200-character SEO description.",
               },
               validate: (value: string | null | undefined, args: { siblingData: Record<string, unknown> }) => {
                 if (value && value.length > 200 && args.siblingData?._status === "published") {
