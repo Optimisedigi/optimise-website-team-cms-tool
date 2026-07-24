@@ -5,7 +5,7 @@ export const SearchQueryReviewGroups: CollectionConfig = {
   slug: "search-query-review-groups",
   dbName: "search_query_review_groups",
   labels: { singular: "Search Query Review Group", plural: "Search Query Review Groups" },
-  admin: { group: "Growth Tools", useAsTitle: "fingerprint", defaultColumns: ["fingerprint", "classificationState", "client", "updatedAt"] },
+  admin: { group: "Growth Tools", hidden: true, useAsTitle: "fingerprint", defaultColumns: ["fingerprint", "classificationState", "client", "updatedAt"] },
   access: { read: ({ req }) => !!req.user, create: ({ req }) => !!req.user, update: ({ req }) => !!req.user, delete: adminOnlyDelete },
   indexes: [{ fields: ["snapshot", "fingerprint"], unique: true }, { fields: ["client", "classificationState"] }],
   fields: [

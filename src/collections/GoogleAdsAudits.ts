@@ -617,6 +617,11 @@ export const GoogleAdsAudits: CollectionConfig = {
               admin: { components: { Field: "./components/GoogleAdsAuditDeckReview" } },
             },
             {
+              name: "searchQueryReview",
+              type: "ui",
+              admin: { components: { Field: "./components/GoogleAdsSearchQueryReview" } },
+            },
+            {
               name: "deckGeneratedAt",
               type: "date",
               admin: { readOnly: true },

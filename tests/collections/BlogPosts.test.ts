@@ -545,16 +545,16 @@ describe("BlogPosts: afterChange hook", () => {
 
 // ─── Field validation tests ────────────────────────────────────
 describe("BlogPosts: field validation", () => {
-  it("should reject excerpt > 160 chars when status is published", () => {
+  it("should reject excerpt > 200 chars when status is published", () => {
     const excerptField = findField(BlogPosts.fields, "excerpt");
-    const longExcerpt = "A".repeat(161);
+    const longExcerpt = "A".repeat(201);
     const result = excerptField.validate(longExcerpt, { siblingData: { _status: "published" } });
-    expect(result).toContain("160 characters");
+    expect(result).toContain("200 characters");
   });
 
-  it("should allow excerpt > 160 chars when status is draft", () => {
+  it("should allow excerpt > 200 chars when status is draft", () => {
     const excerptField = findField(BlogPosts.fields, "excerpt");
-    const longExcerpt = "A".repeat(161);
+    const longExcerpt = "A".repeat(201);
     const result = excerptField.validate(longExcerpt, { siblingData: { _status: "draft" } });
     expect(result).toBe(true);
   });
@@ -565,25 +565,25 @@ describe("BlogPosts: field validation", () => {
     expect(result).toBe(true);
   });
 
-  it("should reject metaTitle > 60 chars when published", () => {
+  it("should reject metaTitle > 100 chars when published", () => {
     const metaTitleField = findField(BlogPosts.fields, "metaTitle");
-    const longTitle = "A".repeat(61);
+    const longTitle = "A".repeat(101);
     const result = metaTitleField.validate(longTitle, { siblingData: { _status: "published" } });
-    expect(result).toContain("60 characters");
+    expect(result).toContain("100 characters");
   });
 
-  it("should allow metaTitle > 60 chars when draft", () => {
+  it("should allow metaTitle > 100 chars when draft", () => {
     const metaTitleField = findField(BlogPosts.fields, "metaTitle");
-    const longTitle = "A".repeat(61);
+    const longTitle = "A".repeat(101);
     const result = metaTitleField.validate(longTitle, { siblingData: { _status: "draft" } });
     expect(result).toBe(true);
   });
 
-  it("should reject metaDescription > 160 chars when published", () => {
+  it("should reject metaDescription > 200 chars when published", () => {
     const metaDescField = findField(BlogPosts.fields, "metaDescription");
-    const longDesc = "A".repeat(161);
+    const longDesc = "A".repeat(201);
     const result = metaDescField.validate(longDesc, { siblingData: { _status: "published" } });
-    expect(result).toContain("160 characters");
+    expect(result).toContain("200 characters");
   });
 
   it("should auto-generate slug from title via beforeValidate hook", () => {

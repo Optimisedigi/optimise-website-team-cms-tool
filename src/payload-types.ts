@@ -7636,7 +7636,7 @@ export interface BlogPost {
    */
   title: string;
   /**
-   * Brief summary for SEO meta description (max 160 characters). This appears in search results.
+   * Brief card summary (max 200 characters). Use Meta Description for the 160-character SEO description.
    */
   excerpt?: string | null;
   /**
@@ -7670,11 +7670,11 @@ export interface BlogPost {
    */
   slug: string;
   /**
-   * SEO title for search results (max 60 chars). Leave blank to use the main title.
+   * SEO title for search results (max 100 characters). Leave blank to use the main title.
    */
   metaTitle?: string | null;
   /**
-   * SEO description (max 160 chars). Leave blank to use the excerpt.
+   * SEO description (max 200 characters). Leave blank to use the excerpt.
    */
   metaDescription?: string | null;
   /**

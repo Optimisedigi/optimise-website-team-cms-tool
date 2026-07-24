@@ -153,6 +153,7 @@ import { default as default_0875500ed79e3068678d80b63965f2c2 } from '../../../co
 import { default as default_fd2febb67d3357a3222a3d4b42c00e68 } from '../../../components/NegativeListBuilder'
 import { default as default_3dedd88d620dc77baa17f61edda4911f } from '../../../components/GoogleAdsNegativeKeywordLists'
 import { default as default_f7cd7bb1cdadc6401b03afe470d6711d } from '../../../components/GoogleAdsKeywordDeepDiveSessions'
+import { default as default_googleAdsSearchQueryReview } from '../../../components/GoogleAdsSearchQueryReview'
 import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
@@ -366,6 +367,7 @@ export const importMap = {
   "./components/NegativeListBuilder#default": default_fd2febb67d3357a3222a3d4b42c00e68,
   "./components/GoogleAdsNegativeKeywordLists#default": default_3dedd88d620dc77baa17f61edda4911f,
   "./components/GoogleAdsKeywordDeepDiveSessions#default": default_f7cd7bb1cdadc6401b03afe470d6711d,
+  "./components/GoogleAdsSearchQueryReview#default": default_googleAdsSearchQueryReview,
   "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,
   "./components/GscIndexingAuditResults#default": default_14da33fa7cd5bda0159f477250995b44,

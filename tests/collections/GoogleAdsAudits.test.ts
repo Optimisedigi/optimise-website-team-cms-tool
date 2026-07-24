@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { GoogleAdsAudits } from '@/collections/GoogleAdsAudits'
+import { SearchQueryReviewGroups } from '@/collections/SearchQueryReviewGroups'
+import { SearchQueryVocabulary } from '@/collections/SearchQueryVocabulary'
 
 vi.mock('@/lib/activity-log', () => ({
   logActivity: vi.fn().mockResolvedValue(undefined),
@@ -160,6 +162,25 @@ describe('GoogleAdsAudits Collection', () => {
       expect(tabLabels).toContain('History')
       expect(tabLabels).toContain('Action Items')
     }
+  })
+
+  it('embeds search-query review in the Google Ads Audit tab', () => {
+    const tabsField = GoogleAdsAudits.fields.find((field) => field.type === 'tabs')
+    expect(tabsField).toBeDefined()
+    if (!tabsField || !('tabs' in tabsField)) throw new Error('Google Ads Audit tabs are missing')
+
+    const auditTab = tabsField.tabs.find((tab) => tab.label === 'Google Ads Audit')
+    const field = findField(auditTab?.fields ?? [], 'searchQueryReview')
+
+    expect(field).toMatchObject({
+      type: 'ui',
+      admin: { components: { Field: './components/GoogleAdsSearchQueryReview' } },
+    })
+  })
+
+  it('hides search-query collections from the admin sidebar', () => {
+    expect(SearchQueryVocabulary.admin?.hidden).toBe(true)
+    expect(SearchQueryReviewGroups.admin?.hidden).toBe(true)
   })
 })
 

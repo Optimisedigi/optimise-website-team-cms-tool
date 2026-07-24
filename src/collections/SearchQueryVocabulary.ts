@@ -5,7 +5,7 @@ export const SearchQueryVocabulary: CollectionConfig = {
   slug: "search-query-vocabulary",
   dbName: "search_query_vocabulary",
   labels: { singular: "Search Query Vocabulary", plural: "Search Query Vocabulary" },
-  admin: { group: "Growth Tools", useAsTitle: "phrase", defaultColumns: ["phrase", "classification", "scope", "client", "enabled"] },
+  admin: { group: "Growth Tools", hidden: true, useAsTitle: "phrase", defaultColumns: ["phrase", "classification", "scope", "client", "enabled"] },
   access: { read: ({ req }) => !!req.user, create: ({ req }) => !!req.user, update: ({ req }) => !!req.user, delete: adminOnlyDelete },
   indexes: [{ fields: ["client", "normalizedPhrase"], unique: true }],
   fields: [

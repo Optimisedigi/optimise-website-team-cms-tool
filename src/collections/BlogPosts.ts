@@ -340,11 +340,11 @@ export const BlogPosts: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "Brief summary for SEO meta description (max 160 characters). This appears in search results.",
+                  "Brief card summary (max 200 characters). Use Meta Description for the 160-character SEO description.",
               },
               validate: (value: string | null | undefined, args: { siblingData: Record<string, unknown> }) => {
-                if (value && value.length > 160 && args.siblingData?._status === "published") {
-                  return "Excerpt must be 160 characters or fewer to publish (currently " + value.length + ").";
+                if (value && value.length > 200 && args.siblingData?._status === "published") {
+                  return "Excerpt must be 200 characters or fewer to publish (currently " + value.length + ").";
                 }
                 return true;
               },
@@ -406,11 +406,11 @@ export const BlogPosts: CollectionConfig = {
               type: "text",
               admin: {
                 description:
-                  "SEO title for search results (max 60 chars). Leave blank to use the main title.",
+                  "SEO title for search results (max 100 characters). Leave blank to use the main title.",
               },
               validate: (value: string | null | undefined, args: { siblingData: Record<string, unknown> }) => {
-                if (value && value.length > 60 && args.siblingData?._status === "published") {
-                  return "Meta title must be 60 characters or fewer to publish (currently " + value.length + ").";
+                if (value && value.length > 100 && args.siblingData?._status === "published") {
+                  return "Meta title must be 100 characters or fewer to publish (currently " + value.length + ").";
                 }
                 return true;
               },
@@ -420,11 +420,11 @@ export const BlogPosts: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "SEO description (max 160 chars). Leave blank to use the excerpt.",
+                  "SEO description (max 200 characters). Leave blank to use the excerpt.",
               },
               validate: (value: string | null | undefined, args: { siblingData: Record<string, unknown> }) => {
-                if (value && value.length > 160 && args.siblingData?._status === "published") {
-                  return "Meta description must be 160 characters or fewer to publish (currently " + value.length + ").";
+                if (value && value.length > 200 && args.siblingData?._status === "published") {
+                  return "Meta description must be 200 characters or fewer to publish (currently " + value.length + ").";
                 }
                 return true;
               },
