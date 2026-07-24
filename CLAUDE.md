@@ -33,6 +33,7 @@ Internal Optimise Digital agency platform: a private Payload CMS/Next.js app for
 - `next.config.mjs` sets `X-Robots-Tag: noindex, nofollow` globally and redirects Payload `blog-prompts` collection screens to `/admin/blog/prompter`.
 - `src/app/(payload)/admin/importMap.js` must retain the `@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler` import-map entry when regenerating admin imports.
 - Public/client-facing areas commonly use PIN or token gates implemented in app routes and helpers such as `src/lib/pin-auth.ts`.
+- New website blog integrations must resolve the blog post `author` name against `GET /api/public/blog-authors/{clientId}` and consume the CMS photo, job title, bio, expertise tags, and social links instead of creating a hard-coded author registry; the contract is documented in `docs/public-blog-authors-api.md`.
 - OptiMate has two intentional dictation/voice UIs: `OptiMateVoice` (GPT Realtime WebRTC via `src/lib/realtime/token-provider.ts` plus realtime/email API routes) and `OptiMateTranscribe` (Apple/Web Speech dictation into chat input). `src/components/OptiMateChatCore.tsx` uses an `isMobileViewport` render gate so mobile shows transcribe and desktop shows realtime voice; the realtime backend remains wired for both.
 
 ## Commands from package/config
