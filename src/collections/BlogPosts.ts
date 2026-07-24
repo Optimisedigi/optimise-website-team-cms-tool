@@ -365,8 +365,12 @@ export const BlogPosts: CollectionConfig = {
               name: "markdownContent",
               type: "textarea",
               admin: {
+                rows: 24,
                 description:
-                  "Raw markdown content. If provided, this will be used instead of the rich text editor on the website.",
+                  "Raw markdown used on the website instead of rich text. Paste or add graphs and screenshots here; images are uploaded to Media and inserted at the cursor.",
+                components: {
+                  Field: "./components/BlogMarkdownField#BlogMarkdownField",
+                },
               },
             },
           ],

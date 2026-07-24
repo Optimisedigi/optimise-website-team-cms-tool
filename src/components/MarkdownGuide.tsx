@@ -9,6 +9,7 @@ const guide = [
   { label: 'H3 (Subsection)', syntax: '### Heading' },
   { label: 'Link', syntax: '[text](https://url.com)' },
   { label: 'Internal Link', syntax: '[text](/page-path)' },
+  { label: 'Image', syntax: '![descriptive alt text](image-url)' },
   { label: 'Bullet List', syntax: '- Item' },
   { label: 'Numbered List', syntax: '1. Item' },
   { label: 'Inline Code', syntax: '`code`' },
@@ -86,8 +87,8 @@ const MarkdownGuide = () => {
           lineHeight: 1.4,
         }}
       >
-        <strong>Tip:</strong> Use H2 for main sections, H3 for subsections.
-        Keep paragraphs short. Add links to relevant pages for SEO.
+        <strong>Tip:</strong> Use H2 for main sections and H3 for subsections. Keep body copy near
+        720 px wide; graphs can use the full content width.
       </div>
     </div>
   )
