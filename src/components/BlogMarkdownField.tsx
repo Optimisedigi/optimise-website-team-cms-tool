@@ -5,6 +5,8 @@ import type { TextareaFieldClientProps } from 'payload'
 import { TextareaInput, useField } from '@payloadcms/ui'
 import React, { useRef, useState } from 'react'
 
+import { readClipboardImageFiles } from '../lib/read-clipboard-image-files'
+
 function imageAltFromFilename(filename: string): string {
   return filename
     .replace(/\.[^.]+$/, '')
@@ -96,6 +98,31 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
     }
   }
 
+  const pasteImageFromClipboard = async (
+    selection = textareaSelectionRef.current,
+    fallbackText = '',
+  ) => {
+    if (isReadOnly || uploading) return
+
+    try {
+      const files = await readClipboardImageFiles()
+      if (files.length === 0) {
+        if (fallbackText) {
+          const before = valueRef.current.slice(0, selection.start)
+          const after = valueRef.current.slice(selection.end)
+          setValue(`${before}${fallbackText}${after}`)
+        }
+        setMessage(
+          'The clipboard contains a filename or link, not image data. Open the image in Preview, copy it, or use Add image.',
+        )
+        return
+      }
+      await addImages(files, selection)
+    } catch {
+      setMessage('The browser could not read the clipboard. Use Add image instead.')
+    }
+  }
+
   return (
     <div
       onPasteCapture={(event) => {
@@ -107,14 +134,30 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
         const files = (clipboardFiles.length > 0 ? clipboardFiles : itemFiles).filter((file) =>
           file.type.startsWith('image/'),
         )
-        if (files.length === 0) return
-        event.preventDefault()
         const target = event.target as HTMLTextAreaElement
-        void addImages(files, {
+        const selection = {
           start:
             typeof target.selectionStart === 'number' ? target.selectionStart : currentValue.length,
           end: typeof target.selectionEnd === 'number' ? target.selectionEnd : currentValue.length,
-        })
+        }
+
+        if (files.length === 0) {
+          const html = event.clipboardData.getData('text/html')
+          const fileUrl = event.clipboardData.getData('text/uri-list')
+          const fallbackText = event.clipboardData.getData('text/plain')
+          const mayContainImage =
+            event.clipboardData.types.includes('Files') ||
+            /<img(?:\s|>)/i.test(html) ||
+            fileUrl.startsWith('file:')
+
+          if (!mayContainImage) return
+          event.preventDefault()
+          void pasteImageFromClipboard(selection, fallbackText)
+          return
+        }
+
+        event.preventDefault()
+        void addImages(files, selection)
       }}
       onSelectCapture={(event) => {
         const target = event.target as HTMLTextAreaElement
@@ -209,6 +252,14 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
           type="button"
           className="btn btn--size-small btn--style-secondary"
           disabled={isReadOnly || uploading}
+          onClick={() => void pasteImageFromClipboard()}
+        >
+          Paste image
+        </button>
+        <button
+          type="button"
+          className="btn btn--size-small btn--style-secondary"
+          disabled={isReadOnly || uploading}
           onClick={() => fileInputRef.current?.click()}
         >
           {uploading ? 'Uploading...' : 'Add image'}
@@ -222,8 +273,8 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
           onChange={(event) => void addImages(Array.from(event.target.files ?? []))}
         />
         <span style={{ color: 'var(--theme-elevation-600)', fontSize: 13 }}>
-          Paste a graph or screenshot directly into the editor, or choose an image. It will appear
-          above after pasting. Maximum 800 KB.
+          Copy an image, then press Paste image or ⌘V inside the editor. It will appear above while
+          uploading. Maximum 800 KB.
         </span>
       </div>
       <div
