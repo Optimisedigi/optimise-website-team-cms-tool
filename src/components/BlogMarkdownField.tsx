@@ -62,7 +62,12 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
   const valueRef = useRef('')
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState('')
+  const [pendingPreviewUrls, setPendingPreviewUrls] = useState<string[]>([])
   const currentValue = typeof value === 'string' ? value : ''
+  const markdownImages = Array.from(
+    currentValue.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+|\/[^\s)]+)\)/g),
+    (match) => ({ alt: match[1] || 'Blog image', url: match[2] }),
+  )
   const isReadOnly = readOnly || disabled
   valueRef.current = currentValue
 
@@ -70,6 +75,8 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
     const imageFiles = files.filter((file) => file.type.startsWith('image/'))
     if (isReadOnly || imageFiles.length === 0 || uploading) return
 
+    const localPreviewUrls = imageFiles.map((file) => URL.createObjectURL(file))
+    setPendingPreviewUrls((existing) => [...existing, ...localPreviewUrls])
     setUploading(true)
     setMessage(`Uploading ${imageFiles.length === 1 ? 'image' : `${imageFiles.length} images`}...`)
     try {
@@ -82,6 +89,8 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Image upload failed.')
     } finally {
+      setPendingPreviewUrls((existing) => existing.filter((url) => !localPreviewUrls.includes(url)))
+      localPreviewUrls.forEach((url) => URL.revokeObjectURL(url))
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
@@ -134,6 +143,65 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
         showError={showError}
         value={currentValue}
       />
+      {(markdownImages.length > 0 || pendingPreviewUrls.length > 0) && (
+        <div
+          aria-label="Images in this blog post"
+          style={{
+            display: 'grid',
+            gap: 12,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+            marginTop: 12,
+          }}
+        >
+          {pendingPreviewUrls.map((url) => (
+            <div key={url} style={{ position: 'relative' }}>
+              <img
+                src={url}
+                alt="Uploading preview"
+                style={{
+                  border: '1px solid var(--theme-elevation-150)',
+                  borderRadius: 4,
+                  display: 'block',
+                  height: 'auto',
+                  maxHeight: 420,
+                  objectFit: 'contain',
+                  width: '100%',
+                }}
+              />
+              <span
+                style={{
+                  background: 'var(--theme-elevation-900)',
+                  borderRadius: 3,
+                  color: 'var(--theme-elevation-0)',
+                  fontSize: 12,
+                  insetBlockStart: 8,
+                  insetInlineEnd: 8,
+                  padding: '4px 7px',
+                  position: 'absolute',
+                }}
+              >
+                Uploading...
+              </span>
+            </div>
+          ))}
+          {markdownImages.map((image, index) => (
+            <img
+              key={`${image.url}-${index}`}
+              src={image.url}
+              alt={image.alt}
+              style={{
+                border: '1px solid var(--theme-elevation-150)',
+                borderRadius: 4,
+                display: 'block',
+                height: 'auto',
+                maxHeight: 420,
+                objectFit: 'contain',
+                width: '100%',
+              }}
+            />
+          ))}
+        </div>
+      )}
       <div
         style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 8 }}
       >
@@ -154,7 +222,8 @@ export function BlogMarkdownField(props: TextareaFieldClientProps): React.ReactE
           onChange={(event) => void addImages(Array.from(event.target.files ?? []))}
         />
         <span style={{ color: 'var(--theme-elevation-600)', fontSize: 13 }}>
-          Paste a graph or screenshot directly into the editor, or choose an image. Maximum 800 KB.
+          Paste a graph or screenshot directly into the editor, or choose an image. It will appear
+          above after pasting. Maximum 800 KB.
         </span>
       </div>
       <div
