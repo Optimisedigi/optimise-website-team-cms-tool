@@ -56,7 +56,7 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   )
   await run(
     db,
-    "CREATE TABLE IF NOT EXISTS hosting_payment_offers (id integer PRIMARY KEY NOT NULL, client_id integer NOT NULL, token_hash text NOT NULL UNIQUE, status text NOT NULL DEFAULT 'active', expires_at text NOT NULL, selected_interval text, stripe_checkout_session_id text, snapshot text NOT NULL, created_at text NOT NULL, updated_at text NOT NULL);",
+    "CREATE TABLE IF NOT EXISTS hosting_payment_offers (id integer PRIMARY KEY NOT NULL, client_id integer NOT NULL, token_hash text NOT NULL UNIQUE, status text NOT NULL DEFAULT 'active', expires_at text NOT NULL, selected_interval text, stripe_checkout_session_id text, snapshot text NOT NULL, created_at text NOT NULL, updated_at text NOT NULL, FOREIGN KEY (client_id) REFERENCES clients(id) ON UPDATE no action ON DELETE cascade);",
   )
   await run(
     db,
