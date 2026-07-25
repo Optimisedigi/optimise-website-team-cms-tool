@@ -1290,6 +1290,38 @@ export const Clients: CollectionConfig = {
               },
               fields: [
             {
+              name: "hostingSubscription",
+              type: "group",
+              access: sensitiveFieldAccess("clients"),
+              admin: { description: "Configure the client-facing hosting plan and billing details." },
+              fields: [
+                { name: "summary", type: "ui", admin: { components: { Field: "./components/HostingSubscriptionField" } } },
+                { name: "planName", type: "text", admin: { hidden: true } },
+                { name: "allowance", type: "textarea", admin: { hidden: true } },
+                { name: "capacityClause", type: "textarea", admin: { hidden: true } },
+                { name: "monthlyBaseCents", type: "number", min: 0, admin: { hidden: true } },
+                { name: "annualBaseCents", type: "number", min: 0, admin: { hidden: true } },
+                { name: "recipientName", type: "text", admin: { hidden: true } },
+                { name: "recipientEmail", type: "email", admin: { hidden: true } },
+                { name: "billingInterval", type: "select", options: ["month", "year"], admin: { hidden: true } },
+                { name: "stripeCustomerId", type: "text", admin: { hidden: true } },
+                { name: "stripeSubscriptionId", type: "text", admin: { hidden: true } },
+                { name: "stripeHostingItemId", type: "text", admin: { hidden: true } },
+                { name: "stripeSurchargeItemId", type: "text", admin: { hidden: true } },
+                { name: "stripeLatestInvoiceId", type: "text", admin: { hidden: true } },
+                { name: "subscriptionStatus", type: "text", admin: { hidden: true } },
+                { name: "currentPeriodEnd", type: "date", admin: { hidden: true } },
+                { name: "cancelAtPeriodEnd", type: "checkbox", admin: { hidden: true } },
+                { name: "providerEventCreatedAt", type: "date", admin: { hidden: true } },
+                { name: "providerEventId", type: "text", admin: { hidden: true } },
+                { name: "activeOffer", type: "relationship", relationTo: "hosting-payment-offers", admin: { hidden: true } },
+                { name: "offerCreatedAt", type: "date", admin: { hidden: true } },
+                { name: "offerExpiresAt", type: "date", admin: { hidden: true } },
+                { name: "offerCompletedAt", type: "date", admin: { hidden: true } },
+                { name: "priceChanges", type: "array", admin: { hidden: true }, fields: [{ name: "status", type: "select", options: ["pending", "canceled", "applied", "failed"] }, { name: "reason", type: "textarea" }, { name: "effectiveAt", type: "date" }, { name: "oldQuote", type: "json" }, { name: "newQuote", type: "json" }, { name: "noticeSentAt", type: "date" }, { name: "noticeMessageId", type: "text" }, { name: "appliedAt", type: "date" }, { name: "stripeReference", type: "text" }, { name: "lastError", type: "text" }, { name: "retryCount", type: "number", min: 0 }] },
+              ],
+            },
+            {
               type: "row",
               fields: [
                 {

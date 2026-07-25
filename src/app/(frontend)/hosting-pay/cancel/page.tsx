@@ -1,0 +1,1 @@
+export const metadata = { robots: { index: false, follow: false }, title: "Checkout cancelled" }; export default function Page() { return <main><h1>Checkout cancelled</h1><p>No payment was completed. You can return to your payment link or contact your Optimise Digital representative.</p></main>; }

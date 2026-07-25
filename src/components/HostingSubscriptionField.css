@@ -1,0 +1,61 @@
+.hosting-subscription-field {
+  width: 100%;
+}
+
+.hosting-subscription-field__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--base, 24px);
+}
+
+.hosting-subscription-field__control {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hosting-subscription-field__control label {
+  font-weight: 600;
+}
+
+.hosting-subscription-field__control input,
+.hosting-subscription-field__control select {
+  min-height: 40px;
+  width: 100%;
+  padding: 8px 36px 8px 12px;
+  color: var(--theme-text);
+  background: var(--theme-input-bg);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: var(--style-radius-s);
+}
+
+.hosting-subscription-field__control input[readonly] {
+  background: var(--theme-elevation-50);
+}
+
+.hosting-subscription-field__control span {
+  color: var(--theme-elevation-500);
+  font-size: 12px;
+}
+
+.hosting-subscription-field__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: var(--base, 24px);
+}
+
+@media (max-width: 900px) {
+  .hosting-subscription-field__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (forced-colors: active) {
+  .hosting-subscription-field__control input,
+  .hosting-subscription-field__control select {
+    border-color: CanvasText;
+  }
+}

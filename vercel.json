@@ -47,6 +47,10 @@
     {
       "path": "/api/proposals/audit-watchdog",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/hosting-subscriptions/sweep",
+      "schedule": "15 * * * *"
     }
   ],
   "functions": {

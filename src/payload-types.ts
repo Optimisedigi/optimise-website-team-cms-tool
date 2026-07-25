@@ -69,6 +69,7 @@ export interface Config {
   collections: {
     clients: Client;
     'client-wishlist-items': ClientWishlistItem;
+    'hosting-payment-offers': HostingPaymentOffer;
     'client-proposals': ClientProposal;
     'client-proposal-keyword-research-jobs': ClientProposalKeywordResearchJob;
     'client-discovery-briefings': ClientDiscoveryBriefing;
@@ -178,6 +179,7 @@ export interface Config {
   collectionsSelect: {
     clients: ClientsSelect<false> | ClientsSelect<true>;
     'client-wishlist-items': ClientWishlistItemsSelect<false> | ClientWishlistItemsSelect<true>;
+    'hosting-payment-offers': HostingPaymentOffersSelect<false> | HostingPaymentOffersSelect<true>;
     'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
     'client-proposal-keyword-research-jobs': ClientProposalKeywordResearchJobsSelect<false> | ClientProposalKeywordResearchJobsSelect<true>;
     'client-discovery-briefings': ClientDiscoveryBriefingsSelect<false> | ClientDiscoveryBriefingsSelect<true>;
@@ -282,6 +284,7 @@ export interface Config {
     'cron-settings': CronSetting;
     'optimate-settings': OptimateSetting;
     'blog-settings': BlogSetting;
+    'hosting-billing-settings': HostingBillingSetting;
   };
   globalsSelect: {
     'sheets-auth': SheetsAuthSelect<false> | SheetsAuthSelect<true>;
@@ -291,6 +294,7 @@ export interface Config {
     'cron-settings': CronSettingsSelect<false> | CronSettingsSelect<true>;
     'optimate-settings': OptimateSettingsSelect<false> | OptimateSettingsSelect<true>;
     'blog-settings': BlogSettingsSelect<false> | BlogSettingsSelect<true>;
+    'hosting-billing-settings': HostingBillingSettingsSelect<false> | HostingBillingSettingsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -577,6 +581,65 @@ export interface Client {
    * Optional contact for the referrer (email/phone)
    */
   referredByContact?: string | null;
+  /**
+   * Configure the client-facing hosting plan and billing details.
+   */
+  hostingSubscription?: {
+    planName?: string | null;
+    allowance?: string | null;
+    capacityClause?: string | null;
+    monthlyBaseCents?: number | null;
+    annualBaseCents?: number | null;
+    recipientName?: string | null;
+    recipientEmail?: string | null;
+    billingInterval?: ('month' | 'year') | null;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
+    stripeHostingItemId?: string | null;
+    stripeSurchargeItemId?: string | null;
+    stripeLatestInvoiceId?: string | null;
+    subscriptionStatus?: string | null;
+    currentPeriodEnd?: string | null;
+    cancelAtPeriodEnd?: boolean | null;
+    providerEventCreatedAt?: string | null;
+    providerEventId?: string | null;
+    activeOffer?: (number | null) | HostingPaymentOffer;
+    offerCreatedAt?: string | null;
+    offerExpiresAt?: string | null;
+    offerCompletedAt?: string | null;
+    priceChanges?:
+      | {
+          status?: ('pending' | 'canceled' | 'applied' | 'failed') | null;
+          reason?: string | null;
+          effectiveAt?: string | null;
+          oldQuote?:
+            | {
+                [k: string]: unknown;
+              }
+            | unknown[]
+            | string
+            | number
+            | boolean
+            | null;
+          newQuote?:
+            | {
+                [k: string]: unknown;
+              }
+            | unknown[]
+            | string
+            | number
+            | boolean
+            | null;
+          noticeSentAt?: string | null;
+          noticeMessageId?: string | null;
+          appliedAt?: string | null;
+          stripeReference?: string | null;
+          lastError?: string | null;
+          retryCount?: number | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
   /**
    * Client billing type
    */
@@ -1600,6 +1663,33 @@ export interface Media {
       filename?: string | null;
     };
   };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "hosting-payment-offers".
+ */
+export interface HostingPaymentOffer {
+  id: number;
+  client: number | Client;
+  tokenHash: string;
+  status: 'active' | 'checkout_pending' | 'completed' | 'revoked' | 'expired';
+  expiresAt: string;
+  selectedInterval?: ('month' | 'year') | null;
+  stripeCheckoutSessionId?: string | null;
+  /**
+   * Immutable plan, fee, quote and contractual-term snapshot.
+   */
+  snapshot:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Service contracts linked to client proposals
@@ -6185,6 +6275,7 @@ export interface User {
         | 'cost-categories'
         | 'cost-rules'
         | 'api-cost-rates'
+        | 'hosting-billing-settings'
         | 'nav:invoices'
         | 'contractors'
         | 'nav:contractor-costs'
@@ -6300,6 +6391,7 @@ export interface PermissionProfile {
         | 'cost-categories'
         | 'cost-rules'
         | 'api-cost-rates'
+        | 'hosting-billing-settings'
         | 'nav:invoices'
         | 'contractors'
         | 'nav:contractor-costs'
@@ -7662,7 +7754,7 @@ export interface BlogPost {
    */
   readingTime?: string | null;
   /**
-   * Raw markdown content. If provided, this will be used instead of the rich text editor on the website.
+   * Raw markdown used on the website instead of rich text. Paste or add graphs and screenshots here; images are uploaded to Media and inserted at the cursor.
    */
   markdownContent?: string | null;
   /**
@@ -10828,6 +10920,10 @@ export interface PayloadLockedDocument {
         value: number | ClientWishlistItem;
       } | null)
     | ({
+        relationTo: 'hosting-payment-offers';
+        value: number | HostingPaymentOffer;
+      } | null)
+    | ({
         relationTo: 'client-proposals';
         value: number | ClientProposal;
       } | null)
@@ -11287,6 +11383,48 @@ export interface ClientsSelect<T extends boolean = true> {
   acquisitionDetail?: T;
   referredBy?: T;
   referredByContact?: T;
+  hostingSubscription?:
+    | T
+    | {
+        planName?: T;
+        allowance?: T;
+        capacityClause?: T;
+        monthlyBaseCents?: T;
+        annualBaseCents?: T;
+        recipientName?: T;
+        recipientEmail?: T;
+        billingInterval?: T;
+        stripeCustomerId?: T;
+        stripeSubscriptionId?: T;
+        stripeHostingItemId?: T;
+        stripeSurchargeItemId?: T;
+        stripeLatestInvoiceId?: T;
+        subscriptionStatus?: T;
+        currentPeriodEnd?: T;
+        cancelAtPeriodEnd?: T;
+        providerEventCreatedAt?: T;
+        providerEventId?: T;
+        activeOffer?: T;
+        offerCreatedAt?: T;
+        offerExpiresAt?: T;
+        offerCompletedAt?: T;
+        priceChanges?:
+          | T
+          | {
+              status?: T;
+              reason?: T;
+              effectiveAt?: T;
+              oldQuote?: T;
+              newQuote?: T;
+              noticeSentAt?: T;
+              noticeMessageId?: T;
+              appliedAt?: T;
+              stripeReference?: T;
+              lastError?: T;
+              retryCount?: T;
+              id?: T;
+            };
+      };
   clientType?: T;
   clientStartDate?: T;
   retainerStartDate?: T;
@@ -11645,6 +11783,21 @@ export interface ClientWishlistItemsSelect<T extends boolean = true> {
   website?: T;
   why?: T;
   addedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "hosting-payment-offers_select".
+ */
+export interface HostingPaymentOffersSelect<T extends boolean = true> {
+  client?: T;
+  tokenHash?: T;
+  status?: T;
+  expiresAt?: T;
+  selectedInterval?: T;
+  stripeCheckoutSessionId?: T;
+  snapshot?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -14886,6 +15039,42 @@ export interface BlogSetting {
   createdAt?: string | null;
 }
 /**
+ * Plans, disclosed card surcharge and capacity-change notice terms.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "hosting-billing-settings".
+ */
+export interface HostingBillingSetting {
+  id: number;
+  currency: string;
+  /**
+   * Disclosed card processing percentage. Finance/legal approval is required before production use.
+   */
+  cardSurchargePercentage: number;
+  cardSurchargeFixedCents: number;
+  surchargeEffectiveFrom?: string | null;
+  minimumNoticeDays: number;
+  /**
+   * Edits affect future offers only. Issued offers and subscriptions retain their snapshots.
+   */
+  plans?:
+    | {
+        name: string;
+        description?: string | null;
+        includedAllowance: string;
+        monthlyBaseCents: number;
+        annualBaseCents: number;
+        active?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  capacityChangeClause: string;
+  noticeEmailSubject: string;
+  noticeEmailBody: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "sheets-auth_select".
  */
@@ -15096,6 +15285,34 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
 export interface BlogSettingsSelect<T extends boolean = true> {
   globalBlogRules?: T;
   globalMarkdownRules?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "hosting-billing-settings_select".
+ */
+export interface HostingBillingSettingsSelect<T extends boolean = true> {
+  currency?: T;
+  cardSurchargePercentage?: T;
+  cardSurchargeFixedCents?: T;
+  surchargeEffectiveFrom?: T;
+  minimumNoticeDays?: T;
+  plans?:
+    | T
+    | {
+        name?: T;
+        description?: T;
+        includedAllowance?: T;
+        monthlyBaseCents?: T;
+        annualBaseCents?: T;
+        active?: T;
+        id?: T;
+      };
+  capacityChangeClause?: T;
+  noticeEmailSubject?: T;
+  noticeEmailBody?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

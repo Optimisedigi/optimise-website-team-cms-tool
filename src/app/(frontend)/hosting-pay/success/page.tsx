@@ -1,0 +1,1 @@
+export const metadata = { robots: { index: false, follow: false }, title: "Checkout received" }; export default function Page() { return <main><h1>Checkout received</h1><p>Stripe has received your checkout. We will confirm hosting after the payment provider verifies your subscription.</p></main>; }

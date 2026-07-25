@@ -10,6 +10,7 @@ import * as migration_20260809_120000_add_working_doc_revisions from './20260809
 import * as migration_20260810_120000_add_team_task_screenshots from './20260810_120000_add_team_task_screenshots'
 import * as migration_20260811_120000_add_search_query_review from './20260811_120000_add_search_query_review'
 import * as migration_20260813_120000_add_activity_log_target_url from './20260813_120000_add_activity_log_target_url'
+import * as migration_20260814_120000_add_hosting_billing from './20260814_120000_add_hosting_billing'
 import * as migration_20260801_130000_add_proposal_meta_ads_job_state from './20260801_130000_add_proposal_meta_ads_job_state'
 import * as migration_20260304_120000_add_gsc_indexing_audits from './20260304_120000_add_gsc_indexing_audits'
 import * as migration_20260306_120000_add_contracts from './20260306_120000_add_contracts'
@@ -947,5 +948,10 @@ export const migrations = [
     up: migration_20260813_120000_add_activity_log_target_url.up,
     down: migration_20260813_120000_add_activity_log_target_url.down,
     name: '20260813_120000_add_activity_log_target_url',
+  },
+  {
+    up: migration_20260814_120000_add_hosting_billing.up,
+    down: migration_20260814_120000_add_hosting_billing.down,
+    name: '20260814_120000_add_hosting_billing',
   },
 ]

@@ -81,6 +81,7 @@ export const FEATURE_KEYS = [
   { label: "Cost Categories", value: "cost-categories" },
   { label: "Cost Rules", value: "cost-rules" },
   { label: "API Cost Rates (Global)", value: "api-cost-rates" },
+  { label: "Hosting Billing Settings (Global)", value: "hosting-billing-settings" },
   { label: "Invoices (Xero)", value: "nav:invoices" },
   { label: "Contractors", value: "contractors" },
   { label: "Contractor Costs (page)", value: "nav:contractor-costs" },

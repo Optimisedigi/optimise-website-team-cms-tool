@@ -12,6 +12,7 @@ import { Users } from "./collections/Users";
 import { Media } from "./collections/Media";
 import { Clients } from "./collections/Clients";
 import { ClientWishlistItems } from "./collections/ClientWishlistItems";
+import { HostingPaymentOffers } from "./collections/HostingPaymentOffers";
 import { ClientProposalKeywordResearchJobs } from "./collections/ClientProposalKeywordResearchJobs";
 import { ClientProposals } from "./collections/ClientProposals";
 import { ClientDiscoveryBriefings } from "./collections/ClientDiscoveryBriefings";
@@ -82,6 +83,7 @@ import { CalendarAuth } from "./globals/CalendarAuth";
 import { CronSettings } from "./globals/CronSettings";
 import { OptiMateSettings } from "./globals/OptiMateSettings";
 import { BlogSettings } from "./globals/BlogSettings";
+import { HostingBillingSettings } from "./globals/HostingBillingSettings";
 import { MeetingSchedulers } from "./collections/MeetingSchedulers";
 import { PermissionProfiles } from "./collections/PermissionProfiles";
 import { AgentApprovalQueue } from "./collections/AgentApprovalQueue";
@@ -143,7 +145,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientWishlistItems, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
+    Clients, ClientWishlistItems, HostingPaymentOffers, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO
@@ -186,7 +188,7 @@ export default buildConfig({
       },
     }
   }),
-  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates, CronSettings, OptiMateSettings, BlogSettings].map((g) => {
+  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates, CronSettings, OptiMateSettings, BlogSettings, HostingBillingSettings].map((g) => {
     const global = g as GlobalConfig
     return {
       ...global,
