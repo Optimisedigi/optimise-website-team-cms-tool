@@ -1,7 +1,10 @@
 .similarweb-chrome-profile/
 backups/
 docs/test-runs/
+*.db
+content.db.bak-*
 content.db.schema-fix-backup-*
+.gg/
 *-smoke.json
 .next/
 node_modules/
