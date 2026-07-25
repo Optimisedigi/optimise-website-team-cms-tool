@@ -10,6 +10,7 @@ import { default as default_3bdd599103664c7cbba890063d6642e9 } from '../../../co
 import { GoogleAdsCustomerIdField as GoogleAdsCustomerIdField_1fbf8a605f93366d7cd9734a76ac1d6b } from '../../../components/GoogleAdsCustomerIdField'
 import { default as default_a9f880a6de06ab5f693a05644fa1793e } from '../../../components/clients-list/AccountManagerCell'
 import { default as default_b01924fac7c8fdeb53e1e3279533a6b2 } from '../../../components/AccountManagersField'
+import { default as default_129becbc8aaa64d8e1f9829187e647cb } from '../../../components/HostingSubscriptionField'
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
 import { default as default_6a5b1e7effb81eb770bec93b1614e740 } from '../../../components/FirstMonthRetainerField'
 import { default as default_c5ea9fe7cd59f6fed2f187082f64a9ed } from '../../../components/ClientSignedContractButton'
@@ -140,6 +141,7 @@ import { default as default_9c631d4925e49d9cfb3fb118c0ff4010 } from '../../../co
 import { default as default_909a54b4f02f1428884a878a4fce4a5f } from '../../../components/GoogleAdsFindingCuration'
 import { default as default_10fccc7885acbd99c8b1f5d8e310047f } from '../../../components/RegenerateEmailButton'
 import { default as default_02d3554f3ddfaf4b28ba78d8bf1fb123 } from '../../../components/GoogleAdsAuditDeckReview'
+import { default as default_4571a8249f97d26c2d60ca4d844916a3 } from '../../../components/GoogleAdsSearchQueryReview'
 import { default as default_2eca85eea20f05062ddd72e60518b25f } from '../../../components/RunCampaignProposalButton'
 import { default as default_60c16b01b604a3bf2312f924f0ece75b } from '../../../components/CampaignProposalPreview'
 import { default as default_e52447bfa5fc6cde09e57d3c9412148e } from '../../../components/RunProposalCompetitorWorkflowButton'
@@ -154,7 +156,6 @@ import { default as default_0875500ed79e3068678d80b63965f2c2 } from '../../../co
 import { default as default_fd2febb67d3357a3222a3d4b42c00e68 } from '../../../components/NegativeListBuilder'
 import { default as default_3dedd88d620dc77baa17f61edda4911f } from '../../../components/GoogleAdsNegativeKeywordLists'
 import { default as default_f7cd7bb1cdadc6401b03afe470d6711d } from '../../../components/GoogleAdsKeywordDeepDiveSessions'
-import { default as default_googleAdsSearchQueryReview } from '../../../components/GoogleAdsSearchQueryReview'
 import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
@@ -225,6 +226,7 @@ export const importMap = {
   "./components/GoogleAdsCustomerIdField#GoogleAdsCustomerIdField": GoogleAdsCustomerIdField_1fbf8a605f93366d7cd9734a76ac1d6b,
   "./components/clients-list/AccountManagerCell#default": default_a9f880a6de06ab5f693a05644fa1793e,
   "./components/AccountManagersField#default": default_b01924fac7c8fdeb53e1e3279533a6b2,
+  "./components/HostingSubscriptionField#default": default_129becbc8aaa64d8e1f9829187e647cb,
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
   "./components/FirstMonthRetainerField#default": default_6a5b1e7effb81eb770bec93b1614e740,
   "./components/ClientSignedContractButton#default": default_c5ea9fe7cd59f6fed2f187082f64a9ed,
@@ -355,6 +357,7 @@ export const importMap = {
   "./components/GoogleAdsFindingCuration#default": default_909a54b4f02f1428884a878a4fce4a5f,
   "./components/RegenerateEmailButton#default": default_10fccc7885acbd99c8b1f5d8e310047f,
   "./components/GoogleAdsAuditDeckReview#default": default_02d3554f3ddfaf4b28ba78d8bf1fb123,
+  "./components/GoogleAdsSearchQueryReview#default": default_4571a8249f97d26c2d60ca4d844916a3,
   "./components/RunCampaignProposalButton#default": default_2eca85eea20f05062ddd72e60518b25f,
   "./components/CampaignProposalPreview#default": default_60c16b01b604a3bf2312f924f0ece75b,
   "./components/RunProposalCompetitorWorkflowButton#default": default_e52447bfa5fc6cde09e57d3c9412148e,
@@ -369,7 +372,6 @@ export const importMap = {
   "./components/NegativeListBuilder#default": default_fd2febb67d3357a3222a3d4b42c00e68,
   "./components/GoogleAdsNegativeKeywordLists#default": default_3dedd88d620dc77baa17f61edda4911f,
   "./components/GoogleAdsKeywordDeepDiveSessions#default": default_f7cd7bb1cdadc6401b03afe470d6711d,
-  "./components/GoogleAdsSearchQueryReview#default": default_googleAdsSearchQueryReview,
   "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,
   "./components/GscIndexingAuditResults#default": default_14da33fa7cd5bda0159f477250995b44,
