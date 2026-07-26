@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { getHostingSubscriptionItems, getStripe, verifyStripeWebhook } from '@/lib/stripe'
-import { getStripeInvoiceReferences } from '@/lib/hosting-billing'
+import { getStripeInvoiceReferences, getSubscriptionPeriodEnd } from '@/lib/hosting-billing'
 
 async function resolveInvoiceClientId(invoice: any): Promise<string | undefined> {
   const references = getStripeInvoiceReferences(invoice)
@@ -94,9 +94,7 @@ export async function POST(req: NextRequest) {
     next.stripeSubscriptionId = object.id
     next.subscriptionStatus = object.status
     next.cancelAtPeriodEnd = Boolean(object.cancel_at_period_end)
-    next.currentPeriodEnd = object.current_period_end
-      ? new Date(object.current_period_end * 1000).toISOString()
-      : null
+    next.currentPeriodEnd = getSubscriptionPeriodEnd(object)
     const items = await getHostingSubscriptionItems(object.id)
     next.stripeHostingItemId = items.hostingItemId || next.stripeHostingItemId
     next.stripeSurchargeItemId = items.surchargeItemId || next.stripeSurchargeItemId

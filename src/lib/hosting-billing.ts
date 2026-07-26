@@ -75,6 +75,19 @@ export function getStripeInvoiceReferences(invoice: any): StripeInvoiceReference
   }
 }
 
+/**
+ * Stripe moved `current_period_end` off the subscription and onto each subscription item
+ * (API 2025-03-31.basil onwards). Read the item value, falling back to the legacy top-level
+ * field so older API versions and stored fixtures still resolve.
+ */
+export function getSubscriptionPeriodEnd(subscription: any): string | null {
+  const seconds =
+    subscription?.items?.data?.find((item: any) => Number.isFinite(item?.current_period_end))
+      ?.current_period_end ?? subscription?.current_period_end
+  if (!Number.isFinite(seconds)) return null
+  return new Date(seconds * 1000).toISOString()
+}
+
 export function shouldApplyHostingPriceChange(
   change: { status?: string | null; effectiveAt?: string | null },
   now = new Date(),

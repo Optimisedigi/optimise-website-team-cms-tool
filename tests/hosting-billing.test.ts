@@ -3,6 +3,7 @@ import {
   calculateCardSurcharge,
   createHostingQuote,
   getStripeInvoiceReferences,
+  getSubscriptionPeriodEnd,
   shouldApplyHostingPriceChange,
   validateSurchargeConfig,
 } from '@/lib/hosting-billing'
@@ -49,6 +50,21 @@ describe('hosting billing quotes', () => {
         new Date('2026-08-01T09:00:00.000Z'),
       ),
     ).toBe(false)
+  })
+
+  it('reads the renewal date from subscription items on current Stripe API versions', () => {
+    expect(
+      getSubscriptionPeriodEnd({
+        items: { data: [{ current_period_end: 1787714143 }, { current_period_end: 1787714143 }] },
+      }),
+    ).toBe('2026-08-26T03:15:43.000Z')
+  })
+
+  it('falls back to the legacy top-level renewal date and tolerates neither being present', () => {
+    expect(getSubscriptionPeriodEnd({ current_period_end: 1787714143 })).toBe(
+      '2026-08-26T03:15:43.000Z',
+    )
+    expect(getSubscriptionPeriodEnd({ items: { data: [] } })).toBeNull()
   })
 
   it('persists the quoted surcharge separately', () => {
