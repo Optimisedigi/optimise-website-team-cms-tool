@@ -5560,7 +5560,53 @@ export async function runMigrations(
     await run("hosting_billing_settings_plans_parent_idx", "CREATE INDEX IF NOT EXISTS `hosting_billing_settings_plans_parent_idx` ON `hosting_billing_settings_plans` (`_parent_id`)");
     await run("hosting_billing_settings_plans_order_idx", "CREATE INDEX IF NOT EXISTS `hosting_billing_settings_plans_order_idx` ON `hosting_billing_settings_plans` (`_order`)");
 
-    await run("hosting_payment_offers", `CREATE TABLE IF NOT EXISTS \`hosting_payment_offers\` (
+    // ── Hosting plan prices in dollars + optional annual discount (2026-08-15/16) ──
+    // Plans originally stored two NOT NULL cent values. Finance now authors a
+    // monthly AUD price and an optional annual discount; rebuild the array table
+    // once so Payload can insert plans without having to populate removed columns.
+    const hostingPlansUseLegacyCents = await columnExists(
+      "hosting_billing_settings_plans",
+      "monthly_base_cents",
+    );
+    await run(
+      "hosting_billing_settings_plans.monthly_price",
+      "ALTER TABLE `hosting_billing_settings_plans` ADD COLUMN `monthly_price` numeric",
+    );
+    await run(
+      "hosting_billing_settings_plans.annual_discount_percentage",
+      "ALTER TABLE `hosting_billing_settings_plans` ADD COLUMN `annual_discount_percentage` numeric",
+    );
+    if (hostingPlansUseLegacyCents) {
+      await run(
+        "hosting_billing_settings_plans.monthly_price_from_cents",
+        "UPDATE `hosting_billing_settings_plans` SET `monthly_price` = `monthly_base_cents` / 100.0 WHERE `monthly_price` IS NULL",
+      );
+      await run(
+        "hosting_billing_settings_plans.annual_discount_from_cents",
+        "UPDATE `hosting_billing_settings_plans` SET `annual_discount_percentage` = NULLIF(ROUND((1 - (`annual_base_cents` / NULLIF(`monthly_base_cents` * 12, 0))) * 100, 2), 0) WHERE `annual_discount_percentage` IS NULL",
+      );
+      await run("hosting_billing_settings_plans_new", `CREATE TABLE IF NOT EXISTS ` + "`hosting_billing_settings_plans_new`" + ` (
+        \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL, \`id\` text PRIMARY KEY NOT NULL,
+        \`name\` text NOT NULL, \`description\` text, \`included_allowance\` text NOT NULL,
+        \`monthly_price\` numeric NOT NULL, \`annual_discount_percentage\` numeric, \`active\` boolean DEFAULT true,
+        FOREIGN KEY (\`_parent_id\`) REFERENCES \`hosting_billing_settings\`(\`id\`) ON UPDATE no action ON DELETE cascade
+      )`);
+      await run(
+        "hosting_billing_settings_plans_copy_dollar_prices",
+        "INSERT INTO `hosting_billing_settings_plans_new` (`_order`, `_parent_id`, `id`, `name`, `description`, `included_allowance`, `monthly_price`, `annual_discount_percentage`, `active`) SELECT `_order`, `_parent_id`, `id`, `name`, `description`, `included_allowance`, `monthly_price`, `annual_discount_percentage`, `active` FROM `hosting_billing_settings_plans`",
+      );
+      await run("hosting_billing_settings_plans_drop_legacy", "DROP TABLE `hosting_billing_settings_plans`");
+      await run(
+        "hosting_billing_settings_plans_rename_dollar_prices",
+        "ALTER TABLE `hosting_billing_settings_plans_new` RENAME TO `hosting_billing_settings_plans`",
+      );
+      await run("hosting_billing_settings_plans_parent_idx_dollars", "CREATE INDEX IF NOT EXISTS `hosting_billing_settings_plans_parent_idx` ON `hosting_billing_settings_plans` (`_parent_id`)");
+      await run("hosting_billing_settings_plans_order_idx_dollars", "CREATE INDEX IF NOT EXISTS `hosting_billing_settings_plans_order_idx` ON `hosting_billing_settings_plans` (`_order`)");
+    }
+    await run("mark_migration:20260815_120000_hosting_plans_dollars", "INSERT OR IGNORE INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) VALUES ('20260815_120000_hosting_plans_dollars', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+    await run("mark_migration:20260816_120000_hosting_plan_annual_discount", "INSERT OR IGNORE INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) VALUES ('20260816_120000_hosting_plan_annual_discount', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+
+    await run("hosting_payment_offers",  `CREATE TABLE IF NOT EXISTS \`hosting_payment_offers\` (
       \`id\` integer PRIMARY KEY NOT NULL, \`client_id\` integer NOT NULL, \`token_hash\` text NOT NULL UNIQUE,
       \`status\` text DEFAULT 'active' NOT NULL, \`expires_at\` text NOT NULL, \`selected_interval\` text,
       \`stripe_checkout_session_id\` text, \`snapshot\` text NOT NULL, \`created_at\` text NOT NULL, \`updated_at\` text NOT NULL,

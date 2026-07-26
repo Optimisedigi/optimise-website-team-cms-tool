@@ -100,7 +100,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     customerId: client.hostingSubscription?.stripeCustomerId,
     email: snapshot.recipientEmail,
     quote,
-    idempotencyKey: `hosting-checkout-${offer.id}-${interval}${retrySuffix}`,
+    // v2 uses one disclosed recurring total rather than two Checkout line items.
+    // Versioning avoids colliding with immutable Stripe sessions created by v1.
+    idempotencyKey: `hosting-checkout-v2-${offer.id}-${interval}${retrySuffix}`,
+    returnToPaymentLink: `/hosting-pay/${token}`,
   })
 
   await payload.update({

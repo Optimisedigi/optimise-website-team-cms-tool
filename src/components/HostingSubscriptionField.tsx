@@ -4,12 +4,26 @@ import { Button, useDocumentInfo, useField, useForm } from '@payloadcms/ui'
 import { useEffect, useMemo, useState } from 'react'
 import './HostingSubscriptionField.css'
 
+/**
+ * Plans are authored in dollars in the Hosting Billing Settings global; every
+ * downstream store (client record, Stripe) works in cents, so convert on read.
+ */
 type HostingPlan = {
   name: string
   includedAllowance?: string | null
-  monthlyBaseCents: number
-  annualBaseCents: number
+  monthlyPrice: number
+  annualDiscountPercentage?: number | null
   active?: boolean | null
+}
+
+const toCents = (dollars: unknown) =>
+  Math.round(Math.max(0, Number.isFinite(Number(dollars)) ? Number(dollars) : 0) * 100)
+
+/** Annual price is always monthly x 12, less the plan's optional discount. */
+const annualCentsFrom = (monthlyCents: number, discountPercentage?: number | null) => {
+  const discount = Number(discountPercentage)
+  const applied = Number.isFinite(discount) ? Math.min(Math.max(discount, 0), 100) : 0
+  return Math.round(monthlyCents * 12 * (1 - applied / 100))
 }
 
 type OfferResult = { url: string; expiresAt: string }
@@ -26,10 +40,10 @@ export default function HostingSubscriptionField() {
   const { value: monthlyBaseCents, setValue: setMonthlyBaseCents } = useField<number>({
     path: 'hostingSubscription.monthlyBaseCents',
   })
-  const { setValue: setAnnualBaseCents } = useField<number>({
+  const { value: annualBaseCents, setValue: setAnnualBaseCents } = useField<number>({
     path: 'hostingSubscription.annualBaseCents',
   })
-  const { setValue: setRecipientEmail } = useField<string>({
+  const { value: recipientEmail, setValue: setRecipientEmail } = useField<string>({
     path: 'hostingSubscription.recipientEmail',
   })
   const { value: billingInterval, setValue: setBillingInterval } = useField<'month' | 'year'>({
@@ -56,9 +70,11 @@ export default function HostingSubscriptionField() {
       .finally(() => setPlansLoading(false))
   }, [])
 
+  // Seed from the main client contact once. A billing contact can be different,
+  // so never overwrite an email an admin has deliberately entered here.
   useEffect(() => {
-    setRecipientEmail(clientEmail || '')
-  }, [clientEmail, setRecipientEmail])
+    if (!recipientEmail && clientEmail) setRecipientEmail(clientEmail)
+  }, [clientEmail, recipientEmail, setRecipientEmail])
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.name === planName),
@@ -67,6 +83,14 @@ export default function HostingSubscriptionField() {
   const selectedPlanValue =
     customPlanSelected || (planName && !selectedPlan) ? CUSTOM_PLAN : selectedPlan?.name || ''
   const monthlyFee = Number(monthlyBaseCents || 0) / 100
+  const annualDiscount = Number(selectedPlan?.annualDiscountPercentage || 0)
+  const annualSummary =
+    Number(annualBaseCents || 0) > 0
+      ? `Annual: ${(Number(annualBaseCents) / 100).toLocaleString('en-AU', {
+          style: 'currency',
+          currency: 'AUD',
+        })}${annualDiscount > 0 ? ` (${annualDiscount}% annual discount applied)` : ''}`
+      : ''
 
   const selectPlan = (name: string) => {
     if (name === CUSTOM_PLAN) {
@@ -80,22 +104,23 @@ export default function HostingSubscriptionField() {
     setPlanName(name)
     if (plan) {
       setAllowance(plan.includedAllowance || '')
-      setMonthlyBaseCents(plan.monthlyBaseCents)
-      setAnnualBaseCents(plan.annualBaseCents)
+      const monthlyCents = toCents(plan.monthlyPrice)
+      setMonthlyBaseCents(monthlyCents)
+      setAnnualBaseCents(annualCentsFrom(monthlyCents, plan.annualDiscountPercentage))
     }
   }
 
   const updateMonthlyFee = (amount: number) => {
     const cents = Math.max(0, Math.round((Number.isFinite(amount) ? amount : 0) * 100))
     setMonthlyBaseCents(cents)
-    setAnnualBaseCents(cents * 12)
+    setAnnualBaseCents(annualCentsFrom(cents, selectedPlan?.annualDiscountPercentage))
   }
 
   const createOffer = async () => {
     if (
       !id ||
       !window.confirm(
-        `Create a seven-day hosting payment offer for ${clientEmail}? This revokes any current offer.`,
+        `Create a seven-day hosting payment offer for ${recipientEmail}? This revokes any current offer.`,
       )
     )
       return
@@ -123,7 +148,11 @@ export default function HostingSubscriptionField() {
   }
 
   return (
-    <div className="hosting-subscription-field">
+    <section className="hosting-subscription-field" aria-labelledby="hosting-subscription-heading">
+      <header className="hosting-subscription-field__header">
+        <h2 id="hosting-subscription-heading">Hosting subscription</h2>
+        <p>Set the plan and billing contact, then create a payment link for the client.</p>
+      </header>
       <div className="hosting-subscription-field__grid">
         <div className="hosting-subscription-field__control">
           <label htmlFor="hosting-plan">Plan name</label>
@@ -160,19 +189,21 @@ export default function HostingSubscriptionField() {
             inputMode="decimal"
             value={monthlyFee || ''}
             onChange={(event) => updateMonthlyFee(event.target.valueAsNumber)}
+            aria-describedby={annualSummary ? 'hosting-annual-help' : undefined}
           />
+          {annualSummary && <span id="hosting-annual-help">{annualSummary}</span>}
         </div>
         <div className="hosting-subscription-field__control">
           <label htmlFor="hosting-recipient-email">Recipient email</label>
           <input
             id="hosting-recipient-email"
             type="email"
-            value={clientEmail || ''}
-            readOnly
+            value={recipientEmail || ''}
+            onChange={(event) => setRecipientEmail(event.target.value)}
             aria-describedby="hosting-recipient-help"
           />
           <span id="hosting-recipient-help">
-            Uses the client email from Contacts &amp; Managers.
+            Starts with the client contact email. Change it to send this billing link to another recipient.
           </span>
         </div>
         <div className="hosting-subscription-field__control">
@@ -194,7 +225,7 @@ export default function HostingSubscriptionField() {
           type="button"
           size="small"
           disabled={
-            !id || !planName || !clientEmail || !monthlyBaseCents || !billingInterval || creating
+            !id || !planName || !recipientEmail || !monthlyBaseCents || !billingInterval || creating
           }
           onClick={createOffer}
         >
@@ -209,6 +240,6 @@ export default function HostingSubscriptionField() {
       <p role="status" aria-live="polite">
         {message}
       </p>
-    </div>
+    </section>
   )
 }

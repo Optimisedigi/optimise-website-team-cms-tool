@@ -582,8 +582,29 @@ export interface Client {
    */
   referredByContact?: string | null;
   /**
-   * Configure the client-facing hosting plan and billing details.
+   * Client billing type
    */
+  clientType?: ('recurring' | 'one_off' | 'paused') | null;
+  /**
+   * When this client started working with us
+   */
+  clientStartDate?: string | null;
+  /**
+   * When the retainer billing begins. Drives the pro-rated first month and setup-fee timing. Defaults to client start date when empty.
+   */
+  retainerStartDate?: string | null;
+  /**
+   * Net monthly revenue ($)
+   */
+  monthlyRetainer?: number | null;
+  /**
+   * One-time, counts toward retainer YTD
+   */
+  setupFee?: number | null;
+  /**
+   * e.g. 50 for a 50/50 partner split
+   */
+  revenueSharePercent?: number | null;
   hostingSubscription?: {
     planName?: string | null;
     allowance?: string | null;
@@ -640,30 +661,6 @@ export interface Client {
         }[]
       | null;
   };
-  /**
-   * Client billing type
-   */
-  clientType?: ('recurring' | 'one_off' | 'paused') | null;
-  /**
-   * When this client started working with us
-   */
-  clientStartDate?: string | null;
-  /**
-   * When the retainer billing begins. Drives the pro-rated first month and setup-fee timing. Defaults to client start date when empty.
-   */
-  retainerStartDate?: string | null;
-  /**
-   * Net monthly revenue ($)
-   */
-  monthlyRetainer?: number | null;
-  /**
-   * One-time, counts toward retainer YTD
-   */
-  setupFee?: number | null;
-  /**
-   * e.g. 50 for a 50/50 partner split
-   */
-  revenueSharePercent?: number | null;
   /**
    * Yearly sales targets by calendar year. For the agency client, the row matching the current year drives the Yearly Sales Target progress bar on the dashboard. For ordinary clients this is a tracking number only.
    */
@@ -11383,6 +11380,12 @@ export interface ClientsSelect<T extends boolean = true> {
   acquisitionDetail?: T;
   referredBy?: T;
   referredByContact?: T;
+  clientType?: T;
+  clientStartDate?: T;
+  retainerStartDate?: T;
+  monthlyRetainer?: T;
+  setupFee?: T;
+  revenueSharePercent?: T;
   hostingSubscription?:
     | T
     | {
@@ -11425,12 +11428,6 @@ export interface ClientsSelect<T extends boolean = true> {
               id?: T;
             };
       };
-  clientType?: T;
-  clientStartDate?: T;
-  retainerStartDate?: T;
-  monthlyRetainer?: T;
-  setupFee?: T;
-  revenueSharePercent?: T;
   yearlyTargets?:
     | T
     | {
@@ -15062,8 +15059,14 @@ export interface HostingBillingSetting {
         name: string;
         description?: string | null;
         includedAllowance: string;
-        monthlyBaseCents: number;
-        annualBaseCents: number;
+        /**
+         * Dollars, excluding the card surcharge. Example: 99 or 99.50.
+         */
+        monthlyPrice: number;
+        /**
+         * Optional. Annual price is monthly × 12, less this discount. Leave blank for no discount.
+         */
+        annualDiscountPercentage?: number | null;
         active?: boolean | null;
         id?: string | null;
       }[]
@@ -15305,8 +15308,8 @@ export interface HostingBillingSettingsSelect<T extends boolean = true> {
         name?: T;
         description?: T;
         includedAllowance?: T;
-        monthlyBaseCents?: T;
-        annualBaseCents?: T;
+        monthlyPrice?: T;
+        annualDiscountPercentage?: T;
         active?: T;
         id?: T;
       };

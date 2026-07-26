@@ -10,9 +10,9 @@ import { default as default_3bdd599103664c7cbba890063d6642e9 } from '../../../co
 import { GoogleAdsCustomerIdField as GoogleAdsCustomerIdField_1fbf8a605f93366d7cd9734a76ac1d6b } from '../../../components/GoogleAdsCustomerIdField'
 import { default as default_a9f880a6de06ab5f693a05644fa1793e } from '../../../components/clients-list/AccountManagerCell'
 import { default as default_b01924fac7c8fdeb53e1e3279533a6b2 } from '../../../components/AccountManagersField'
-import { default as default_129becbc8aaa64d8e1f9829187e647cb } from '../../../components/HostingSubscriptionField'
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
 import { default as default_6a5b1e7effb81eb770bec93b1614e740 } from '../../../components/FirstMonthRetainerField'
+import { default as default_129becbc8aaa64d8e1f9829187e647cb } from '../../../components/HostingSubscriptionField'
 import { default as default_c5ea9fe7cd59f6fed2f187082f64a9ed } from '../../../components/ClientSignedContractButton'
 import { RscEntryLexicalCell as RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { RscEntryLexicalField as RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
@@ -226,9 +226,9 @@ export const importMap = {
   "./components/GoogleAdsCustomerIdField#GoogleAdsCustomerIdField": GoogleAdsCustomerIdField_1fbf8a605f93366d7cd9734a76ac1d6b,
   "./components/clients-list/AccountManagerCell#default": default_a9f880a6de06ab5f693a05644fa1793e,
   "./components/AccountManagersField#default": default_b01924fac7c8fdeb53e1e3279533a6b2,
-  "./components/HostingSubscriptionField#default": default_129becbc8aaa64d8e1f9829187e647cb,
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
   "./components/FirstMonthRetainerField#default": default_6a5b1e7effb81eb770bec93b1614e740,
+  "./components/HostingSubscriptionField#default": default_129becbc8aaa64d8e1f9829187e647cb,
   "./components/ClientSignedContractButton#default": default_c5ea9fe7cd59f6fed2f187082f64a9ed,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalCell": RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalField": RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e,

@@ -17,7 +17,9 @@ export const HostingBillingSettings: GlobalConfig = {
       ] },
       { label: "Hosting plans", fields: [{ name: "plans", type: "array", admin: { description: "Edits affect future offers only. Issued offers and subscriptions retain their snapshots." }, fields: [
         { name: "name", type: "text", required: true }, { name: "description", type: "textarea" }, { name: "includedAllowance", type: "textarea", required: true },
-        { name: "monthlyBaseCents", type: "number", required: true, min: 1 }, { name: "annualBaseCents", type: "number", required: true, min: 1 }, { name: "active", type: "checkbox", defaultValue: true },
+        { name: "monthlyPrice", label: "Monthly price (AUD)", type: "number", required: true, min: 0.01, admin: { step: 0.01, description: "Dollars, excluding the card surcharge. Example: 99 or 99.50." } },
+        { name: "annualDiscountPercentage", label: "Annual discount (%)", type: "number", min: 0, max: 100, admin: { step: 0.01, description: "Optional. Annual price is monthly × 12, less this discount. Leave blank for no discount." } },
+        { name: "active", type: "checkbox", defaultValue: true },
       ] }] },
       { label: "Client terms", fields: [
         { name: "capacityChangeClause", type: "textarea", required: true, defaultValue: "If hosting capacity exceeds the included allowance, we may propose a future price change with written notice. The change will take effect at a future renewal only." },

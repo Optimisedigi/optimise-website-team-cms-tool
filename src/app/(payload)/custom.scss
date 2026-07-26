@@ -456,6 +456,16 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Cline x1='9' y1='18' x2='15' y2='18'/%3E%3Cline x1='10' y1='22' x2='14' y2='22'/%3E%3Cpath d='M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14'/%3E#{$svg-close}");
 }
 
+// Hosting Billing Settings (global) — server rack (hosting)
+.nav #nav-global-hosting-billing-settings {
+  @include nav-icon("#{$svg-open}%3Crect x='2' y='2' width='20' height='8' rx='2' ry='2'/%3E%3Crect x='2' y='14' width='20' height='8' rx='2' ry='2'/%3E%3Cline x1='6' y1='6' x2='6.01' y2='6'/%3E%3Cline x1='6' y1='18' x2='6.01' y2='18'/%3E#{$svg-close}");
+}
+
+// Hosting Payment Offers — credit card (client-facing recurring payment)
+.nav #nav-hosting-payment-offers {
+  @include nav-icon("#{$svg-open}%3Crect x='2' y='5' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='2' y1='10' x2='22' y2='10'/%3E%3Cline x1='6' y1='15' x2='10' y2='15'/%3E#{$svg-close}");
+}
+
 // Contracts
 .nav #nav-contracts {
   @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cpath d='M12 18v-6'/%3E%3Cpath d='M9 15l3 3 3-3'/%3E#{$svg-close}");
@@ -1206,6 +1216,54 @@ body:has(.global-edit--optimate-settings) {
   }
 
   .global-edit--optimate-settings .tabs-field {
+    margin-top: 30px;
+  }
+}
+
+// Hosting Billing Settings is a Global edit screen with the same shape as
+// OptiMate Settings: Payload's native title/description strip renders above the
+// tabs and, in this theme, samples as a blurred panel. Hide that duplicate strip
+// (the breadcrumb already names the screen) and force the remaining document
+// chrome to composite as plain, opaque form sections.
+body:has(.global-edit--hosting-billing-settings) {
+  .template-default__wrap,
+  .collection-edit__main-wrapper,
+  .collection-edit__main,
+  .collection-edit__form {
+    background: #f5f6f8;
+  }
+
+  .doc-header__title,
+  .doc-header__after-header,
+  .doc-tabs {
+    display: none !important;
+  }
+
+  .doc-header {
+    margin-top: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 0 !important;
+  }
+
+  // Save/actions bar stays visible — keep it opaque so it cannot inherit the
+  // translucent edit-panel chrome that produced the blur.
+  .doc-controls {
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
+    opacity: 1 !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .global-edit--hosting-billing-settings .document-fields,
+  .global-edit--hosting-billing-settings .document-fields__main > .gutter {
+    padding-top: 0;
+  }
+
+  .global-edit--hosting-billing-settings .tabs-field {
     margin-top: 30px;
   }
 }
@@ -5921,6 +5979,23 @@ body:has(:is(
 
     .collapsible__content {
       padding: 16px;
+    }
+  }
+
+  // Hosting is a standalone client-billing workflow, not a supporting setting.
+  // It intentionally spans the full content rail below the retainer fields.
+  .collapsible-field:has(> .collapsible-field__collapsible > [class*='rah-'] > div > .collapsible__content > .render-fields > .hosting-subscription-field) {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    row-gap: 8px;
+    padding-top: 20px;
+
+    .collapsible__toggle-wrap,
+    > .field-description,
+    > .collapsible-field__collapsible > .rah-static,
+    > .collapsible-field__collapsible > [class*='rah-'] {
+      grid-column: 1;
+      grid-row: auto;
     }
   }
 

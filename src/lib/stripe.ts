@@ -48,6 +48,7 @@ export async function createHostingCheckout(input: {
   email: string
   quote: HostingQuote
   idempotencyKey: string
+  returnToPaymentLink?: string
 }) {
   const stripe = getStripe()
   const site = getCmsUrl()
@@ -57,7 +58,9 @@ export async function createHostingCheckout(input: {
     (
       await stripe.customers.create(
         { email: input.email, metadata },
-        { idempotencyKey: `hosting-customer-${input.clientId}` },
+        // A customer belongs to this offer attempt. Reusing a client-wide key
+        // makes Stripe reject a reissued offer when its email or metadata differs.
+        { idempotencyKey: `hosting-customer-${input.clientId}-${input.offerId}` },
       )
     ).id
   return stripe.checkout.sessions.create(
@@ -69,23 +72,19 @@ export async function createHostingCheckout(input: {
       metadata,
       subscription_data: { metadata },
       success_url: `${site}/hosting-pay/success`,
-      cancel_url: `${site}/hosting-pay/cancel`,
+      cancel_url: input.returnToPaymentLink
+        ? `${site}/hosting-pay/cancel?return_to=${encodeURIComponent(input.returnToPaymentLink)}`
+        : `${site}/hosting-pay/cancel`,
+      // Checkout's subscription summary collapses multiple recurring line items
+      // into “and 1 more”. The payment-review page already itemises the disclosed
+      // surcharge, so send Stripe one recurring total for a clearer client hand-off.
       line_items: [
         {
           quantity: 1,
           price_data: {
             currency: input.quote.currency,
-            unit_amount: input.quote.baseCents,
-            product_data: { name: `${input.quote.planName} hosting`, metadata },
-            recurring: { interval: input.quote.interval },
-          },
-        },
-        {
-          quantity: 1,
-          price_data: {
-            currency: input.quote.currency,
-            unit_amount: input.quote.surchargeCents,
-            product_data: { name: 'Card processing surcharge', metadata },
+            unit_amount: input.quote.totalCents,
+            product_data: { name: input.quote.planName, metadata },
             recurring: { interval: input.quote.interval },
           },
         },
@@ -98,13 +97,35 @@ export async function createHostingCheckout(input: {
 export async function applyHostingPriceChange(input: {
   subscriptionId: string
   hostingItemId: string
-  surchargeItemId: string
+  surchargeItemId?: string | null
   quote: HostingQuote
   clientId: string
   changeId: string
 }) {
   const stripe = getStripe()
   const metadata = { cmsClientId: input.clientId, hostingPriceChangeId: input.changeId }
+  if (!input.surchargeItemId) {
+    const totalPrice = await stripe.prices.create(
+      {
+        currency: input.quote.currency,
+        unit_amount: input.quote.totalCents,
+        recurring: { interval: input.quote.interval },
+        product_data: { name: input.quote.planName, metadata },
+        metadata,
+      },
+      { idempotencyKey: `hosting-price-${input.changeId}` },
+    )
+    return stripe.subscriptions.update(
+      input.subscriptionId,
+      {
+        proration_behavior: 'none',
+        items: [{ id: input.hostingItemId, price: totalPrice.id }],
+        metadata,
+      },
+      { idempotencyKey: `hosting-change-${input.changeId}` },
+    )
+  }
+
   const hostingPrice = await stripe.prices.create(
     {
       currency: input.quote.currency,

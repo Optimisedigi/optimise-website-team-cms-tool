@@ -1,0 +1,318 @@
+:global(html),
+:global(body) {
+  min-height: 100%;
+  background: #ffffff;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 32px 24px 48px;
+  color: #14202b;
+  background: #ffffff;
+  font-family: var(--font-geist-sans, "Helvetica Neue", sans-serif);
+}
+
+.shell {
+  width: min(100%, 680px);
+  margin: 0 auto;
+}
+
+.brand {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  margin: 0 auto 32px;
+}
+
+.brand img {
+  display: block;
+  width: 210px;
+  height: auto;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: #52606d;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  max-width: 580px;
+  margin: 0;
+  color: #14202b;
+  font-size: clamp(24px, 3.25vw, 30px);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.introduction {
+  max-width: 580px;
+  margin: 8px 0 12px;
+  color: #52606d;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.reviewCard,
+.terms {
+  border: 1px solid #dce2e7;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.reviewCard {
+  background: #eef1f3;
+  overflow: hidden;
+}
+
+.plan {
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid #e8ecef;
+}
+
+.clientName {
+  margin: 0 0 14px;
+  color: #14202b;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.interval {
+  margin: 0 0 2px;
+  color: #52606d;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.planName {
+  margin: 0;
+  color: #14202b;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+.allowance {
+  margin: 12px 0 0;
+  color: #52606d;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.pricing {
+  margin: 0;
+  padding: 0 28px;
+}
+
+.priceRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 0;
+  color: #394754;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.pricing > .priceRow:first-child {
+  padding-bottom: 8px;
+}
+
+.pricing > .priceRow:not(.totalRow) + .priceRow:not(.totalRow) {
+  padding-top: 8px;
+}
+
+.priceRow dd {
+  margin: 0;
+  color: #14202b;
+  font-weight: 600;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.totalRow {
+  margin-top: 0;
+  padding: 16px 0;
+  border-top: 1px solid #dce2e7;
+}
+
+.totalRow dt {
+  color: #14202b;
+  font-weight: 650;
+}
+
+.totalRow dd {
+  font-size: 25px;
+  letter-spacing: -0.03em;
+}
+
+.actionArea {
+  padding: 16px 28px 20px;
+  border-top: 1px solid #e8ecef;
+}
+
+.actionArea button,
+.actionArea a {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 20px;
+  color: #ffffff;
+  background: #14202b;
+  border: 1px solid #14202b;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-decoration: none;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.actionArea button:hover,
+.actionArea a:hover {
+  background: #2b3a48;
+  border-color: #2b3a48;
+}
+
+.actionArea button:focus-visible,
+.actionArea a:focus-visible {
+  outline: 3px solid #2b84b8;
+  outline-offset: 3px;
+}
+
+.actionArea button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.securityNote {
+  margin: 14px 0 0;
+  color: #66737f;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.terms {
+  margin-top: 16px;
+  padding: 20px 28px;
+  background: #eef1f3;
+}
+
+.terms h2 {
+  margin: 0 0 12px;
+  color: #14202b;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.terms p {
+  margin: 0;
+  color: #52606d;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.terms p + p {
+  margin-top: 12px;
+}
+
+.cancelMessage {
+  margin: 14px 0 0;
+  color: #52606d;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.footer {
+  margin: 28px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.footer a {
+  color: #52606d;
+  text-decoration: underline;
+  text-decoration-color: #aeb8c1;
+  text-underline-offset: 3px;
+}
+
+.footer a:hover {
+  color: #14202b;
+  text-decoration-color: currentColor;
+}
+
+.footer a:focus-visible {
+  outline: 3px solid #2b84b8;
+  outline-offset: 3px;
+}
+
+.unavailable {
+  max-width: 540px;
+  padding-top: 12vh;
+}
+
+.unavailable .title {
+  font-size: clamp(30px, 5vw, 40px);
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: 24px 16px 36px;
+  }
+
+  .brand {
+    margin-bottom: 40px;
+  }
+
+  .brand img {
+    width: 180px;
+  }
+
+  .introduction {
+    margin-bottom: 28px;
+    font-size: 16px;
+  }
+
+  .plan,
+  .actionArea,
+  .terms {
+    padding-inline: 20px;
+  }
+
+  .pricing {
+    padding-inline: 20px;
+  }
+
+  .priceRow {
+    gap: 12px;
+  }
+}
+
+@media (forced-colors: active) {
+  .reviewCard,
+  .terms,
+  .actionArea button {
+    border-color: CanvasText;
+  }
+
+  .actionArea button {
+    color: ButtonText;
+    background: ButtonFace;
+  }
+}
