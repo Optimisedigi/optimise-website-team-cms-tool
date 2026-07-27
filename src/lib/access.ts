@@ -135,6 +135,7 @@ export const AUTO_GRANT_CLIENTS_BASIC_TRIGGERS: readonly FeatureSlug[] = [
   "meeting-schedulers",
   "blog-posts",
   "blog-prompts",
+  "blog-settings",
   "job-posts",
   "internal-link-suggestions",
   "seo-audits",
@@ -251,6 +252,40 @@ function hasFeature(user: any, slug: string): boolean {
 export function userHasFeature(user: any, slug: FeatureSlug | string): boolean {
   return hasFeature(user, slug);
 }
+
+const BLOG_ACCESS_FEATURES: readonly FeatureSlug[] = [
+  "blog-posts",
+  "blog-prompts",
+  "blog-settings",
+] as const;
+
+/** Blog users may maintain the per-client categories and tags used by publishing workflows. */
+export function hasBlogAccess(user: any): boolean {
+  return BLOG_ACCESS_FEATURES.some((feature) => hasFeature(user, feature));
+}
+
+export function isClientBlogTaxonomyUpdate(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+
+  const changedFields = Object.keys(data);
+  return changedFields.length > 0 && changedFields.every(
+    (field) => field === "blogCategories" || field === "blogTags",
+  );
+}
+
+/**
+ * Lets blog users reach client updates; the Clients beforeChange hook limits
+ * them to taxonomy fields. Full Clients access remains required for all others.
+ */
+export const canUpdateClientBlogTaxonomy: Access = ({ req }) => {
+  if (!req.user) return false;
+  return hasFeature(req.user, "clients") || hasBlogAccess(req.user);
+};
+
+/** Field-level visibility and edit access for a client's blog taxonomy. */
+export const clientBlogTaxonomyAccess: FieldAccess = ({ req }) => {
+  return !!req.user && (hasFeature(req.user, "clients") || hasBlogAccess(req.user));
+};
 
 /**
  * Read/create/update access for a collection.

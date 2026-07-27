@@ -35,7 +35,7 @@ export async function GET(
       payload.find({
         collection: "team-task-comments" as any,
         where: { task: { equals: id } },
-        sort: "createdAt",
+        sort: "-createdAt",
         depth: 1,
         limit: 200,
       }).catch((error) => {

@@ -115,6 +115,30 @@ describe("Clients Collection", () => {
   });
 });
 
+describe("Clients: blog taxonomy RBAC hook", () => {
+  it("rejects non-taxonomy edits from a blog-only user", () => {
+    const hook = getBeforeChangeHooks().find((candidate: any) => candidate.name === "restrictBlogTaxonomyUpdates");
+    expect(hook).toBeDefined();
+
+    expect(() => hook({
+      data: { monthlyRetainer: 5000 },
+      operation: "update",
+      req: { user: { role: "specialist", featureAccess: ["blog-posts"] }, t: () => "Forbidden" },
+    })).toThrow("Forbidden");
+  });
+
+  it("allows taxonomy-only edits from a blog-only user", () => {
+    const hook = getBeforeChangeHooks().find((candidate: any) => candidate.name === "restrictBlogTaxonomyUpdates");
+    const data = { blogCategories: "Guides", blogTags: "SEO" };
+
+    expect(hook({
+      data,
+      operation: "update",
+      req: { user: { role: "specialist", featureAccess: ["blog-posts"] }, t: () => "Forbidden" },
+    })).toEqual(data);
+  });
+});
+
 // ─── trackRetainerChange hook ──────────────────────────────────
 describe("Clients: trackRetainerChange hook", () => {
   let trackRetainerChange: any;
@@ -123,7 +147,8 @@ describe("Clients: trackRetainerChange hook", () => {
     vi.clearAllMocks();
     const hooks = getBeforeChangeHooks();
     expect(hooks.length).toBeGreaterThanOrEqual(1);
-    trackRetainerChange = hooks[0];
+    trackRetainerChange = hooks.find((hook: any) => hook.name === "trackRetainerChange");
+    expect(trackRetainerChange).toBeDefined();
   });
 
   it("should skip when operation is not update", async () => {

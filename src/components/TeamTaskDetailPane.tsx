@@ -78,6 +78,16 @@ function initials(value: Rel, users: Option[]): string {
   return name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 }
 
+function dateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function dateInNextWeek(value?: string | null): string {
+  const date = value ? new Date(`${value.slice(0, 10)}T00:00:00`) : new Date()
+  date.setDate(date.getDate() + 7)
+  return dateKey(date)
+}
+
 const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>"']+/gi
 
 function escapeHtml(value: string): string {
@@ -390,7 +400,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to post comment')
-      setData((current) => current ? { ...current, comments: [...current.comments, json.comment] } : current)
+      setData((current) => current ? { ...current, comments: [json.comment, ...current.comments] } : current)
       setComment('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to post comment')
@@ -569,6 +579,27 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
                   </select>
                 </label>
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'end' }}>
+                <label style={{ display: 'grid', gap: 5, fontWeight: 700, fontSize: 12, color: 'var(--theme-elevation-500)' }}>
+                  Task date
+                  <input
+                    type="date"
+                    value={task.dueDate?.slice(0, 10) || ''}
+                    onChange={(e) => void patchTask({ dueDate: e.target.value || null })}
+                    style={fieldStyle}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void patchTask({ dueDate: dateInNextWeek(task.dueDate) })}
+                  style={{ ...fieldStyle, width: 'auto', minWidth: 158, cursor: saving ? 'wait' : 'pointer', color: '#1d4ed8', fontWeight: 800 }}
+                >
+                  Forward to next week
+                </button>
+              </div>
+              <span style={{ marginTop: -10, fontSize: 12, color: 'var(--theme-elevation-500)' }}>Choose a date to move this task into that week.</span>
 
               <div style={{ display: 'grid', gap: 8 }}>
                 <strong>Description / instructions</strong>

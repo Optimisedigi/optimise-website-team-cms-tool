@@ -1,4 +1,4 @@
-import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
+import { Forbidden, type CollectionConfig, type CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
 import {
@@ -10,6 +10,11 @@ import { monthsActiveFrom } from "../lib/client-months-active";
 import {
   canAccess,
   canAccessAnyOrApiKey,
+  canUpdateClientBlogTaxonomy,
+  clientBlogTaxonomyAccess,
+  hasBlogAccess,
+  isClientBlogTaxonomyUpdate,
+  userHasFeature,
   adminOnlyDelete,
   hideUnlessAnyFeature,
   conditionRequiresFeature,
@@ -17,6 +22,20 @@ import {
 } from "../lib/access";
 import { hasValidApiKey } from "./api-key-access";
 import { createSnapshotForAudit } from "../lib/google-ads-audit-snapshots";
+
+const restrictBlogTaxonomyUpdates: CollectionBeforeChangeHook = ({ data, operation, req }) => {
+  if (
+    operation === "update" &&
+    req.user &&
+    hasBlogAccess(req.user) &&
+    !userHasFeature(req.user, "clients") &&
+    !isClientBlogTaxonomyUpdate(data)
+  ) {
+    throw new Forbidden(req.t);
+  }
+
+  return data;
+};
 
 const trackRetainerChange: CollectionBeforeChangeHook = async ({
   data,
@@ -185,11 +204,16 @@ export const Clients: CollectionConfig = {
     // actually see.
     read: canAccessAnyOrApiKey(hasValidApiKey, "clients", "clients-basic"),
     create: canAccess("clients"),
-    update: canAccess("clients"),
+    update: canUpdateClientBlogTaxonomy,
     delete: adminOnlyDelete,
   },
   hooks: {
-    beforeChange: [trackRetainerChange, derivePresentationDeckSlugs, deriveWebsiteTypeFields],
+    beforeChange: [
+      restrictBlogTaxonomyUpdates,
+      trackRetainerChange,
+      derivePresentationDeckSlugs,
+      deriveWebsiteTypeFields,
+    ],
     afterChange: [
       async ({ doc, operation, req }) => {
         if (operation === "create") {
@@ -3623,6 +3647,11 @@ export const Clients: CollectionConfig = {
             {
               name: "blogCategories",
               type: "textarea",
+              access: {
+                read: clientBlogTaxonomyAccess,
+                create: clientBlogTaxonomyAccess,
+                update: clientBlogTaxonomyAccess,
+              },
               admin: {
                 description: "Blog categories for this client (one per line). Pre-populates the category dropdown in the Blog Prompter.",
               },
@@ -3630,6 +3659,11 @@ export const Clients: CollectionConfig = {
             {
               name: "blogTags",
               type: "textarea",
+              access: {
+                read: clientBlogTaxonomyAccess,
+                create: clientBlogTaxonomyAccess,
+                update: clientBlogTaxonomyAccess,
+              },
               admin: {
                 description: "Available tags for this client (one per line). Pre-populates the tag options in the Blog Prompter.",
               },
