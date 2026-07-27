@@ -11,7 +11,7 @@ import { getActivePickerModels, getLegacyHiddenModels, getModelInventory } from 
     expect(active).toContain("gpt-5.6-sol");
     expect(active).toContain("gpt-5.6-terra");
     expect(active).toContain("gpt-5.6-luna");
-    expect(active).toContain("gpt-5.5-codex");
+    expect(legacy).toContain("gpt-5.5-codex");
     expect(active).toContain("grok-build");
     expect(legacy).toContain("gpt-4o");
     expect(legacy).toContain("gpt-4");

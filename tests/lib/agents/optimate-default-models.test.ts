@@ -47,6 +47,7 @@ describe("getOptiMateDefaultModels", () => {
     nextGlobal = {
       defaultChatModel: "gpt-5.5-codex-medium",
       defaultAutonomousModel: "minimax-m3",
+      emailAssistantModel: "claude-opus-4-8",
       blogPrompterModel: "claude-sonnet-4.6",
       searchTermResearchModel: "kimi-k3",
       negativeSweepModel: "claude-haiku-4.5",
@@ -54,8 +55,9 @@ describe("getOptiMateDefaultModels", () => {
       voiceRealtimeModel: "gpt-realtime-2",
     };
     const result = await getOptiMateDefaultModels();
-    expect(result.defaultChatModel).toBe("gpt-5.5-codex");
+    expect(result.defaultChatModel).toBe("gpt-5.6-terra");
     expect(result.defaultAutonomousModel).toBe("minimax-m3");
+    expect(result.emailAssistantModel).toBe("claude-opus-5");
     expect(result.blogPrompterModel).toBe("claude-sonnet-4.6");
     expect(result.searchTermResearchModel).toBe("kimi-k3");
     expect(result.negativeSweepModel).toBe("claude-haiku-4.5");

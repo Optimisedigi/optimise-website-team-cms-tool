@@ -60,12 +60,11 @@ export interface OptiMateDefaultModels {
 
 /** True if the model is canonical AND still offered in the chat picker. */
 function normaliseModelName(value: unknown): unknown {
-  if (value === "gpt-5.5-codex-medium" || value === "gpt-5.5-codex-low") return "gpt-5.5-codex";
-  // Stored selections of GPT-5.4 / 5.4 Mini (retired by OpenAI, removed from the
-  // picker) map to the closest surviving GPT-5.6 tier so a saved GPT preference
-  // keeps resolving to a GPT model instead of silently falling back to Claude.
-  if (value === "gpt-5.4") return "gpt-5.6-terra";
+  // Stored selections of retired models map to the closest surviving tier so a
+  // saved provider preference does not silently fall back to the default model.
+  if (value === "gpt-5.5-codex" || value === "gpt-5.5-codex-medium" || value === "gpt-5.5-codex-low" || value === "gpt-5.4") return "gpt-5.6-terra";
   if (value === "gpt-5.4-mini") return "gpt-5.6-luna";
+  if (value === "claude-opus-4-8") return "claude-opus-5";
   return value;
 }
 

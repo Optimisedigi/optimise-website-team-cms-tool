@@ -233,7 +233,6 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
 }> = [
   { canonical: "claude-sonnet-4.6", label: "Claude Sonnet 4.6 (OAuth)", hint: "Default. Best brand voice, free via Claude Max." },
   { canonical: "claude-opus-5", label: "Claude Opus 5 (OAuth)", hint: "Latest Opus. Heaviest reasoning for complex investigations." },
-  { canonical: "claude-opus-4-8", label: "Claude Opus 4.8 (OAuth)", hint: "Previous Opus model retained for existing selections." },
   { canonical: "claude-haiku-4.5", label: "Claude Haiku 4.5 (OAuth)", hint: "Fast and cheap. Good for simple chat replies." },
   { canonical: "kimi-k3", label: "Kimi K3 (Kimi OAuth)", hint: "Kimi's flagship. Long-horizon coding, up to 1M context. Default for autonomous runs. Reasoning is always on for K3. No API tokens billed.", requiresReasoning: true },
   { canonical: "kimi-for-coding", label: "Kimi For Coding (Kimi OAuth)", hint: "Kimi K2.7 Code via device-code OAuth. No API tokens billed." },
@@ -241,7 +240,6 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   { canonical: "gpt-5.6-sol", label: "GPT-5.6 Sol (ChatGPT OAuth)", hint: "Frontier heavyweight. Heaviest reasoning for complex work. Reasoning controlled per request." },
   { canonical: "gpt-5.6-terra", label: "GPT-5.6 Terra (ChatGPT OAuth)", hint: "Balanced daily driver. Reasoning controlled per request." },
   { canonical: "gpt-5.6-luna", label: "GPT-5.6 Luna (ChatGPT OAuth)", hint: "Fast and affordable. Reasoning controlled per request." },
-  { canonical: "gpt-5.5-codex", label: "GPT-5.5 (ChatGPT OAuth)", hint: "GPT-5.5 over Codex. Reasoning controlled per request." },
   { canonical: "grok-build", label: "Grok Build (SuperGrok OAuth)", hint: "xAI Grok coding model via your SuperGrok subscription. No API tokens billed." },
   { canonical: "grok-composer-2.5-fast", label: "Grok Composer 2.5 Fast (SuperGrok OAuth)", hint: "Faster Grok model via SuperGrok subscription." },
 ];
