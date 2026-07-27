@@ -44,6 +44,7 @@ describe('TeamTasksSpreadsheet permissions', () => {
     expect(existingClient).toBeEnabled()
     expect(existingTaskType).toBeEnabled()
     expect(existingAssignee).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Edit details & reschedule' })).toBeVisible()
 
     await waitFor(() => {
       expect(screen.queryByTitle('Delete row')).not.toBeInTheDocument()

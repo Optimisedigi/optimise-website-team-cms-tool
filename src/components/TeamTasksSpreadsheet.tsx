@@ -565,6 +565,13 @@ export default function TeamTasksSpreadsheet() {
                     }}
                     style={{ ...inputStyle, minWidth: 260, minHeight: 58, resize: 'vertical', lineHeight: 1.35, overflowWrap: 'anywhere' }}
                   />
+                  <button
+                    type="button"
+                    onClick={() => openTask(task.id)}
+                    style={{ ...inputStyle, marginTop: 6, cursor: 'pointer', color: '#1d4ed8', fontWeight: 800 }}
+                  >
+                    Edit details & reschedule
+                  </button>
                 </td>
                 <td style={tdStyle}>
                   <select value={task.status || 'in_progress'} onChange={(e) => patch(task.id, { status: e.target.value })} style={{ ...inputStyle, width: 126, whiteSpace: 'nowrap', fontSize: 12, ...statusTone(task.status) }}>
@@ -590,6 +597,7 @@ export default function TeamTasksSpreadsheet() {
                     <button
                       type="button"
                       onClick={() => openTask(task.id)}
+                      aria-label={`Open details for ${task.title || 'task'}`}
                       title="Open task details"
                       style={{ ...inputStyle, width: 36, height: 36, padding: 0, cursor: 'pointer', color: '#1d4ed8', fontWeight: 900 }}
                     >
