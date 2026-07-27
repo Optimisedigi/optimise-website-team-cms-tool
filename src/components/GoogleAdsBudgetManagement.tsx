@@ -40,6 +40,7 @@ import { canPushGoogleAdsBudget } from '@/lib/google-ads-budget-push';
 
 type CampaignFilter = 'enabled' | 'paused' | 'all';
 type BudgetMetricsRange = 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_60_DAYS' | 'LAST_180_DAYS';
+type SpendSortDirection = 'asc' | 'desc';
 
 type AnnualBudgetYearKey = 'thisYear' | 'lastYear';
 
@@ -170,6 +171,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   }>>([]);
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
   const [metricsRange, setMetricsRange] = useState<BudgetMetricsRange>('THIS_MONTH');
+  const [spendSortDirection, setSpendSortDirection] = useState<SpendSortDirection>('desc');
   // "Show ad groups" toggle. Per spec, toggling on does NOT auto-expand any
   // campaign; it just enables the ad-group sub-table inside each campaign's
   // expanded panel. Ad groups are fetched lazily on first expand and cached.
@@ -1912,7 +1914,18 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             <div></div>
             <div>Campaign</div>
             <div style={{ textAlign: 'right' }}>%</div>
-            <div style={{ textAlign: 'right' }}>{metricsRange === 'THIS_MONTH' ? 'MTD' : 'Cost'}</div>
+            <div style={{ textAlign: 'right' }}>
+              <button
+                type="button"
+                onClick={() => setSpendSortDirection(direction => direction === 'desc' ? 'asc' : 'desc')}
+                aria-label={`Sort campaigns by ${metricsRange === 'THIS_MONTH' ? 'month-to-date spend' : 'displayed cost'} ${spendSortDirection === 'desc' ? 'ascending' : 'descending'}`}
+                aria-sort={spendSortDirection === 'asc' ? 'ascending' : 'descending'}
+                title={`Sort by ${metricsRange === 'THIS_MONTH' ? 'month-to-date spend' : 'displayed cost'}: ${spendSortDirection === 'desc' ? 'highest first' : 'lowest first'}`}
+                style={{ padding: 0, color: 'inherit', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', fontWeight: 'inherit' }}
+              >
+                {metricsRange === 'THIS_MONTH' ? 'MTD' : 'Cost'} {spendSortDirection === 'desc' ? '↓' : '↑'}
+              </button>
+            </div>
             <div style={{ textAlign: 'right' }} title="Current live daily budget from Google Ads.">Current</div>
             <div style={{ textAlign: 'right' }} title="New calculated daily budget to push.">New Daily</div>
             <div style={{ textAlign: 'right' }} title="Recommended daily budget from last month's conversions, CPA, ROAS, spend and impression share signals. Advisory only — click to apply, then push.">Rec.</div>
@@ -1927,9 +1940,8 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           </div>
 
           {(() => {
-            // Sort campaigns by conversions (highest first), tiebreaker by spend
-            // (highest first). Campaigns with the same conversions and spend
-            // fall back to alphabetical order so the list stays stable.
+            // Sort by the displayed MTD or cost value. The alphabetical
+            // tiebreaker keeps the table stable.
             const filtered = campaigns
               .filter(c =>
                 campaignFilter === 'all' ? true :
@@ -1938,12 +1950,8 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               )
               .slice()
               .sort((a, b) => {
-                const convDiff = (b.conversions || 0) - (a.conversions || 0);
-                if (convDiff !== 0) return convDiff;
-                const spendA = a.mtdSpend ?? a.spend ?? 0;
-                const spendB = b.mtdSpend ?? b.spend ?? 0;
-                const spendDiff = spendB - spendA;
-                if (spendDiff !== 0) return spendDiff;
+                const spendDiff = selectedRangeSpend(a, metricsRange) - selectedRangeSpend(b, metricsRange);
+                if (spendDiff !== 0) return spendSortDirection === 'asc' ? spendDiff : -spendDiff;
                 return a.campaignName.localeCompare(b.campaignName);
               });
             if (filtered.length === 0) {
