@@ -565,18 +565,20 @@ export default function TeamTasksSpreadsheet() {
                     }}
                     style={{ ...inputStyle, minWidth: 260, minHeight: 58, resize: 'vertical', lineHeight: 1.35, overflowWrap: 'anywhere' }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => openTask(task.id)}
-                    style={{ ...inputStyle, marginTop: 6, cursor: 'pointer', color: '#1d4ed8', fontWeight: 800 }}
-                  >
-                    Edit details & reschedule
-                  </button>
                 </td>
                 <td style={tdStyle}>
                   <select value={task.status || 'in_progress'} onChange={(e) => patch(task.id, { status: e.target.value })} style={{ ...inputStyle, width: 126, whiteSpace: 'nowrap', fontSize: 12, ...statusTone(task.status) }}>
                     {statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
+                  <button
+                    type="button"
+                    onClick={() => openTask(task.id)}
+                    aria-label={`Edit schedule for ${task.title || 'task'}`}
+                    title="Edit task schedule"
+                    style={{ ...inputStyle, display: 'block', width: 30, height: 30, marginTop: 6, padding: 0, cursor: 'pointer', color: '#1d4ed8', fontSize: 15 }}
+                  >
+                    🕒
+                  </button>
                 </td>
                 <td style={tdStyle}>
                   <select value={relId(task.assignedTo)} onChange={(e) => patch(task.id, { assignedTo: e.target.value })} style={inputStyle} title={relName(task.assignedTo, users)} disabled={!canEditTaskFields}>
