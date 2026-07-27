@@ -3,12 +3,17 @@ import type { ToolContext } from "@/lib/agents/_shared/tool";
 
 const mocks = vi.hoisted(() => ({
   executeWeekly: vi.fn(),
+  executeDashboard: vi.fn(),
   executeBudget: vi.fn(),
   executeDraft: vi.fn(),
 }));
 
 vi.mock("@/lib/agents/optimate-google-ads/tools/get-weekly-metric-table", () => ({
   getWeeklyMetricTable: { execute: mocks.executeWeekly },
+}));
+
+vi.mock("@/lib/agents/optimate-google-ads/tools/get-dashboard-email-components", () => ({
+  getDashboardEmailComponents: { execute: mocks.executeDashboard },
 }));
 
 vi.mock("@/lib/agents/optimate-google-ads/tools/get-budget-management-email", () => ({
@@ -37,6 +42,7 @@ const ctx: ToolContext = {
 describe("create_weekly_budget_gmail_draft", () => {
   beforeEach(() => {
     mocks.executeWeekly.mockReset();
+    mocks.executeDashboard.mockReset();
     mocks.executeBudget.mockReset();
     mocks.executeDraft.mockReset();
   });
@@ -58,6 +64,13 @@ describe("create_weekly_budget_gmail_draft", () => {
         ],
       },
     });
+    mocks.executeDashboard.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        html: '<section data-testid="dashboard">dashboard html</section>',
+        components: ["keyword_relevancy"],
+      },
+    });
     mocks.executeBudget.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -75,7 +88,11 @@ describe("create_weekly_budget_gmail_draft", () => {
       },
     });
 
-    const args = createWeeklyBudgetGmailDraftTool.validate!({ weeks: 1, endDate: "2026-06-28" });
+    const args = createWeeklyBudgetGmailDraftTool.validate!({
+      weeks: 1,
+      components: ["keyword_relevancy"],
+      endDate: "2026-06-28",
+    });
     const result = await createWeeklyBudgetGmailDraftTool.execute(args, ctx);
 
     expect(result.ok).toBe(true);
@@ -88,6 +105,10 @@ describe("create_weekly_budget_gmail_draft", () => {
       },
       ctx,
     );
+    expect(mocks.executeDashboard).toHaveBeenCalledWith(
+      { components: ["keyword_relevancy"], months: 14, range: "LAST_30_DAYS" },
+      ctx,
+    );
     expect(mocks.executeBudget).toHaveBeenCalledWith({ mode: "this_month" }, ctx);
     expect(mocks.executeDraft).toHaveBeenCalledTimes(1);
     const draftArgs = mocks.executeDraft.mock.calls[0]?.[0];
@@ -95,6 +116,7 @@ describe("create_weekly_budget_gmail_draft", () => {
     expect(draftArgs.htmlBody).toContain("Hey team,");
     expect(draftArgs.htmlBody).toContain("Jun 22 - Jun 28 delivered 4 conversions");
     expect(draftArgs.htmlBody).toContain('data-testid="weekly"');
+    expect(draftArgs.htmlBody).toContain('data-testid="dashboard"');
     expect(draftArgs.htmlBody).toContain('data-testid="budget"');
 
     const data = result.data as Record<string, unknown>;
@@ -104,8 +126,20 @@ describe("create_weekly_budget_gmail_draft", () => {
     expect(JSON.stringify(data)).not.toContain("budget html");
   });
 
-  it("defaults weekly draft requests to weeks=4", () => {
-    expect(createWeeklyBudgetGmailDraftTool.validate!({ weeks: undefined })).toEqual({ weeks: 4 });
+  it("asks for graph selection before creating a weekly draft", async () => {
+    const args = createWeeklyBudgetGmailDraftTool.validate!({ weeks: 4 });
+    const result = await createWeeklyBudgetGmailDraftTool.execute(args, ctx);
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        needsClarification: true,
+        message:
+          "Which weekly report graphs should I include: Keyword Relevancy, CPA Trend, or both? I will create the Gmail draft after you choose.",
+        validComponents: ["keyword_relevancy", "cpa_trend"],
+      },
+    });
+    expect(mocks.executeWeekly).not.toHaveBeenCalled();
   });
 });
 
@@ -113,15 +147,15 @@ describe("create_weekly_budget_gmail_draft validate", () => {
   const validate = createWeeklyBudgetGmailDraftTool.validate!;
 
   it("defaults to weeks=4 when weeks is omitted", () => {
-    expect(validate({})).toEqual({ weeks: 4 });
+    expect(validate({})).toEqual({ weeks: 4, components: [] });
   });
 
   it("keeps weeks=1 for an explicit last-week request", () => {
-    expect(validate({ weeks: 1 })).toEqual({ weeks: 1 });
+    expect(validate({ weeks: 1 })).toEqual({ weeks: 1, components: [] });
   });
 
   it("passes an explicit week count through", () => {
-    expect(validate({ weeks: 8 })).toEqual({ weeks: 8 });
+    expect(validate({ weeks: 8 })).toEqual({ weeks: 8, components: [] });
   });
 
   it("throws when weeks is out of range", () => {
@@ -133,11 +167,19 @@ describe("create_weekly_budget_gmail_draft validate", () => {
     expect(() => validate({ weeks: 2.5 })).toThrow(/weeks must be an integer between 1 and 12/);
   });
 
+  it("accepts either graph once and rejects unsupported graphs", () => {
+    expect(validate({ weeks: 4, components: ["cpa_trend", "cpa_trend"] })).toEqual({
+      weeks: 4,
+      components: ["cpa_trend"],
+    });
+    expect(() => validate({ components: ["quality_score"] })).toThrow(/Unknown weekly report graph/);
+  });
+
   it("throws when endDate is malformed", () => {
     expect(() => validate({ weeks: 4, endDate: "28-06-2026" })).toThrow(/endDate must be in YYYY-MM-DD format/);
   });
 
   it("passes a valid ISO endDate through", () => {
-    expect(validate({ weeks: 4, endDate: "2026-06-28" })).toEqual({ weeks: 4, endDate: "2026-06-28" });
+    expect(validate({ weeks: 4, endDate: "2026-06-28" })).toEqual({ weeks: 4, components: [], endDate: "2026-06-28" });
   });
 });
