@@ -12,7 +12,6 @@ export type GoogleAdsClient = {
 type GoogleAdsClientSwitcherProps = {
   currentClientId: string | number
   currentClientName: string
-  placement: 'breadcrumb' | 'header'
 }
 
 const CLIENTS_ENDPOINT = '/api/clients/google-ads-list'
@@ -24,43 +23,9 @@ export function destinationFor(client: GoogleAdsClient): string {
     : `/admin/collections/clients/${client.id}#tab-${GOOGLE_ADS_TAB}`
 }
 
-function ClientSelect({
-  clients,
-  currentClientId,
-  currentClientName,
-  className,
-}: Omit<GoogleAdsClientSwitcherProps, 'placement'> & {
-  clients: GoogleAdsClient[]
-  className: string
-}) {
-  const selectedId = String(currentClientId)
-
-  return (
-    <select
-      aria-label="Switch Google Ads client"
-      className={className}
-      defaultValue={selectedId}
-      onChange={(event) => {
-        const client = clients.find((candidate) => String(candidate.id) === event.target.value)
-        if (client) window.location.assign(destinationFor(client))
-      }}
-    >
-      {!clients.some((client) => String(client.id) === selectedId) && (
-        <option value={selectedId}>{currentClientName}</option>
-      )}
-      {clients.map((client) => (
-        <option key={client.id} value={client.id}>
-          {client.name}
-        </option>
-      ))}
-    </select>
-  )
-}
-
 export default function GoogleAdsClientSwitcher({
   currentClientId,
   currentClientName,
-  placement,
 }: GoogleAdsClientSwitcherProps) {
   const [clients, setClients] = useState<GoogleAdsClient[]>([])
 
@@ -93,7 +58,7 @@ export default function GoogleAdsClientSwitcher({
   )
 
   useEffect(() => {
-    if (placement !== 'breadcrumb' || sortedClients.length === 0) return
+    if (sortedClients.length === 0) return
 
     const breadcrumb = document.querySelector<HTMLElement>('nav.step-nav')
     const currentCrumb = breadcrumb?.querySelector<HTMLElement>('.step-nav__last')
@@ -108,7 +73,6 @@ export default function GoogleAdsClientSwitcher({
     const select = document.createElement('select')
     select.className = 'od-google-ads-client-switcher od-google-ads-client-switcher--breadcrumb'
     select.setAttribute('aria-label', 'Switch Google Ads client')
-    select.value = String(currentClientId)
 
     const currentOption = document.createElement('option')
     currentOption.value = String(currentClientId)
@@ -138,18 +102,7 @@ export default function GoogleAdsClientSwitcher({
         delete currentCrumb.dataset.googleAdsClientSwitcher
       }
     }
-  }, [currentClientId, currentClientName, placement, sortedClients])
+  }, [currentClientId, currentClientName, sortedClients])
 
-  if (placement === 'breadcrumb') return null
-
-  if (sortedClients.length === 0) return <>{currentClientName}</>
-
-  return (
-    <ClientSelect
-      clients={sortedClients}
-      currentClientId={currentClientId}
-      currentClientName={currentClientName}
-      className="od-google-ads-client-switcher od-google-ads-client-switcher--header"
-    />
-  )
+  return null
 }

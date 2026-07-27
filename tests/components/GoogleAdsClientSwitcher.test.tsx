@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import GoogleAdsClientSwitcher, {
   destinationFor,
   type GoogleAdsClient,
@@ -41,20 +41,6 @@ describe('GoogleAdsClientSwitcher', () => {
     document.body.replaceChildren()
   })
 
-  it('lists every Google Ads hub client in the client-tab switcher', async () => {
-    render(
-      <GoogleAdsClientSwitcher
-        currentClientId={11}
-        currentClientName="Alpha Ads"
-        placement="header"
-      />,
-    )
-
-    const select = await screen.findByRole('combobox', { name: 'Switch Google Ads client' })
-    expect(select).toHaveTextContent('Alpha Ads')
-    expect(select).toHaveTextContent('Beta New Account')
-    expect(select).toHaveTextContent('Gamma Ads')
-  })
 
   it('replaces the current breadcrumb with the complete client switcher', async () => {
     const breadcrumb = document.createElement('nav')
@@ -66,7 +52,6 @@ describe('GoogleAdsClientSwitcher', () => {
       <GoogleAdsClientSwitcher
         currentClientId={11}
         currentClientName="Alpha Ads"
-        placement="breadcrumb"
       />,
     )
 

@@ -469,13 +469,7 @@ function ClientHeaderCard({
         <div className="od-client-head__topline">
           <div className="od-client-head__identity">
             <h1 className="od-client-head__name">
-              {showGoogleAdsClientSwitcher && googleAdsClientId !== undefined ? (
-                <GoogleAdsClientSwitcher
-                  currentClientId={googleAdsClientId}
-                  currentClientName={name || 'Untitled client'}
-                  placement="header"
-                />
-              ) : clientProfileHref ? (
+              {clientProfileHref ? (
                 <a href={clientProfileHref} className="od-client-head__name-link">
                   {name || 'Untitled client'}
                 </a>
@@ -487,7 +481,6 @@ function ClientHeaderCard({
               <GoogleAdsClientSwitcher
                 currentClientId={googleAdsClientId}
                 currentClientName={name || 'Untitled client'}
-                placement="breadcrumb"
               />
             )}
             {domain && (
