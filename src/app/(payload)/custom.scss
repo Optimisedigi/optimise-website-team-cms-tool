@@ -6592,6 +6592,40 @@ body:has(:is(
     line-height: 1.2;
   }
 
+  .od-google-ads-client-switcher {
+    max-width: min(100%, 280px);
+    min-height: 36px;
+    padding: 6px 34px 6px 10px;
+    border: 1px solid var(--ode-border);
+    border-radius: 6px;
+    background: var(--ode-card);
+    color: var(--ode-t1);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--ode-accent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--ode-accent);
+      outline-offset: 2px;
+    }
+  }
+
+  .od-google-ads-client-switcher--header {
+    font-size: 20px;
+    letter-spacing: -0.02em;
+  }
+
+  .od-google-ads-client-switcher--breadcrumb {
+    min-height: 32px;
+    padding-block: 4px;
+    font-size: inherit;
+    font-weight: 600;
+  }
+
   .od-client-head__name-link {
     color: inherit;
     text-decoration: none;

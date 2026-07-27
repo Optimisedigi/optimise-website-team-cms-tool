@@ -2,6 +2,7 @@
 
 import { useAllFormFields, useDocumentInfo, useField, useFormFields } from '@payloadcms/ui'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import GoogleAdsClientSwitcher from './GoogleAdsClientSwitcher'
 import {
   firstMonthProrationFactor,
   historicalRevenueTotal,
@@ -401,6 +402,8 @@ function ClientRecordHeaderForClient() {
       selectedServices={selected}
       showRevenue={showRevenue}
       clientPin={data.clientPin}
+      googleAdsClientId={id}
+      showGoogleAdsClientSwitcher={data.services.includes('google_ads')}
       onLogoClick={openLogoPicker}
       onServiceToggle={toggleService}
     />
@@ -415,6 +418,8 @@ function ClientHeaderCard({
   onLogoClick,
   onServiceToggle,
   clientProfileHref,
+  googleAdsClientId,
+  showGoogleAdsClientSwitcher = false,
 }: {
   data: SavedData
   selectedServices: Set<ServiceValue>
@@ -423,6 +428,8 @@ function ClientHeaderCard({
   onLogoClick?: () => void
   onServiceToggle?: (value: ServiceValue) => void
   clientProfileHref?: string
+  googleAdsClientId?: string | number
+  showGoogleAdsClientSwitcher?: boolean
 }) {
   const { name, websiteUrl, slug, isActive, logoThumbUrl } = data
   const domain = displayDomain(websiteUrl)
@@ -462,7 +469,13 @@ function ClientHeaderCard({
         <div className="od-client-head__topline">
           <div className="od-client-head__identity">
             <h1 className="od-client-head__name">
-              {clientProfileHref ? (
+              {showGoogleAdsClientSwitcher && googleAdsClientId !== undefined ? (
+                <GoogleAdsClientSwitcher
+                  currentClientId={googleAdsClientId}
+                  currentClientName={name || 'Untitled client'}
+                  placement="header"
+                />
+              ) : clientProfileHref ? (
                 <a href={clientProfileHref} className="od-client-head__name-link">
                   {name || 'Untitled client'}
                 </a>
@@ -470,6 +483,13 @@ function ClientHeaderCard({
                 name || 'Untitled client'
               )}
             </h1>
+            {showGoogleAdsClientSwitcher && googleAdsClientId !== undefined && (
+              <GoogleAdsClientSwitcher
+                currentClientId={googleAdsClientId}
+                currentClientName={name || 'Untitled client'}
+                placement="breadcrumb"
+              />
+            )}
             {domain && (
               <a
                 className="od-client-head__meta-item"
@@ -628,6 +648,7 @@ function GoogleAdsLinkedClientHeader() {
   if (!data) return null
 
   const selected = new Set(data.services)
+  const showGoogleAdsClientSwitcher = data.services.includes('google_ads')
 
   return (
     <ClientHeaderCard
@@ -635,6 +656,8 @@ function GoogleAdsLinkedClientHeader() {
       selectedServices={selected}
       showRevenue={false}
       clientPin={data.clientPin}
+      googleAdsClientId={clientId ?? undefined}
+      showGoogleAdsClientSwitcher
       clientProfileHref={clientId ? `/admin/collections/clients/${clientId}` : undefined}
     />
   )
