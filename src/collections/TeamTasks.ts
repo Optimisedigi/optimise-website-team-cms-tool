@@ -29,6 +29,7 @@ const TASK_TYPE_OPTIONS = [
 const STATUS_OPTIONS = [
   { label: "Not Started", value: "not_started" },
   { label: "In Progress", value: "in_progress" },
+  { label: "Awaiting Response", value: "awaiting_response" },
   { label: "Ready for Review", value: "ready_for_review" },
   { label: "Completed", value: "completed" },
   { label: "Task Postponed", value: "task_postponed" },

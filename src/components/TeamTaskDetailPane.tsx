@@ -47,6 +47,7 @@ type DetailResponse = {
 const statuses = [
   ['not_started', 'Not Started'],
   ['in_progress', 'In Progress'],
+  ['awaiting_response', 'Awaiting Response'],
   ['ready_for_review', 'Ready for Review'],
   ['completed', 'Completed'],
   ['task_postponed', 'Task Postponed'],

@@ -7552,7 +7552,7 @@ export interface TeamTask {
     | 'product_feed'
     | 'google_sheet'
     | 'other';
-  status: 'not_started' | 'in_progress' | 'ready_for_review' | 'completed' | 'task_postponed';
+  status: 'not_started' | 'in_progress' | 'awaiting_response' | 'ready_for_review' | 'completed' | 'task_postponed';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   dueDate?: string | null;
   /**

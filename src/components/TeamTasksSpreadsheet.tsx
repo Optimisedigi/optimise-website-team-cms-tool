@@ -39,6 +39,7 @@ const taskTypes = [
 const statuses = [
   ['not_started', 'Not Started'],
   ['in_progress', 'In Progress'],
+  ['awaiting_response', 'Awaiting Response'],
   ['ready_for_review', 'Ready for Review'],
   ['completed', 'Completed'],
   ['task_postponed', 'Task Postponed'],
@@ -93,6 +94,7 @@ function openDatePicker(input: HTMLInputElement) {
 function statusTone(status: string): React.CSSProperties {
   if (status === 'completed') return { background: '#dcfce7', color: '#166534' }
   if (status === 'ready_for_review') return { background: '#fef3c7', color: '#92400e' }
+  if (status === 'awaiting_response') return { background: '#ffedd5', color: '#9a3412' }
   if (status === 'task_postponed') return { background: '#f3f4f6', color: '#4b5563' }
   if (status === 'not_started') return { background: '#e0f2fe', color: '#075985' }
   return { background: '#ede9fe', color: '#5b21b6' }
