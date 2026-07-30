@@ -160,7 +160,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const [users, setUsers] = useState<Option[]>([])
   const [currentUser, setCurrentUser] = useState<Option | null>(null)
   const [monthlyTotals, setMonthlyTotals] = useState<MonthlyAllocationRow[]>([])
-  const [weekMode, setWeekMode] = useState<'week' | 'this-month' | 'last-month' | 'all'>('week')
+  const [weekMode, setWeekMode] = useState<'week' | 'this-month' | 'last-month' | 'all'>('this-month')
   const [monthlyMode, setMonthlyMode] = useState<'this-month' | 'last-month' | 'all'>('this-month')
   const [weekStart, setWeekStart] = useState(() => mondayKey())
   const month = monthKey()
@@ -188,7 +188,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
     try {
       const params = new URLSearchParams({ month, weekMode, monthlyMode, week: weekStart })
       if (userFilter) params.set('user', userFilter)
-      const res = await fetch(`/api/contractor-time-entries/grid?${params.toString()}`)
+      const res = await fetch(`/api/contractor-time-entries/grid?${params.toString()}`, { cache: 'no-store' })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load contractor time entries')
       const nextClients = json.clients || []
@@ -218,6 +218,12 @@ export default function ContractorTimeEntriesSpreadsheet() {
   }
 
   useEffect(() => { void load() }, [month, weekMode, monthlyMode, weekStart, userFilter])
+
+  useEffect(() => {
+    const refreshOnFocus = () => void load()
+    window.addEventListener('focus', refreshOnFocus)
+    return () => window.removeEventListener('focus', refreshOnFocus)
+  }, [month, weekMode, monthlyMode, weekStart, userFilter])
 
   const leadingColumnCount = 1
   const totalColumnCount = leadingColumnCount + visibleClients.length + 4 + (isAdmin ? 1 : 0)

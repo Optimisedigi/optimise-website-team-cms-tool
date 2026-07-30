@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import RocketSplash from './RocketSplash';
 
@@ -270,7 +270,10 @@ export default function ContractorCostsPage() {
   const [paymentRange, setPaymentRange] = useState<PaymentRange>('this-month');
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('unpaid');
 
-  const load = () => fetch('/api/contractor-overview', { credentials: 'include' })
+  const load = useCallback(() => fetch('/api/contractor-overview', {
+    credentials: 'include',
+    cache: 'no-store',
+  })
     .then((response) => response.ok ? response.json() : Promise.reject(new Error('Could not load contractor costs.')))
     .then((data) => {
       setContractors(data.contractors || []);
@@ -278,12 +281,14 @@ export default function ContractorCostsPage() {
       setGlobals(data.globals || EMPTY_GLOBALS);
       setError(null);
     })
-    .catch(() => setError('Could not load contractor costs. Refresh to try again.'));
+    .catch(() => setError('Could not load contractor costs. Refresh to try again.')), []);
 
   useEffect(() => {
     load().finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const refreshOnFocus = () => void load();
+    window.addEventListener('focus', refreshOnFocus);
+    return () => window.removeEventListener('focus', refreshOnFocus);
+  }, [load]);
 
   const markPaid = async (payment: FortnightPayment) => {
     if (marking) return;
@@ -297,6 +302,7 @@ export default function ContractorCostsPage() {
         body: JSON.stringify({ contractorId: payment.contractorId, fortnightStartDate: payment.fortnightStartDate }),
       });
       if (!response.ok) throw new Error('mark-paid failed');
+      setPaymentFilter('paid');
       await load();
     } catch {
       setError('Could not mark this fortnight as paid. Try again.');
@@ -408,11 +414,11 @@ export default function ContractorCostsPage() {
           <span style={{ fontSize: 12, color: '#64748b', paddingBottom: 8 }}>{filteredPayments.length} of {payments.length} shown</span>
         </div>
         <div className="od-box" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
-          <table style={{ width: '100%', minWidth: 1280, borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr>
-              <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th><th style={{ ...thStyle, textAlign: 'right' }}>Action</th>
+              <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th>
             </tr></thead>
-            <tbody>{payments.length === 0 ? <tr><td colSpan={7} style={{ ...paymentTdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : filteredPayments.map((payment) => (
+            <tbody>{payments.length === 0 ? <tr><td colSpan={6} style={{ ...paymentTdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : filteredPayments.map((payment) => (
               <tr key={payment.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                 <td style={paymentTdStyle}><strong>{payment.contractorName}</strong></td>
                 <td style={paymentTdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td>
@@ -425,12 +431,19 @@ export default function ContractorCostsPage() {
                   </HoverTooltip>
                 </td>
                 <td style={paymentTdStyle}>{payment.transferReference ? <button type="button" onClick={() => handleCopy(payment.transferReference, payment.id)} style={{ padding: '3px 7px', border: '1px solid #cbd5e1', borderRadius: 3, background: '#f8fafc', color: '#334155', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}>{copied === payment.id ? 'Copied' : payment.transferReference}</button> : '—'}</td>
-                <td style={paymentTdStyle}>{payment.status === 'paid'
-                  ? <span style={{ fontWeight: 600, color: '#166534' }}>Paid{payment.paidDate ? ` · ${fmtDate(payment.paidDate)}` : ''}</span>
-                  : <span style={{ fontWeight: 600, color: '#b45309' }}>Unpaid</span>}</td>
-                <td style={{ ...paymentTdStyle, textAlign: 'right' }}>{payment.status === 'unpaid'
-                  ? <button type="button" onClick={() => markPaid(payment)} disabled={marking === payment.id} className="od-settings__btn od-settings__btn--primary" style={{ padding: '5px 11px', fontSize: 12, cursor: marking === payment.id ? 'default' : 'pointer', opacity: marking === payment.id ? 0.6 : 1 }}>{marking === payment.id ? 'Saving…' : 'Mark paid'}</button>
-                  : <span style={{ color: '#94a3b8' }}>—</span>}</td>
+                <td style={paymentTdStyle}>
+                  <select
+                    aria-label={`Payment status for ${payment.contractorName}, ${fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}`}
+                    value={payment.status}
+                    onChange={(event) => { if (event.target.value === 'paid') void markPaid(payment); }}
+                    disabled={payment.status === 'paid' || marking === payment.id}
+                    style={{ ...fieldInputStyle, width: 110, color: payment.status === 'paid' ? '#166534' : '#b45309', fontWeight: 600, opacity: marking === payment.id ? 0.6 : 1 }}
+                  >
+                    <option value="unpaid">{marking === payment.id ? 'Saving…' : 'Unpaid'}</option>
+                    <option value="paid">Paid</option>
+                  </select>
+                  {payment.status === 'paid' && payment.paidDate ? <span style={{ display: 'block', marginTop: 3, color: '#64748b', fontSize: 11 }}>{fmtDate(payment.paidDate)}</span> : null}
+                </td>
               </tr>
             ))}</tbody>
           </table>

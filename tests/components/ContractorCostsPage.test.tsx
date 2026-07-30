@@ -31,6 +31,31 @@ describe('ContractorCostsPage', () => {
     expect(screen.getByText('Contractors (1)').closest('details')).not.toHaveAttribute('open');
   });
 
+  it('refreshes overview data when the admin returns to a previously open tab', async () => {
+    const staleOverview = {
+      ...overview,
+      globals: { ...overview.globals, owingNow: 0 },
+      fortnightlyPayments: [],
+    };
+    const freshOverview = {
+      ...overview,
+      fortnightlyPayments: [{ ...overview.fortnightlyPayments[0], status: 'unpaid', paidDate: null }],
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => staleOverview })
+      .mockResolvedValueOnce({ ok: true, json: async () => freshOverview });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ContractorCostsPage />);
+    await screen.findByText('No approved time entries yet. Approve a contractor\'s weeks to build a fortnightly payment.');
+
+    fireEvent.focus(window);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/contractor-overview', expect.objectContaining({ cache: 'no-store' }));
+    await screen.findByRole('cell', { name: /Unpaid/ });
+  });
+
   it('shows the reimbursement summary as an in-page editor trigger (no navigation link)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => overview }));
     render(<ContractorCostsPage />);
@@ -80,10 +105,12 @@ describe('ContractorCostsPage', () => {
     render(<ContractorCostsPage />);
     await waitFor(() => expect(document.querySelector('select[aria-label="Date range"]')).toBeTruthy());
     fireEvent.change(document.querySelector('select[aria-label="Date range"]') as HTMLSelectElement, { target: { value: 'all' } });
-    const markButton = await screen.findByRole('button', { name: 'Mark paid' });
-    fireEvent.click(markButton);
+    const statusSelect = await screen.findByRole('combobox', { name: /Payment status for Ada Lovelace/ });
+    fireEvent.change(statusSelect, { target: { value: 'paid' } });
 
-    await waitFor(() => expect(screen.getByText(/Paid/)).toBeInTheDocument());
+    const paidStatus = await screen.findByRole('combobox', { name: /Payment status for Ada Lovelace/ });
+    await waitFor(() => expect(paidStatus).toHaveValue('paid'));
+    expect(paidStatus).toBeDisabled();
     expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/contractor-payments/mark-paid', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ contractorId: 1, fortnightStartDate: '2026-06-29' }),

@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   const fortnightEndDate = addDaysIso(fortnightStartDate, 13);
   const [contractor, usersResult, fortnightEntries] = await Promise.all([
     payload.findByID({ collection: "contractors", id: contractorId, depth: 0, overrideAccess: true }).catch(() => null),
-    payload.find({ collection: "users", limit: 1000, depth: 0, overrideAccess: true }),
+    payload.find({ collection: "users", pagination: false, depth: 0, overrideAccess: true }),
     payload.find({
       collection: "contractor-time-entries",
       where: {
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
           { status: { in: ["approved", "submitted"] } },
         ],
       },
-      limit: 200,
+      pagination: false,
       depth: 0,
       overrideAccess: true,
     }),
@@ -105,6 +105,31 @@ export async function POST(req: NextRequest) {
         overrideAccess: true,
         user,
       });
+
+  // Keep the Time Entries view authoritative even if a collection hook fails:
+  // every approved/submitted entry in the paid fortnight is linked and marked paid.
+  const entriesToSync = await payload.find({
+    collection: "contractor-time-entries",
+    where: {
+      and: [
+        { contractor: { equals: contractorId } },
+        { weekCommencing: { greater_than_equal: fortnightStartDate } },
+        { weekCommencing: { less_than_equal: fortnightEndDate } },
+        { status: { in: ["approved", "submitted"] } },
+      ],
+    },
+    pagination: false,
+    depth: 0,
+    overrideAccess: true,
+  });
+  for (const entry of entriesToSync.docs as any[]) {
+    await payload.update({
+      collection: "contractor-time-entries",
+      id: entry.id,
+      data: { payment: (payment as any).id, status: "paid" },
+      overrideAccess: true,
+    });
+  }
 
   return NextResponse.json({ ok: true, paymentId: (payment as any).id });
 }
