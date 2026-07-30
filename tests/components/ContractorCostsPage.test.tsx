@@ -111,6 +111,9 @@ describe('ContractorCostsPage', () => {
     const paidStatus = await screen.findByRole('combobox', { name: /Payment status for Ada Lovelace/ });
     await waitFor(() => expect(paidStatus).toHaveValue('paid'));
     expect(paidStatus).toBeDisabled();
+    const datePaidHeader = screen.getByRole('columnheader', { name: 'Date Paid' });
+    expect(datePaidHeader.previousElementSibling).toHaveTextContent('Status');
+    expect(screen.getByRole('cell', { name: '13 Jul 2026' })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/contractor-payments/mark-paid', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ contractorId: 1, fortnightStartDate: '2026-06-29' }),

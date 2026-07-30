@@ -414,11 +414,11 @@ export default function ContractorCostsPage() {
           <span style={{ fontSize: 12, color: '#64748b', paddingBottom: 8 }}>{filteredPayments.length} of {payments.length} shown</span>
         </div>
         <div className="od-box" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
-          <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', minWidth: 1240, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr>
-              <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th>
+              <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th><th style={thStyle}>Date Paid</th>
             </tr></thead>
-            <tbody>{payments.length === 0 ? <tr><td colSpan={6} style={{ ...paymentTdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : filteredPayments.map((payment) => (
+            <tbody>{payments.length === 0 ? <tr><td colSpan={7} style={{ ...paymentTdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : filteredPayments.map((payment) => (
               <tr key={payment.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                 <td style={paymentTdStyle}><strong>{payment.contractorName}</strong></td>
                 <td style={paymentTdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td>
@@ -442,8 +442,8 @@ export default function ContractorCostsPage() {
                     <option value="unpaid">{marking === payment.id ? 'Saving…' : 'Unpaid'}</option>
                     <option value="paid">Paid</option>
                   </select>
-                  {payment.status === 'paid' && payment.paidDate ? <span style={{ display: 'block', marginTop: 3, color: '#64748b', fontSize: 11 }}>{fmtDate(payment.paidDate)}</span> : null}
                 </td>
+                <td style={paymentTdStyle}>{payment.status === 'paid' && payment.paidDate ? fmtDate(payment.paidDate) : '—'}</td>
               </tr>
             ))}</tbody>
           </table>
