@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { userMatchesContractor } from "@/lib/contractor-user-link";
 
 /**
  * Token-gated contractor portal API. Never returns money values to the
@@ -40,6 +41,29 @@ async function authContractor(token: string) {
   const c = result.docs[0] as any;
   if (!c || !c.isActive) return null;
   return { payload, contractor: c };
+}
+
+/**
+ * Internal user id that represents this contractor, if any.
+ *
+ * The admin time-entry grid filters by `user`, so a portal row that only sets
+ * `contractor` would never show under the contractor's name. Stamping the
+ * matching user (email first, then name) keeps both surfaces in sync.
+ */
+async function matchingUserId(payload: any, contractor: any): Promise<number | undefined> {
+  try {
+    const users = await payload.find({
+      collection: "users",
+      pagination: false,
+      depth: 0,
+      select: { name: true, email: true } as any,
+      overrideAccess: true,
+    });
+    const match = (users.docs as any[]).find((user) => userMatchesContractor(user, contractor));
+    return typeof match?.id === "number" ? match.id : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function GET(
@@ -165,11 +189,18 @@ export async function POST(
         ? "submitted"
         : "draft";
 
+  const linkedUserId = current?.user ? undefined : await matchingUserId(payload, contractor);
+
   if (current) {
     await payload.update({
       collection: "contractor-time-entries",
       id: current.id,
-      data: { hours, status: targetStatus, ...(notes != null ? { notes } : {}) },
+      data: {
+        hours,
+        status: targetStatus,
+        ...(linkedUserId != null ? { user: linkedUserId } : {}),
+        ...(notes != null ? { notes } : {}),
+      },
       overrideAccess: true,
     });
   } else {
@@ -177,6 +208,7 @@ export async function POST(
       collection: "contractor-time-entries",
       data: {
         contractor: contractor.id,
+        ...(linkedUserId != null ? { user: linkedUserId } : {}),
         weekCommencing: wc,
         hours,
         status: targetStatus,

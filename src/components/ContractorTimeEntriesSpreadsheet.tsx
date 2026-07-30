@@ -8,6 +8,7 @@ type TimeEntry = {
   id: string | number
   user?: Option | string | number | null
   contractor?: Option | string | number | null
+  contractorName?: string | null
   weekCommencing: string
   hours: number
   status: string
@@ -484,7 +485,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
             {loading ? (
               <tr><td colSpan={totalColumnCount} style={{ padding: 28, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>Loading entries…</td></tr>
             ) : entries.length === 0 ? (
-              <tr><td colSpan={totalColumnCount} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No time entries for this period — add the first week below.</td></tr>
+              <tr><td colSpan={totalColumnCount} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>{weekMode === 'week' ? `No time entries for ${weekLabel(weekStart)} — switch Weeks to “All weeks” to see earlier entries, or add this week below.` : 'No time entries for this period — add the first week below.'}</td></tr>
             ) : entries.map((entry) => {
               const allocated = allocatedTotal(entry)
               const isPaid = entry.status === 'paid'
@@ -538,7 +539,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
                     {isAdmin && (
                       <td style={{ ...tdStyle, paddingLeft: 2, paddingRight: 2 }} title={relName(entry.user, users)}>
                         <select value={relId(entry.user)} onChange={(event) => void patch(entry.id, { user: event.target.value })} disabled={isPaid} style={{ ...inputStyle, maxWidth: 96, padding: '7px 4px' }}>
-                          <option value="">Unassigned</option>
+                          <option value="">{entry.contractorName ? `${entry.contractorName} (portal)` : 'Unassigned'}</option>
                           {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                         </select>
                       </td>

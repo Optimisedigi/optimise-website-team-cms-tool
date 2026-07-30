@@ -56,6 +56,7 @@ describe("contractor time entries grid RBAC", () => {
     const { GET } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
     mockPayload.auth.mockResolvedValue({ user: ownUser });
     mockPayload.find
+      .mockResolvedValueOnce({ docs: [] })
       .mockResolvedValueOnce({
         docs: [
           {
@@ -82,7 +83,7 @@ describe("contractor time entries grid RBAC", () => {
     expect(body.users).toEqual([{ id: 42, name: "Sam Specialist", email: "sam@example.com" }]);
     expect(body.columnClientIds).toEqual(["5"]);
     expect(mockPayload.find).toHaveBeenNthCalledWith(
-      1,
+      2,
       expect.objectContaining({
         collection: "contractor-time-entries",
         where: {
@@ -227,6 +228,105 @@ describe("contractor time entries grid RBAC", () => {
       collection: "contractor-time-entries",
       where: {},
     }));
+  });
+
+  it("GET folds contractor-portal rows into the admin's user filter", async () => {
+    const { GET } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    mockPayload.auth.mockResolvedValue({ user: adminUser });
+    mockPayload.findByID.mockResolvedValue({ id: 42, name: "Sam Specialist", email: "sam@example.com" });
+    mockPayload.find
+      // contractor lookup for the selected user
+      .mockResolvedValueOnce({ docs: [{ id: 7, name: "Sam Specialist", email: null }] })
+      .mockResolvedValueOnce({
+        docs: [
+          {
+            id: 29,
+            user: 42,
+            contractor: null,
+            weekCommencing: "2026-07-13T00:00:00.000Z",
+            hours: 8,
+            status: "submitted",
+            clientAllocations: [{ client: 5, hours: 8 }],
+          },
+          {
+            id: 30,
+            user: null,
+            contractor: { id: 7, name: "Sam Specialist" },
+            weekCommencing: "2026-07-20T00:00:00.000Z",
+            hours: 22,
+            status: "submitted",
+            clientAllocations: [{ client: 5, hours: 22 }],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ docs: [{ id: 5, name: "Acme", isActive: true }] })
+      .mockResolvedValueOnce({ docs: [{ weekCommencing: "2026-07-20T00:00:00.000Z", clientAllocations: [{ client: 5, hours: 22 }] }] })
+      .mockResolvedValueOnce({ docs: [{ id: 42, name: "Sam Specialist", email: "sam@example.com" }] })
+      .mockResolvedValueOnce({ docs: [] });
+
+    const res = await GET(getRequest({ month: "2026-07", weekMode: "this-month", user: "42" }));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.entries).toEqual([
+      expect.objectContaining({ id: 29, user: 42, hours: 8 }),
+      expect.objectContaining({ id: 30, contractor: 7, contractorName: "Sam Specialist", hours: 22 }),
+    ]);
+    expect(body.monthlyTotals[0].totals).toEqual([expect.objectContaining({ clientId: "5", hours: 22 })]);
+    expect(mockPayload.find).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ collection: "contractors", pagination: false }),
+    );
+    expect(mockPayload.find).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        collection: "contractor-time-entries",
+        where: {
+          and: expect.arrayContaining([
+            {
+              or: [
+                { user: { equals: "42" } },
+                { and: [{ contractor: { in: ["7"] } }, { user: { exists: false } }] },
+              ],
+            },
+          ]),
+        },
+      }),
+    );
+  });
+
+  it("GET shows a contractor their own portal rows when logged in as a non-admin", async () => {
+    const { GET } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    mockPayload.auth.mockResolvedValue({ user: ownUser });
+    mockPayload.find
+      .mockResolvedValueOnce({ docs: [{ id: 7, name: "sam  specialist", email: null }] })
+      .mockResolvedValueOnce({ docs: [{ id: 31, user: null, contractor: { id: 7, name: "Sam Specialist" }, weekCommencing: "2026-07-20T00:00:00.000Z", hours: 16, status: "submitted", clientAllocations: [] }] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] });
+
+    const res = await GET(getRequest({ month: "2026-07", weekMode: "this-month" }));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.entries).toEqual([expect.objectContaining({ id: 31, contractor: 7 })]);
+    expect(mockPayload.findByID).not.toHaveBeenCalled();
+    expect(mockPayload.find).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        collection: "contractor-time-entries",
+        where: {
+          and: expect.arrayContaining([
+            {
+              or: [
+                { user: { equals: 42 } },
+                { and: [{ contractor: { in: ["7"] } }, { user: { exists: false } }] },
+              ],
+            },
+          ]),
+        },
+      }),
+    );
   });
 
   it("PATCH persists shared client columns without an entry id", async () => {

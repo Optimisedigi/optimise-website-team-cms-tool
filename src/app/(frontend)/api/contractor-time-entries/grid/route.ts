@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import { buildUserToContractorMap } from "@/lib/contractor-user-link";
 
 const ENTRY_SELECT = {
   user: true,
@@ -53,6 +54,54 @@ async function saveColumnClientIds(payload: any, user: any, clientIds: string[])
   } else {
     await payload.create({ collection: "payload-preferences" as any, data: { ...data, user: { relationTo: "users", value: user.id } }, overrideAccess: true });
   }
+}
+
+/**
+ * Contractor ids that represent the same person as `userId`.
+ *
+ * Legacy portal submissions (`/api/contractor/[token]`) set only `contractor`,
+ * so scoping the grid on `user` alone hides those weeks from both the admin's user
+ * filter and the contractor's own view. Matching on email/name — the same
+ * bridge contractor costs and payments use — folds them back in.
+ */
+async function contractorIdsForUser(
+  payload: any,
+  userId: string | number,
+  knownUser?: { id: string | number; name?: string | null; email?: string | null } | null,
+): Promise<string[]> {
+  const [contractorsResult, userDoc] = await Promise.all([
+    payload.find({
+      collection: "contractors",
+      pagination: false,
+      depth: 0,
+      select: { name: true, email: true } as any,
+      overrideAccess: true,
+    }),
+    knownUser && String(knownUser.id) === String(userId)
+      ? Promise.resolve(knownUser)
+      : payload
+          .findByID({ collection: "users", id: userId, depth: 0, overrideAccess: true })
+          .catch(() => null),
+  ]);
+  if (!userDoc) return [];
+  const map = buildUserToContractorMap((contractorsResult?.docs || []) as any[], [userDoc as any]);
+  const contractorId = map.get(String(userId));
+  return contractorId ? [contractorId] : [];
+}
+
+/**
+ * Rows owned by `userId`, plus contractor-portal rows for the matching
+ * contractor that have no user attached yet.
+ */
+function ownerScopeFor(userId: string | number, contractorIds: string[]) {
+  const byUser = { user: { equals: userId } };
+  if (!contractorIds.length) return byUser;
+  return {
+    or: [
+      byUser,
+      { and: [{ contractor: { in: contractorIds } }, { user: { exists: false } }] },
+    ],
+  };
 }
 
 function relationshipId(value: unknown) {
@@ -121,6 +170,7 @@ function serializeEntry(entry: any) {
     ...entry,
     user: typeof entry.user === "object" ? entry.user?.id : entry.user,
     contractor: typeof entry.contractor === "object" ? entry.contractor?.id : entry.contractor,
+    contractorName: entry.contractor && typeof entry.contractor === "object" ? entry.contractor.name || null : null,
     clientAllocations: (entry.clientAllocations || []).map((allocation: any) => ({
       client: typeof allocation.client === "object" ? allocation.client?.id : allocation.client,
       hours: Number(allocation.hours || 0),
@@ -143,11 +193,11 @@ export async function GET(req: NextRequest) {
     const { weekStartIso, weekEndIso } = weekRange(searchParams.get("week") || "");
     const selectedUser = searchParams.get("user") || "";
 
+    const scopeUserId: string | number = user.role === "admin" ? selectedUser : user.id;
     const ownerScope: any[] = [];
-    if (user.role === "admin") {
-      if (selectedUser) ownerScope.push({ user: { equals: selectedUser } });
-    } else {
-      ownerScope.push({ user: { equals: user.id } });
+    if (scopeUserId) {
+      const contractorIds = await contractorIdsForUser(payload, scopeUserId, user as any);
+      ownerScope.push(ownerScopeFor(scopeUserId, contractorIds));
     }
 
     const weekRangeByMode = weekMode === "week"
