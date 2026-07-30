@@ -209,8 +209,10 @@ export const DEFAULT_CHAT_MODEL: CanonicalModelName = "claude-sonnet-4.6";
  */
 export const DEFAULT_AUTONOMOUS_MODEL: CanonicalModelName = "kimi-k3";
 export const DEFAULT_AUTONOMOUS_FALLBACKS: CanonicalModelName[] = [
-  "minimax-m3",
+  "gpt-5.6-terra",
+  "kimi-k3",
   "claude-sonnet-4.6",
+  "minimax-m3",
 ];
 
 /**

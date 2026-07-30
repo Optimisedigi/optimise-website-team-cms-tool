@@ -119,7 +119,13 @@ export function fromCodex(
 
   for (const ev of events) {
     if (ev.type === "error") {
-      const message = (ev.message as string) || (ev.code as string) || "Codex stream error";
+      const nested = ev.error as { message?: string; code?: string } | undefined;
+      const message =
+        nested?.message ||
+        nested?.code ||
+        (ev.message as string) ||
+        (ev.code as string) ||
+        "Codex stream error";
       throw new Error(codexErrorMessage("Codex error", message, ev.request_id));
     }
     if (ev.type === "response.failed") {

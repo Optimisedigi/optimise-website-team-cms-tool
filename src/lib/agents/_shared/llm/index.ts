@@ -5,7 +5,7 @@
  *
  *   const response = await callLLM({
  *     model: 'claude-sonnet-4.6',
- *     fallbackModels: ['kimi-k2.6', 'minimax-m3'],
+ *     fallbackModels: ['gpt-5.6-terra', 'kimi-k3'],
  *     system: '...',
  *     messages: [...],
  *     tools: [...],
@@ -39,7 +39,7 @@ export class AggregateLLMError extends Error {
 }
 
 export async function callLLM(opts: CallLLMOptions): Promise<LLMResponse> {
-  const chain = [opts.model, ...(opts.fallbackModels ?? [])];
+  const chain = [...new Set([opts.model, ...(opts.fallbackModels ?? [])])];
   const tried: string[] = [];
   const errors: Array<{ model: string; error: unknown }> = [];
 

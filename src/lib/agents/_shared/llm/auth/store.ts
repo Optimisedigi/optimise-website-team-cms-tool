@@ -72,9 +72,12 @@ const refreshLocks = new Map<ProviderName, Promise<Credential>>();
 
 export function setRefreshLock<T extends Credential>(provider: ProviderName, p: Promise<T>): Promise<T> {
   refreshLocks.set(provider, p as Promise<Credential>);
-  p.finally(() => {
+  const clearLock = () => {
     if (refreshLocks.get(provider) === (p as Promise<Credential>)) refreshLocks.delete(provider);
-  });
+  };
+  // Pass both handlers directly. `p.finally(clearLock)` creates a second rejected
+  // promise when refresh fails, which Node reports as an unhandled rejection.
+  void p.then(clearLock, clearLock);
   return p;
 }
 

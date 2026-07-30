@@ -82,6 +82,23 @@ describe("fromCodex", () => {
     expect(() => fromCodex(events, "gpt-5.5-codex-medium", "oauth")).toThrow(/usage limit reached/);
   });
 
+  it("surfaces the nested error returned by the Codex SSE API", () => {
+    const events: CodexEvent[] = [
+      {
+        type: "error",
+        error: {
+          type: "service_unavailable_error",
+          code: "server_is_overloaded",
+          message: "Our servers are currently overloaded. Please try again later.",
+        },
+        sequence_number: 2,
+      },
+    ];
+    expect(() => fromCodex(events, "gpt-5.6-sol", "oauth")).toThrow(
+      /servers are currently overloaded/,
+    );
+  });
+
   it("throws on response.failed", () => {
     const events: CodexEvent[] = [
       { type: "response.failed", response: { error: { code: "server_error", message: "boom" } } },

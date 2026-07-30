@@ -7,6 +7,7 @@
 import { runAgent, MAX_TOKENS_TRUNCATION_MARKER } from "../_shared/base-agent";
 import type { CanonicalTool } from "../_shared/tool";
 import type { CredentialSource, Message, ReasoningMode, Usage } from "../_shared/llm/types";
+import { DEFAULT_AUTONOMOUS_FALLBACKS } from "../_shared/llm/registry";
 import { getOptiMateDefaultModels } from "../_shared/optimate-default-models";
 import {
   AGENT_NAME,
@@ -470,7 +471,7 @@ export interface RunChatTurnResult {
   confirmRequests: ConfirmRequestSummary[];
 }
 
-const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m3"];
+const DEFAULT_FALLBACKS = DEFAULT_AUTONOMOUS_FALLBACKS;
 
 /**
  * Max output tokens per LLM call for chat turns.
