@@ -33,4 +33,27 @@ describe("runMigrations", () => {
       "UPDATE `contractor_time_entries` SET `week_commencing` = `week_commencing` || 'T00:00:00.000Z' WHERE length(`week_commencing`) = 10 AND substr(`week_commencing`, 5, 1) = '-' AND substr(`week_commencing`, 8, 1) = '-'",
     );
   });
+
+  it("adds every task-specific OptiMate model column to existing databases", async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const payload = { db: { client: { execute, batch } } } as any;
+
+    const results = await runMigrations(payload);
+
+    const expectedColumns = [
+      "search_term_research_model",
+      "negative_sweep_model",
+      "blog_image_generation_model",
+    ];
+    for (const column of expectedColumns) {
+      expect(results).toContainEqual({
+        label: `optimate_settings.${column}`,
+        status: "ok",
+      });
+      expect(execute).toHaveBeenCalledWith(
+        `ALTER TABLE \`optimate_settings\` ADD \`${column}\` text`,
+      );
+    }
+  });
 });

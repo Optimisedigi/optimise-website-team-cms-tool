@@ -4281,6 +4281,9 @@ export async function runMigrations(
       \`blog_prompter_model\` text,
       \`invoice_assistant_model\` text,
       \`email_assistant_model\` text,
+      \`search_term_research_model\` text,
+      \`negative_sweep_model\` text,
+      \`blog_image_generation_model\` text,
       \`voice_realtime_model\` text DEFAULT 'gpt-realtime-mini',
       \`chat_history_token_limit\` numeric DEFAULT 6000,
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -4299,6 +4302,21 @@ export async function runMigrations(
     await run(
       "optimate_settings.email_assistant_model",
       "ALTER TABLE `optimate_settings` ADD `email_assistant_model` text",
+    );
+    // Task-specific model fields added to Payload in July 2026. Keep them in
+    // this inline sweep because production CI calls /api/migrate rather than
+    // Payload's migration-registry endpoint.
+    await run(
+      "optimate_settings.search_term_research_model",
+      "ALTER TABLE `optimate_settings` ADD `search_term_research_model` text",
+    );
+    await run(
+      "optimate_settings.negative_sweep_model",
+      "ALTER TABLE `optimate_settings` ADD `negative_sweep_model` text",
+    );
+    await run(
+      "optimate_settings.blog_image_generation_model",
+      "ALTER TABLE `optimate_settings` ADD `blog_image_generation_model` text",
     );
     await run(
       "optimate_settings.voice_realtime_model",
