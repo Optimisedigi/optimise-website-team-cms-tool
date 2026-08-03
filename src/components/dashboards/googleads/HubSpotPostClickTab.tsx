@@ -39,6 +39,50 @@ const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; toolti
   { key: "googleAdsSpend", label: "Google Ads spend", shortLabel: "Spend", tooltip: "Total Google Ads spend for each month.", color: "#334155", kind: "line", unit: "spend" },
 ];
 
+/** Legend display order. Spend and meeting rate are deliberately swapped
+ *  relative to METRICS so spend sits with the volume series. */
+const LEGEND_ORDER: MetricKey[] = [
+  "googleAdsConversions",
+  "paidLeads",
+  "meetings",
+  "totalMeetings",
+  "googleAdsSpend",
+  "disqualifiedRate",
+  "cpaGoogleAdsConversions",
+  "cpaPaidLeads",
+  "cpaMeetings",
+  "meetingRate",
+];
+
+const LEGEND_METRICS = LEGEND_ORDER.map((key) => METRICS.find((metric) => metric.key === key)).filter(
+  (metric): metric is (typeof METRICS)[number] => Boolean(metric),
+);
+
+/** Away Digital Teams splits its Google Ads account by market using the
+ *  campaign naming convention: AU (or a capital-city name) vs US. The region
+ *  toggle is deliberately scoped to this client only — no other Google Ads
+ *  dashboard uses that convention, so the split would be meaningless there. */
+export type RegionFilter = "all" | "AU" | "US";
+
+const REGION_CYCLE: RegionFilter[] = ["all", "AU", "US"];
+
+const AWAY_DIGITAL_SLUG = "away-digital";
+const AWAY_DIGITAL_CUSTOMER_ID = "3425353766";
+
+export function supportsRegionSplit(data: Pick<HubSpotPostClickDashboardData, "slug" | "customerId">): boolean {
+  return data.slug === AWAY_DIGITAL_SLUG || (data.customerId || "").replace(/-/g, "") === AWAY_DIGITAL_CUSTOMER_ID;
+}
+
+export function campaignRegion(name?: string | null): "AU" | "US" | "other" {
+  const lower = (name || "").trim().toLowerCase();
+  if (!lower) return "other";
+  if (/bris|melb|syd/.test(lower)) return "AU";
+  const tokens = lower.split(/[^a-z0-9]+/).filter(Boolean);
+  if (tokens.some((token) => token === "au" || token === "aus" || token === "australia" || token === "australian")) return "AU";
+  if (tokens.some((token) => token === "us" || token === "usa")) return "US";
+  return "other";
+}
+
 const CONFIDENCE_LABELS: Record<string, string> = {
   single_candidate: "Single candidate",
   multiple_candidates: "Multiple candidates",
@@ -160,8 +204,110 @@ function toggleMetricSelection(current: MetricKey[], key: MetricKey): MetricKey[
   return [...current, key];
 }
 
-function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotPostClickDashboardData["leadDetails"], monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[]): MonthlySalesPoint[] {
+function nullRate(numerator: number, denominator: number): number | null {
+  if (!denominator) return null;
+  return Math.round((numerator / denominator) * 10000) / 100;
+}
+
+/** Rebuilds the monthly series from a subset of leads so the chart can show a
+ *  single market. Ad-platform spend/conversions come from per-campaign data. */
+function buildMonthlyFromLeads(leads: LeadDetail[], adMetricsByMonth: Map<string, { spend: number; conversions: number }>): MonthlyPoint[] {
+  type Accumulator = {
+    paidLeads: number;
+    meetings: number;
+    totalMeetings: number;
+    leadsWithMeetingOrCall: number;
+    qualifiedLeads: number;
+    disqualifiedLeads: number;
+    calls: number;
+    daysToFirstOutreach: Array<number | null>;
+    daysToMql: Array<number | null>;
+    daysToSql: Array<number | null>;
+  };
+  const emptyMonth = (): Accumulator => ({
+    paidLeads: 0,
+    meetings: 0,
+    totalMeetings: 0,
+    leadsWithMeetingOrCall: 0,
+    qualifiedLeads: 0,
+    disqualifiedLeads: 0,
+    calls: 0,
+    daysToFirstOutreach: [],
+    daysToMql: [],
+    daysToSql: [],
+  });
+
+  const months = new Map<string, Accumulator>();
+  for (const lead of leads) {
+    const row = months.get(lead.month) || emptyMonth();
+    const baseline = lead.firstConversionAt || lead.createdAt;
+    row.paidLeads += 1;
+    row.meetings += lead.meetings > 0 ? 1 : 0;
+    row.totalMeetings += lead.meetings;
+    row.leadsWithMeetingOrCall += lead.meetings > 0 || lead.calls > 0 ? 1 : 0;
+    row.qualifiedLeads += lead.isQualifiedLead ? 1 : 0;
+    row.disqualifiedLeads += lead.isQualifiedLead ? 0 : 1;
+    row.calls += lead.calls;
+    row.daysToFirstOutreach.push(daysBetween(baseline, lead.firstOutreachAt));
+    if (lead.isQualifiedLead) {
+      row.daysToMql.push(daysBetween(baseline, lead.mqlAt));
+      row.daysToSql.push(daysBetween(baseline, lead.sqlAt));
+    }
+    months.set(lead.month, row);
+  }
+  for (const month of adMetricsByMonth.keys()) {
+    if (!months.has(month)) months.set(month, emptyMonth());
+  }
+
+  return Array.from(months.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, row]) => ({
+      month,
+      paidLeads: row.paidLeads,
+      meetings: row.meetings,
+      totalMeetings: row.totalMeetings,
+      qualifiedLeads: row.qualifiedLeads,
+      disqualifiedLeads: row.disqualifiedLeads,
+      calls: row.calls,
+      googleAdsConversions: Math.round((adMetricsByMonth.get(month)?.conversions || 0) * 100) / 100,
+      googleAdsSpend: Math.round((adMetricsByMonth.get(month)?.spend || 0) * 100) / 100,
+      meetingRate: nullRate(row.meetings, row.paidLeads),
+      meetingOrCallRate: nullRate(row.leadsWithMeetingOrCall, row.paidLeads),
+      qualifiedLeadRate: nullRate(row.qualifiedLeads, row.paidLeads),
+      disqualifiedRate: nullRate(row.disqualifiedLeads, row.paidLeads),
+      avgDaysToFirstOutreach: averageDays(row.daysToFirstOutreach),
+      avgDaysToMql: averageDays(row.daysToMql),
+      avgDaysToSql: averageDays(row.daysToSql),
+    }));
+}
+
+function usePostClickMonthlyData(
+  monthly: MonthlyPoint[],
+  leadDetails?: HubSpotPostClickDashboardData["leadDetails"],
+  monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[],
+  region: RegionFilter = "all",
+  monthlyByCampaign?: HubSpotPostClickDashboardData["monthlyByCampaign"],
+): MonthlySalesPoint[] {
+  const scoped = useMemo(() => {
+    if (region === "all") return { monthly, leadDetails };
+    const leads = (leadDetails || []).filter((lead) => campaignRegion(lead.campaignName || lead.hubspotCampaign) === region);
+    const adMetricsByMonth = new Map<string, { spend: number; conversions: number }>();
+    for (const row of monthlyByCampaign || []) {
+      if (campaignRegion(row.campaignName) !== region) continue;
+      const current = adMetricsByMonth.get(row.month) || { spend: 0, conversions: 0 };
+      current.spend += row.googleAdsSpend || 0;
+      current.conversions += row.googleAdsConversions || 0;
+      adMetricsByMonth.set(row.month, current);
+    }
+    return { monthly: buildMonthlyFromLeads(leads, adMetricsByMonth), leadDetails: leads };
+  }, [monthly, leadDetails, monthlyByCampaign, region]);
+
+  const scopedMonthly = scoped.monthly;
+  const scopedLeadDetails = scoped.leadDetails;
+
   return useMemo(() => {
+    const monthly = scopedMonthly;
+    const leadDetails = scopedLeadDetails;
     const byMonth = new Map(monthly.map((row) => [row.month, row]));
     const relevancyByMonth = new Map((monthlyWasteRelevancy || []).map((row) => [row.month, row]));
     const leadStatsByMonth = new Map<string, { paidLeads: number; disqualifiedLeads: number; mqls: number; sqls: number; daysToFirstOutreach: Array<number | null>; daysToMql: Array<number | null>; daysToSql: Array<number | null> }>();
@@ -220,10 +366,75 @@ function usePostClickMonthlyData(monthly: MonthlyPoint[], leadDetails?: HubSpotP
         avgDaysToSql: row.avgDaysToSql ?? averageDays(leadStats?.daysToSql || []),
       };
     });
-  }, [monthly, leadDetails, monthlyWasteRelevancy]);
+  }, [scopedMonthly, scopedLeadDetails, monthlyWasteRelevancy]);
 }
 
-function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data: MonthlySalesPoint[]; selectedMetrics: MetricKey[]; onToggleMetric: (key: MetricKey) => void }) {
+const REGION_LABELS: Record<RegionFilter, string> = {
+  all: "All campaigns",
+  AU: "Australia only",
+  US: "United States only",
+};
+
+function RegionFlagIcon({ region }: { region: RegionFilter }) {
+  if (region === "AU") {
+    return (
+      <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true">
+        <rect width="18" height="12" fill="#00247d" />
+        <path d="M0 0 L9 6 M9 0 L0 6" stroke="#ffffff" strokeWidth="1.2" />
+        <path d="M4.5 0 V6 M0 3 H9" stroke="#ffffff" strokeWidth="1.8" />
+        <path d="M4.5 0 V6 M0 3 H9" stroke="#cf142b" strokeWidth="0.9" />
+        <circle cx="4.5" cy="9.2" r="1.5" fill="#ffffff" />
+        <circle cx="13" cy="3" r="0.8" fill="#ffffff" />
+        <circle cx="15.4" cy="5.4" r="0.8" fill="#ffffff" />
+        <circle cx="13" cy="8" r="0.8" fill="#ffffff" />
+        <circle cx="11" cy="5.6" r="0.8" fill="#ffffff" />
+      </svg>
+    );
+  }
+  if (region === "US") {
+    return (
+      <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true">
+        <rect width="18" height="12" fill="#ffffff" />
+        {[0, 2, 4, 6, 8, 10].map((y) => (
+          <rect key={y} x="0" y={y} width="18" height="1" fill="#b22234" />
+        ))}
+        <rect x="0" y="0" width="8" height="6.5" fill="#3c3b6e" />
+        <circle cx="2" cy="1.8" r="0.5" fill="#ffffff" />
+        <circle cx="4.5" cy="1.8" r="0.5" fill="#ffffff" />
+        <circle cx="6.5" cy="1.8" r="0.5" fill="#ffffff" />
+        <circle cx="2" cy="4.4" r="0.5" fill="#ffffff" />
+        <circle cx="4.5" cy="4.4" r="0.5" fill="#ffffff" />
+        <circle cx="6.5" cy="4.4" r="0.5" fill="#ffffff" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true">
+      <path d="M3 1.2 V11" stroke="#94a3b8" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M3 1.6 H14 L11.4 4.4 L14 7.2 H3 Z" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RegionFlagToggle({ region, onCycle }: { region: RegionFilter; onCycle: () => void }) {
+  const nextRegion = REGION_CYCLE[(REGION_CYCLE.indexOf(region) + 1) % REGION_CYCLE.length];
+  return (
+    <button
+      type="button"
+      onClick={onCycle}
+      title={`Showing ${REGION_LABELS[region]}. Click for ${REGION_LABELS[nextRegion]}.`}
+      aria-label={`Region filter: ${REGION_LABELS[region]}. Click for ${REGION_LABELS[nextRegion]}.`}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-1.5 py-1 transition-colors ${
+        region === "all" ? "border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300" : "border-slate-300 bg-white text-slate-700"
+      }`}
+    >
+      <RegionFlagIcon region={region} />
+      {region !== "all" && <span className="text-[11px] font-semibold">{region}</span>}
+    </button>
+  );
+}
+
+function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric, region, showRegionToggle, onCycleRegion }: { data: MonthlySalesPoint[]; selectedMetrics: MetricKey[]; onToggleMetric: (key: MetricKey) => void; region: RegionFilter; showRegionToggle: boolean; onCycleRegion: () => void }) {
   const width = 1220;
   const height = 290;
   const left = 34;
@@ -243,7 +454,7 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
   const disqualifiedRateMax = Math.max(10, Math.ceil(Math.max(...data.map((row) => row.disqualifiedRate ?? 0)) / 5) * 5);
   const slot = chartWidth / data.length;
   const barGap = 3; // gap between bars inside a month group
-  const groupGap = 7; // minimum gap between the last bar of a month and the first bar of the next
+  const groupGap = 11; // minimum gap between the last bar of a month and the first bar of the next
   const barWidth = Math.max(8, Math.min(17, (slot - groupGap - barGap * 3) / 4));
   const groupWidth = barWidth * 4 + barGap * 3;
   const barX = (center: number, index: number) => center - groupWidth / 2 + index * (barWidth + barGap);
@@ -273,8 +484,9 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
   });
 
   const legend = (
-    <div className="mb-3 flex flex-wrap gap-4 text-xs text-slate-500">
-      {METRICS.map((metric) => {
+    <div className="mb-3 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+      {showRegionToggle && <RegionFlagToggle region={region} onCycle={onCycleRegion} />}
+      {LEGEND_METRICS.map((metric) => {
         const active = selectedMetrics.includes(metric.key);
         return (
           <button
@@ -537,12 +749,13 @@ function AttributionSection({ month, rows }: { month: string; rows: AttributionR
         <p className="text-xs text-slate-400">Recent search-term evidence, leads with meetings first.</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-[1700px] table-fixed divide-y divide-slate-100 text-sm">
+        <table className="w-[1830px] table-fixed divide-y divide-slate-100 text-sm">
           <colgroup>
             <col style={{ width: 520 }} />
             <col style={{ width: 430 }} />
             <col style={{ width: 300 }} />
             <col style={{ width: 110 }} />
+            <col style={{ width: 130 }} />
             <col style={{ width: 140 }} />
             <col style={{ width: 130 }} />
             <col style={{ width: 170 }} />
@@ -555,6 +768,9 @@ function AttributionSection({ month, rows }: { month: string; rows: AttributionR
               <th className="px-3 py-2 text-left font-medium">Campaign</th>
               <th className="px-3 py-2 text-left font-medium">Keyword</th>
               <th className="px-3 py-2 text-right font-medium">Leads with meetings</th>
+              <th className="px-3 py-2 text-right font-medium">
+                <InfoTooltip label="Total meetings" text="All HubSpot meeting records and meeting activity dates from these paid leads. One lead with repeat meetings counts more than once, so this can exceed leads with meetings." />
+              </th>
               <th className="px-3 py-2 text-right font-medium">
                 <InfoTooltip label="Meeting rate" text="Paid leads with at least one HubSpot meeting divided by paid leads. Each paid lead counts once." />
               </th>
@@ -581,6 +797,7 @@ function AttributionSection({ month, rows }: { month: string; rows: AttributionR
                   {row.keywordMatchType && <span className="ml-1 text-xs text-slate-400">({row.keywordMatchType})</span>}
                 </td>
                 <td className="px-3 py-1.5 text-right font-medium text-slate-800">{row.meetings}</td>
+                <td className="px-3 py-1.5 text-right text-slate-600">{row.totalMeetings ?? row.meetings}</td>
                 <td className="px-3 py-1.5 text-right text-slate-600">{formatRate(row.meetingRate)}</td>
                 <td className="px-3 py-1.5 text-right text-slate-600">{formatRate(row.qualifiedLeadRate)}</td>
                 <td className="px-3 py-1.5 text-left text-slate-500">
@@ -591,7 +808,7 @@ function AttributionSection({ month, rows }: { month: string; rows: AttributionR
               </tr>
             )) : (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400">No attribution rows for {monthFull(month)} yet.</td>
+                <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-400">No attribution rows for {monthFull(month)} yet.</td>
               </tr>
             )}
           </tbody>
@@ -654,7 +871,10 @@ function exportLeadDetailsCsv(leads: LeadDetail[]): void {
   URL.revokeObjectURL(url);
 }
 export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: HubSpotPostClickDashboardData; monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[] }) {
-  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(["googleAdsConversions", "paidLeads", "meetings", "totalMeetings", "meetingRate", "googleAdsSpend"]);
+  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(["googleAdsConversions", "paidLeads", "meetings", "totalMeetings", "googleAdsSpend"]);
+  const [chartRegion, setChartRegion] = useState<RegionFilter>("all");
+  const regionSplitEnabled = supportsRegionSplit(data);
+  const activeRegion: RegionFilter = regionSplitEnabled ? chartRegion : "all";
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadMonthFilter, setLeadMonthFilter] = useState("all");
   const [leadMeetingFilter, setLeadMeetingFilter] = useState<MeetingFilter>("all");
@@ -662,6 +882,7 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
   const [leadCampaignFilter, setLeadCampaignFilter] = useState("all");
   const [leadSearchQuery, setLeadSearchQuery] = useState("");
   const monthlyChartData = usePostClickMonthlyData(data.monthly, data.leadDetails, monthlyWasteRelevancy);
+  const regionChartData = usePostClickMonthlyData(data.monthly, data.leadDetails, monthlyWasteRelevancy, activeRegion, data.monthlyByCampaign);
   const recentMonths = useMemo(() => buildMonthKeys(6).reverse(), []);
   const rowsByMonth = useMemo(() => {
     const map = new Map<string, AttributionRow[]>();
@@ -706,9 +927,12 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
 
         <div className="mt-5">
           <PostClickMonthlyChart
-            data={monthlyChartData}
+            data={regionChartData}
             selectedMetrics={selectedMetrics}
             onToggleMetric={(key) => setSelectedMetrics((current) => toggleMetricSelection(current, key))}
+            region={activeRegion}
+            showRegionToggle={regionSplitEnabled}
+            onCycleRegion={() => setChartRegion((current) => REGION_CYCLE[(REGION_CYCLE.indexOf(current) + 1) % REGION_CYCLE.length])}
           />
         </div>
 

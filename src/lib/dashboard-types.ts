@@ -210,6 +210,15 @@ export interface HubSpotPostClickDashboardData {
     googleAdsConversions: number;
     googleAdsSpend: number;
   }>;
+  /** Per-campaign monthly ad-platform metrics. Used to split spend and
+   *  conversions by region (AU/US) from the campaign naming convention.
+   *  Optional because older Growth Tools responses omit it. */
+  monthlyByCampaign?: Array<{
+    month: string;
+    campaignName: string;
+    googleAdsSpend: number;
+    googleAdsConversions: number;
+  }>;
   attributionRows: Array<{
     month: string;
     searchTermEvidence: string;
