@@ -242,7 +242,11 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
   const spendMax = Math.max(1, Math.max(...data.map((row) => row.googleAdsSpend || 0)));
   const disqualifiedRateMax = Math.max(10, Math.ceil(Math.max(...data.map((row) => row.disqualifiedRate ?? 0)) / 5) * 5);
   const slot = chartWidth / data.length;
-  const barWidth = Math.max(8, Math.min(17, slot * 0.22));
+  const barGap = 3; // gap between bars inside a month group
+  const groupGap = 3; // minimum gap between the last bar of a month and the first bar of the next
+  const barWidth = Math.max(8, Math.min(17, (slot - groupGap - barGap * 3) / 4));
+  const groupWidth = barWidth * 4 + barGap * 3;
+  const barX = (center: number, index: number) => center - groupWidth / 2 + index * (barWidth + barGap);
   const yCount = (value: number) => top + chartHeight - (value / barMax) * chartHeight;
   const yRate = (value: number | null) => top + chartHeight - ((value ?? 0) / rateMax) * chartHeight;
   const yCurrency = (value: number | null) => top + chartHeight - ((value ?? 0) / currencyMax) * chartHeight;
@@ -314,26 +318,26 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
             <g key={row.month}>
               {selectedMetrics.includes("googleAdsConversions") && (
                 <>
-                  <rect x={center - barWidth * 2 - 5} y={conversionY} width={barWidth} height={conversionHeight} rx={3} fill="#60a5fa" />
-                  {googleAdsConversions > 0 && <text x={center - barWidth * 1.5 - 5} y={conversionY - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#60a5fa">{Math.round(googleAdsConversions)}</text>}
+                  <rect x={barX(center, 0)} y={conversionY} width={barWidth} height={conversionHeight} rx={3} fill="#60a5fa" />
+                  {googleAdsConversions > 0 && <text x={barX(center, 0) + barWidth / 2} y={conversionY - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#60a5fa">{Math.round(googleAdsConversions)}</text>}
                 </>
               )}
               {selectedMetrics.includes("paidLeads") && (
                 <>
-                  <rect x={center - barWidth - 2} y={yCount(row.paidLeads)} width={barWidth} height={leadHeight} rx={3} fill="#2563eb" />
-                  {row.paidLeads > 0 && <text x={center - barWidth / 2 - 2} y={yCount(row.paidLeads) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#2563eb">{row.paidLeads}</text>}
+                  <rect x={barX(center, 1)} y={yCount(row.paidLeads)} width={barWidth} height={leadHeight} rx={3} fill="#2563eb" />
+                  {row.paidLeads > 0 && <text x={barX(center, 1) + barWidth / 2} y={yCount(row.paidLeads) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#2563eb">{row.paidLeads}</text>}
                 </>
               )}
               {selectedMetrics.includes("meetings") && (
                 <>
-                  <rect x={center + 2} y={yCount(row.meetings)} width={barWidth} height={meetingHeight} rx={3} fill="#16a34a" />
-                  {row.meetings > 0 && <text x={center + barWidth / 2 + 2} y={yCount(row.meetings) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#16a34a">{row.meetings}</text>}
+                  <rect x={barX(center, 2)} y={yCount(row.meetings)} width={barWidth} height={meetingHeight} rx={3} fill="#16a34a" />
+                  {row.meetings > 0 && <text x={barX(center, 2) + barWidth / 2} y={yCount(row.meetings) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#16a34a">{row.meetings}</text>}
                 </>
               )}
               {selectedMetrics.includes("totalMeetings") && (
                 <>
-                  <rect x={center + barWidth + 5} y={yCount(row.totalMeetings)} width={barWidth} height={totalMeetingHeight} rx={3} fill="#22c55e" />
-                  {row.totalMeetings > 0 && <text x={center + barWidth * 1.5 + 5} y={yCount(row.totalMeetings) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#22c55e">{row.totalMeetings}</text>}
+                  <rect x={barX(center, 3)} y={yCount(row.totalMeetings)} width={barWidth} height={totalMeetingHeight} rx={3} fill="#22c55e" />
+                  {row.totalMeetings > 0 && <text x={barX(center, 3) + barWidth / 2} y={yCount(row.totalMeetings) - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#22c55e">{row.totalMeetings}</text>}
                 </>
               )}
               <text x={center} y={height - 20} textAnchor="middle" fontSize="11" fill="#64748b">{monthShort(row.month)}</text>
