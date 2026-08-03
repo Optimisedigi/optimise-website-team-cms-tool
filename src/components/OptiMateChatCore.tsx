@@ -770,6 +770,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       setInput((prev) => (prev ? `${prev.replace(/\s+$/, '')} ${text}` : text))
     }, [])
     const imageInputRef = useRef<HTMLInputElement>(null)
+    const rootRef = useRef<HTMLDivElement>(null)
     const storageScope = mode === 'portfolio' ? 'portfolio' : auditId
     const displayName = businessName || (mode === 'portfolio' ? 'Portfolio' : customerId) || 'Google Ads'
 
@@ -1412,7 +1413,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       sendMessage(synthetic)
     }
 
-    const readImageAttachment = (file: File): Promise<ImageAttachment> =>
+    const readImageAttachment = (file: File, nameOverride?: string): Promise<ImageAttachment> =>
       new Promise((resolve, reject) => {
         if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
           reject(
@@ -1431,7 +1432,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           const comma = result.indexOf(',')
           const data = comma >= 0 ? result.slice(comma + 1) : result
           resolve({
-            name: file.name,
+            name: nameOverride || file.name || 'pasted-image',
             mediaType: file.type as ImageAttachment['mediaType'],
             data,
             size: file.size,
@@ -1440,33 +1441,59 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         reader.readAsDataURL(file)
       })
 
-    const handleImageFiles = useCallback(async (files: FileList | File[] | null) => {
-      if (!files || files.length === 0) return
-      const incoming = Array.from(files).filter((file) => file.type.startsWith('image/'))
-      if (incoming.length === 0) {
-        setError('Drop PNG, JPEG, GIF, or WebP images into OptiMate.')
-        return
-      }
-      const availableSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - imageAttachments.length)
-      const nextFiles = incoming.slice(0, availableSlots)
-      if (nextFiles.length === 0) {
-        setError(`Attach up to ${MAX_IMAGE_ATTACHMENTS} images per message.`)
-        return
-      }
-      try {
-        const next = await Promise.all(nextFiles.map(readImageAttachment))
-        setImageAttachments((prev) => [...prev, ...next].slice(0, MAX_IMAGE_ATTACHMENTS))
-        setError(
-          incoming.length > nextFiles.length
-            ? `Attached the first ${nextFiles.length} images. Limit is ${MAX_IMAGE_ATTACHMENTS} per message.`
-            : null,
-        )
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not attach image')
-      } finally {
-        if (imageInputRef.current) imageInputRef.current.value = ''
-      }
-    }, [imageAttachments.length])
+    const handleImageFiles = useCallback(
+      async (files: FileList | File[] | null, options?: { pasted?: boolean }) => {
+        if (!files || files.length === 0) return
+        const incoming = Array.from(files).filter((file) => file.type.startsWith('image/'))
+        if (incoming.length === 0) {
+          setError('Attach PNG, JPEG, GIF, or WebP images — drop, paste, or pick a file.')
+          return
+        }
+        const availableSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - imageAttachments.length)
+        const nextFiles = incoming.slice(0, availableSlots)
+        if (nextFiles.length === 0) {
+          setError(`Attach up to ${MAX_IMAGE_ATTACHMENTS} images per message.`)
+          return
+        }
+        try {
+          const stamp = new Date().toISOString().slice(11, 19).replace(/:/g, '')
+          const next = await Promise.all(
+            nextFiles.map((file, idx) =>
+              readImageAttachment(
+                file,
+                options?.pasted
+                  ? `pasted-screenshot-${stamp}${nextFiles.length > 1 ? `-${idx + 1}` : ''}.${
+                      file.type.split('/')[1] || 'png'
+                    }`
+                  : undefined,
+              ),
+            ),
+          )
+          setImageAttachments((prev) => [...prev, ...next].slice(0, MAX_IMAGE_ATTACHMENTS))
+          setError(
+            incoming.length > nextFiles.length
+              ? `Attached the first ${nextFiles.length} images. Limit is ${MAX_IMAGE_ATTACHMENTS} per message.`
+              : null,
+          )
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Could not attach image')
+        } finally {
+          if (imageInputRef.current) imageInputRef.current.value = ''
+        }
+      },
+      [imageAttachments.length],
+    )
+
+    /**
+     * Window-level drop/paste is shared across every mounted ChatCore (multi-chat
+     * keeps inactive tabs mounted behind `display: none`), so each instance only
+     * reacts when its own subtree is actually on screen — otherwise one dropped
+     * screenshot would attach itself to every open tab.
+     */
+    const isChatVisible = useCallback(
+      () => !hideInput && (rootRef.current?.getClientRects().length ?? 0) > 0,
+      [hideInput],
+    )
 
     useEffect(() => {
       if (hideInput) return
@@ -1476,46 +1503,86 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         Array.from(event.dataTransfer?.types ?? []).includes('Files')
 
       const handleWindowDragEnter = (event: DragEvent) => {
-        if (!eventHasFiles(event)) return
+        if (!eventHasFiles(event) || !isChatVisible()) return
         event.preventDefault()
         dragDepth += 1
         setDragActive(true)
       }
 
       const handleWindowDragOver = (event: DragEvent) => {
-        if (!eventHasFiles(event)) return
+        if (!eventHasFiles(event) || !isChatVisible()) return
         event.preventDefault()
         if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
         setDragActive(true)
       }
 
       const handleWindowDragLeave = (event: DragEvent) => {
-        if (!eventHasFiles(event)) return
+        if (!eventHasFiles(event) || !isChatVisible()) return
         event.preventDefault()
         dragDepth = Math.max(0, dragDepth - 1)
         if (dragDepth === 0) setDragActive(false)
       }
 
       const handleWindowDrop = (event: DragEvent) => {
-        if (!eventHasFiles(event)) return
+        if (!eventHasFiles(event) || !isChatVisible()) return
         event.preventDefault()
         dragDepth = 0
         setDragActive(false)
         void handleImageFiles(event.dataTransfer?.files ?? null)
       }
 
+      /**
+       * The listener is on `window`, but OptiMate is mounted as a global admin
+       * provider, so another editor on the page (e.g. BlogMarkdownField's own
+       * image paste) must keep owning pastes aimed at it. Only claim the paste
+       * when it landed inside this chat, or when nothing focusable owns it.
+       */
+      const pasteBelongsToChat = (target: EventTarget | null): boolean => {
+        if (!(target instanceof Node)) return true
+        if (rootRef.current?.contains(target)) return true
+        return target === document.body || target === document.documentElement
+      }
+
+      const handleWindowPaste = (event: ClipboardEvent) => {
+        if (!isChatVisible() || !pasteBelongsToChat(event.target)) return
+        const clipboard = event.clipboardData
+        if (!clipboard) return
+        const files = [
+          ...Array.from(clipboard.files ?? []),
+          ...Array.from(clipboard.items ?? [])
+            .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+            .map((item) => item.getAsFile())
+            .filter((file): file is File => Boolean(file)),
+        ].filter((file) => file.type.startsWith('image/'))
+        // De-dupe: Safari/Chrome expose the same screenshot via files AND items.
+        const seen = new Set<string>()
+        const images = files.filter((file) => {
+          const key = `${file.name}:${file.type}:${file.size}:${file.lastModified}`
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        if (images.length === 0) return
+        // Only swallow the paste once we know it carries an image, so plain-text
+        // pastes into the textarea keep their native behaviour.
+        event.preventDefault()
+        void handleImageFiles(images, { pasted: true })
+      }
+
       window.addEventListener('dragenter', handleWindowDragEnter)
       window.addEventListener('dragover', handleWindowDragOver)
       window.addEventListener('dragleave', handleWindowDragLeave)
       window.addEventListener('drop', handleWindowDrop)
+      window.addEventListener('paste', handleWindowPaste)
 
       return () => {
         window.removeEventListener('dragenter', handleWindowDragEnter)
         window.removeEventListener('dragover', handleWindowDragOver)
         window.removeEventListener('dragleave', handleWindowDragLeave)
         window.removeEventListener('drop', handleWindowDrop)
+        window.removeEventListener('paste', handleWindowPaste)
       }
-    }, [handleImageFiles, hideInput])
+    }, [handleImageFiles, hideInput, isChatVisible])
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
       e.stopPropagation()
@@ -1576,7 +1643,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         }
 
     return (
-      <div style={wrapperStyle} onKeyDown={(e) => e.stopPropagation()}>
+      <div ref={rootRef} style={wrapperStyle} onKeyDown={(e) => e.stopPropagation()}>
         <style>{`
           @keyframes optimateTyping {
             0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
@@ -2235,7 +2302,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 fontWeight: 600,
               }}
             >
-              Drop images to attach to OptiMate
+              Drop images to attach to OptiMate — or paste with ⌘V
             </div>
           </div>
         )}
@@ -2294,15 +2361,21 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             )}
 
             {imageAttachments.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              <div
+                role="group"
+                style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center' }}
+                aria-label={`${imageAttachments.length} image${
+                  imageAttachments.length === 1 ? '' : 's'
+                } attached to this message`}
+              >
                 {imageAttachments.map((image, idx) => (
                   <div
                     key={`${image.name}-${idx}`}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 6,
-                      padding: '4px 8px',
+                      gap: 7,
+                      padding: '4px 8px 4px 4px',
                       background: '#f0fdf4',
                       border: '1px solid #bbf7d0',
                       borderRadius: 12,
@@ -2310,15 +2383,28 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                       color: '#166534',
                       maxWidth: '100%',
                     }}
-                    title={`${image.name} · ${Math.round(image.size / 1024)} KB`}
+                    title={`${image.name} · ${Math.round(image.size / 1024)} KB · attached`}
                   >
-                    <span style={{ flexShrink: 0 }}>🖼️</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`data:${image.mediaType};base64,${image.data}`}
+                      alt=""
+                      style={{
+                        width: 28,
+                        height: 28,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        border: '1px solid #bbf7d0',
+                        background: '#fff',
+                        flexShrink: 0,
+                      }}
+                    />
                     <span
                       style={{
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        maxWidth: 220,
+                        maxWidth: 200,
                       }}
                     >
                       {image.name}
@@ -2525,14 +2611,24 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     imageInputRef.current?.click()
                   }}
                   disabled={loading || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS}
-                  title="Attach a screenshot"
+                  title={
+                    imageAttachments.length > 0
+                      ? `${imageAttachments.length} image${
+                          imageAttachments.length === 1 ? '' : 's'
+                        } attached — paste, drop, or click to add more`
+                      : 'Attach a screenshot — click, paste (⌘V), or drop an image'
+                  }
                   style={{
+                    position: 'relative',
                     width: 29,
                     height: 29,
                     padding: 0,
-                    background: '#fff',
-                    color: '#374151',
-                    border: '1px solid var(--theme-border-color, #e5e7eb)',
+                    background: imageAttachments.length > 0 ? '#dcfce7' : '#fff',
+                    color: imageAttachments.length > 0 ? '#166534' : '#374151',
+                    border:
+                      imageAttachments.length > 0
+                        ? '1px solid #86efac'
+                        : '1px solid var(--theme-border-color, #e5e7eb)',
                     borderRadius: 8,
                     cursor:
                       loading || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS
@@ -2543,7 +2639,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     justifyContent: 'center',
                     lineHeight: 1,
                   }}
-                  aria-label="Attach image screenshot"
+                  aria-label={
+                    imageAttachments.length > 0
+                      ? `Attach image screenshot. ${imageAttachments.length} attached.`
+                      : 'Attach image screenshot'
+                  }
                 >
                   <svg
                     width="14"
@@ -2558,6 +2658,30 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   >
                     <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                   </svg>
+                  {imageAttachments.length > 0 && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        top: -5,
+                        right: -5,
+                        minWidth: 15,
+                        height: 15,
+                        padding: '0 3px',
+                        borderRadius: 999,
+                        background: '#16a34a',
+                        color: '#fff',
+                        fontSize: 9,
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        lineHeight: 1,
+                      }}
+                    >
+                      {imageAttachments.length}
+                    </span>
+                  )}
                 </button>
               </div>
 
