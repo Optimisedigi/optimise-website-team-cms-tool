@@ -113,15 +113,21 @@ describe("create_weekly_budget_gmail_draft", () => {
     expect(mocks.executeDraft).toHaveBeenCalledTimes(1);
     const draftArgs = mocks.executeDraft.mock.calls[0]?.[0];
     expect(draftArgs.subject).toBe("Berendsen - Google Ads Weekly Report");
-    expect(draftArgs.htmlBody).toContain("Hey team,");
-    expect(draftArgs.htmlBody).toContain("Jun 22 - Jun 28 delivered 4 conversions");
+    expect(draftArgs.htmlBody).toMatch(/>(Hey team,|Hi team,|Hey all,|Hi all,|Morning team,)</);
+    expect(draftArgs.htmlBody).toContain("Jun 22 - Jun 28");
+    expect(draftArgs.htmlBody).toContain("4 conversions");
+    expect(draftArgs.htmlBody).toContain("$155");
+    expect(draftArgs.htmlBody).toContain("$620");
     expect(draftArgs.htmlBody).toContain('data-testid="weekly"');
     expect(draftArgs.htmlBody).toContain('data-testid="dashboard"');
     expect(draftArgs.htmlBody).toContain('data-testid="budget"');
 
     const data = result.data as Record<string, unknown>;
     expect(data.gmailUrl).toBe("https://mail.google.com/mail/u/0/#drafts/msg_123");
-    expect(data.summary).toBe("Jun 22 - Jun 28 delivered 4 conversions at a CPA of $155, with $620 in spend.");
+    expect(String(data.summary)).toMatch(/Jun 22 - Jun 28/);
+    expect(String(data.summary)).toMatch(/4 conversions/);
+    expect(String(data.summary)).toMatch(/\$155/);
+    expect(String(data.summary)).toMatch(/\$620/);
     expect(JSON.stringify(data)).not.toContain("weekly html");
     expect(JSON.stringify(data)).not.toContain("budget html");
   });

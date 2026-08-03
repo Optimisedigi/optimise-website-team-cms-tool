@@ -5,6 +5,7 @@ import { createGmailDraftTool } from "./create-gmail-draft";
 import { getBudgetManagementEmail } from "./get-budget-management-email";
 import { getDashboardEmailComponents } from "./get-dashboard-email-components";
 import { getMonthlyMetricTable } from "./get-monthly-metric-table";
+import { copySeed, pickGreeting, pickVariant } from "./_email-copy-variants";
 
 interface CreateMonthlyBudgetGmailDraftArgs {
   components: GoogleAdsEmailComponentKey[];
@@ -185,10 +186,13 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
     if (!budgetResult.ok) return budgetResult;
     const budget = budgetResult.data as BudgetEmailData;
 
-    const summary = buildSummary(monthly.rows, args.components, dashboard.componentData);
     const reportMonthLabel = latestMonthLabel(monthly.rows);
+    // Seeded per client + report month so a batch of monthly drafts does not
+    // repeat the same wording across accounts, while re-runs stay stable.
+    const seed = copySeed(String(ctx.context.clientName ?? ""), String(ctx.context.customerId ?? ""), reportMonthLabel, monthSpan.endMonth);
+    const summary = buildSummary(monthly.rows, args.components, dashboard.componentData, seed);
     const budgetHtml = prepareMonthlyBudgetBreakdownHtml(budget.html);
-    const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">Hey team,</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budgetHtml}`;
+    const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">${pickGreeting(seed)}</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budgetHtml}`;
     const subject = buildMonthlySubject(ctx, budget.subject, reportMonthLabel);
 
     const draftResult = await createGmailDraftTool.execute(
@@ -255,14 +259,15 @@ function buildSummary(
   rows: MonthlyMetricTableData["rows"],
   components: GoogleAdsEmailComponentKey[],
   dashboardData?: DashboardComponentsData["componentData"],
+  seed = 0,
 ): string {
   const latest = rows[rows.length - 1];
-  const performanceSentence = buildPerformanceSentence(latest);
-  const insightSentence = buildInsightSentence(components, dashboardData);
+  const performanceSentence = buildPerformanceSentence(latest, seed);
+  const insightSentence = buildInsightSentence(components, dashboardData, seed);
   return [performanceSentence, insightSentence].filter(Boolean).join(" ");
 }
 
-function buildPerformanceSentence(latest: MonthlyMetricTableData["rows"][number] | undefined): string {
+function buildPerformanceSentence(latest: MonthlyMetricTableData["rows"][number] | undefined, seed = 0): string {
   if (!latest) return "Here is the monthly Google Ads performance update.";
   const conversions = Number(latest.totals?.conversions ?? 0);
   const spend = Number(latest.totals?.spend ?? 0);
@@ -270,17 +275,44 @@ function buildPerformanceSentence(latest: MonthlyMetricTableData["rows"][number]
 
   if (conversions > 0 && cpa !== null) {
     const cpaTone = cpa <= 100 ? "efficient" : cpa <= 150 ? "steady" : "heavier than target";
-    return `${latest.label} delivered ${formatNumber(conversions)} conversions from ${formatCurrency(spend)} in spend, with CPA ${cpaTone} at ${formatCurrency(cpa)}.`;
+    return pickVariant(
+      [
+        `${latest.label} delivered ${formatNumber(conversions)} conversions from ${formatCurrency(spend)} in spend, with CPA ${cpaTone} at ${formatCurrency(cpa)}.`,
+        `Across ${latest.label}, ${formatCurrency(spend)} in spend produced ${formatNumber(conversions)} conversions, with CPA ${cpaTone} at ${formatCurrency(cpa)}.`,
+        `${latest.label} finished with ${formatNumber(conversions)} conversions on ${formatCurrency(spend)} of spend, and CPA ${cpaTone} at ${formatCurrency(cpa)}.`,
+        `In ${latest.label} the account converted ${formatNumber(conversions)} times off ${formatCurrency(spend)} in spend, keeping CPA ${cpaTone} at ${formatCurrency(cpa)}.`,
+      ],
+      seed,
+      "monthly-performance-converting",
+    );
   }
   if (spend > 0) {
-    return `${latest.label} recorded ${formatCurrency(spend)} in spend, and conversion volume remained limited across the month.`;
+    return pickVariant(
+      [
+        `${latest.label} recorded ${formatCurrency(spend)} in spend, and conversion volume remained limited across the month.`,
+        `Spend in ${latest.label} came to ${formatCurrency(spend)}, with conversion volume staying limited through the month.`,
+        `${latest.label} used ${formatCurrency(spend)} in spend, though conversions stayed thin across the month.`,
+        `Across ${latest.label} the account spent ${formatCurrency(spend)}, with limited conversion volume for the month.`,
+      ],
+      seed,
+      "monthly-performance-spend",
+    );
   }
-  return `${latest.label} is included in the monthly performance table.`;
+  return pickVariant(
+    [
+      `${latest.label} is included in the monthly performance table.`,
+      `${latest.label} is covered in the monthly performance table below.`,
+      `The monthly performance table below covers ${latest.label}.`,
+    ],
+    seed,
+    "monthly-performance-flat",
+  );
 }
 
 function buildInsightSentence(
   components: GoogleAdsEmailComponentKey[],
   dashboardData?: DashboardComponentsData["componentData"],
+  seed = 0,
 ): string {
   const insights: string[] = [];
 
@@ -348,7 +380,15 @@ function buildInsightSentence(
   }
 
   if (insights.length === 0) {
-    return "The supporting trend data is included below to show how efficiency and search quality moved across the recent reporting window.";
+    return pickVariant(
+      [
+        "The supporting trend data is included below to show how efficiency and search quality moved across the recent reporting window.",
+        "The trend data below shows how efficiency and search quality moved over the recent reporting window.",
+        "Supporting trends for efficiency and search quality across the recent reporting window are below.",
+      ],
+      seed,
+      "monthly-insight-fallback",
+    );
   }
 
   return `${joinInsights(insights)}.`;

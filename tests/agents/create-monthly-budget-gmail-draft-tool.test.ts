@@ -146,8 +146,11 @@ describe("create_monthly_budget_gmail_draft", () => {
     expect(mocks.executeDraft).toHaveBeenCalledTimes(1);
     const draftArgs = mocks.executeDraft.mock.calls[0]?.[0];
     expect(draftArgs.subject).toBe("Berendsen - Google Ads Monthly Report - June 2026");
-    expect(draftArgs.htmlBody).toContain("Hey team,");
-    expect(draftArgs.htmlBody).toContain("June 2026 delivered 75 conversions from $6,375 in spend, with CPA efficient at $85.");
+    expect(draftArgs.htmlBody).toMatch(/>(Hey team,|Hi team,|Hey all,|Hi all,|Morning team,)</);
+    expect(draftArgs.htmlBody).toContain("June 2026");
+    expect(draftArgs.htmlBody).toContain("75 conversions");
+    expect(draftArgs.htmlBody).toContain("$6,375");
+    expect(draftArgs.htmlBody).toContain("CPA efficient at $85");
     expect(draftArgs.htmlBody).toContain("Search relevance improved to 95.1% from 93.2% and the wider CPA trend improved to $85 from $96.");
     expect(draftArgs.htmlBody).toContain('data-testid="monthly"');
     expect(draftArgs.htmlBody).toContain('data-testid="dashboard"');
@@ -169,7 +172,11 @@ describe("create_monthly_budget_gmail_draft", () => {
 
     const data = result.data as Record<string, unknown>;
     expect(data.gmailUrl).toBe("https://mail.google.com/mail/u/0/#drafts/msg_456");
-    expect(data.summary).toBe("June 2026 delivered 75 conversions from $6,375 in spend, with CPA efficient at $85. Search relevance improved to 95.1% from 93.2% and the wider CPA trend improved to $85 from $96.");
+    expect(String(data.summary)).toMatch(/75 conversions/);
+    expect(String(data.summary)).toMatch(/\$6,375/);
+    expect(String(data.summary)).toContain(
+      "Search relevance improved to 95.1% from 93.2% and the wider CPA trend improved to $85 from $96.",
+    );
     expect(JSON.stringify(data)).not.toContain("monthly html");
     expect(JSON.stringify(data)).not.toContain("dashboard html");
     expect(JSON.stringify(data)).not.toContain("budget html");

@@ -5,6 +5,7 @@ import { createGmailDraftTool } from "./create-gmail-draft";
 import { getBudgetManagementEmail } from "./get-budget-management-email";
 import { getDashboardEmailComponents } from "./get-dashboard-email-components";
 import { getWeeklyMetricTable } from "./get-weekly-metric-table";
+import { copySeed, pickGreeting, pickVariant } from "./_email-copy-variants";
 
 interface CreateWeeklyBudgetGmailDraftArgs {
   weeks: number;
@@ -171,10 +172,12 @@ export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetG
     if (!budgetResult.ok) return budgetResult;
     const budget = budgetResult.data as BudgetEmailData;
 
-    const summary = buildIntroSummary(weekly.rows);
     const clientName = String(ctx.context.clientName || "Client").trim() || "Client";
+    // Seeded per client + week so batched drafts do not all read the same way.
+    const seed = copySeed(clientName, String(ctx.context.customerId ?? ""), endDate, args.weeks);
+    const summary = buildIntroSummary(weekly.rows, seed);
     const subject = `${clientName} - Google Ads Weekly Report`;
-    const htmlBody = `<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 12px;line-height:1.5">Hey team,</p>\n<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 16px;line-height:1.5">${escapeHtml(summary)}</p>\n${weekly.html}\n${dashboard.html}\n${budget.html}`;
+    const htmlBody = `<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 12px;line-height:1.5">${pickGreeting(seed)}</p>\n<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 16px;line-height:1.5">${escapeHtml(summary)}</p>\n${weekly.html}\n${dashboard.html}\n${budget.html}`;
 
     const draftResult = await createGmailDraftTool.execute(
       { subject, htmlBody },
@@ -217,7 +220,7 @@ function previousSundayInAgencyTime(now = new Date()): string {
   return agencyDateAsUtc.toISOString().slice(0, 10);
 }
 
-function buildIntroSummary(rows: WeeklyBucketRow[]): string {
+function buildIntroSummary(rows: WeeklyBucketRow[], seed = 0): string {
   const latest = rows[rows.length - 1];
   if (!latest) return "Here is the completed-week Google Ads budget report with the weekly performance trend included above the budget tracker.";
   const conversions = latest.totals.conversions;
@@ -225,12 +228,38 @@ function buildIntroSummary(rows: WeeklyBucketRow[]): string {
   const cpa = conversions > 0 ? spend / conversions : null;
 
   if (conversions > 0 && cpa !== null) {
-    return `${latest.label} delivered ${formatNumber(conversions)} conversions at a CPA of ${formatCurrency(cpa)}, with ${formatCurrency(spend)} in spend.`;
+    return pickVariant(
+      [
+        `${latest.label} delivered ${formatNumber(conversions)} conversions at a CPA of ${formatCurrency(cpa)}, with ${formatCurrency(spend)} in spend.`,
+        `${latest.label} brought in ${formatNumber(conversions)} conversions from ${formatCurrency(spend)} in spend, at a CPA of ${formatCurrency(cpa)}.`,
+        `Across ${latest.label}, ${formatCurrency(spend)} in spend produced ${formatNumber(conversions)} conversions at ${formatCurrency(cpa)} each.`,
+        `${latest.label} closed out with ${formatNumber(conversions)} conversions, ${formatCurrency(spend)} in spend and a CPA of ${formatCurrency(cpa)}.`,
+      ],
+      seed,
+      "weekly-intro-converting",
+    );
   }
   if (spend > 0) {
-    return `${latest.label} recorded ${formatCurrency(spend)} in Google Ads spend, with the completed-week trend included below for context.`;
+    return pickVariant(
+      [
+        `${latest.label} recorded ${formatCurrency(spend)} in Google Ads spend, with the completed-week trend included below for context.`,
+        `Google Ads spend for ${latest.label} came in at ${formatCurrency(spend)}, and the completed-week trend is below for context.`,
+        `${latest.label} used ${formatCurrency(spend)} in spend, with the completed-week trend set out below.`,
+        `Spend across ${latest.label} was ${formatCurrency(spend)}, and the completed-week trend follows below.`,
+      ],
+      seed,
+      "weekly-intro-spend",
+    );
   }
-  return `${latest.label} is included as the completed-week view, with the budget tracker below for current pacing context.`;
+  return pickVariant(
+    [
+      `${latest.label} is included as the completed-week view, with the budget tracker below for current pacing context.`,
+      `${latest.label} is the completed-week view, and the budget tracker below covers current pacing.`,
+      `Below is the completed week for ${latest.label}, along with the budget tracker for current pacing.`,
+    ],
+    seed,
+    "weekly-intro-flat",
+  );
 }
 
 function formatCurrency(value: number): string {

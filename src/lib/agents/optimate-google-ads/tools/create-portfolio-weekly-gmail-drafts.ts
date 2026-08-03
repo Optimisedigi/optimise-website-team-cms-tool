@@ -8,6 +8,7 @@ import {
   type PortfolioAccount,
 } from './_portfolio-accounts'
 import { getWeeklyMetricTable } from './get-weekly-metric-table'
+import { copySeed, pickGreeting, pickVariant } from './_email-copy-variants'
 
 interface CreatePortfolioWeeklyGmailDraftsArgs {
   accountRefs?: Array<string | number>
@@ -157,9 +158,17 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
         }
 
         const budget = budgetResult.data as BudgetManagementEmailData
-        const summary = buildWeeklyPerformanceSummary(weekly.rows, budget.budget)
+        // Seeded per account + reporting window: five accounts in one run read
+        // differently, while a re-run for the same week reproduces the same copy.
+        const seed = copySeed(account.displayName, account.customerId, endDate, args.weeks)
+        const summary = buildWeeklyPerformanceSummary(weekly.rows, budget.budget, seed)
         const subject = `${account.displayName} - Google Ads Weekly Report`
-        const htmlBody = [greetingHtml(), summaryHtml(summary), weekly.html, budget.html].join('\n')
+        const htmlBody = [
+          greetingHtml(seed),
+          summaryHtml(summary),
+          weekly.html,
+          budget.html,
+        ].join('\n')
         const draftResult = await createGmailDraftTool.execute(
           { subject, htmlBody, ...(args.to ? { to: args.to } : {}) },
           accountCtx,
@@ -238,6 +247,7 @@ function contextForAccount(ctx: ToolContext, account: PortfolioAccount): ToolCon
 function buildWeeklyPerformanceSummary(
   rows: WeeklyBucketRow[],
   budget?: BudgetManagementEmailData['budget'],
+  seed = 0,
 ): string {
   const latest = rows[rows.length - 1]
   const previous = rows[rows.length - 2]
@@ -252,6 +262,10 @@ function buildWeeklyPerformanceSummary(
       ? previous.totals.spend / previous.totals.conversions
       : null
 
+  const conversionsText = formatNumber(conversions)
+  const cpaText = cpa !== null ? formatCurrency(cpa) : ''
+  const spendText = formatCurrency(spend)
+
   let performanceSentence: string
   if (
     previousConversions !== null &&
@@ -260,26 +274,92 @@ function buildWeeklyPerformanceSummary(
     previousCpa !== null &&
     cpa < previousCpa
   ) {
-    performanceSentence = `Last week was strong across Google Ads: conversions increased to ${formatNumber(conversions)} while CPA improved to ${formatCurrency(cpa)}.`
+    performanceSentence = pickVariant(
+      [
+        `Last week was strong across Google Ads: conversions increased to ${conversionsText} while CPA improved to ${cpaText}.`,
+        `Google Ads had a good week: conversions lifted to ${conversionsText} and CPA came down to ${cpaText}.`,
+        `Last week performed well: ${conversionsText} conversions came through and CPA tightened to ${cpaText}.`,
+        `A strong week on Google Ads, with conversions up to ${conversionsText} and CPA improving to ${cpaText}.`,
+      ],
+      seed,
+      'weekly-performance-up-efficient',
+    )
   } else if (previousConversions !== null && conversions > previousConversions) {
-    performanceSentence = `Last week was strong across Google Ads: conversions increased to ${formatNumber(conversions)}${cpa !== null ? ` at a CPA of ${formatCurrency(cpa)}` : ''}.`
+    const cpaClause = cpa !== null ? ` at a CPA of ${cpaText}` : ''
+    performanceSentence = pickVariant(
+      [
+        `Last week was strong across Google Ads: conversions increased to ${conversionsText}${cpaClause}.`,
+        `Google Ads conversions moved up to ${conversionsText} last week${cpaClause}.`,
+        `Last week lifted to ${conversionsText} conversions on Google Ads${cpaClause}.`,
+        `Conversion volume grew last week to ${conversionsText}${cpaClause}.`,
+      ],
+      seed,
+      'weekly-performance-up',
+    )
   } else if (cpa !== null && previousCpa !== null && cpa < previousCpa) {
-    performanceSentence = `Last week was strong across Google Ads: CPA improved to ${formatCurrency(cpa)} with ${formatNumber(conversions)} conversions.`
+    performanceSentence = pickVariant(
+      [
+        `Last week was strong across Google Ads: CPA improved to ${cpaText} with ${conversionsText} conversions.`,
+        `Efficiency was the win last week: CPA came down to ${cpaText} across ${conversionsText} conversions.`,
+        `Google Ads CPA improved to ${cpaText} last week, off ${conversionsText} conversions.`,
+        `Last week the account tightened CPA to ${cpaText} while delivering ${conversionsText} conversions.`,
+      ],
+      seed,
+      'weekly-performance-efficient',
+    )
   } else if (cpa !== null) {
-    performanceSentence = `Last week across Google Ads, the account delivered ${formatNumber(conversions)} conversions at a CPA of ${formatCurrency(cpa)}.`
+    performanceSentence = pickVariant(
+      [
+        `Last week across Google Ads, the account delivered ${conversionsText} conversions at a CPA of ${cpaText}.`,
+        `Google Ads delivered ${conversionsText} conversions last week at a CPA of ${cpaText}.`,
+        `Last week the account recorded ${conversionsText} conversions, with CPA sitting at ${cpaText}.`,
+        `Across last week, Google Ads brought in ${conversionsText} conversions at ${cpaText} each.`,
+      ],
+      seed,
+      'weekly-performance-steady',
+    )
   } else {
-    performanceSentence = `Last week across Google Ads, spend was ${formatCurrency(spend)} with no recorded conversions.`
+    performanceSentence = pickVariant(
+      [
+        `Last week across Google Ads, spend was ${spendText} with no recorded conversions.`,
+        `Google Ads spend came in at ${spendText} last week, with no conversions recorded.`,
+        `Last week the account spent ${spendText} and no conversions were recorded.`,
+        `Spend for last week was ${spendText}, with no conversions tracked against it.`,
+      ],
+      seed,
+      'weekly-performance-no-conversions',
+    )
   }
 
   if (!budget || budget.monthlyBudget <= 0) return performanceSentence
   if (budget.pacingDifference <= 0) {
-    return `${performanceSentence} Spend stayed controlled, keeping the account under budget and giving us a strong base for the rest of the month.`
+    const budgetSentence = pickVariant(
+      [
+        'Spend stayed controlled, keeping the account under budget and giving us a strong base for the rest of the month.',
+        'Spend is tracking under budget for the month, which leaves room to lean into what is working.',
+        'Budget pacing is comfortable, with the account sitting under target and the rest of the month still to run.',
+        'Spend remains below the month-to-date target, so there is headroom left for the back half of the month.',
+      ],
+      seed,
+      'weekly-budget-under',
+    )
+    return `${performanceSentence} ${budgetSentence}`
   }
-  return `${performanceSentence} Spend is currently ahead of the month-to-date target, so we’ll keep pacing closely through the rest of the month.`
+  const budgetSentence = pickVariant(
+    [
+      'Spend is currently ahead of the month-to-date target, so we’ll keep pacing closely through the rest of the month.',
+      'Spend is running ahead of the month-to-date target, so we’re watching pacing closely for the remainder of the month.',
+      'The account is tracking ahead of the month-to-date budget target, so we’ll manage pacing tightly through month end.',
+      'Month-to-date spend sits above target, so pacing is being adjusted for the rest of the month.',
+    ],
+    seed,
+    'weekly-budget-over',
+  )
+  return `${performanceSentence} ${budgetSentence}`
 }
 
-function greetingHtml(): string {
-  return '<p style="margin:0 0 20px;color:#1e293b;font-size:14px;font-family:Arial,sans-serif;width:100%;max-width:none;display:block">Hey team,</p>'
+function greetingHtml(seed = 0): string {
+  return `<p style="margin:0 0 20px;color:#1e293b;font-size:14px;font-family:Arial,sans-serif;width:100%;max-width:none;display:block">${pickGreeting(seed)}</p>`
 }
 
 function summaryHtml(summary: string): string {

@@ -177,13 +177,10 @@ describe('create_portfolio_weekly_gmail_drafts', () => {
 
     const firstDraft = mocks.executeDraft.mock.calls[0]?.[0]
     expect(firstDraft.subject).toBe('Berendsen - Google Ads Weekly Report')
-    expect(firstDraft.htmlBody).toContain('Hey team,')
-    expect(firstDraft.htmlBody).toContain(
-      'Last week was strong across Google Ads: conversions increased to 4 while CPA improved to $155.',
-    )
-    expect(firstDraft.htmlBody).toContain(
-      'Spend stayed controlled, keeping the account under budget and giving us a strong base for the rest of the month.',
-    )
+    expect(firstDraft.htmlBody).toMatch(/>(Hey team,|Hi team,|Hey all,|Hi all,|Morning team,)</)
+    expect(firstDraft.htmlBody).toMatch(/(conversions (increased|lifted|up) to 4|4 conversions)/)
+    expect(firstDraft.htmlBody).toMatch(/CPA (improved|improving|came down|tightened) to \$155/)
+    expect(firstDraft.htmlBody).toMatch(/under budget|below the month-to-date target|under target/)
     expect(firstDraft.htmlBody).not.toContain('Jul 6 - Jul 12 delivered')
     expect(firstDraft.htmlBody).toContain('data-testid="weekly-berendsen"')
     expect(firstDraft.htmlBody).toContain('data-testid="budget-berendsen"')
@@ -192,6 +189,74 @@ describe('create_portfolio_weekly_gmail_drafts', () => {
     const data = result.data as { drafts: unknown[]; endDate: string }
     expect(data.drafts).toHaveLength(2)
     expect(data.endDate).toBe('2026-07-12')
+  })
+
+  it('varies the copy per account and reproduces the same copy on a re-run', async () => {
+    const accounts = ['Alpha Co', 'Bravo Co', 'Charlie Co', 'Delta Co', 'Echo Co'].map(
+      (displayName, index) => ({
+        accountRef: index + 1,
+        clientId: index + 1,
+        displayName,
+        customerId: `10${index}-000-0000`,
+        maskedCustomerId: `\u2022\u2022\u2022-000${index}`,
+        source: 'audit',
+        active: true,
+        managed: true,
+      }),
+    )
+    const weeklyPayload = {
+      ok: true,
+      data: {
+        html: '<table>weekly</table>',
+        weeks: 4,
+        rows: [
+          { label: 'Jun 29 - Jul 5', totals: { spend: 600, clicks: 90, impressions: 900, conversions: 3 } },
+          { label: 'Jul 6 - Jul 12', totals: { spend: 620, clicks: 100, impressions: 1000, conversions: 4 } },
+        ],
+      },
+    }
+    const budgetPayload = {
+      ok: true,
+      data: {
+        html: '<div>budget</div>',
+        budget: {
+          monthlyBudget: 6000,
+          totalSpend: 1200,
+          targetSpendToDate: 2000,
+          pacingDifference: -800,
+        },
+      },
+    }
+
+    const runOnce = async () => {
+      mocks.loadAccounts.mockReset()
+      mocks.executeWeekly.mockReset()
+      mocks.executeBudget.mockReset()
+      mocks.executeDraft.mockReset()
+      mocks.loadAccounts.mockResolvedValue(accounts)
+      mocks.executeWeekly.mockResolvedValue(weeklyPayload)
+      mocks.executeBudget.mockResolvedValue(budgetPayload)
+      mocks.executeDraft.mockResolvedValue({
+        ok: true,
+        data: { draftId: 'd', messageId: 'm', gmailUrl: 'https://gmail/d' },
+      })
+
+      const args = createPortfolioWeeklyGmailDraftsTool.validate!({
+        accountRefs: [1, 2, 3, 4, 5],
+        weeks: 4,
+        endDate: '2026-07-12',
+      })
+      await createPortfolioWeeklyGmailDraftsTool.execute(args, ctx)
+      return mocks.executeDraft.mock.calls.map((call) => String(call[0].htmlBody))
+    }
+
+    const first = await runOnce()
+    expect(first).toHaveLength(5)
+    // Identical data for every account, yet the prose must not be identical.
+    expect(new Set(first).size).toBeGreaterThan(1)
+
+    const second = await runOnce()
+    expect(second).toEqual(first)
   })
 
   it('rejects invalid dates and non-Sunday end dates', () => {

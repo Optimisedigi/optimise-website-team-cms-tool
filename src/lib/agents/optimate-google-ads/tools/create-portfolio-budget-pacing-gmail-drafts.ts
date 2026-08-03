@@ -7,6 +7,7 @@ import {
   loadPortfolioAccounts,
   selectPortfolioAccountsByAccountRefs,
 } from './_portfolio-accounts'
+import { copySeed, pickVariant } from './_email-copy-variants'
 
 interface CreatePortfolioBudgetPacingGmailDraftsArgs {
   accountRefs?: Array<string | number>
@@ -197,11 +198,14 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           continue
         }
         const budget = budgetResult.data as BudgetEmailData
+        // Seeded per account + period so a batch of drafts does not repeat the
+        // same sentence structure, while a re-run reproduces identical copy.
         const summary = buildPerformanceSummary(
           account.displayName,
           perf,
           period,
           summarySentences,
+          copySeed(account.displayName, account.customerId, period, performance.rangeLabel),
         )
         const htmlBody = `${summaryHtml(summary)}\n${budget.html}`
         const draftResult = await createGmailDraftTool.execute(
@@ -272,30 +276,72 @@ function buildPerformanceSummary(
   row: PerformanceAccountRow | undefined,
   period: 'this_month' | 'last_month',
   sentenceCount: 1 | 2 | 3,
+  seed = 0,
 ): string {
   const periodLabel = period === 'last_month' ? 'last month' : 'this month'
   if (!row) {
-    return `${displayName}'s ${periodLabel} performance and budget details are shown below.`
+    return pickVariant(
+      [
+        `${displayName}'s ${periodLabel} performance and budget details are shown below.`,
+        `Below are ${displayName}'s ${periodLabel} performance and budget details.`,
+        `Here is how ${displayName} tracked ${periodLabel}, with the budget detail below.`,
+      ],
+      seed,
+      'pacing-no-row',
+    )
   }
 
-  const first = [`${displayName} spent ${formatCurrency(row.spend ?? 0)} ${periodLabel}`]
+  const spendText = formatCurrency(row.spend ?? 0)
+  const tail: string[] = []
   if (typeof row.conversions === 'number')
-    first.push(`generated ${formatNumber(row.conversions)} conversions`)
+    tail.push(`generated ${formatNumber(row.conversions)} conversions`)
   if (typeof row.cpa === 'number' && Number.isFinite(row.cpa))
-    first.push(`at a ${formatCurrency(row.cpa)} CPA`)
-  else if (typeof row.clicks === 'number') first.push(`with ${formatNumber(row.clicks)} clicks`)
+    tail.push(`at a ${formatCurrency(row.cpa)} CPA`)
+  else if (typeof row.clicks === 'number') tail.push(`with ${formatNumber(row.clicks)} clicks`)
 
-  const sentences = [`${first.join(', ')}.`]
+  const lead = pickVariant(
+    [
+      `${displayName} spent ${spendText} ${periodLabel}`,
+      `${displayName} put ${spendText} through Google Ads ${periodLabel}`,
+      `${displayName} used ${spendText} of Google Ads budget ${periodLabel}`,
+      `${displayName} ran ${spendText} of Google Ads spend ${periodLabel}`,
+    ],
+    seed,
+    'pacing-lead',
+  )
+
+  const sentences = [`${[lead, ...tail].join(', ')}.`]
   if (sentenceCount >= 2) {
     if (typeof row.clicks === 'number' && typeof row.impressions === 'number') {
       const ctr = row.impressions > 0
         ? ` at a ${formatNumber((row.clicks / row.impressions) * 100)}% CTR`
         : ''
+      const clicksText = formatNumber(row.clicks)
+      const impressionsText = formatNumber(row.impressions)
       sentences.push(
-        `The account recorded ${formatNumber(row.clicks)} clicks from ${formatNumber(row.impressions)} impressions${ctr}.`,
+        pickVariant(
+          [
+            `The account recorded ${clicksText} clicks from ${impressionsText} impressions${ctr}.`,
+            `That came from ${clicksText} clicks against ${impressionsText} impressions${ctr}.`,
+            `Traffic sat at ${clicksText} clicks from ${impressionsText} impressions${ctr}.`,
+            `Across ${impressionsText} impressions the account drew ${clicksText} clicks${ctr}.`,
+          ],
+          seed,
+          'pacing-traffic',
+        ),
       )
     } else {
-      sentences.push(`The completed ${periodLabel} budget and campaign tables are included below.`)
+      sentences.push(
+        pickVariant(
+          [
+            `The completed ${periodLabel} budget and campaign tables are included below.`,
+            `The ${periodLabel} budget and campaign tables are set out below.`,
+            `Budget and campaign tables for ${periodLabel} follow below.`,
+          ],
+          seed,
+          'pacing-tables',
+        ),
+      )
     }
   }
   if (sentenceCount >= 3) {
@@ -304,8 +350,24 @@ function buildPerformanceSummary(
       : null
     sentences.push(
       avgCpc !== null
-        ? `Average CPC was ${formatCurrency(avgCpc)}.`
-        : `The report below provides the supporting account detail.`,
+        ? pickVariant(
+            [
+              `Average CPC was ${formatCurrency(avgCpc)}.`,
+              `Average cost per click landed at ${formatCurrency(avgCpc)}.`,
+              `Average cost per click came in at ${formatCurrency(avgCpc)}.`,
+            ],
+            seed,
+            'pacing-cpc',
+          )
+        : pickVariant(
+            [
+              `The report below provides the supporting account detail.`,
+              `Supporting account detail is in the report below.`,
+              `The detail behind these numbers is in the report below.`,
+            ],
+            seed,
+            'pacing-detail',
+          ),
     )
   }
   return sentences.slice(0, sentenceCount).join(' ')
