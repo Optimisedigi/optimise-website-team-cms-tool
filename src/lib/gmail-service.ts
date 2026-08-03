@@ -179,7 +179,10 @@ export async function getPrimaryGmailSignature(accessToken: string): Promise<str
   return typeof primary?.signature === "string" ? primary.signature.trim() : "";
 }
 
-const GMAIL_DRAFT_FONT_STYLE = "font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.4;margin:0;padding:0;";
+// Gmail's "Normal" size is emitted by its own editor as the CSS keyword `small`.
+// Using a fixed 13px looked equivalent on desktop, but iOS Gmail renders text
+// subsequently edited in Gmail (`font-size:small`) at a different size.
+const GMAIL_DRAFT_FONT_STYLE = "font-family:Verdana,sans-serif;font-size:small;margin:0;padding:0;";
 const GMAIL_DRAFT_PARAGRAPH_BREAK = "<br><br>";
 const GMAIL_DRAFT_PARAGRAPH_BREAK_MARKER = "%%OPTIMATE_GMAIL_PARAGRAPH_BREAK%%";
 
@@ -201,8 +204,8 @@ export function formatGmailDraftHtml(htmlBody: string): string {
   if (!trimmed) return `<div style="${GMAIL_DRAFT_FONT_STYLE}"></div>`;
   if (trimmed.includes("data-optimate-gmail-draft-font")) return trimmed;
   const normalised = normaliseParagraphBreaks(trimmed)
-    .replace(/font-family\s*:\s*[^;"']+;?/gi, "font-family:Verdana,Geneva,sans-serif;")
-    .replace(/font-size\s*:\s*[^;"']+;?/gi, "font-size:13px;");
+    .replace(/font-family\s*:\s*[^;"']+;?/gi, "font-family:Verdana,sans-serif;")
+    .replace(/font-size\s*:\s*[^;"']+;?/gi, "font-size:small;");
   return `<div data-optimate-gmail-draft-font="true" style="${GMAIL_DRAFT_FONT_STYLE}">${normalised}</div>`;
 }
 

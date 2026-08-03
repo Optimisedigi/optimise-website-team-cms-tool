@@ -48,6 +48,7 @@ describe('ContractorCostsPage', () => {
 
     render(<ContractorCostsPage />);
     await screen.findByText('No approved time entries yet. Approve a contractor\'s weeks to build a fortnightly payment.');
+    fireEvent.change(document.querySelector('select[aria-label="Date range"]') as HTMLSelectElement, { target: { value: 'all' } });
 
     fireEvent.focus(window);
 

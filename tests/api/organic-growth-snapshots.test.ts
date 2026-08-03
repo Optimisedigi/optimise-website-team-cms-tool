@@ -12,7 +12,13 @@ vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
 describe("organic growth snapshot sweep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-31T12:00:00Z"));
     process.env.CRON_SECRET = "secret";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("rejects unauthorised sweep requests", async () => {

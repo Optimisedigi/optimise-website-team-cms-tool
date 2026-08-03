@@ -11,6 +11,8 @@ import {
 interface CreatePortfolioBudgetPacingGmailDraftsArgs {
   accountRefs?: Array<string | number>
   to?: string
+  period?: 'this_month' | 'last_month'
+  summarySentences?: 1 | 2 | 3
 }
 
 interface PerformanceSummaryData {
@@ -48,7 +50,7 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
   {
     name: 'create_portfolio_budget_pacing_gmail_drafts',
     description:
-      "Create separate Gmail drafts for each selected audit-backed Google Ads account's current-month budget pacing in one deterministic server-side operation. Use this shortcut instead of separately calling get_portfolio_performance_summary, get_budget_management_email, and create_gmail_draft in a loop; it avoids long multi-step LLM tool chains and Vercel 504s. It leaves recipients blank unless a recipient is explicitly provided.",
+      "Create separate Gmail drafts for each selected audit-backed Google Ads account's current-month budget pacing or last completed month's performance in one deterministic server-side operation. Explicitly pass period='last_month' for 'last month', 'previous month', or 'completed month'; otherwise use period='this_month'. It leaves recipients blank unless explicitly provided.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -61,6 +63,16 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
         to: {
           type: 'string',
           description: 'Optional recipient. Leave blank unless the user explicitly provided one.',
+        },
+        period: {
+          type: 'string',
+          enum: ['this_month', 'last_month'],
+          description: "Report period. Use last_month for 'last month', 'previous month', or 'completed month'.",
+        },
+        summarySentences: {
+          type: 'number',
+          enum: [1, 2, 3],
+          description: 'Number of short factual summary sentences above each report.',
         },
       },
       additionalProperties: false,
@@ -77,9 +89,17 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
         )
       }
       if (typeof obj.to === 'string' && obj.to.trim()) out.to = obj.to.trim()
+      if (obj.period === 'this_month' || obj.period === 'last_month') out.period = obj.period
+      if (obj.summarySentences !== undefined) {
+        const count = Number(obj.summarySentences)
+        if (![1, 2, 3].includes(count)) throw new Error('summarySentences must be 1, 2, or 3')
+        out.summarySentences = count as 1 | 2 | 3
+      }
       return out
     },
     async execute(args, ctx) {
+      const period = args.period ?? 'this_month'
+      const summarySentences = args.summarySentences ?? (period === 'last_month' ? 2 : 1)
       const refs = normaliseRefs(args.accountRefs ?? contextSelectedAccountRefs(ctx))
       if (refs.length === 0) {
         return {
@@ -123,7 +143,7 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
       const performanceResult = await getPortfolioPerformanceSummary.execute(
         {
           accountRefs: auditBackedAccounts.map((account) => customerKey(account.customerId)),
-          range: 'THIS_MONTH',
+          range: period === 'last_month' ? 'LAST_MONTH' : 'THIS_MONTH',
           limit: auditBackedAccounts.length,
         },
         ctx,
@@ -165,7 +185,7 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
         }
 
         const budgetResult = await getBudgetManagementEmail.execute(
-          { mode: 'this_month', auditId },
+          { mode: period, auditId },
           ctx,
         )
         if (!budgetResult.ok) {
@@ -177,7 +197,12 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           continue
         }
         const budget = budgetResult.data as BudgetEmailData
-        const summary = buildPerformanceSummary(account.displayName, perf)
+        const summary = buildPerformanceSummary(
+          account.displayName,
+          perf,
+          period,
+          summarySentences,
+        )
         const htmlBody = `${summaryHtml(summary)}\n${budget.html}`
         const draftResult = await createGmailDraftTool.execute(
           { subject: budget.subject, htmlBody, ...(args.to ? { to: args.to } : {}) },
@@ -209,7 +234,7 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           createdCount: drafts.length,
           requestedCount: refs.length,
           processedCount: auditBackedAccounts.length,
-          rangeLabel: performance.rangeLabel ?? 'This month',
+          rangeLabel: performance.rangeLabel ?? (period === 'last_month' ? 'Last month' : 'This month'),
           drafts,
           skipped,
           failures,
@@ -245,15 +270,45 @@ function normaliseRefs(refs: Array<string | number>): Array<string | number> {
 function buildPerformanceSummary(
   displayName: string,
   row: PerformanceAccountRow | undefined,
+  period: 'this_month' | 'last_month',
+  sentenceCount: 1 | 2 | 3,
 ): string {
-  if (!row) return `${displayName} is pacing this month with the budget details below.`
-  const parts = [`${displayName} has spent ${formatCurrency(row.spend ?? 0)} this month`]
+  const periodLabel = period === 'last_month' ? 'last month' : 'this month'
+  if (!row) {
+    return `${displayName}'s ${periodLabel} performance and budget details are shown below.`
+  }
+
+  const first = [`${displayName} spent ${formatCurrency(row.spend ?? 0)} ${periodLabel}`]
   if (typeof row.conversions === 'number')
-    parts.push(`generated ${formatNumber(row.conversions)} conversions`)
+    first.push(`generated ${formatNumber(row.conversions)} conversions`)
   if (typeof row.cpa === 'number' && Number.isFinite(row.cpa))
-    parts.push(`at a ${formatCurrency(row.cpa)} CPA`)
-  else if (typeof row.clicks === 'number') parts.push(`with ${formatNumber(row.clicks)} clicks`)
-  return `${parts.join(', ')}.`
+    first.push(`at a ${formatCurrency(row.cpa)} CPA`)
+  else if (typeof row.clicks === 'number') first.push(`with ${formatNumber(row.clicks)} clicks`)
+
+  const sentences = [`${first.join(', ')}.`]
+  if (sentenceCount >= 2) {
+    if (typeof row.clicks === 'number' && typeof row.impressions === 'number') {
+      const ctr = row.impressions > 0
+        ? ` at a ${formatNumber((row.clicks / row.impressions) * 100)}% CTR`
+        : ''
+      sentences.push(
+        `The account recorded ${formatNumber(row.clicks)} clicks from ${formatNumber(row.impressions)} impressions${ctr}.`,
+      )
+    } else {
+      sentences.push(`The completed ${periodLabel} budget and campaign tables are included below.`)
+    }
+  }
+  if (sentenceCount >= 3) {
+    const avgCpc = typeof row.clicks === 'number' && row.clicks > 0
+      ? (row.spend ?? 0) / row.clicks
+      : null
+    sentences.push(
+      avgCpc !== null
+        ? `Average CPC was ${formatCurrency(avgCpc)}.`
+        : `The report below provides the supporting account detail.`,
+    )
+  }
+  return sentences.slice(0, sentenceCount).join(' ')
 }
 
 function summaryHtml(summary: string): string {

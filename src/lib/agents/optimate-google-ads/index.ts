@@ -535,7 +535,11 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
             shortcutContext,
           )
         : await createPortfolioBudgetPacingGmailDraftsTool.execute(
-            { accountRefs: selectedAccountRefs ?? [] },
+            {
+              accountRefs: selectedAccountRefs ?? [],
+              period: shortcutIntent.period,
+              summarySentences: shortcutIntent.summarySentences,
+            },
             shortcutContext,
           );
     return {

@@ -15,12 +15,30 @@ describe('classifyPortfolioGmailDraftIntent', () => {
     ).toEqual({ kind: 'weekly', weeks: 4 })
   })
 
-  it('keeps current-month portfolio pacing requests on the monthly shortcut', () => {
+  it('keeps current-month portfolio pacing requests on the current-month shortcut', () => {
     expect(
       classifyPortfolioGmailDraftIntent(
         "Create separate Gmail drafts for each selected account's budget pacing this month, each with a 1 sentence performance summary on top.",
       ),
-    ).toEqual({ kind: 'monthly' })
+    ).toEqual({ kind: 'monthly', period: 'this_month', summarySentences: 1 })
+  })
+
+  it('routes plain-English last-month performance requests to completed-month drafts', () => {
+    expect(
+      classifyPortfolioGmailDraftIntent(
+        "Create separate Gmail drafts for each selected account's for last month's performance, each with a 2-3 unique sentence performance summary above the tables.",
+      ),
+    ).toEqual({ kind: 'monthly', period: 'last_month', summarySentences: 2 })
+    expect(
+      classifyPortfolioGmailDraftIntent(
+        'Email a separate previous month report for each selected account.',
+      ),
+    ).toEqual({ kind: 'monthly', period: 'last_month', summarySentences: 2 })
+    expect(
+      classifyPortfolioGmailDraftIntent(
+        'Create separate Gmail drafts for each selected account completed-month report with three sentences.',
+      ),
+    ).toEqual({ kind: 'monthly', period: 'last_month', summarySentences: 3 })
   })
 
   it('routes numeric and word-number week ranges to the weekly shortcut', () => {
@@ -36,9 +54,12 @@ describe('classifyPortfolioGmailDraftIntent', () => {
     ).toEqual({ kind: 'weekly', weeks: 12 })
   })
 
-  it('does not classify unrelated portfolio requests', () => {
+  it('does not classify unrelated or period-ambiguous portfolio requests', () => {
     expect(
       classifyPortfolioGmailDraftIntent('Summarise weekly performance for the selected accounts.'),
+    ).toBeNull()
+    expect(
+      classifyPortfolioGmailDraftIntent('Create separate Gmail reports for each selected account.'),
     ).toBeNull()
   })
 })
