@@ -243,7 +243,7 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric }: { data
   const disqualifiedRateMax = Math.max(10, Math.ceil(Math.max(...data.map((row) => row.disqualifiedRate ?? 0)) / 5) * 5);
   const slot = chartWidth / data.length;
   const barGap = 3; // gap between bars inside a month group
-  const groupGap = 3; // minimum gap between the last bar of a month and the first bar of the next
+  const groupGap = 7; // minimum gap between the last bar of a month and the first bar of the next
   const barWidth = Math.max(8, Math.min(17, (slot - groupGap - barGap * 3) / 4));
   const groupWidth = barWidth * 4 + barGap * 3;
   const barX = (center: number, index: number) => center - groupWidth / 2 + index * (barWidth + barGap);
