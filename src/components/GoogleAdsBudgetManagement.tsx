@@ -21,9 +21,14 @@ import {
 } from '@/lib/google-ads-budget-email';
 import {
   ANNUAL_BUDGET_MONTHS,
+  allocatableMonthKeysForSection,
+  allocateCarryoverToNewRow,
   annualBudgetColumnTotal,
   annualBudgetHasExplicitValue,
+  calculateCarryoverSummary,
   emptyAnnualBudgetValues,
+  overrideBudgetWithCarryover,
+  reverseCarryoverAllocation,
   financialYearLabel,
   financialYearSectionForDate,
   financialYearStartYear,
@@ -33,6 +38,7 @@ import {
   resolveMonthlyBudgetForDate,
   writeActualTotalForDate,
   type AnnualBudgetMonthKey,
+  type CarryoverAllocation,
   type AnnualBudgetMultiYearData,
   type AnnualBudgetPlaceholderRow,
 } from '@/lib/google-ads-annual-budget-placeholders';
@@ -186,8 +192,8 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   const [clientSlug, setClientSlug] = useState('');
   const [clientPin, setClientPin] = useState('');
   const [annualBudgetPlaceholders, setAnnualBudgetPlaceholders] = useState<AnnualBudgetMultiYearData>(() => ({
-    thisYear: { rows: [createAnnualBudgetRow()], actualTotals: emptyAnnualBudgetValues() },
-    lastYear: { rows: [createAnnualBudgetRow()], actualTotals: emptyAnnualBudgetValues() },
+    thisYear: { rows: [createAnnualBudgetRow()], actualTotals: emptyAnnualBudgetValues(), carryoverAllocations: [] },
+    lastYear: { rows: [createAnnualBudgetRow()], actualTotals: emptyAnnualBudgetValues(), carryoverAllocations: [] },
   }));
   const [annualBudgetSaving, setAnnualBudgetSaving] = useState(false);
   const [annualBudgetSaved, setAnnualBudgetSaved] = useState(false);
@@ -198,6 +204,13 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   });
   const [annualBudgetFocusedCell, setAnnualBudgetFocusedCell] = useState<{ yearKey: AnnualBudgetYearKey; rowIndex: number; columnIndex: number }>({ yearKey: 'thisYear', rowIndex: 0, columnIndex: 0 });
   const [annualBudgetDeleteConfirmRow, setAnnualBudgetDeleteConfirmRow] = useState<{ yearKey: AnnualBudgetYearKey; rowIndex: number } | null>(null);
+  const [carryoverFormOpen, setCarryoverFormOpen] = useState(false);
+  const [carryoverMode, setCarryoverMode] = useState<'row' | 'override'>('row');
+  const [carryoverMonthKey, setCarryoverMonthKey] = useState<AnnualBudgetMonthKey | ''>('');
+  const [carryoverAmount, setCarryoverAmount] = useState('');
+  const [carryoverLabel, setCarryoverLabel] = useState('');
+  const [carryoverRowId, setCarryoverRowId] = useState('');
+  const [carryoverError, setCarryoverError] = useState<string | null>(null);
   const [recommendationTooltip, setRecommendationTooltip] = useState<{
     campaignId: string;
     x: number;
@@ -223,12 +236,12 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         );
         setAnnualBudgetPlaceholders({
           thisYear: {
+            ...placeholders.thisYear,
             rows: placeholders.thisYear.rows.length > 0 ? placeholders.thisYear.rows : [createAnnualBudgetRow()],
-            actualTotals: placeholders.thisYear.actualTotals,
           },
           lastYear: {
+            ...placeholders.lastYear,
             rows: placeholders.lastYear.rows.length > 0 ? placeholders.lastYear.rows : [createAnnualBudgetRow()],
-            actualTotals: placeholders.lastYear.actualTotals,
           },
         });
         setAnnualBudgetPlaceholdersLoaded(true);
@@ -1025,7 +1038,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     });
   }, [annualBudgetFocusedCell, updateAnnualBudgetYear]);
 
-  const handleSaveAnnualBudgetPlaceholders = useCallback(async () => {
+  const saveAnnualBudgetPlaceholders = useCallback(async (payload: AnnualBudgetMultiYearData) => {
     if (!id) return;
     setAnnualBudgetSaving(true);
     setAnnualBudgetSaved(false);
@@ -1035,7 +1048,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ _saveAnnualBudgetPlaceholders: annualBudgetPlaceholders }),
+        body: JSON.stringify({ _saveAnnualBudgetPlaceholders: payload }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || `Save failed (${res.status})`);
@@ -1045,7 +1058,95 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     } finally {
       setAnnualBudgetSaving(false);
     }
-  }, [id, annualBudgetPlaceholders]);
+  }, [id]);
+
+  const handleSaveAnnualBudgetPlaceholders = useCallback(
+    () => saveAnnualBudgetPlaceholders(annualBudgetPlaceholders),
+    [annualBudgetPlaceholders, saveAnnualBudgetPlaceholders],
+  );
+
+  // Unspent budget only ever carries forward inside one financial year, so the
+  // pool is always derived from the live FY grid (`thisYear`).
+  const carryoverSummary = useMemo(
+    () => calculateCarryoverSummary(annualBudgetPlaceholders.thisYear, 'thisYear'),
+    [annualBudgetPlaceholders],
+  );
+  // Recomputed when the form opens so a long-lived tab that crosses a month
+  // boundary stops offering a month that has since completed.
+  const carryoverMonthOptions = useMemo(() => {
+    const allowed = new Set(allocatableMonthKeysForSection('thisYear'));
+    return ANNUAL_BUDGET_MONTHS.filter((month) => allowed.has(month.key));
+  }, [carryoverFormOpen]);
+  const carryoverAllocations: CarryoverAllocation[] = annualBudgetPlaceholders.thisYear.carryoverAllocations;
+
+  // Carryover moves real money, so each change is persisted immediately rather
+  // than waiting for the grid's manual Save.
+  const persistAnnualBudgetPlaceholders = useCallback((next: AnnualBudgetMultiYearData) => {
+    setAnnualBudgetPlaceholders(next);
+    void saveAnnualBudgetPlaceholders(next);
+  }, [saveAnnualBudgetPlaceholders]);
+
+  const openCarryoverForm = useCallback((mode: 'row' | 'override') => {
+    setCarryoverMode(mode);
+    setCarryoverFormOpen(true);
+    setCarryoverError(null);
+    setCarryoverMonthKey((current) => current || carryoverMonthOptions[0]?.key || '');
+    setCarryoverRowId((current) => current || annualBudgetPlaceholders.thisYear.rows[0]?.id || '');
+  }, [annualBudgetPlaceholders, carryoverMonthOptions]);
+
+  const resetCarryoverForm = useCallback(() => {
+    setCarryoverFormOpen(false);
+    setCarryoverAmount('');
+    setCarryoverLabel('');
+    setCarryoverError(null);
+  }, []);
+
+  const handleAllocateCarryover = useCallback(() => {
+    const rawAmount = carryoverAmount.replace(/[$,\s]/g, '');
+    const amount = Number(rawAmount);
+    if (!carryoverMonthKey) {
+      setCarryoverError('Choose a month within this financial year.');
+      return;
+    }
+    // Guard the blank field explicitly: Number('') is 0, which would silently
+    // zero out a month in override mode.
+    if (rawAmount === '' || !Number.isFinite(amount)) {
+      setCarryoverError('Enter a valid amount.');
+      return;
+    }
+    const input = {
+      section: 'thisYear' as const,
+      monthKey: carryoverMonthKey,
+      amount,
+      label: carryoverLabel,
+      rowId: carryoverRowId,
+    };
+    const { placeholders, error: allocationError } = carryoverMode === 'row'
+      ? allocateCarryoverToNewRow(annualBudgetPlaceholders, input)
+      : overrideBudgetWithCarryover(annualBudgetPlaceholders, input);
+
+    if (allocationError) {
+      setCarryoverError(allocationError);
+      return;
+    }
+    resetCarryoverForm();
+    persistAnnualBudgetPlaceholders(placeholders);
+  }, [
+    annualBudgetPlaceholders,
+    carryoverAmount,
+    carryoverLabel,
+    carryoverMode,
+    carryoverMonthKey,
+    carryoverRowId,
+    persistAnnualBudgetPlaceholders,
+    resetCarryoverForm,
+  ]);
+
+  const handleReverseCarryoverAllocation = useCallback((allocationId: string) => {
+    persistAnnualBudgetPlaceholders(
+      reverseCarryoverAllocation(annualBudgetPlaceholders, 'thisYear', allocationId),
+    );
+  }, [annualBudgetPlaceholders, persistAnnualBudgetPlaceholders]);
 
   const annualBudgetColumnTotalsByYear = useMemo(() => ({
     thisYear: ANNUAL_BUDGET_MONTHS.reduce((acc, month) => {
@@ -1361,6 +1462,175 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Unspent budget carried forward inside this financial year */}
+      <div data-testid="fy-carryover-panel" style={{ marginBottom: 24, padding: 16, background: carryoverSummary.available < 0 ? '#fef2f2' : '#f0f9ff', border: `1px solid ${carryoverSummary.available < 0 ? '#fecaca' : '#bae6fd'}`, borderRadius: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+              Unspent budget · FY {financialYearLabel(financialYearStartYear(new Date()))}
+            </div>
+            <div data-testid="fy-carryover-available" style={{ marginTop: 4, fontSize: 30, fontWeight: 800, color: carryoverSummary.available < 0 ? '#b91c1c' : '#0c4a6e', lineHeight: 1.1 }}>
+              ${carryoverSummary.available.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 12, color: '#475569' }}>
+              Left over from completed months of this financial year. Unallocated budget does not carry past 30 June.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => openCarryoverForm('row')}
+              disabled={annualBudgetSaving || carryoverMonthOptions.length === 0}
+              style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700, background: '#0369a1', color: '#fff', border: 'none', borderRadius: 6, cursor: annualBudgetSaving || carryoverMonthOptions.length === 0 ? 'not-allowed' : 'pointer' }}
+            >
+              Allocate to new row
+            </button>
+            <button
+              type="button"
+              onClick={() => openCarryoverForm('override')}
+              disabled={annualBudgetSaving || carryoverMonthOptions.length === 0}
+              style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700, background: '#fff', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 6, cursor: annualBudgetSaving || carryoverMonthOptions.length === 0 ? 'not-allowed' : 'pointer' }}
+            >
+              Override a budget amount
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginTop: 14 }}>
+          {[
+            { label: 'Planned to date', value: carryoverSummary.plannedToDate, color: '#0f172a' },
+            { label: 'Actual spend to date', value: carryoverSummary.actualToDate, color: '#d97706' },
+            { label: 'Discrepancy', value: carryoverSummary.discrepancy, color: carryoverSummary.discrepancy < 0 ? '#dc2626' : '#059669' },
+            { label: 'Allocated forward', value: carryoverSummary.allocated, color: '#0369a1' },
+          ].map((stat) => (
+            <div key={stat.label} style={{ padding: '10px 12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: stat.color }}>
+                ${stat.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{stat.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {carryoverSummary.monthsMissingActuals.length > 0 && (
+          <div style={{ marginTop: 10, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px' }}>
+            Excluded from the pool — no actual spend recorded for: {carryoverSummary.monthsMissingActuals.map((key) => ANNUAL_BUDGET_MONTHS.find((m) => m.key === key)?.label ?? key).join(', ')}.
+          </div>
+        )}
+
+        {carryoverFormOpen && (
+          <div style={{ marginTop: 14, padding: 12, background: '#fff', border: '1px solid #bae6fd', borderRadius: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>
+              {carryoverMode === 'row' ? 'Allocate carryover to a new budget row' : 'Manually override a budget amount'}
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: '#64748b' }}>
+                Month (this FY only)
+                <select
+                  value={carryoverMonthKey}
+                  onChange={(e) => setCarryoverMonthKey(e.target.value as AnnualBudgetMonthKey)}
+                  style={{ padding: '7px 8px', fontSize: 13, border: '1px solid #cbd5e1', borderRadius: 6, color: '#0f172a', background: '#fff' }}
+                >
+                  {carryoverMonthOptions.map((month) => (
+                    <option key={month.key} value={month.key}>{month.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              {carryoverMode === 'override' ? (
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: '#64748b' }}>
+                  Budget row
+                  <select
+                    value={carryoverRowId}
+                    onChange={(e) => setCarryoverRowId(e.target.value)}
+                    style={{ padding: '7px 8px', fontSize: 13, border: '1px solid #cbd5e1', borderRadius: 6, color: '#0f172a', background: '#fff', minWidth: 160 }}
+                  >
+                    {annualBudgetPlaceholders.thisYear.rows.map((row) => (
+                      <option key={row.id} value={row.id}>{row.label || 'Budget'}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: '#64748b' }}>
+                  Row label
+                  <input
+                    type="text"
+                    value={carryoverLabel}
+                    onChange={(e) => setCarryoverLabel(e.target.value)}
+                    placeholder="Carryover allocation"
+                    style={{ padding: '7px 8px', fontSize: 13, border: '1px solid #cbd5e1', borderRadius: 6, color: '#0f172a', minWidth: 180 }}
+                  />
+                </label>
+              )}
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: '#64748b' }}>
+                {carryoverMode === 'row' ? 'Amount to allocate' : 'New month budget'}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={carryoverAmount}
+                  onChange={(e) => setCarryoverAmount(e.target.value)}
+                  placeholder="0"
+                  style={{ padding: '7px 8px', fontSize: 13, border: '1px solid #cbd5e1', borderRadius: 6, color: '#0f172a', width: 140 }}
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={handleAllocateCarryover}
+                disabled={annualBudgetSaving}
+                style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700, background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: annualBudgetSaving ? 'not-allowed' : 'pointer' }}
+              >
+                {annualBudgetSaving ? 'Saving...' : 'Apply'}
+              </button>
+              <button
+                type="button"
+                onClick={resetCarryoverForm}
+                style={{ padding: '8px 12px', fontSize: 12, fontWeight: 600, background: '#fff', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 11, color: '#64748b' }}>
+              {carryoverMode === 'row'
+                ? 'Adds a row to the FY grid and reduces the unspent total by the same amount.'
+                : 'Replaces that row’s month amount; only the increase is drawn from the unspent total.'}
+            </div>
+            {carryoverError && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#b91c1c', fontWeight: 600 }}>{carryoverError}</div>
+            )}
+          </div>
+        )}
+
+        {carryoverAllocations.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>Allocations this financial year</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {carryoverAllocations.map((allocation) => (
+                <div key={allocation.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '6px 10px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, color: '#0f172a' }}>
+                    <strong>{ANNUAL_BUDGET_MONTHS.find((m) => m.key === allocation.monthKey)?.label ?? allocation.monthKey}</strong>
+                    {' · '}
+                    ${allocation.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    {' · '}
+                    {allocation.mode === 'row' ? 'new row' : 'manual override'}
+                    {allocation.label ? ` · ${allocation.label}` : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleReverseCarryoverAllocation(allocation.id)}
+                    disabled={annualBudgetSaving}
+                    style={{ padding: '3px 8px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 4, cursor: annualBudgetSaving ? 'not-allowed' : 'pointer' }}
+                  >
+                    Undo
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Monthly Budget Tracker - Visual */}
