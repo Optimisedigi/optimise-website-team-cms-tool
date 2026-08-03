@@ -514,14 +514,14 @@ function searchTermRows(
       ? (categories || []).map((c) => {
           const n = r.conversionsByCategory?.[c.label] ?? 0;
           const display = n > 0 ? Math.round(n).toLocaleString() : '—';
-          return `<td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:right;color:#94a3b8">${display}</td>`;
+          return `<td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:right;color:#94a3b8;white-space:nowrap">${display}</td>`;
         }).join('')
       : '';
     return `<tr>
-      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#64748b">${i + 1}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px">${r.searchTerm}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#64748b">${r.campaignName || '—'}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:right;font-weight:600">${metricVal}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#64748b;white-space:nowrap">${i + 1}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;white-space:nowrap">${r.searchTerm}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#64748b;white-space:nowrap">${r.campaignName || '—'}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:right;font-weight:600;white-space:nowrap">${metricVal}</td>
       ${categoryCells}
     </tr>`;
   }).join('');
@@ -575,7 +575,7 @@ export function generateLastMonthRecapEmailHtml(
   const statusText = isOver ? 'Over Budget' : isUnder ? 'Under Budget' : 'On Target';
 
   const budgetBlock = budget > 0 ? `
-  <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};margin-bottom:20px">
+  <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};margin-bottom:20px;max-width:560px">
     <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
       <tr>
         <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText} — ${recap.monthLabel}</td>
@@ -644,7 +644,7 @@ export function generateLastMonthRecapEmailHtml(
 
   ${recap.insights.length > 0 ? `
   <h3 style="margin:0 0 10px;font-size:15px">Action Items for ${thisMonthLabel}</h3>
-  <div style="margin-bottom:24px">${insightCards}</div>
+  <div style="margin-bottom:24px;max-width:680px">${insightCards}</div>
   ` : ''}
 
   <h3 style="margin:0 0 8px;font-size:15px">Campaign Performance</h3>
@@ -667,12 +667,12 @@ export function generateLastMonthRecapEmailHtml(
 
   <div style="margin-bottom:14px">
     <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By Clicks</div>
-    <table style="width:100%;border-collapse:collapse">
+    <table style="width:auto;max-width:100%;border-collapse:collapse;table-layout:auto">
       <tr style="background:#f1f5f9">
-        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;width:30px">#</th>
-        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Search Term</th>
-        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
-        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Clicks</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;width:30px;white-space:nowrap">#</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;white-space:nowrap">Search Term</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;white-space:nowrap">Campaign</th>
+        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;white-space:nowrap">Clicks</th>
       </tr>
       ${searchTermRows(recap.topByClicks, 'clicks')}
     </table>
@@ -680,13 +680,13 @@ export function generateLastMonthRecapEmailHtml(
 
   <div style="margin-bottom:14px">
     <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By Conversions</div>
-    <table style="width:100%;border-collapse:collapse">
+    <table style="width:auto;max-width:100%;border-collapse:collapse;table-layout:auto">
       <tr style="background:#f1f5f9">
-        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;width:30px">#</th>
-        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Search Term</th>
-        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
-        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Conv.</th>
-        ${(recap.conversionCategories || []).map((c) => `<th style=\"padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#94a3b8;border-bottom:2px solid #e5e7eb\">${c.label}</th>`).join('')}
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;width:30px;white-space:nowrap">#</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;white-space:nowrap">Search Term</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;white-space:nowrap">Campaign</th>
+        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;white-space:nowrap">Conv.</th>
+        ${(recap.conversionCategories || []).map((c) => `<th style=\"padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#94a3b8;border-bottom:2px solid #e5e7eb;white-space:nowrap\">${c.label}</th>`).join('')}
       </tr>
       ${searchTermRows(recap.topByConversions, 'conversions', recap.conversionCategories)}
     </table>
@@ -694,12 +694,12 @@ export function generateLastMonthRecapEmailHtml(
 
   <div style="margin-bottom:24px">
     <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By Spend</div>
-    <table style="width:100%;border-collapse:collapse">
+    <table style="width:auto;max-width:100%;border-collapse:collapse;table-layout:auto">
       <tr style="background:#f1f5f9">
-        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;width:30px">#</th>
-        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Search Term</th>
-        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
-        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Spend</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;width:30px;white-space:nowrap">#</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;white-space:nowrap">Search Term</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;white-space:nowrap">Campaign</th>
+        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;white-space:nowrap">Spend</th>
       </tr>
       ${searchTermRows(recap.topBySpend, 'cost')}
     </table>
