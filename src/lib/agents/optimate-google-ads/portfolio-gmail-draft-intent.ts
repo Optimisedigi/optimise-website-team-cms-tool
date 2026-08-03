@@ -75,12 +75,12 @@ function requestedSummarySentences(
 ): 1 | 2 | 3 {
   const range = text.match(
     new RegExp(
-      `\\b(${SUMMARY_COUNT_TOKEN})\\s*(?:-|–|to)\\s*(${SUMMARY_COUNT_TOKEN})\\s+(?:unique\\s+)?sentences?\\b`,
+      `\\b(${SUMMARY_COUNT_TOKEN})\\s*(?:-|–|to)\\s*(${SUMMARY_COUNT_TOKEN})[-\\s]+(?:unique[-\\s]+)?sentences?\\b`,
     ),
   )
   if (range) return Math.min(summaryCount(range[1]), summaryCount(range[2])) as 1 | 2 | 3
   const explicit = text.match(
-    new RegExp(`\\b(${SUMMARY_COUNT_TOKEN})\\s+(?:unique\\s+)?sentences?\\b`),
+    new RegExp(`\\b(${SUMMARY_COUNT_TOKEN})[-\\s]+(?:unique[-\\s]+)?sentences?\\b`),
   )
   if (explicit) return summaryCount(explicit[1])
   return period === 'last_month' ? 2 : 1

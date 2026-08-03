@@ -36,7 +36,7 @@ describe('classifyPortfolioGmailDraftIntent', () => {
     ).toEqual({ kind: 'monthly', period: 'last_month', summarySentences: 2 })
     expect(
       classifyPortfolioGmailDraftIntent(
-        'Create separate Gmail drafts for each selected account completed-month report with three sentences.',
+        'Create separate Gmail drafts for each selected account completed-month report with three-sentence summaries.',
       ),
     ).toEqual({ kind: 'monthly', period: 'last_month', summarySentences: 3 })
   })

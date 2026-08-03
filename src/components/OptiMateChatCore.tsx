@@ -1095,13 +1095,31 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       [storageScope],
     )
 
+    /* Clears the composer and starts a brand new thread. The sessionId is what
+     * scopes server-side context, so a fresh UUID plus an empty transcript means
+     * the next turn carries no history from the previous conversation. */
     const startNewChat = useCallback(() => {
+      const controller = abortControllerRef.current
+      abortControllerRef.current = null
+      if (controller && !controller.signal.aborted) {
+        try {
+          controller.abort('Started a new chat')
+        } catch {
+          // Best-effort: some browser/dev overlays are noisy about abort reasons.
+        }
+      }
       const fresh = crypto.randomUUID()
       sessionIdRef.current = fresh
       savePersistedSessionId(storageScope, fresh)
       setMessages([])
+      setInput('')
+      setLoading(false)
       setError(null)
       setHistoryOpen(false)
+      setAttachedEmail(null)
+      setImageAttachments([])
+      setSelectedMonthlyEmailComponents([])
+      setDraftState({})
     }, [storageScope])
 
     const buildChatUrl = useCallback(() => {
@@ -1628,6 +1646,30 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               onTypedChatResponse={(data) => applyTypedChatResponse(data, { voice: true, clearTurnAttachments: true })}
             />
           )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              startNewChat()
+            }}
+            title="Clear this chat and start a new one with no prior context"
+            aria-label="New chat"
+            style={{
+              flexShrink: 0,
+              padding: '4px 8px',
+              fontSize: 11,
+              lineHeight: 1.2,
+              background: '#f3f4f6',
+              border: '1px solid #e5e7eb',
+              borderRadius: 6,
+              cursor: 'pointer',
+              color: '#2563eb',
+              fontWeight: 600,
+            }}
+          >
+            + New
+          </button>
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
               type="button"
