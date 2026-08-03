@@ -253,6 +253,13 @@ export interface HubSpotPostClickDashboardData {
     gclid?: string;
     hubspotCampaign?: string;
     hubspotKeyword?: string;
+    /** HubSpot CRM country. Source of truth for the AU/US split before the
+     *  May 2026 UTM tagging fix. Optional because older Growth Tools responses
+     *  omit it. */
+    country?: string;
+    /** Original (first-touch) analytics source, e.g. PAID_SEARCH. Pre-cutover
+     *  region splitting counts only PAID_SEARCH leads, matching HubSpot. */
+    originalSource?: string;
     campaignName?: string;
     adGroupName?: string;
     keywordText?: string;

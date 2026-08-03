@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { GoogleAdsDashboardMonthlyWasteRelevancy, HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
 
-type MetricKey = "paidLeads" | "meetings" | "totalMeetings" | "googleAdsConversions" | "meetingRate" | "disqualifiedRate" | "cpaGoogleAdsConversions" | "cpaPaidLeads" | "cpaMeetings" | "googleAdsSpend";
+type MetricKey = "paidLeads" | "meetings" | "totalMeetings" | "googleAdsConversions" | "meetingRate" | "cpaGoogleAdsConversions" | "cpaLeadsWithMeetings" | "cpaMeetings" | "googleAdsSpend";
 type MonthlyPoint = HubSpotPostClickDashboardData["monthly"][number];
 type MonthlySalesPoint = MonthlyPoint & {
   totalMeetings: number;
@@ -12,7 +12,7 @@ type MonthlySalesPoint = MonthlyPoint & {
   mqls: number;
   sqls: number;
   cpaGoogleAdsConversions: number | null;
-  cpaPaidLeads: number | null;
+  cpaLeadsWithMeetings: number | null;
   cpaMeetings: number | null;
 };
 type AttributionRow = HubSpotPostClickDashboardData["attributionRows"][number];
@@ -32,10 +32,9 @@ const METRICS: Array<{ key: MetricKey; label: string; shortLabel: string; toolti
   { key: "meetings", label: "Paid leads with meetings", shortLabel: "Leads with meetings", tooltip: "Paid-search HubSpot contacts that have at least one associated HubSpot meeting. Each paid lead counts once, even if they generated multiple meetings.", color: "#16a34a", kind: "bar" },
   { key: "totalMeetings", label: "Total HubSpot meetings", shortLabel: "Total meetings", tooltip: "All associated HubSpot meeting records and meeting activity fields generated from the paid-search contacts in this report.", color: "#22c55e", kind: "bar" },
   { key: "meetingRate", label: "Lead → meeting conversion rate", shortLabel: "Meeting rate", tooltip: "Paid leads with at least one HubSpot meeting divided by paid leads. Each paid lead counts once, so this rate is capped at 100%.", color: "#7c3aed", kind: "line", unit: "rate" },
-  { key: "disqualifiedRate", label: "Disqualified rate", shortLabel: "Disqualified rate", tooltip: "Paid leads marked unqualified, dead, junk, spam, or not model aligned divided by paid leads. Lower is better when lead statuses are maintained.", color: "#dc2626", kind: "line", unit: "rate" },
-  { key: "cpaGoogleAdsConversions", label: "CPA by Google Ads conversions", shortLabel: "CPA / GA conv.", tooltip: "Google Ads spend divided by selected Google Ads conversions. This is the ad-platform CPA.", color: "#0f766e", kind: "line", unit: "currency" },
-  { key: "cpaPaidLeads", label: "CPA by HubSpot paid leads", shortLabel: "CPA / paid lead", tooltip: "Google Ads spend divided by HubSpot paid-search contacts. This shows the cost per HubSpot-captured paid lead.", color: "#f97316", kind: "line", unit: "currency" },
-  { key: "cpaMeetings", label: "CPA by total HubSpot meetings", shortLabel: "CPA / total meeting", tooltip: "Google Ads spend divided by total HubSpot meetings generated from paid-search leads. This shows cost per booked or recorded meeting, including repeat meetings.", color: "#15803d", kind: "line", unit: "currency" },
+  { key: "cpaGoogleAdsConversions", label: "CPA by Google Ads conversions", shortLabel: "CPA (Google Ads conv)", tooltip: "Google Ads spend divided by selected Google Ads conversions. This is the ad-platform CPA.", color: "#0f766e", kind: "line", unit: "currency" },
+  { key: "cpaLeadsWithMeetings", label: "CPA by paid leads with meetings", shortLabel: "CPA (Meetings)", tooltip: "Google Ads spend divided by paid leads with at least one HubSpot meeting. Each lead counts once regardless of how many meetings it generated, so this is the cost to acquire one meeting-booking lead.", color: "#f97316", kind: "line", unit: "currency" },
+  { key: "cpaMeetings", label: "CPA by total HubSpot meetings", shortLabel: "CPA (Total Meetings)", tooltip: "Google Ads spend divided by total HubSpot meetings generated from paid-search leads. This shows cost per booked or recorded meeting, including repeat meetings.", color: "#15803d", kind: "line", unit: "currency" },
   { key: "googleAdsSpend", label: "Google Ads spend", shortLabel: "Spend", tooltip: "Total Google Ads spend for each month.", color: "#334155", kind: "line", unit: "spend" },
 ];
 
@@ -47,9 +46,8 @@ const LEGEND_ORDER: MetricKey[] = [
   "meetings",
   "totalMeetings",
   "googleAdsSpend",
-  "disqualifiedRate",
   "cpaGoogleAdsConversions",
-  "cpaPaidLeads",
+  "cpaLeadsWithMeetings",
   "cpaMeetings",
   "meetingRate",
 ];
@@ -81,6 +79,71 @@ export function campaignRegion(name?: string | null): "AU" | "US" | "other" {
   if (tokens.some((token) => token === "au" || token === "aus" || token === "australia" || token === "australian")) return "AU";
   if (tokens.some((token) => token === "us" || token === "usa")) return "US";
   return "other";
+}
+
+/** Until April 2026 inclusive, US campaigns were tagged with Australian UTM
+ *  parameters, so the campaign name misattributes US activity to Australia.
+ *  Leads created before this month are split on the HubSpot country attribute
+ *  instead; from this month onward the campaign name is correct and is used. */
+export const REGION_SOURCE_CUTOVER_MONTH = "2026-05";
+
+export function hubspotCountryRegion(country?: string | null): "AU" | "US" | "other" {
+  const value = (country || "").trim().toLowerCase();
+  if (!value) return "other";
+  if (value === "au" || value === "aus" || /australia/.test(value)) return "AU";
+  if (value === "us" || value === "usa" || /united states/.test(value)) return "US";
+  return "other";
+}
+
+type RegionResolvableLead = Pick<LeadDetail, "month" | "campaignName" | "hubspotCampaign"> & {
+  country?: string;
+  originalSource?: string;
+};
+
+/** HubSpot counts a lead as paid search only when its ORIGINAL (first-touch)
+ *  source is PAID_SEARCH. A gclid alone is not enough — contacts whose first
+ *  touch was direct still carry one, and HubSpot excludes them. Matching that
+ *  rule is what makes the pre-cutover region split reconcile with HubSpot. */
+export function isHubspotPaidSearchLead(originalSource?: string | null): boolean {
+  return (originalSource || "").trim().toUpperCase() === "PAID_SEARCH";
+}
+
+/** Resolves a lead's market, switching source at the UTM-fix cutover.
+ *  Before the cutover the campaign name is untrustworthy (US campaigns carried
+ *  Australian UTMs), so the split uses HubSpot's own country plus HubSpot's own
+ *  paid-search definition; anything else is left unclassified rather than
+ *  guessed. From the cutover onward the campaign name is correct. */
+export function leadRegion(lead: RegionResolvableLead): "AU" | "US" | "other" {
+  if (lead.month < REGION_SOURCE_CUTOVER_MONTH) {
+    if (!isHubspotPaidSearchLead(lead.originalSource)) return "other";
+    return hubspotCountryRegion(lead.country);
+  }
+  return campaignRegion(lead.campaignName || lead.hubspotCampaign);
+}
+
+/** Campaigns that match neither AU nor US are silently dropped from a region
+ *  view. Collect them so the chart can disclose what is being excluded rather
+ *  than letting the numbers quietly shrink. */
+export function unclassifiedCampaigns(
+  data: Pick<HubSpotPostClickDashboardData, "leadDetails"> & Partial<Pick<HubSpotPostClickDashboardData, "monthlyByCampaign">>,
+): string[] {
+  const names = new Set<string>();
+  for (const row of data.monthlyByCampaign || []) {
+    if (campaignRegion(row.campaignName) === "other") names.add(row.campaignName || "Unknown campaign");
+  }
+  for (const lead of data.leadDetails || []) {
+    if (leadRegion(lead) !== "other") continue;
+    if (lead.month < REGION_SOURCE_CUTOVER_MONTH) {
+      names.add(
+        isHubspotPaidSearchLead(lead.originalSource)
+          ? `${lead.country?.trim() || "Unknown country"} (pre-May-2026 lead)`
+          : `${lead.originalSource?.trim() || "Unknown source"} (pre-May-2026, not paid search in HubSpot)`,
+      );
+      continue;
+    }
+    names.add(lead.campaignName || lead.hubspotCampaign || "Unknown campaign");
+  }
+  return Array.from(names).sort();
 }
 
 const CONFIDENCE_LABELS: Record<string, string> = {
@@ -290,7 +353,7 @@ function usePostClickMonthlyData(
 ): MonthlySalesPoint[] {
   const scoped = useMemo(() => {
     if (region === "all") return { monthly, leadDetails };
-    const leads = (leadDetails || []).filter((lead) => campaignRegion(lead.campaignName || lead.hubspotCampaign) === region);
+    const leads = (leadDetails || []).filter((lead) => leadRegion(lead) === region);
     const adMetricsByMonth = new Map<string, { spend: number; conversions: number }>();
     for (const row of monthlyByCampaign || []) {
       if (campaignRegion(row.campaignName) !== region) continue;
@@ -359,7 +422,7 @@ function usePostClickMonthlyData(
         mqls: leadStats?.mqls || 0,
         sqls: leadStats?.sqls || 0,
         cpaGoogleAdsConversions: nullSafeCpa(googleAdsSpend, googleAdsConversions),
-        cpaPaidLeads: nullSafeCpa(googleAdsSpend, row.paidLeads),
+        cpaLeadsWithMeetings: nullSafeCpa(googleAdsSpend, row.meetings),
         cpaMeetings: nullSafeCpa(googleAdsSpend, totalMeetings),
         avgDaysToFirstOutreach: row.avgDaysToFirstOutreach ?? averageDays(leadStats?.daysToFirstOutreach || []),
         avgDaysToMql: row.avgDaysToMql ?? averageDays(leadStats?.daysToMql || []),
@@ -434,7 +497,38 @@ function RegionFlagToggle({ region, onCycle }: { region: RegionFilter; onCycle: 
   );
 }
 
-function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric, region, showRegionToggle, onCycleRegion }: { data: MonthlySalesPoint[]; selectedMetrics: MetricKey[]; onToggleMetric: (key: MetricKey) => void; region: RegionFilter; showRegionToggle: boolean; onCycleRegion: () => void }) {
+/** Spend and Google Ads conversions come from the ad platform, which carries no
+ *  HubSpot country, so pre-cutover months cannot be re-split and keep using the
+ *  mis-tagged campaign names. Disclose that rather than implying it is fixed. */
+function SpendAttributionNotice() {
+  return (
+    <span
+      title={`Lead metrics before ${REGION_SOURCE_CUTOVER_MONTH} are split on the HubSpot country attribute. Spend and Google Ads conversions have no country attribute, so those months still use the mis-tagged campaign names and remain misattributed.`}
+      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-1 text-[11px] font-medium text-slate-500"
+    >
+      Spend pre-{REGION_SOURCE_CUTOVER_MONTH} not re-split
+    </span>
+  );
+}
+
+function UnclassifiedCampaignNotice({ names }: { names: string[] }) {
+  if (!names.length) return null;
+  return (
+    <span
+      title={`Not counted in this region view because neither the HubSpot country (before ${REGION_SOURCE_CUTOVER_MONTH}) nor the campaign name (from ${REGION_SOURCE_CUTOVER_MONTH}) identifies a market:\n\n${names.join("\n")}`}
+      className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-1 text-[11px] font-medium text-amber-700"
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+        <path d="M6 1.2 L11.2 10.4 H0.8 Z" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+        <path d="M6 4.6 V7.2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+        <circle cx="6" cy="8.8" r="0.6" fill="currentColor" />
+      </svg>
+      {names.length} unclassified {names.length === 1 ? "campaign" : "campaigns"} excluded
+    </span>
+  );
+}
+
+function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric, region, showRegionToggle, unclassifiedNames, onCycleRegion }: { data: MonthlySalesPoint[]; selectedMetrics: MetricKey[]; onToggleMetric: (key: MetricKey) => void; region: RegionFilter; showRegionToggle: boolean; unclassifiedNames: string[]; onCycleRegion: () => void }) {
   const width = 1220;
   const height = 290;
   const left = 34;
@@ -451,7 +545,6 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric, region, 
   const rateMax = Math.max(100, Math.ceil(Math.max(...data.flatMap((row) => rateSeries.map((series) => Number(row[series.key] ?? 0)))) / 25) * 25);
   const currencyMax = Math.max(1, Math.ceil(Math.max(...data.flatMap((row) => currencySeries.map((series) => Number(row[series.key] ?? 0)))) / 100) * 100);
   const spendMax = Math.max(1, Math.max(...data.map((row) => row.googleAdsSpend || 0)));
-  const disqualifiedRateMax = Math.max(10, Math.ceil(Math.max(...data.map((row) => row.disqualifiedRate ?? 0)) / 5) * 5);
   const slot = chartWidth / data.length;
   const barGap = 3; // gap between bars inside a month group
   const groupGap = 11; // minimum gap between the last bar of a month and the first bar of the next
@@ -462,7 +555,6 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric, region, 
   const yRate = (value: number | null) => top + chartHeight - ((value ?? 0) / rateMax) * chartHeight;
   const yCurrency = (value: number | null) => top + chartHeight - ((value ?? 0) / currencyMax) * chartHeight;
   const ySpend = (value: number | null) => top + chartHeight - ((value ?? 0) / spendMax) * chartHeight;
-  const yDisqualifiedRate = (value: number | null) => top + chartHeight - ((value ?? 0) / disqualifiedRateMax) * chartHeight;
   const linePaths = lineSeries.map((series) => {
     const points = data
       .map((row, index) => {
@@ -471,7 +563,7 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric, region, 
         const raw = Number(value);
         return {
           x: left + slot * index + slot / 2,
-          y: series.unit === "spend" ? ySpend(raw) : series.unit === "currency" ? yCurrency(raw) : series.key === "disqualifiedRate" ? yDisqualifiedRate(raw) : yRate(raw),
+          y: series.unit === "spend" ? ySpend(raw) : series.unit === "currency" ? yCurrency(raw) : yRate(raw),
           value: raw,
         };
       })
@@ -486,6 +578,8 @@ function PostClickMonthlyChart({ data, selectedMetrics, onToggleMetric, region, 
   const legend = (
     <div className="mb-3 flex flex-wrap items-center gap-4 text-xs text-slate-500">
       {showRegionToggle && <RegionFlagToggle region={region} onCycle={onCycleRegion} />}
+      {showRegionToggle && region !== "all" && <UnclassifiedCampaignNotice names={unclassifiedNames} />}
+      {showRegionToggle && region !== "all" && <SpendAttributionNotice />}
       {LEGEND_METRICS.map((metric) => {
         const active = selectedMetrics.includes(metric.key);
         return (
@@ -883,6 +977,7 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
   const [leadSearchQuery, setLeadSearchQuery] = useState("");
   const monthlyChartData = usePostClickMonthlyData(data.monthly, data.leadDetails, monthlyWasteRelevancy);
   const regionChartData = usePostClickMonthlyData(data.monthly, data.leadDetails, monthlyWasteRelevancy, activeRegion, data.monthlyByCampaign);
+  const unclassifiedNames = useMemo(() => unclassifiedCampaigns(data), [data]);
   const recentMonths = useMemo(() => buildMonthKeys(6).reverse(), []);
   const rowsByMonth = useMemo(() => {
     const map = new Map<string, AttributionRow[]>();
@@ -932,6 +1027,7 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
             onToggleMetric={(key) => setSelectedMetrics((current) => toggleMetricSelection(current, key))}
             region={activeRegion}
             showRegionToggle={regionSplitEnabled}
+            unclassifiedNames={unclassifiedNames}
             onCycleRegion={() => setChartRegion((current) => REGION_CYCLE[(REGION_CYCLE.indexOf(current) + 1) % REGION_CYCLE.length])}
           />
         </div>
@@ -956,10 +1052,6 @@ export function HubSpotPostClickTab({ data, monthlyWasteRelevancy }: { data: Hub
           <div className="rounded-lg bg-slate-50 p-3">
             <p className="font-semibold text-slate-800">Meeting rate</p>
             <p className="mt-1">Paid leads with at least one HubSpot meeting divided by paid leads. This rate is capped at 100%.</p>
-          </div>
-          <div className="rounded-lg bg-slate-50 p-3">
-            <p className="font-semibold text-slate-800">Disqualified rate</p>
-            <p className="mt-1">Paid leads marked unqualified, dead, junk, spam, or not model aligned divided by paid leads. Lower is better.</p>
           </div>
           </div>
 
