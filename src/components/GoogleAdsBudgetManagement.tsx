@@ -11,6 +11,7 @@ import {
   calculateStandaloneDailyBudget,
   getMonthInfo,
   getTotalMtdSpend,
+  getAccountSpend,
   formatCostPerConv,
   shouldShowBudgetCampaign,
   isBudgetAllocationCampaign,
@@ -177,6 +178,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   }>>([]);
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
   const [metricsRange, setMetricsRange] = useState<BudgetMetricsRange>('THIS_MONTH');
+  // The range the currently-loaded campaign metrics actually came from. Null
+  // while a range change is in flight. The annual "Actual spend" autosave keys
+  // off this so a stale figure from the previous range is never persisted.
+  const [loadedMetricsRange, setLoadedMetricsRange] = useState<BudgetMetricsRange | null>(null);
   const [spendSortDirection, setSpendSortDirection] = useState<SpendSortDirection>('desc');
   // "Show ad groups" toggle. Per spec, toggling on does NOT auto-expand any
   // campaign; it just enables the ad-group sub-table inside each campaign's
@@ -350,6 +355,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           };
         })
       );
+      setLoadedMetricsRange(range);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -476,6 +482,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       }
 
       setCampaigns(recalculateBudgets(freshCampaigns, budget));
+      setLoadedMetricsRange(metricsRange);
       setSuccess('Synced latest data from Google Ads');
     } catch (e: any) {
       setError(e.message);
@@ -904,6 +911,9 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       rangeChangeLoaded.current = true;
       return;
     }
+    // Invalidate immediately: until the new range's data lands, the campaigns
+    // in state still hold the previous range's spend figures.
+    setLoadedMetricsRange(null);
     if (metricsRange === 'THIS_MONTH') {
       setCampaigns(prev => prev.map(c => { const { displayMtdSpend, ...rest } = c; return rest as BudgetCampaign; }));
       syncFromGoogleAds();
@@ -1241,16 +1251,41 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
     return calculateMonthlySpend(campaigns, viewedMonthBudget);
   }, [campaigns, metricsRange, viewedMonthBudget, viewedMonthDate]);
-  const currentDate = new Date();
-  const currentActualTotalsSlot = resolveActualTotalsSlotForDate(currentDate, currentDate);
 
+  // Total account spend for the month currently in view. This feeds the annual
+  // budget grid's "Actual spend" row, so it must be the whole account (all
+  // campaigns, standalone/paused included) rather than the managed allocation
+  // pool that `monthlySpend` reports.
+  const viewedMonthAccountSpend = useMemo(() => {
+    // Only trust the campaigns in state once they were loaded for the range
+    // currently selected — otherwise a previous range's totals (e.g. last 60
+    // days) would be written into the viewed month's slot.
+    if (loadedMetricsRange !== metricsRange) return null;
+    if (metricsRange === 'THIS_MONTH') return Math.round(getAccountSpend(campaigns));
+    if (metricsRange !== 'LAST_MONTH') return null;
+    return Math.round(getAccountSpend(campaigns.map((c) => ({ mtdSpend: c.displayMtdSpend ?? 0 }))));
+  }, [campaigns, metricsRange, loadedMetricsRange]);
+
+  const viewedActualTotalsSlot = useMemo(
+    () => resolveActualTotalsSlotForDate(viewedMonthDate, new Date()),
+    [viewedMonthDate],
+  );
+
+  // Keep the stored actual in sync with Google Ads. The live month keeps
+  // accruing spend so it is refreshed on every load, and switching the range to
+  // Last Month corrects/backfills that month.
   useEffect(() => {
-    const actualSpend = Math.round(calculateMonthlySpend(campaigns, resolveMonthlyBudgetForDate(annualBudgetPlaceholders, currentDate, monthlyTotal)).totalSpend);
-    if (!id || !annualBudgetPlaceholdersLoaded || actualSpend <= 0 || !currentActualTotalsSlot.section) return;
-    const currentActualTotal = annualBudgetPlaceholders[currentActualTotalsSlot.section].actualTotals[currentActualTotalsSlot.monthKey];
-    if (currentActualTotal !== '') return;
+    const { section, monthKey } = viewedActualTotalsSlot;
+    if (!id || !annualBudgetPlaceholdersLoaded || !section) return;
+    if (viewedMonthAccountSpend === null || viewedMonthAccountSpend <= 0) return;
+    if (annualBudgetPlaceholders[section].actualTotals[monthKey] === viewedMonthAccountSpend) return;
 
-    const nextPlaceholders = writeActualTotalForDate(annualBudgetPlaceholders, currentDate, actualSpend, currentDate);
+    const nextPlaceholders = writeActualTotalForDate(
+      annualBudgetPlaceholders,
+      viewedMonthDate,
+      viewedMonthAccountSpend,
+      new Date(),
+    );
     setAnnualBudgetPlaceholders(nextPlaceholders);
     setAnnualBudgetSaved(false);
 
@@ -1268,10 +1303,9 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     id,
     annualBudgetPlaceholdersLoaded,
     annualBudgetPlaceholders,
-    currentActualTotalsSlot.section,
-    currentActualTotalsSlot.monthKey,
-    campaigns,
-    monthlyTotal,
+    viewedActualTotalsSlot,
+    viewedMonthAccountSpend,
+    viewedMonthDate,
   ]);
 
   const totalConversions = campaigns.reduce((sum, c) => sum + (c.conversions || 0), 0);

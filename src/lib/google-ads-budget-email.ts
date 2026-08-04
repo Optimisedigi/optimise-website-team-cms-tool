@@ -200,6 +200,15 @@ export function getTotalMtdSpend(campaigns: BudgetCampaign[]): number {
   return campaigns.reduce((sum, c) => (c.standalone || !shouldShowBudgetCampaign(c) ? sum : sum + (c.mtdSpend || 0)), 0);
 }
 
+/** Total spend across EVERY campaign returned by Google Ads for the window —
+ *  including standalone campaigns, paused campaigns and campaigns whose flight
+ *  dates have ended. `getTotalMtdSpend` deliberately excludes those because it
+ *  drives the managed allocation pool, but the annual budget grid's "Actual
+ *  spend" row has to reconcile against the real account total. */
+export function getAccountSpend(campaigns: Pick<BudgetCampaign, 'mtdSpend'>[]): number {
+  return campaigns.reduce((sum, c) => sum + (Number(c.mtdSpend) || 0), 0);
+}
+
 // Daily budget for a standalone campaign:
 // (standaloneTotalBudget - mtdSpend) / daysRemainingInRange
 export function calculateStandaloneDailyBudget(c: BudgetCampaign): number {
