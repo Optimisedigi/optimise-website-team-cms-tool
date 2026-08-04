@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
   const customerId = req.nextUrl.searchParams.get("customerId") || "";
   const range = req.nextUrl.searchParams.get("range") || "";
+  const conversionActions = req.nextUrl.searchParams.get("conversionActions") || "";
 
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
@@ -35,6 +36,9 @@ export async function GET(req: NextRequest) {
     const cleanCustomerId = customerId.replace(/-/g, "");
     const params = new URLSearchParams({ customerId: cleanCustomerId });
     if (range) params.set("range", normalizeDashboardRange(range));
+    // Forwarded so Growth Tools scopes keyword conversions / CPA to the
+    // conversion types selected in the dashboard header dropdown.
+    if (conversionActions) params.set("conversionActions", conversionActions);
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },

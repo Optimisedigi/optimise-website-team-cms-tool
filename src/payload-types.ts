@@ -14852,7 +14852,7 @@ export interface OptimateSetting {
    */
   defaultChatModel:
     | 'claude-sonnet-4.6'
-    | 'claude-opus-4-8'
+    | 'claude-opus-5'
     | 'claude-haiku-4.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
@@ -14860,7 +14860,6 @@ export interface OptimateSetting {
     | 'gpt-5.6-sol'
     | 'gpt-5.6-terra'
     | 'gpt-5.6-luna'
-    | 'gpt-5.5-codex'
     | 'grok-build'
     | 'grok-composer-2.5-fast';
   /**
@@ -14868,7 +14867,7 @@ export interface OptimateSetting {
    */
   defaultAutonomousModel:
     | 'claude-sonnet-4.6'
-    | 'claude-opus-4-8'
+    | 'claude-opus-5'
     | 'claude-haiku-4.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
@@ -14876,7 +14875,6 @@ export interface OptimateSetting {
     | 'gpt-5.6-sol'
     | 'gpt-5.6-terra'
     | 'gpt-5.6-luna'
-    | 'gpt-5.5-codex'
     | 'grok-build'
     | 'grok-composer-2.5-fast';
   /**
@@ -14885,7 +14883,7 @@ export interface OptimateSetting {
   blogPrompterModel?:
     | (
         | 'claude-sonnet-4.6'
-        | 'claude-opus-4-8'
+        | 'claude-opus-5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
@@ -14893,7 +14891,6 @@ export interface OptimateSetting {
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'gpt-5.5-codex'
         | 'grok-build'
         | 'grok-composer-2.5-fast'
       )
@@ -14904,7 +14901,7 @@ export interface OptimateSetting {
   invoiceAssistantModel?:
     | (
         | 'claude-sonnet-4.6'
-        | 'claude-opus-4-8'
+        | 'claude-opus-5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
@@ -14912,7 +14909,6 @@ export interface OptimateSetting {
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'gpt-5.5-codex'
         | 'grok-build'
         | 'grok-composer-2.5-fast'
       )
@@ -14923,7 +14919,7 @@ export interface OptimateSetting {
   emailAssistantModel?:
     | (
         | 'claude-sonnet-4.6'
-        | 'claude-opus-4-8'
+        | 'claude-opus-5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
@@ -14931,7 +14927,6 @@ export interface OptimateSetting {
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'gpt-5.5-codex'
         | 'grok-build'
         | 'grok-composer-2.5-fast'
       )
@@ -14942,7 +14937,7 @@ export interface OptimateSetting {
   searchTermResearchModel?:
     | (
         | 'claude-sonnet-4.6'
-        | 'claude-opus-4-8'
+        | 'claude-opus-5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
@@ -14950,7 +14945,6 @@ export interface OptimateSetting {
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'gpt-5.5-codex'
         | 'grok-build'
         | 'grok-composer-2.5-fast'
       )
@@ -14961,7 +14955,7 @@ export interface OptimateSetting {
   negativeSweepModel?:
     | (
         | 'claude-sonnet-4.6'
-        | 'claude-opus-4-8'
+        | 'claude-opus-5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
@@ -14969,7 +14963,6 @@ export interface OptimateSetting {
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'gpt-5.5-codex'
         | 'grok-build'
         | 'grok-composer-2.5-fast'
       )
