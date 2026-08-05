@@ -58,10 +58,15 @@ function main() {
       }
       Logger.log('Cleared existing keywords from list: ' + list.name);
     } else {
-      negList = AdsApp.newNegativeKeywordListBuilder()
+      var createOperation = AdsApp.newNegativeKeywordListBuilder()
         .withName(list.name)
-        .build()
-        .getResult();
+        .build();
+      negList = createOperation.getResult();
+      if (!negList) {
+        Logger.log('ERROR: Failed to create list "' + list.name + '": ' +
+          createOperation.getErrors().join('; '));
+        return;
+      }
       Logger.log('Created new list: ' + list.name);
     }
 

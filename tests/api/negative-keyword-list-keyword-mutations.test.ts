@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
@@ -116,5 +118,9 @@ describe("negative keyword list keyword mutations", () => {
         ],
       },
     }));
+  });
+  it("enables SQLite transactions required for safe keyword mutations", () => {
+    const payloadConfig = readFileSync(resolve(process.cwd(), "src/payload.config.ts"), "utf8");
+    expect(payloadConfig).toMatch(/sqliteAdapter\(\{[\s\S]*?transactionOptions:\s*\{\}/);
   });
 });

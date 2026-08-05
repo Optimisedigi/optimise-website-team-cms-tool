@@ -224,6 +224,8 @@ export default buildConfig({
         ? { authToken: process.env.DATABASE_AUTH_TOKEN }
         : {}),
     },
+    // Enable transactions so concurrent keyword edits can be safely rejected.
+    transactionOptions: {},
     // `push: true` for local file DBs only — auto-syncs schema from collection
     // configs so local dev doesn't need the incremental migration chain to bootstrap.
     // Production (Turso libsql://) stays on manual migrations via /api/migrate.

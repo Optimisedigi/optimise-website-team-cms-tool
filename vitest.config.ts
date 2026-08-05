@@ -10,6 +10,8 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
     exclude: ["node_modules", ".next"],
+    // Cold dynamic imports can exceed Vitest's 5s default under full-suite parallelism.
+    testTimeout: 20_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
