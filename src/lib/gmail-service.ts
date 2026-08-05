@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
 
 /**
  * Per-user Gmail OAuth + Drafts/Read service.
@@ -241,13 +242,14 @@ export async function createGmailDraft(
   oauth2Client.setCredentials({ access_token: accessToken });
 
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+  const htmlBodyWithoutForbiddenDashes = removeForbiddenDashes(args.htmlBody);
   const signedHtmlBody = args.appendSignature === false
-    ? args.htmlBody
-    : appendGmailSignature(args.htmlBody, await getPrimaryGmailSignature(accessToken));
+    ? htmlBodyWithoutForbiddenDashes
+    : appendGmailSignature(htmlBodyWithoutForbiddenDashes, await getPrimaryGmailSignature(accessToken));
   const htmlBody = formatGmailDraftHtml(signedHtmlBody);
   const raw = buildMimeMessage({
     to: args.to,
-    subject: args.subject,
+    subject: removeForbiddenDashes(args.subject),
     htmlBody,
     inReplyTo: args.inReplyTo,
   });

@@ -135,14 +135,14 @@ describe("create_gmail_draft — execute", () => {
     expect(result.ok).toBe(true);
     expect(mockCreateDraft).toHaveBeenCalledWith("tok-123", {
       to: "owner@acme.com",
-      subject: "Acme — Budget Report — May 2026",
+      subject: "Acme, Budget Report, May 2026",
       htmlBody: "<p>Hello</p>",
     });
     const data = result.data as Record<string, unknown>;
     expect(data.draftId).toBe("d-999");
     expect(data.messageId).toBe("m-abc");
     expect(data.gmailUrl).toBe("https://mail.google.com/mail/u/0/#drafts/m-abc");
-    expect(data.subject).toBe("Acme — Budget Report — May 2026");
+    expect(data.subject).toBe("Acme, Budget Report, May 2026");
     expect(data.to).toBe("owner@acme.com");
   });
 

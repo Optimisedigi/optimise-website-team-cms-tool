@@ -17,6 +17,7 @@
  * Gmail right now without further review.
  */
 
+import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 
 interface StageEmailReplyArgs {
@@ -49,11 +50,11 @@ export const stageEmailReplyTool: CanonicalTool<StageEmailReplyArgs> = {
   validate: (raw) => {
     if (!raw || typeof raw !== "object") throw new Error("input must be an object");
     const obj = raw as Record<string, unknown>;
-    const body = typeof obj.body === "string" ? obj.body.trim() : "";
+    const body = typeof obj.body === "string" ? removeForbiddenDashes(obj.body).trim() : "";
     if (!body) throw new Error("body is required and must be non-empty");
     const out: StageEmailReplyArgs = { body };
     if (typeof obj.subject === "string" && obj.subject.trim().length > 0) {
-      out.subject = obj.subject.trim();
+      out.subject = removeForbiddenDashes(obj.subject).trim();
     }
     return out;
   },

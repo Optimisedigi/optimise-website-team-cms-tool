@@ -491,9 +491,53 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
   }, [id, monthlyTotal, metricsRange, recalculateBudgets]);
 
-  // On mount: always sync from Google Ads to get fresh MTD spend data
-  // The list endpoint merges saved CMS allocations into its response
+  // On mount: always sync from Google Ads to get fresh MTD spend data.
+  // The completed previous month is fetched separately once so its annual-grid
+  // actual is finalised without changing the live range the user is viewing.
   const initialLoadDone = useRef(false);
+  const previousMonthRefreshDone = useRef(false);
+
+  const refreshPreviousMonthActual = useCallback(async () => {
+    if (!id || !annualBudgetPlaceholdersLoaded || previousMonthRefreshDone.current) return;
+    previousMonthRefreshDone.current = true;
+    const now = new Date();
+    const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const { section, monthKey } = resolveActualTotalsSlotForDate(previousMonth, now);
+    if (!section) return;
+
+    try {
+      // This is intentionally report-only: opening Budget Management should
+      // refresh the two relevant monthly totals, not mutate campaign settings
+      // or trigger the recommendation/competitive lookback requests.
+      const res = await fetch(
+        `/api/google-ads-budgets/${id}/list?range=LAST_MONTH&reportOnly=1&skipPersist=1`,
+        { credentials: 'include' },
+      );
+      if (!res.ok) return;
+
+      const data = await res.json();
+      const accountSpend = Math.round(getAccountSpend(data.campaigns || []));
+
+      setAnnualBudgetPlaceholders((current) => {
+        if (current[section].actualTotals[monthKey] === accountSpend) return current;
+        const next = writeActualTotalForDate(current, previousMonth, accountSpend, now);
+        setAnnualBudgetSaved(false);
+        fetch(`/api/google-ads-budgets/${id}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ _saveAnnualBudgetPlaceholders: next }),
+        })
+          .then((saveResponse) => {
+            if (saveResponse.ok) setAnnualBudgetSaved(true);
+          })
+          .catch(() => {});
+        return next;
+      });
+    } catch {
+      // The live-month load remains useful if the completed-month refresh fails.
+    }
+  }, [id, annualBudgetPlaceholdersLoaded]);
   const fetchCampaigns = useCallback(async () => {
     if (!id || initialLoadDone.current) return;
     initialLoadDone.current = true;
@@ -903,6 +947,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     // Only run once on mount — do not re-fetch when monthlyTotal changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    void refreshPreviousMonthActual();
+  }, [refreshPreviousMonthActual]);
 
   const rangeChangeLoaded = useRef(false);
   useEffect(() => {

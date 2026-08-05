@@ -143,6 +143,43 @@ describe('GoogleAdsBudgetManagement actual spend refresh', () => {
     });
   });
 
+  it('refreshes the immediately preceding month once on load, then saves its full account total', async () => {
+    // @ts-ignore
+    global.Date = createDateMock('2026-08-04T12:00:00Z');
+    storedActualTotals.jul = 2470;
+    campaignsByRange = {
+      THIS_MONTH: [campaign({ mtdSpend: 1200, budgetPercentage: 100 })],
+      LAST_MONTH: [
+        campaign({ campaignId: '1', mtdSpend: 12000, budgetPercentage: 100 }),
+        campaign({ campaignId: '2', campaignName: 'Paused brand', mtdSpend: 8000, enabled: false, campaignStatus: 'PAUSED' }),
+        campaign({ campaignId: '3', campaignName: 'Ended promo', mtdSpend: 8900, campaignEndDate: '2026-07-10' }),
+      ],
+    };
+
+    render(<GoogleAdsBudgetManagement auditId="12" />);
+
+    await waitFor(() => {
+      expect(updateBodies.some((body) => body._saveAnnualBudgetPlaceholders?.thisYear?.actualTotals?.jul === 28900)).toBe(true);
+    });
+
+    const lastMonthRequests = (global.fetch as any).mock.calls.filter(([input]: [RequestInfo | URL]) =>
+      new URL(String(input), 'http://localhost').searchParams.get('range') === 'LAST_MONTH',
+    );
+    expect(lastMonthRequests).toHaveLength(1);
+  });
+
+  it('replaces a stale completed-month actual with zero when Google Ads reports no spend', async () => {
+    // @ts-ignore
+    global.Date = createDateMock('2026-08-04T12:00:00Z');
+    storedActualTotals.jul = 2470;
+    campaignsByRange = { THIS_MONTH: [campaign({ mtdSpend: 1200 })], LAST_MONTH: [] };
+
+    render(<GoogleAdsBudgetManagement auditId="12" />);
+
+    await waitFor(() => {
+      expect(updateBodies.some((body) => body._saveAnnualBudgetPlaceholders?.thisYear?.actualTotals?.jul === 0)).toBe(true);
+    });
+  });
   it('never writes a previous range\u2019s totals into the viewed month while the new range is still loading', async () => {
     campaignsByRange = {
       THIS_MONTH: [campaign({ mtdSpend: 29000, budgetPercentage: 100 })],
@@ -163,7 +200,9 @@ describe('GoogleAdsBudgetManagement actual spend refresh', () => {
     await waitFor(() => {
       expect(updateBodies.at(-1)?._saveAnnualBudgetPlaceholders?.thisYear?.actualTotals?.jul).toBe(29000);
     });
-    expect(updateBodies.at(-1)?._saveAnnualBudgetPlaceholders?.lastYear?.actualTotals?.jun).toBe('');
+    // The automatic completed-month refresh may already have saved June, but
+    // the 60-day display range must never replace it with its 90000 total.
+    expect(updateBodies.at(-1)?._saveAnnualBudgetPlaceholders?.lastYear?.actualTotals?.jun).toBe(31000);
 
     // Switch to Last Month but hold the response open: the 60-day figure
     // (90000) must not leak into June while the fetch is in flight.
@@ -171,7 +210,7 @@ describe('GoogleAdsBudgetManagement actual spend refresh', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Last month' }));
     });
-    expect(updateBodies.at(-1)?._saveAnnualBudgetPlaceholders?.lastYear?.actualTotals?.jun).toBe('');
+    expect(updateBodies.at(-1)?._saveAnnualBudgetPlaceholders?.lastYear?.actualTotals?.jun).toBe(31000);
 
     await act(async () => {
       deferLastMonth?.();

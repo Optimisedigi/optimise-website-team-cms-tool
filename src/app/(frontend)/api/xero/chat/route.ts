@@ -4,6 +4,7 @@ import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 import { callLLM } from "@/lib/agents/_shared/llm";
+import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
 import { memoryToolRoutingPrompt, shouldAttachMemoryToolsForText } from "@/lib/agents/_shared/memory-tool-routing";
 import { toToolDef, type CanonicalTool } from "@/lib/agents/_shared/tool";
 import { loadPinnedMemoryBlock } from "@/lib/agents/optimate-google-ads/memory-loader";
@@ -582,11 +583,13 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const reply = response.message.content
-        .filter((part) => part.type === "text")
-        .map((part) => part.text)
-        .join("")
-        .trim() || "I couldn't generate a response.";
+      const reply = removeForbiddenDashes(
+        response.message.content
+          .filter((part) => part.type === "text")
+          .map((part) => part.text)
+          .join("")
+          .trim(),
+      ) || "I couldn't generate a response.";
       return NextResponse.json({ reply, actions, model: response.model });
     }
 

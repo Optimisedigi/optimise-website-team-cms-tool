@@ -28,6 +28,7 @@
  * via /api/gmail/connect (gmail.compose scope). Returns a clear error if not.
  */
 
+import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { createGmailDraft } from "@/lib/gmail-service";
@@ -55,10 +56,10 @@ export const createGmailDraftTool: CanonicalTool<CreateGmailDraftArgs> = {
   validate: (raw) => {
     if (!raw || typeof raw !== "object") throw new Error("input must be an object");
     const obj = raw as Record<string, unknown>;
-    const subject = String(obj.subject ?? "").trim();
+    const subject = removeForbiddenDashes(String(obj.subject ?? "")).trim();
     if (!subject) throw new Error("subject is required");
     if (subject.length > 998) throw new Error("subject exceeds RFC 5322 998-char limit");
-    const htmlBody = typeof obj.htmlBody === "string" ? obj.htmlBody : "";
+    const htmlBody = typeof obj.htmlBody === "string" ? removeForbiddenDashes(obj.htmlBody) : "";
     if (htmlBody.trim().length === 0) throw new Error("htmlBody is required and must be non-empty");
     const out: CreateGmailDraftArgs = { subject, htmlBody };
     if (typeof obj.to === "string" && obj.to.trim().length > 0) {

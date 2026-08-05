@@ -61,7 +61,9 @@ describe('GoogleAdsBudgetManagement financial-year carryover', () => {
       }
 
       if (url.includes('/api/google-ads-budgets/12/list')) {
-        return new Response(JSON.stringify({ monthlyBudget: 10000, campaigns: [] }), { status: 200 });
+        const range = new URL(url, 'http://localhost').searchParams.get('range');
+        const campaigns = range === 'LAST_MONTH' ? [{ mtdSpend: 10500 }] : [];
+        return new Response(JSON.stringify({ monthlyBudget: 10000, campaigns }), { status: 200 });
       }
 
       if (url.includes('/api/google-ads-budgets/12/update') && init?.method === 'POST') {

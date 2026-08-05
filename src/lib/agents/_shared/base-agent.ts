@@ -22,6 +22,7 @@ import { logAgentStep } from "./activity-log";
 import { recordAuthEvent } from "./llm/auth/events";
 import { NoCredentialError } from "./llm/auth/types";
 import { OAuthFailedError } from "./llm/auth/resolver";
+import { removeForbiddenDashes } from "./forbidden-dash-sanitizer";
 import { classifyError, HttpError } from "./llm/retry";
 import { MODEL_REGISTRY, type CanonicalModelName } from "./llm/registry";
 import type { AgentRunOptions, AgentRunResult, AgentStep } from "./types";
@@ -196,6 +197,12 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
       };
     }
     const llmDuration = Date.now() - llmStart;
+
+    // This is the common final-output boundary for GoogleMate and EmailMate.
+    // Tool validators independently sanitize draft fields before side effects.
+    response.message.content = response.message.content.map((part) =>
+      part.type === "text" ? { ...part, text: removeForbiddenDashes(part.text) } : part,
+    );
 
     totalUsage = accumulateUsage(totalUsage, response.usage);
     modelUsed = response.model;
