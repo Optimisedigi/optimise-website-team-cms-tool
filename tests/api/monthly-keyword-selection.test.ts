@@ -209,9 +209,11 @@ describe('monthly keyword selection API routes', () => {
     expect(res.status).toBe(200)
     expect(json).toMatchObject({ success: true, applied: 2 })
     const rowUpdates = mockPayload.update.mock.calls.filter((c: any[]) => c[0].collection === 'monthly-keyword-selection-rows')
-    expect(rowUpdates).toHaveLength(2)
-    expect(rowUpdates.every((c: any[]) => c[0].data.appliedToNKL === 3 && c[0].data.appliedAt)).toBe(true)
-    expect(rowUpdates.map((c: any[]) => c[0].id).sort()).toEqual([70, 71] as any)
+    expect(rowUpdates).toHaveLength(1)
+    expect(rowUpdates[0][0]).toMatchObject({
+      where: { id: { in: [70, 71] } },
+      data: expect.objectContaining({ appliedToNKL: 3, appliedAt: expect.any(String) }),
+    })
   })
 
   it('apply merges approved selections into the target NKL and stamps matching rows', async () => {

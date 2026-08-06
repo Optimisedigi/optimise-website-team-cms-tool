@@ -39,18 +39,6 @@ function monthLabel(yearMonth: string): string {
   return new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, 1)))
 }
 
-async function mapWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
-  const queue = [...items]
-  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
-    for (;;) {
-      const item = queue.shift()
-      if (!item) return
-      await worker(item)
-    }
-  })
-  await Promise.all(workers)
-}
-
 function normaliseKeyword(value: any, fallbackNklId?: number | string | null): KeywordSelection | null {
   const keyword = typeof value?.negativeKeyword === 'string'
     ? value.negativeKeyword.trim()
@@ -202,7 +190,7 @@ export async function POST(req: NextRequest) {
   // them alongside the applier.
   const reviewerCounts = new Map<string, number>()
 
-  const rowUpdates: Array<{ id: string | number; data: Record<string, unknown> }> = []
+  const rowUpdateBatches = new Map<string, { ids: Array<string | number>; data: Record<string, unknown> }>()
 
   for (const row of rows) {
     if (!row.id) continue
@@ -245,21 +233,26 @@ export async function POST(req: NextRequest) {
         })
       }
     }
-    rowUpdates.push({ id: row.id, data: next })
+    // Payload's libSQL adapter serializes individual writes, so a large apply
+    // could exceed Vercel's request limit even with concurrent promises. Rows
+    // sharing the same resulting data can be stamped in one bulk update.
+    const batchKey = JSON.stringify(next)
+    const batch = rowUpdateBatches.get(batchKey) || { ids: [], data: next }
+    batch.ids.push(row.id)
+    rowUpdateBatches.set(batchKey, batch)
   }
 
-  // Stamping hundreds of selection rows one-by-one took long enough for the
-  // serverless request to time out after the NKL rows had already been saved,
-  // which made the UI show "Apply failed" despite persisted negatives. Keep the
-  // write load bounded, but run it concurrently so the request can complete.
-  await mapWithConcurrency(rowUpdates, 20, async (rowUpdate) => {
+  // Stamp matching rows in batches. A single Payload update per batch avoids
+  // libSQL serializing hundreds of row writes until the serverless request times
+  // out after the NKL changes have already been saved.
+  for (const { ids, data } of rowUpdateBatches.values()) {
     await payload.update({
       collection: 'monthly-keyword-selection-rows',
-      id: rowUpdate.id,
-      data: rowUpdate.data,
+      where: { id: { in: ids } },
+      data,
       overrideAccess: true,
     } as never)
-  })
+  }
 
   // One change-history entry per apply: who pressed Apply, which lists, and
   // who originally reviewed the terms (so credit isn't lost to the applier).
