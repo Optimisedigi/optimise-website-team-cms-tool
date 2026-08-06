@@ -217,6 +217,7 @@ export const NegativeKeywordLists: CollectionConfig = {
               collection: "negative-keyword-monthly-waste-relevancy-cache",
               where: { client: { equals: clientId } },
               overrideAccess: true,
+              req,
             });
           }
         } catch (err) {
@@ -250,6 +251,7 @@ export const NegativeKeywordLists: CollectionConfig = {
                 ],
               },
               overrideAccess: true,
+              req,
             });
           }
         } catch (err) {
@@ -278,12 +280,14 @@ export const NegativeKeywordLists: CollectionConfig = {
                 ],
               },
               overrideAccess: true,
+              req,
             });
           }
           await req.payload.delete({
             collection: "negative-keyword-monthly-waste-relevancy-cache",
             where: { client: { equals: clientId } },
             overrideAccess: true,
+            req,
           });
         } catch (err) {
           req.payload.logger?.warn?.(`[NegativeKeywordLists] cache cleanup on delete failed: ${err}`);
