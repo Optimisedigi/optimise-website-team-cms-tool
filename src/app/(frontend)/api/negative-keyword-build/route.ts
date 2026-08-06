@@ -56,12 +56,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No negative keyword data" }, { status: 404 });
     }
 
-    // Flatten universal + account-wide into a single flat keyword array
+    // Client removals are retained in the audit for review history, but must
+    // not be returned to the client editor after a reload. Otherwise a saved
+    // removal looks like it was not persisted.
+    const isVisibleToClient = (keyword: { removed?: boolean; clientRemoved?: boolean }) =>
+      !keyword.removed && !keyword.clientRemoved;
+
+    // Flatten universal + account-wide into a single flat keyword array.
     const accountWideKeywords: any[] = [];
 
     for (const cat of (nlb.universalNegatives || [])) {
       for (const kw of (cat.keywords || [])) {
-        if (kw.removed) continue;
+        if (!isVisibleToClient(kw)) continue;
         accountWideKeywords.push({
           ...kw,
           sourceSection: "universal",
@@ -72,7 +78,7 @@ export async function GET(req: NextRequest) {
 
     for (const cat of (nlb.accountWideNegatives || [])) {
       for (const kw of (cat.keywords || [])) {
-        if (kw.removed) continue;
+        if (!isVisibleToClient(kw)) continue;
         accountWideKeywords.push({
           ...kw,
           sourceSection: "accountWide",
@@ -109,11 +115,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Campaign-specific: filter removed, keep structure
+    // Campaign-specific: exclude agency and client removals, while keeping the group structure.
     const campaignSpecificKeywords = (nlb.campaignSpecificNegatives || []).map((group: any) => ({
       campaignName: group.campaignName,
       keywords: (group.keywords || [])
-        .filter((kw: any) => !kw.removed)
+        .filter(isVisibleToClient)
         .map((kw: any) => ({ ...kw })),
     }));
 

@@ -38,6 +38,7 @@ const builderData = {
       keywords: [
         { phrase: "careers", matchType: "PHRASE", removed: false },
         { phrase: "agency removed", matchType: "EXACT", removed: true },
+        { phrase: "client removed", matchType: "EXACT", removed: false, clientRemoved: true },
       ],
     },
   ],
@@ -53,6 +54,7 @@ const builderData = {
       keywords: [
         { phrase: "cheap", matchType: "PHRASE", removed: false },
         { phrase: "old", matchType: "EXACT", removed: true },
+        { phrase: "campaign client removed", matchType: "EXACT", removed: false, clientRemoved: true },
       ],
     },
   ],
@@ -89,7 +91,7 @@ describe("negative keyword build public review regressions", () => {
     expect(mockCheckPinWithLockout).not.toHaveBeenCalled();
   });
 
-  it("returns only non-removed review keywords and preserves match types for a valid PIN", async () => {
+  it("returns only review keywords that neither the agency nor client removed, preserving match types for a valid PIN", async () => {
     const { GET } = await import("@/app/(frontend)/api/negative-keyword-build/route");
     mockPayload.find
       .mockResolvedValueOnce({
@@ -127,6 +129,7 @@ describe("negative keyword build public review regressions", () => {
       expect.objectContaining({ phrase: "free template", matchType: "EXACT", sourceSection: "accountWide", sourceCategoryName: "Research" }),
     ]);
     expect(JSON.stringify(json)).not.toContain("agency removed");
+    expect(JSON.stringify(json)).not.toContain("client removed");
     expect(json.campaignSpecificKeywords).toEqual([
       { campaignName: "Brand", keywords: [expect.objectContaining({ phrase: "cheap", matchType: "PHRASE" })] },
     ]);
