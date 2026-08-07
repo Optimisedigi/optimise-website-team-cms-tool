@@ -53,7 +53,7 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
 
   return (
     <div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
         <KpiCard
           label="Spend"
           value={kpis.spend}
@@ -65,6 +65,13 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
           label="Clicks"
           value={kpis.clicks}
           previousValue={isYear ? kpis.yoyClicks : kpis.prevClicks}
+          format="number"
+          comparisonLabel={label}
+        />
+        <KpiCard
+          label="Impressions"
+          value={kpis.impressions ?? null}
+          previousValue={isYear ? (kpis.yoyImpressions ?? null) : (kpis.prevImpressions ?? null)}
           format="number"
           comparisonLabel={label}
         />
@@ -87,6 +94,13 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
           label="Conversions"
           value={kpis.conversions}
           previousValue={isYear ? kpis.yoyConversions : kpis.prevConversions}
+          format="number"
+          comparisonLabel={label}
+        />
+        <KpiCard
+          label="All Conversions"
+          value={kpis.allConversions ?? null}
+          previousValue={isYear ? (kpis.yoyAllConversions ?? null) : (kpis.prevAllConversions ?? null)}
           format="number"
           comparisonLabel={label}
         />

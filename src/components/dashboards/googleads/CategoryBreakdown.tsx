@@ -62,7 +62,9 @@ export function CategoryBreakdown({ campaigns }: CategoryBreakdownProps) {
                 <th className="py-2 px-3 text-left">Campaign</th>
                 <th className="py-2 px-3 text-right">Spend</th>
                 <th className="py-2 px-3 text-center">Clicks</th>
+                <th className="py-2 px-3 text-center">Impr</th>
                 <th className="py-2 px-3 text-center">Conv</th>
+                <th className="py-2 px-3 text-center">All Conv</th>
                 {actionColumns.map((action) => (
                   <th
                     key={action}
@@ -87,8 +89,12 @@ export function CategoryBreakdown({ campaigns }: CategoryBreakdownProps) {
                   <td className="py-2.5 px-3 text-slate-800">{c.name}</td>
                   <td className="py-2.5 px-3 text-right text-slate-700">{formatDollars(c.spend)}</td>
                   <td className="py-2.5 px-3 text-center text-slate-700">{formatNumber(c.clicks)}</td>
+                  <td className="py-2.5 px-3 text-center text-slate-700">{formatNumber(c.impressions)}</td>
                   <td className="py-2.5 px-3 text-center font-semibold text-slate-900">
                     {formatNumber(c.conversions)}
+                  </td>
+                  <td className="py-2.5 px-3 text-center text-slate-700">
+                    {formatNumber(c.allConversions)}
                   </td>
                   {actionColumns.map((action) => {
                     const n = c.conversionsByAction?.[action] ?? 0;

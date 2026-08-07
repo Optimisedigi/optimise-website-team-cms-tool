@@ -26,6 +26,11 @@ interface Keyword {
   cpa: number | null;
   impressions: number;
   finalUrl: string | null;
+  /** Google's estimated first-page bid. Required at keyword level by Google
+   *  Ads API RMF R.50. Null when Google returns no estimate. */
+  firstPageCpc?: number | null;
+  /** Google's estimated first-position bid. Required by RMF R.50. */
+  firstPositionCpc?: number | null;
 }
 
 interface Ad {
@@ -87,8 +92,7 @@ interface AdGroup {
 }
 
 /**
- * Search-term report row. Same shape as a Keyword but with no matchType
- * (search terms are always the literal user query) and `keyword` set to the
+ * Search-term report row. Same shape as a Keyword but `keyword` is set to the
  * matched keyword text so the row can surface which keyword it triggered.
  */
 interface SearchTerm {
@@ -96,6 +100,9 @@ interface SearchTerm {
   text: string;
   /** Keyword that matched this search term, when surfaced by the upstream. */
   keyword?: string | null;
+  /** `segments.search_term_match_type` — how the query matched. Required on
+   *  search-term reports by Google Ads API RMF R.70. */
+  matchType?: string | null;
   status?: string;
   spend: number;
   clicks: number;
@@ -582,7 +589,7 @@ function CampaignCard({
           </div>
         </div>
       </div>
-      <div className={`grid ${wideMetrics ? "shrink-0 grid-cols-5 gap-x-5 w-[670px]" : "grid-cols-3 gap-x-2"} ${wideMetrics ? "gap-y-0" : "gap-y-1.5"}`}>
+      <div className={`grid ${wideMetrics ? "shrink-0 grid-cols-6 gap-x-4 w-[670px]" : "grid-cols-3 gap-x-2"} ${wideMetrics ? "gap-y-0" : "gap-y-1.5"}`}>
         <div>
           <div className="text-[11px] uppercase tracking-wider font-semibold opacity-70">Spend</div>
           <div className="text-base font-mono font-bold leading-none">{fmt(campaign.spend)}</div>
@@ -600,6 +607,10 @@ function CampaignCard({
         <div>
           <div className="text-[11px] uppercase tracking-wider font-semibold opacity-70">Clicks</div>
           <div className="text-base font-mono font-bold leading-none">{fmtNum(campaign.clicks)}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wider font-semibold opacity-70">Impr</div>
+          <div className="text-base font-mono font-bold leading-none">{fmtNum(campaign.impressions)}</div>
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-wider font-semibold opacity-70">Imp. Share</div>
@@ -666,10 +677,18 @@ function AdGroupCard({
           )}
         </div>
       </div>
-      <div className="mt-auto grid grid-cols-4 gap-1 font-mono text-[15px] leading-none">
+      <div className="mt-auto grid grid-cols-6 gap-1 font-mono text-[15px] leading-none">
         <div>
           <div className="text-[10px] uppercase opacity-70 leading-[0.8]">Spend</div>
           <div className="font-bold">{fmt(adGroup.spend)}</div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase opacity-70 leading-[0.8]">Clicks</div>
+          <div className="font-bold">{fmtNum(adGroup.clicks)}</div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase opacity-70 leading-[0.8]">Impr</div>
+          <div className="font-bold">{fmtNum(adGroup.impressions)}</div>
         </div>
         <div>
           <div className="text-[10px] uppercase opacity-70 leading-[0.8]">Conv</div>
@@ -720,9 +739,20 @@ function KeywordRow({
           <span className={`shrink-0 text-[9px] font-bold px-1 py-0 rounded ${matchBadge(kw.matchType)}`}>
             {kw.matchType}
           </span>
+          {/* ad_group_criterion.status — required by Google Ads API RMF R.50
+              whenever paused or removed keywords are displayed. Mirrors the
+              status badge on ad, ad group and campaign cards. */}
+          {kw.status !== "ENABLED" && (
+            <span className="shrink-0 text-[9px] font-semibold px-1 py-0 rounded bg-amber-400/30">
+              {kw.status}
+            </span>
+          )}
         </div>
       </div>
-      <div className="shrink-0 grid grid-cols-3 gap-1 font-mono text-[12px] leading-none">
+      {/* Google Ads API RMF R.50 requires clicks, cost, impressions,
+          conversions, first page CPC and first position CPC on every
+          keyword-level report shown to advertisers. */}
+      <div className="shrink-0 grid grid-cols-7 gap-1 font-mono text-[12px] leading-none">
         <div className="w-12 text-right">
           <div className="text-[10px] uppercase opacity-70">Avg CPC</div>
           <div className="font-bold">{fmtAvgCpc(kw.spend, kw.clicks)}</div>
@@ -731,9 +761,25 @@ function KeywordRow({
           <div className="text-[10px] uppercase opacity-70">Spend</div>
           <div className="font-bold">{fmt(kw.spend)}</div>
         </div>
+        <div className="w-10 text-right">
+          <div className="text-[10px] uppercase opacity-70">Clicks</div>
+          <div className="font-bold">{fmtNum(kw.clicks)}</div>
+        </div>
+        <div className="w-12 text-right">
+          <div className="text-[10px] uppercase opacity-70">Impr</div>
+          <div className="font-bold">{fmtNum(kw.impressions)}</div>
+        </div>
         <div className="w-8 text-right">
           <div className="text-[10px] uppercase opacity-70">Conv</div>
-          <div className="font-bold">{hasConv ? kw.conversions.toFixed(0) : "\u00a0"}</div>
+          <div className="font-bold">{kw.conversions.toFixed(0)}</div>
+        </div>
+        <div className="w-12 text-right">
+          <div className="text-[10px] uppercase opacity-70">1st Pg</div>
+          <div className="font-bold">{fmtCpa(kw.firstPageCpc ?? null)}</div>
+        </div>
+        <div className="w-12 text-right">
+          <div className="text-[10px] uppercase opacity-70">1st Pos</div>
+          <div className="font-bold">{fmtCpa(kw.firstPositionCpc ?? null)}</div>
         </div>
       </div>
     </div>
@@ -773,6 +819,11 @@ function SearchTermRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[13px] font-mono font-semibold leading-tight break-words">{st.text}</span>
+          {st.matchType ? (
+            <span className={`shrink-0 text-[9px] font-bold px-1 py-0 rounded ${matchBadge(st.matchType)}`}>
+              {st.matchType.replace(/_/g, " ")}
+            </span>
+          ) : null}
           {st.keyword ? (
             <span className="shrink-0 text-[9px] font-bold px-1 py-0 rounded bg-white/20" title={`Matched keyword: ${st.keyword}`}>
               ← {st.keyword}
@@ -782,7 +833,9 @@ function SearchTermRow({
           )}
         </div>
       </div>
-      <div className="shrink-0 grid grid-cols-3 gap-1 font-mono text-[12px] leading-none">
+      {/* Google Ads API RMF R.70 requires search term, match type, clicks,
+          cost and impressions on every search-term report. */}
+      <div className="shrink-0 grid grid-cols-5 gap-1 font-mono text-[12px] leading-none">
         <div className="w-12 text-right">
           <div className="text-[10px] uppercase opacity-70">Avg CPC</div>
           <div className="font-bold">{fmtAvgCpc(st.spend, st.clicks)}</div>
@@ -791,9 +844,17 @@ function SearchTermRow({
           <div className="text-[10px] uppercase opacity-70">Spend</div>
           <div className="font-bold">{fmt(st.spend)}</div>
         </div>
+        <div className="w-10 text-right">
+          <div className="text-[10px] uppercase opacity-70">Clicks</div>
+          <div className="font-bold">{fmtNum(st.clicks)}</div>
+        </div>
+        <div className="w-12 text-right">
+          <div className="text-[10px] uppercase opacity-70">Impr</div>
+          <div className="font-bold">{fmtNum(st.impressions)}</div>
+        </div>
         <div className="w-8 text-right">
           <div className="text-[10px] uppercase opacity-70">Conv</div>
-          <div className="font-bold">{hasConv ? st.conversions.toFixed(0) : "\u00a0"}</div>
+          <div className="font-bold">{st.conversions.toFixed(0)}</div>
         </div>
       </div>
     </div>
@@ -979,17 +1040,25 @@ function AdRow({ ad, palette }: { ad: Ad; palette: CampaignPalette }) {
           )}
         </div>
       </div>
+      {/* Google Ads API RMF R.40 requires clicks, cost, impressions and
+          conversions on every ad-level report shown to advertisers. */}
       <div className="shrink-0 flex items-center gap-2 font-mono text-[14px] leading-none">
         <div className="text-right">
           <div className="text-[12px] uppercase opacity-70">Spend</div>
           <div className="font-bold">{fmt(ad.spend)}</div>
         </div>
-        {hasConv && (
-          <div className="text-right">
-            <div className="text-[12px] uppercase opacity-70">Conv</div>
-            <div className="font-bold">{ad.conversions.toFixed(0)}</div>
-          </div>
-        )}
+        <div className="text-right">
+          <div className="text-[12px] uppercase opacity-70">Clicks</div>
+          <div className="font-bold">{fmtNum(ad.clicks)}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[12px] uppercase opacity-70">Impr</div>
+          <div className="font-bold">{fmtNum(ad.impressions)}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[12px] uppercase opacity-70">Conv</div>
+          <div className="font-bold">{ad.conversions.toFixed(0)}</div>
+        </div>
       </div>
     </div>
   );

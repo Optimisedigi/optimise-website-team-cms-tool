@@ -44,6 +44,10 @@ export interface GoogleAdsDashboardKpis {
   avgCpc: number;
   ctr?: number | null;
   conversions: number;
+  /** metrics.all_conversions — includes view-through, cross-device and
+   *  non-primary conversion actions. Required alongside `conversions` at
+   *  customer level by Google Ads API RMF R.10. */
+  allConversions?: number;
   cpa: number | null;
   // Previous month comparison — null when the active range is a custom
   // day span (period-over-period is semantically ambiguous there).
@@ -53,6 +57,7 @@ export interface GoogleAdsDashboardKpis {
   prevAvgCpc: number | null;
   prevCtr?: number | null;
   prevConversions: number | null;
+  prevAllConversions?: number | null;
   prevCpa: number | null;
   // Year-ago month comparison — null for custom ranges (see prev*).
   yoySpend: number | null;
@@ -61,6 +66,7 @@ export interface GoogleAdsDashboardKpis {
   yoyAvgCpc: number | null;
   yoyCtr?: number | null;
   yoyConversions: number | null;
+  yoyAllConversions?: number | null;
   yoyCpa: number | null;
   /** Per-conversion-action totals for the active range. Drives the
    *  "Conversions broken down" mini cards under the main Conversions
@@ -85,7 +91,11 @@ export interface GoogleAdsDashboardCampaign {
   channelType: string;
   spend: number;
   clicks: number;
+  /** Required at campaign level by Google Ads API RMF R.20. */
+  impressions?: number;
   conversions: number;
+  /** metrics.all_conversions — required at campaign level by RMF R.20. */
+  allConversions?: number;
   cpa: number | null;
   /** Per-conversion-action breakdown of conversions counted in this row.
    *  Sums to conversions. Empty when the conversion-action filter is off. */
@@ -94,14 +104,22 @@ export interface GoogleAdsDashboardCampaign {
 
 export interface GoogleAdsDashboardKeyword {
   term: string;
+  /** `segments.search_term_match_type`. These rows are aggregated from
+   *  search_term_view, so this table is Google Ads API RMF R.70 evidence
+   *  (search term level), not R.50 (keyword level). */
+  matchType?: string | null;
   spend: number;
   clicks: number;
+  impressions?: number;
   conversions: number;
   cpa: number | null;
 }
 
 export interface GoogleAdsDashboardSearchTerm {
   term: string;
+  /** `segments.search_term_match_type` — required on every search-term
+   *  report by Google Ads API RMF R.70. Null when Google returns none. */
+  matchType?: string | null;
   spend: number;
   impressions: number;
   clicks: number;

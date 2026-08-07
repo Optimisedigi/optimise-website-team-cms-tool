@@ -17,7 +17,7 @@ function formatPct(n: number): string {
 }
 
 // Column width classes for alignment across all three tables
-const W_TERM = "w-[28%]";
+const W_TERM = "w-[24%]";
 const W_METRIC = "w-[12%]";
 
 // Best Performers: 7 fixed columns. Per-category columns are inserted
@@ -25,6 +25,7 @@ const W_METRIC = "w-[12%]";
 // any row in the data carries `conversionsByCategory`.
 const baseConverterColumns: Column<GoogleAdsDashboardSearchTerm>[] = [
   { key: "term", label: "Search Term", align: "left", width: W_TERM },
+  { key: "matchType", label: "Match", align: "center", width: W_METRIC, format: (v) => (v ? String(v).replace(/_/g, " ") : "\u2014") },
   { key: "spend", label: "Spend", align: "right", width: W_METRIC, format: (v) => formatDollars(v as number) },
   { key: "impressions", label: "Impr", align: "center", width: W_METRIC, format: (v) => (v as number).toLocaleString("en-US") },
   { key: "clicks", label: "Clicks", align: "center", width: W_METRIC, format: (v) => (v as number).toLocaleString("en-US") },
@@ -74,6 +75,7 @@ function buildConverterColumns(
 // Budget Wasters & Irrelevant: no Conv/CPA columns
 const reducedColumns: Column<GoogleAdsDashboardSearchTerm>[] = [
   { key: "term", label: "Search Term", align: "left", width: W_TERM },
+  { key: "matchType", label: "Match", align: "center", width: W_METRIC, format: (v) => (v ? String(v).replace(/_/g, " ") : "\u2014") },
   { key: "spend", label: "Spend", align: "right", width: W_METRIC, format: (v) => formatDollars(v as number) },
   { key: "impressions", label: "Impr", align: "center", width: W_METRIC, format: (v) => (v as number).toLocaleString("en-US") },
   { key: "clicks", label: "Clicks", align: "center", width: W_METRIC, format: (v) => (v as number).toLocaleString("en-US") },

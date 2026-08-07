@@ -10,8 +10,16 @@ function formatDollars(n: number | null): string {
     : `$${n.toLocaleString("en-US")}`;
 }
 
+// Match type and impressions are required on search-term reports by Google
+// Ads API RMF R.70 — these rows are aggregated from search_term_view.
 const columns: Column<GoogleAdsDashboardKeyword>[] = [
   { key: "term", label: "Keyword", align: "left" },
+  {
+    key: "matchType",
+    label: "Match",
+    align: "center",
+    format: (v) => (v ? String(v).replace(/_/g, " ") : "\u2014"),
+  },
   {
     key: "spend",
     label: "Spend",
@@ -23,6 +31,12 @@ const columns: Column<GoogleAdsDashboardKeyword>[] = [
     label: "Clicks",
     align: "center",
     format: (v) => (v as number).toLocaleString("en-US"),
+  },
+  {
+    key: "impressions",
+    label: "Impr",
+    align: "center",
+    format: (v) => (v == null ? "\u2014" : (v as number).toLocaleString("en-US")),
   },
   {
     key: "conversions",
