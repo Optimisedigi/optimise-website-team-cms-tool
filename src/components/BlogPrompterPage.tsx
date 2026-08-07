@@ -164,6 +164,8 @@ const BlogPrompterPage = () => {
   const [proposedTagFilter, setProposedTagFilter] = useState('')
   const [suggesting, setSuggesting] = useState(false)
   const [suggestMsg, setSuggestMsg] = useState('')
+  const [suggestElapsed, setSuggestElapsed] = useState(0)
+  const suggestTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [blogSettings, setBlogSettings] = useState<BlogSettingsState | null>(null)
   const [generatedBlogMarkdown, setGeneratedBlogMarkdown] = useState('')
   const [generatingBlog, setGeneratingBlog] = useState(false)
@@ -229,6 +231,12 @@ const BlogPrompterPage = () => {
     }
     setSuggesting(true)
     setSuggestMsg('')
+    setSuggestElapsed(0)
+    const startedAt = Date.now()
+    if (suggestTimerRef.current) clearInterval(suggestTimerRef.current)
+    suggestTimerRef.current = setInterval(() => {
+      setSuggestElapsed(Math.round((Date.now() - startedAt) / 1000))
+    }, 1000)
     let keepMessageLonger = false
     try {
       const res = await fetch('/api/blog-prompts/suggest', {
@@ -244,9 +252,22 @@ const BlogPrompterPage = () => {
           categoryBlogTone,
         }),
       })
-      const data = await res.json()
+      const secs = Math.round((Date.now() - startedAt) / 1000)
+      const raw = await res.text()
+      let data: any = null
+      try { data = JSON.parse(raw) } catch { /* non-JSON (gateway timeout / HTML error page) */ }
+      if (!data) {
+        keepMessageLonger = true
+        setSuggestMsg(
+          res.status === 504 || res.status === 502
+            ? `AI suggestion timed out after ${secs}s (HTTP ${res.status}). The model took too long — try again or pick a faster Blog Prompter model in OptiMate Settings.`
+            : `AI suggestion failed after ${secs}s — HTTP ${res.status} ${res.statusText || ''} (non-JSON response).`.trim(),
+        )
+        return
+      }
       if (!res.ok || !data.suggestion) {
-        setSuggestMsg(data.error || 'AI suggestion failed.')
+        keepMessageLonger = true
+        setSuggestMsg(`${data.error || 'AI suggestion failed.'} (HTTP ${res.status}, ${secs}s)`)
         return
       }
       const s = data.suggestion as Partial<BriefFields>
@@ -271,14 +292,20 @@ const BlogPrompterPage = () => {
       keepMessageLonger = warning.length > 0
       setSuggestMsg(
         warning
-          ? `Recommendations added using fallback. ${warning}`
-          : 'Recommendations added to empty fields.',
+          ? `Recommendations added using fallback in ${secs}s. ${warning}`
+          : `Recommendations added to empty fields in ${secs}s.`,
       )
-    } catch {
-      setSuggestMsg('AI suggestion failed.')
+    } catch (err) {
+      const secs = Math.round((Date.now() - startedAt) / 1000)
+      keepMessageLonger = true
+      setSuggestMsg(`AI suggestion failed after ${secs}s — ${(err as Error).message || 'network error'}.`)
     } finally {
+      if (suggestTimerRef.current) {
+        clearInterval(suggestTimerRef.current)
+        suggestTimerRef.current = null
+      }
       setSuggesting(false)
-      setTimeout(() => setSuggestMsg(''), keepMessageLonger ? 10000 : 4000)
+      if (!keepMessageLonger) setTimeout(() => setSuggestMsg(''), 4000)
     }
   }
 
@@ -363,6 +390,10 @@ const BlogPrompterPage = () => {
       setTimeout(() => setSaveMsg(''), 3000)
     }
   }
+
+  useEffect(() => () => {
+    if (suggestTimerRef.current) clearInterval(suggestTimerRef.current)
+  }, [])
 
   useEffect(() => {
     fetch('/api/clients/list')
@@ -634,12 +665,12 @@ const BlogPrompterPage = () => {
                     cursor: suggesting ? 'wait' : 'pointer',
                   }}
                 >
-                  {suggesting ? 'Thinking…' : '\u2728 AI Suggest'}
+                  {suggesting ? `Thinking… ${suggestElapsed}s` : '\u2728 AI Suggest'}
                 </button>
               </div>
             </Field>
             {suggestMsg && (
-              <span style={{ fontSize: 12, marginTop: 6, display: 'inline-block', color: suggestMsg.toLowerCase().includes('fail') || suggestMsg.toLowerCase().includes('first') ? '#ef4444' : '#22c55e', fontWeight: 500 }}>
+              <span style={{ fontSize: 12, marginTop: 6, display: 'inline-block', color: /fail|first|timed out|error/i.test(suggestMsg) ? '#ef4444' : '#22c55e', fontWeight: 500 }}>
                 {suggestMsg}
               </span>
             )}

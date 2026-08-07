@@ -18,6 +18,11 @@ import { DEFAULT_AUTONOMOUS_FALLBACKS } from "@/lib/agents/_shared/llm/registry"
  * failover OptiMate already relies on.
  */
 
+// Thinking models (the kimi/minimax autonomous defaults) regularly need 60-120s
+// for the reasoning pass plus the JSON answer. Without this the function hits
+// Vercel's short default limit and returns an HTML 504 the UI can't parse.
+export const maxDuration = 300;
+
 const MAX_IDEA_LEN = 4000;
 
 interface SuggestBody {
