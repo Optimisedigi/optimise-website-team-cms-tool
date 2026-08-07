@@ -41,6 +41,8 @@ type ActivityType =
   | "invoice_statement_approved"
   | "invoice_statement_rejected"
   | "invoice_statement_reset"
+  | "outstanding_invoice_digest_sent"
+  | "outstanding_invoice_digest_failed"
   | "invoice_statement_send_failed"
   | "invoice_statement_cap_tripped"
   | "invoice_statement_cooldown_override"

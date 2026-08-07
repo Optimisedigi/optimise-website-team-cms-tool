@@ -29,7 +29,7 @@ Internal Optimise Digital agency platform: a private Payload CMS/Next.js app for
 - `PAYLOAD_SECRET` is required at Payload startup.
 - Schema changes are not auto-pushed in production: `src/payload.config.ts` only enables Payload `push` for `file:` database URLs unless `DISABLE_DB_PUSH=1`; deployed schema changes go through `POST /api/migrate` with `x-api-key: AUDIT_API_KEY`.
 - CI (`.github/workflows/ci.yml`) runs `npm ci`, `npx tsc --noEmit` with an 8GB Node heap, then `npm run build`; pushes to `main` wait for Vercel and call `https://cms.optimisedigital.online/api/migrate`.
-- Vercel cron routes are declared in `vercel.json` for GSC sync, dashboard prewarm, scheduled tasks, contract reminders, invoice statement sweep, contract trash sweep, match-type violations, Google Ads snapshots/account structure, and goal agents.
+- Vercel cron routes are declared in `vercel.json` for GSC sync, dashboard prewarm, scheduled tasks, contract reminders, invoice statement sweep, the monthly internal outstanding-invoice digest (`/api/invoice-statements/admin-digest` — admin-only snapshot emailed to `ADMIN_INVOICE_DIGEST_EMAIL`, defaults to peter@optimisedigital.online; never touches client-facing statements), contract trash sweep, match-type violations, Google Ads snapshots/account structure, and goal agents.
 - `next.config.mjs` sets `X-Robots-Tag: noindex, nofollow` globally and redirects Payload `blog-prompts` collection screens to `/admin/blog/prompter`.
 - `src/app/(payload)/admin/importMap.js` must retain the `@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler` import-map entry when regenerating admin imports.
 - Public/client-facing areas commonly use PIN or token gates implemented in app routes and helpers such as `src/lib/pin-auth.ts`.
