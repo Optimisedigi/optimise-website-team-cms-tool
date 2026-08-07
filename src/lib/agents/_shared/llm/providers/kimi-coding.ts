@@ -61,9 +61,14 @@ export async function callKimiCoding(
       : credential.kimiModelId ?? providerModel;
   const body: KimiRequestBody = toOpenAI(opts, wireModel);
   body.prompt_cache_key = PROMPT_CACHE_KEY;
-  // Kimi For Coding rejects arbitrary temperatures; if a caller supplied one
-  // through the shared LLM options, normalize it to the only accepted value.
-  if (body.temperature !== undefined) body.temperature = 0.6;
+  // Kimi For Coding rejects arbitrary temperatures, and the accepted value
+  // differs per model: K2.x only takes 0.6, while K3 only takes 1 (verified
+  // live: k3 returns 400 "invalid temperature: only 1 is allowed for this
+  // model"). Callers like the Blog Prompter suggest route pass 0.7 through
+  // the shared options, so normalize to the model's accepted value.
+  if (body.temperature !== undefined) {
+    body.temperature = wireModel === KIMI_K3_WIRE_MODEL ? 1 : 0.6;
+  }
   applyReasoning(body, opts.reasoningMode, wireModel);
 
   const json = await withRetry(async () => {
