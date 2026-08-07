@@ -951,6 +951,8 @@ function LandingPageCard({
   url,
   rowCount,
   spend,
+  clicks,
+  impressions,
   conversions,
   cpa,
   inherited,
@@ -960,6 +962,8 @@ function LandingPageCard({
   url: string | null;
   rowCount: number;
   spend: number;
+  clicks: number;
+  impressions: number;
   conversions: number;
   cpa: number | null;
   /** True when this URL was inherited from the ad-group landing page. */
@@ -1005,7 +1009,9 @@ function LandingPageCard({
         ) : null}
         <div className="mt-auto pt-2 flex items-end gap-3 font-mono text-[14px] leading-none whitespace-nowrap">
           <span><span className="uppercase opacity-70">Spend</span> <span className="font-bold">{fmt(spend)}</span></span>
-          <span><span className="uppercase opacity-70">Conv</span> <span className="font-bold">{conversions > 0 ? conversions.toFixed(0) : "—"}</span></span>
+          <span><span className="uppercase opacity-70">Clicks</span> <span className="font-bold">{fmtNum(clicks)}</span></span>
+          <span><span className="uppercase opacity-70">Impr</span> <span className="font-bold">{fmtNum(impressions)}</span></span>
+          <span><span className="uppercase opacity-70">Conv</span> <span className="font-bold">{conversions.toFixed(0)}</span></span>
           <span><span className="uppercase opacity-70">CPA</span> <span className="font-bold">{fmtCpa(cpa)}</span></span>
         </div>
       </div>
@@ -1158,6 +1164,8 @@ function groupByLandingPageRun(
 ): Array<{
   url: string | null;
   spend: number;
+  clicks: number;
+  impressions: number;
   conversions: number;
   cpa: number | null;
   count: number;
@@ -1167,16 +1175,22 @@ function groupByLandingPageRun(
 }> {
   const adByUrl = new Map<string, Ad>();
   for (const ad of ads) if (ad.finalUrl && !adByUrl.has(ad.finalUrl)) adByUrl.set(ad.finalUrl, ad);
-  const runs: Array<{ url: string | null; spend: number; conversions: number; cpa: number | null; count: number; startIndex: number; inherited: boolean; previewAd: Ad | null }> = [];
+  const runs: Array<{ url: string | null; spend: number; clicks: number; impressions: number; conversions: number; cpa: number | null; count: number; startIndex: number; inherited: boolean; previewAd: Ad | null }> = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const url = row.landingPage ?? null;
     const spend = row.kind === "ad" ? row.ad.spend : row.kind === "keyword" ? row.kw.spend : row.st.spend;
     const conversions = row.kind === "ad" ? row.ad.conversions : row.kind === "keyword" ? row.kw.conversions : row.st.conversions;
+    // Clicks and impressions are required on ad-level reporting by Google Ads
+    // API RMF R.40. This card is the ad surface in the landing-page column.
+    const clicks = row.kind === "ad" ? row.ad.clicks : row.kind === "keyword" ? row.kw.clicks : row.st.clicks;
+    const impressions = row.kind === "ad" ? row.ad.impressions : row.kind === "keyword" ? row.kw.impressions : row.st.impressions;
     const last = runs[runs.length - 1];
     if (last && last.url === url) {
       last.count += 1;
       last.spend += spend;
+      last.clicks += clicks;
+      last.impressions += impressions;
       last.conversions += conversions;
       last.cpa = last.conversions > 0 ? last.spend / last.conversions : null;
       last.inherited = last.inherited && (row.kind !== "ad" ? row.inherited : false);
@@ -1184,6 +1198,8 @@ function groupByLandingPageRun(
       runs.push({
         url,
         spend,
+        clicks,
+        impressions,
         conversions,
         cpa: conversions > 0 ? spend / conversions : null,
         count: 1,
@@ -1425,6 +1441,8 @@ function CampaignGridBlock({
                         url={lpRun.url}
                         rowCount={lpRun.count}
                         spend={lpRun.spend}
+                        clicks={lpRun.clicks}
+                        impressions={lpRun.impressions}
                         conversions={lpRun.conversions}
                         cpa={lpRun.cpa}
                         inherited={lpRun.inherited}
