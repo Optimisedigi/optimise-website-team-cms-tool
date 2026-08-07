@@ -17,6 +17,8 @@ import { useEffect, useState } from "react";
 interface ProviderStatus {
   provider: string;
   oauthConnected: boolean;
+  /** Stored OAuth token whose expiry has already passed — needs a reconnect. */
+  oauthExpired?: boolean;
   oauthExpiresAt: number | null;
   oauthObtainedAt: number | null;
   oauthAccountId?: boolean;
@@ -172,13 +174,34 @@ export default function AgentAuthPage() {
     window.open(json.authorizeUrl, "_blank", "noopener,noreferrer");
   }
 
-  async function handleComplete() {
+  /**
+   * Read the clipboard and auto-complete the flow in one click. The provider
+   * redirect dies on a localhost URL the user has to copy — this removes the
+   * manual paste step: copy the URL, come back, click once. Falls back to
+   * surfacing what was found so the user can paste manually if the clipboard
+   * doesn't hold a recognisable code/URL.
+   */
+  async function readClipboardCode(): Promise<string | null> {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      // Accept anything that looks like an OAuth code, code#state pair, or a
+      // localhost callback URL carrying ?code=.
+      if (/^https?:\/\/\S*code=/.test(text)) return text;
+      if (/^[A-Za-z0-9_-]{10,}(#\S+)?$/.test(text)) return text;
+      return null;
+    } catch {
+      return null; // clipboard permission denied / non-secure context
+    }
+  }
+
+  async function handleComplete(override?: string) {
+    const code = override ?? pasteString;
     setMessage(null);
     setCompleting(true);
     const res = await fetch("/api/agent-auth/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pasteString }),
+      body: JSON.stringify({ pasteString: code }),
     });
     setCompleting(false);
     const json = await res.json().catch(() => ({}));
@@ -208,13 +231,14 @@ export default function AgentAuthPage() {
     window.open(json.authorizeUrl, "_blank", "noopener,noreferrer");
   }
 
-  async function handleCodexComplete() {
+  async function handleCodexComplete(override?: string) {
+    const code = override ?? codexPasteString;
     setMessage(null);
     setCodexCompleting(true);
     const res = await fetch("/api/agent-auth/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pasteString: codexPasteString }),
+      body: JSON.stringify({ pasteString: code }),
     });
     setCodexCompleting(false);
     const json = await res.json().catch(() => ({}));
@@ -478,7 +502,7 @@ export default function AgentAuthPage() {
       <div style={cardStyle}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Connect ChatGPT (Codex OAuth)</h2>
         <p style={{ marginTop: 0, fontSize: 13, color: "#666" }}>
-          Opens ChatGPT sign-in in a new tab. After you approve, the browser lands on a localhost callback that won't load — copy its full URL from the address bar (or the <code>code</code> value) and paste it below. Powers the <code>gpt-5.5-codex</code> model.
+          Opens ChatGPT sign-in in a new tab. After you approve, the browser lands on a localhost callback that won't load — copy its full URL from the address bar, come back and click Finish. Powers the GPT Codex models.
         </p>
         <button onClick={handleCodexBegin} style={buttonStyle}>
           1. Begin login
@@ -490,23 +514,40 @@ export default function AgentAuthPage() {
         )}
         <div style={{ marginTop: 12 }}>
           <label htmlFor="codex-paste" style={labelStyle}>
-            2. Paste the callback URL or code (<code>code</code>, <code>code#state</code>, or full URL)
+            2. After approving, copy the callback URL from the address bar, then click below — it reads your clipboard and finishes automatically.
           </label>
-          <input
-            id="codex-paste"
-            type="text"
-            value={codexPasteString}
-            onChange={(e) => setCodexPasteString(e.target.value)}
-            placeholder="http://localhost:1455/auth/callback?code=...&state=..."
-            style={inputStyle}
-          />
           <button
-            onClick={handleCodexComplete}
-            disabled={!codexPasteString || codexCompleting}
-            style={{ ...buttonStyle, marginTop: 8, opacity: !codexPasteString || codexCompleting ? 0.5 : 1 }}
+            onClick={async () => {
+              const code = await readClipboardCode();
+              if (code) {
+                setCodexPasteString(code);
+                await handleCodexComplete(code);
+              } else {
+                setMessage("Clipboard didn't contain a login code or callback URL. Copy the address-bar URL after approving, then click again — or paste it below.");
+              }
+            }}
+            disabled={codexCompleting}
+            style={{ ...buttonStyle, marginTop: 8, opacity: codexCompleting ? 0.5 : 1 }}
           >
-            {codexCompleting ? "Exchanging..." : "3. Complete login"}
+            {codexCompleting ? "Exchanging..." : "2. Finish login (reads clipboard)"}
           </button>
+          <div style={{ marginTop: 8 }}>
+            <input
+              id="codex-paste"
+              type="text"
+              value={codexPasteString}
+              onChange={(e) => setCodexPasteString(e.target.value)}
+              placeholder="or paste manually: http://localhost:1455/auth/callback?code=..."
+              style={inputStyle}
+            />
+            <button
+              onClick={() => handleCodexComplete()}
+              disabled={!codexPasteString || codexCompleting}
+              style={{ ...buttonStyle, marginTop: 8, opacity: !codexPasteString || codexCompleting ? 0.5 : 1 }}
+            >
+              Complete with pasted value
+            </button>
+          </div>
         </div>
       </div>
 
@@ -560,22 +601,39 @@ export default function AgentAuthPage() {
           </p>
         )}
         <div style={{ marginTop: 12 }}>
-          <label htmlFor="paste" style={labelStyle}>2. Paste the returned code (format: <code>code#state</code>)</label>
-          <input
-            id="paste"
-            type="text"
-            value={pasteString}
-            onChange={(e) => setPasteString(e.target.value)}
-            placeholder="code#state"
-            style={inputStyle}
-          />
+          <label htmlFor="paste" style={labelStyle}>2. After approving, copy the <code>code#state</code> string, then click below — it reads your clipboard and finishes automatically.</label>
           <button
-            onClick={handleComplete}
-            disabled={!pasteString || completing}
-            style={{ ...buttonStyle, marginTop: 8, opacity: !pasteString || completing ? 0.5 : 1 }}
+            onClick={async () => {
+              const code = await readClipboardCode();
+              if (code) {
+                setPasteString(code);
+                await handleComplete(code);
+              } else {
+                setMessage("Clipboard didn't contain a login code. Copy the code#state string after approving, then click again — or paste it below.");
+              }
+            }}
+            disabled={completing}
+            style={{ ...buttonStyle, marginTop: 8, opacity: completing ? 0.5 : 1 }}
           >
-            {completing ? "Exchanging..." : "3. Complete login"}
+            {completing ? "Exchanging..." : "2. Finish login (reads clipboard)"}
           </button>
+          <div style={{ marginTop: 8 }}>
+            <input
+              id="paste"
+              type="text"
+              value={pasteString}
+              onChange={(e) => setPasteString(e.target.value)}
+              placeholder="or paste manually: code#state"
+              style={inputStyle}
+            />
+            <button
+              onClick={() => handleComplete()}
+              disabled={!pasteString || completing}
+              style={{ ...buttonStyle, marginTop: 8, opacity: !pasteString || completing ? 0.5 : 1 }}
+            >
+              Complete with pasted value
+            </button>
+          </div>
         </div>
       </div>
 
@@ -605,7 +663,11 @@ export default function AgentAuthPage() {
                     <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 400 }}>{p.provider}</div>
                   </td>
                   <td style={{ padding: "8px 4px" }}>
-                    {p.oauthConnected ? (
+                    {p.oauthConnected && p.oauthExpired ? (
+                      <span style={{ color: "#b91c1c", fontWeight: 600 }}>
+                        expired {formatExpiry(p.oauthExpiresAt)} — reconnect
+                      </span>
+                    ) : p.oauthConnected ? (
                       <span style={{ color: "#15803d" }}>
                         connected, expires {formatExpiry(p.oauthExpiresAt)}
                       </span>

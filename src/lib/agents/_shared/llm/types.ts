@@ -87,6 +87,14 @@ export interface LLMResponse {
   /** Raw model id the provider returned (for logs / audits). */
   providerModel: string;
   source: CredentialSource;
+  /**
+   * Models earlier in the fallback chain that failed before this one served
+   * the request, with the reason each failed. Absent when the requested model
+   * answered. Without this the caller only knows *that* a failover happened,
+   * not why ("ChatGPT usage limit reached" vs "token expired"), which is the
+   * single most useful thing to surface to the user.
+   */
+  fallbackFrom?: Array<{ model: string; reason: string }>;
 }
 
 export type ReasoningMode = "off" | "low" | "medium" | "high";

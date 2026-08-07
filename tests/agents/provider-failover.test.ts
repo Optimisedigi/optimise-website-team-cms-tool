@@ -37,6 +37,9 @@ function mockFetchSequence(responses: Array<{ ok: boolean; status?: number; body
       return {
         ok: false,
         status: next.status ?? 500,
+        // The Codex adapter reads response headers to extract a request id,
+        // so the error fixture needs a real Headers instance.
+        headers: new Headers(),
         text: async () => JSON.stringify(next.body),
       } as unknown as Response;
     }
@@ -167,5 +170,69 @@ describe("callLLM failover", () => {
         messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
       }),
     ).rejects.toThrow(/All models failed/);
+  });
+
+  it("reports why each earlier model bowed out via fallbackFrom", { timeout: 30_000 }, async () => {
+    // The exact shape the ChatGPT Codex backend returns when a subscription
+    // hits its cap. This is what made the chat pill say "gpt fell back" with
+    // no reason: callLLM used to swallow the primary model's error entirely.
+    const usageLimitBody = {
+      error: {
+        type: "usage_limit_reached",
+        message: "The usage limit has been reached",
+        plan_type: "prolite",
+      },
+    };
+    mockFetchSequence([
+      { ok: false, status: 429, body: usageLimitBody },
+      { ok: false, status: 429, body: usageLimitBody },
+      { ok: false, status: 429, body: usageLimitBody },
+      {
+        ok: true,
+        body: {
+          id: "chatcmpl-1",
+          model: "kimi-k2.6",
+          choices: [
+            { index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 },
+        },
+      },
+    ]);
+
+    const response = await callLLM({
+      model: "gpt-5.6-luna",
+      fallbackModels: ["kimi-k2.6"],
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    });
+
+    expect(response.model).toBe("kimi-k2.6");
+    expect(response.fallbackFrom).toHaveLength(1);
+    expect(response.fallbackFrom?.[0].model).toBe("gpt-5.6-luna");
+    expect(response.fallbackFrom?.[0].reason).toMatch(/usage limit/i);
+  });
+
+  it("omits fallbackFrom when the requested model served the request", async () => {
+    mockFetchSequence([
+      {
+        ok: true,
+        body: {
+          id: "chatcmpl-1",
+          model: "kimi-k2.6",
+          choices: [
+            { index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 },
+        },
+      },
+    ]);
+
+    const response = await callLLM({
+      model: "kimi-k2.6",
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    });
+
+    expect(response.model).toBe("kimi-k2.6");
+    expect(response.fallbackFrom).toBeUndefined();
   });
 });

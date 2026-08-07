@@ -88,6 +88,21 @@ function describeLLMError(err: unknown): string {
   return message || "unknown error";
 }
 
+/**
+ * Turn the per-model failure reasons collected by callLLM into one line for
+ * the failover auth event. The generic "primary model failed" text this
+ * replaces hid the actual cause (usage limits, expired tokens, timeouts),
+ * which is exactly what the user needs when the chat pill flags a failover.
+ */
+function formatFallbackReasons(
+  fallbackFrom: Array<{ model: string; reason: string }> | undefined,
+): string {
+  if (!fallbackFrom || fallbackFrom.length === 0) {
+    return "primary model failed; agent loop walked fallback chain.";
+  }
+  return fallbackFrom.map(({ model, reason }) => `${model} failed — ${reason}`).join("; ");
+}
+
 function formatLLMFailure(err: unknown): string {
   if (err instanceof AggregateLLMError) {
     const attempts = err.errors
@@ -218,7 +233,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
       await recordAuthEvent({
         provider: servedProvider ?? "moonshot",
         kind: "provider-failover",
-        message: `Requested ${opts.model} (${requestedProvider}), served by ${response.model} (${servedProvider}). Reason: primary model failed; agent loop walked fallback chain.`,
+        message: `Requested ${opts.model} (${requestedProvider}), served by ${response.model} (${servedProvider}). Reason: ${formatFallbackReasons(response.fallbackFrom)}`,
         agentRunId: runId,
         agentName: opts.agentName,
         modelAttempted: opts.model,

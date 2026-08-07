@@ -42,9 +42,18 @@ export async function GET(req: NextRequest) {
           ? Boolean(process.env.OPENAI_API_KEY)
           : // openai-codex is OAuth-only — no API key path.
             false;
+      // A stored OAuth row is NOT the same as a usable one. Anthropic
+      // credentials whose access AND refresh tokens have both lapsed still sit
+      // in the collection, so reporting a bare `oauthConnected: true` told the
+      // user "connected" while every call 401'd. Surface the expiry explicitly.
+      const oauthExpired =
+        cred?.kind === "oauth" && typeof cred.expiresAt === "number"
+          ? cred.expiresAt <= Date.now()
+          : false;
       return {
         provider,
         oauthConnected: cred?.kind === "oauth",
+        oauthExpired,
         oauthExpiresAt: cred?.kind === "oauth" ? cred.expiresAt : null,
         oauthObtainedAt: cred?.kind === "oauth" ? cred.obtainedAt : null,
         oauthAccountId:
