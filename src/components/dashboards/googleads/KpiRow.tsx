@@ -98,7 +98,7 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
           comparisonLabel={label}
         />
         <KpiCard
-          label="All Conversions"
+          label="All Conv"
           value={kpis.allConversions ?? null}
           previousValue={isYear ? (kpis.yoyAllConversions ?? null) : (kpis.prevAllConversions ?? null)}
           format="number"
@@ -115,26 +115,35 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
       </div>
       {breakdown.length > 0 && (
         <div className="relative mt-2 flex justify-center group">
-          <div className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-full bg-white border border-slate-200 px-4 py-1.5 shadow-sm text-xs cursor-default">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-              By action ({breakdown.length})
-            </span>
-            {breakdown.map(([action, count], idx) => (
-              <span key={action} className="flex items-baseline gap-1">
-                {idx > 0 && <span className="text-slate-200">·</span>}
-                <span className="text-slate-500 truncate max-w-[160px]">{action}</span>
-                <span className="font-semibold text-slate-700 tabular-nums">
-                  {Math.round(count).toLocaleString()}
-                </span>
+          <div className="w-full max-w-[960px] mx-auto grid grid-cols-2 items-start gap-x-4 gap-y-1.5 rounded-full bg-white border border-slate-200 px-4 py-1.5 shadow-sm text-xs cursor-default">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-700">
+                Primary Conv ({breakdown.length})
               </span>
-            ))}
-            <span
-              className="text-[10px] text-slate-400 ml-1"
-              aria-hidden="true"
-              title="Hover for full action names"
-            >
-              ▾
-            </span>
+              {breakdown.map(([action, count], idx) => (
+                <span key={action} className="flex items-baseline gap-1">
+                  {idx > 0 && <span className="text-slate-200">·</span>}
+                  <span className="text-slate-600 truncate max-w-[160px]">{action}</span>
+                  <span className="font-semibold text-slate-800 tabular-nums">
+                    {Math.round(count).toLocaleString()}
+                  </span>
+                </span>
+              ))}
+              <span
+                className="text-[10px] text-slate-400 ml-1"
+                aria-hidden="true"
+                title="Hover for full action names"
+              >
+                ▾
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                Secondary Conv
+              </span>
+              {/* Secondary conversion data can be wired here when available */}
+            </div>
           </div>
 
           {/* Hover popover — full action names without truncation */}

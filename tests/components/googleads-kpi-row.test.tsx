@@ -54,7 +54,7 @@ describe('KpiRow conversion action chip', () => {
       />,
     )
 
-    const chip = screen.getByText('By action (3)').closest('div')
+    const chip = screen.getByText('Primary Conv (3)').closest('div')
     expect(chip).toBeTruthy()
 
     expect(within(chip as HTMLElement).getByText('Phone Call Click')).toBeInTheDocument()
@@ -80,7 +80,7 @@ describe('KpiRow conversion action chip', () => {
       />,
     )
 
-    const chip = screen.getByText('By action (2)').closest('div')
+    const chip = screen.getByText('Primary Conv (2)').closest('div')
     expect(chip).toBeTruthy()
     expect(within(chip as HTMLElement).getByText('Phone Calls')).toBeInTheDocument()
     expect(within(chip as HTMLElement).getByText('Leads')).toBeInTheDocument()
