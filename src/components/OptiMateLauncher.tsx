@@ -815,7 +815,13 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     No accounts with a Customer ID found.
                   </p>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+                    gap: 6,
+                  }}
+                >
                   {filteredAudits.map((opt) => {
                     const checked = selectedAudits.some((a) => String(a.id) === String(opt.id))
                     return (
@@ -836,6 +842,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 10,
+                          minWidth: 0,
                         }}
                         onMouseEnter={(e) => {
                           if (checked) return
@@ -864,7 +871,17 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                           >
                             {opt.businessName || 'Untitled audit'}
                           </div>
-                          <div style={{ fontSize: 11, color: '#6b7280' }}>{opt.customerId}</div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: '#6b7280',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {opt.customerId}
+                          </div>
                         </div>
                       </button>
                     )
