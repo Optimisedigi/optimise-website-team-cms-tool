@@ -51,6 +51,21 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
     conversionActionLabels,
   );
 
+  // Secondary = every action contributing to `allConversions` that is not already
+  // counted as primary. Exclude both the selected actions (which render in the
+  // primary group even at zero) and any action present in conversionsByAction,
+  // so an action can never appear on both sides of the bar.
+  const primaryActionNames = new Set<string>([
+    ...selectedConversionActions,
+    ...Object.keys(conversionCounts),
+  ]);
+  const secondaryBreakdown = aggregateByDashboardLabel(
+    Object.entries(kpis.allConversionsByAction ?? {})
+      .filter(([action, count]) => count > 0 && !primaryActionNames.has(action))
+      .sort((a, b) => b[1] - a[1]),
+    conversionActionLabels,
+  ).sort((a, b) => b[1] - a[1]);
+
   return (
     <div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
@@ -139,34 +154,22 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
-              {(() => {
-                const allCounts = kpis.allConversionsByAction ?? {};
-                const primarySet = new Set(Object.keys(conversionCounts));
-                const secondaryEntries = Object.entries(allCounts)
-                  .filter(([action, count]) => count > 0 && !primarySet.has(action))
-                  .sort((a, b) => b[1] - a[1]);
-                if (secondaryEntries.length === 0) return null;
-                const secondaryAggregated = aggregateByDashboardLabel(
-                  secondaryEntries,
-                  conversionActionLabels,
-                );
-                return (
-                  <>
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                      Secondary Conv ({secondaryAggregated.length})
-                    </span>
-                    {secondaryAggregated.map(([action, count], idx) => (
-                      <span key={`sec-${action}`} className="flex items-baseline gap-1">
-                        {idx > 0 && <span className="text-slate-200">·</span>}
-                        <span className="text-slate-600 truncate max-w-[160px]">{action}</span>
-                        <span className="font-semibold text-slate-800 tabular-nums">
-                          {Math.round(count).toLocaleString()}
-                        </span>
+              {secondaryBreakdown.length > 0 && (
+                <>
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                    Secondary Conv ({secondaryBreakdown.length})
+                  </span>
+                  {secondaryBreakdown.map(([action, count], idx) => (
+                    <span key={action} className="flex items-baseline gap-1">
+                      {idx > 0 && <span className="text-slate-200">·</span>}
+                      <span className="text-slate-600 truncate max-w-[160px]">{action}</span>
+                      <span className="font-semibold text-slate-800 tabular-nums">
+                        {Math.round(count).toLocaleString()}
                       </span>
-                    ))}
-                  </>
-                );
-              })()}
+                    </span>
+                  ))}
+                </>
+              )}
             </div>
           </div>
 
@@ -196,43 +199,31 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
                 </div>
               ))}
             </div>
-            {(() => {
-              const allCounts = kpis.allConversionsByAction ?? {};
-              const primarySet = new Set(Object.keys(conversionCounts));
-              const secondaryEntries = Object.entries(allCounts)
-                .filter(([action, count]) => count > 0 && !primarySet.has(action))
-                .sort((a, b) => b[1] - a[1]);
-              if (secondaryEntries.length === 0) return null;
-              const secondaryAggregated = aggregateByDashboardLabel(
-                secondaryEntries,
-                conversionActionLabels,
-              );
-              return (
-                <>
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400 mb-2 mt-3 pt-2 border-t border-slate-100">
-                    Secondary conversions by action ({secondaryAggregated.length})
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    {secondaryAggregated.map(([action, count]) => (
-                      <div
-                        key={`popover-secondary-${action}`}
-                        className="flex justify-between items-start gap-3 text-xs border-b border-slate-50 last:border-0 pb-1 last:pb-0"
+            {secondaryBreakdown.length > 0 && (
+              <>
+                <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400 mb-2 mt-3 pt-2 border-t border-slate-100">
+                  Secondary conversions by action ({secondaryBreakdown.length})
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {secondaryBreakdown.map(([action, count]) => (
+                    <div
+                      key={action}
+                      className="flex justify-between items-start gap-3 text-xs border-b border-slate-50 last:border-0 pb-1 last:pb-0"
+                    >
+                      <span
+                        className="text-slate-500 break-words leading-snug italic"
+                        style={{ wordBreak: "break-word" }}
                       >
-                        <span
-                          className="text-slate-500 break-words leading-snug italic"
-                          style={{ wordBreak: "break-word" }}
-                        >
-                          {action}
-                        </span>
-                        <span className="font-semibold text-slate-700 tabular-nums shrink-0">
-                          {Math.round(count).toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
+                        {action}
+                      </span>
+                      <span className="font-semibold text-slate-700 tabular-nums shrink-0">
+                        {Math.round(count).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
