@@ -532,10 +532,17 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
       },
       log: () => undefined,
     };
+    // The shortcut bypasses the LLM, so it must name the report components
+    // itself. Both tools default to their full component set, which is what
+    // keeps a shortcut draft identical to a single-account draft.
     const shortcutResult =
       shortcutIntent.kind === "weekly"
         ? await createPortfolioWeeklyGmailDraftsTool.execute(
-            { accountRefs: selectedAccountRefs ?? [], weeks: shortcutIntent.weeks },
+            {
+              accountRefs: selectedAccountRefs ?? [],
+              weeks: shortcutIntent.weeks,
+              components: ["keyword_relevancy", "cpa_trend"],
+            },
             shortcutContext,
           )
         : await createPortfolioBudgetPacingGmailDraftsTool.execute(
@@ -543,6 +550,12 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
               accountRefs: selectedAccountRefs ?? [],
               period: shortcutIntent.period,
               summarySentences: shortcutIntent.summarySentences,
+              components: [
+                "keyword_relevancy",
+                "cpa_trend",
+                "quality_score",
+                "top_converters",
+              ],
             },
             shortcutContext,
           );

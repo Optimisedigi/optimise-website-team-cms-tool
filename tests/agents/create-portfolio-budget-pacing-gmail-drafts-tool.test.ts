@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   executePerformance: vi.fn(),
   executeBudget: vi.fn(),
   executeDraft: vi.fn(),
+  executeComponents: vi.fn(),
 }))
 
 vi.mock('@/lib/agents/optimate-google-ads/tools/_portfolio-accounts', () => ({
@@ -34,6 +35,10 @@ vi.mock('@/lib/agents/optimate-google-ads/tools/create-gmail-draft', () => ({
   createGmailDraftTool: { execute: mocks.executeDraft },
 }))
 
+vi.mock('@/lib/agents/optimate-google-ads/tools/get-dashboard-email-components', () => ({
+  getDashboardEmailComponents: { execute: mocks.executeComponents },
+}))
+
 import { createPortfolioBudgetPacingGmailDraftsTool } from '@/lib/agents/optimate-google-ads/tools/create-portfolio-budget-pacing-gmail-drafts'
 
 const ctx: ToolContext = {
@@ -49,6 +54,77 @@ describe('create_portfolio_budget_pacing_gmail_drafts', () => {
     mocks.executePerformance.mockReset()
     mocks.executeBudget.mockReset()
     mocks.executeDraft.mockReset()
+    mocks.executeComponents.mockReset()
+    mocks.executeComponents.mockResolvedValue({
+      ok: true,
+      data: {
+        html: '<div id="components">components</div>',
+        components: ['keyword_relevancy', 'cpa_trend', 'quality_score', 'top_converters'],
+        warnings: [],
+      },
+    })
+  })
+
+  describe('dashboard component parity with the single-account monthly tool', () => {
+    const validate = createPortfolioBudgetPacingGmailDraftsTool.validate!
+
+    it('defaults to all four components when none are supplied', () => {
+      // The deterministic shortcut calls this tool without an LLM turn, so an
+      // omitted component list must fall back to the full set, not to none.
+      expect(validate({})).toMatchObject({
+        components: ['keyword_relevancy', 'cpa_trend', 'quality_score', 'top_converters'],
+      })
+    })
+
+    it('accepts an explicit subset and rejects unknown components', () => {
+      expect(validate({ components: ['quality_score'] })).toMatchObject({
+        components: ['quality_score'],
+      })
+      expect(() => validate({ components: ['not_a_component'] })).toThrow(/Unknown component/)
+    })
+
+    it('renders components above the budget tracker and survives a component failure', async () => {
+      mocks.loadAccounts.mockResolvedValue([
+        { accountRef: 4, clientId: 9, displayName: 'Berendsen', customerId: '123-456-7890' },
+      ])
+      mocks.executePerformance.mockResolvedValue({
+        ok: true,
+        data: {
+          rangeLabel: 'August 2026',
+          accounts: [{ accountRef: 4, displayName: 'Berendsen', spend: 100, conversions: 5 }],
+        },
+      })
+      mocks.executeBudget.mockResolvedValue({
+        ok: true,
+        data: { subject: 'Berendsen - Budget', html: '<div id="budget"></div>' },
+      })
+      mocks.executeDraft.mockResolvedValue({
+        ok: true,
+        data: { draftId: 'd', messageId: 'm', gmailUrl: 'https://gmail/d', subject: 's' },
+      })
+
+      const ok = await createPortfolioBudgetPacingGmailDraftsTool.execute(
+        validate({ accountRefs: [4] }),
+        ctx,
+      )
+      expect(ok.ok).toBe(true)
+      const html = String(mocks.executeDraft.mock.calls[0][0].htmlBody)
+      expect(html.indexOf('id="components"')).toBeLessThan(html.indexOf('id="budget"'))
+
+      mocks.executeDraft.mockClear()
+      mocks.executeComponents.mockRejectedValue(new Error('chart backend down'))
+      const degraded = await createPortfolioBudgetPacingGmailDraftsTool.execute(
+        validate({ accountRefs: [4] }),
+        ctx,
+      )
+      expect(degraded.ok).toBe(true)
+      const degradedData = degraded.data as {
+        createdCount: number
+        componentWarnings: Array<{ warning: string }>
+      }
+      expect(degradedData.createdCount).toBe(1)
+      expect(degradedData.componentWarnings[0].warning).toMatch(/chart backend down/)
+    })
   })
 
   it('uses completed-month data for both the summary and budget report', async () => {

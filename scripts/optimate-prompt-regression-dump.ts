@@ -62,6 +62,14 @@ interface CaseResult extends CaseSpec {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+
+  // Rebuild the HTML from a previous run's JSON. Report layout changes should
+  // never require re-running the agents against live accounts.
+  if (args.rerender) {
+    await rerenderFromJson(args.rerender);
+    return;
+  }
+
   const auditId = Number(requireArg(args, "audit"));
   const userId = Number(requireArg(args, "user"));
   const refs = (args.refs ?? String(auditId))
@@ -125,9 +133,12 @@ async function main(): Promise<void> {
   const htmlPath = path.join(OUTPUT_DIR, `optimate-prompt-dump-${stamp}.html`);
   const jsonPath = path.join(OUTPUT_DIR, `optimate-prompt-dump-${stamp}.json`);
 
+  const accountLabel = String(client?.name ?? audit.businessName ?? `Audit ${auditId}`);
+  const customerId = String(audit.customerId ?? "");
+
   await fs.writeFile(
     jsonPath,
-    `${JSON.stringify({ auditId, userId, refs, generatedAt: new Date().toISOString(), results }, null, 2)}\n`,
+    `${JSON.stringify({ auditId, userId, refs, accountLabel, customerId, generatedAt: new Date().toISOString(), results }, null, 2)}\n`,
     "utf8",
   );
   await fs.writeFile(
@@ -136,8 +147,8 @@ async function main(): Promise<void> {
       auditId,
       userId,
       refs,
-      accountLabel: String(client?.name ?? audit.businessName ?? `Audit ${auditId}`),
-      customerId: String(audit.customerId ?? ""),
+      accountLabel,
+      customerId,
       results,
     }),
     "utf8",
@@ -314,6 +325,8 @@ function renderReport(args: {
   .label:first-child { margin-top: 0; }
   pre { background: #1f2933; color: #e4e7eb; padding: 14px; border-radius: 6px; overflow-x: auto; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; margin: 0; }
   pre.plain { background: #f8fafc; color: #1f2933; border: 1px solid #e4e7eb; }
+  pre.prompt { background: #fffbeb; border: 1px solid #fcd34d; font-weight: 600; }
+  .headline-prompt { font-size: 13px; color: #334e68; line-height: 1.5; margin-top: 6px; }
   details { border: 1px solid #e4e7eb; border-radius: 6px; margin-bottom: 10px; }
   summary { cursor: pointer; padding: 9px 12px; font-size: 13px; font-weight: 600; background: #f8fafc; }
   details > div { padding: 12px; border-top: 1px solid #e4e7eb; }
@@ -343,7 +356,21 @@ ${sections}
 function renderCase(result: CaseResult, i: number): string {
   const parts: string[] = [];
 
-  parts.push(`<div class="label">Prompt sent (verbatim)</div><pre class="plain">${escapeHtml(result.prompt)}</pre>`);
+  // Prompt first, then the reply directly beneath it: the pair is the point of
+  // this report, so nothing is allowed between them. Metadata and raw tool
+  // traces follow underneath.
+  parts.push(
+    `<div class="label">Prompt sent (verbatim)</div><pre class="plain prompt">${escapeHtml(result.prompt)}</pre>`,
+  );
+
+  if (result.error) {
+    parts.push(`<div class="label">Error</div><pre>${escapeHtml(result.error)}</pre>`);
+  }
+
+  parts.push(
+    `<div class="label">Assistant reply to the prompt above (exact, unmodified)</div><pre>${escapeHtml(result.reply ?? "(no reply)")}</pre>`,
+  );
+
   parts.push(
     `<div class="label">Run metadata</div><pre class="plain">${escapeHtml(
       [
@@ -357,14 +384,6 @@ function renderCase(result: CaseResult, i: number): string {
         `tools used:       ${result.activityRows.map((r) => r.toolName).filter(Boolean).join(", ") || "(none)"}`,
       ].join("\n"),
     )}</pre>`,
-  );
-
-  if (result.error) {
-    parts.push(`<div class="label">Error</div><pre>${escapeHtml(result.error)}</pre>`);
-  }
-
-  parts.push(
-    `<div class="label">Assistant reply (exact, unmodified)</div><pre>${escapeHtml(result.reply ?? "(no reply)")}</pre>`,
   );
 
   if (result.activityRows.length > 0) {
@@ -396,6 +415,7 @@ function renderCase(result: CaseResult, i: number): string {
   return `<section class="case" id="case-${i}">
   <header>
     <h2><span class="tag ${result.surface}">${escapeHtml(SURFACE_LABELS[result.surface])}</span>${errTag}${warnTag} Prompt #${result.index}</h2>
+    <div class="headline-prompt">${escapeHtml(result.prompt)}</div>
   </header>
   <div class="body">
 ${parts.join("\n")}
@@ -416,6 +436,32 @@ function collectHtmlStrings(value: unknown, depth = 0): string[] {
     );
   }
   return [];
+}
+
+/** Rebuild the HTML from a prior run's JSON, without re-running any agents. */
+async function rerenderFromJson(jsonPath: string): Promise<void> {
+  const saved = JSON.parse(await fs.readFile(jsonPath, "utf8")) as {
+    auditId: number;
+    userId: number;
+    refs: Array<string | number>;
+    accountLabel?: string;
+    customerId?: string;
+    results: CaseResult[];
+  };
+  const htmlPath = jsonPath.replace(/\.json$/, "-rerendered.html");
+  await fs.writeFile(
+    htmlPath,
+    renderReport({
+      auditId: saved.auditId,
+      userId: saved.userId,
+      refs: saved.refs,
+      accountLabel: saved.accountLabel ?? `Audit ${saved.auditId}`,
+      customerId: saved.customerId ?? "",
+      results: saved.results,
+    }),
+    "utf8",
+  );
+  console.log(`Re-rendered ${saved.results.length} case(s) -> ${htmlPath}`);
 }
 
 function safeJson(value: unknown): string {

@@ -11,7 +11,7 @@ export interface OptiMateStarterQuestion {
  * top_converters.
  */
 export const DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS = [
-  "Create a Gmail draft for the weekly Google Ads budget report. Include both graphs: keyword_relevancy and cpa_trend.",
+  "Create a Gmail draft for the weekly Google Ads budget report covering the last 4 completed Monday-Sunday weeks. Include both graphs: keyword_relevancy and cpa_trend.",
   "Create a Gmail draft for the monthly Google Ads budget report. Include these components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
   "Which campaigns are performing best this week?",
   "Are there any keywords wasting spend?",
@@ -19,7 +19,7 @@ export const DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS = [
 
 export const DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS = [
   "Create separate Gmail drafts for each selected account's budget pacing this month, each with a 1 sentence performance summary on top. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
-  "Create a separate Gmail draft for each selected account's last completed Monday-Sunday weekly report. Add 1 sentence summarising weekly performance and spend pacing. Never use monthly or MTD data. Graphs: keyword_relevancy, cpa_trend.",
+  "Create a separate Gmail draft for each selected account's weekly report covering the last 4 completed Monday-Sunday weeks. Add 1 sentence on weekly performance and pacing. Never use monthly or MTD data. Graphs: keyword_relevancy, cpa_trend.",
   "Create a separate Gmail draft for each selected account's last-month performance, with a two-sentence summary above the tables. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
   "Find cross-account search-term waste",
 ] as const;

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   executeWeekly: vi.fn(),
   executeBudget: vi.fn(),
   executeDraft: vi.fn(),
+  executeComponents: vi.fn(),
 }))
 
 vi.mock('@/lib/agents/optimate-google-ads/tools/_portfolio-accounts', () => ({
@@ -33,6 +34,10 @@ vi.mock('@/lib/agents/optimate-google-ads/tools/create-gmail-draft', () => ({
   createGmailDraftTool: { execute: mocks.executeDraft },
 }))
 
+vi.mock('@/lib/agents/optimate-google-ads/tools/get-dashboard-email-components', () => ({
+  getDashboardEmailComponents: { execute: mocks.executeComponents },
+}))
+
 import { createPortfolioWeeklyGmailDraftsTool } from '@/lib/agents/optimate-google-ads/tools/create-portfolio-weekly-gmail-drafts'
 
 const ctx: ToolContext = {
@@ -48,6 +53,15 @@ describe('create_portfolio_weekly_gmail_drafts', () => {
     mocks.executeWeekly.mockReset()
     mocks.executeBudget.mockReset()
     mocks.executeDraft.mockReset()
+    mocks.executeComponents.mockReset()
+    mocks.executeComponents.mockResolvedValue({
+      ok: true,
+      data: {
+        html: '<div id="graphs">graphs</div>',
+        components: ['keyword_relevancy', 'cpa_trend'],
+        warnings: [],
+      },
+    })
   })
 
   it('creates canonical weekly budget-management drafts with comparison summaries', async () => {
@@ -257,6 +271,88 @@ describe('create_portfolio_weekly_gmail_drafts', () => {
 
     const second = await runOnce()
     expect(second).toEqual(first)
+  })
+
+  describe('dashboard graph parity with the single-account weekly tool', () => {
+    const validate = createPortfolioWeeklyGmailDraftsTool.validate!
+
+    it('defaults to both graphs and a 4-week trend so shortcut drafts match individual drafts', () => {
+      // The deterministic multi-account shortcut has no LLM turn available to
+      // answer a clarification, so omitting components must not drop the graphs.
+      expect(validate({})).toMatchObject({
+        weeks: 4,
+        components: ['keyword_relevancy', 'cpa_trend'],
+      })
+    })
+
+    it('accepts an explicit graph subset and rejects unknown graphs', () => {
+      expect(validate({ components: ['cpa_trend'] })).toMatchObject({ components: ['cpa_trend'] })
+      expect(() => validate({ components: ['quality_score'] })).toThrow(
+        /Unknown weekly report graph/,
+      )
+    })
+
+    it('renders the graphs between the weekly table and the budget tracker', async () => {
+      mocks.loadAccounts.mockResolvedValue([
+        { accountRef: 4, clientId: 9, displayName: 'Berendsen', customerId: '123-456-7890' },
+      ])
+      mocks.executeWeekly.mockResolvedValue({
+        ok: true,
+        data: {
+          html: '<table id="weekly"></table>',
+          rows: [{ label: 'Aug 3 - Aug 9', totals: { spend: 100, conversions: 4 } }],
+          weeks: 4,
+        },
+      })
+      mocks.executeBudget.mockResolvedValue({ ok: true, data: { html: '<div id="budget"></div>' } })
+      mocks.executeDraft.mockResolvedValue({
+        ok: true,
+        data: { draftId: 'd', messageId: 'm', gmailUrl: 'https://gmail/d' },
+      })
+
+      const result = await createPortfolioWeeklyGmailDraftsTool.execute(
+        validate({ accountRefs: [4] }),
+        ctx,
+      )
+
+      expect(result.ok).toBe(true)
+      expect(mocks.executeComponents).toHaveBeenCalledWith(
+        expect.objectContaining({ components: ['keyword_relevancy', 'cpa_trend'] }),
+        expect.anything(),
+      )
+      const html = String(mocks.executeDraft.mock.calls[0][0].htmlBody)
+      expect(html.indexOf('id="weekly"')).toBeLessThan(html.indexOf('id="graphs"'))
+      expect(html.indexOf('id="graphs"')).toBeLessThan(html.indexOf('id="budget"'))
+    })
+
+    it('still creates the draft when graph rendering throws, recording a warning', async () => {
+      mocks.loadAccounts.mockResolvedValue([
+        { accountRef: 4, clientId: 9, displayName: 'Berendsen', customerId: '123-456-7890' },
+      ])
+      mocks.executeWeekly.mockResolvedValue({
+        ok: true,
+        data: { html: '<table id="weekly"></table>', rows: [], weeks: 4 },
+      })
+      mocks.executeBudget.mockResolvedValue({ ok: true, data: { html: '<div id="budget"></div>' } })
+      mocks.executeDraft.mockResolvedValue({
+        ok: true,
+        data: { draftId: 'd', messageId: 'm', gmailUrl: 'https://gmail/d' },
+      })
+      mocks.executeComponents.mockRejectedValue(new Error('quickchart exploded'))
+
+      const result = await createPortfolioWeeklyGmailDraftsTool.execute(
+        validate({ accountRefs: [4] }),
+        ctx,
+      )
+
+      expect(result.ok).toBe(true)
+      const data = result.data as {
+        createdCount: number
+        componentWarnings: Array<{ warning: string }>
+      }
+      expect(data.createdCount).toBe(1)
+      expect(data.componentWarnings[0].warning).toMatch(/quickchart exploded/)
+    })
   })
 
   it('rejects invalid dates and non-Sunday end dates', () => {

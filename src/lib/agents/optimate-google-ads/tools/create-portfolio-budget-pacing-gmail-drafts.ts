@@ -2,6 +2,11 @@ import type { CanonicalTool, ToolContext } from '@/lib/agents/_shared/tool'
 import { createGmailDraftTool } from './create-gmail-draft'
 import { getBudgetManagementEmail } from './get-budget-management-email'
 import { getPortfolioPerformanceSummary } from './get-portfolio-performance-summary'
+import { getDashboardEmailComponents } from './get-dashboard-email-components'
+import {
+  GOOGLE_ADS_EMAIL_COMPONENT_KEYS,
+  type GoogleAdsEmailComponentKey,
+} from '@/lib/google-ads-email-components'
 import {
   customerKey,
   loadPortfolioAccounts,
@@ -14,7 +19,19 @@ interface CreatePortfolioBudgetPacingGmailDraftsArgs {
   to?: string
   period?: 'this_month' | 'last_month'
   summarySentences?: 1 | 2 | 3
+  components: GoogleAdsEmailComponentKey[]
 }
+
+interface DashboardComponentsData {
+  html: string
+  components: GoogleAdsEmailComponentKey[]
+  warnings?: string[]
+}
+
+/** Months of history behind the trend graphs, matching the single-account tool. */
+const DASHBOARD_TREND_MONTHS = 14
+
+const SUPPORTED_COMPONENTS = new Set<GoogleAdsEmailComponentKey>(GOOGLE_ADS_EMAIL_COMPONENT_KEYS)
 
 interface PerformanceSummaryData {
   rangeLabel?: string
@@ -51,7 +68,7 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
   {
     name: 'create_portfolio_budget_pacing_gmail_drafts',
     description:
-      "Create separate Gmail drafts for each selected audit-backed Google Ads account's current-month budget pacing or last completed month's performance in one deterministic server-side operation. Explicitly pass period='last_month' for 'last month', 'previous month', or 'completed month'; otherwise use period='this_month'. It leaves recipients blank unless explicitly provided.",
+      "Create separate Gmail drafts for each selected audit-backed Google Ads account's current-month budget pacing or last completed month's performance in one deterministic server-side operation. Explicitly pass period='last_month' for 'last month', 'previous month', or 'completed month'; otherwise use period='this_month'. Supports the same dashboard components as create_monthly_budget_gmail_draft (keyword_relevancy, cpa_trend, quality_score, top_converters), defaulting to all four when omitted, so portfolio drafts match single-account drafts. It leaves recipients blank unless explicitly provided.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -75,12 +92,20 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           enum: [1, 2, 3],
           description: 'Number of short factual summary sentences above each report.',
         },
+        components: {
+          type: 'array',
+          items: { type: 'string', enum: GOOGLE_ADS_EMAIL_COMPONENT_KEYS as unknown as string[] },
+          description:
+            'Ordered dashboard components to render above the budget tracker: keyword_relevancy, cpa_trend, quality_score, top_converters. Defaults to all four when omitted.',
+        },
       },
       additionalProperties: false,
     },
     validate(raw) {
       const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
-      const out: CreatePortfolioBudgetPacingGmailDraftsArgs = {}
+      const out: CreatePortfolioBudgetPacingGmailDraftsArgs = {
+        components: [...GOOGLE_ADS_EMAIL_COMPONENT_KEYS],
+      }
       if (obj.accountRefs !== undefined && obj.accountRefs !== null) {
         if (!Array.isArray(obj.accountRefs))
           throw new Error('accountRefs must be an array when provided')
@@ -96,6 +121,27 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
         if (![1, 2, 3].includes(count)) throw new Error('summarySentences must be 1, 2, or 3')
         out.summarySentences = count as 1 | 2 | 3
       }
+
+      // Default to the full component set rather than asking for clarification:
+      // the deterministic multi-account shortcut calls this tool with no LLM turn
+      // available to answer a follow-up question.
+      const components: GoogleAdsEmailComponentKey[] = []
+      if (obj.components !== undefined && obj.components !== null) {
+        if (!Array.isArray(obj.components))
+          throw new Error('components must be an array when provided')
+        for (const item of obj.components) {
+          if (typeof item !== 'string' || !SUPPORTED_COMPONENTS.has(item as GoogleAdsEmailComponentKey)) {
+            throw new Error(
+              `Unknown component "${String(item)}". Valid: ${GOOGLE_ADS_EMAIL_COMPONENT_KEYS.join(', ')}`,
+            )
+          }
+          const key = item as GoogleAdsEmailComponentKey
+          if (!components.includes(key)) components.push(key)
+        }
+      }
+      out.components =
+        components.length > 0 ? components : [...GOOGLE_ADS_EMAIL_COMPONENT_KEYS]
+
       return out
     },
     async execute(args, ctx) {
@@ -169,6 +215,11 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
       }> = []
       const failures: Array<{ accountRef?: string | number; displayName: string; error: string }> =
         []
+      const componentWarnings: Array<{
+        accountRef?: string | number
+        displayName: string
+        warning: string
+      }> = []
 
       // Deliberately sequential: budget rendering self-calls CMS → Growth Tools → Google Ads.
       // Keeping one account in flight avoids backend bursts while still finishing quickly because
@@ -198,6 +249,43 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           continue
         }
         const budget = budgetResult.data as BudgetEmailData
+
+        // Rendered per account against that account's own audit context. A
+        // component failure degrades to an email without graphs rather than
+        // failing the account's draft outright.
+        let dashboard: DashboardComponentsData | null = null
+        let dashboardError: string | null = null
+        try {
+          const dashboardResult = await getDashboardEmailComponents.execute(
+            {
+              components: args.components,
+              months: DASHBOARD_TREND_MONTHS,
+              range: period === 'last_month' ? 'LAST_MONTH' : 'LAST_30_DAYS',
+              auditId,
+            },
+            ctx,
+          )
+          if (dashboardResult.ok) dashboard = dashboardResult.data as DashboardComponentsData
+          else dashboardError = dashboardResult.error ?? 'component rendering failed'
+        } catch (error) {
+          dashboardError = error instanceof Error ? error.message : String(error)
+        }
+        if (dashboardError) {
+          componentWarnings.push({
+            accountRef: auditId,
+            displayName: account.displayName,
+            warning: `Dashboard components omitted: ${dashboardError}`,
+          })
+        } else if (dashboard?.warnings?.length) {
+          for (const warning of dashboard.warnings) {
+            componentWarnings.push({
+              accountRef: auditId,
+              displayName: account.displayName,
+              warning,
+            })
+          }
+        }
+
         // Seeded per account + period so a batch of drafts does not repeat the
         // same sentence structure, while a re-run reproduces identical copy.
         const summary = buildPerformanceSummary(
@@ -207,7 +295,11 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           summarySentences,
           copySeed(account.displayName, account.customerId, period, performance.rangeLabel),
         )
-        const htmlBody = `${summaryHtml(summary)}\n${budget.html}`
+        // Components sit above the canonical budget tracker, matching
+        // create_monthly_budget_gmail_draft's section order.
+        const htmlBody = [summaryHtml(summary), ...(dashboard ? [dashboard.html] : []), budget.html].join(
+          '\n',
+        )
         const draftResult = await createGmailDraftTool.execute(
           { subject: budget.subject, htmlBody, ...(args.to ? { to: args.to } : {}) },
           ctx,
@@ -239,9 +331,11 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           requestedCount: refs.length,
           processedCount: auditBackedAccounts.length,
           rangeLabel: performance.rangeLabel ?? (period === 'last_month' ? 'Last month' : 'This month'),
+          components: args.components,
           drafts,
           skipped,
           failures,
+          componentWarnings,
           capped: accounts.length > capped.length,
           message: buildResultMessage(drafts.length, failures.length, skipped.length),
         },

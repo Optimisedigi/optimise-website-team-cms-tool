@@ -8,13 +8,40 @@ import {
   type PortfolioAccount,
 } from './_portfolio-accounts'
 import { getWeeklyMetricTable } from './get-weekly-metric-table'
+import { getDashboardEmailComponents } from './get-dashboard-email-components'
+import type { GoogleAdsEmailComponentKey } from '@/lib/google-ads-email-components'
 import { copySeed, pickGreeting, pickVariant } from './_email-copy-variants'
+
+/**
+ * Weekly reports support the same two graphs as the single-account weekly
+ * tool. Keeping this list identical to `create_weekly_budget_gmail_draft` is
+ * what makes an individual-chat draft and a portfolio draft render the same
+ * email body.
+ */
+type WeeklyReportComponentKey = Extract<GoogleAdsEmailComponentKey, 'keyword_relevancy' | 'cpa_trend'>
+
+const WEEKLY_REPORT_COMPONENT_KEYS = [
+  'keyword_relevancy',
+  'cpa_trend',
+] as const satisfies readonly WeeklyReportComponentKey[]
+
+const SUPPORTED_COMPONENTS = new Set<WeeklyReportComponentKey>(WEEKLY_REPORT_COMPONENT_KEYS)
+
+/** Months of history behind the trend graphs, matching the single-account tool. */
+const DASHBOARD_TREND_MONTHS = 14
 
 interface CreatePortfolioWeeklyGmailDraftsArgs {
   accountRefs?: Array<string | number>
   weeks: number
+  components: WeeklyReportComponentKey[]
   endDate?: string
   to?: string
+}
+
+interface DashboardComponentsData {
+  html: string
+  components: GoogleAdsEmailComponentKey[]
+  warnings?: string[]
 }
 
 interface WeeklyMetricTableData {
@@ -47,12 +74,24 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
   {
     name: 'create_portfolio_weekly_gmail_drafts',
     description:
-      'Create a separate Gmail draft for every selected Google Ads account using the canonical weekly budget-management template: greeting, client-friendly weekly performance summary, completed Monday-Sunday trend table, current-month Budget Management HTML, dashboard link, and closing. Current-month data is used only for budget pacing; the performance report remains weekly.',
+      'Create a separate Gmail draft for every selected Google Ads account using the canonical weekly budget-management template: greeting, client-friendly weekly performance summary, completed Monday-Sunday trend table, the selected dashboard graphs, current-month Budget Management HTML, dashboard link, and closing. Current-month data is used only for budget pacing; the performance report remains weekly. Produces the same email body as create_weekly_budget_gmail_draft, one draft per account. Args: weeks=4 for an unspecified weekly report, a 4-week trend, or "last four weeks" (defaults to 4); use weeks=1 only when the user explicitly wants a single week and no trend. A request for the "last completed Monday-Sunday weekly report" still uses the default 4-week trend table ending on that Sunday. components defaults to both graphs (keyword_relevancy, cpa_trend) when omitted.',
     inputSchema: {
       type: 'object',
       properties: {
         accountRefs: { type: 'array', items: { anyOf: [{ type: 'string' }, { type: 'number' }] } },
-        weeks: { type: 'integer', minimum: 1, maximum: 12 },
+        weeks: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 12,
+          description:
+            'Completed Monday-Sunday weeks in the trend table. Defaults to 4. Use 1 only when the user explicitly asks for a single week with no trend.',
+        },
+        components: {
+          type: 'array',
+          items: { type: 'string', enum: WEEKLY_REPORT_COMPONENT_KEYS as unknown as string[] },
+          description:
+            'Ordered graphs to include: keyword_relevancy, cpa_trend, or both. Defaults to both when omitted.',
+        },
         endDate: {
           type: 'string',
           description:
@@ -72,7 +111,28 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
       if (!Number.isInteger(weeks) || weeks < 1 || weeks > 12)
         throw new Error('weeks must be an integer between 1 and 12')
 
-      const out: CreatePortfolioWeeklyGmailDraftsArgs = { weeks }
+      // Default to both graphs rather than asking for clarification: this tool
+      // is also driven by the deterministic multi-account shortcut, which has no
+      // LLM turn available to answer a follow-up question.
+      const components: WeeklyReportComponentKey[] = []
+      if (obj.components !== undefined && obj.components !== null) {
+        if (!Array.isArray(obj.components))
+          throw new Error('components must be an array when provided')
+        for (const item of obj.components) {
+          if (typeof item !== 'string' || !SUPPORTED_COMPONENTS.has(item as WeeklyReportComponentKey)) {
+            throw new Error(
+              `Unknown weekly report graph "${String(item)}". Valid: ${WEEKLY_REPORT_COMPONENT_KEYS.join(', ')}`,
+            )
+          }
+          const component = item as WeeklyReportComponentKey
+          if (!components.includes(component)) components.push(component)
+        }
+      }
+
+      const out: CreatePortfolioWeeklyGmailDraftsArgs = {
+        weeks,
+        components: components.length > 0 ? components : [...WEEKLY_REPORT_COMPONENT_KEYS],
+      }
       if (Array.isArray(obj.accountRefs)) {
         out.accountRefs = obj.accountRefs.filter(
           (value): value is string | number =>
@@ -120,6 +180,11 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
       }> = []
       const failures: Array<{ accountRef?: string | number; displayName: string; error: string }> =
         []
+      const componentWarnings: Array<{
+        accountRef?: string | number
+        displayName: string
+        warning: string
+      }> = []
 
       // Keep account rendering sequential: each weekly fetch reaches Growth Tools,
       // and bounded serial work avoids creating an upstream request burst.
@@ -158,15 +223,60 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
         }
 
         const budget = budgetResult.data as BudgetManagementEmailData
+
+        // Rendered per account so each draft's graphs reflect that account's own
+        // history. Component failures must not sink the whole batch, so a failed
+        // render degrades to an email without graphs and reports a warning.
+        let dashboard: DashboardComponentsData | null = null
+        let dashboardError: string | null = null
+        try {
+          // Resolve components from the audit rather than the account context.
+          // getDashboardEmailComponents short-circuits on a context customerId and
+          // then has no clientSlug, which makes keyword_relevancy fail; passing
+          // auditId against the base context lets it look up client + slug.
+          const componentsCtx = account.accountRef !== undefined ? ctx : accountCtx
+          const dashboardResult = await getDashboardEmailComponents.execute(
+            {
+              components: args.components,
+              months: DASHBOARD_TREND_MONTHS,
+              range: 'LAST_30_DAYS',
+              ...(account.accountRef !== undefined ? { auditId: account.accountRef } : {}),
+            },
+            componentsCtx,
+          )
+          if (dashboardResult.ok) dashboard = dashboardResult.data as DashboardComponentsData
+          else dashboardError = dashboardResult.error ?? 'component rendering failed'
+        } catch (error) {
+          dashboardError = error instanceof Error ? error.message : String(error)
+        }
+        if (dashboardError) {
+          componentWarnings.push({
+            accountRef: account.accountRef,
+            displayName: account.displayName,
+            warning: `Dashboard graphs omitted: ${dashboardError}`,
+          })
+        } else if (dashboard?.warnings?.length) {
+          for (const warning of dashboard.warnings) {
+            componentWarnings.push({
+              accountRef: account.accountRef,
+              displayName: account.displayName,
+              warning,
+            })
+          }
+        }
+
         // Seeded per account + reporting window: five accounts in one run read
         // differently, while a re-run for the same week reproduces the same copy.
         const seed = copySeed(account.displayName, account.customerId, endDate, args.weeks)
         const summary = buildWeeklyPerformanceSummary(weekly.rows, budget.budget, seed)
         const subject = `${account.displayName} - Google Ads Weekly Report`
+        // Section order matches create_weekly_budget_gmail_draft exactly:
+        // greeting, summary, weekly table, dashboard graphs, budget tracker.
         const htmlBody = [
           greetingHtml(seed),
           summaryHtml(summary),
           weekly.html,
+          ...(dashboard ? [dashboard.html] : []),
           budget.html,
         ].join('\n')
         const draftResult = await createGmailDraftTool.execute(
@@ -201,9 +311,11 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
           requestedCount: refs.length,
           processedCount: capped.length,
           weeks: args.weeks,
+          components: args.components,
           endDate,
           drafts,
           failures,
+          componentWarnings,
           capped: accounts.length > capped.length,
           message: `Created ${drafts.length} separate weekly Gmail draft${drafts.length === 1 ? '' : 's'}${failures.length ? `; ${failures.length} failed` : ''}.`,
         },
