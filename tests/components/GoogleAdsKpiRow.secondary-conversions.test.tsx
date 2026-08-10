@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { KpiRow } from "@/components/dashboards/googleads/KpiRow";
+import { KpiRow, secondaryConversionActions } from "@/components/dashboards/googleads/KpiRow";
 import type { GoogleAdsDashboardKpis } from "@/lib/dashboard-types";
 
 /**
@@ -50,21 +50,25 @@ const LIVE_KPIS: GoogleAdsDashboardKpis = {
 const SELECTED = ["Chat - Email Shared", "GTM - P1 Forms"];
 const LABELS = { "GTM - P1 Forms": "Form Submit" };
 
-function renderRow(overrides: Partial<GoogleAdsDashboardKpis> = {}) {
+function renderRow(
+  overrides: Partial<GoogleAdsDashboardKpis> = {},
+  excludedSecondaryActions: string[] = [],
+) {
   return render(
     <KpiRow
       kpis={{ ...LIVE_KPIS, ...overrides }}
       compareMode="year"
       selectedConversionActions={SELECTED}
       conversionActionLabels={LABELS}
+      excludedSecondaryActions={excludedSecondaryActions}
     />,
   );
 }
 
 describe("KpiRow secondary conversions", () => {
   it("renders the secondary group for actions outside the primary filter", () => {
-    const { container } = renderRow();
-    const bar = container.querySelector(".rounded-full.grid") as HTMLElement;
+    renderRow();
+    const bar = screen.getByTestId("conversion-breakdown-bar");
 
     expect(within(bar).getByText("Secondary Conv (4)")).toBeInTheDocument();
     expect(within(bar).getByText("Chat - Interaction")).toBeInTheDocument();
@@ -74,8 +78,8 @@ describe("KpiRow secondary conversions", () => {
   });
 
   it("keeps the secondary counts reconciling to allConversions minus primary", () => {
-    const { container } = renderRow();
-    const bar = container.querySelector(".rounded-full.grid") as HTMLElement;
+    renderRow();
+    const bar = screen.getByTestId("conversion-breakdown-bar");
     const secondaryColumn = bar.children[1] as HTMLElement;
 
     const counts = Array.from(secondaryColumn.querySelectorAll(".tabular-nums")).map((el) =>
@@ -90,13 +94,13 @@ describe("KpiRow secondary conversions", () => {
     // "Chat - Email Shared" is selected but has zero primary conversions, so it
     // renders at 0 in Primary Conv. It must not leak into Secondary Conv even
     // when it reports all_conversions.
-    const { container } = renderRow({
+    renderRow({
       allConversionsByAction: {
         ...LIVE_KPIS.allConversionsByAction,
         "Chat - Email Shared": 12,
       },
     });
-    const bar = container.querySelector(".rounded-full.grid") as HTMLElement;
+    const bar = screen.getByTestId("conversion-breakdown-bar");
     const secondaryColumn = bar.children[1] as HTMLElement;
 
     expect(within(bar).getByText("Secondary Conv (4)")).toBeInTheDocument();
@@ -104,7 +108,7 @@ describe("KpiRow secondary conversions", () => {
   });
 
   it("aggregates secondary actions that share a dashboard label", () => {
-    const { container } = render(
+    render(
       <KpiRow
         kpis={LIVE_KPIS}
         compareMode="year"
@@ -117,7 +121,7 @@ describe("KpiRow secondary conversions", () => {
         }}
       />,
     );
-    const bar = container.querySelector(".rounded-full.grid") as HTMLElement;
+    const bar = screen.getByTestId("conversion-breakdown-bar");
 
     expect(within(bar).getByText("Secondary Conv (2)")).toBeInTheDocument();
     expect(within(bar).getByText("Chat")).toBeInTheDocument();
@@ -128,5 +132,72 @@ describe("KpiRow secondary conversions", () => {
     renderRow({ allConversionsByAction: undefined });
     expect(screen.queryByText(/Secondary Conv/)).toBeNull();
     expect(screen.getByText("Primary Conv (2)")).toBeInTheDocument();
+  });
+});
+
+describe("KpiRow secondary conversion layout", () => {
+  it("puts primary and secondary on their own full-width rows", () => {
+    renderRow();
+    const bar = screen.getByTestId("conversion-breakdown-bar");
+
+    // A column of rows, not a 2-up grid that squeezes secondary into half width.
+    expect(bar.className).toContain("flex-col");
+    expect(bar.className).not.toContain("grid-cols-2");
+    expect(bar.children).toHaveLength(2);
+
+    const secondaryRow = bar.children[1] as HTMLElement;
+    expect(secondaryRow.className).toContain("flex-wrap");
+    // Left-aligned like the primary row rather than pushed to the right edge.
+    expect(secondaryRow.className).not.toContain("justify-end");
+  });
+
+  it("keeps the pill shape when there is no secondary row to show", () => {
+    const { container } = renderRow({ allConversionsByAction: undefined });
+    expect(container.querySelector(".rounded-full")).not.toBeNull();
+    expect(container.querySelector(".rounded-2xl")).toBeNull();
+  });
+});
+
+describe("KpiRow excluded secondary actions", () => {
+  it("hides actions the user unticked in the selector", () => {
+    renderRow({}, ["Chat - Quick Reply Click", "Chat - Conversation Started"]);
+    const bar = screen.getByTestId("conversion-breakdown-bar");
+
+    expect(within(bar).getByText("Secondary Conv (2)")).toBeInTheDocument();
+    expect(within(bar).getByText("Chat - Interaction")).toBeInTheDocument();
+    expect(within(bar).queryByText("Chat - Quick Reply Click")).toBeNull();
+    expect(within(bar).queryByText("Chat - Conversation Started")).toBeNull();
+  });
+
+  it("drops the secondary row entirely once every action is excluded", () => {
+    renderRow({}, [
+      "Chat - Interaction",
+      "GNG【form visit】contact-us",
+      "Chat - Conversation Started",
+      "Chat - Quick Reply Click",
+    ]);
+    expect(screen.queryByText(/Secondary Conv/)).toBeNull();
+    expect(screen.getByText("Primary Conv (2)")).toBeInTheDocument();
+  });
+});
+
+describe("secondaryConversionActions", () => {
+  it("returns raw action names with counts, highest first", () => {
+    expect(secondaryConversionActions(LIVE_KPIS, SELECTED)).toEqual([
+      ["Chat - Interaction", 53],
+      ["GNG【form visit】contact-us", 10],
+      ["Chat - Conversation Started", 1],
+      ["Chat - Quick Reply Click", 1],
+    ]);
+  });
+
+  it("drops an action once it is selected as primary", () => {
+    const promoted = secondaryConversionActions(LIVE_KPIS, [...SELECTED, "Chat - Interaction"]);
+    expect(promoted.map(([action]) => action)).not.toContain("Chat - Interaction");
+    expect(promoted).toHaveLength(3);
+  });
+
+  it("returns nothing when the API omits the breakdown", () => {
+    expect(secondaryConversionActions({ allConversionsByAction: undefined }, SELECTED)).toEqual([]);
   });
 });

@@ -8,6 +8,27 @@ interface KpiRowProps {
   compareMode: "month" | "year";
   selectedConversionActions?: string[];
   conversionActionLabels?: Record<string, string>;
+  /** Raw action names the user has unticked in the selector's secondary group. */
+  excludedSecondaryActions?: string[];
+}
+
+/**
+ * Raw conversion actions that contribute to `allConversions` but are not already
+ * counted as primary. Exported so the dashboard's conversion selector can list
+ * exactly the same set the KPI bar renders, keyed on raw action names rather
+ * than the aggregated dashboard labels.
+ */
+export function secondaryConversionActions(
+  kpis: Pick<GoogleAdsDashboardKpis, "allConversionsByAction" | "conversionsByAction">,
+  selectedConversionActions: readonly string[] = [],
+): Array<readonly [string, number]> {
+  const primary = new Set<string>([
+    ...selectedConversionActions,
+    ...Object.keys(kpis.conversionsByAction ?? {}),
+  ]);
+  return Object.entries(kpis.allConversionsByAction ?? {})
+    .filter(([action, count]) => count > 0 && !primary.has(action))
+    .sort((a, b) => b[1] - a[1]);
 }
 
 function aggregateByDashboardLabel(
@@ -27,7 +48,13 @@ function calculateCtr(clicks: number | null | undefined, impressions: number | n
   return Number(((clicks / impressions) * 100).toFixed(2));
 }
 
-export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conversionActionLabels = {} }: KpiRowProps) {
+export function KpiRow({
+  kpis,
+  compareMode,
+  selectedConversionActions = [],
+  conversionActionLabels = {},
+  excludedSecondaryActions = [],
+}: KpiRowProps) {
   const isYear = compareMode === "year";
   const label = isYear ? "vs last year" : "vs prev month";
   const ctr = kpis.ctr ?? calculateCtr(kpis.clicks, kpis.impressions);
@@ -52,17 +79,13 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
   );
 
   // Secondary = every action contributing to `allConversions` that is not already
-  // counted as primary. Exclude both the selected actions (which render in the
-  // primary group even at zero) and any action present in conversionsByAction,
-  // so an action can never appear on both sides of the bar.
-  const primaryActionNames = new Set<string>([
-    ...selectedConversionActions,
-    ...Object.keys(conversionCounts),
-  ]);
+  // counted as primary, minus anything the user unticked in the selector's
+  // secondary group (not every tracked action is worth surfacing).
+  const excludedSecondary = new Set(excludedSecondaryActions);
   const secondaryBreakdown = aggregateByDashboardLabel(
-    Object.entries(kpis.allConversionsByAction ?? {})
-      .filter(([action, count]) => count > 0 && !primaryActionNames.has(action))
-      .sort((a, b) => b[1] - a[1]),
+    secondaryConversionActions(kpis, selectedConversionActions).filter(
+      ([action]) => !excludedSecondary.has(action),
+    ),
     conversionActionLabels,
   ).sort((a, b) => b[1] - a[1]);
 
@@ -130,7 +153,10 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
       </div>
       {breakdown.length > 0 && (
         <div className="relative mt-2 flex justify-center group">
-          <div className="w-full max-w-[960px] mx-auto grid grid-cols-2 items-start gap-x-4 gap-y-1.5 rounded-full bg-white border border-slate-200 px-4 py-1.5 shadow-sm text-xs cursor-default">
+          <div
+            data-testid="conversion-breakdown-bar"
+            className={`w-full max-w-[960px] mx-auto flex flex-col gap-y-1.5 ${secondaryBreakdown.length > 0 ? "rounded-2xl" : "rounded-full"} bg-white border border-slate-200 px-4 py-1.5 shadow-sm text-xs cursor-default`}
+          >
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-700">
                 Primary Conv ({breakdown.length})
@@ -153,24 +179,22 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
-              {secondaryBreakdown.length > 0 && (
-                <>
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                    Secondary Conv ({secondaryBreakdown.length})
-                  </span>
-                  {secondaryBreakdown.map(([action, count], idx) => (
-                    <span key={action} className="flex items-baseline gap-1">
-                      {idx > 0 && <span className="text-slate-200">·</span>}
-                      <span className="text-slate-600 truncate max-w-[160px]">{action}</span>
-                      <span className="font-semibold text-slate-800 tabular-nums">
-                        {Math.round(count).toLocaleString()}
-                      </span>
+            {secondaryBreakdown.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-slate-100 pt-1.5">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                  Secondary Conv ({secondaryBreakdown.length})
+                </span>
+                {secondaryBreakdown.map(([action, count], idx) => (
+                  <span key={action} className="flex items-baseline gap-1">
+                    {idx > 0 && <span className="text-slate-200">·</span>}
+                    <span className="text-slate-600 truncate max-w-[160px]">{action}</span>
+                    <span className="font-semibold text-slate-800 tabular-nums">
+                      {Math.round(count).toLocaleString()}
                     </span>
-                  ))}
-                </>
-              )}
-            </div>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Hover popover — full action names without truncation */}

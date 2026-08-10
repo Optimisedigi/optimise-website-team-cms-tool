@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData, GoogleAdsDashboardAvoidedSpend, GoogleAdsDashboardMonthlyWasteRelevancy, HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
 import { padMonthlySeries } from "@/lib/dashboard-types";
-import { KpiRow } from "./KpiRow";
+import { KpiRow, secondaryConversionActions } from "./KpiRow";
 import { MonthlyChart } from "./MonthlyChart";
 import { CategoryBreakdown } from "./CategoryBreakdown";
 import { TopKeywords } from "./TopKeywords";
@@ -163,6 +163,18 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const [customEndDate, setCustomEndDate] = useState("");
   const availableActions = data.availableConversionActions || defaultSelected;
   const conversionActionLabels = parseConversionActionLabels(conversionActionCategories);
+
+  // Secondary conversions are a display-only concern: `allConversionsByAction`
+  // already carries every action, so hiding an irrelevant one filters the KPI
+  // bar client-side rather than re-querying Google Ads. Track exclusions (not
+  // inclusions) so an action that starts converting later shows up by default.
+  const [excludedSecondaryActions, setExcludedSecondaryActions] = useState<string[]>([]);
+  const secondaryActionCounts = secondaryConversionActions(data.kpis, selectedConversions);
+  const toggleSecondaryAction = useCallback((action: string) => {
+    setExcludedSecondaryActions((prev) =>
+      prev.includes(action) ? prev.filter((a) => a !== action) : [...prev, action],
+    );
+  }, []);
 
   // Derive the active conversionActions param from selection.
   // Always send explicit action names (comma-separated) so Growth Tools
@@ -683,7 +695,12 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 {conversionDropdownOpen && (
                   <div className="absolute right-0 top-full mt-1 w-[420px] max-w-[92vw] bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
                     <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
-                      <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Conversion Actions</span>
+                      <span
+                        className="text-xs font-medium text-slate-500 uppercase tracking-wider"
+                        title="Ticked actions are counted in the Conversions KPI"
+                      >
+                        Conversion Actions
+                      </span>
                       <div className="flex gap-2">
                         <button onClick={selectAllConversions} className="text-xs text-blue-600 hover:text-blue-800">All</button>
                         {defaultSelected.length > 0 && (
@@ -731,6 +748,63 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                         );
                       })}
                     </div>
+
+                    {/* Secondary group — actions that fired but are not counted as
+                        primary. Ticking only controls whether they appear in the
+                        KPI bar's Secondary Conv row; it does not re-query. */}
+                    {secondaryActionCounts.length > 0 && (
+                      <div className="border-t border-slate-100">
+                        <div className="px-3 py-2 flex items-center justify-between">
+                          <span
+                            className="text-xs font-medium text-slate-500 uppercase tracking-wider"
+                            title="Shown in the Secondary Conv row — not counted in the Conversions KPI"
+                          >
+                            Secondary Conversions
+                          </span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setExcludedSecondaryActions([])}
+                              className="text-xs text-blue-600 hover:text-blue-800"
+                            >
+                              All
+                            </button>
+                            <button
+                              onClick={() =>
+                                setExcludedSecondaryActions(secondaryActionCounts.map(([a]) => a))
+                              }
+                              className="text-xs text-slate-400 hover:text-slate-600"
+                            >
+                              None
+                            </button>
+                          </div>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto pb-1">
+                          {secondaryActionCounts.map(([action, count]) => (
+                            <label
+                              key={action}
+                              className="flex items-start gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                              title={action}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!excludedSecondaryActions.includes(action)}
+                                onChange={() => toggleSecondaryAction(action)}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 mt-0.5 shrink-0"
+                              />
+                              <span
+                                className="text-sm text-slate-700 flex-1 leading-snug"
+                                style={{ wordBreak: "break-word" }}
+                              >
+                                {action}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-500 tabular-nums flex-shrink-0 mt-0.5">
+                                {Math.round(count).toLocaleString()}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -841,6 +915,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 compareMode={compareMode}
                 selectedConversionActions={selectedConversions}
                 conversionActionLabels={conversionActionLabels}
+                excludedSecondaryActions={excludedSecondaryActions}
               />
               <div className="mt-6">
                 <MonthlyChart data={chartTrendMonths} />
