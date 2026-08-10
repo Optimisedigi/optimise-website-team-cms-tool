@@ -201,6 +201,7 @@ export async function POST(request: Request) {
       restrictExternalContextActions: hasUntrustedAttachedEmail,
       reasoningMode,
       selectedAccountRefs,
+      deadlineMs: Date.now() + 280_000,
     });
 
     const proposalIds = Array.isArray(result.proposals)

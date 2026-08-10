@@ -29,6 +29,8 @@ export interface AgentRunOptions {
   maxTokens?: number;
   /** Optional cancellation. */
   signal?: AbortSignal;
+  /** Absolute epoch-ms deadline. When exceeded, the agent forces a final synthesis turn instead of another tool loop. */
+  deadlineMs?: number;
   /** Per-provider request timeout in ms. Default lives in provider adapters. */
   timeoutMs?: number;
   /** Per-request reasoning mode. Defaults to off for routine chat turns. */

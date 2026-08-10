@@ -257,6 +257,7 @@ export async function POST(
       userId: typeof user.id === "number" ? user.id : Number(user.id),
       restrictExternalContextActions: hasUntrustedAttachedEmail,
       reasoningMode,
+      deadlineMs: Date.now() + 280_000,
     });
 
     // Persist the assistant turn. Same best-effort treatment as the user row.

@@ -427,6 +427,8 @@ export interface RunChatTurnInput {
   reasoningMode?: ReasoningMode;
   /** Disable model failover for strict benchmark runs where fallback would invalidate the result. */
   disableFallbacks?: boolean;
+  /** Absolute epoch-ms deadline. Threaded to runAgent() for wall-clock budget control. */
+  deadlineMs?: number;
 }
 
 export interface RunPortfolioChatTurnInput {
@@ -436,6 +438,8 @@ export interface RunPortfolioChatTurnInput {
   restrictExternalContextActions?: boolean;
   reasoningMode?: ReasoningMode;
   selectedAccountRefs?: Array<string | number>;
+  /** Absolute epoch-ms deadline. Threaded to runAgent() for wall-clock budget control. */
+  deadlineMs?: number;
 }
 
 export interface ProposalSummary {
@@ -498,7 +502,7 @@ const DEFAULT_FALLBACKS = DEFAULT_AUTONOMOUS_FALLBACKS;
 const CHAT_MAX_TOKENS = 8192;
 
 export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Promise<RunChatTurnResult> {
-  const { messages, modelOverride, userId, restrictExternalContextActions, reasoningMode, selectedAccountRefs } = input;
+  const { messages, modelOverride, userId, restrictExternalContextActions, reasoningMode, selectedAccountRefs, deadlineMs } = input;
   const pinnedMemory = await loadPinnedMemoryBlock([], { soulAgentKeys: ["google-ads"] });
   const systemPrompt = buildSystemPromptForPortfolio({
     pinnedMemoryBlock: pinnedMemory.text,
@@ -571,6 +575,7 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
       ...(selectedAccountRefs && selectedAccountRefs.length > 0 ? { selectedAccountRefs } : {}),
       ...(userId !== undefined ? { userId } : {}),
     },
+    deadlineMs,
   });
   const reply = extractReplyText(result.finalMessage);
   resetProposalCounter(result.runId);
@@ -589,7 +594,7 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
 }
 
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
-  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, autonomous, reasoningMode, disableFallbacks } = input;
+  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, autonomous, reasoningMode, disableFallbacks, deadlineMs } = input;
   if (!audit.customerId || !String(audit.customerId).trim()) {
     throw new Error("Audit has no Customer ID; cannot run agent.");
   }
@@ -647,6 +652,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     reasoningMode,
     context: agentContext,
     resolveToolBundles: (event) => resolveGoogleMateToolBundles(event, { restrictExternalContextActions }),
+    deadlineMs,
   });
 
   let reply = extractReplyText(result.finalMessage);
@@ -702,6 +708,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
       reasoningMode,
       context: agentContext,
       resolveToolBundles: (event) => resolveGoogleMateToolBundles(event, { restrictExternalContextActions }),
+      deadlineMs,
       // Reuse the original runId so the activity-log timeline shows the
       // retry as a continuation, not a fresh run.
       runId: result.runId,

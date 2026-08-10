@@ -167,6 +167,76 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
       throw new Error("Agent run aborted");
     }
 
+    // Wall-clock budget guard. If less than 45 seconds remain before the
+    // deadline, force a final synthesis turn with no tools so the model can
+    // only produce a text reply. This prevents the agent from starting a
+    // new tool-heavy turn that would blow past the Vercel maxDuration.
+    if (opts.deadlineMs && Date.now() >= opts.deadlineMs - 45_000) {
+      messages.push({
+        role: "user",
+        content: [{ type: "text", text: "Time budget exhausted. Summarise what you have and stop calling tools." }],
+      });
+      let finalResponse;
+      try {
+        finalResponse = await callLLM({
+          model: opts.model,
+          fallbackModels: opts.fallbackModels,
+          messages,
+          system: opts.systemPrompt,
+          tools: [],
+          ...(currentMaxTokens !== undefined ? { maxTokens: currentMaxTokens } : {}),
+          timeoutMs: opts.timeoutMs,
+          reasoningMode: opts.reasoningMode,
+        });
+      } catch (err) {
+        // If even the synthesis call fails, return what we have.
+        const output = formatLLMFailure(err);
+        const finalMessage = llmFailureMessage(output);
+        await logAgentStep({
+          agentRunId: runId,
+          agentName: opts.agentName,
+          step: turn,
+          type: "agent_error",
+          title: `${opts.agentName} time-budget synthesis LLM failed`,
+          output,
+          clientId: opts.context.clientId as string | number | undefined,
+        });
+        return { finalMessage, steps, totalUsage, modelUsed, source: lastSource, runId };
+      }
+      totalUsage = accumulateUsage(totalUsage, finalResponse.usage);
+      modelUsed = finalResponse.model;
+      lastSource = finalResponse.source;
+      finalResponse.message.content = finalResponse.message.content.map((part) =>
+        part.type === "text" ? { ...part, text: removeForbiddenDashes(part.text) } : part,
+      );
+      messages.push(finalResponse.message);
+      const finalText = finalResponse.message.content
+        .filter((p): p is Extract<ContentPart, { type: "text" }> => p.type === "text")
+        .map((p) => p.text)
+        .join("\n")
+        .trim();
+      steps.push({
+        step: turn,
+        type: "final-output",
+        output: finalText,
+        model: finalResponse.model,
+        source: finalResponse.source,
+        timestamp: new Date().toISOString(),
+      });
+      await logAgentStep({
+        agentRunId: runId,
+        agentName: opts.agentName,
+        step: turn,
+        type: "agent_final_output",
+        title: `${opts.agentName} final output (time-budget synthesis)`,
+        output: finalText,
+        model: finalResponse.model,
+        source: finalResponse.source,
+        clientId: opts.context.clientId as string | number | undefined,
+      });
+      return { finalMessage: finalResponse.message, steps, totalUsage, modelUsed, source: lastSource, runId };
+    }
+
     const llmStart = Date.now();
     let response;
     try {
@@ -375,42 +445,51 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
     const toolUseParts = response.message.content.filter(
       (p): p is Extract<ContentPart, { type: "tool_use" }> => p.type === "tool_use",
     );
-    const toolResults: ContentPart[] = [];
 
-    for (const tu of toolUseParts) {
-      const tool = toolMap.get(tu.name) as CanonicalTool<unknown> | undefined;
-      const toolStart = Date.now();
-      let resultContent: string;
-      let isError = false;
+    // Phase 1: Execute all tools in parallel (pure I/O, no shared mutation)
+    const ctx: ToolContext = {
+      agentName: opts.agentName,
+      agentRunId: runId,
+      context: opts.context,
+      log: (msg, meta) => console.log(`[${opts.agentName}] ${msg}`, meta ?? ""),
+      deadlineMs: opts.deadlineMs,
+    };
 
-      if (!tool) {
-        resultContent = `Tool not found: ${tu.name}`;
-        isError = true;
-      } else {
-        try {
-          const args = tool.validate ? tool.validate(tu.input) : tu.input;
-          const ctx: ToolContext = {
-            agentName: opts.agentName,
-            agentRunId: runId,
-            context: opts.context,
-            log: (msg, meta) => console.log(`[${opts.agentName}] ${msg}`, meta ?? ""),
-          };
-          const result = await tool.execute(args, ctx);
-          resultContent = JSON.stringify(
-            result.ok
-              ? (result.data ?? { ok: true })
-              : { ok: false, error: result.error ?? "Tool returned ok=false without an error message" },
-          );
-          if (!result.ok) isError = true;
-        } catch (err) {
-          // Tool pairing repair: even on throw we MUST emit a tool_result so
-          // the next LLM call doesn't fail the strict pairing constraint.
-          resultContent = `Tool execution failed: ${(err as Error).message}`;
+    const executed = await Promise.all(
+      toolUseParts.map(async (tu) => {
+        const tool = toolMap.get(tu.name) as CanonicalTool<unknown> | undefined;
+        const toolStart = Date.now();
+        let resultContent: string;
+        let isError = false;
+
+        if (!tool) {
+          resultContent = `Tool not found: ${tu.name}`;
           isError = true;
+        } else {
+          try {
+            const args = tool.validate ? tool.validate(tu.input) : tu.input;
+            const result = await tool.execute(args, ctx);
+            resultContent = JSON.stringify(
+              result.ok
+                ? (result.data ?? { ok: true })
+                : { ok: false, error: result.error ?? "Tool returned ok=false without an error message" },
+            );
+            if (!result.ok) isError = true;
+          } catch (err) {
+            // Tool pairing repair: even on throw we MUST emit a tool_result so
+            // the next LLM call doesn't fail the strict pairing constraint.
+            resultContent = `Tool execution failed: ${(err as Error).message}`;
+            isError = true;
+          }
         }
-      }
 
-      if (opts.resolveToolBundles) {
+        return { tu, resultContent, isError, toolStart };
+      }),
+    );
+
+    // Phase 2: Sequential — resolveToolBundles per result (mutates toolMap)
+    if (opts.resolveToolBundles) {
+      for (const { tu, resultContent, isError } of executed) {
         try {
           const bundledTools = await opts.resolveToolBundles({
             toolName: tu.name,
@@ -424,7 +503,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
           console.warn(`[${opts.agentName}] Failed to resolve tool bundles:`, (err as Error).message);
         }
       }
+    }
 
+    // Phase 3: Sequential — build toolResults + activity log (ordered, side-effectful)
+    const toolResults: ContentPart[] = [];
+    for (const { tu, resultContent, isError, toolStart } of executed) {
       const toolDuration = Date.now() - toolStart;
       toolResults.push({
         type: "tool_result",

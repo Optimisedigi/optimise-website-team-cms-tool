@@ -15,6 +15,8 @@ export interface ToolContext {
   /** Per-run context the agent passed in (e.g. clientId, customerId). */
   context: Record<string, unknown>;
   log: (msg: string, meta?: Record<string, unknown>) => void;
+  /** Absolute epoch-ms deadline from the agent run. Tools can use this to short-circuit when time is tight. */
+  deadlineMs?: number;
 }
 
 export interface ToolResultPayload {

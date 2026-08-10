@@ -62,9 +62,11 @@ export const getPortfolioPerformanceSummary: CanonicalTool<PerformanceSummaryArg
     }
     return out;
   },
-  execute: async (args) => {
+  execute: async (args, ctx) => {
     const allAccounts = await loadPortfolioAccounts();
-    const selected = selectAccounts(allAccounts, args.accountRefs, args.limit ?? 5);
+    const timeLeft = ctx.deadlineMs ? ctx.deadlineMs - Date.now() : Infinity;
+    const effectiveLimit = timeLeft < 60_000 ? Math.min(2, args.limit ?? 5) : (args.limit ?? 5);
+    const selected = selectAccounts(allAccounts, args.accountRefs, effectiveLimit);
     const resolved = resolveRangeWithSegment(args.range ?? "LAST_30_DAYS", undefined);
     const dateRangeParam = customRangeForGrowthTools(resolved);
     const rows = await mapWithConcurrency(selected, 4, async (account) => fetchAccountSummary(account, dateRangeParam));
