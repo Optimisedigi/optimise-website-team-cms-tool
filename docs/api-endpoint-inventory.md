@@ -110,6 +110,7 @@ CMS → Growth Tools unmatched calls: 4
 | `/api/costs/upload` | POST | payload-session | json-body, 400-validation |  | `src/app/(frontend)/api/costs/upload/route.ts` |
 | `/api/dashboard/avoided-spend/flush-cache` | POST | payload-session | json-body, 400-validation |  | `src/app/(frontend)/api/dashboard/avoided-spend/flush-cache/route.ts` |
 | `/api/dashboard/avoided-spend` | GET | none-detected | json-body, query-params, 400-validation |  | `src/app/(frontend)/api/dashboard/avoided-spend/route.ts` |
+| `/api/dashboard/conversion-action-defaults` | POST | none-detected | json-body, 400-validation |  | `src/app/(frontend)/api/dashboard/conversion-action-defaults/route.ts` |
 | `/api/dashboard/data` | GET | api-key/internal-key | json-body, query-params, 400-validation | growth-tools, fetch | `src/app/(frontend)/api/dashboard/data/route.ts` |
 | `/api/dashboard/ga4-channels` | GET | pin-gated | json-body, query-params, 400-validation |  | `src/app/(frontend)/api/dashboard/ga4-channels/route.ts` |
 | `/api/dashboard/hubspot-post-click` | GET | api-key/internal-key | json-body, query-params, 400-validation | growth-tools, fetch | `src/app/(frontend)/api/dashboard/hubspot-post-click/route.ts` |
@@ -122,7 +123,6 @@ CMS → Growth Tools unmatched calls: 4
 | `/api/dashboard/prewarm/run` | POST | payload-session | json-body |  | `src/app/(frontend)/api/dashboard/prewarm/run/route.ts` |
 | `/api/dashboard/quality-scores` | GET | api-key/internal-key | json-body, query-params, 400-validation | growth-tools, fetch | `src/app/(frontend)/api/dashboard/quality-scores/route.ts` |
 | `/api/dashboard` | GET | payload-session | json-body | google, email, blob | `src/app/(frontend)/api/dashboard/route.ts` |
-| `/api/dashboard/secondary-conversion-actions` | POST | none-detected | json-body, 400-validation |  | `src/app/(frontend)/api/dashboard/secondary-conversion-actions/route.ts` |
 | `/api/dashboard/verify` | POST | api-key/internal-key | json-body, 400-validation |  | `src/app/(frontend)/api/dashboard/verify/route.ts` |
 | `/api/debug-meeting-schedulers` | POST | api-key/internal-key | json-body, query-params | email | `src/app/(frontend)/api/debug-meeting-schedulers/route.ts` |
 | `/api/diag/revenue-breakdown` | GET | api-key/internal-key | json-body |  | `src/app/(frontend)/api/diag/revenue-breakdown/route.ts` |
@@ -716,7 +716,7 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
 
 ```json
 {
-  "generatedAt": "2026-08-10T03:18:35.518Z",
+  "generatedAt": "2026-08-10T03:38:27.238Z",
   "cmsRows": [
     {
       "route": "/api/ad-copy-comments",
@@ -1960,6 +1960,19 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
       "unmatchedGrowthToolsCalls": []
     },
     {
+      "route": "/api/dashboard/conversion-action-defaults",
+      "file": "src/app/(frontend)/api/dashboard/conversion-action-defaults/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "none-detected",
+      "validation": "json-body, 400-validation",
+      "external": "",
+      "hasTryCatch": true,
+      "growthToolsCalls": [],
+      "unmatchedGrowthToolsCalls": []
+    },
+    {
       "route": "/api/dashboard/data",
       "file": "src/app/(frontend)/api/dashboard/data/route.ts",
       "methods": [
@@ -2113,19 +2126,6 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
       "auth": "payload-session",
       "validation": "json-body",
       "external": "google, email, blob",
-      "hasTryCatch": true,
-      "growthToolsCalls": [],
-      "unmatchedGrowthToolsCalls": []
-    },
-    {
-      "route": "/api/dashboard/secondary-conversion-actions",
-      "file": "src/app/(frontend)/api/dashboard/secondary-conversion-actions/route.ts",
-      "methods": [
-        "POST"
-      ],
-      "auth": "none-detected",
-      "validation": "json-body, 400-validation",
-      "external": "",
       "hasTryCatch": true,
       "growthToolsCalls": [],
       "unmatchedGrowthToolsCalls": []

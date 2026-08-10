@@ -86,9 +86,9 @@ function openConversionDropdown() {
   fireEvent.click(screen.getByRole("button", { name: /Conversions/i }));
 }
 
-/** The selector panel that owns the "Secondary Conversions" group header. */
+/** The selector panel section holding the secondary conversion checkboxes. */
 function secondaryGroup(): HTMLElement {
-  return screen.getByText("Secondary Conversions").closest("div")!.parentElement as HTMLElement;
+  return screen.getByTestId("secondary-conversion-group");
 }
 
 beforeEach(() => {
@@ -98,7 +98,7 @@ beforeEach(() => {
       Promise.resolve({
         // Only the save endpoint needs to succeed; dashboard data fetches are
         // left failing so the component keeps rendering its initial payload.
-        ok: String(url).includes("/api/dashboard/secondary-conversion-actions"),
+        ok: String(url).includes("/api/dashboard/conversion-action-defaults"),
         json: () => Promise.resolve({ success: true }),
       }),
     ),
@@ -225,13 +225,13 @@ describe("GoogleAdsDashboard saved secondary conversion defaults", () => {
     fireEvent.click(save);
 
     const call = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
-      String(url).includes("/api/dashboard/secondary-conversion-actions"),
+      String(url).includes("/api/dashboard/conversion-action-defaults"),
     );
     expect(call).toBeTruthy();
     expect(JSON.parse(String(call![1].body))).toEqual({
       clientId: "42",
       slug: "away-digital",
-      hiddenActions: ["Chat - Quick Reply Click"],
+      hiddenSecondaryActions: ["Chat - Quick Reply Click"],
     });
 
     // Once saved, the button settles back to a disabled "Saved" state.
@@ -244,5 +244,96 @@ describe("GoogleAdsDashboard saved secondary conversion defaults", () => {
     renderDashboard();
     openConversionDropdown();
     expect(within(secondaryGroup()).queryByRole("button", { name: /Save as default|Saved/ })).toBeNull();
+  });
+});
+
+/** The selector panel section holding the primary conversion checkboxes. */
+function primaryGroup(): HTMLElement {
+  return screen.getByTestId("primary-conversion-group");
+}
+
+function saveCallBody() {
+  const call = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+    String(url).includes("/api/dashboard/conversion-action-defaults"),
+  );
+  return call ? JSON.parse(String(call[1].body)) : null;
+}
+
+describe("GoogleAdsDashboard primary conversion defaults", () => {
+  it("persists the primary selection when Save as default is pressed", async () => {
+    renderDashboard({ clientId: "42" });
+    openConversionDropdown();
+
+    const header = within(primaryGroup());
+    expect(header.getByRole("button", { name: "Saved" })).toBeDisabled();
+
+    fireEvent.click(within(primaryGroup()).getByTitle("Chat - Interaction").querySelector("input")!);
+
+    const save = within(primaryGroup()).getByRole("button", { name: "Save as default" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+
+    expect(saveCallBody()).toEqual({
+      clientId: "42",
+      slug: "away-digital",
+      selectedActions: ["Chat - Email Shared", "GTM - P1 Forms", "Chat - Interaction"],
+    });
+
+    expect(
+      await within(primaryGroup()).findByRole("button", { name: "Saved" }),
+    ).toBeDisabled();
+  });
+
+  it("treats a reordered selection as unchanged", () => {
+    renderDashboard({ clientId: "42" });
+    openConversionDropdown();
+
+    // Untick then re-tick: same set, different order. Nothing to save.
+    const box = within(primaryGroup()).getByTitle("Chat - Email Shared").querySelector("input")!;
+    fireEvent.click(box);
+    fireEvent.click(box);
+
+    expect(within(primaryGroup()).getByRole("button", { name: "Saved" })).toBeDisabled();
+  });
+
+  it("moves the Default badge onto the newly saved selection", async () => {
+    // The badge renders uppercase via CSS, so match its title rather than its
+    // text — which would also collide with the "Default" restore button.
+    const badges = () =>
+      primaryGroup().querySelectorAll('[title="Saved as a default for this client"]');
+
+    renderDashboard({ clientId: "42" });
+    openConversionDropdown();
+
+    // "Chat - Interaction" starts as a non-default, secondary-only action.
+    expect(badges()).toHaveLength(2);
+
+    fireEvent.click(within(primaryGroup()).getByTitle("Chat - Interaction").querySelector("input")!);
+    fireEvent.click(within(primaryGroup()).getByRole("button", { name: "Save as default" }));
+
+    await within(primaryGroup()).findByRole("button", { name: "Saved" });
+    expect(badges()).toHaveLength(3);
+  });
+
+  it("only sends the group that changed", () => {
+    renderDashboard({ clientId: "42" });
+    openConversionDropdown();
+
+    const row = within(secondaryGroup()).getByTitle("Chat - Quick Reply Click");
+    fireEvent.click(within(row).getByRole("checkbox"));
+    fireEvent.click(within(secondaryGroup()).getByRole("button", { name: "Save as default" }));
+
+    // Saving secondary must not rewrite the primary selection.
+    const body = saveCallBody();
+    expect(body).toHaveProperty("hiddenSecondaryActions");
+    expect(body).not.toHaveProperty("selectedActions");
+  });
+
+  it("omits the primary save control when no clientId is available", () => {
+    renderDashboard();
+    openConversionDropdown();
+    expect(
+      within(primaryGroup()).queryByRole("button", { name: /Save as default|Saved/ }),
+    ).toBeNull();
   });
 });

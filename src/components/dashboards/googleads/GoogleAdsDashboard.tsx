@@ -69,6 +69,18 @@ type ConversionActionCategoryConfig = {
   actions?: string[];
 };
 
+/** Order-insensitive comparison of two conversion-action selections. */
+function sameActionSet(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(b);
+  return a.every((item) => set.has(item));
+}
+
+/** Split a newline-separated CMS textarea value into trimmed action names. */
+function parseActionLines(raw?: string): string[] {
+  return raw ? raw.split("\n").map((s) => s.trim()).filter(Boolean) : [];
+}
+
 function parseConversionActionLabels(raw?: string): Record<string, string> {
   if (!raw) return {};
   try {
@@ -151,11 +163,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // Default Conversion Actions). These are pre-checked but the user can override
   // ad-hoc here — the saved set is shown with a small "Default" badge so it's clear
   // which items are the persistent client setting vs. session overrides.
-  const defaultSelected = defaultConversionActions
-    ? defaultConversionActions.split("\n").map((s) => s.trim()).filter(Boolean)
-    : [];
-  const defaultSelectedSet = new Set(defaultSelected);
+  const defaultSelected = parseActionLines(defaultConversionActions);
   const [selectedConversions, setSelectedConversions] = useState<string[]>(defaultSelected);
+  // Baseline of what's actually persisted, so "Save as default" can tell an
+  // ad-hoc override apart from the stored setting. Saving updates it, which
+  // also keeps the "Default" badges and restore button honest afterwards.
+  const [savedPrimaryBaseline, setSavedPrimaryBaseline] = useState<string[]>(defaultSelected);
+  const [savingPrimary, setSavingPrimary] = useState(false);
+  const defaultSelectedSet = new Set(savedPrimaryBaseline);
   const [conversionDropdownOpen, setConversionDropdownOpen] = useState(false);
   const conversionDropdownRef = useRef<HTMLDivElement>(null);
   // Custom range picker state for the global date dropdown
@@ -171,9 +186,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // bar client-side rather than re-querying Google Ads. Track exclusions (not
   // inclusions) so an action that starts converting later shows up by default.
   // Seeded from the client record so the choice survives a refresh.
-  const savedHiddenSecondary = hiddenSecondaryConversionActions
-    ? hiddenSecondaryConversionActions.split("\n").map((s) => s.trim()).filter(Boolean)
-    : [];
+  const savedHiddenSecondary = parseActionLines(hiddenSecondaryConversionActions);
   const [excludedSecondaryActions, setExcludedSecondaryActions] =
     useState<string[]>(savedHiddenSecondary);
   const [savedSecondaryBaseline, setSavedSecondaryBaseline] =
@@ -186,28 +199,44 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     );
   }, []);
 
-  const secondaryDirty =
-    excludedSecondaryActions.length !== savedSecondaryBaseline.length ||
-    excludedSecondaryActions.some((a) => !savedSecondaryBaseline.includes(a));
+  const secondaryDirty = !sameActionSet(excludedSecondaryActions, savedSecondaryBaseline);
 
-  const saveSecondaryDefaults = useCallback(async () => {
-    if (!clientId) return;
-    setSavingSecondary(true);
-    try {
-      const res = await fetch("/api/dashboard/secondary-conversion-actions", {
+  const postConversionDefaults = useCallback(
+    async (payload: Record<string, string[]>) => {
+      if (!clientId) return false;
+      const res = await fetch("/api/dashboard/conversion-action-defaults", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId,
-          slug: data.slug,
-          hiddenActions: excludedSecondaryActions,
-        }),
+        body: JSON.stringify({ clientId, slug: data.slug, ...payload }),
       });
-      if (res.ok) setSavedSecondaryBaseline(excludedSecondaryActions);
+      return res.ok;
+    },
+    [clientId, data.slug],
+  );
+
+  const saveSecondaryDefaults = useCallback(async () => {
+    setSavingSecondary(true);
+    try {
+      const ok = await postConversionDefaults({
+        hiddenSecondaryActions: excludedSecondaryActions,
+      });
+      if (ok) setSavedSecondaryBaseline(excludedSecondaryActions);
     } finally {
       setSavingSecondary(false);
     }
-  }, [clientId, data.slug, excludedSecondaryActions]);
+  }, [excludedSecondaryActions, postConversionDefaults]);
+
+  const primaryDirty = !sameActionSet(selectedConversions, savedPrimaryBaseline);
+
+  const savePrimaryDefaults = useCallback(async () => {
+    setSavingPrimary(true);
+    try {
+      const ok = await postConversionDefaults({ selectedActions: selectedConversions });
+      if (ok) setSavedPrimaryBaseline(selectedConversions);
+    } finally {
+      setSavingPrimary(false);
+    }
+  }, [selectedConversions, postConversionDefaults]);
 
   // Derive the active conversionActions param from selection.
   // Always send explicit action names (comma-separated) so Growth Tools
@@ -516,9 +545,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     // with what the account currently exposes so we never select a stale
     // action name that no longer exists.
     const availableSet = new Set(availableActions);
-    const defaults = defaultSelected.filter((a) => availableSet.has(a));
-    setSelectedConversions(defaults.length > 0 ? defaults : defaultSelected);
-  }, [availableActions, defaultSelected]);
+    const defaults = savedPrimaryBaseline.filter((a) => availableSet.has(a));
+    setSelectedConversions(defaults.length > 0 ? defaults : savedPrimaryBaseline);
+  }, [availableActions, savedPrimaryBaseline]);
 
   const clearAllConversions = useCallback(() => {
     setSelectedConversions([]);
@@ -727,6 +756,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
 
                 {conversionDropdownOpen && (
                   <div className="absolute right-0 top-full mt-1 w-[420px] max-w-[92vw] bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
+                    <div data-testid="primary-conversion-group">
                     <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
                       <span
                         className="text-xs font-medium text-slate-500 uppercase tracking-wider"
@@ -736,16 +766,26 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                       </span>
                       <div className="flex gap-2">
                         <button onClick={selectAllConversions} className="text-xs text-blue-600 hover:text-blue-800">All</button>
-                        {defaultSelected.length > 0 && (
+                        {savedPrimaryBaseline.length > 0 && (
                           <button
                             onClick={selectDefaultConversions}
                             className="text-xs text-blue-600 hover:text-blue-800"
-                            title="Restore the client's CMS-saved default conversion actions"
+                            title="Restore the client's saved default conversion actions"
                           >
                             Default
                           </button>
                         )}
                         <button onClick={clearAllConversions} className="text-xs text-slate-400 hover:text-slate-600">None</button>
+                        {clientId && (
+                          <button
+                            onClick={savePrimaryDefaults}
+                            disabled={savingPrimary || !primaryDirty}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:text-slate-300 disabled:cursor-default"
+                            title="Remember this selection for everyone viewing this dashboard"
+                          >
+                            {savingPrimary ? "Saving…" : primaryDirty ? "Save as default" : "Saved"}
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="max-h-64 overflow-y-auto">
@@ -782,11 +822,13 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                       })}
                     </div>
 
+                    </div>
+
                     {/* Secondary group — actions that fired but are not counted as
                         primary. Ticking only controls whether they appear in the
                         KPI bar's Secondary Conv row; it does not re-query. */}
                     {secondaryActionCounts.length > 0 && (
-                      <div className="border-t border-slate-100">
+                      <div className="border-t border-slate-100" data-testid="secondary-conversion-group">
                         <div className="px-3 py-2 flex items-center justify-between">
                           <span
                             className="text-xs font-medium text-slate-500 uppercase tracking-wider"

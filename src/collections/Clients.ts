@@ -2339,11 +2339,12 @@ export const Clients: CollectionConfig = {
             {
               name: "dashboardHiddenSecondaryConversionActions",
               type: "textarea",
+              label: "Hidden Secondary Conversion Actions",
               admin: {
-                hidden: true,
                 condition: (data: any) => !!data?.googleAdsCustomerId,
                 description:
-                  "Managed from the Google Ads dashboard's Conversions selector. Secondary actions listed here are hidden from the KPI bar.",
+                  "One Google Ads conversion action name per line. Listed actions are hidden from the dashboard KPI bar's Secondary Conv row. Anything not listed shows by default, so a newly-firing action still appears. Also editable from the dashboard's Conversions selector.",
+                placeholder: "Chat - Quick Reply Click",
               },
             },
 
