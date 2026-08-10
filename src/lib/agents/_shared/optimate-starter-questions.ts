@@ -2,17 +2,25 @@ export interface OptiMateStarterQuestion {
   question: string;
 }
 
+/**
+ * Report chips must name their `components` explicitly. Both
+ * `create_weekly_budget_gmail_draft` and `create_monthly_budget_gmail_draft`
+ * return a clarification instead of a draft when `components` is empty, so a
+ * chip that omits them stalls the conversation. Weekly supports only
+ * keyword_relevancy and cpa_trend; monthly also supports quality_score and
+ * top_converters.
+ */
 export const DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS = [
-  "Draft the budget pacing this month with a 1 sentence performance summary on top, then save it as a Gmail draft.",
-  "How is my budget pacing this month? Include percent used, target spend to date, and days remaining.",
+  "Create a Gmail draft for the weekly Google Ads budget report. Include both graphs: keyword_relevancy and cpa_trend.",
+  "Create a Gmail draft for the monthly Google Ads budget report. Include these components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
   "Which campaigns are performing best this week?",
   "Are there any keywords wasting spend?",
 ] as const;
 
 export const DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS = [
-  "Create separate Gmail drafts for each selected account using the last 4 completed Monday-Sunday weeks. Summarise last week against prior weeks, then include current-month Budget Management pacing components. Keep the performance report weekly.",
-  "Show me the account inventory",
-  "Summarise portfolio performance",
+  "Create separate Gmail drafts for each selected account's budget pacing this month, each with a 1 sentence performance summary on top. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
+  "Create a separate Gmail draft for each selected account's last completed Monday-Sunday weekly report. Add 1 sentence summarising weekly performance and spend pacing. Never use monthly or MTD data. Graphs: keyword_relevancy, cpa_trend.",
+  "Create a separate Gmail draft for each selected account's last-month performance, with a two-sentence summary above the tables. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
   "Find cross-account search-term waste",
 ] as const;
 
