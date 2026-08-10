@@ -72,6 +72,12 @@ export interface GoogleAdsDashboardKpis {
    *  "Conversions broken down" mini cards under the main Conversions
    *  KPI tile. Only populated when the conversion-action filter is on. */
   conversionsByAction?: Record<string, number>;
+  /**
+   * Per-action breakdown of `allConversions` — includes both primary AND
+   * secondary conversion actions. Drives the "Secondary Conv" section in
+   * the KPI bar when populated.
+   */
+  allConversionsByAction?: Record<string, number>;
 }
 
 export interface GoogleAdsDashboardMonthly {

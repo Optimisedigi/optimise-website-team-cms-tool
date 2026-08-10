@@ -139,10 +139,34 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                Secondary Conv
-              </span>
-              {/* Secondary conversion data can be wired here when available */}
+              {(() => {
+                const allCounts = kpis.allConversionsByAction ?? {};
+                const primarySet = new Set(Object.keys(conversionCounts));
+                const secondaryEntries = Object.entries(allCounts)
+                  .filter(([action, count]) => count > 0 && !primarySet.has(action))
+                  .sort((a, b) => b[1] - a[1]);
+                if (secondaryEntries.length === 0) return null;
+                const secondaryAggregated = aggregateByDashboardLabel(
+                  secondaryEntries,
+                  conversionActionLabels,
+                );
+                return (
+                  <>
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                      Secondary Conv ({secondaryAggregated.length})
+                    </span>
+                    {secondaryAggregated.map(([action, count], idx) => (
+                      <span key={`sec-${action}`} className="flex items-baseline gap-1">
+                        {idx > 0 && <span className="text-slate-200">·</span>}
+                        <span className="text-slate-600 truncate max-w-[160px]">{action}</span>
+                        <span className="font-semibold text-slate-800 tabular-nums">
+                          {Math.round(count).toLocaleString()}
+                        </span>
+                      </span>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
@@ -152,12 +176,12 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
             className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-150 absolute top-full mt-2 z-30 bg-white border border-slate-200 rounded-lg shadow-lg p-3 min-w-[300px] max-w-[480px] pointer-events-none"
           >
             <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400 mb-2">
-              Conversions by action ({breakdown.length})
+              Primary conversions by action ({breakdown.length})
             </div>
             <div className="flex flex-col gap-1.5">
               {breakdown.map(([action, count]) => (
                 <div
-                  key={action}
+                  key={`popover-primary-${action}`}
                   className="flex justify-between items-start gap-3 text-xs border-b border-slate-50 last:border-0 pb-1 last:pb-0"
                 >
                   <span
@@ -172,6 +196,43 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
                 </div>
               ))}
             </div>
+            {(() => {
+              const allCounts = kpis.allConversionsByAction ?? {};
+              const primarySet = new Set(Object.keys(conversionCounts));
+              const secondaryEntries = Object.entries(allCounts)
+                .filter(([action, count]) => count > 0 && !primarySet.has(action))
+                .sort((a, b) => b[1] - a[1]);
+              if (secondaryEntries.length === 0) return null;
+              const secondaryAggregated = aggregateByDashboardLabel(
+                secondaryEntries,
+                conversionActionLabels,
+              );
+              return (
+                <>
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400 mb-2 mt-3 pt-2 border-t border-slate-100">
+                    Secondary conversions by action ({secondaryAggregated.length})
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {secondaryAggregated.map(([action, count]) => (
+                      <div
+                        key={`popover-secondary-${action}`}
+                        className="flex justify-between items-start gap-3 text-xs border-b border-slate-50 last:border-0 pb-1 last:pb-0"
+                      >
+                        <span
+                          className="text-slate-500 break-words leading-snug italic"
+                          style={{ wordBreak: "break-word" }}
+                        >
+                          {action}
+                        </span>
+                        <span className="font-semibold text-slate-700 tabular-nums shrink-0">
+                          {Math.round(count).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
