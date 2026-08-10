@@ -960,6 +960,10 @@ export interface Client {
     | null;
   dashboardConversionActions?: string | null;
   /**
+   * Managed from the Google Ads dashboard's Conversions selector. Secondary actions listed here are hidden from the KPI bar.
+   */
+  dashboardHiddenSecondaryConversionActions?: string | null;
+  /**
    * Managed by the Default Conversion Actions picker above. Each selected action is stored as a category row for dashboard columns / tiles.
    */
   conversionActionCategories?:
@@ -11518,6 +11522,7 @@ export interface ClientsSelect<T extends boolean = true> {
         id?: T;
       };
   dashboardConversionActions?: T;
+  dashboardHiddenSecondaryConversionActions?: T;
   conversionActionCategories?:
     | T
     | {

@@ -30,6 +30,8 @@ interface GoogleAdsDashboardProps {
   /** JSON-encoded `Array<{ label, color, actions: string[] }>` defining the
    *  client's editable conversion-action categories. */
   conversionActionCategories?: string;
+  /** Newline-separated secondary actions saved as hidden on the client record. */
+  hiddenSecondaryConversionActions?: string;
   clientId?: string;
   initialKeywordSelections?: string[];
   initialAddedSelections?: string[];
@@ -87,7 +89,7 @@ function parseConversionActionLabels(raw?: string): Record<string, string> {
   }
 }
 
-export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions, phoneCallActions, formSubmitActions, conversionActionCategories, clientId, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: GoogleAdsDashboardProps) {
+export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions, phoneCallActions, formSubmitActions, conversionActionCategories, hiddenSecondaryConversionActions, clientId, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
   const [compareMode, setCompareMode] = useState<"month" | "year">("year");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -168,13 +170,44 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // already carries every action, so hiding an irrelevant one filters the KPI
   // bar client-side rather than re-querying Google Ads. Track exclusions (not
   // inclusions) so an action that starts converting later shows up by default.
-  const [excludedSecondaryActions, setExcludedSecondaryActions] = useState<string[]>([]);
+  // Seeded from the client record so the choice survives a refresh.
+  const savedHiddenSecondary = hiddenSecondaryConversionActions
+    ? hiddenSecondaryConversionActions.split("\n").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const [excludedSecondaryActions, setExcludedSecondaryActions] =
+    useState<string[]>(savedHiddenSecondary);
+  const [savedSecondaryBaseline, setSavedSecondaryBaseline] =
+    useState<string[]>(savedHiddenSecondary);
+  const [savingSecondary, setSavingSecondary] = useState(false);
   const secondaryActionCounts = secondaryConversionActions(data.kpis, selectedConversions);
   const toggleSecondaryAction = useCallback((action: string) => {
     setExcludedSecondaryActions((prev) =>
       prev.includes(action) ? prev.filter((a) => a !== action) : [...prev, action],
     );
   }, []);
+
+  const secondaryDirty =
+    excludedSecondaryActions.length !== savedSecondaryBaseline.length ||
+    excludedSecondaryActions.some((a) => !savedSecondaryBaseline.includes(a));
+
+  const saveSecondaryDefaults = useCallback(async () => {
+    if (!clientId) return;
+    setSavingSecondary(true);
+    try {
+      const res = await fetch("/api/dashboard/secondary-conversion-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          slug: data.slug,
+          hiddenActions: excludedSecondaryActions,
+        }),
+      });
+      if (res.ok) setSavedSecondaryBaseline(excludedSecondaryActions);
+    } finally {
+      setSavingSecondary(false);
+    }
+  }, [clientId, data.slug, excludedSecondaryActions]);
 
   // Derive the active conversionActions param from selection.
   // Always send explicit action names (comma-separated) so Growth Tools
@@ -776,6 +809,20 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                             >
                               None
                             </button>
+                            {clientId && (
+                              <button
+                                onClick={saveSecondaryDefaults}
+                                disabled={savingSecondary || !secondaryDirty}
+                                className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:text-slate-300 disabled:cursor-default"
+                                title="Remember this selection for everyone viewing this dashboard"
+                              >
+                                {savingSecondary
+                                  ? "Saving…"
+                                  : secondaryDirty
+                                    ? "Save as default"
+                                    : "Saved"}
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div className="max-h-48 overflow-y-auto pb-1">

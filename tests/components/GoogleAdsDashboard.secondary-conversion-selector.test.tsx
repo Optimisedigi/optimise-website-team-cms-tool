@@ -68,7 +68,7 @@ const DATA = {
 
 const DEFAULTS = "Chat - Email Shared\nGTM - P1 Forms";
 
-function renderDashboard() {
+function renderDashboard(props: { hidden?: string; clientId?: string } = {}) {
   return render(
     <GoogleAdsDashboard
       data={DATA}
@@ -76,6 +76,8 @@ function renderDashboard() {
       conversionActionCategories={JSON.stringify([
         { label: "Form Submit", actions: ["GTM - P1 Forms"] },
       ])}
+      hiddenSecondaryConversionActions={props.hidden}
+      clientId={props.clientId}
     />,
   );
 }
@@ -92,7 +94,14 @@ function secondaryGroup(): HTMLElement {
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve(null) })),
+    vi.fn((url: string) =>
+      Promise.resolve({
+        // Only the save endpoint needs to succeed; dashboard data fetches are
+        // left failing so the component keeps rendering its initial payload.
+        ok: String(url).includes("/api/dashboard/secondary-conversion-actions"),
+        json: () => Promise.resolve({ success: true }),
+      }),
+    ),
   );
   // jsdom ships no ResizeObserver; the dashboard's charts construct one on mount.
   vi.stubGlobal(
@@ -176,5 +185,64 @@ describe("GoogleAdsDashboard secondary conversion selector", () => {
     fireEvent.click(within(row).getByRole("checkbox"));
 
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsAfterMount);
+  });
+});
+
+describe("GoogleAdsDashboard saved secondary conversion defaults", () => {
+  it("applies the saved hidden actions on first render", () => {
+    renderDashboard({ hidden: "Chat - Quick Reply Click\nChat - Conversation Started" });
+
+    const bar = screen.getByTestId("conversion-breakdown-bar");
+    expect(within(bar).getByText("Secondary Conv (2)")).toBeInTheDocument();
+    expect(within(bar).queryByText("Chat - Quick Reply Click")).toBeNull();
+
+    // Saved actions stay listed and unticked so the choice is reversible.
+    openConversionDropdown();
+    const row = within(secondaryGroup()).getByTitle("Chat - Quick Reply Click");
+    expect((within(row).getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+  });
+
+  it("tolerates blank lines and padding in the saved value", () => {
+    renderDashboard({ hidden: "\n  Chat - Interaction  \n\n" });
+
+    const bar = screen.getByTestId("conversion-breakdown-bar");
+    expect(within(bar).getByText("Secondary Conv (3)")).toBeInTheDocument();
+    expect(within(bar).queryByText("Chat - Interaction")).toBeNull();
+  });
+
+  it("persists the current selection when Save as default is pressed", async () => {
+    renderDashboard({ clientId: "42" });
+    openConversionDropdown();
+
+    // Nothing changed yet, so there is nothing to save.
+    expect(within(secondaryGroup()).getByRole("button", { name: "Saved" })).toBeDisabled();
+
+    const row = within(secondaryGroup()).getByTitle("Chat - Quick Reply Click");
+    fireEvent.click(within(row).getByRole("checkbox"));
+
+    const save = within(secondaryGroup()).getByRole("button", { name: "Save as default" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+
+    const call = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+      String(url).includes("/api/dashboard/secondary-conversion-actions"),
+    );
+    expect(call).toBeTruthy();
+    expect(JSON.parse(String(call![1].body))).toEqual({
+      clientId: "42",
+      slug: "away-digital",
+      hiddenActions: ["Chat - Quick Reply Click"],
+    });
+
+    // Once saved, the button settles back to a disabled "Saved" state.
+    expect(
+      await within(secondaryGroup()).findByRole("button", { name: "Saved" }),
+    ).toBeDisabled();
+  });
+
+  it("omits the save control when no clientId is available", () => {
+    renderDashboard();
+    openConversionDropdown();
+    expect(within(secondaryGroup()).queryByRole("button", { name: /Save as default|Saved/ })).toBeNull();
   });
 });

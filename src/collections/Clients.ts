@@ -2328,6 +2328,25 @@ export const Clients: CollectionConfig = {
               },
             },
 
+            // ─ Hidden Secondary Conversion Actions ─
+            // Secondary conversions are every action contributing to
+            // `allConversions` that isn't already counted as primary. The
+            // dashboard shows them all by default; this stores the ones the
+            // team has hidden as irrelevant, newline-separated to match
+            // dashboardConversionActions above. Storing exclusions (rather
+            // than inclusions) means a newly-firing action still appears by
+            // default instead of being silently dropped.
+            {
+              name: "dashboardHiddenSecondaryConversionActions",
+              type: "textarea",
+              admin: {
+                hidden: true,
+                condition: (data: any) => !!data?.googleAdsCustomerId,
+                description:
+                  "Managed from the Google Ads dashboard's Conversions selector. Secondary actions listed here are hidden from the KPI bar.",
+              },
+            },
+
             // ─ Conversion Action Categories ─
             // Powers the Overview tab's "Conversion Split" card and the
             // per-action breakdowns shown on the KPI row, Category

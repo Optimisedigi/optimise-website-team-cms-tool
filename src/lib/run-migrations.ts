@@ -1081,6 +1081,7 @@ export async function runMigrations(
   
     // --- clients.dashboard_conversion_actions, blog_categories, blog_tags columns ---
     await run("clients.dashboard_conversion_actions", "ALTER TABLE `clients` ADD `dashboard_conversion_actions` text");
+    await run("clients.dashboard_hidden_secondary_conversion_actions", "ALTER TABLE `clients` ADD `dashboard_hidden_secondary_conversion_actions` text");
     await run("clients.blog_categories", "ALTER TABLE `clients` ADD `blog_categories` text");
     await run("clients.blog_tags", "ALTER TABLE `clients` ADD `blog_tags` text");
   

@@ -163,6 +163,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
       googleAdsCustomerId: true,
       brandKeywords: true,
       dashboardConversionActions: true,
+      dashboardHiddenSecondaryConversionActions: true,
       conversionActionCategories: true,
       phoneCallConversionActions: true,
       formSubmitConversionActions: true,
@@ -282,6 +283,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
       initialQualityData={initialQualityData}
       brandKeywords={client.brandKeywords || ""}
       conversionActions={client.dashboardConversionActions || ""}
+      hiddenSecondaryConversionActions={client.dashboardHiddenSecondaryConversionActions || ""}
       phoneCallActions={(client as any).phoneCallConversionActions || ""}
       formSubmitActions={(client as any).formSubmitConversionActions || ""}
       conversionActionCategories={serializedConversionActionCategories}
