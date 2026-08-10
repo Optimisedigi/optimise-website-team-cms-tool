@@ -152,12 +152,12 @@ export function KpiRow({
         />
       </div>
       {breakdown.length > 0 && (
-        <div className="relative mt-2 flex justify-center group">
+        <div className="relative mt-2 group">
           <div
             data-testid="conversion-breakdown-bar"
-            className={`w-full max-w-[960px] mx-auto flex flex-col gap-y-1.5 ${secondaryBreakdown.length > 0 ? "rounded-2xl" : "rounded-full"} bg-white border border-slate-200 px-4 py-1.5 shadow-sm text-xs cursor-default`}
+            className="w-full flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-full bg-white border border-slate-200 px-4 py-1.5 shadow-sm text-xs cursor-default"
           >
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-w-0">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-700">
                 Primary Conv ({breakdown.length})
               </span>
@@ -180,7 +180,7 @@ export function KpiRow({
             </div>
 
             {secondaryBreakdown.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-slate-100 pt-1.5">
+              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5 min-w-0 ml-auto">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
                   Secondary Conv ({secondaryBreakdown.length})
                 </span>

@@ -136,25 +136,31 @@ describe("KpiRow secondary conversions", () => {
 });
 
 describe("KpiRow secondary conversion layout", () => {
-  it("puts primary and secondary on their own full-width rows", () => {
+  it("puts primary and secondary side by side on one full-width row", () => {
     renderRow();
     const bar = screen.getByTestId("conversion-breakdown-bar");
 
-    // A column of rows, not a 2-up grid that squeezes secondary into half width.
-    expect(bar.className).toContain("flex-col");
+    // One row spanning the full width, not stacked rows and not a 2-up grid
+    // that squeezes secondary into half the width.
+    expect(bar.className).toContain("w-full");
+    expect(bar.className).not.toContain("flex-col");
     expect(bar.className).not.toContain("grid-cols-2");
+    expect(bar.className).not.toContain("max-w-");
     expect(bar.children).toHaveLength(2);
 
-    const secondaryRow = bar.children[1] as HTMLElement;
-    expect(secondaryRow.className).toContain("flex-wrap");
-    // Left-aligned like the primary row rather than pushed to the right edge.
-    expect(secondaryRow.className).not.toContain("justify-end");
+    // Secondary sits to the right of primary, pushed to the far edge.
+    const secondaryGroup = bar.children[1] as HTMLElement;
+    expect(secondaryGroup.className).toContain("ml-auto");
+    expect(secondaryGroup.className).toContain("flex-wrap");
   });
 
-  it("keeps the pill shape when there is no secondary row to show", () => {
+  it("keeps the pill shape whether or not secondary conversions are present", () => {
+    const withSecondary = renderRow();
+    expect(withSecondary.container.querySelector(".rounded-full")).not.toBeNull();
+    withSecondary.unmount();
+
     const { container } = renderRow({ allConversionsByAction: undefined });
     expect(container.querySelector(".rounded-full")).not.toBeNull();
-    expect(container.querySelector(".rounded-2xl")).toBeNull();
   });
 });
 
