@@ -155,6 +155,12 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
 
     const months = args.months ?? DEFAULT_MONTHS;
     const monthSpan = monthSpanEndingPreviousMonth(months);
+    // Match portfolio rendering: resolve dashboard and budget data through the
+    // audit instead of relying on a context-only client lookup.
+    const contextAuditId = ctx.context.auditId;
+    const auditId =
+      args.auditId ??
+      (typeof contextAuditId === "string" || typeof contextAuditId === "number" ? contextAuditId : undefined);
 
     const dashboardResult = await getDashboardEmailComponents.execute(
       {
@@ -162,7 +168,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
         months: DASHBOARD_TREND_MONTHS,
         endMonth: monthSpan.endMonth,
         range: args.range ?? "LAST_MONTH",
-        ...(args.auditId !== undefined ? { auditId: args.auditId } : {}),
+        ...(auditId !== undefined ? { auditId } : {}),
       },
       ctx,
     );
@@ -184,7 +190,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
       {
         mode: "this_month",
         campaignMetricsRange: "LAST_MONTH",
-        ...(args.auditId !== undefined ? { auditId: args.auditId } : {}),
+        ...(auditId !== undefined ? { auditId } : {}),
       },
       ctx,
     );

@@ -331,7 +331,10 @@ async function resolveAccountContext(
   | { ok: true; customerId: string; auditId?: string | number; clientId?: string | number; clientSlug?: string; conversionActions: string; conversionActionCategories: string }
   | { ok: false; error: string }
 > {
-  if (typeof context.customerId === "string" && context.customerId.trim()) {
+  // An explicit auditId is the canonical account selector. Do not let an
+  // individual-chat customerId short-circuit it, otherwise the same account
+  // renders against a different dashboard dataset than selected/portfolio mode.
+  if ((args.auditId === undefined || args.auditId === null || args.auditId === "") && typeof context.customerId === "string" && context.customerId.trim()) {
     return {
       ok: true,
       customerId: customerKey(context.customerId),

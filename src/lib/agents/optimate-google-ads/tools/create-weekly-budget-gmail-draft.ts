@@ -143,6 +143,13 @@ export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetG
     }
 
     const endDate = args.endDate ?? previousSundayInAgencyTime();
+    // Force the audit-backed component lookup on the individual surface too.
+    // Portfolio drafts already pass this value, and the context-only path can
+    // resolve a different client dashboard dataset for the same account.
+    const contextAuditId = ctx.context.auditId;
+    const auditId =
+      args.auditId ??
+      (typeof contextAuditId === "string" || typeof contextAuditId === "number" ? contextAuditId : undefined);
 
     const weeklyResult = await getWeeklyMetricTable.execute(
       {
@@ -161,7 +168,7 @@ export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetG
         components: args.components,
         months: DASHBOARD_TREND_MONTHS,
         range: "LAST_30_DAYS",
-        ...(args.auditId !== undefined ? { auditId: args.auditId } : {}),
+        ...(auditId !== undefined ? { auditId } : {}),
       },
       ctx,
     );
@@ -171,7 +178,7 @@ export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetG
     const budgetResult = await getBudgetManagementEmail.execute(
       {
         mode: "this_month",
-        ...(args.auditId !== undefined ? { auditId: args.auditId } : {}),
+        ...(auditId !== undefined ? { auditId } : {}),
       },
       ctx,
     );

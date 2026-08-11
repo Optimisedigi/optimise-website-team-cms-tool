@@ -106,10 +106,10 @@ describe("create_weekly_budget_gmail_draft", () => {
       ctx,
     );
     expect(mocks.executeDashboard).toHaveBeenCalledWith(
-      { components: ["keyword_relevancy"], months: 14, range: "LAST_30_DAYS" },
+      { components: ["keyword_relevancy"], months: 14, range: "LAST_30_DAYS", auditId: 4 },
       ctx,
     );
-    expect(mocks.executeBudget).toHaveBeenCalledWith({ mode: "this_month" }, ctx);
+    expect(mocks.executeBudget).toHaveBeenCalledWith({ mode: "this_month", auditId: 4 }, ctx);
     expect(mocks.executeDraft).toHaveBeenCalledTimes(1);
     const draftArgs = mocks.executeDraft.mock.calls[0]?.[0];
     expect(draftArgs.subject).toBe("Berendsen - Google Ads Weekly Report");

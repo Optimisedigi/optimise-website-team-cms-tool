@@ -17,9 +17,11 @@
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
 
-interface DraftBody {
+export interface DraftBody {
   surface: string;
   index: number;
+  /** Gmail Subject is stable per account and lets multi-account surfaces be aligned. */
+  accountKey: string;
   bytes: number;
   sha: string;
 }
@@ -47,39 +49,18 @@ async function main(): Promise<void> {
     );
   }
 
-  const indices = [...new Set(bodies.map((b) => b.index))].sort((a, b) => a - b);
-  const failures: string[] = [];
   console.log("");
-
-  for (const index of indices) {
-    const forIndex = bodies.filter((b) => b.index === index);
-    const surfaces = [...new Set(forIndex.map((b) => b.surface))];
-    const hashes = new Set(forIndex.map((b) => b.sha));
-
-    if (surfaces.length < 2) {
-      console.log(`  prompt #${index}: only ${surfaces.join(", ")} - nothing to compare`);
-      continue;
-    }
-    if (hashes.size === 1) {
-      console.log(
-        `  prompt #${index}: IDENTICAL across ${surfaces.length} surfaces (${surfaces.join(", ")}) - ${forIndex[0]!.bytes} B`,
-      );
-      continue;
-    }
-
-    const detail = forIndex.map((b) => `${b.surface}=${b.sha}/${b.bytes}B`).join(", ");
-    failures.push(`prompt #${index} differs between surfaces: ${detail}`);
-    console.log(`  prompt #${index}: DIFFERS - ${detail}`);
-  }
+  const { comparisons, failures } = compareBodies(bodies);
+  for (const comparison of comparisons) console.log(`  ${comparison}`);
 
   if (failures.length > 0) {
-    console.error(`\nFAILED: ${failures.length} prompt(s) not byte-identical across surfaces.`);
+    console.error(`\nFAILED: ${failures.length} account-keyed prompt body comparison(s) differ across surfaces.`);
     for (const failure of failures) console.error(`  - ${failure}`);
     process.exitCode = 1;
     return;
   }
 
-  console.log("\nPASS: every compared prompt is byte-identical across all surfaces.");
+  console.log("\nPASS: every account-keyed prompt body is byte-identical across all available surfaces.");
 }
 
 /**
@@ -87,7 +68,7 @@ async function main(): Promise<void> {
  * its email bodies as iframe `srcdoc` attributes, HTML-escaped exactly once by
  * the report renderer.
  */
-function extractBodies(html: string): DraftBody[] {
+export function extractBodies(html: string): DraftBody[] {
   const bodies: DraftBody[] = [];
   const sections = html.split('<section class="case">').slice(1);
 
@@ -98,16 +79,47 @@ function extractBodies(html: string): DraftBody[] {
 
     for (const match of section.matchAll(/srcdoc="([\s\S]*?)" loading/g)) {
       const body = unescapeHtml(match[1]!);
+      const beforeFrame = section.slice(0, match.index);
+      const subjectMatch = /<div class="kv">([\s\S]*?) &middot; <code>/.exec(beforeFrame.slice(beforeFrame.lastIndexOf('<div class="kv">')));
+      const accountKey = unescapeHtml(subjectMatch?.[1] ?? "(unknown subject)").replace(/<[^>]+>/g, "").trim();
       bodies.push({
         surface,
         index: Number(index),
-        bytes: body.length,
+        accountKey,
+        bytes: Buffer.byteLength(body, "utf8"),
         sha: crypto.createHash("sha256").update(body).digest("hex").slice(0, 12),
       });
     }
   }
 
   return bodies.sort((a, b) => a.index - b.index || surfaceRank(a.surface) - surfaceRank(b.surface));
+}
+
+export function compareBodies(bodies: DraftBody[]): { comparisons: string[]; failures: string[] } {
+  const comparisons: string[] = [];
+  const failures: string[] = [];
+  const groups = new Map<string, DraftBody[]>();
+  for (const body of bodies) {
+    const key = `${body.index}\u0000${body.accountKey}`;
+    groups.set(key, [...(groups.get(key) ?? []), body]);
+  }
+  for (const [key, group] of groups) {
+    const [index, accountKey] = key.split("\u0000");
+    const surfaces = [...new Set(group.map((body) => body.surface))];
+    if (surfaces.length < 2) {
+      comparisons.push(`prompt #${index} / ${accountKey}: only ${surfaces.join(", ")} - nothing to compare`);
+      continue;
+    }
+    const hashes = new Set(group.map((body) => body.sha));
+    const detail = group.map((body) => `${body.surface}=${body.sha}/${body.bytes}B`).join(", ");
+    if (hashes.size === 1) {
+      comparisons.push(`prompt #${index} / ${accountKey}: IDENTICAL across ${surfaces.join(", ")} - ${group[0]!.bytes} B`);
+    } else {
+      failures.push(`prompt #${index} / ${accountKey} differs: ${detail}`);
+      comparisons.push(`prompt #${index} / ${accountKey}: DIFFERS - ${detail}`);
+    }
+  }
+  return { comparisons, failures };
 }
 
 function surfaceRank(surface: string): number {
@@ -123,7 +135,9 @@ function unescapeHtml(value: string): string {
     .replace(/&amp;/g, "&");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1]?.endsWith("verify-draft-byte-identity.ts")) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

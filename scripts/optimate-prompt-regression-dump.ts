@@ -17,11 +17,13 @@
  *   npm run optimate:prompt-dump -- --audit 2 --user 1
  *   npm run optimate:prompt-dump -- --audit 2 --user 1 --refs 2,6
  *   npm run optimate:prompt-dump -- --audit 2 --user 1 --surfaces individual
+ *   npm run optimate:prompt-dump -- --audit 2 --user 1 --prompt-indexes 1,2
  *   npm run optimate:prompt-dump -- --audit 2 --user 1 --known-good  # auto-discover valid audits
  */
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { runChatTurn, runPortfolioChatTurn } from "@/lib/agents/optimate-google-ads";
@@ -115,10 +117,14 @@ async function main(): Promise<void> {
 
   const individualPrompts = extractQuestions(settings.googleMateStarterQuestions);
   const portfolioPrompts = extractQuestions(settings.googleMatePortfolioStarterQuestions);
+  const promptIndexes = parsePromptIndexes(args["prompt-indexes"]);
 
   if (individualPrompts.length === 0 && portfolioPrompts.length === 0) {
     throw new Error("No saved starter questions found in the optimate-settings global.");
   }
+
+  const promptsForSurface = (surface: Surface): Array<{ index: number; prompt: string }> =>
+    selectPrompts(surface === "individual" ? individualPrompts : portfolioPrompts, promptIndexes, surface);
 
   const audit = (await payload.findByID({
     collection: "google-ads-audits" as never,
@@ -143,15 +149,24 @@ async function main(): Promise<void> {
           select: { customerId: true, businessName: true } as never,
         })) as Record<string, unknown>;
         if (a.customerId && String(a.customerId).trim()) {
-          // Probe Growth Tools to verify the audit actually resolves there.
+          // Probe the same JSON endpoint used by the weekly report tool. The
+          // former /api/google-ads-budgets/{id}/list probe is a CMS route, not
+          // a Growth Tools route, so an SPA fallback could falsely return 200.
           const gtUrl = process.env.GROWTH_TOOLS_URL ?? "http://localhost:3010";
           const gtKey = process.env.INTERNAL_API_KEY ?? "";
+          const customerId = String(a.customerId).replace(/-/g, "");
+          const probeParams = new URLSearchParams({
+            customerId,
+            dateRange: "LAST_30_DAYS",
+            segment: "week",
+          });
           try {
             const probe = await fetch(
-              `${gtUrl}/api/google-ads-budgets/${ref}/list?reportOnly=1`,
+              `${gtUrl}/api/google-ads/campaign-budgets/get-metrics?${probeParams.toString()}`,
               { headers: { "x-internal-key": gtKey }, signal: AbortSignal.timeout(15000) },
             );
-            if (probe.ok) {
+            const contentType = probe.headers.get("content-type") ?? "";
+            if (probe.ok && contentType.includes("application/json")) {
               validRefs.push(ref);
               console.log(`  ✓ ref ${ref} (${String(a.businessName ?? "?")}) — Growth Tools OK`);
             } else {
@@ -189,10 +204,9 @@ async function main(): Promise<void> {
   if (args["dry-run"]) {
     const cases: CaseSpec[] = [];
     for (const surface of surfaces) {
-      const prompts = surface === "individual" ? individualPrompts : portfolioPrompts;
-      prompts.forEach((prompt, index) => {
-        cases.push({ surface, index: index + 1, prompt });
-      });
+      for (const { index, prompt } of promptsForSurface(surface)) {
+        cases.push({ surface, index, prompt });
+      }
     }
     console.log(`\nDRY RUN — would execute ${cases.length} case(s):`);
     for (const c of cases) {
@@ -205,10 +219,9 @@ async function main(): Promise<void> {
 
   const cases: CaseSpec[] = [];
   for (const surface of surfaces) {
-    const prompts = surface === "individual" ? individualPrompts : portfolioPrompts;
-    prompts.forEach((prompt, index) => {
-      cases.push({ surface, index: index + 1, prompt });
-    });
+    for (const { index, prompt } of promptsForSurface(surface)) {
+      cases.push({ surface, index, prompt });
+    }
   }
 
   console.log(
@@ -260,7 +273,16 @@ async function runCase(args: {
   payload: Awaited<ReturnType<typeof getPayload>>;
 }): Promise<CaseResult> {
   const { spec, audit, client, userId, refs, payload } = args;
-  const messages: Message[] = [{ role: "user", content: [{ type: "text", text: spec.prompt }] }];
+  // runAgent keys a turn from its messages. A unique, explicitly non-deliverable
+  // token prevents a previous regression draft from being reused as this run's evidence.
+  const verificationToken = randomUUID();
+  const messages: Message[] = [{
+    role: "user",
+    content: [{
+      type: "text",
+      text: `${spec.prompt}\n\nRegression verification token: ${verificationToken}. Do not include this token in a draft.`,
+    }],
+  }];
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
 
@@ -362,6 +384,28 @@ function extractQuestions(value: unknown): string[] {
           : "",
     )
     .filter((question) => question.trim().length > 0);
+}
+
+function parsePromptIndexes(value: string | undefined): number[] | undefined {
+  if (!value) return undefined;
+  const indexes = [...new Set(value.split(",").map((part) => Number(part.trim())))];
+  if (indexes.length === 0 || indexes.some((index) => !Number.isInteger(index) || index < 1)) {
+    throw new Error("--prompt-indexes must be a comma-separated list of positive integers, for example 1,2.");
+  }
+  return indexes;
+}
+
+function selectPrompts(
+  prompts: string[],
+  indexes: number[] | undefined,
+  surface: Surface,
+): Array<{ index: number; prompt: string }> {
+  if (!indexes) return prompts.map((prompt, index) => ({ index: index + 1, prompt }));
+  const missing = indexes.filter((index) => !prompts[index - 1]);
+  if (missing.length > 0) {
+    throw new Error(`${surface} has no saved prompt at index ${missing.join(", ")}.`);
+  }
+  return indexes.map((index) => ({ index, prompt: prompts[index - 1]! }));
 }
 
 // ---------------------------------------------------------------------------

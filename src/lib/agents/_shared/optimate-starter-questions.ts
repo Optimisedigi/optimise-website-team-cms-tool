@@ -10,16 +10,19 @@ export interface OptiMateStarterQuestion {
  * keyword_relevancy and cpa_trend; monthly also supports quality_score and
  * top_converters.
  */
-export const DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS = [
+const GOOGLE_MATE_STANDARD_REPORT_QUESTIONS = [
   "Create a separate Gmail draft for each selected account's weekly Google Ads report, covering the last 4 completed Monday-Sunday weeks with a week-on-week summary at the top. One draft per account. Graphs: keyword_relevancy, cpa_trend.",
   "Create a separate Gmail draft for each selected account's report for last month, with a 4-month trend table and month-on-month summary on top. One draft per account. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
+] as const;
+
+export const DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS = [
+  ...GOOGLE_MATE_STANDARD_REPORT_QUESTIONS,
   "Which campaigns are performing best this week?",
   "Are there any keywords wasting spend?",
 ] as const;
 
 export const DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS = [
-  "Create a separate Gmail draft for each selected account's weekly Google Ads report, covering the last 4 completed Monday-Sunday weeks with a week-on-week summary at the top. One draft per account. Graphs: keyword_relevancy, cpa_trend.",
-  "Create a separate Gmail draft for each selected account's report for last month, with a 4-month trend table and month-on-month summary on top. One draft per account. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
+  ...GOOGLE_MATE_STANDARD_REPORT_QUESTIONS,
   "Create separate Gmail drafts for each selected account's budget pacing this month, each with a 1 sentence performance summary on top. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
   "Find cross-account search-term waste",
 ] as const;

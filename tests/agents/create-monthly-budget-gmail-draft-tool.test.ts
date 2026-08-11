@@ -135,14 +135,14 @@ describe("create_monthly_budget_gmail_draft", () => {
 
     expect(result.ok).toBe(true);
     expect(mocks.executeDashboard).toHaveBeenCalledWith(
-      { components: ["keyword_relevancy", "cpa_trend"], months: 14, endMonth: "2026-06", range: "LAST_MONTH" },
+      { components: ["keyword_relevancy", "cpa_trend"], months: 14, endMonth: "2026-06", range: "LAST_MONTH", auditId: 4 },
       ctx,
     );
     expect(mocks.executeMonthly).toHaveBeenCalledWith(
       expect.objectContaining({ startMonth: "2026-03", endMonth: "2026-06", metrics: ["spend", "conversions", "cpa"] }),
       ctx,
     );
-    expect(mocks.executeBudget).toHaveBeenCalledWith({ mode: "this_month", campaignMetricsRange: "LAST_MONTH" }, ctx);
+    expect(mocks.executeBudget).toHaveBeenCalledWith({ mode: "this_month", campaignMetricsRange: "LAST_MONTH", auditId: 4 }, ctx);
     expect(mocks.executeDraft).toHaveBeenCalledTimes(1);
     const draftArgs = mocks.executeDraft.mock.calls[0]?.[0];
     expect(draftArgs.subject).toBe("Berendsen - Google Ads Monthly Report - June 2026");
