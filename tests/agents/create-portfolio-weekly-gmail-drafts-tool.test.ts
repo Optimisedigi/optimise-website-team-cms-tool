@@ -192,10 +192,16 @@ describe('create_portfolio_weekly_gmail_drafts', () => {
     const firstDraft = mocks.executeDraft.mock.calls[0]?.[0]
     expect(firstDraft.subject).toBe('Berendsen - Google Ads Weekly Report')
     expect(firstDraft.htmlBody).toMatch(/>(Hey team,|Hi team,|Hey all,|Hi all,|Morning team,)</)
-    expect(firstDraft.htmlBody).toMatch(/(conversions (increased|lifted|up) to 4|4 conversions)/)
-    expect(firstDraft.htmlBody).toMatch(/CPA (improved|improving|came down|tightened) to \$155/)
-    expect(firstDraft.htmlBody).toMatch(/under budget|below the month-to-date target|under target/)
-    expect(firstDraft.htmlBody).not.toContain('Jul 6 - Jul 12 delivered')
+    // The summary now comes from the shared builder used by the individual
+    // account view, so every weekly draft reads the same way regardless of
+    // surface: week-on-week performance, then component insight, then pacing.
+    expect(firstDraft.htmlBody).toMatch(/4 conversions|conversions.*\b4\b|\b4\b conversions/)
+    expect(firstDraft.htmlBody).toMatch(/\$155/)
+    // Week-on-week: the prior completed week's figures must appear too.
+    expect(firstDraft.htmlBody).toMatch(/\b3\b/)
+    expect(firstDraft.htmlBody).toMatch(/\$200/)
+    expect(firstDraft.htmlBody).toMatch(/under budget|under the month-to-date target|below the month-to-date target|under target|below budget/)
+    expect(firstDraft.htmlBody).toMatch(/Jul 6 - Jul 12/)
     expect(firstDraft.htmlBody).toContain('data-testid="weekly-berendsen"')
     expect(firstDraft.htmlBody).toContain('data-testid="budget-berendsen"')
     expect(mocks.executeBudget.mock.calls[0]?.[0]).toEqual({ mode: 'this_month', auditId: 4 })

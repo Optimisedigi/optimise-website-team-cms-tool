@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   executeBudget: vi.fn(),
   executeDraft: vi.fn(),
   executeComponents: vi.fn(),
+  executeMonthly: vi.fn(),
 }))
 
 vi.mock('@/lib/agents/optimate-google-ads/tools/_portfolio-accounts', () => ({
@@ -39,6 +40,10 @@ vi.mock('@/lib/agents/optimate-google-ads/tools/get-dashboard-email-components',
   getDashboardEmailComponents: { execute: mocks.executeComponents },
 }))
 
+vi.mock('@/lib/agents/optimate-google-ads/tools/get-monthly-metric-table', () => ({
+  getMonthlyMetricTable: { execute: mocks.executeMonthly },
+}))
+
 import { createPortfolioBudgetPacingGmailDraftsTool } from '@/lib/agents/optimate-google-ads/tools/create-portfolio-budget-pacing-gmail-drafts'
 
 const ctx: ToolContext = {
@@ -54,6 +59,17 @@ describe('create_portfolio_budget_pacing_gmail_drafts', () => {
     mocks.executePerformance.mockReset()
     mocks.executeBudget.mockReset()
     mocks.executeDraft.mockReset()
+    mocks.executeMonthly.mockReset()
+    mocks.executeMonthly.mockResolvedValue({
+      ok: true,
+      data: {
+        html: '<table data-testid="monthly-trend">monthly</table>',
+        rows: [
+          { label: 'June 2026', totals: { spend: 1000, conversions: 4 }, metrics: { cpa: 250 } },
+          { label: 'July 2026', totals: { spend: 1200, conversions: 6 }, metrics: { cpa: 200 } },
+        ],
+      },
+    })
     mocks.executeComponents.mockReset()
     mocks.executeComponents.mockResolvedValue({
       ok: true,
@@ -181,16 +197,31 @@ describe('create_portfolio_budget_pacing_gmail_drafts', () => {
       { accountRefs: ['1234567890'], range: 'LAST_MONTH', limit: 1 },
       ctx,
     )
-    expect(mocks.executeBudget).toHaveBeenCalledWith({ mode: 'last_month', auditId: 4 }, ctx)
+    // Completed-month reports reuse the current-month budget block with last
+    // month's campaign metrics, matching create_monthly_budget_gmail_draft.
+    expect(mocks.executeBudget).toHaveBeenCalledWith(
+      { mode: 'this_month', campaignMetricsRange: 'LAST_MONTH', auditId: 4 },
+      ctx,
+    )
     expect(mocks.executeDraft).toHaveBeenCalledTimes(1)
     const draft = mocks.executeDraft.mock.calls[0]?.[0]
     expect(draft.subject).toBe('Berendsen - Google Ads Budget Report - July 2026')
-    expect(draft.htmlBody).toContain('Berendsen')
-    expect(draft.htmlBody).toContain('$1,200')
-    expect(draft.htmlBody).toContain('generated 6 conversions, at a $200 CPA.')
-    expect(draft.htmlBody).toContain('100 clicks')
-    expect(draft.htmlBody).toContain('2,000 impressions')
-    expect(draft.htmlBody).toContain('5% CTR')
+    // A completed-month request is a monthly performance report, so it carries
+    // the month-on-month trend table and the shared monthly summary rather than
+    // the current-month pacing copy.
+    expect(draft.htmlBody).toContain('data-testid="monthly-trend"')
+    expect(draft.htmlBody).toMatch(/July 2026/)
+    expect(draft.htmlBody).toMatch(/\b6\b/)
+    expect(draft.htmlBody).toMatch(/\b4\b/)
+    expect(draft.htmlBody).toMatch(/\$200/)
+    expect(draft.htmlBody).toMatch(/\$250/)
     expect(draft.htmlBody).toContain('data-testid="july-budget"')
+    // Section order: summary, monthly trend, components, budget tracker.
+    expect(draft.htmlBody.indexOf('data-testid="monthly-trend"')).toBeLessThan(
+      draft.htmlBody.indexOf('id="components"'),
+    )
+    expect(draft.htmlBody.indexOf('id="components"')).toBeLessThan(
+      draft.htmlBody.indexOf('data-testid="july-budget"'),
+    )
   })
 })

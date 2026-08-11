@@ -259,8 +259,24 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
   ];
 }
 
+/**
+ * Every `propose_*` tool writes an approval-queue record for a human to review.
+ * That is a side effect, so the agent loop must de-duplicate identical repeat
+ * calls or a degenerate model loop buries the reviewer in duplicate cards.
+ *
+ * Applied centrally rather than as a flag on ~20 individual tools: the naming
+ * convention is the contract, and a new propose_* tool inherits the protection
+ * automatically. De-duplication only ever matches byte-identical arguments, so
+ * proposing genuinely different changes is unaffected.
+ */
+function markProposalsAsSideEffecting(tools: CanonicalTool<unknown>[]): CanonicalTool<unknown>[] {
+  return tools.map((tool) =>
+    tool.name.startsWith("propose_") && !tool.sideEffect ? { ...tool, sideEffect: true } : tool,
+  );
+}
+
 export function getTools(options?: { restrictExternalContextActions?: boolean; attachMemoryTools?: boolean }): CanonicalTool<unknown>[] {
-  return applyToolRestrictions(allAuditTools(options), options);
+  return markProposalsAsSideEffecting(applyToolRestrictions(allAuditTools(options), options));
 }
 
 function applyToolRestrictions(
@@ -373,8 +389,10 @@ export function getPortfolioTools(options?: { restrictExternalContextActions?: b
         ]
       : []),
   ];
-  if (!options?.restrictExternalContextActions) return tools;
-  return tools.filter((tool) => !EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES.has(tool.name));
+  const scoped = options?.restrictExternalContextActions
+    ? tools.filter((tool) => !EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES.has(tool.name))
+    : tools;
+  return markProposalsAsSideEffecting(scoped);
 }
 
 interface AuditDocLike {

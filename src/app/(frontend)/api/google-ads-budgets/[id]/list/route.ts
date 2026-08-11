@@ -114,21 +114,37 @@ export async function GET(
   // Fetch only stable audit columns. Payload findByID selects every
   // google_ads_audits field, so schema drift in unrelated proposal columns can
   // break budget pacing before this route reads customer/budget data.
+  //
+  // monthly_budget was added in migration 20260412_120000 and may not exist in
+  // all environments yet. The chat route avoids this by selecting only original
+  // schema columns; this route retries without monthly_budget when the column is
+  // missing, matching that resilience pattern.
   let audit: any;
   try {
     const dbClient = (payload.db as unknown as { client?: { execute: (sql: string) => Promise<{ rows?: Array<Record<string, unknown>> }> } }).client;
-    const result = await dbClient?.execute(
-      `SELECT id, customer_id, client_id, monthly_budget FROM google_ads_audits WHERE id = ${auditId} LIMIT 1`,
-    );
-    const row = result?.rows?.[0];
+    let row: Record<string, unknown> | undefined;
+    try {
+      const result = await dbClient?.execute(
+        `SELECT id, customer_id, client_id, monthly_budget FROM google_ads_audits WHERE id = ${auditId} LIMIT 1`,
+      );
+      row = result?.rows?.[0];
+    } catch (columnError) {
+      // monthly_budget column may not exist yet — retry without it.
+      console.warn(`[Budgets] Audit ${auditId}: monthly_budget column unavailable, retrying without it:`, columnError);
+      const fallback = await dbClient?.execute(
+        `SELECT id, customer_id, client_id FROM google_ads_audits WHERE id = ${auditId} LIMIT 1`,
+      );
+      row = fallback?.rows?.[0];
+    }
     if (!row) throw new Error("Audit not found");
     audit = {
       id: row.id,
       customerId: row.customer_id,
       client: row.client_id,
-      monthlyBudget: row.monthly_budget,
+      monthlyBudget: row.monthly_budget ?? null,
     };
-  } catch {
+  } catch (error) {
+    console.error(`[Budgets] Audit ${auditId} lookup failed:`, error);
     return NextResponse.json({ error: "Audit not found" }, { status: 404 });
   }
 

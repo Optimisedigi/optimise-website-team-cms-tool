@@ -17,6 +17,7 @@
  *   npm run optimate:prompt-dump -- --audit 2 --user 1
  *   npm run optimate:prompt-dump -- --audit 2 --user 1 --refs 2,6
  *   npm run optimate:prompt-dump -- --audit 2 --user 1 --surfaces individual
+ *   npm run optimate:prompt-dump -- --audit 2 --user 1 --known-good  # auto-discover valid audits
  */
 
 import fs from "node:fs/promises";
@@ -72,11 +73,31 @@ async function main(): Promise<void> {
 
   const auditId = Number(requireArg(args, "audit"));
   const userId = Number(requireArg(args, "user"));
-  const refs = (args.refs ?? String(auditId))
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .map((value) => (Number.isFinite(Number(value)) ? Number(value) : value));
+  const payload = await getPayload({ config });
+
+  // --known-good: discover all audits with a valid customerId for this client
+  // and use them as refs. This avoids manually figuring out which audit IDs
+  // have Growth Tools mappings.
+  let refs: Array<string | number>;
+  if (args["known-good"]) {
+    const allAudits = await payload.find({
+      collection: "google-ads-audits" as never,
+      where: { customerId: { not_equals: "" } } as never,
+      limit: 50,
+      overrideAccess: true,
+      select: { id: true, customerId: true, businessName: true } as never,
+    });
+    refs = (allAudits.docs as Array<Record<string, unknown>>)
+      .map((doc) => doc.id as number)
+      .filter(Boolean);
+    console.log(`Discovered ${refs.length} audit(s) with a valid customerId: [${refs.join(", ")}]`);
+  } else {
+    refs = (args.refs ?? String(auditId))
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => (Number.isFinite(Number(value)) ? Number(value) : value));
+  }
   const surfaces = args.surfaces
     ? (args.surfaces.split(",").map((s) => s.trim()) as Surface[])
     : ALL_SURFACES;
@@ -86,8 +107,6 @@ async function main(): Promise<void> {
       throw new Error(`Unknown surface: ${surface}. Valid: ${ALL_SURFACES.join(", ")}`);
     }
   }
-
-  const payload = await getPayload({ config });
 
   const settings = (await payload.findGlobal({
     slug: "optimate-settings" as never,
@@ -108,6 +127,81 @@ async function main(): Promise<void> {
     overrideAccess: true,
   })) as Record<string, unknown>;
   const client = await resolveLinkedClient(payload, audit);
+
+  // Validate that each ref points to an audit with a non-empty customerId.
+  // Portfolio/selected tools load all audits for the client, then filter by
+  // refs — but if a ref has no Growth Tools mapping the tool retries twice
+  // before failing, wasting ~15s per bad ref on every run.
+  if (surfaces.some((s) => s !== "individual")) {
+    const validRefs: Array<string | number> = [];
+    for (const ref of refs) {
+      try {
+        const a = (await payload.findByID({
+          collection: "google-ads-audits" as never,
+          id: ref as never,
+          overrideAccess: true,
+          select: { customerId: true, businessName: true } as never,
+        })) as Record<string, unknown>;
+        if (a.customerId && String(a.customerId).trim()) {
+          // Probe Growth Tools to verify the audit actually resolves there.
+          const gtUrl = process.env.GROWTH_TOOLS_URL ?? "http://localhost:3010";
+          const gtKey = process.env.INTERNAL_API_KEY ?? "";
+          try {
+            const probe = await fetch(
+              `${gtUrl}/api/google-ads-budgets/${ref}/list?reportOnly=1`,
+              { headers: { "x-internal-key": gtKey }, signal: AbortSignal.timeout(15000) },
+            );
+            if (probe.ok) {
+              validRefs.push(ref);
+              console.log(`  ✓ ref ${ref} (${String(a.businessName ?? "?")}) — Growth Tools OK`);
+            } else {
+              const body = await probe.text().catch(() => "");
+              console.warn(
+                `  ⚠ ref ${ref} (${String(a.businessName ?? "?")}) — Growth Tools returned ${probe.status}: ${body.slice(0, 200)}`,
+              );
+            }
+          } catch (probeError) {
+            console.warn(
+              `  ⚠ ref ${ref} (${String(a.businessName ?? "?")}) — Growth Tools probe failed: ${probeError instanceof Error ? probeError.message : String(probeError)}`,
+            );
+          }
+        } else {
+          console.warn(
+            `  ⚠ ref ${ref} (${String(a.businessName ?? "unknown")}) has no customerId — skipping`,
+          );
+        }
+      } catch {
+        console.warn(`  ⚠ ref ${ref} not found in google-ads-audits — skipping`);
+      }
+    }
+    if (validRefs.length === 0 && refs.length > 0) {
+      throw new Error(
+        `None of the provided refs (${refs.join(", ")}) have a valid customerId. ` +
+          `Portfolio/selected surfaces require at least one audit-backed ref.`,
+      );
+    }
+    // Replace refs with the validated set for portfolio/selected runs.
+    refs.length = 0;
+    refs.push(...validRefs);
+  }
+
+  // --dry-run: show what would run without actually calling the agents.
+  if (args["dry-run"]) {
+    const cases: CaseSpec[] = [];
+    for (const surface of surfaces) {
+      const prompts = surface === "individual" ? individualPrompts : portfolioPrompts;
+      prompts.forEach((prompt, index) => {
+        cases.push({ surface, index: index + 1, prompt });
+      });
+    }
+    console.log(`\nDRY RUN — would execute ${cases.length} case(s):`);
+    for (const c of cases) {
+      console.log(`  ${c.surface}#${c.index}: ${c.prompt.slice(0, 100)}...`);
+    }
+    console.log(`\nRefs: [${refs.join(", ")}]`);
+    console.log(`Surfaces: ${surfaces.join(", ")}`);
+    return;
+  }
 
   const cases: CaseSpec[] = [];
   for (const surface of surfaces) {

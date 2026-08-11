@@ -8,6 +8,21 @@
  * Numbers and facts are never varied - only the wording around them.
  */
 
+/**
+ * Normalises a Google Ads customer id for seeding.
+ *
+ * The individual chat context carries `1840834992` while portfolio account
+ * records carry `184-083-4992`. Seeding on the raw value gives the same account
+ * a different seed depending on which surface drafted the email, so the copy
+ * diverges between surfaces. Stripping to digits keeps one account's wording
+ * identical everywhere, while different accounts still read differently.
+ */
+export function seedCustomerId(customerId: unknown): string {
+  return typeof customerId === "string" || typeof customerId === "number"
+    ? String(customerId).replace(/\D/g, "")
+    : "";
+}
+
 /** FNV-1a 32-bit hash over the joined seed parts. */
 export function copySeed(...parts: Array<string | number | null | undefined>): number {
   const input = parts

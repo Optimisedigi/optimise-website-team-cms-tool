@@ -3,6 +3,9 @@ import { createGmailDraftTool } from './create-gmail-draft'
 import { getBudgetManagementEmail } from './get-budget-management-email'
 import { getPortfolioPerformanceSummary } from './get-portfolio-performance-summary'
 import { getDashboardEmailComponents } from './get-dashboard-email-components'
+import { getMonthlyMetricTable } from './get-monthly-metric-table'
+import { buildMonthlyEmailSummary, type MonthlySummaryRow } from './_monthly-email-summary'
+import { prepareMonthlyBudgetBreakdownHtml } from './_monthly-budget-html'
 import {
   GOOGLE_ADS_EMAIL_COMPONENT_KEYS,
   type GoogleAdsEmailComponentKey,
@@ -12,7 +15,8 @@ import {
   loadPortfolioAccounts,
   selectPortfolioAccountsByAccountRefs,
 } from './_portfolio-accounts'
-import { copySeed, pickVariant } from './_email-copy-variants'
+import { copySeed, pickGreeting, pickVariant, seedCustomerId } from './_email-copy-variants'
+import type { EmailComponentData } from './_email-component-insights'
 
 interface CreatePortfolioBudgetPacingGmailDraftsArgs {
   accountRefs?: Array<string | number>
@@ -26,6 +30,23 @@ interface DashboardComponentsData {
   html: string
   components: GoogleAdsEmailComponentKey[]
   warnings?: string[]
+  componentData?: EmailComponentData
+}
+
+/** Completed months shown in the monthly trend table, matching the single-account tool. */
+const MONTHLY_TREND_MONTHS = 4
+
+/** Month span ending on the last completed calendar month. */
+function monthSpanEndingPreviousMonth(
+  months: number,
+  now = new Date(),
+): { startMonth: string; endMonth: string } {
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+  const start = new Date(end)
+  start.setUTCMonth(start.getUTCMonth() - Math.max(1, months) + 1)
+  const toMonth = (date: Date) =>
+    `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+  return { startMonth: toMonth(start), endMonth: toMonth(end) }
 }
 
 /** Months of history behind the trend graphs, matching the single-account tool. */
@@ -67,6 +88,8 @@ const MAX_ACCOUNTS = 10
 export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePortfolioBudgetPacingGmailDraftsArgs> =
   {
     name: 'create_portfolio_budget_pacing_gmail_drafts',
+    // Creates real Gmail drafts, so the agent loop must de-duplicate repeats.
+    sideEffect: true,
     description:
       "Create separate Gmail drafts for each selected audit-backed Google Ads account's current-month budget pacing or last completed month's performance in one deterministic server-side operation. Explicitly pass period='last_month' for 'last month', 'previous month', or 'completed month'; otherwise use period='this_month'. Supports the same dashboard components as create_monthly_budget_gmail_draft (keyword_relevancy, cpa_trend, quality_score, top_converters), defaulting to all four when omitted, so portfolio drafts match single-account drafts. It leaves recipients blank unless explicitly provided.",
     inputSchema: {
@@ -224,6 +247,10 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
       // Deliberately sequential: budget rendering self-calls CMS → Growth Tools → Google Ads.
       // Keeping one account in flight avoids backend bursts while still finishing quickly because
       // this shortcut removes the expensive LLM round-trip between each account.
+      // Span ending on the last completed calendar month, shared by the trend
+      // table and the dashboard components so both describe the same month.
+      const monthSpan = monthSpanEndingPreviousMonth(MONTHLY_TREND_MONTHS)
+
       for (const account of auditBackedAccounts) {
         const auditId = account.accountRef as string | number
         const perf = performanceByRef.get(String(auditId))
@@ -236,8 +263,13 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           continue
         }
 
+        // A completed-month report reuses the current-month budget block with
+        // last month's campaign metrics, exactly as the single-account monthly
+        // tool does, then rewrites it into its monthly form below.
         const budgetResult = await getBudgetManagementEmail.execute(
-          { mode: period, auditId },
+          period === 'last_month'
+            ? { mode: 'this_month', campaignMetricsRange: 'LAST_MONTH', auditId }
+            : { mode: period, auditId },
           ctx,
         )
         if (!budgetResult.ok) {
@@ -260,6 +292,9 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
             {
               components: args.components,
               months: DASHBOARD_TREND_MONTHS,
+              // A completed-month report anchors trend components on that month,
+              // or Quality Score reports the current partial month instead.
+              ...(period === 'last_month' ? { endMonth: monthSpan.endMonth } : {}),
               range: period === 'last_month' ? 'LAST_MONTH' : 'LAST_30_DAYS',
               auditId,
             },
@@ -286,20 +321,92 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           }
         }
 
-        // Seeded per account + period so a batch of drafts does not repeat the
-        // same sentence structure, while a re-run reproduces identical copy.
-        const summary = buildPerformanceSummary(
-          account.displayName,
-          perf,
-          period,
-          summarySentences,
-          copySeed(account.displayName, account.customerId, period, performance.rangeLabel),
-        )
-        // Components sit above the canonical budget tracker, matching
-        // create_monthly_budget_gmail_draft's section order.
-        const htmlBody = [summaryHtml(summary), ...(dashboard ? [dashboard.html] : []), budget.html].join(
-          '\n',
-        )
+        // A completed-month request is a monthly performance report, so it gets
+        // the same month-on-month trend table and shared summary as
+        // create_monthly_budget_gmail_draft. A current-month request stays a
+        // budget pacing email and keeps the pacing-oriented summary.
+        let monthlyTableHtml: string | null = null
+        let summary: string
+        if (period === 'last_month') {
+          const monthlyResult = await getMonthlyMetricTable.execute(
+            {
+              startMonth: monthSpan.startMonth,
+              endMonth: monthSpan.endMonth,
+              metrics: ['spend', 'conversions', 'cpa'],
+            },
+            {
+              ...ctx,
+              context: {
+                ...ctx.context,
+                auditId,
+                ...(account.clientId !== undefined ? { clientId: account.clientId } : {}),
+                clientName: account.displayName,
+                customerId: account.customerId,
+                // Without the account's conversion-action filters the trend table
+                // counts every conversion action, so older months disagree with
+                // the single-account report for the same account.
+                conversionActions: account.conversionActions ?? '',
+                conversionActionCategories: account.conversionActionCategories ?? '',
+              },
+            },
+          )
+          if (!monthlyResult.ok) {
+            failures.push({
+              accountRef: auditId,
+              displayName: account.displayName,
+              error: monthlyResult.error ?? 'Monthly performance generation failed',
+            })
+            continue
+          }
+          const monthly = monthlyResult.data as { html: string; rows: MonthlySummaryRow[] }
+          monthlyTableHtml = monthly.html
+          summary = buildMonthlyEmailSummary({
+            rows: monthly.rows,
+            components: args.components,
+            dashboardData: dashboard?.componentData,
+            seed: copySeed(
+              account.displayName,
+              seedCustomerId(account.customerId),
+              'monthly',
+              monthSpan.endMonth,
+            ),
+          })
+        } else {
+          // Seeded per account + period so a batch of drafts does not repeat the
+          // same sentence structure, while a re-run reproduces identical copy.
+          summary = buildPerformanceSummary(
+            account.displayName,
+            perf,
+            period,
+            summarySentences,
+            copySeed(account.displayName, account.customerId, period, performance.rangeLabel),
+          )
+        }
+        // Section order matches create_monthly_budget_gmail_draft: greeting and
+        // summary, then the monthly trend table, then components, then budget.
+        const htmlBody = [
+          // Completed-month reports open with a greeting, matching
+          // create_monthly_budget_gmail_draft. Current-month pacing emails keep
+          // their existing greeting-free format.
+          ...(period === 'last_month'
+            ? [
+                `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">${escapeHtml(
+                  pickGreeting(
+                    copySeed(
+                      account.displayName,
+                      seedCustomerId(account.customerId),
+                      'monthly',
+                      monthSpan.endMonth,
+                    ),
+                  ),
+                )}</p>`,
+              ]
+            : []),
+          summaryHtml(summary),
+          ...(monthlyTableHtml ? [monthlyTableHtml] : []),
+          ...(dashboard ? [dashboard.html] : []),
+          period === 'last_month' ? prepareMonthlyBudgetBreakdownHtml(budget.html) : budget.html,
+        ].join('\n')
         const draftResult = await createGmailDraftTool.execute(
           { subject: budget.subject, htmlBody, ...(args.to ? { to: args.to } : {}) },
           ctx,

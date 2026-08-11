@@ -5,7 +5,10 @@ import { createGmailDraftTool } from "./create-gmail-draft";
 import { getBudgetManagementEmail } from "./get-budget-management-email";
 import { getDashboardEmailComponents } from "./get-dashboard-email-components";
 import { getMonthlyMetricTable } from "./get-monthly-metric-table";
-import { copySeed, pickGreeting, pickVariant } from "./_email-copy-variants";
+import { copySeed, pickGreeting, pickVariant, seedCustomerId } from "./_email-copy-variants";
+import { buildMonthlyEmailSummary, type MonthlySummaryRow } from "./_monthly-email-summary";
+import { prepareMonthlyBudgetBreakdownHtml } from "./_monthly-budget-html";
+import type { EmailComponentData } from "./_email-component-insights";
 
 interface CreateMonthlyBudgetGmailDraftArgs {
   components: GoogleAdsEmailComponentKey[];
@@ -66,6 +69,8 @@ const COMPONENT_LABELS: Record<GoogleAdsEmailComponentKey, string> = {
 
 export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudgetGmailDraftArgs> = {
   name: "create_monthly_budget_gmail_draft",
+  // Creates a real Gmail draft, so the agent loop must de-duplicate repeats.
+  sideEffect: true,
   description:
     "Create the standard one-off Gmail draft for a monthly Google Ads budget report in one deterministic step. Requires explicit dashboard components; if none are supplied, asks which components to include and does not create a draft. Use this instead of separately calling get_dashboard_email_components, get_monthly_metric_table, get_budget_management_email, and create_gmail_draft whenever the user asks to create/save/drop a monthly budget report into Gmail. Valid components: keyword_relevancy, cpa_trend, quality_score, top_converters. Leaves the Gmail recipient blank.",
   inputSchema: {
@@ -189,8 +194,20 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
     const reportMonthLabel = latestMonthLabel(monthly.rows);
     // Seeded per client + report month so a batch of monthly drafts does not
     // repeat the same wording across accounts, while re-runs stay stable.
-    const seed = copySeed(String(ctx.context.clientName ?? ""), String(ctx.context.customerId ?? ""), reportMonthLabel, monthSpan.endMonth);
-    const summary = buildSummary(monthly.rows, args.components, dashboard.componentData, seed);
+    // Seed parts match create_portfolio_budget_pacing_gmail_drafts' monthly path
+    // so one account reads identically no matter which surface drafted it.
+    const seed = copySeed(
+      String(ctx.context.clientName ?? ""),
+      seedCustomerId(ctx.context.customerId),
+      "monthly",
+      monthSpan.endMonth,
+    );
+    const summary = buildMonthlyEmailSummary({
+      rows: monthly.rows,
+      components: args.components,
+      dashboardData: dashboard.componentData,
+      seed,
+    });
     const budgetHtml = prepareMonthlyBudgetBreakdownHtml(budget.html);
     const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">${pickGreeting(seed)}</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budgetHtml}`;
     const subject = buildMonthlySubject(ctx, budget.subject, reportMonthLabel);
@@ -230,21 +247,6 @@ function toMonth(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function prepareMonthlyBudgetBreakdownHtml(html: string): string {
-  return html
-    .replace(/\s*\(Month-to-Date\)/g, "")
-    .replace(/>MTD Spend<\/th>/g, ">Spend</th>")
-    .replace(/Behind expected pace by/g, "Under budget by")
-    .replace(/Ahead of expected pace by/g, "Over budget by")
-    .replace(/Target spend to date/g, "Monthly budget")
-    .replace(/Pacing difference/g, "Budget difference")
-    .replace(/behind pace\./g, "under budget.")
-    .replace(/ahead of pace\./g, "over budget.")
-    .replace(/on pace\./g, "on budget.")
-    .replace(/\s*<td[^>]*data-budget-time-tracking-cell="1"[^>]*>[\s\S]*?<\/td>/g, "")
-    .replace(/data-budget-progress-cell="1"([^>]*)width:64%;/g, 'data-budget-progress-cell="1"$1width:100%;')
-    .replace(/\s*<t[hd][^>]*\sdata-col="adjusted-daily-budget"[^>]*>[\s\S]*?<\/t[hd]>/g, "");
-}
 
 function latestMonthLabel(rows: MonthlyMetricTableData["rows"]): string | null {
   return rows[rows.length - 1]?.label ?? null;
@@ -255,158 +257,10 @@ function buildMonthlySubject(ctx: ToolContext, fallbackSubject: string, monthLab
   return monthLabel ? `${clientName} - Google Ads Monthly Report - ${monthLabel}` : `${clientName} - Google Ads Monthly Report`;
 }
 
-function buildSummary(
-  rows: MonthlyMetricTableData["rows"],
-  components: GoogleAdsEmailComponentKey[],
-  dashboardData?: DashboardComponentsData["componentData"],
-  seed = 0,
-): string {
-  const latest = rows[rows.length - 1];
-  const performanceSentence = buildPerformanceSentence(latest, seed);
-  const insightSentence = buildInsightSentence(components, dashboardData, seed);
-  return [performanceSentence, insightSentence].filter(Boolean).join(" ");
-}
 
-function buildPerformanceSentence(latest: MonthlyMetricTableData["rows"][number] | undefined, seed = 0): string {
-  if (!latest) return "Here is the monthly Google Ads performance update.";
-  const conversions = Number(latest.totals?.conversions ?? 0);
-  const spend = Number(latest.totals?.spend ?? 0);
-  const cpa = typeof latest.metrics?.cpa === "number" ? latest.metrics.cpa : conversions > 0 ? spend / conversions : null;
 
-  if (conversions > 0 && cpa !== null) {
-    const cpaTone = cpa <= 100 ? "efficient" : cpa <= 150 ? "steady" : "heavier than target";
-    return pickVariant(
-      [
-        `${latest.label} delivered ${formatNumber(conversions)} conversions from ${formatCurrency(spend)} in spend, with CPA ${cpaTone} at ${formatCurrency(cpa)}.`,
-        `Across ${latest.label}, ${formatCurrency(spend)} in spend produced ${formatNumber(conversions)} conversions, with CPA ${cpaTone} at ${formatCurrency(cpa)}.`,
-        `${latest.label} finished with ${formatNumber(conversions)} conversions on ${formatCurrency(spend)} of spend, and CPA ${cpaTone} at ${formatCurrency(cpa)}.`,
-        `In ${latest.label} the account converted ${formatNumber(conversions)} times off ${formatCurrency(spend)} in spend, keeping CPA ${cpaTone} at ${formatCurrency(cpa)}.`,
-      ],
-      seed,
-      "monthly-performance-converting",
-    );
-  }
-  if (spend > 0) {
-    return pickVariant(
-      [
-        `${latest.label} recorded ${formatCurrency(spend)} in spend, and conversion volume remained limited across the month.`,
-        `Spend in ${latest.label} came to ${formatCurrency(spend)}, with conversion volume staying limited through the month.`,
-        `${latest.label} used ${formatCurrency(spend)} in spend, though conversions stayed thin across the month.`,
-        `Across ${latest.label} the account spent ${formatCurrency(spend)}, with limited conversion volume for the month.`,
-      ],
-      seed,
-      "monthly-performance-spend",
-    );
-  }
-  return pickVariant(
-    [
-      `${latest.label} is included in the monthly performance table.`,
-      `${latest.label} is covered in the monthly performance table below.`,
-      `The monthly performance table below covers ${latest.label}.`,
-    ],
-    seed,
-    "monthly-performance-flat",
-  );
-}
 
-function buildInsightSentence(
-  components: GoogleAdsEmailComponentKey[],
-  dashboardData?: DashboardComponentsData["componentData"],
-  seed = 0,
-): string {
-  const insights: string[] = [];
 
-  for (const component of components) {
-    if (component === "keyword_relevancy") {
-      const trend = dashboardData?.keywordRelevancyTrend?.filter(hasNumericValue);
-      if (trend && trend.length >= 2) {
-        const latest = trend[trend.length - 1]!;
-        const previous = trend[trend.length - 2]!;
-        const delta = Number(latest.value) - Number(previous.value);
-        const direction = delta >= 0.5 ? "improved" : delta <= -0.5 ? "softened" : "held steady";
-        insights.push(
-          direction === "held steady"
-            ? `search relevance held steady at ${formatPercent(Number(latest.value))}`
-            : `search relevance ${direction} to ${formatPercent(Number(latest.value))} from ${formatPercent(Number(previous.value))}`,
-        );
-      }
-      continue;
-    }
-
-    if (component === "cpa_trend") {
-      const trend = dashboardData?.cpaTrend?.filter(hasNumericValue);
-      if (trend && trend.length >= 2) {
-        const latest = trend[trend.length - 1]!;
-        const previous = trend[trend.length - 2]!;
-        const delta = Number(latest.value) - Number(previous.value);
-        const direction = delta <= -5 ? "improved" : delta >= 5 ? "rose" : "held steady";
-        insights.push(
-          direction === "held steady"
-            ? `the wider CPA trend held steady at ${formatCurrency(Number(latest.value))}`
-            : `the wider CPA trend ${direction} to ${formatCurrency(Number(latest.value))} from ${formatCurrency(Number(previous.value))}`,
-        );
-      }
-      continue;
-    }
-
-    if (component === "quality_score") {
-      const latestScore = Number(dashboardData?.qualityScore?.latestQualityScore ?? NaN);
-      const latestMonth = String(dashboardData?.qualityScore?.latestMonth ?? "").trim();
-      const trend = dashboardData?.qualityScore?.trend?.filter(hasNumericValue);
-      if (Number.isFinite(latestScore)) {
-        const prior = trend && trend.length >= 2 ? Number(trend[trend.length - 2]?.value ?? NaN) : NaN;
-        if (Number.isFinite(prior)) {
-          const direction = latestScore >= prior + 0.2 ? "improved" : latestScore <= prior - 0.2 ? "softened" : "held steady";
-          insights.push(
-            direction === "held steady"
-              ? `Quality Score held steady${latestMonth ? ` in ${latestMonth}` : ""} at ${formatScore(latestScore)}`
-              : `Quality Score ${direction}${latestMonth ? ` in ${latestMonth}` : ""} to ${formatScore(latestScore)} from ${formatScore(prior)}`,
-          );
-        } else {
-          insights.push(`Quality Score sits at ${formatScore(latestScore)}${latestMonth ? ` in ${latestMonth}` : ""}`);
-        }
-      }
-      continue;
-    }
-
-    if (component === "top_converters") {
-      const top = dashboardData?.topConverters?.[0];
-      const conversions = Number(top?.conversions ?? 0);
-      if (top?.term && conversions > 0) {
-        const cpaText = Number.isFinite(Number(top.cpa)) && Number(top.cpa) > 0 ? ` at a CPA of ${formatCurrency(Number(top.cpa))}` : "";
-        insights.push(`the strongest converting search was ${top.term}, generating ${formatNumber(conversions)} conversions${cpaText}`);
-      }
-    }
-  }
-
-  if (insights.length === 0) {
-    return pickVariant(
-      [
-        "The supporting trend data is included below to show how efficiency and search quality moved across the recent reporting window.",
-        "The trend data below shows how efficiency and search quality moved over the recent reporting window.",
-        "Supporting trends for efficiency and search quality across the recent reporting window are below.",
-      ],
-      seed,
-      "monthly-insight-fallback",
-    );
-  }
-
-  return `${joinInsights(insights)}.`;
-}
-
-function joinInsights(insights: string[]): string {
-  if (insights.length === 1) return capitalize(insights[0]!);
-  if (insights.length === 2) return `${capitalize(insights[0]!)} and ${insights[1]!}`;
-  return `${capitalize(insights.slice(0, -1).join(", "))}, and ${insights[insights.length - 1]!}`;
-}
-
-function capitalize(value: string): string {
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
-}
-
-function hasNumericValue<T extends { value: number | null }>(row: T): row is T & { value: number } {
-  return typeof row.value === "number" && Number.isFinite(row.value);
-}
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-AU", {
@@ -421,13 +275,7 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(value);
 }
 
-function formatPercent(value: number): string {
-  return `${new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(value)}%`;
-}
 
-function formatScore(value: number): string {
-  return new Intl.NumberFormat("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
-}
 
 function escapeHtml(value: string): string {
   return value
@@ -439,5 +287,10 @@ function escapeHtml(value: string): string {
 
 export const __createMonthlyBudgetGmailDraftInternals = {
   monthSpanEndingPreviousMonth,
-  buildSummary,
+  buildSummary: (
+    rows: MonthlySummaryRow[],
+    components: GoogleAdsEmailComponentKey[],
+    dashboardData?: EmailComponentData,
+    seed = 0,
+  ) => buildMonthlyEmailSummary({ rows, components, dashboardData, seed }),
 };

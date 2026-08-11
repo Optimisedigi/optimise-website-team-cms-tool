@@ -41,6 +41,19 @@ export interface CanonicalTool<TInput = Record<string, unknown>> {
   /** Optional runtime validator. Throw on invalid input or return a typed value. */
   validate?: (raw: unknown) => TInput;
   execute: (args: TInput, ctx: ToolContext) => Promise<ToolResultPayload>;
+  /**
+   * Marks a tool that mutates the world outside this process - creating a Gmail
+   * draft, pushing a budget, sending a request to an external API.
+   *
+   * The agent loop de-duplicates these: within one run, a repeated call with
+   * byte-identical arguments is answered from the first call's result instead of
+   * executing again. A degenerate model loop then costs turns rather than 20 real
+   * Gmail drafts addressed to a client.
+   *
+   * Leave unset for read-only tools; de-duplicating a read would mask genuinely
+   * changed data.
+   */
+  sideEffect?: boolean;
 }
 
 import type { ToolDef } from "./llm/types";

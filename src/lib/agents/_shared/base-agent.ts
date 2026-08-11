@@ -31,6 +31,51 @@ import type { ContentPart, Message, Usage } from "./llm/types";
 const DEFAULT_MAX_TURNS = 20;
 
 /**
+ * Ceiling on distinct side-effecting tool calls in a single run.
+ *
+ * De-duplication already blocks the common runaway (a model re-emitting the
+ * same tool_use verbatim). This is the backstop for the other shape: a model
+ * that loops while varying its arguments slightly, which no content hash can
+ * catch. Set well above real usage - the portfolio tools batch every account
+ * into one call, so even a large multi-account request is a handful of calls.
+ */
+const MAX_SIDE_EFFECT_CALLS_PER_RUN = 12;
+
+interface SideEffectRecord {
+  /** JSON tool_result content from the call that actually executed. */
+  resultContent: string;
+  isError: boolean;
+  turn: number;
+}
+
+/**
+ * Stable identity for a side-effecting call: tool name plus its arguments with
+ * object keys sorted, so key order from the model cannot smuggle a duplicate
+ * past the ledger.
+ */
+function sideEffectKey(toolName: string, input: unknown): string {
+  return `${toolName}:${stableStringify(input)}`;
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`);
+  return `{${entries.join(",")}}`;
+}
+
+function parseResultContent(content: string): unknown {
+  try {
+    return JSON.parse(content);
+  } catch {
+    return content;
+  }
+}
+
+/**
  * Hard ceiling on the auto-expanded max_tokens budget when we retry a
  * truncated tool-use turn. We double the original budget each truncation,
  * but never go above this — 16,384 is generous (~12,000 words of output)
@@ -161,6 +206,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
   const baseMaxTokens = opts.maxTokens;
   let currentMaxTokens = baseMaxTokens;
   let truncationRetriesUsed = 0;
+
+  // Ledger of side-effecting calls already performed in this run, so a model
+  // that re-emits the same tool_use cannot repeat the real-world action.
+  const sideEffectLedger = new Map<string, SideEffectRecord>();
+  let distinctSideEffectCalls = 0;
 
   for (let turn = 1; turn <= maxTurns; turn++) {
     if (opts.signal?.aborted) {
@@ -455,10 +505,79 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
       deadlineMs: opts.deadlineMs,
     };
 
+    // Planning pass, deliberately synchronous and before any execution: it
+    // reserves ledger keys so two identical tool_use blocks in the SAME turn
+    // cannot both slip through the concurrent execution below.
+    type ToolPlan =
+      | { tu: (typeof toolUseParts)[number]; mode: "execute"; ledgerKey?: string }
+      | { tu: (typeof toolUseParts)[number]; mode: "duplicate"; record: SideEffectRecord }
+      | { tu: (typeof toolUseParts)[number]; mode: "capped" };
+
+    const plans: ToolPlan[] = toolUseParts.map((tu) => {
+      const tool = toolMap.get(tu.name) as CanonicalTool<unknown> | undefined;
+      if (!tool?.sideEffect) return { tu, mode: "execute" };
+
+      const ledgerKey = sideEffectKey(tu.name, tu.input);
+      const prior = sideEffectLedger.get(ledgerKey);
+      if (prior) return { tu, mode: "duplicate", record: prior };
+
+      if (distinctSideEffectCalls >= MAX_SIDE_EFFECT_CALLS_PER_RUN) {
+        return { tu, mode: "capped" };
+      }
+
+      distinctSideEffectCalls += 1;
+      // Reserved with a placeholder; the real result lands after execution, and
+      // the reservation is released if the call fails so a retry stays possible.
+      sideEffectLedger.set(ledgerKey, { resultContent: "", isError: false, turn });
+      return { tu, mode: "execute", ledgerKey };
+    });
+
     const executed = await Promise.all(
-      toolUseParts.map(async (tu) => {
-        const tool = toolMap.get(tu.name) as CanonicalTool<unknown> | undefined;
+      plans.map(async (plan) => {
+        const { tu } = plan;
         const toolStart = Date.now();
+
+        if (plan.mode === "duplicate") {
+          console.warn(
+            `[${opts.agentName}] Duplicate ${tu.name} call suppressed (already executed on turn ${plan.record.turn})`,
+          );
+          return {
+            tu,
+            toolStart,
+            isError: false,
+            suppressed: "duplicate" as const,
+            resultContent: JSON.stringify({
+              ok: true,
+              duplicateSuppressed: true,
+              note:
+                `This exact ${tu.name} call already completed on turn ${plan.record.turn} of this run. ` +
+                `Nothing new was created and the original result is repeated below. ` +
+                `Do not call ${tu.name} again with these arguments - report the existing result to the user.`,
+              originalResult: parseResultContent(plan.record.resultContent),
+            }),
+          };
+        }
+
+        if (plan.mode === "capped") {
+          console.warn(
+            `[${opts.agentName}] ${tu.name} blocked: run hit the ${MAX_SIDE_EFFECT_CALLS_PER_RUN}-call side-effect cap`,
+          );
+          return {
+            tu,
+            toolStart,
+            isError: true,
+            suppressed: "capped" as const,
+            resultContent: JSON.stringify({
+              ok: false,
+              error:
+                `Blocked: this run has already performed ${MAX_SIDE_EFFECT_CALLS_PER_RUN} side-effecting ` +
+                `actions, which is the per-run safety limit. No further ${tu.name} calls will run. ` +
+                `Stop calling tools and summarise what has been completed so far.`,
+            }),
+          };
+        }
+
+        const tool = toolMap.get(tu.name) as CanonicalTool<unknown> | undefined;
         let resultContent: string;
         let isError = false;
 
@@ -483,7 +602,18 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
           }
         }
 
-        return { tu, resultContent, isError, toolStart };
+        if (plan.ledgerKey) {
+          if (isError) {
+            // Failed side effects leave no trace to de-duplicate against, so the
+            // reservation is released and a genuine retry is allowed through.
+            sideEffectLedger.delete(plan.ledgerKey);
+            distinctSideEffectCalls = Math.max(0, distinctSideEffectCalls - 1);
+          } else {
+            sideEffectLedger.set(plan.ledgerKey, { resultContent, isError, turn });
+          }
+        }
+
+        return { tu, resultContent, isError, toolStart, suppressed: undefined };
       }),
     );
 

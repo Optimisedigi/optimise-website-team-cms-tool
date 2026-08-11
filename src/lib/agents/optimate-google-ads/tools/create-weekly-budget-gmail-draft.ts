@@ -5,7 +5,9 @@ import { createGmailDraftTool } from "./create-gmail-draft";
 import { getBudgetManagementEmail } from "./get-budget-management-email";
 import { getDashboardEmailComponents } from "./get-dashboard-email-components";
 import { getWeeklyMetricTable } from "./get-weekly-metric-table";
-import { copySeed, pickGreeting, pickVariant } from "./_email-copy-variants";
+import { copySeed, pickGreeting, seedCustomerId } from "./_email-copy-variants";
+import { buildWeeklyEmailSummary, type WeeklySummaryBudget } from "./_weekly-email-summary";
+import type { EmailComponentData } from "./_email-component-insights";
 
 interface CreateWeeklyBudgetGmailDraftArgs {
   weeks: number;
@@ -25,12 +27,14 @@ interface WeeklyMetricTableData {
 interface BudgetEmailData {
   subject: string;
   html: string;
+  budget?: WeeklySummaryBudget;
 }
 
 interface DashboardComponentsData {
   html: string;
   components: GoogleAdsEmailComponentKey[];
   warnings?: string[];
+  componentData?: EmailComponentData;
 }
 
 const WEEKLY_REPORT_COMPONENT_KEYS = ["keyword_relevancy", "cpa_trend"] as const satisfies readonly WeeklyReportComponentKey[];
@@ -49,6 +53,8 @@ const AGENCY_TIMEZONE = "Australia/Brisbane";
 
 export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetGmailDraftArgs> = {
   name: "create_weekly_budget_gmail_draft",
+  // Creates a real Gmail draft, so the agent loop must de-duplicate repeats.
+  sideEffect: true,
   description:
     "Create the standard one-off Gmail draft for a weekly Google Ads spend-pacing report in one deterministic step. Requires an explicit choice of graphs: keyword_relevancy, cpa_trend, or both; when none are supplied, returns a clarification instead of creating a draft. This avoids passing large report HTML back through the LLM. Use this instead of separately calling get_weekly_metric_table, get_dashboard_email_components, get_budget_management_email, and create_gmail_draft whenever the user asks to create/save/drop a weekly budget report into Gmail. Args: weeks=1 for last week; weeks=4 for an unspecified weekly report or last four weeks / 4-week trend (weeks defaults to 4 when omitted); endDate optional ISO previous Sunday anchor; auditId optional for portfolio/audit override. Leaves the Gmail recipient blank.",
   inputSchema: {
@@ -174,8 +180,14 @@ export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetG
 
     const clientName = String(ctx.context.clientName || "Client").trim() || "Client";
     // Seeded per client + week so batched drafts do not all read the same way.
-    const seed = copySeed(clientName, String(ctx.context.customerId ?? ""), endDate, args.weeks);
-    const summary = buildIntroSummary(weekly.rows, seed);
+    const seed = copySeed(clientName, seedCustomerId(ctx.context.customerId), endDate, args.weeks);
+    const summary = buildWeeklyEmailSummary({
+      rows: weekly.rows,
+      components: args.components,
+      dashboardData: dashboard.componentData,
+      budget: budget.budget,
+      seed,
+    });
     const subject = `${clientName} - Google Ads Weekly Report`;
     const htmlBody = `<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 12px;line-height:1.5">${pickGreeting(seed)}</p>\n<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 16px;line-height:1.5">${escapeHtml(summary)}</p>\n${weekly.html}\n${dashboard.html}\n${budget.html}`;
 
@@ -220,59 +232,8 @@ function previousSundayInAgencyTime(now = new Date()): string {
   return agencyDateAsUtc.toISOString().slice(0, 10);
 }
 
-function buildIntroSummary(rows: WeeklyBucketRow[], seed = 0): string {
-  const latest = rows[rows.length - 1];
-  if (!latest) return "Here is the completed-week Google Ads budget report with the weekly performance trend included above the budget tracker.";
-  const conversions = latest.totals.conversions;
-  const spend = latest.totals.spend;
-  const cpa = conversions > 0 ? spend / conversions : null;
 
-  if (conversions > 0 && cpa !== null) {
-    return pickVariant(
-      [
-        `${latest.label} delivered ${formatNumber(conversions)} conversions at a CPA of ${formatCurrency(cpa)}, with ${formatCurrency(spend)} in spend.`,
-        `${latest.label} brought in ${formatNumber(conversions)} conversions from ${formatCurrency(spend)} in spend, at a CPA of ${formatCurrency(cpa)}.`,
-        `Across ${latest.label}, ${formatCurrency(spend)} in spend produced ${formatNumber(conversions)} conversions at ${formatCurrency(cpa)} each.`,
-        `${latest.label} closed out with ${formatNumber(conversions)} conversions, ${formatCurrency(spend)} in spend and a CPA of ${formatCurrency(cpa)}.`,
-      ],
-      seed,
-      "weekly-intro-converting",
-    );
-  }
-  if (spend > 0) {
-    return pickVariant(
-      [
-        `${latest.label} recorded ${formatCurrency(spend)} in Google Ads spend, with the completed-week trend included below for context.`,
-        `Google Ads spend for ${latest.label} came in at ${formatCurrency(spend)}, and the completed-week trend is below for context.`,
-        `${latest.label} used ${formatCurrency(spend)} in spend, with the completed-week trend set out below.`,
-        `Spend across ${latest.label} was ${formatCurrency(spend)}, and the completed-week trend follows below.`,
-      ],
-      seed,
-      "weekly-intro-spend",
-    );
-  }
-  return pickVariant(
-    [
-      `${latest.label} is included as the completed-week view, with the budget tracker below for current pacing context.`,
-      `${latest.label} is the completed-week view, and the budget tracker below covers current pacing.`,
-      `Below is the completed week for ${latest.label}, along with the budget tracker for current pacing.`,
-    ],
-    seed,
-    "weekly-intro-flat",
-  );
-}
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    maximumFractionDigits: value >= 100 ? 0 : 2,
-  }).format(value);
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(value);
-}
 
 function escapeHtml(value: string): string {
   return value
@@ -284,5 +245,4 @@ function escapeHtml(value: string): string {
 
 export const __createWeeklyBudgetGmailDraftInternals = {
   previousSundayInAgencyTime,
-  buildIntroSummary,
 };

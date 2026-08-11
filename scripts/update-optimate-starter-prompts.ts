@@ -26,17 +26,33 @@ import { classifyPortfolioGmailDraftIntent } from "@/lib/agents/optimate-google-
 
 const MAX_STARTER_QUESTION_LENGTH = 240;
 
+/**
+ * One weekly prompt and one monthly prompt, worded identically on every chat
+ * surface so the same request produces the same email from an individual
+ * account chat, a multi-account selection, and the portfolio chat.
+ *
+ * Both must satisfy classifyPortfolioGmailDraftIntent on the portfolio
+ * surfaces (gmail/draft + report/performance + each/separate), and both name
+ * their components explicitly so the draft tools never stall on a
+ * clarification.
+ */
+const WEEKLY_PROMPT =
+  "Create a separate Gmail draft for each selected account's weekly Google Ads report, covering the last 4 completed Monday-Sunday weeks with a week-on-week summary at the top. One draft per account. Graphs: keyword_relevancy, cpa_trend.";
+
+const MONTHLY_PROMPT =
+  "Create a separate Gmail draft for each selected account's report for last month, with a 4-month trend table and month-on-month summary on top. One draft per account. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.";
+
 const NEW_INDIVIDUAL_QUESTIONS = [
-  "Create a Gmail draft for the weekly Google Ads budget report covering the last 4 completed Monday-Sunday weeks. Include both graphs: keyword_relevancy and cpa_trend.",
-  "Create a Gmail draft for the monthly Google Ads budget report. Include these components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
+  WEEKLY_PROMPT,
+  MONTHLY_PROMPT,
   "Which campaigns are performing best this week?",
   "Are there any keywords wasting spend?",
 ];
 
 const NEW_PORTFOLIO_QUESTIONS = [
+  WEEKLY_PROMPT,
+  MONTHLY_PROMPT,
   "Create separate Gmail drafts for each selected account's budget pacing this month, each with a 1 sentence performance summary on top. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
-  "Create a separate Gmail draft for each selected account's weekly report covering the last 4 completed Monday-Sunday weeks. Add 1 sentence on weekly performance and pacing. Never use monthly or MTD data. Graphs: keyword_relevancy, cpa_trend.",
-  "Create a separate Gmail draft for each selected account's last-month performance, with a two-sentence summary above the tables. Components: keyword_relevancy, cpa_trend, quality_score, top_converters.",
   "Find cross-account search-term waste",
 ];
 
@@ -45,9 +61,9 @@ const NEW_PORTFOLIO_QUESTIONS = [
  * adding component text cannot silently disable the multi-account shortcut.
  */
 const EXPECTED_PORTFOLIO_INTENTS: Array<{ index: number; kind: "weekly" | "monthly"; detail: string }> = [
-  { index: 0, kind: "monthly", detail: "this_month" },
-  { index: 1, kind: "weekly", detail: "4" },
-  { index: 2, kind: "monthly", detail: "last_month" },
+  { index: 0, kind: "weekly", detail: "4" },
+  { index: 1, kind: "monthly", detail: "last_month" },
+  { index: 2, kind: "monthly", detail: "this_month" },
 ];
 
 function assertPrompts(): void {

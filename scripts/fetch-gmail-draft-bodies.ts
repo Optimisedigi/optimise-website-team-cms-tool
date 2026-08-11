@@ -132,6 +132,43 @@ async function main(): Promise<void> {
       }
     }
 
+    // The deterministic multi-account shortcut bypasses the LLM, so it writes no
+    // activity-log rows. Its drafts are only discoverable as Gmail message ids in
+    // the reply text, fetched here via messages.get so shortcut runs are still
+    // represented in the report.
+    if (drafts.length === 0) {
+      const messageIds = [
+        ...new Set(
+          [...(result.reply ?? "").matchAll(/#drafts\/([0-9a-f]+)/g)].map((m) => m[1]),
+        ),
+      ];
+      for (const messageId of messageIds) {
+        try {
+          const message = await gmail.users.messages.get({
+            userId: "me",
+            id: messageId,
+            format: "full",
+          });
+          const html = extractHtmlPart(message.data.payload) ?? "(no text/html part found)";
+          drafts.push({
+            toolName: "deterministic shortcut",
+            draftId: `(message ${messageId})`,
+            messageId,
+            subject: headerValue(message.data.payload, "Subject") ?? "(no subject)",
+            html,
+            bytes: html.length,
+            weekRows: extractWeekRows(html),
+            chartCount: (html.match(/quickchart\.io/g) ?? []).length,
+          });
+          console.log(`${result.surface}#${result.index} msg ${messageId} -> ${html.length} bytes`);
+        } catch (error) {
+          console.warn(
+            `  could not fetch message ${messageId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+    }
+
     reports.push({
       surface: result.surface,
       index: result.index,

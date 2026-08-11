@@ -148,10 +148,14 @@ describe("create_monthly_budget_gmail_draft", () => {
     expect(draftArgs.subject).toBe("Berendsen - Google Ads Monthly Report - June 2026");
     expect(draftArgs.htmlBody).toMatch(/>(Hey team,|Hi team,|Hey all,|Hi all,|Morning team,)</);
     expect(draftArgs.htmlBody).toContain("June 2026");
-    expect(draftArgs.htmlBody).toContain("75 conversions");
+    // Performance phrasing is seed-varied; the figure is what must hold.
+    expect(draftArgs.htmlBody).toMatch(/75 conversions|converted 75 times|conversions to 75/);
     expect(draftArgs.htmlBody).toContain("$6,375");
     expect(draftArgs.htmlBody).toContain("CPA efficient at $85");
-    expect(draftArgs.htmlBody).toContain("Search relevance improved to 95.1% from 93.2% and the wider CPA trend improved to $85 from $96.");
+    // Insight phrasing is seed-varied so batched drafts do not repeat verbatim;
+    // the figures and the direction of travel are what must stay fixed.
+    expect(draftArgs.htmlBody).toMatch(/[Ss]earch relevance (improved|climbed|strengthened|moved up) to 95\.1% from 93\.2%/);
+    expect(draftArgs.htmlBody).toMatch(/CPA trend (improved|came down|tightened|fell) to \$85 from \$96/);
     expect(draftArgs.htmlBody).toContain('data-testid="monthly"');
     expect(draftArgs.htmlBody).toContain('data-testid="dashboard"');
     expect(draftArgs.htmlBody).toContain('data-testid="budget"');
@@ -172,10 +176,13 @@ describe("create_monthly_budget_gmail_draft", () => {
 
     const data = result.data as Record<string, unknown>;
     expect(data.gmailUrl).toBe("https://mail.google.com/mail/u/0/#drafts/msg_456");
-    expect(String(data.summary)).toMatch(/75 conversions/);
+    expect(String(data.summary)).toMatch(/75 conversions|converted 75 times|conversions to 75/);
     expect(String(data.summary)).toMatch(/\$6,375/);
-    expect(String(data.summary)).toContain(
-      "Search relevance improved to 95.1% from 93.2% and the wider CPA trend improved to $85 from $96.",
+    expect(String(data.summary)).toMatch(
+      /[Ss]earch relevance (improved|climbed|strengthened|moved up) to 95\.1% from 93\.2%/,
+    );
+    expect(String(data.summary)).toMatch(
+      /CPA trend (improved|came down|tightened|fell) to \$85 from \$96/,
     );
     expect(JSON.stringify(data)).not.toContain("monthly html");
     expect(JSON.stringify(data)).not.toContain("dashboard html");
