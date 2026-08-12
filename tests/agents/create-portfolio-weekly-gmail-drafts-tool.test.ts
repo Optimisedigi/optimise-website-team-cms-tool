@@ -175,6 +175,7 @@ describe('create_portfolio_weekly_gmail_drafts', () => {
     const result = await createPortfolioWeeklyGmailDraftsTool.execute(args, ctx)
 
     expect(result.ok).toBe(true)
+    expect(mocks.executeComponents.mock.calls[0]?.[0]).toMatchObject({ relevancyMode: 'cache_only' })
     expect(mocks.executeWeekly).toHaveBeenCalledTimes(2)
     expect(mocks.executeWeekly.mock.calls[0]?.[0]).toEqual({
       weeks: 4,
@@ -359,6 +360,33 @@ describe('create_portfolio_weekly_gmail_drafts', () => {
       expect(data.createdCount).toBe(1)
       expect(data.componentWarnings[0].warning).toMatch(/quickchart exploded/)
     })
+  })
+
+  it('returns completed drafts and leaves later accounts unprocessed when the safety margin is reached', async () => {
+    const now = 1_000_000
+    vi.spyOn(Date, 'now').mockReturnValue(now)
+    mocks.loadAccounts.mockResolvedValue([
+      { accountRef: 4, clientId: 9, displayName: 'Berendsen', customerId: '123-456-7890' },
+      { accountRef: 5, clientId: 10, displayName: 'EPG', customerId: '098-765-4321' },
+    ])
+    mocks.executeWeekly.mockImplementation(async (_args, accountCtx) => {
+      if (accountCtx.context.auditId === 4) vi.spyOn(Date, 'now').mockReturnValue(now + 81_000)
+      return { ok: true, data: { html: '<table>weekly</table>', rows: [], weeks: 4 } }
+    })
+    mocks.executeBudget.mockResolvedValue({ ok: true, data: { html: '<div>budget</div>' } })
+    mocks.executeDraft.mockResolvedValue({ ok: true, data: { draftId: 'd', messageId: 'm', gmailUrl: 'https://gmail/d' } })
+
+    const result = await createPortfolioWeeklyGmailDraftsTool.execute(
+      createPortfolioWeeklyGmailDraftsTool.validate!({ accountRefs: [4, 5] }),
+      { ...ctx, deadlineMs: now + 100_000 },
+    )
+
+    const data = result.data as { createdCount: number; notProcessed: Array<{ accountRef?: number }> }
+    expect(data.createdCount).toBe(0)
+    expect(data.notProcessed).toEqual([{ accountRef: 4, displayName: 'Berendsen', reason: expect.any(String) }, { accountRef: 5, displayName: 'EPG', reason: expect.any(String) }])
+    expect(mocks.executeBudget).not.toHaveBeenCalled()
+    expect(mocks.executeWeekly).toHaveBeenCalledTimes(1)
+    vi.restoreAllMocks()
   })
 
   it('rejects invalid dates and non-Sunday end dates', () => {

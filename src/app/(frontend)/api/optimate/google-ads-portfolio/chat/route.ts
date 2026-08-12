@@ -33,10 +33,12 @@ const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_ATTACHMENTS = 3;
 const APPROX_CHARS_PER_TOKEN = 4;
 const MIN_RECENT_HISTORY_MESSAGES = 8;
+const PORTFOLIO_CHAT_DEADLINE_MS = 280_000;
 
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
+  const deadlineMs = Date.now() + PORTFOLIO_CHAT_DEADLINE_MS;
   try {
     const payload = await getPayload({ config });
     const headersList = await nextHeaders();
@@ -201,7 +203,7 @@ export async function POST(request: Request) {
       restrictExternalContextActions: hasUntrustedAttachedEmail,
       reasoningMode,
       selectedAccountRefs,
-      deadlineMs: Date.now() + 280_000,
+      deadlineMs,
     });
 
     const proposalIds = Array.isArray(result.proposals)

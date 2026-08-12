@@ -34,17 +34,40 @@ export interface MonthlyWasteRelevancyEntry {
   brandSpend: number;
 }
 
-export interface WarmMonthlyWasteRelevancyResult {
-  /** Number of (month) cells refreshed from Growth Tools. */
-  misses: number;
-  durationMs: number;
-  error?: string;
+export interface CachedMonthlyWasteRelevancyResult {
   cache: Map<string, WasteRelevancyCacheRow>;
   months: string[];
   monthsBack: number;
   irrelevantTermCount: number;
+}
+
+export interface WarmMonthlyWasteRelevancyResult extends CachedMonthlyWasteRelevancyResult {
+  /** Number of (month) cells refreshed from Growth Tools. */
+  misses: number;
+  durationMs: number;
+  error?: string;
   /** Slug used in the upstream Growth Tools URL. Caller must pass it through. */
   slug: string;
+}
+
+export async function readMonthlyWasteRelevancyCache(
+  payload: Payload,
+  clientId: number,
+  monthsBackInput: number = DEFAULT_MONTHS_BACK,
+): Promise<CachedMonthlyWasteRelevancyResult> {
+  const monthsBack = Math.min(36, Math.max(1, monthsBackInput || DEFAULT_MONTHS_BACK));
+  const cacheResult = await payload.find({
+    collection: "negative-keyword-monthly-waste-relevancy-cache",
+    where: { client: { equals: clientId } },
+    limit: 1000,
+    depth: 0,
+    overrideAccess: true,
+  });
+  const cache = new Map<string, WasteRelevancyCacheRow>();
+  for (const row of cacheResult.docs as unknown as WasteRelevancyCacheRow[]) {
+    cache.set(row.yearMonth, row);
+  }
+  return { cache, months: buildMonthList(monthsBack), monthsBack, irrelevantTermCount: 0 };
 }
 
 type RelevancyNegativeKeyword = {
@@ -170,20 +193,8 @@ export async function warmMonthlyWasteRelevancyForClient(
   const months = buildMonthList(monthsBack);
   const currentMonth = currentYearMonth();
 
-  const cache = new Map<string, WasteRelevancyCacheRow>();
-
-  // 1. Read existing cache rows for this client.
-  const cacheResult = await payload.find({
-    collection: "negative-keyword-monthly-waste-relevancy-cache",
-    where: { client: { equals: clientId } },
-    limit: 1000,
-    depth: 0,
-    overrideAccess: true,
-  });
-
-  for (const row of cacheResult.docs as unknown as WasteRelevancyCacheRow[]) {
-    cache.set(row.yearMonth, row);
-  }
+  const cacheRead = await readMonthlyWasteRelevancyCache(payload, clientId, monthsBack);
+  const cache = cacheRead.cache;
 
   // 2. Pull NKLs to build the irrelevantTerms set. We always need this so
   // Growth Tools can bucket per-month spend the same way.
@@ -517,7 +528,7 @@ export async function warmMonthlyWasteRelevancyForClient(
  * from a populated cache map.
  */
 export function buildMonthlyWasteRelevancyResponse(
-  result: WarmMonthlyWasteRelevancyResult,
+  result: CachedMonthlyWasteRelevancyResult,
 ): {
   monthsBack: number;
   monthly: MonthlyWasteRelevancyEntry[];

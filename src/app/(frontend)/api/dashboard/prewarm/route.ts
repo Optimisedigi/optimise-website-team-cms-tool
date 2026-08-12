@@ -9,6 +9,7 @@ export const maxDuration = 300;
 
 const BATCH_SIZE = 4;
 const CLIENT_LIMIT = 100;
+const INTERACTIVE_RELEVANCY_HISTORY_MONTHS = 14;
 
 interface ClientResult {
   clientId: number;
@@ -150,6 +151,7 @@ async function warmOneClient(payload: Payload, client: any): Promise<ClientResul
       clientId,
       customerId,
       clientSlug,
+      INTERACTIVE_RELEVANCY_HISTORY_MONTHS,
     );
     wasteRelevancy = {
       ok: !r.error,

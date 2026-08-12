@@ -548,6 +548,7 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
         ...(selectedAccountRefs && selectedAccountRefs.length > 0 ? { selectedAccountRefs } : {}),
         ...(userId !== undefined ? { userId } : {}),
       },
+      deadlineMs,
       log: () => undefined,
     };
     // The shortcut bypasses the LLM, so it must name the report components

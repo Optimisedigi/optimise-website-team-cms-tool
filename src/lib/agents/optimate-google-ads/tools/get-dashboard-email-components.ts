@@ -7,9 +7,13 @@ import {
   type GoogleAdsEmailComponentKey,
   type GoogleAdsEmailComponentsData,
 } from "@/lib/google-ads-email-components";
-import { buildMonthlyWasteRelevancyResponse, warmMonthlyWasteRelevancyForClient } from "@/lib/monthly-waste-relevancy-warmer";
+import {
+  buildMonthlyWasteRelevancyResponse,
+  readMonthlyWasteRelevancyCache,
+  warmMonthlyWasteRelevancyForClient,
+} from "@/lib/monthly-waste-relevancy-warmer";
 import { ensureCustomerId, growthToolsGet, parseConversionActions } from "./_growth-tools";
-import { customerKey, loadPortfolioAccounts, type PortfolioAccount } from "./_portfolio-accounts";
+import { customerKey, loadPortfolioAccounts, mapWithConcurrencyOrdered, type PortfolioAccount } from "./_portfolio-accounts";
 
 export interface DashboardEmailComponentsArgs {
   components: GoogleAdsEmailComponentKey[];
@@ -17,6 +21,8 @@ export interface DashboardEmailComponentsArgs {
   endMonth?: string;
   range?: string;
   auditId?: number | string;
+  /** Avoid cache misses blocking time-sensitive Gmail draft rendering. */
+  relevancyMode?: "read_through" | "cache_only";
 }
 
 interface QualityTrendRaw {
@@ -61,6 +67,7 @@ const MAX_MONTHS = 14;
 const DEFAULT_MONTHS = 14;
 const DEFAULT_RANGE = "LAST_30_DAYS";
 const SUPPORTED_COMPONENTS = new Set<GoogleAdsEmailComponentKey>(GOOGLE_ADS_EMAIL_COMPONENT_KEYS);
+const CPA_FETCH_CONCURRENCY = 3;
 
 export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponentsArgs> = {
   name: "get_dashboard_email_components",
@@ -92,6 +99,11 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
       auditId: {
         type: ["string", "number"],
         description: "Optional audit/account ref for portfolio-mode prompts. Audit-mode chats use context.",
+      },
+      relevancyMode: {
+        type: "string",
+        enum: ["read_through", "cache_only"],
+        description: "Use cache_only for time-sensitive Gmail drafts; cache misses omit the graph rather than fetch Growth Tools.",
       },
     },
     required: ["components"],
@@ -134,6 +146,12 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
       if (typeof obj.auditId !== "string" && typeof obj.auditId !== "number") throw new Error("auditId must be a string or number when provided");
       out.auditId = obj.auditId;
     }
+    if (obj.relevancyMode !== undefined) {
+      if (obj.relevancyMode !== "read_through" && obj.relevancyMode !== "cache_only") {
+        throw new Error("relevancyMode must be read_through or cache_only when provided");
+      }
+      out.relevancyMode = obj.relevancyMode;
+    }
     return out;
   },
   async execute(args, ctx) {
@@ -148,7 +166,12 @@ export const getDashboardEmailComponents: CanonicalTool<DashboardEmailComponents
     const conversionActionCategories = resolvedAccount.conversionActionCategories;
 
     if (args.components.includes("keyword_relevancy")) {
-      const relevancy = await fetchKeywordRelevancy(resolvedAccount, args.months ?? DEFAULT_MONTHS, args.endMonth);
+      const relevancy = await fetchKeywordRelevancy(
+        resolvedAccount,
+        args.months ?? DEFAULT_MONTHS,
+        args.endMonth,
+        args.relevancyMode ?? "read_through",
+      );
       if (relevancy.ok) {
         data.keywordRelevancyTrend = relevancy.rows;
       } else {
@@ -221,19 +244,29 @@ type ResolvedDashboardAccount = {
   conversionActionCategories: string;
 };
 
-async function fetchKeywordRelevancy(account: ResolvedDashboardAccount, months: number, endMonth?: string): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["keywordRelevancyTrend"]> } | { ok: false; error: string }> {
+async function fetchKeywordRelevancy(account: ResolvedDashboardAccount, months: number, endMonth?: string, relevancyMode: "read_through" | "cache_only" = "read_through"): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["keywordRelevancyTrend"]> } | { ok: false; error: string }> {
   if (!account.clientId || !account.clientSlug) {
     return { ok: false, error: "Keyword relevancy needs a linked CMS client and dashboard slug for this account." };
   }
   const payload = await getPayload({ config });
-  const result = await warmMonthlyWasteRelevancyForClient(
-    payload,
-    Number(account.clientId),
-    account.customerId,
-    account.clientSlug,
-    clamp(months, 1, MAX_MONTHS),
-  );
+  const monthsBack = clamp(months, 1, MAX_MONTHS);
+  const result = relevancyMode === "cache_only"
+    ? await readMonthlyWasteRelevancyCache(payload, Number(account.clientId), monthsBack)
+    : await warmMonthlyWasteRelevancyForClient(
+        payload,
+        Number(account.clientId),
+        account.customerId,
+        account.clientSlug,
+        monthsBack,
+      );
   const built = buildMonthlyWasteRelevancyResponse(result);
+  const requestedMonths = built.monthly
+    .filter((row) => !endMonth || row.month <= endMonth)
+    .slice(-monthsBack)
+    .map((row) => row.month);
+  if (relevancyMode === "cache_only" && requestedMonths.some((month) => !result.cache.has(month))) {
+    return { ok: false, error: "Keyword relevancy graph omitted because cached history is incomplete; retry after dashboard prewarm." };
+  }
   const rows = built.monthly
     .filter((row) => !endMonth || row.month <= endMonth)
     .slice(-clamp(months, 1, MAX_MONTHS))
@@ -248,14 +281,15 @@ async function fetchKeywordRelevancy(account: ResolvedDashboardAccount, months: 
 
 async function fetchCpaTrend(customerId: string, months: number, conversionActions: string, endMonth?: string): Promise<{ ok: true; rows: NonNullable<GoogleAdsEmailComponentsData["cpaTrend"]> } | { ok: false; error: string }> {
   const monthKeys = completedMonthKeys(clamp(months, 1, MAX_MONTHS), endMonth);
-  const rows: NonNullable<GoogleAdsEmailComponentsData["cpaTrend"]> = [];
-  for (const month of monthKeys) {
+  const results = await mapWithConcurrencyOrdered(monthKeys, CPA_FETCH_CONCURRENCY, async (month) => {
     const res = await fetchMetrics(customerId, `${month}-01,${lastDayOfMonth(month)}`, conversionActions);
     if (!res.ok) return res;
     const totals = sumCpaMetrics(res.rows);
-    rows.push({ label: monthLabel(month), value: totals.cpa });
-  }
-  return { ok: true, rows };
+    return { ok: true as const, row: { label: monthLabel(month), value: totals.cpa } };
+  });
+  const failure = results.find((result) => !result.ok);
+  if (failure && !failure.ok) return failure;
+  return { ok: true, rows: results.map((result) => (result as { ok: true; row: NonNullable<GoogleAdsEmailComponentsData["cpaTrend"]>[number] }).row) };
 }
 
 async function fetchMetrics(customerId: string, dateRange: string, conversionActions: string): Promise<{ ok: true; rows: MetricRaw[] } | { ok: false; error: string }> {

@@ -150,6 +150,26 @@ describe("OptiMate selected model flow", () => {
     );
   });
 
+  it("GoogleMate portfolio bounds agent execution before the platform's 300-second timeout", async () => {
+    const { POST } = await import("../src/app/(frontend)/api/optimate/google-ads-portfolio/chat/route");
+    const beforeRequest = Date.now();
+
+    await POST(
+      new Request("https://cms.test/api/optimate/google-ads-portfolio/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Draft weekly reports", selectedAccountRefs: ["123", "456"] }),
+      }),
+    );
+
+    expect(mocks.runPortfolioChatTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ deadlineMs: expect.any(Number) }),
+    );
+    const deadlineMs = mocks.runPortfolioChatTurn.mock.calls.at(-1)?.[0].deadlineMs as number;
+    expect(deadlineMs - beforeRequest).toBeGreaterThanOrEqual(279_000);
+    expect(deadlineMs - beforeRequest).toBeLessThan(300_000);
+  });
+
   it("GoogleMate portfolio forwards the UI-selected model to the Google Ads agent", async () => {
     const { POST } = await import("../src/app/(frontend)/api/optimate/google-ads-portfolio/chat/route");
 

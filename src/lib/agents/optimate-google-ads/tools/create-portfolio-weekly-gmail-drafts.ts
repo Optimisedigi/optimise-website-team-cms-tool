@@ -72,6 +72,8 @@ interface GmailDraftData {
 const MAX_ACCOUNTS = 10
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const AGENCY_TIMEZONE = 'Australia/Brisbane'
+/** Reserve enough time for the route to persist and return partial batch results. */
+const DEADLINE_SAFETY_MARGIN_MS = 20_000
 
 export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolioWeeklyGmailDraftsArgs> =
   {
@@ -190,10 +192,24 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
         displayName: string
         warning: string
       }> = []
+      const notProcessed: Array<{ accountRef?: string | number; displayName: string; reason: string }> = []
+      let processedCount = 0
 
       // Keep account rendering sequential: each weekly fetch reaches Growth Tools,
       // and bounded serial work avoids creating an upstream request burst.
-      for (const account of capped) {
+      for (let accountIndex = 0; accountIndex < capped.length; accountIndex += 1) {
+        const account = capped[accountIndex]
+        if (deadlineIsTooClose(ctx)) {
+          notProcessed.push(
+            ...capped.slice(accountIndex).map((remainingAccount) => ({
+              accountRef: remainingAccount.accountRef,
+              displayName: remainingAccount.displayName,
+              reason: 'Request deadline is too close to safely begin another account.',
+            })),
+          )
+          break
+        }
+        processedCount += 1
         const accountCtx = contextForAccount(ctx, account)
         const weeklyResult = await getWeeklyMetricTable.execute(
           {
@@ -214,6 +230,14 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
         }
 
         const weekly = weeklyResult.data as WeeklyMetricTableData
+        if (deadlineIsTooClose(ctx)) {
+          notProcessed.push({
+            accountRef: account.accountRef,
+            displayName: account.displayName,
+            reason: 'Request deadline is too close to safely continue this account.',
+          })
+          continue
+        }
         const budgetResult = await getBudgetManagementEmail.execute(
           { mode: 'this_month', auditId: account.accountRef },
           accountCtx,
@@ -228,6 +252,14 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
         }
 
         const budget = budgetResult.data as BudgetManagementEmailData
+        if (deadlineIsTooClose(ctx)) {
+          notProcessed.push({
+            accountRef: account.accountRef,
+            displayName: account.displayName,
+            reason: 'Request deadline is too close to safely continue this account.',
+          })
+          continue
+        }
 
         // Rendered per account so each draft's graphs reflect that account's own
         // history. Component failures must not sink the whole batch, so a failed
@@ -245,6 +277,7 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
               components: args.components,
               months: DASHBOARD_TREND_MONTHS,
               range: 'LAST_30_DAYS',
+              relevancyMode: 'cache_only',
               ...(account.accountRef !== undefined ? { auditId: account.accountRef } : {}),
             },
             componentsCtx,
@@ -292,6 +325,14 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
           ...(dashboard ? [dashboard.html] : []),
           budget.html,
         ].join('\n')
+        if (deadlineIsTooClose(ctx)) {
+          notProcessed.push({
+            accountRef: account.accountRef,
+            displayName: account.displayName,
+            reason: 'Request deadline is too close to safely create this Gmail draft.',
+          })
+          continue
+        }
         const draftResult = await createGmailDraftTool.execute(
           { subject, htmlBody, ...(args.to ? { to: args.to } : {}) },
           accountCtx,
@@ -322,19 +363,24 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
         data: {
           createdCount: drafts.length,
           requestedCount: refs.length,
-          processedCount: capped.length,
+          processedCount,
           weeks: args.weeks,
           components: args.components,
           endDate,
           drafts,
           failures,
           componentWarnings,
+          notProcessed,
           capped: accounts.length > capped.length,
-          message: `Created ${drafts.length} separate weekly Gmail draft${drafts.length === 1 ? '' : 's'}${failures.length ? `; ${failures.length} failed` : ''}.`,
+          message: `Created ${drafts.length} separate weekly Gmail draft${drafts.length === 1 ? '' : 's'}${failures.length ? `; ${failures.length} failed` : ''}${notProcessed.length ? `; ${notProcessed.length} not processed before the request deadline—retry those accounts.` : ''}.`,
         },
       }
     },
   }
+
+function deadlineIsTooClose(ctx: ToolContext, now = Date.now()): boolean {
+  return ctx.deadlineMs !== undefined && now >= ctx.deadlineMs - DEADLINE_SAFETY_MARGIN_MS
+}
 
 function contextSelectedAccountRefs(ctx: ToolContext): Array<string | number> {
   return Array.isArray(ctx.context.selectedAccountRefs)
@@ -406,4 +452,6 @@ function escapeHtml(value: string): string {
 
 export const __createPortfolioWeeklyGmailDraftsInternals = {
   previousSundayInAgencyTime,
+  deadlineIsTooClose,
+  DEADLINE_SAFETY_MARGIN_MS,
 }
