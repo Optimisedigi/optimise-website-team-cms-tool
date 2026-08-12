@@ -75,6 +75,9 @@ export interface ClientPulseSummary {
     momPercent: number | null;
   };
   analyticsMetrics: Array<{ metric: string; label: string; value: number | null; displayValue: string }>;
+  dashboardMetrics: Array<{ metric: string; label: string; value: number | null; comparisonValue: number | null; deltaPercent: number | null; displayValue: string; source: string; invertedDelta: boolean }>;
+  ga4Sessions: { month: string; sessions: number | null }[];
+  ga4SessionsMomPercent: number | null;
   organicTrend: OrganicTrend;
   adsTrend: AdsTrend;
   budgetPacing: ClientPulseBudgetPacing;
@@ -159,6 +162,7 @@ export interface ClientPulseSources {
   aiVisibilitySnapshots: PlainRecord[];
   clientPulseHistory: PlainRecord[];
   clientMetricSnapshots: PlainRecord[];
+  clientAnalyticsSnapshots: PlainRecord[];
 }
 
 export interface GroupedClientPulseSources {
@@ -175,6 +179,7 @@ export interface GroupedClientPulseSources {
   aiVisibilitySnapshots: Map<string, PlainRecord[]>;
   clientPulseHistory: Map<string, PlainRecord[]>;
   clientMetricSnapshots: Map<string, PlainRecord[]>;
+  clientAnalyticsSnapshots: Map<string, PlainRecord[]>;
 }
 
 type PlainRecord = Record<string, unknown>;
@@ -189,6 +194,7 @@ const DAY_MS = 86_400_000;
 const TERMINAL_GOAL_STATUSES = new Set(["complete", "failed", "blocked"]);
 const ANALYTICS_METRIC_OPTIONS = new Set(["traffic", "conversions", "cpa", "revenue", "roas", "organic_clicks", "paid_conversions"]);
 const DEFAULT_ANALYTICS_METRICS = ["traffic", "conversions", "cpa"];
+const DEFAULT_DASHBOARD_METRICS = ["google_ads_cost_per_lead", "ga4_key_events", "google_ads_spend"];
 const NEGATIVE_KEYWORD_ACTIVITY_TYPES = new Set([
   "negative_sweep_completed",
   "negative_sweep_synced",
@@ -241,7 +247,7 @@ export async function fetchClientPulseSources(
     return emptySources(clients);
   }
 
-  const [scheduledTasks, goalRuns, activityLog, ledgerItems, clientProcesses, organicSnapshots, gscMonthlySnapshots, googleAdsSnapshots, googleAdsAudits, siteHealthReports, aiVisibilitySnapshots, clientPulseHistory, clientMetricSnapshots] =
+  const [scheduledTasks, goalRuns, activityLog, ledgerItems, clientProcesses, organicSnapshots, gscMonthlySnapshots, googleAdsSnapshots, googleAdsAudits, siteHealthReports, aiVisibilitySnapshots, clientPulseHistory, clientMetricSnapshots, clientAnalyticsSnapshots] =
     await Promise.all([
       fetchAllPages(payload, {
         collection: "scheduled-agent-tasks",
@@ -343,6 +349,14 @@ export async function fetchClientPulseSources(
         sort: "-date",
         select: { id: true, client: true, source: true, date: true, assessmentsCompleted: true, assessmentTarget: true },
       }, "client metric snapshots"),
+      fetchOptionalAllPages(payload, {
+        collection: "client-analytics-snapshots",
+        where: { and: [{ client: { in: clientIds } }, { source: { equals: "ga4" } }] },
+        depth: 0,
+        limit: Math.max(limit, clientIds.length * 16),
+        sort: "-periodEnd",
+        select: { id: true, client: true, dateRangeLabel: true, periodStart: true, periodEnd: true, sessions: true, keyEvents: true, conversions: true },
+      }, "client analytics snapshots"),
     ]);
 
   return {
@@ -360,6 +374,7 @@ export async function fetchClientPulseSources(
     aiVisibilitySnapshots: filterRecordsByClient(aiVisibilitySnapshots, clientIds),
     clientPulseHistory: filterRecordsByClient(clientPulseHistory, clientIds),
     clientMetricSnapshots: filterRecordsByClient(clientMetricSnapshots, clientIds),
+    clientAnalyticsSnapshots: filterRecordsByClient(clientAnalyticsSnapshots, clientIds),
   };
 }
 
@@ -379,6 +394,7 @@ export function groupClientPulseSources(sources: ClientPulseSources, clientIds: 
     aiVisibilitySnapshots: groupByClient(sources.aiVisibilitySnapshots, allowed, "periodEnd"),
     clientPulseHistory: groupByClient(sources.clientPulseHistory, allowed, "date"),
     clientMetricSnapshots: groupByClient(sources.clientMetricSnapshots, allowed, "date"),
+    clientAnalyticsSnapshots: groupByClient(sources.clientAnalyticsSnapshots, allowed, "periodEnd"),
   };
 }
 
@@ -433,6 +449,9 @@ export function buildClientPulseSummary(input: {
     value: metrics[metric] ?? null,
     displayValue: formatMetricValue(metric, metrics[metric] ?? null),
   }));
+  const ga4Snapshots = input.grouped.clientAnalyticsSnapshots.get(id) ?? [];
+  const ga4Sessions = deriveGa4Sessions(ga4Snapshots);
+  const dashboardMetrics = deriveDashboardMetrics(pulse, adsSnapshots, ga4Snapshots, metrics);
   const target = calculateTargetProgress(
     {
       metric: stringValue(pulse.primaryTarget) || "traffic",
@@ -505,6 +524,9 @@ export function buildClientPulseSummary(input: {
     target,
     wcqAssessments,
     analyticsMetrics,
+    dashboardMetrics,
+    ga4Sessions,
+    ga4SessionsMomPercent: percentChange(ga4Sessions.at(-1)?.sessions ?? null, ga4Sessions.at(-2)?.sessions ?? null),
     organicTrend,
     adsTrend,
     budgetPacing,
@@ -700,6 +722,49 @@ export function calculateAdsTrend(adsSnapshots: PlainRecord[], now: Date): AdsTr
     mtdClicksYoyPercent: percentChange(mtdTotals?.clicks ?? null, mtdLyTotals?.clicks ?? null),
     mtdConversionsYoyPercent: percentChange(mtdTotals?.conversions ?? null, mtdLyTotals?.conversions ?? null),
   };
+}
+
+function deriveGa4Sessions(snapshots: PlainRecord[]): Array<{ month: string; sessions: number | null }> {
+  const months = new Map<string, number | null>();
+  for (const snapshot of snapshots) {
+    const label = stringValue(snapshot.dateRangeLabel);
+    if (!label.startsWith("MONTH_")) continue;
+    const month = label.slice(6);
+    if (/^\d{4}-\d{2}$/.test(month) && !months.has(month)) months.set(month, numberValue(snapshot.sessions));
+  }
+  return [...months.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([month, sessions]) => ({ month, sessions }));
+}
+
+function deriveDashboardMetrics(pulse: PlainRecord, adsSnapshots: PlainRecord[], ga4Snapshots: PlainRecord[], metrics: Record<string, number | null | undefined>): ClientPulseSummary["dashboardMetrics"] {
+  const configured = Array.isArray(pulse.dashboardMetrics) ? pulse.dashboardMetrics.map(recordValue).filter((row) => row.enabled !== false && stringValue(row.metric)) : [];
+  const rows: PlainRecord[] = configured.length > 0 ? configured : DEFAULT_DASHBOARD_METRICS.map((metric) => ({ metric, enabled: true }));
+  const currentAds = totalsForAdsSnapshot(adsSnapshots.find((snapshot) => stringValue(snapshot.dateRangeLabel) === "ROLLING_30D_CURRENT") ?? {});
+  const previousAds = totalsForAdsSnapshot(adsSnapshots.find((snapshot) => stringValue(snapshot.dateRangeLabel) === "ROLLING_30D_PREVIOUS") ?? {});
+  const currentGa4 = ga4Snapshots.find((snapshot) => stringValue(snapshot.dateRangeLabel) === "ROLLING_30D_CURRENT");
+  const previousGa4 = ga4Snapshots.find((snapshot) => stringValue(snapshot.dateRangeLabel) === "ROLLING_30D_PREVIOUS");
+  return rows.slice(0, 3).map((row) => {
+    const metric = stringValue(row.metric);
+    let value: number | null = null; let comparisonValue: number | null = null; let source = "No data"; let invertedDelta = false;
+    if (metric === "google_ads_spend") { value = currentAds.spend; comparisonValue = previousAds.spend; source = "Google Ads, trailing 30 days"; }
+    else if (metric === "google_ads_conversions") { value = currentAds.conversions; comparisonValue = previousAds.conversions; source = "Google Ads, trailing 30 days"; }
+    else if (metric === "google_ads_cost_per_lead") { value = currentAds.cpa; comparisonValue = previousAds.cpa; source = "Google Ads spend ÷ conversions, trailing 30 days"; invertedDelta = true; }
+    else if (metric === "ga4_sessions") { value = numberValue(currentGa4?.sessions); comparisonValue = numberValue(previousGa4?.sessions); source = "GA4, trailing 30 days"; }
+    else if (metric === "ga4_key_events") { value = numberValue(currentGa4?.keyEvents); comparisonValue = numberValue(previousGa4?.keyEvents); source = "GA4, trailing 30 days"; }
+    else if (metric === "organic_clicks") { value = metrics.organic_clicks ?? null; source = "Google Search Console, latest complete month"; }
+    else if (metric === "assessments") { value = metrics.assessments ?? null; source = "WeCanQuit aggregate counter"; }
+    const label = stringValue(row.label) || dashboardMetricLabel(metric);
+    return { metric, label, value, comparisonValue, deltaPercent: percentChange(value, comparisonValue), displayValue: dashboardMetricValue(metric, value), source, invertedDelta };
+  });
+}
+
+function dashboardMetricLabel(metric: string): string {
+  return ({ google_ads_cost_per_lead: "Cost per lead", google_ads_spend: "Spend", google_ads_conversions: "Conversions", ga4_sessions: "Sessions", ga4_key_events: "Key events", organic_clicks: "Organic clicks", assessments: "Assessments" } as Record<string, string>)[metric] ?? metric;
+}
+
+function dashboardMetricValue(metric: string, value: number | null): string {
+  if (value === null) return "—";
+  if (metric === "google_ads_cost_per_lead" || metric === "google_ads_spend") return `$${Math.round(value).toLocaleString("en-AU")}`;
+  return Math.round(value).toLocaleString("en-AU");
 }
 
 function monthKey(year: number, month: number): string {
@@ -988,7 +1053,7 @@ function clientPulseClientSelect(includeAnalyticsMetrics: boolean): PlainRecord 
       targetUnit: true,
       targetDirection: true,
       servicesTracked: true,
-      ...(includeAnalyticsMetrics ? { analyticsMetrics: true } : {}),
+      ...(includeAnalyticsMetrics ? { analyticsMetrics: true, dashboardMetrics: true } : {}),
       neglectWarningDays: true,
       neglectCriticalDays: true,
       notes: true,
@@ -1017,7 +1082,7 @@ function isMissingClientPulseAnalyticsTableError(error: unknown): boolean {
 }
 
 function emptySources(clients: PlainRecord[]): ClientPulseSources {
-  return { clients, scheduledTasks: [], goalRuns: [], activityLog: [], ledgerItems: [], clientProcesses: [], organicSnapshots: [], gscMonthlySnapshots: [], googleAdsSnapshots: [], googleAdsAudits: [], siteHealthReports: [], aiVisibilitySnapshots: [], clientPulseHistory: [], clientMetricSnapshots: [] };
+  return { clients, scheduledTasks: [], goalRuns: [], activityLog: [], ledgerItems: [], clientProcesses: [], organicSnapshots: [], gscMonthlySnapshots: [], googleAdsSnapshots: [], googleAdsAudits: [], siteHealthReports: [], aiVisibilitySnapshots: [], clientPulseHistory: [], clientMetricSnapshots: [], clientAnalyticsSnapshots: [] };
 }
 
 function groupByClient(records: PlainRecord[], allowed: Set<string>, dateField: string, includeClientsCovered = false): Map<string, PlainRecord[]> {

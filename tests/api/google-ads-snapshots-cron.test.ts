@@ -25,7 +25,7 @@ vi.mock("@/payload.config", () => ({
   default: Promise.resolve({}),
 }));
 
-import { completedMonths, monthDateRange, monthRangeLabel, mtdComparisonRanges, runGoogleAdsSnapshotsCron } from "@/lib/google-ads-snapshots/cron";
+import { completedMonths, monthDateRange, monthRangeLabel, mtdComparisonRanges, rolling30DayComparisonRanges, runGoogleAdsSnapshotsCron } from "@/lib/google-ads-snapshots/cron";
 
 // Pre-existing monthly snapshot docs — makes captureMonthlyCampaignSnapshots a
 // no-op in the concurrency tests so the original level-sequencing contract
@@ -261,12 +261,13 @@ describe("runGoogleAdsSnapshotsCron — concurrency + sequencing", () => {
     });
 
     const mtdRanges = new Set(mtdComparisonRanges().map((range) => `${range.start},${range.end}`));
+    const rollingRanges = new Set(rolling30DayComparisonRanges().map((range) => `${range.start},${range.end}`));
     const monthlyFetchRanges: string[] = [];
     globalThis.fetch = vi.fn(async (input: any) => {
       const url = typeof input === "string" ? input : input.url;
       const dateRange = new URL(url).searchParams.get("dateRange") ?? "";
       // Monthly pulls use a comma-span range "YYYY-MM-DD,YYYY-MM-DD".
-      if (url.includes("/campaign-budgets/get-metrics") && dateRange.includes(",") && !mtdRanges.has(dateRange)) {
+      if (url.includes("/campaign-budgets/get-metrics") && dateRange.includes(",") && !mtdRanges.has(dateRange) && !rollingRanges.has(dateRange)) {
         monthlyFetchRanges.push(dateRange);
       }
       const body = url.includes("/campaign-budgets/get-metrics")

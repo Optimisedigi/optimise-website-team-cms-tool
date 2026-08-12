@@ -112,6 +112,7 @@ export interface Config {
     'forecast-scenarios': ForecastScenario;
     'agency-kpi-snapshots': AgencyKpiSnapshot;
     'client-metric-snapshots': ClientMetricSnapshot;
+    'client-analytics-snapshots': ClientAnalyticsSnapshot;
     'quarterly-organic-growth-snapshots': QuarterlyOrganicGrowthSnapshot;
     'ai-visibility-snapshots': AiVisibilitySnapshot;
     'serp-displacement-snapshots': SerpDisplacementSnapshot;
@@ -222,6 +223,7 @@ export interface Config {
     'forecast-scenarios': ForecastScenariosSelect<false> | ForecastScenariosSelect<true>;
     'agency-kpi-snapshots': AgencyKpiSnapshotsSelect<false> | AgencyKpiSnapshotsSelect<true>;
     'client-metric-snapshots': ClientMetricSnapshotsSelect<false> | ClientMetricSnapshotsSelect<true>;
+    'client-analytics-snapshots': ClientAnalyticsSnapshotsSelect<false> | ClientAnalyticsSnapshotsSelect<true>;
     'quarterly-organic-growth-snapshots': QuarterlyOrganicGrowthSnapshotsSelect<false> | QuarterlyOrganicGrowthSnapshotsSelect<true>;
     'ai-visibility-snapshots': AiVisibilitySnapshotsSelect<false> | AiVisibilitySnapshotsSelect<true>;
     'serp-displacement-snapshots': SerpDisplacementSnapshotsSelect<false> | SerpDisplacementSnapshotsSelect<true>;
@@ -455,7 +457,28 @@ export interface Client {
     servicesTracked?:
       ('organic' | 'paid_search' | 'paid_social' | 'seo' | 'content' | 'cro' | 'automations' | 'client_comms')[] | null;
     /**
-     * Google Analytics metrics to show in the Client Pulse hover scorecard.
+     * The first three enabled rows appear on the Client Pulse card in this order. A label can rename a metric for this client.
+     */
+    dashboardMetrics?:
+      | {
+          metric:
+            | 'google_ads_cost_per_lead'
+            | 'google_ads_spend'
+            | 'google_ads_conversions'
+            | 'ga4_sessions'
+            | 'ga4_key_events'
+            | 'organic_clicks'
+            | 'assessments';
+          /**
+           * Optional dashboard label.
+           */
+          label?: string | null;
+          enabled?: boolean | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Legacy Client Pulse metric selection. Existing records continue to use it until dashboard metrics are configured.
      */
     analyticsMetrics?:
       ('traffic' | 'conversions' | 'cpa' | 'revenue' | 'roas' | 'organic_clicks' | 'paid_conversions')[] | null;
@@ -8921,6 +8944,28 @@ export interface ClientMetricSnapshot {
   createdAt: string;
 }
 /**
+ * Aggregate GA4 reporting windows used by Client Pulse. Contains no person-level data.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-analytics-snapshots".
+ */
+export interface ClientAnalyticsSnapshot {
+  id: number;
+  client: number | Client;
+  source: 'ga4';
+  /**
+   * Stable reporting window key, such as MONTH_2026-07 or ROLLING_30D_CURRENT.
+   */
+  dateRangeLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  sessions?: number | null;
+  keyEvents?: number | null;
+  conversions?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Ongoing organic growth snapshots for client hub reporting.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -11085,6 +11130,10 @@ export interface PayloadLockedDocument {
         value: number | ClientMetricSnapshot;
       } | null)
     | ({
+        relationTo: 'client-analytics-snapshots';
+        value: number | ClientAnalyticsSnapshot;
+      } | null)
+    | ({
         relationTo: 'quarterly-organic-growth-snapshots';
         value: number | QuarterlyOrganicGrowthSnapshot;
       } | null)
@@ -11342,6 +11391,14 @@ export interface ClientsSelect<T extends boolean = true> {
         targetUnit?: T;
         targetDirection?: T;
         servicesTracked?: T;
+        dashboardMetrics?:
+          | T
+          | {
+              metric?: T;
+              label?: T;
+              enabled?: T;
+              id?: T;
+            };
         analyticsMetrics?: T;
         neglectWarningDays?: T;
         neglectCriticalDays?: T;
@@ -13505,6 +13562,22 @@ export interface ClientMetricSnapshotsSelect<T extends boolean = true> {
   assessmentTarget?: T;
   prescriptionTarget?: T;
   asOf?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-analytics-snapshots_select".
+ */
+export interface ClientAnalyticsSnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  source?: T;
+  dateRangeLabel?: T;
+  periodStart?: T;
+  periodEnd?: T;
+  sessions?: T;
+  keyEvents?: T;
+  conversions?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -160,6 +160,7 @@ import * as migration_20260801_120000_add_mtvc_spend_fields from './20260801_120
 import * as migration_20260802_120000_add_search_target_languages from './20260802_120000_add_search_target_languages'
 import * as migration_20260710_120000_add_proposal_meta_ads_status from './20260710_120000_add_proposal_meta_ads_status'
 import * as migration_20260710_130000_add_shared_working_docs from './20260710_130000_add_shared_working_docs'
+import * as migration_20260812_120000_add_client_pulse_dashboard_metrics from './20260812_120000_add_client_pulse_dashboard_metrics'
 
 export const migrations = [
   {
@@ -946,6 +947,11 @@ export const migrations = [
     up: migration_20260810_120000_add_team_task_screenshots.up,
     down: migration_20260810_120000_add_team_task_screenshots.down,
     name: '20260810_120000_add_team_task_screenshots',
+  },
+  {
+    up: migration_20260812_120000_add_client_pulse_dashboard_metrics.up,
+    down: migration_20260812_120000_add_client_pulse_dashboard_metrics.down,
+    name: '20260812_120000_add_client_pulse_dashboard_metrics',
   },
   {
     up: migration_20260813_120000_add_activity_log_target_url.up,

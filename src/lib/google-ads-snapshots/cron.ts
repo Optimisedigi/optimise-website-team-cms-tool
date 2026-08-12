@@ -721,6 +721,14 @@ function ymd(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function rolling30DayComparisonRanges(now: Date = new Date()): Array<{ label: string; start: string; end: string }> {
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
+  const currentStart = new Date(end.getTime() - 29 * 86_400_000);
+  const previousEnd = new Date(currentStart.getTime() - 86_400_000);
+  const previousStart = new Date(previousEnd.getTime() - 29 * 86_400_000);
+  return [{ label: "ROLLING_30D_CURRENT", start: ymd(currentStart), end: ymd(end) }, { label: "ROLLING_30D_PREVIOUS", start: ymd(previousStart), end: ymd(previousEnd) }];
+}
+
 /** Current month-to-date and same dates last year, keyed by the current month. */
 export function mtdComparisonRanges(now: Date = new Date()): Array<{ label: string; start: string; end: string }> {
   const key = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -828,6 +836,12 @@ async function captureMtdCampaignSnapshots(
   }
 }
 
+async function captureRolling30DayCampaignSnapshots(payload: Payload, client: ClientDoc, customerId: string): Promise<void> {
+  for (const range of rolling30DayComparisonRanges()) {
+    await runLevel<CampaignSnapshotRow>(payload, { clientId: client.id, customerId, level: "campaign", fetcher: () => fetchCampaignLevel(customerId, { dateRange: `${range.start},${range.end}`, rangeLabel: range.label }), dateRangeLabel: range.label, dateRangeStart: range.start, dateRangeEnd: range.end });
+  }
+}
+
 async function processClient(
   payload: Payload,
   client: ClientDoc,
@@ -890,6 +904,7 @@ async function processClient(
   // failure never aborts the client run.
   try {
     await captureMtdCampaignSnapshots(payload, client, customerId);
+  await captureRolling30DayCampaignSnapshots(payload, client, customerId);
     await captureMonthlyCampaignSnapshots(payload, client, customerId);
   } catch (err) {
     payload.logger?.warn?.(

@@ -97,6 +97,7 @@ interface Ga4OverviewData {
   avgSessionDuration: number;
   engagementRate: number;
   conversions: number;
+  keyEvents: number;
 }
 
 interface Ga4ChannelData {
@@ -163,6 +164,7 @@ export async function fetchGa4Report(
           { name: "averageSessionDuration" },
           { name: "engagementRate" },
           { name: "conversions" },
+          { name: "keyEvents" },
         ],
       },
     }),
@@ -179,7 +181,7 @@ export async function fetchGa4Report(
           { name: "sessions" },
           { name: "bounceRate" },
           { name: "averageSessionDuration" },
-          { name: "conversions" },
+          { name: "keyEvents" },
         ],
         orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
         limit: "20",
@@ -231,6 +233,7 @@ export async function fetchGa4Report(
     avgSessionDuration: parseFloat(ov[5]?.value || "0"),
     engagementRate: parseFloat(ov[6]?.value || "0"),
     conversions: parseInt(ov[7]?.value || "0", 10),
+    keyEvents: parseInt(ov[8]?.value || "0", 10),
   };
 
   // Parse channels

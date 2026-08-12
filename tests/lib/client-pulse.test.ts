@@ -27,7 +27,10 @@ const emptySources = (clients: Array<Record<string, unknown>>): ClientPulseSourc
   aiVisibilitySnapshots: [],
   clientPulseHistory: [],
   clientMetricSnapshots: [],
+  clientAnalyticsSnapshots: [],
 });
+
+function camelKey(value: string): string { return value.replace(/-([a-z])/g, (_, character: string) => character.toUpperCase()); }
 
 describe("client-pulse", () => {
   it("calculates increase, decrease and maintain target progress", () => {
@@ -73,6 +76,19 @@ describe("client-pulse", () => {
       status: "at_risk",
     });
     expect(summaries[0]?.wcqAssessments).toMatchObject({ current: 16, target: 500 });
+  });
+
+  it("maps configured dashboard metrics in order and uses only persisted GA4/Ads comparisons", async () => {
+    const client = { id: 8, name: "Metrics client", slug: "metrics-client", isActive: true, services: [], clientPulse: { enabled: true, servicesTracked: [], dashboardMetrics: [{ metric: "ga4_sessions", label: "Website visits", enabled: true }, { metric: "google_ads_cost_per_lead", enabled: true }, { metric: "ga4_key_events", enabled: false }, { metric: "google_ads_spend", enabled: true }] } };
+    const sources = emptySources([client]);
+    sources.googleAdsSnapshots = [{ client: 8, level: "campaign", dateRangeLabel: "ROLLING_30D_CURRENT", rows: [{ spend: 500, conversions: 10 }] }, { client: 8, level: "campaign", dateRangeLabel: "ROLLING_30D_PREVIOUS", rows: [{ spend: 400, conversions: 8 }] }];
+    sources.clientAnalyticsSnapshots = [{ client: 8, dateRangeLabel: "ROLLING_30D_CURRENT", sessions: 200, keyEvents: 5 }, { client: 8, dateRangeLabel: "ROLLING_30D_PREVIOUS", sessions: 160, keyEvents: 4 }, { client: 8, dateRangeLabel: "MONTH_2026-05", sessions: 175 }];
+    const payload = { async find(args: Record<string, unknown>) { return { docs: args.collection === "clients" ? [client] : (sources[camelKey(String(args.collection)) as keyof ClientPulseSources] ?? []) }; } };
+    const [summary] = await getClientPulseSummaries(payload, { now: new Date("2026-06-16T00:00:00.000Z") });
+    expect(summary?.dashboardMetrics.map((metric) => metric.label)).toEqual(["Website visits", "Cost per lead", "Spend"]);
+    expect(summary?.dashboardMetrics[0]).toMatchObject({ value: 200, comparisonValue: 160, deltaPercent: 25 });
+    expect(summary?.dashboardMetrics[1]).toMatchObject({ value: 50, comparisonValue: 50, invertedDelta: true });
+    expect(summary?.ga4Sessions).toEqual([{ month: "2026-05", sessions: 175 }]);
   });
 
   it("calculates WeCanQuit assessment month-on-month trend from cumulative snapshots", () => {
@@ -238,7 +254,7 @@ describe("client-pulse", () => {
         }
         if (args.collection === "quarterly-organic-growth-snapshots") return { docs: [{ id: 10, client: 2, snapshotDate: "2026-06-01", clicks: 120 }] };
         if (args.collection === "client-value-ledger-items") return { docs: [{ id: 20, client: 2, occurredAt: "2026-06-01", title: "SEO work", category: "seo" }, { id: 21, client: 1, occurredAt: "2026-06-01", title: "Paid search work", category: "paid_media" }] };
-        if (args.collection === "google-ads-snapshots") return { docs: [{ id: 30, client: 1, capturedAt: "2026-06-01", dateRangeLabel: "MTD_2026-06", rows: [{ conversions: 12, costMicros: 120000000 }] }] };
+        if (args.collection === "google-ads-snapshots") return { docs: [{ id: 30, client: 1, level: "campaign", capturedAt: "2026-06-01", dateRangeLabel: "MTD_2026-06", rows: [{ conversions: 12, costMicros: 120000000 }] }] };
         if (args.collection === "client-pulse-history") return { docs: [{ id: 40, client: 1, date: "2026-06-08", score: 60, status: "watch" }] };
         if (args.collection === "client-metric-snapshots") return { docs: [] };
         return { docs: [] };
@@ -253,7 +269,7 @@ describe("client-pulse", () => {
       and: [{ isActive: { not_equals: false } }, { "clientPulse.enabled": { equals: true } }],
     });
     expect(summaries[0]?.scoreHistory.map((point) => point.date)).toEqual(["2026-06-08", "2026-06-09"]);
-    expect(calls.filter((collection) => collection !== "clients")).toHaveLength(13);
-    expect(new Set(calls)).toEqual(new Set(["clients", "scheduled-agent-tasks", "goal-runs", "activity-log", "client-value-ledger-items", "client-processes", "quarterly-organic-growth-snapshots", "gsc-snapshots", "google-ads-snapshots", "google-ads-audits", "site-health-reports", "ai-visibility-snapshots", "client-pulse-history", "client-metric-snapshots"]));
+    expect(calls.filter((collection) => collection !== "clients")).toHaveLength(14);
+    expect(new Set(calls)).toEqual(new Set(["clients", "scheduled-agent-tasks", "goal-runs", "activity-log", "client-value-ledger-items", "client-processes", "quarterly-organic-growth-snapshots", "gsc-snapshots", "google-ads-snapshots", "google-ads-audits", "site-health-reports", "ai-visibility-snapshots", "client-pulse-history", "client-metric-snapshots", "client-analytics-snapshots"]));
   });
 });

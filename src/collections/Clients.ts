@@ -932,21 +932,40 @@ export const Clients: CollectionConfig = {
                       ],
                     },
                     {
+                      name: "dashboardMetrics",
+                      type: "array",
+                      admin: {
+                        description: "The first three enabled rows appear on the Client Pulse card in this order. A label can rename a metric for this client.",
+                      },
+                      fields: [
+                        {
+                          name: "metric",
+                          type: "select",
+                          required: true,
+                          options: [
+                            { label: "Google Ads cost per lead", value: "google_ads_cost_per_lead" },
+                            { label: "Google Ads spend", value: "google_ads_spend" },
+                            { label: "Google Ads conversions", value: "google_ads_conversions" },
+                            { label: "GA4 sessions", value: "ga4_sessions" },
+                            { label: "GA4 key events", value: "ga4_key_events" },
+                            { label: "Organic clicks", value: "organic_clicks" },
+                            { label: "WeCanQuit assessments", value: "assessments" },
+                          ],
+                        },
+                        { name: "label", type: "text", admin: { description: "Optional dashboard label." } },
+                        { name: "enabled", type: "checkbox", defaultValue: true },
+                      ],
+                    },
+                    {
                       name: "analyticsMetrics",
                       type: "select",
                       hasMany: true,
                       defaultValue: ["traffic", "conversions", "cpa"],
                       admin: {
-                        description: "Google Analytics metrics to show in the Client Pulse hover scorecard.",
+                        description: "Legacy Client Pulse metric selection. Existing records continue to use it until dashboard metrics are configured.",
                       },
                       options: [
-                        { label: "Traffic", value: "traffic" },
-                        { label: "Conversions", value: "conversions" },
-                        { label: "Cost per acquisition", value: "cpa" },
-                        { label: "Revenue", value: "revenue" },
-                        { label: "ROAS", value: "roas" },
-                        { label: "Organic clicks", value: "organic_clicks" },
-                        { label: "Paid conversions", value: "paid_conversions" },
+                        { label: "Traffic", value: "traffic" }, { label: "Conversions", value: "conversions" }, { label: "Cost per acquisition", value: "cpa" }, { label: "Revenue", value: "revenue" }, { label: "ROAS", value: "roas" }, { label: "Organic clicks", value: "organic_clicks" }, { label: "Paid conversions", value: "paid_conversions" },
                       ],
                     },
                     {

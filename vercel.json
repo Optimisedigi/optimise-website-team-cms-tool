@@ -37,6 +37,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/client-analytics-snapshots/cron",
+      "schedule": "30 4 * * *"
+    },
+    {
       "path": "/api/google-ads-account-structure/cron",
       "schedule": "0 7 * * *"
     },
@@ -92,6 +96,9 @@
       "maxDuration": 60
     },
     "src/app/(frontend)/api/google-ads-snapshots/cron/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/(frontend)/api/client-analytics-snapshots/cron/route.ts": {
       "maxDuration": 300
     },
     "src/app/(frontend)/api/google-ads-account-structure/cron/route.ts": {

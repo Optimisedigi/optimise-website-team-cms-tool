@@ -106,6 +106,7 @@ import { QuarterlyOrganicGrowthSnapshots } from "./collections/QuarterlyOrganicG
 import { AgencyKpiSnapshots } from "./collections/AgencyKpiSnapshots";
 import { ClientMetricSnapshots } from "./collections/ClientMetricSnapshots";
 import { ClientPulseHistory } from "./collections/ClientPulseHistory";
+import { ClientAnalyticsSnapshots } from "./collections/ClientAnalyticsSnapshots";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -153,7 +154,7 @@ export default buildConfig({
     // Audits
     SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, GoogleAdsAuditSnapshots, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, SearchQueryVocabulary, SearchQueryReviewGroups, NegativeKeywordLists, KeywordDeepDiveSessions, MonthlyKeywordSelections, SiteHealthReports,
     // Reports
-    ForecastScenarios, AgencyKpiSnapshots, ClientMetricSnapshots, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
+    ForecastScenarios, AgencyKpiSnapshots, ClientMetricSnapshots, ClientAnalyticsSnapshots, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance
     BusinessCosts, CostCategories, CostRules, InvoiceStatementDrafts,
     Contractors, ContractorTimeEntries, ContractorPayments,
