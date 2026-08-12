@@ -85,6 +85,9 @@ export const NegativeKeywordLists: CollectionConfig = {
     defaultColumns: ["client", "name", "scope", "keywordCount", "campaignCount", "isActive"],
     components: {
       beforeListTable: ["./components/NegativeKeywordListsClientFilter"],
+      edit: {
+        beforeDocumentControls: ["./components/NegativeKeywordListBreadcrumb"],
+      },
     },
   },
   defaultSort: "client",
