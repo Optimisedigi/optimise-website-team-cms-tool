@@ -516,7 +516,7 @@ export function buildClientPulseSummary(input: {
       name: stringValue(input.client.name) || "Untitled client",
       slug: stringValue(input.client.slug) || String(id),
       logoThumbUrl: stringValue(input.client.logoThumbUrl) || null,
-      services,
+      services: services.length > 0 ? services : allServices,
       accountManagers: relationshipArray(input.client.accountManagers),
       priority: stringValue(pulse.priority) || "normal",
       hasGoogleAds: clientHasGoogleAds(input.client),
