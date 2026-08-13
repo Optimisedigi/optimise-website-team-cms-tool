@@ -4189,10 +4189,19 @@ export const Clients: CollectionConfig = {
                 description:
                   "Meta Ads account ID (format: act_XXXXXXXXX). Client must grant the Optimise Digital Business Manager access. Used by the Tools panel below.",
               },
+              hooks: {
+                beforeValidate: [
+                  ({ value }) => {
+                    const trimmed = typeof value === "string" ? value.trim() : value;
+                    if (!trimmed) return trimmed;
+                    return /^\d+$/.test(trimmed) ? `act_${trimmed}` : trimmed;
+                  },
+                ],
+              },
               validate: (value: string | null | undefined) => {
                 if (!value) return true;
                 if (!/^act_\d+$/.test(value)) {
-                  return 'Meta Ad Account ID must look like "act_XXXXXXXXX".';
+                  return 'Meta Ad Account ID must contain digits only or use "act_XXXXXXXXX".';
                 }
                 return true;
               },

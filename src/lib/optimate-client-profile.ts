@@ -67,6 +67,7 @@ export type OptimateClientProfile = {
   };
   tracking?: {
     googleAdsCustomerId: string | null;
+    metaAdAccountId: string | null;
     ga4PropertyId: string | null;
     ga4MeasurementId: string | null;
     ga4Connected: boolean | null;
@@ -394,6 +395,7 @@ function projectProfile(
   if (want("tracking")) {
     out.tracking = {
       googleAdsCustomerId: client.googleAdsCustomerId ?? null,
+      metaAdAccountId: client.metaAdAccountId ?? null,
       ga4PropertyId: client.ga4PropertyId ?? null,
       ga4MeasurementId: client.ga4MeasurementId ?? null,
       ga4Connected: client.ga4Connected ?? null,

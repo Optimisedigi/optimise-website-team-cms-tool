@@ -69,6 +69,13 @@ describe("Clients Collection", () => {
     expect(nameField).toHaveProperty("type", "text");
   });
 
+  it("normalises a numeric Meta Ad account ID before validation", () => {
+    const field = findField(Clients.fields, "metaAdAccountId");
+    const normalise = field.hooks.beforeValidate[0];
+    expect(normalise({ value: "118497998" })).toBe("act_118497998");
+    expect(field.validate("act_118497998")).toBe(true);
+  });
+
   it("should have required unique slug field", () => {
     const slugField = findField(Clients.fields, "slug");
     expect(slugField).toBeDefined();
