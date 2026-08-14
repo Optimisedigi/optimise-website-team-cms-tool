@@ -16,6 +16,7 @@ import { QualityScoreTab } from "./QualityScoreTab";
 import { ProgressTab } from "./ProgressTab";
 import { AccountStructureTab } from "./AccountStructureTab";
 import { HubSpotPostClickTab } from "./HubSpotPostClickTab";
+import { LandingExperimentTab } from "./LandingExperimentTab";
 
 const GOOGLE_ADS_MONTHLY_TREND_WINDOW = 18;
 
@@ -62,7 +63,7 @@ const RANGE_OPTIONS = [
   { value: "all_time", label: "All time" },
 ] as const;
 
-type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress" | "postClick" | "accountStructure";
+type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress" | "postClick" | "accountStructure" | "landing";
 
 type ConversionActionCategoryConfig = {
   label?: string;
@@ -954,6 +955,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             { key: "quality" as Tab, label: "Quality Score" },
             ...(isAwayDigital ? [{ key: "postClick" as Tab, label: "Lead Quality" }] : []),
             { key: "accountStructure" as Tab, label: "Account Structure View" },
+            { key: "landing" as Tab, label: "Landing A/B" },
           ]).map((tab) => (
             <button
               key={tab.key}
@@ -1162,6 +1164,10 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 dashboardRange={range}
               />
             </div>
+          )}
+
+          {activeTab === "landing" && data.slug && (
+            <LandingExperimentTab slug={data.slug} />
           )}
         </div>
 
