@@ -225,6 +225,22 @@ export async function runMigrations(
   }
 
   /**
+   * Verify a table is really present.
+   *
+   * A migration marker records that statements were *attempted*, not that they
+   * worked. Production reached a state where the landing marker was recorded but
+   * the landing tables did not exist, and the marker alone caused every
+   * subsequent run to skip the repair. Checking the schema instead of trusting
+   * the bookkeeping lets that state heal itself.
+   */
+  async function tableExists(name: string): Promise<boolean> {
+    const result = await client!.execute(
+      `SELECT 1 FROM \`sqlite_master\` WHERE \`type\` = 'table' AND \`name\` = '${name}' LIMIT 1`,
+    );
+    return ((result as { rows?: unknown[] }).rows?.length ?? 0) > 0;
+  }
+
+  /**
    * Create the landing experiment tables.
    *
    * Must run before addLandingLockRelations: those ALTERs declare foreign keys
@@ -343,7 +359,10 @@ export async function runMigrations(
   }
 
   try {
-    if (await markerExists(currentSchemaMarker)) {
+    // Skip only when the marker AND the schema it claims to have created are
+    // both present. Trusting the marker alone left production believing the
+    // landing tables existed when they did not.
+    if ((await markerExists(currentSchemaMarker)) && (await tableExists("landing_events"))) {
       const result: MigrationResult = { label: `mark_migration:${currentSchemaMarker}`, status: "skip", message: "already applied" };
       opts?.onProgress?.(result);
       results.push(result);
