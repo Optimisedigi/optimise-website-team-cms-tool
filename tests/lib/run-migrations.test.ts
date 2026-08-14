@@ -56,4 +56,18 @@ describe("runMigrations", () => {
       );
     }
   });
+
+  it("adds landing collection lock columns so document updates can clear locks", async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const payload = { db: { client: { execute, batch } } } as any;
+
+    await runMigrations(payload);
+
+    for (const collection of ["landing_properties", "landing_experiments", "landing_events"]) {
+      expect(execute).toHaveBeenCalledWith(
+        `ALTER TABLE \`payload_locked_documents_rels\` ADD \`${collection}_id\` integer REFERENCES \`${collection}\`(\`id\`) ON DELETE cascade`,
+      );
+    }
+  });
 });

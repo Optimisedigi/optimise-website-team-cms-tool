@@ -5651,6 +5651,15 @@ export async function runMigrations(
     await run("clients_hosting_subscription_price_changes_order_idx", "CREATE INDEX IF NOT EXISTS `clients_hosting_subscription_price_changes_order_idx` ON `clients_hosting_subscription_price_changes` (`_order`)");
     await run("locked_docs_rels.hosting_payment_offers_id", "ALTER TABLE `payload_locked_documents_rels` ADD `hosting_payment_offers_id` integer REFERENCES `hosting_payment_offers`(`id`) ON DELETE cascade");
     await run("mark_migration:20260814_120000_add_hosting_billing", "INSERT OR IGNORE INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) VALUES ('20260814_120000_add_hosting_billing', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+
+    // Payload clears document locks after collection updates. These columns are
+    // required in the shared relationship query even when updating team tasks.
+    for (const collection of ["landing_properties", "landing_experiments", "landing_events"]) {
+      await run(
+        `locked_docs_rels.${collection}_id`,
+        `ALTER TABLE \`payload_locked_documents_rels\` ADD \`${collection}_id\` integer REFERENCES \`${collection}\`(\`id\`) ON DELETE cascade`,
+      );
+    }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
