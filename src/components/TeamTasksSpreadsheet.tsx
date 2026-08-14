@@ -273,7 +273,7 @@ function WeekGroupCell({
   onDeleteWeek: () => void
 }) {
   return (
-    <td rowSpan={rowSpan} style={{ ...tdStyle, width: 132, minWidth: 132, background: color, verticalAlign: 'top' }}>
+    <td rowSpan={rowSpan} style={{ ...tdStyle, width: 132, minWidth: 132, background: color, color: '#fff', textAlign: 'center', verticalAlign: 'middle' }}>
       <div style={{ display: 'grid', gap: 8, padding: '4px 2px', fontWeight: 800 }}>
         <span>{weekLabel(week)}</span>
         {showDeleteWeek && (
