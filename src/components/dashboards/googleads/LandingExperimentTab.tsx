@@ -146,7 +146,10 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
       ) : (
         <>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            {/* Every cell sets its own colour. This tab is embedded in the Google
+                Ads dashboard, whose stylesheet defaults text to white for a dark
+                surface, so an inherited colour renders invisible here. */}
+            <table className="min-w-full text-sm text-slate-700">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-4">Variant</th>
@@ -168,13 +171,13 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
                         {variant.variantId}
                         {isControl && <span className="ml-2 text-xs text-slate-500">control</span>}
                       </td>
-                      <td className="py-2 pr-4">{variant.sessions.toLocaleString()}</td>
-                      <td className="py-2 pr-4">{variant.conversions.toLocaleString()}</td>
-                      <td className="py-2 pr-4">{pct(variant.conversionRate)}</td>
+                      <td className="py-2 pr-4 text-slate-700">{variant.sessions.toLocaleString()}</td>
+                      <td className="py-2 pr-4 text-slate-700">{variant.conversions.toLocaleString()}</td>
+                      <td className="py-2 pr-4 font-medium text-slate-900">{pct(variant.conversionRate)}</td>
                       <td className="py-2 pr-4 text-slate-500">
                         {pct(variant.interval[0])} – {pct(variant.interval[1])}
                       </td>
-                      <td className="py-2 pr-4">
+                      <td className="py-2 pr-4 text-slate-700">
                         {isControl || !comparison ? (
                           <span className="text-slate-400">—</span>
                         ) : comparison.underpowered ? (
@@ -217,8 +220,10 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
         </>
       )}
 
-      <div>
-        <h4 className="text-sm font-semibold text-slate-900 mb-2">On-page behaviour</h4>
+      {/* The conditional block above is a fragment, so the parent's vertical
+          rhythm does not reach across it. This section sets its own top margin. */}
+      <div className="pt-2">
+        <h4 className="text-sm font-semibold text-slate-900 mb-3">On-page behaviour</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {Object.entries(data.behaviourTotals)
             .sort((a, b) => b[1] - a[1])
