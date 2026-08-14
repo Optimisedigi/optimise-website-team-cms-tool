@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import TeamTaskDetailPane from './TeamTaskDetailPane'
+import { isEmptyTeamTaskPlaceholder } from '@/lib/team-task-placeholder'
 
 type Option = { id: string | number; name: string; email?: string; slug?: string }
 type Rel = Option | string | number | null | undefined
@@ -258,46 +259,45 @@ function NotesPreview({ value }: { value: string }) {
   )
 }
 
-function WeekPickerCell({ value, onChange, rowSpan, color, boxColor }: { value: string; onChange: (date: string) => void; rowSpan?: number; color?: string; boxColor?: string }) {
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const week = taskWeek(value) || mondayKey()
-
+function TaskDateCell({
+  task,
+  color,
+  showDeleteWeek,
+  disabled,
+  onChange,
+  onDeleteWeek,
+}: {
+  task: TeamTask
+  color?: string
+  showDeleteWeek: boolean
+  disabled: boolean
+  onChange: (date: string) => void
+  onDeleteWeek: () => void
+}) {
   return (
-    <td rowSpan={rowSpan} style={{ ...tdStyle, width: 132, minWidth: 132, verticalAlign: 'stretch', background: color, padding: 0, position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => {
-          const input = inputRef.current
-          if (input) openDatePicker(input)
-        }}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          minHeight: 74,
-          border: '1px solid rgba(255,255,255,.35)',
-          borderRadius: 0,
-          padding: '8px 10px',
-          background: boxColor || '#0f766e',
-          color: '#fff',
-          cursor: 'pointer',
-          textAlign: 'left',
-          fontWeight: 900,
-          lineHeight: 1.2,
-        }}
-        title="Click to choose any date in this week"
-      >
-        {weekLabel(week)}
-      </button>
-      <input
-        ref={inputRef}
-        type="date"
-        value={value ? value.slice(0, 10) : week}
-        onChange={(e) => onChange(mondayKey(new Date(`${e.target.value}T00:00:00`)))}
-        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1 }}
-        tabIndex={-1}
-      />
+    <td style={{ ...tdStyle, width: 132, minWidth: 132, background: color, verticalAlign: 'top' }}>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <input
+          type="date"
+          aria-label={`Task date for ${task.title || 'task'}`}
+          value={task.dueDate ? task.dueDate.slice(0, 10) : ''}
+          onClick={(e) => openDatePicker(e.currentTarget)}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          style={{ ...inputStyle, padding: '6px 5px', cursor: disabled ? 'default' : 'pointer' }}
+        />
+        {showDeleteWeek && (
+          <button
+            type="button"
+            aria-label="Delete empty week"
+            title="Delete empty week"
+            onClick={onDeleteWeek}
+            style={{ ...inputStyle, padding: '5px 6px', cursor: 'pointer', color: '#991b1b', fontSize: 11, fontWeight: 800 }}
+          >
+            Delete week
+          </button>
+        )}
+      </div>
     </td>
   )
 }
@@ -382,6 +382,27 @@ export default function TeamTasksSpreadsheet() {
     } catch (err) {
       setTasks(previousTasks)
       setError(err instanceof Error ? err.message : 'Failed to delete task')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const deleteEmptyWeek = async (week: string, rows: TeamTask[]) => {
+    if (!rows.every(isEmptyTeamTaskPlaceholder)) return
+    if (!window.confirm(`Delete the empty week ${weekLabel(week)}?`)) return
+
+    setSavingId(`week:${week}`)
+    setError('')
+    try {
+      await Promise.all(rows.map(async (task) => {
+        const res = await fetch(`/api/team-tasks/grid?id=${encodeURIComponent(String(task.id))}`, { method: 'DELETE' })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error || 'Failed to delete empty week')
+      }))
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete empty week')
+      await load()
     } finally {
       setSavingId(null)
     }
@@ -520,7 +541,7 @@ export default function TeamTasksSpreadsheet() {
           </colgroup>
           <thead>
             <tr>
-              <th style={thStyle}>Week</th>
+              <th style={thStyle}>Task Date</th>
               <th style={thStyle}>Client</th>
               <th style={thStyle}>Task Type</th>
               <th style={thStyle}>Topic / Title</th>
@@ -538,12 +559,15 @@ export default function TeamTasksSpreadsheet() {
             ) : groupedTasks.map(([week, rows], groupIndex) => {
               const weekColor = weekColors[groupIndex % weekColors.length]
               return rows.map((task, index) => (
-              <tr key={task.id} style={{ background: weekColor.bg, height: 74, ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
-                {index === 0 && (
-                  <WeekPickerCell value={week} rowSpan={rows.length} color={weekColor.bg} boxColor={weekColor.box} onChange={(nextWeek) => {
-                    void Promise.all(rows.map((row) => patch(row.id, { dueDate: nextWeek })))
-                  }} />
-                )}
+              <tr key={`${week}-${task.id}`} style={{ background: weekColor.bg, height: 74, ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
+                <TaskDateCell
+                  task={task}
+                  color={weekColor.bg}
+                  disabled={!canEditTaskFields}
+                  showDeleteWeek={index === 0 && canEditTaskFields && rows.every(isEmptyTeamTaskPlaceholder)}
+                  onChange={(dueDate) => void patch(task.id, { dueDate })}
+                  onDeleteWeek={() => void deleteEmptyWeek(week, rows)}
+                />
                 <td style={tdStyle}>
                   <select value={relId(task.client)} onChange={(e) => patch(task.id, { client: e.target.value })} style={inputStyle} title={relName(task.client, clients)} disabled={!canEditTaskFields}>
                     <option value="">—</option>

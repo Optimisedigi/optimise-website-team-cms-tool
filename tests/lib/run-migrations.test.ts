@@ -70,4 +70,23 @@ describe("runMigrations", () => {
       );
     }
   });
+
+  it("uses the current schema marker to avoid a production timeout", async () => {
+    const execute = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes("20260814_120000_add_hosting_billing") && sql.startsWith("SELECT")) {
+        return { rows: [{ 1: 1 }] };
+      }
+      return { rows: [] };
+    });
+    const payload = { db: { client: { execute } } } as any;
+
+    const results = await runMigrations(payload);
+
+    expect(results).toHaveLength(4);
+    expect(results.at(-1)).toMatchObject({
+      label: "mark_migration:20260814_133000_add_landing_lock_relations",
+      status: "ok",
+    });
+    expect(execute).toHaveBeenCalledTimes(6);
+  });
 });

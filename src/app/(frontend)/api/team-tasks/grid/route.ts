@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import { userHasFeature } from "@/lib/access";
+import { isEmptyTeamTaskPlaceholder } from "@/lib/team-task-placeholder";
 
 const TASK_SELECT = {
   title: true,
@@ -204,7 +205,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { payload, user } = await getAuthedPayload();
-    if (!user || !userHasFeature(user, "team-tasks") || (user.role !== "admin" && user.role !== "manager")) {
+    if (!user || !userHasFeature(user, "team-tasks")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -212,7 +213,20 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing task id" }, { status: 400 });
 
-    await payload.delete({ collection: "team-tasks" as any, id });
+    const canManage = user.role === "admin" || user.role === "manager";
+    if (!canManage) {
+      const task = await payload.findByID({
+        collection: "team-tasks" as any,
+        id,
+        depth: 0,
+        overrideAccess: true,
+      });
+      if (!isEmptyTeamTaskPlaceholder(task)) {
+        return NextResponse.json({ error: "Only an empty week can be deleted" }, { status: 403 });
+      }
+    }
+
+    await payload.delete({ collection: "team-tasks" as any, id, overrideAccess: true });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[team-tasks/grid] DELETE error:", error);

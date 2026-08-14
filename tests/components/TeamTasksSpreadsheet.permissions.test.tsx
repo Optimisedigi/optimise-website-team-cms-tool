@@ -48,6 +48,7 @@ describe('TeamTasksSpreadsheet permissions', () => {
 
     await waitFor(() => {
       expect(screen.queryByTitle('Delete row')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Delete empty week' })).not.toBeInTheDocument()
     })
   })
 
@@ -104,6 +105,10 @@ describe('TeamTasksSpreadsheet permissions', () => {
     fireEvent.blur(title)
     await waitFor(() => expect(title).toHaveValue('Publish weekly landing page'))
 
+    const date = screen.getByLabelText('Task date for Publish weekly landing page')
+    fireEvent.change(date, { target: { value: '2026-06-23' } })
+    await waitFor(() => expect(date).toHaveValue('2026-06-23'))
+
     const patchBodies = fetchMock.mock.calls
       .filter(([, init]) => init?.method === 'PATCH')
       .map(([, init]) => JSON.parse(String(init?.body)))
@@ -111,8 +116,50 @@ describe('TeamTasksSpreadsheet permissions', () => {
       { id: 321, client: '7' },
       { id: 321, taskType: 'seo' },
       { id: 321, title: 'Publish weekly landing page' },
+      { id: 321, dueDate: '2026-06-23' },
     ])
     expect(fetchMock.mock.calls.filter(([, init]) => !init?.method)).toHaveLength(1)
     expect(screen.queryByText('Loading tasks…')).not.toBeInTheDocument()
+  })
+
+  it('deletes an accidentally added week only while its placeholder is untouched', async () => {
+    let tasks = [{
+      id: 654,
+      title: 'New task',
+      client: null,
+      taskType: 'blog_post',
+      status: 'in_progress',
+      priority: 'normal',
+      assignedTo: null,
+      dueDate: '2026-08-17T00:00:00.000Z',
+      instructions: '',
+      staffNotes: '',
+      reviewNotes: '',
+    }]
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      if (init?.method === 'DELETE') {
+        tasks = []
+        return { ok: true, json: async () => ({ ok: true }) } as Response
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          tasks,
+          clients: [],
+          users: [],
+          canEditTaskFields: true,
+          canManage: false,
+        }),
+      } as Response
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<TeamTasksSpreadsheet />)
+
+    const removeWeek = await screen.findByRole('button', { name: 'Delete empty week' })
+    fireEvent.click(removeWeek)
+
+    await waitFor(() => expect(screen.queryByDisplayValue('New task')).not.toBeInTheDocument())
+    expect(fetchMock).toHaveBeenCalledWith('/api/team-tasks/grid?id=654', { method: 'DELETE' })
   })
 })

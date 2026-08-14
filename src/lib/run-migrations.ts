@@ -216,7 +216,41 @@ export async function runMigrations(
     }
   }
 
+  const currentSchemaMarker = "20260814_133000_add_landing_lock_relations";
+  const previousSchemaMarker = "20260814_120000_add_hosting_billing";
+
+  async function markerExists(name: string): Promise<boolean> {
+    const result = await client!.execute(`SELECT 1 FROM \`payload_migrations\` WHERE \`name\` = '${name}' LIMIT 1`);
+    return ((result as { rows?: unknown[] }).rows?.length ?? 0) > 0;
+  }
+
+  async function addLandingLockRelations(): Promise<void> {
+    for (const collection of ["landing_properties", "landing_experiments", "landing_events"]) {
+      await run(
+        `locked_docs_rels.${collection}_id`,
+        `ALTER TABLE \`payload_locked_documents_rels\` ADD \`${collection}_id\` integer REFERENCES \`${collection}\`(\`id\`) ON DELETE cascade`,
+      );
+    }
+    await run(
+      `mark_migration:${currentSchemaMarker}`,
+      `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('${currentSchemaMarker}', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+    );
+  }
+
   try {
+    if (await markerExists(currentSchemaMarker)) {
+      const result: MigrationResult = { label: `mark_migration:${currentSchemaMarker}`, status: "skip", message: "already applied" };
+      opts?.onProgress?.(result);
+      results.push(result);
+      return results;
+    }
+
+    // Production already has every earlier bundled migration. Apply only the
+    // new lock relations there, avoiding thousands of remote no-op statements.
+    if (await markerExists(previousSchemaMarker)) {
+      await addLandingLockRelations();
+      return results;
+    }
     // --- Authors tables ---
     await run("clients_authors", `CREATE TABLE IF NOT EXISTS \`clients_authors\` (
       \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
@@ -5654,12 +5688,7 @@ export async function runMigrations(
 
     // Payload clears document locks after collection updates. These columns are
     // required in the shared relationship query even when updating team tasks.
-    for (const collection of ["landing_properties", "landing_experiments", "landing_events"]) {
-      await run(
-        `locked_docs_rels.${collection}_id`,
-        `ALTER TABLE \`payload_locked_documents_rels\` ADD \`${collection}_id\` integer REFERENCES \`${collection}\`(\`id\`) ON DELETE cascade`,
-      );
-    }
+    await addLandingLockRelations();
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
