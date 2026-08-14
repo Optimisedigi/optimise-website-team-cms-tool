@@ -259,33 +259,23 @@ function NotesPreview({ value }: { value: string }) {
   )
 }
 
-function TaskDateCell({
-  task,
+function WeekGroupCell({
+  week,
+  rowSpan,
   color,
   showDeleteWeek,
-  disabled,
-  onChange,
   onDeleteWeek,
 }: {
-  task: TeamTask
-  color?: string
+  week: string
+  rowSpan: number
+  color: string
   showDeleteWeek: boolean
-  disabled: boolean
-  onChange: (date: string) => void
   onDeleteWeek: () => void
 }) {
   return (
-    <td style={{ ...tdStyle, width: 132, minWidth: 132, background: color, verticalAlign: 'top' }}>
-      <div style={{ display: 'grid', gap: 6 }}>
-        <input
-          type="date"
-          aria-label={`Task date for ${task.title || 'task'}`}
-          value={task.dueDate ? task.dueDate.slice(0, 10) : ''}
-          onClick={(e) => openDatePicker(e.currentTarget)}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          style={{ ...inputStyle, padding: '6px 5px', cursor: disabled ? 'default' : 'pointer' }}
-        />
+    <td rowSpan={rowSpan} style={{ ...tdStyle, width: 132, minWidth: 132, background: color, verticalAlign: 'top' }}>
+      <div style={{ display: 'grid', gap: 8, padding: '4px 2px', fontWeight: 800 }}>
+        <span>{weekLabel(week)}</span>
         {showDeleteWeek && (
           <button
             type="button"
@@ -298,6 +288,26 @@ function TaskDateCell({
           </button>
         )}
       </div>
+    </td>
+  )
+}
+
+function TaskDateCell({ task, disabled, onChange }: {
+  task: TeamTask
+  disabled: boolean
+  onChange: (date: string) => void
+}) {
+  return (
+    <td style={{ ...tdStyle, width: 120, minWidth: 120 }}>
+      <input
+        type="date"
+        aria-label={`Task date for ${task.title || 'task'}`}
+        value={task.dueDate ? task.dueDate.slice(0, 10) : ''}
+        onClick={(e) => openDatePicker(e.currentTarget)}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        style={{ ...inputStyle, padding: '6px 5px', cursor: disabled ? 'default' : 'pointer' }}
+      />
     </td>
   )
 }
@@ -528,9 +538,10 @@ export default function TeamTasksSpreadsheet() {
       {error && <div style={{ marginBottom: 10, padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
 
       <div style={{ width: '100%', maxWidth: 'none', border: '1px solid var(--theme-elevation-150)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)' }}>
-        <table style={{ width: '100%', minWidth: 1360, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+        <table style={{ width: '100%', minWidth: 1480, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: 132 }} />
+            <col style={{ width: 120 }} />
             <col style={{ width: 170 }} />
             <col style={{ width: 175 }} />
             <col style={{ width: 260 }} />
@@ -541,6 +552,7 @@ export default function TeamTasksSpreadsheet() {
           </colgroup>
           <thead>
             <tr>
+              <th style={thStyle}>Week</th>
               <th style={thStyle}>Task Date</th>
               <th style={thStyle}>Client</th>
               <th style={thStyle}>Task Type</th>
@@ -553,20 +565,26 @@ export default function TeamTasksSpreadsheet() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ padding: 28, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>Loading tasks…</td></tr>
+              <tr><td colSpan={9} style={{ padding: 28, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>Loading tasks…</td></tr>
             ) : groupedTasks.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No tasks match this week — add the first row below.</td></tr>
+              <tr><td colSpan={9} style={{ padding: 14, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>No tasks match this week — add the first row below.</td></tr>
             ) : groupedTasks.map(([week, rows], groupIndex) => {
               const weekColor = weekColors[groupIndex % weekColors.length]
               return rows.map((task, index) => (
               <tr key={`${week}-${task.id}`} style={{ background: weekColor.bg, height: 74, ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
+                {index === 0 && (
+                  <WeekGroupCell
+                    week={week}
+                    rowSpan={rows.length}
+                    color={weekColor.box}
+                    showDeleteWeek={canEditTaskFields && rows.every(isEmptyTeamTaskPlaceholder)}
+                    onDeleteWeek={() => void deleteEmptyWeek(week, rows)}
+                  />
+                )}
                 <TaskDateCell
                   task={task}
-                  color={weekColor.bg}
                   disabled={!canEditTaskFields}
-                  showDeleteWeek={index === 0 && canEditTaskFields && rows.every(isEmptyTeamTaskPlaceholder)}
                   onChange={(dueDate) => void patch(task.id, { dueDate })}
-                  onDeleteWeek={() => void deleteEmptyWeek(week, rows)}
                 />
                 <td style={tdStyle}>
                   <select value={relId(task.client)} onChange={(e) => patch(task.id, { client: e.target.value })} style={inputStyle} title={relName(task.client, clients)} disabled={!canEditTaskFields}>

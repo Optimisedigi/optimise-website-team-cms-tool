@@ -122,6 +122,28 @@ describe('TeamTasksSpreadsheet permissions', () => {
     expect(screen.queryByText('Loading tasks…')).not.toBeInTheDocument()
   })
 
+  it('keeps the week column merged while each task has its own editable date', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tasks: [
+          { id: 1, title: 'Monday task', dueDate: '2026-08-17T00:00:00.000Z', status: 'in_progress', taskType: 'seo' },
+          { id: 2, title: 'Tuesday task', dueDate: '2026-08-18T00:00:00.000Z', status: 'in_progress', taskType: 'seo' },
+        ],
+        clients: [],
+        users: [],
+        canEditTaskFields: true,
+        canManage: false,
+      }),
+    } as Response)
+
+    const { container } = render(<TeamTasksSpreadsheet />)
+
+    expect(await screen.findByLabelText('Task date for Monday task')).toHaveValue('2026-08-17')
+    expect(screen.getByLabelText('Task date for Tuesday task')).toHaveValue('2026-08-18')
+    expect(container.querySelector('td[rowspan="2"]')).toBeInTheDocument()
+  })
+
   it('deletes an accidentally added week only while its placeholder is untouched', async () => {
     let tasks = [{
       id: 654,
