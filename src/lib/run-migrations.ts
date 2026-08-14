@@ -240,6 +240,7 @@ export async function runMigrations(
     return ((result as { rows?: unknown[] }).rows?.length ?? 0) > 0;
   }
 
+
   /**
    * Create the landing experiment tables.
    *
@@ -341,6 +342,16 @@ export async function runMigrations(
     await run("landing_events_variant_id_idx", "CREATE INDEX IF NOT EXISTS `landing_events_variant_id_idx` ON `landing_events` (`variant_id`)");
     await run("landing_events_allocation_version_idx", "CREATE INDEX IF NOT EXISTS `landing_events_allocation_version_idx` ON `landing_events` (`allocation_version`)");
     await run("landing_events_route_idx", "CREATE INDEX IF NOT EXISTS `landing_events_route_idx` ON `landing_events` (`route`)");
+
+    // Added after the table first shipped, so these are ALTERs rather than
+    // columns in the CREATE above. SQLite has no ADD COLUMN IF NOT EXISTS, so a
+    // database that already has them reports a duplicate column, which is the
+    // one error here that means "already applied" rather than a failure.
+    const alreadyAdded = ["duplicate column"];
+    await run("landing_events.page_id", "ALTER TABLE `landing_events` ADD COLUMN `page_id` text", alreadyAdded);
+    await run("landing_events.market", "ALTER TABLE `landing_events` ADD COLUMN `market` text", alreadyAdded);
+    await run("landing_events_page_id_idx", "CREATE INDEX IF NOT EXISTS `landing_events_page_id_idx` ON `landing_events` (`page_id`)");
+    await run("landing_events_market_idx", "CREATE INDEX IF NOT EXISTS `landing_events_market_idx` ON `landing_events` (`market`)");
     await run("landing_events_updated_at_idx", "CREATE INDEX IF NOT EXISTS `landing_events_updated_at_idx` ON `landing_events` (`updated_at`)");
     await run("landing_events_created_at_idx", "CREATE INDEX IF NOT EXISTS `landing_events_created_at_idx` ON `landing_events` (`created_at`)");
   }
@@ -362,7 +373,14 @@ export async function runMigrations(
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the
     // landing tables existed when they did not.
-    if ((await markerExists(currentSchemaMarker)) && (await tableExists("landing_events"))) {
+    if (
+      (await markerExists(currentSchemaMarker)) &&
+      (await tableExists("landing_events")) &&
+      // The newest column, not just the table. Checking the table alone stopped
+      // being sufficient the moment columns were added to it later: the table
+      // existed, so the skip fired, and the new columns were never created.
+      (await columnExists("landing_events", "market"))
+    ) {
       const result: MigrationResult = { label: `mark_migration:${currentSchemaMarker}`, status: "skip", message: "already applied" };
       opts?.onProgress?.(result);
       results.push(result);

@@ -47,7 +47,18 @@ interface SectionDwell {
   exitRate: number;
 }
 
+interface Segment {
+  key: string;
+  sessions: number;
+  conversions: number;
+  conversionRate: number;
+}
+
 interface ReportResponse {
+  filters: { page: string | null; device: string | null; market: string | null };
+  pages: Segment[];
+  markets: Segment[];
+  devices: Segment[];
   experiment: {
     id: string;
     name: string;
@@ -106,6 +117,10 @@ function sectionLabel(id: string): string {
 export function LandingExperimentTab({ slug }: { slug: string }) {
   const [data, setData] = useState<ReportResponse | null>(null);
   const [days, setDays] = useState(30);
+  // Each landing page has its own sections and funnel, and phone behaviour is
+  // not desktop behaviour, so both are selectable rather than averaged.
+  const [page, setPage] = useState("");
+  const [device, setDevice] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +129,11 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
     setLoading(true);
     setError(null);
 
-    fetch(`/api/dashboard/landing-experiments?slug=${encodeURIComponent(slug)}&days=${days}`)
+    const query = new URLSearchParams({ slug, days: String(days) });
+    if (page) query.set("page", page);
+    if (device) query.set("device", device);
+
+    fetch(`/api/dashboard/landing-experiments?${query}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`Request failed (${res.status})`);
         return (await res.json()) as ReportResponse;
@@ -132,13 +151,31 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
     return () => {
       cancelled = true;
     };
-  }, [slug, days]);
+  }, [slug, days, page, device]);
+
+  /**
+   * Land on a single page rather than on everything pooled together.
+   *
+   * Pooling is both inaccurate and meaningless here. Inaccurate because the scan
+   * is capped, so "all pages" silently reports partial totals once a client runs
+   * more than one page. Meaningless because pages have different sections: a
+   * section table mixing one page's Security block with another's How It Works
+   * describes a page that does not exist.
+   */
+  useEffect(() => {
+    if (page || !data || data.pages.length < 2) return;
+    const busiest = data.pages.find((entry) => entry.key !== "(unset)") ?? data.pages[0];
+    if (busiest) setPage(busiest.key);
+  }, [data, page]);
 
   if (loading) return <div className="text-sm text-slate-500">Loading landing experiment data…</div>;
   if (error) return <div className="text-sm text-red-600">{error}</div>;
   if (!data) return null;
 
   const hasVariants = data.variants.length > 0;
+  // Sessions can appear on more than one device only if someone switches
+  // mid-session, which is rare enough that the sum is the honest denominator.
+  const totalDeviceSessions = data.devices.reduce((sum, entry) => sum + entry.sessions, 0);
 
   return (
     <div className="space-y-6">
@@ -156,24 +193,122 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
           )}
         </div>
 
-        <label className="text-sm text-slate-600">
-          Range{" "}
-          <select
-            value={days}
-            onChange={(event) => setDays(Number(event.target.value))}
-            className="ml-1 rounded-md border border-slate-200 px-2 py-1"
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
-        </label>
+        <div className="flex items-center gap-3">
+          {data.pages.length > 1 && (
+            <label className="text-sm text-slate-600">
+              Page{" "}
+              <select
+                value={page}
+                onChange={(event) => setPage(event.target.value)}
+                className="ml-1 rounded-md border border-slate-200 px-2 py-1"
+              >
+                <option value="">All pages</option>
+                {data.pages.map((entry) => (
+                  <option key={entry.key} value={entry.key}>
+                    {entry.key} ({entry.sessions.toLocaleString()})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <label className="text-sm text-slate-600">
+            Range{" "}
+            <select
+              value={days}
+              onChange={(event) => setDays(Number(event.target.value))}
+              className="ml-1 rounded-md border border-slate-200 px-2 py-1"
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={90}>Last 90 days</option>
+            </select>
+          </label>
+        </div>
       </div>
+
+      {/* Device split as a summary, then a toggle. The split is always visible,
+          so selecting one device never hides how much traffic the other had. */}
+      {data.devices.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-slate-500 mr-1">Device</span>
+            {[{ key: "", sessions: totalDeviceSessions, conversionRate: null as number | null }]
+              .concat(
+                data.devices.map((entry) => ({
+                  key: entry.key,
+                  sessions: entry.sessions,
+                  conversionRate: entry.conversionRate,
+                }))
+              )
+              .map((entry) => {
+                const active = device === entry.key;
+                const share = totalDeviceSessions > 0 ? entry.sessions / totalDeviceSessions : 0;
+                return (
+                  <button
+                    key={entry.key || "all"}
+                    type="button"
+                    onClick={() => setDevice(entry.key)}
+                    aria-pressed={active}
+                    className={`rounded-md border px-3 py-1.5 text-xs transition ${
+                      active
+                        ? "border-sky-500 bg-white font-medium text-sky-700 shadow-sm"
+                        : "border-transparent text-slate-600 hover:bg-white"
+                    }`}
+                  >
+                    {entry.key === "" ? "All devices" : sectionLabel(entry.key)}
+                    <span className="ml-1.5 text-slate-500">
+                      {entry.sessions.toLocaleString()}
+                      {entry.key !== "" && ` · ${shortPct(share)}`}
+                    </span>
+                    {entry.conversionRate !== null && (
+                      <span className="ml-1.5 text-slate-400">{pct(entry.conversionRate)} conv</span>
+                    )}
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {data.markets.filter((entry) => entry.key !== "(unset)").length > 1 && (
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900 mb-1">Markets</h4>
+          <p className="text-xs text-slate-500 mb-3">
+            Totals for the whole range, across every page, so the comparison holds while a single
+            page is selected above. Each market runs its own page, so these are separate audiences
+            rather than an experiment: read a difference as a prompt to look, not as a result.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-slate-700">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th className="py-2 pr-4">Market</th>
+                  <th className="py-2 pr-4">Sessions</th>
+                  <th className="py-2 pr-4">Conversions</th>
+                  <th className="py-2 pr-4">Conversion rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.markets.map((entry) => (
+                  <tr key={entry.key} className="border-t border-slate-100">
+                    <td className="py-2 pr-4 font-medium text-slate-900">{entry.key}</td>
+                    <td className="py-2 pr-4 text-slate-700">{entry.sessions.toLocaleString()}</td>
+                    <td className="py-2 pr-4 text-slate-700">{entry.conversions.toLocaleString()}</td>
+                    <td className="py-2 pr-4 font-medium text-slate-900">{pct(entry.conversionRate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {data.truncated && (
         <p className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-          Showing the first {data.eventsScanned.toLocaleString()} events in this range. Totals below
-          are partial — narrow the range for a complete picture.
+          <strong className="font-semibold">These totals are incomplete.</strong> The scan stopped
+          at {data.eventsScanned.toLocaleString()} events, so every number below undercounts.
+          Choose a single page, or a shorter range, for figures you can act on.
         </p>
       )}
 

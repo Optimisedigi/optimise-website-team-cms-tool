@@ -9263,6 +9263,14 @@ export interface LandingEvent {
   contentProfileId?: string | null;
   route?: string | null;
   /**
+   * Which landing page this is. A/B variants and prebuilt ad-group pages of the same page share one value, so a page reports as one funnel rather than a dozen.
+   */
+  pageId?: string | null;
+  /**
+   * Market the deployment serves, such as AU or US. Configured, never inferred from the visitor.
+   */
+  market?: string | null;
+  /**
    * Coarse class such as search or social. Never the full referrer URL.
    */
   referrerClass?: string | null;
@@ -13994,6 +14002,8 @@ export interface LandingEventsSelect<T extends boolean = true> {
   allocationVersion?: T;
   contentProfileId?: T;
   route?: T;
+  pageId?: T;
+  market?: T;
   referrerClass?: T;
   deviceClass?: T;
   attribution?: T;

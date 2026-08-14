@@ -18,7 +18,8 @@ import {
  * support, so these tests focus on the refusal cases as much as the maths.
  */
 
-const payloadMock = { find: vi.fn() };
+const drizzleRun = vi.fn(async () => ({ rows: [] as Record<string, unknown>[] }));
+const payloadMock = { find: vi.fn(), db: { drizzle: { run: drizzleRun } } };
 
 vi.mock("payload", () => ({ getPayload: vi.fn(async () => payloadMock) }));
 vi.mock("@/payload.config", () => ({ default: {} }));
@@ -233,6 +234,8 @@ describe("landing experiment dashboard route", () => {
 
   beforeEach(() => {
     payloadMock.find.mockReset();
+    drizzleRun.mockReset();
+    drizzleRun.mockResolvedValue({ rows: [] });
   });
 
   it("refuses a request without a valid dashboard token", async () => {
@@ -340,6 +343,92 @@ describe("landing experiment dashboard route", () => {
     expect(hero.exits).toBe(1);
 
     expect(Object.keys(body.funnelByVariant).sort()).toEqual(["a", "b"]);
+  });
+
+  it("scopes the report to one page, and keeps every page selectable", async () => {
+    // Pages have different sections, and the scan is capped, so pooling them is
+    // both meaningless and inaccurate. Selecting one page must not remove the
+    // others from the selector, or there is no way back.
+    payloadMock.find
+      .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [], hasNextPage: false });
+
+    drizzleRun.mockResolvedValue({
+      rows: [
+        { bucket: "offshore-teams-au", sessions: 1296, conversions: 59 },
+        { bucket: "offshore-teams-us", sessions: 780, conversions: 30 },
+      ],
+    });
+
+    const res = await GET(request("slug=away-digital&page=offshore-teams-au"));
+    const body = await res.json();
+
+    expect(body.filters.page).toBe("offshore-teams-au");
+    expect(body.pages.map((p: { key: string }) => p.key)).toEqual([
+      "offshore-teams-au",
+      "offshore-teams-us",
+    ]);
+
+    // The events query is narrowed to the selected page.
+    const eventQuery = payloadMock.find.mock.calls[2][0];
+    expect(eventQuery.where.pageId).toEqual({ equals: "offshore-teams-au" });
+  });
+
+  it("ignores a filter that is not a plain identifier", async () => {
+    payloadMock.find
+      .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [], hasNextPage: false });
+
+    const res = await GET(request("slug=away-digital&page=' OR 1=1--&device=%3Cscript%3E"));
+    const body = await res.json();
+
+    expect(body.filters.page).toBeNull();
+    expect(body.filters.device).toBeNull();
+    expect(payloadMock.find.mock.calls[2][0].where.pageId).toBeUndefined();
+  });
+
+  it("splits by device without letting the filter hide the other devices", async () => {
+    payloadMock.find
+      .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      .mockResolvedValueOnce({
+        docs: [
+          {
+            experimentId: "landing-hero-v1",
+            name: "Hero test",
+            status: "running",
+            allocationVersion: "1",
+            primaryGoal: "booking_complete",
+            variants: [{ variantId: "a" }, { variantId: "b" }],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        docs: [
+          { eventType: "page_view", sessionId: "m1", variantId: "a", deviceClass: "mobile" },
+          { eventType: "page_view", sessionId: "d1", variantId: "a", deviceClass: "desktop" },
+          { eventType: "cta_click", sessionId: "d1", variantId: "a", deviceClass: "desktop" },
+        ],
+        hasNextPage: false,
+      });
+
+    drizzleRun.mockResolvedValue({
+      rows: [
+        { bucket: "mobile", sessions: 819, conversions: 20 },
+        { bucket: "desktop", sessions: 393, conversions: 22 },
+      ],
+    });
+
+    const res = await GET(request("slug=away-digital&device=desktop"));
+    const body = await res.json();
+
+    // Only desktop sessions reach the funnel.
+    expect(body.funnel[0].sessions).toBe(1);
+    expect(body.funnel[1].sessions).toBe(1);
+
+    // The split still lists mobile, so the toggle can be switched back.
+    expect(body.devices.map((d: { key: string }) => d.key)).toEqual(["mobile", "desktop"]);
   });
 
   it("clamps an absurd range rather than scanning everything", async () => {

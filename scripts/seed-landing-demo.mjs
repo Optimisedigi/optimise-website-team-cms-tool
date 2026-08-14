@@ -31,9 +31,61 @@ const EXPERIMENT_ID = "landing-hero-v1";
  * the demo is to show the dashboard refusing to call a result it cannot
  * support, which a fantasy uplift would hide.
  */
+/**
+ * Two markets, each with its own page and its own section layout. They are
+ * separate audiences, not an experiment, which is exactly why the dashboard
+ * shows them side by side rather than pooling them.
+ */
+const PAGES = [
+  {
+    pageId: "offshore-teams-au",
+    market: "AU",
+    sections: [
+      { id: "hero", reach: 1.0, seconds: 9 },
+      { id: "proof", reach: 0.82, seconds: 14 },
+      { id: "how-it-works", reach: 0.61, seconds: 22 },
+      { id: "pricing", reach: 0.44, seconds: 31 },
+      { id: "faq", reach: 0.26, seconds: 17 },
+      { id: "contact", reach: 0.18, seconds: 12 },
+    ],
+    sessions: 1295,
+    rate: 0.052,
+  },
+  {
+    pageId: "offshore-teams-us",
+    market: "US",
+    sections: [
+      { id: "hero", reach: 1.0, seconds: 7 },
+      { id: "case-studies", reach: 0.7, seconds: 19 },
+      { id: "security", reach: 0.48, seconds: 26 },
+      { id: "pricing", reach: 0.33, seconds: 24 },
+      { id: "contact", reach: 0.12, seconds: 10 },
+    ],
+    sessions: 780,
+    rate: 0.038,
+  },
+];
+
+/** Mobile dominates paid traffic and converts worse, which is the point of the toggle. */
+const DEVICES = [
+  { id: "mobile", share: 0.62, conversionFactor: 0.72 },
+  { id: "desktop", share: 0.31, conversionFactor: 1.55 },
+  { id: "tablet", share: 0.07, conversionFactor: 0.9 },
+];
+
+function pickDevice() {
+  const roll = Math.random();
+  let cumulative = 0;
+  for (const device of DEVICES) {
+    cumulative += device.share;
+    if (roll < cumulative) return device;
+  }
+  return DEVICES[DEVICES.length - 1];
+}
+
 const ARMS = {
-  a: { sessions: 640, rate: 0.041, profile: "default" },
-  b: { sessions: 655, rate: 0.058, profile: "hero-outcome" },
+  a: { weight: 0.5, rateFactor: 0.85, profile: "default" },
+  b: { weight: 0.5, rateFactor: 1.15, profile: "hero-outcome" },
 };
 
 /**
@@ -110,46 +162,49 @@ function buildEvents() {
   const rows = [];
   const now = Date.now();
 
-  for (const [variant, config] of Object.entries(ARMS)) {
-    for (let index = 0; index < config.sessions; index += 1) {
-      const session = `${TAG}-${variant}-s${index}`;
-      const pageView = `${TAG}-${variant}-pv${index}`;
-      const at = new Date(
-        now - Math.floor(Math.random() * DAYS_BACK) * 86400000 - Math.floor(Math.random() * 86400000)
-      );
+  for (const page of PAGES) {
+    for (const [variant, arm] of Object.entries(ARMS)) {
+      // Split each page's traffic across the two arms.
+      const sessions = Math.round((page.sessions * arm.weight));
+      for (let index = 0; index < sessions; index += 1) {
+        const session = `${TAG}-${page.pageId}-${variant}-s${index}`;
+        const pageView = `${TAG}-${page.pageId}-${variant}-pv${index}`;
+        const at = new Date(
+          now - Math.floor(Math.random() * DAYS_BACK) * 86400000 - Math.floor(Math.random() * 86400000)
+        );
+        const device = pickDevice();
 
-      const push = (type) =>
-        rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type, at, session, pageView, variant, config, props: {} });
+        const base = { at, session, pageView, variant, page, device };
+        const push = (type, props) =>
+          rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type, props: props ?? {}, ...base });
 
-      push("page_view");
+        push("page_view");
 
-      // How far down the page this session got. Variant B holds attention
-      // slightly longer, so the funnel and the dwell table tell one story.
-      const depthBonus = variant === "b" ? 0.06 : 0;
-      const seen = SECTIONS.filter((section) => Math.random() < Math.min(section.reach + depthBonus, 1));
-      const reached = seen.length ? seen : [SECTIONS[0]];
+        // Mobile readers get through less of the page, which is what makes the
+        // device toggle worth having rather than a decoration.
+        const depthBonus = (variant === "b" ? 0.06 : 0) + (device.id === "desktop" ? 0.08 : -0.05);
+        const seen = page.sections.filter((section) => Math.random() < Math.min(section.reach + depthBonus, 1));
+        const reached = seen.length ? seen : [page.sections[0]];
 
-      for (const section of reached) {
-        rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type: "section_view", at, session, pageView, variant, config, props: { section_id: section.id } });
-      }
-      // Dwell is reported as the page is left, so it comes after every view.
-      for (const section of reached) {
-        const jitter = 0.5 + Math.random() * 1.4;
-        const activeMs = Math.round(section.seconds * 1000 * jitter);
-        if (activeMs >= 3000) {
-          rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type: "section_engaged", at, session, pageView, variant, config, props: { section_id: section.id, active_ms: 3000 } });
+        for (const section of reached) push("section_view", { section_id: section.id });
+        for (const section of reached) {
+          const jitter = 0.5 + Math.random() * 1.4;
+          const dwellFactor = device.id === "mobile" ? 0.75 : 1;
+          const activeMs = Math.round(section.seconds * 1000 * jitter * dwellFactor);
+          if (activeMs >= 3000) push("section_engaged", { section_id: section.id, active_ms: 3000 });
+          push("section_dwell", { section_id: section.id, active_ms: activeMs });
         }
-        rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type: "section_dwell", at, session, pageView, variant, config, props: { section_id: section.id, active_ms: activeMs } });
-      }
 
-      for (const [type, mean] of FUNNEL) {
-        const count = Math.random() < mean % 1 ? Math.ceil(mean) : Math.floor(mean);
-        for (let i = 0; i < count; i += 1) push(type);
-      }
-      // A converting session fires both, the way the real funnel does.
-      if (Math.random() < config.rate) {
-        push("form_submit");
-        push("booking_complete");
+        for (const [type, mean] of FUNNEL) {
+          const count = Math.random() < mean % 1 ? Math.ceil(mean) : Math.floor(mean);
+          for (let i = 0; i < count; i += 1) push(type);
+        }
+
+        const rate = page.rate * arm.rateFactor * device.conversionFactor;
+        if (Math.random() < rate) {
+          push("form_submit");
+          push("booking_complete");
+        }
       }
     }
   }
@@ -177,9 +232,9 @@ async function seed(db) {
         sql: `INSERT INTO landing_events
           (event_id,property_id,client_id,event_type,occurred_at,received_at,session_id,
            page_view_id,visitor_id,experiment_id,variant_id,allocation_version,
-           content_profile_id,route,referrer_class,device_class,attribution,properties,
+           content_profile_id,route,page_id,market,referrer_class,device_class,attribution,properties,
            updated_at,created_at)
-          VALUES (?,${PROPERTY_ID},${CLIENT_ID},?,?,?,?,?,?,'${EXPERIMENT_ID}',?,'1',?,'/index.html',?,?,?,?,?,?)`,
+          VALUES (?,${PROPERTY_ID},${CLIENT_ID},?,?,?,?,?,?,'${EXPERIMENT_ID}',?,'1',?,?,?,?,?,?,?,?,?,?)`,
         args: [
           row.eventId,
           row.type,
@@ -189,9 +244,12 @@ async function seed(db) {
           row.pageView,
           `${TAG}-v-${row.session}`,
           row.variant,
-          row.config.profile,
+          ARMS[row.variant].profile,
+          `/${row.page.pageId}.html`,
+          row.page.pageId,
+          row.page.market,
           ["search", "paid", "direct"][Math.floor(Math.random() * 3)],
-          Math.random() < 0.62 ? "mobile" : "desktop",
+          row.device.id,
           JSON.stringify({ utm_source: "google", utm_medium: "cpc", ad_group_id: "111" }),
           JSON.stringify(row.props ?? {}),
           iso(row.at),

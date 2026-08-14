@@ -77,6 +77,21 @@ export const LandingEvents: CollectionConfig = {
     { name: "contentProfileId", type: "text" },
     { name: "route", type: "text", index: true },
     {
+      name: "pageId",
+      type: "text",
+      index: true,
+      admin: {
+        description:
+          "Which landing page this is. A/B variants and prebuilt ad-group pages of the same page share one value, so a page reports as one funnel rather than a dozen.",
+      },
+    },
+    {
+      name: "market",
+      type: "text",
+      index: true,
+      admin: { description: "Market the deployment serves, such as AU or US. Configured, never inferred from the visitor." },
+    },
+    {
       name: "referrerClass",
       type: "text",
       admin: { description: "Coarse class such as search or social. Never the full referrer URL." },

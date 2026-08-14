@@ -149,6 +149,9 @@ export async function POST(req: NextRequest) {
           allocationVersion: assignment?.allocationVersion,
           contentProfileId: boundedString(event.content_profile_id, 80),
           route: boundedString(event.route, 200),
+          pageId: boundedString(event.page_id, 60),
+          // Uppercased so "au" and "AU" cannot appear as two separate markets.
+          market: boundedString(event.market, 12)?.toUpperCase(),
           referrerClass: boundedString(event.referrer_class, 40),
           deviceClass: boundedString(event.device_class, 40),
           attribution: sanitiseAttribution(event.attribution),

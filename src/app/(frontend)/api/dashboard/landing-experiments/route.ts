@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
+import { sql } from "drizzle-orm";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
 import {
@@ -29,6 +30,89 @@ const MAX_EVENTS_SCANNED = 20000;
 const PAGE_SIZE = 1000;
 const MAX_DAYS = 365;
 
+/** Filters reach a database query, so anything outside this shape is ignored. */
+function sanitiseFilter(value: string | null, maxLength: number): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > maxLength) return null;
+  return /^[A-Za-z0-9_/-]+$/.test(trimmed) ? trimmed : null;
+}
+
+interface Segment {
+  key: string;
+  sessions: number;
+  conversions: number;
+  conversionRate: number;
+}
+
+/**
+ * Which pages, markets and devices exist in this range, and how each performs.
+ *
+ * Computed by one grouped query rather than from the scanned events, for two
+ * reasons. The scan is capped, so deriving facets from it would offer a filter
+ * list that silently omits a quiet page. And once a page filter is applied the
+ * scan only contains that page, which would remove every other option from the
+ * selector and leave no way back.
+ *
+ * The page and market lists stay global on purpose: they are how you move
+ * between pages and how AU is compared with US, so narrowing them by the
+ * current page would remove the only route back. The device split does follow
+ * the selected page, because it sits directly above that page's own funnel and
+ * two different totals in one view read as a bug.
+ */
+async function loadFacets(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  clientId: number | string,
+  since: string,
+  primaryGoal: string,
+  pageFilter: string | null
+): Promise<{ pages: Segment[]; markets: Segment[]; devices: Segment[] }> {
+  // Values are numeric ids or already-validated constants, and the two strings
+  // are escaped, so this cannot carry caller-controlled SQL.
+  const escape = (value: string) => value.replace(/'/g, "''");
+
+  async function group(column: string, scopeToPage = false): Promise<Segment[]> {
+    const pageClause =
+      scopeToPage && pageFilter ? ` AND \`page_id\` = '${escape(pageFilter)}'` : "";
+    const statement = `
+      SELECT COALESCE(NULLIF(\`${column}\`, ''), '(unset)') AS bucket,
+             COUNT(DISTINCT \`session_id\`) AS sessions,
+             COUNT(DISTINCT CASE WHEN \`event_type\` = '${escape(primaryGoal)}' THEN \`session_id\` END) AS conversions
+      FROM \`landing_events\`
+      WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'${pageClause}
+      GROUP BY bucket
+      ORDER BY sessions DESC
+      LIMIT 50`;
+
+    try {
+      const result = await payload.db.drizzle.run(sql.raw(statement));
+      const rows = (result as { rows?: Record<string, unknown>[] })?.rows ?? [];
+      return rows.map((row) => {
+        const sessions = Number(row.sessions ?? 0);
+        const conversions = Number(row.conversions ?? 0);
+        return {
+          key: String(row.bucket ?? "(unset)"),
+          sessions,
+          conversions,
+          conversionRate: sessions > 0 ? conversions / sessions : 0,
+        };
+      });
+    } catch (error) {
+      // Facets are navigation, not the report. Losing them must not take the
+      // whole dashboard down with them.
+      console.error(`[landing-experiments] facet query failed for ${column}:`, error);
+      return [];
+    }
+  }
+
+  const [pages, markets, devices] = await Promise.all([
+    group("page_id"),
+    group("market"),
+    group("device_class", true),
+  ]);
+  return { pages, markets, devices };
+}
+
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug") || "";
   if (!slug) return NextResponse.json({ error: "Missing slug" }, { status: 400 });
@@ -43,6 +127,13 @@ export async function GET(req: NextRequest) {
     ? Math.min(Math.max(Math.trunc(requestedDays), 1), MAX_DAYS)
     : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  // Optional filters. Each landing page has its own sections and its own
+  // funnel, and behaviour on a phone is not behaviour on a desktop, so
+  // reporting everything together averages away the thing worth seeing.
+  const pageFilter = sanitiseFilter(req.nextUrl.searchParams.get("page"), 60);
+  const deviceFilter = sanitiseFilter(req.nextUrl.searchParams.get("device"), 20);
+  const marketFilter = sanitiseFilter(req.nextUrl.searchParams.get("market"), 12);
 
   const payload = await getPayload({ config });
 
@@ -76,6 +167,8 @@ export async function GET(req: NextRequest) {
     : [];
   const controlVariantId = configuredVariants[0] ?? "a";
 
+  const facets = await loadFacets(payload, client.id, since, primaryGoal, pageFilter);
+
   const accumulators = new Map<string, VariantAccumulator>();
   for (const variantId of configuredVariants) accumulators.set(variantId, createAccumulator(variantId));
 
@@ -93,6 +186,7 @@ export async function GET(req: NextRequest) {
   // not count as another reader.
   const dwellSeen = new Set<string>();
 
+
   let scanned = 0;
   let page = 1;
   let truncated = false;
@@ -105,6 +199,11 @@ export async function GET(req: NextRequest) {
         client: { equals: client.id },
         occurredAt: { greater_than_equal: since },
         ...(running?.experimentId ? { experimentId: { equals: running.experimentId } } : {}),
+        // Only the page filter narrows the query. Device and market are
+        // applied in memory below, because their summaries have to show the
+        // whole split even while one of them is selected — a device toggle that
+        // hides the other device's share is not a toggle, it is a dead end.
+        ...(pageFilter ? { pageId: { equals: pageFilter } } : {}),
       },
       depth: 0,
       limit: PAGE_SIZE,
@@ -118,6 +217,15 @@ export async function GET(req: NextRequest) {
       const sessionId = String(event.sessionId ?? "");
       const variantId = String(event.variantId ?? "");
       if (!eventType || !sessionId) continue;
+
+      const pageId = String(event.pageId ?? "") || "(unset)";
+      const market = String(event.market ?? "") || "(unset)";
+      const device = String(event.deviceClass ?? "") || "(unset)";
+      void pageId;
+      void market;
+
+      if (deviceFilter && device !== deviceFilter) continue;
+      if (marketFilter && market !== marketFilter) continue;
 
       totals[eventType] = (totals[eventType] ?? 0) + 1;
 
@@ -203,6 +311,8 @@ export async function GET(req: NextRequest) {
           }
         : null,
       rangeDays: days,
+      filters: { page: pageFilter, device: deviceFilter, market: marketFilter },
+      ...facets,
       controlVariantId,
       variants,
       comparisons: compareVariants(variants, controlVariantId),
