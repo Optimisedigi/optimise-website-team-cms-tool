@@ -249,7 +249,7 @@ export async function runMigrations(
    */
   async function addLandingTables(): Promise<void> {
     await run("landing_experiments", `CREATE TABLE IF NOT EXISTS \`landing_experiments\` (
-      \`id\` integer PRIMARY KEY NOT NULL, \`name\` text NOT NULL, \`client_id\` integer NOT NULL,
+      \`id\` integer PRIMARY KEY NOT NULL, \`name\` text NOT NULL, \`client_id\` integer,
       \`experiment_id\` text NOT NULL, \`status\` text DEFAULT 'draft' NOT NULL,
       \`allocation_version\` text DEFAULT '1' NOT NULL,
       \`primary_goal\` text DEFAULT 'booking_complete' NOT NULL,
@@ -290,7 +290,7 @@ export async function runMigrations(
     await run("landing_experiments_content_profiles_fields_parent_id_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_content_profiles_fields_parent_id_idx` ON `landing_experiments_content_profiles_fields` (`_parent_id`)");
 
     await run("landing_properties", `CREATE TABLE IF NOT EXISTS \`landing_properties\` (
-      \`id\` integer PRIMARY KEY NOT NULL, \`name\` text NOT NULL, \`client_id\` integer NOT NULL,
+      \`id\` integer PRIMARY KEY NOT NULL, \`name\` text NOT NULL, \`client_id\` integer,
       \`property_key\` text NOT NULL, \`status\` text DEFAULT 'active' NOT NULL,
       \`active_experiment_id\` integer,
       \`consent_version\` text DEFAULT '2026-08-14' NOT NULL,
@@ -317,7 +317,7 @@ export async function runMigrations(
 
     await run("landing_events", `CREATE TABLE IF NOT EXISTS \`landing_events\` (
       \`id\` integer PRIMARY KEY NOT NULL, \`event_id\` text NOT NULL,
-      \`property_id\` integer NOT NULL, \`client_id\` integer NOT NULL,
+      \`property_id\` integer, \`client_id\` integer,
       \`event_type\` text NOT NULL, \`occurred_at\` text NOT NULL, \`received_at\` text NOT NULL,
       \`session_id\` text NOT NULL, \`page_view_id\` text NOT NULL, \`visitor_id\` text,
       \`experiment_id\` text, \`variant_id\` text, \`allocation_version\` text,

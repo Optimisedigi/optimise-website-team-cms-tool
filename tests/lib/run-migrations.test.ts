@@ -94,6 +94,10 @@ describe("runMigrations", () => {
     expect(createdAt).toBeGreaterThanOrEqual(0);
     expect(lockedAt).toBeGreaterThan(createdAt);
 
+    const createStatements = execute.mock.calls.map(([sql]) => String(sql)).filter((sql) => sql.startsWith("CREATE TABLE"));
+    expect(createStatements.join("\n")).not.toContain("`client_id` integer NOT NULL");
+    expect(createStatements.join("\n")).not.toContain("`property_id` integer NOT NULL");
+
     expect(results.at(-1)).toMatchObject({
       label: "mark_migration:20260814_133000_add_landing_lock_relations",
       status: "ok",
