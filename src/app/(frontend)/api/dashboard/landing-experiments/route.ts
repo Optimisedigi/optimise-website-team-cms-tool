@@ -3,8 +3,11 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
 import {
+  FUNNEL_STEPS,
+  buildFunnel,
   compareVariants,
   createAccumulator,
+  summariseSections,
   summariseVariant,
   type VariantAccumulator,
 } from "@/lib/landing-experiment-report";
@@ -77,6 +80,19 @@ export async function GET(req: NextRequest) {
   for (const variantId of configuredVariants) accumulators.set(variantId, createAccumulator(variantId));
 
   const totals: Record<string, number> = {};
+
+  // Funnel and dwell are tracked per variant as well as overall, so a variant
+  // that converts worse can be traced to the step where it loses people.
+  const funnelSteps = new Set<string>(FUNNEL_STEPS.map((step) => step.key));
+  const stepSessions = new Map<string, Set<string>>();
+  const stepSessionsByVariant = new Map<string, Map<string, Set<string>>>();
+  const dwellMs = new Map<string, number[]>();
+  const exitsBySection = new Map<string, number>();
+  const lastSectionPerSession = new Map<string, string>();
+  // One dwell figure per session per section: a repeat visit to a section must
+  // not count as another reader.
+  const dwellSeen = new Set<string>();
+
   let scanned = 0;
   let page = 1;
   let truncated = false;
@@ -105,6 +121,31 @@ export async function GET(req: NextRequest) {
 
       totals[eventType] = (totals[eventType] ?? 0) + 1;
 
+      // Dwell and exit points are read from every session, with or without a
+      // variant: knowing where people stop reading is useful even when no
+      // experiment is running.
+      const properties = (event.properties ?? {}) as Record<string, unknown>;
+      const sectionId = typeof properties.section_id === "string" ? properties.section_id : "";
+
+      if (sectionId) {
+        if (eventType === "section_dwell") {
+          const activeMs = Number(properties.active_ms);
+          const key = `${sessionId}|${sectionId}`;
+          if (Number.isFinite(activeMs) && activeMs > 0 && !dwellSeen.has(key)) {
+            dwellSeen.add(key);
+            if (!dwellMs.has(sectionId)) dwellMs.set(sectionId, []);
+            dwellMs.get(sectionId)!.push(activeMs);
+          }
+        }
+        // Only section_view marks progress through the page. Dwell events are
+        // emitted together as the page is left, in whatever order the sections
+        // were recorded, so letting them set this would pick an arbitrary
+        // section as the exit point rather than the one reached last.
+        if (eventType === "section_view") {
+          lastSectionPerSession.set(sessionId, sectionId);
+        }
+      }
+
       // Events recorded before an experiment existed carry no variant; they
       // still count toward behaviour totals but cannot join the comparison.
       if (!variantId) continue;
@@ -118,6 +159,16 @@ export async function GET(req: NextRequest) {
       accumulator.eventCounts[eventType] = (accumulator.eventCounts[eventType] ?? 0) + 1;
       // A session converts at most once, however many goal events it fires.
       if (eventType === primaryGoal) accumulator.convertedSessions.add(sessionId);
+
+      if (funnelSteps.has(eventType)) {
+        if (!stepSessions.has(eventType)) stepSessions.set(eventType, new Set());
+        stepSessions.get(eventType)!.add(sessionId);
+
+        if (!stepSessionsByVariant.has(variantId)) stepSessionsByVariant.set(variantId, new Map());
+        const perVariant = stepSessionsByVariant.get(variantId)!;
+        if (!perVariant.has(eventType)) perVariant.set(eventType, new Set());
+        perVariant.get(eventType)!.add(sessionId);
+      }
     }
 
     scanned += batch.docs.length;
@@ -132,6 +183,12 @@ export async function GET(req: NextRequest) {
   const variants = [...accumulators.values()]
     .map(summariseVariant)
     .sort((a, b) => a.variantId.localeCompare(b.variantId));
+
+  // Tally exits only after every page has been scanned, so the last section is
+  // genuinely the last one for that session and not merely the last in a batch.
+  for (const sectionId of lastSectionPerSession.values()) {
+    exitsBySection.set(sectionId, (exitsBySection.get(sectionId) ?? 0) + 1);
+  }
 
   return NextResponse.json(
     {
@@ -149,6 +206,14 @@ export async function GET(req: NextRequest) {
       controlVariantId,
       variants,
       comparisons: compareVariants(variants, controlVariantId),
+      funnel: buildFunnel(stepSessions),
+      funnelByVariant: Object.fromEntries(
+        [...stepSessionsByVariant.entries()]
+          .filter(([variantId]) => variantId)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([variantId, steps]) => [variantId, buildFunnel(steps)])
+      ),
+      sections: summariseSections(dwellMs, exitsBySection, lastSectionPerSession.size),
       behaviourTotals: totals,
       eventsScanned: scanned,
       // The UI must say so when a range was cut short, rather than presenting a

@@ -9247,7 +9247,8 @@ export interface LandingEvent {
     | 'form_submit'
     | 'booking_open'
     | 'booking_complete'
-    | 'scroll_depth';
+    | 'scroll_depth'
+    | 'section_dwell';
   occurredAt: string;
   receivedAt: string;
   sessionId: string;

@@ -29,6 +29,24 @@ interface ComparisonSummary {
   underpowered: boolean;
 }
 
+interface FunnelStep {
+  key: string;
+  label: string;
+  sessions: number;
+  shareOfEntry: number;
+  droppedFromPrevious: number;
+  dropOffRate: number;
+}
+
+interface SectionDwell {
+  sectionId: string;
+  sessions: number;
+  medianSeconds: number;
+  p90Seconds: number;
+  exits: number;
+  exitRate: number;
+}
+
 interface ReportResponse {
   experiment: {
     id: string;
@@ -42,6 +60,9 @@ interface ReportResponse {
   controlVariantId: string;
   variants: VariantSummary[];
   comparisons: ComparisonSummary[];
+  funnel: FunnelStep[];
+  funnelByVariant: Record<string, FunnelStep[]>;
+  sections: SectionDwell[];
   behaviourTotals: Record<string, number>;
   eventsScanned: number;
   truncated: boolean;
@@ -59,10 +80,27 @@ const BEHAVIOUR_LABELS: Record<string, string> = {
   booking_open: "Booking opened",
   booking_complete: "Bookings completed",
   scroll_depth: "Scroll milestones",
+  section_dwell: "Sections timed",
 };
+
+/** Words that look wrong in plain title case. */
+const SECTION_WORDS: Record<string, string> = { faq: "FAQ", cta: "CTA", roi: "ROI" };
 
 function pct(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
+}
+
+function shortPct(value: number): string {
+  return `${(value * 100).toFixed(0)}%`;
+}
+
+/** Turn a section id into something readable without inventing a label. */
+function sectionLabel(id: string): string {
+  return id
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((word) => SECTION_WORDS[word.toLowerCase()] ?? word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 export function LandingExperimentTab({ slug }: { slug: string }) {
@@ -218,6 +256,143 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
             as a win.
           </p>
         </>
+      )}
+
+      {data.funnel.some((step) => step.sessions > 0) && (
+        <div className="pt-2">
+          <h4 className="text-sm font-semibold text-slate-900 mb-1">Where people drop off</h4>
+          <p className="text-xs text-slate-500 mb-3">
+            Distinct sessions reaching each step. The percentage on the right is the share lost
+            since the previous step, which is where the journey is actually breaking.
+          </p>
+
+          <div className="space-y-1.5">
+            {data.funnel.map((step, index) => {
+              const entry = data.funnel[0]?.sessions ?? 0;
+              const width = entry > 0 ? Math.max(step.shareOfEntry * 100, 1.5) : 0;
+              // The worst single drop is the one worth looking at first.
+              const worst = Math.max(...data.funnel.slice(1).map((s) => s.dropOffRate), 0);
+              const isWorst = index > 0 && step.dropOffRate === worst && step.dropOffRate > 0;
+
+              return (
+                <div key={step.key} className="flex items-center gap-3">
+                  <div className="w-40 shrink-0 text-xs text-slate-600">{step.label}</div>
+                  {/* The bar sits behind the row and the label beside it, rather
+                      than on top of the fill. Text over a variable-width bar is
+                      unreadable wherever the fill happens to end. */}
+                  <div className="relative h-7 flex-1 rounded bg-slate-100">
+                    <div
+                      className={`absolute inset-y-0 left-0 rounded ${isWorst ? "bg-amber-400" : "bg-sky-400"}`}
+                      style={{ width: `${width}%` }}
+                    />
+                  </div>
+                  <div className="w-36 shrink-0 text-xs">
+                    <span className="font-medium text-slate-900">
+                      {step.sessions.toLocaleString()}
+                    </span>
+                    <span className="ml-1.5 text-slate-500">{shortPct(step.shareOfEntry)}</span>
+                  </div>
+                  <div className="w-32 shrink-0 text-right text-xs">
+                    {index === 0 ? (
+                      <span className="text-slate-400">—</span>
+                    ) : (
+                      <span className={isWorst ? "font-medium text-amber-700" : "text-slate-600"}>
+                        −{step.droppedFromPrevious.toLocaleString()} ({shortPct(step.dropOffRate)})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {Object.keys(data.funnelByVariant).length > 1 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-xs text-slate-700">
+                <thead>
+                  <tr className="text-left uppercase tracking-wide text-slate-500">
+                    <th className="py-1.5 pr-4">Step</th>
+                    {Object.keys(data.funnelByVariant).map((variantId) => (
+                      <th key={variantId} className="py-1.5 pr-4">
+                        Variant {variantId}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.funnel.map((step, index) => (
+                    <tr key={step.key} className="border-t border-slate-100">
+                      <td className="py-1.5 pr-4 text-slate-600">{step.label}</td>
+                      {Object.entries(data.funnelByVariant).map(([variantId, steps]) => {
+                        const row = steps[index];
+                        return (
+                          <td key={variantId} className="py-1.5 pr-4 text-slate-700">
+                            {row ? row.sessions.toLocaleString() : "0"}
+                            {row && index > 0 && (
+                              <span className="ml-1.5 text-slate-400">
+                                −{shortPct(row.dropOffRate)}
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {data.sections.length > 0 && (
+        <div className="pt-2">
+          <h4 className="text-sm font-semibold text-slate-900 mb-1">Where people spend their time</h4>
+          <p className="text-xs text-slate-500 mb-3">
+            Active seconds with the section on screen and the tab focused, so a page left open in a
+            background tab does not read as attention. Median rather than average, because a few
+            long sessions would otherwise move every number.
+          </p>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-slate-700">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th className="py-2 pr-4">Section</th>
+                  <th className="py-2 pr-4">Sessions</th>
+                  <th className="py-2 pr-4">Median time</th>
+                  <th className="py-2 pr-4">Top 10% spend</th>
+                  <th className="py-2 pr-4">Left from here</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.sections.map((section) => {
+                  const worstExit = Math.max(...data.sections.map((s) => s.exitRate), 0);
+                  const isExitPoint = section.exitRate === worstExit && section.exitRate > 0;
+                  return (
+                    <tr key={section.sectionId} className="border-t border-slate-100">
+                      <td className="py-2 pr-4 font-medium text-slate-900">
+                        {sectionLabel(section.sectionId)}
+                      </td>
+                      <td className="py-2 pr-4 text-slate-700">{section.sessions.toLocaleString()}</td>
+                      <td className="py-2 pr-4 font-medium text-slate-900">{section.medianSeconds}s</td>
+                      <td className="py-2 pr-4 text-slate-500">{section.p90Seconds}s</td>
+                      <td className="py-2 pr-4">
+                        <span className={isExitPoint ? "font-medium text-amber-700" : "text-slate-700"}>
+                          {section.exits.toLocaleString()} ({shortPct(section.exitRate)})
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-slate-500 mt-2">
+            A long time on a section is not automatically good: it can mean the content is
+            compelling, or that it is confusing. Read it alongside the drop-off above.
+          </p>
+        </div>
       )}
 
       {/* The conditional block above is a fragment, so the parent's vertical

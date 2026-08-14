@@ -36,8 +36,21 @@ const ARMS = {
   b: { sessions: 655, rate: 0.058, profile: "hero-outcome" },
 };
 
+/**
+ * Sections in page order, with the share of sessions that reach each one and
+ * the seconds a reader typically spends there. Attention falls as people move
+ * down the page, which is what makes a drop-off point visible at all.
+ */
+const SECTIONS = [
+  { id: "hero", reach: 1.0, seconds: 9 },
+  { id: "proof", reach: 0.82, seconds: 14 },
+  { id: "how-it-works", reach: 0.61, seconds: 22 },
+  { id: "pricing", reach: 0.44, seconds: 31 },
+  { id: "faq", reach: 0.26, seconds: 17 },
+  { id: "contact", reach: 0.18, seconds: 12 },
+];
+
 const FUNNEL = [
-  ["section_view", 3.2],
   ["scroll_depth", 1.9],
   ["cta_click", 0.55],
   ["form_start", 0.28],
@@ -106,9 +119,29 @@ function buildEvents() {
       );
 
       const push = (type) =>
-        rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type, at, session, pageView, variant, config });
+        rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type, at, session, pageView, variant, config, props: {} });
 
       push("page_view");
+
+      // How far down the page this session got. Variant B holds attention
+      // slightly longer, so the funnel and the dwell table tell one story.
+      const depthBonus = variant === "b" ? 0.06 : 0;
+      const seen = SECTIONS.filter((section) => Math.random() < Math.min(section.reach + depthBonus, 1));
+      const reached = seen.length ? seen : [SECTIONS[0]];
+
+      for (const section of reached) {
+        rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type: "section_view", at, session, pageView, variant, config, props: { section_id: section.id } });
+      }
+      // Dwell is reported as the page is left, so it comes after every view.
+      for (const section of reached) {
+        const jitter = 0.5 + Math.random() * 1.4;
+        const activeMs = Math.round(section.seconds * 1000 * jitter);
+        if (activeMs >= 3000) {
+          rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type: "section_engaged", at, session, pageView, variant, config, props: { section_id: section.id, active_ms: 3000 } });
+        }
+        rows.push({ eventId: `${TAG}-${crypto.randomUUID()}`, type: "section_dwell", at, session, pageView, variant, config, props: { section_id: section.id, active_ms: activeMs } });
+      }
+
       for (const [type, mean] of FUNNEL) {
         const count = Math.random() < mean % 1 ? Math.ceil(mean) : Math.floor(mean);
         for (let i = 0; i < count; i += 1) push(type);
@@ -160,7 +193,7 @@ async function seed(db) {
           ["search", "paid", "direct"][Math.floor(Math.random() * 3)],
           Math.random() < 0.62 ? "mobile" : "desktop",
           JSON.stringify({ utm_source: "google", utm_medium: "cpc", ad_group_id: "111" }),
-          JSON.stringify({}),
+          JSON.stringify(row.props ?? {}),
           iso(row.at),
           iso(row.at),
         ],

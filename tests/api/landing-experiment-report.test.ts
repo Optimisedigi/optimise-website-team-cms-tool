@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MIN_CONVERSIONS_FOR_CALL,
   MIN_SESSIONS_FOR_CALL,
+  buildFunnel,
   compareVariants,
   createAccumulator,
+  percentile,
+  summariseSections,
   summariseVariant,
   twoProportionPValue,
   wilsonInterval,
@@ -132,6 +135,95 @@ describe("landing experiment statistics", () => {
   });
 });
 
+describe("funnel drop-off", () => {
+  function steps(entries: Record<string, string[]>) {
+    return new Map(Object.entries(entries).map(([key, sessions]) => [key, new Set(sessions)]));
+  }
+
+  it("counts distinct sessions, so repeated clicks do not inflate a step", () => {
+    const funnel = buildFunnel(
+      steps({ page_view: ["s1", "s2", "s3"], cta_click: ["s1", "s1", "s2"] })
+    );
+
+    expect(funnel[0].sessions).toBe(3);
+    expect(funnel[1].sessions).toBe(2);
+    expect(funnel[1].droppedFromPrevious).toBe(1);
+    expect(funnel[1].dropOffRate).toBeCloseTo(1 / 3);
+  });
+
+  it("never reports a later step as larger than the one before it", () => {
+    // Sessions can arrive mid-journey, so a raw count can show a funnel that
+    // grows. Reporting that would invent visitors who never landed.
+    const funnel = buildFunnel(
+      steps({ page_view: ["s1"], cta_click: ["s1", "s2", "s3"], form_start: ["s1", "s2"] })
+    );
+
+    expect(funnel[0].sessions).toBe(1);
+    expect(funnel[1].sessions).toBe(1);
+    expect(funnel[2].sessions).toBe(1);
+    expect(funnel.every((step) => step.dropOffRate >= 0)).toBe(true);
+  });
+
+  it("keeps steps nobody reached, because an empty step is the finding", () => {
+    const funnel = buildFunnel(steps({ page_view: ["s1", "s2"], cta_click: ["s1"] }));
+
+    const booked = funnel.find((step) => step.key === "booking_complete");
+    expect(booked).toBeDefined();
+    expect(booked!.sessions).toBe(0);
+    expect(funnel).toHaveLength(6);
+  });
+
+  it("reports no drop-off and no division error when nobody landed", () => {
+    const funnel = buildFunnel(new Map());
+    expect(funnel.every((step) => step.sessions === 0)).toBe(true);
+    expect(funnel.every((step) => Number.isFinite(step.dropOffRate))).toBe(true);
+    expect(funnel.every((step) => Number.isFinite(step.shareOfEntry))).toBe(true);
+  });
+});
+
+describe("time on section", () => {
+  it("takes percentiles by nearest rank", () => {
+    const sorted = [10, 20, 30, 40, 50];
+    expect(percentile(sorted, 0.5)).toBe(30);
+    expect(percentile(sorted, 0.9)).toBe(50);
+    expect(percentile([], 0.5)).toBe(0);
+  });
+
+  it("reports the median, so a few idle tabs cannot move it", () => {
+    // Four ordinary readers and one tab left open. A mean would report about
+    // twenty seconds of attention that nobody actually gave.
+    const dwell = new Map([["hero", [2000, 3000, 4000, 5000, 600000]]]);
+    const [hero] = summariseSections(dwell, new Map(), 5);
+
+    expect(hero.medianSeconds).toBe(4);
+    expect(hero.p90Seconds).toBe(600);
+    expect(hero.sessions).toBe(5);
+  });
+
+  it("ranks sections by time spent and reports where people left", () => {
+    const dwell = new Map([
+      ["hero", [1000, 1000]],
+      ["pricing", [9000, 11000]],
+    ]);
+    const exits = new Map([
+      ["pricing", 3],
+      ["hero", 1],
+    ]);
+
+    const sections = summariseSections(dwell, exits, 4);
+
+    expect(sections[0].sectionId).toBe("pricing");
+    expect(sections[0].exits).toBe(3);
+    expect(sections[0].exitRate).toBeCloseTo(0.75);
+    expect(sections[1].sectionId).toBe("hero");
+  });
+
+  it("does not divide by zero when no session has an exit point", () => {
+    const [only] = summariseSections(new Map([["hero", [1000]]]), new Map(), 0);
+    expect(only.exitRate).toBe(0);
+  });
+});
+
 describe("landing experiment dashboard route", () => {
   function request(params: string, token: string | null = "valid-token") {
     const headers: Record<string, string> = {};
@@ -196,6 +288,58 @@ describe("landing experiment dashboard route", () => {
 
     expect(body.behaviourTotals.page_view).toBe(2);
     expect(body.behaviourTotals.booking_complete).toBe(2);
+  });
+
+  it("derives dwell, exits and the funnel from the scanned events", async () => {
+    payloadMock.find
+      .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      .mockResolvedValueOnce({
+        docs: [
+          {
+            experimentId: "landing-hero-v1",
+            name: "Hero test",
+            status: "running",
+            allocationVersion: "1",
+            primaryGoal: "booking_complete",
+            variants: [{ variantId: "a" }, { variantId: "b" }],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        docs: [
+          { eventType: "page_view", sessionId: "s1", variantId: "a" },
+          { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "hero" } },
+          { eventType: "cta_click", sessionId: "s1", variantId: "a" },
+          { eventType: "cta_click", sessionId: "s1", variantId: "a" },
+          { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "pricing" } },
+          { eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 2000 } },
+          // A duplicate dwell for the same session and section must not count twice.
+          { eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 9000 } },
+          { eventType: "page_view", sessionId: "s2", variantId: "b" },
+          { eventType: "section_view", sessionId: "s2", variantId: "b", properties: { section_id: "hero" } },
+          { eventType: "section_dwell", sessionId: "s2", variantId: "b", properties: { section_id: "hero", active_ms: 4000 } },
+        ],
+        hasNextPage: false,
+      });
+
+    const res = await GET(request("slug=away-digital&days=30"));
+    const body = await res.json();
+
+    // Two landed, one clicked despite clicking twice.
+    expect(body.funnel[0].sessions).toBe(2);
+    expect(body.funnel[1].sessions).toBe(1);
+    expect(body.funnel[1].dropOffRate).toBeCloseTo(0.5);
+
+    const hero = body.sections.find((s: { sectionId: string }) => s.sectionId === "hero");
+    // Only the first dwell per session counts: 2s and 4s, median 4s by rank.
+    expect(hero.sessions).toBe(2);
+
+    // s1's last section was pricing; s2's was hero.
+    const pricing = body.sections.find((s: { sectionId: string }) => s.sectionId === "pricing");
+    expect(pricing?.exits ?? 0).toBe(1);
+    expect(hero.exits).toBe(1);
+
+    expect(Object.keys(body.funnelByVariant).sort()).toEqual(["a", "b"]);
   });
 
   it("clamps an absurd range rather than scanning everything", async () => {

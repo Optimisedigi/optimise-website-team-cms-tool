@@ -47,6 +47,85 @@ export function createAccumulator(variantId: string): VariantAccumulator {
 }
 
 /**
+ * The funnel, in the order a visitor moves through it.
+ *
+ * Drop-off is measured on distinct sessions that reached each step, not on
+ * event counts: one person clicking a call to action four times is one person
+ * who reached that step, and counting the clicks would invent a funnel that
+ * grows in the middle.
+ */
+export const FUNNEL_STEPS = [
+  { key: "page_view", label: "Landed" },
+  { key: "cta_click", label: "Clicked a CTA" },
+  { key: "form_start", label: "Started the form" },
+  { key: "form_submit", label: "Submitted the form" },
+  { key: "booking_open", label: "Opened booking" },
+  { key: "booking_complete", label: "Booked" },
+] as const;
+
+export interface FunnelStep {
+  key: string;
+  label: string;
+  sessions: number;
+  /** Share of the sessions that entered the funnel at all. */
+  shareOfEntry: number;
+  /** Sessions lost between the previous step and this one. */
+  droppedFromPrevious: number;
+  /** That loss as a share of the previous step, which is the actionable number. */
+  dropOffRate: number;
+}
+
+export interface SectionDwell {
+  sectionId: string;
+  /** Sessions that saw the section at all. */
+  sessions: number;
+  /** Median active seconds on screen. Median, because a few idle tabs skew a mean badly. */
+  medianSeconds: number;
+  /** 90th percentile, to show the spread rather than implying everyone behaved alike. */
+  p90Seconds: number;
+  /** Sessions whose last seen section was this one: where people stopped reading. */
+  exits: number;
+  exitRate: number;
+}
+
+/**
+ * Build the funnel from per-step session sets.
+ *
+ * Steps nobody reached are kept rather than dropped, because an empty step is
+ * usually the finding: it says the journey ends before that point.
+ */
+export function buildFunnel(stepSessions: Map<string, Set<string>>): FunnelStep[] {
+  const entry = stepSessions.get(FUNNEL_STEPS[0].key)?.size ?? 0;
+  let previous = entry;
+
+  return FUNNEL_STEPS.map((step, index) => {
+    const sessions = stepSessions.get(step.key)?.size ?? 0;
+    // A later step can only be reached through the earlier ones, so a step is
+    // never reported as larger than the one before it.
+    const reached = index === 0 ? sessions : Math.min(sessions, previous);
+    const dropped = index === 0 ? 0 : Math.max(0, previous - reached);
+    const rate = index === 0 || previous === 0 ? 0 : dropped / previous;
+    const result = {
+      key: step.key,
+      label: step.label,
+      sessions: reached,
+      shareOfEntry: entry > 0 ? reached / entry : 0,
+      droppedFromPrevious: dropped,
+      dropOffRate: rate,
+    };
+    previous = reached;
+    return result;
+  });
+}
+
+/** Percentile of a numeric sample, using nearest-rank on sorted values. */
+export function percentile(sorted: number[], fraction: number): number {
+  if (sorted.length === 0) return 0;
+  const rank = Math.ceil(fraction * sorted.length);
+  return sorted[Math.min(Math.max(rank, 1), sorted.length) - 1];
+}
+
+/**
  * Wilson score interval. Preferred over the normal approximation because it
  * stays inside [0,1] and behaves sensibly at the small samples and low
  * conversion rates that landing pages actually produce.
@@ -85,6 +164,41 @@ export function twoProportionPValue(
   if (standardError === 0) return null;
   const z = (successesB / trialsB - successesA / trialsA) / standardError;
   return 2 * (1 - normalCdf(Math.abs(z)));
+}
+
+/**
+ * Summarise time on each section, and where people stopped.
+ *
+ * `dwellMs` holds one figure per session per section, taken from the dwell
+ * event the page sends as it is left, so a session that saw a section twice
+ * contributes once rather than inflating the sample.
+ */
+export function summariseSections(
+  dwellMs: Map<string, number[]>,
+  exitsBySection: Map<string, number>,
+  sessionsWithExit: number
+): SectionDwell[] {
+  // Sections are taken from both sources, not just from dwell. A section people
+  // leave immediately produces little or no dwell data, so listing only
+  // sections with samples would hide the sharpest drop-off point on the page.
+  const sectionIds = new Set([...dwellMs.keys(), ...exitsBySection.keys()]);
+
+  return [...sectionIds]
+    .map((sectionId) => {
+      const sorted = [...(dwellMs.get(sectionId) ?? [])].sort((a, b) => a - b);
+      const exits = exitsBySection.get(sectionId) ?? 0;
+      return {
+        sectionId,
+        sessions: sorted.length,
+        medianSeconds: Math.round(percentile(sorted, 0.5) / 100) / 10,
+        p90Seconds: Math.round(percentile(sorted, 0.9) / 100) / 10,
+        exits,
+        exitRate: sessionsWithExit > 0 ? exits / sessionsWithExit : 0,
+      };
+    })
+    // Most time first, but a section with no dwell data and real exits still
+    // has to appear, so exits break the tie rather than sinking it to the end.
+    .sort((a, b) => b.medianSeconds - a.medianSeconds || b.exits - a.exits);
 }
 
 export function summariseVariant(accumulator: VariantAccumulator): VariantSummary {

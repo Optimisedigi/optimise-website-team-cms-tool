@@ -31,6 +31,7 @@ export const LANDING_EVENT_TYPES = [
   "booking_open",
   "booking_complete",
   "scroll_depth",
+  "section_dwell",
 ] as const;
 
 export type LandingEventType = (typeof LANDING_EVENT_TYPES)[number];
