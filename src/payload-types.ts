@@ -117,6 +117,9 @@ export interface Config {
     'ai-visibility-snapshots': AiVisibilitySnapshot;
     'serp-displacement-snapshots': SerpDisplacementSnapshot;
     'serp-displacement-alerts': SerpDisplacementAlert;
+    'landing-properties': LandingProperty;
+    'landing-experiments': LandingExperiment;
+    'landing-events': LandingEvent;
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
@@ -228,6 +231,9 @@ export interface Config {
     'ai-visibility-snapshots': AiVisibilitySnapshotsSelect<false> | AiVisibilitySnapshotsSelect<true>;
     'serp-displacement-snapshots': SerpDisplacementSnapshotsSelect<false> | SerpDisplacementSnapshotsSelect<true>;
     'serp-displacement-alerts': SerpDisplacementAlertsSelect<false> | SerpDisplacementAlertsSelect<true>;
+    'landing-properties': LandingPropertiesSelect<false> | LandingPropertiesSelect<true>;
+    'landing-experiments': LandingExperimentsSelect<false> | LandingExperimentsSelect<true>;
+    'landing-events': LandingEventsSelect<false> | LandingEventsSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
@@ -9113,6 +9119,181 @@ export interface SerpDisplacementAlert {
   updatedAt: string;
 }
 /**
+ * Client landing deployments permitted to send experiment and behaviour events. propertyKey is public; allowedOrigins is the real gate.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-properties".
+ */
+export interface LandingProperty {
+  id: number;
+  name: string;
+  client: number | Client;
+  /**
+   * Public key embedded in the landing page. Identification only — never treat it as a credential.
+   */
+  propertyKey: string;
+  status: 'active' | 'paused';
+  /**
+   * Exact scheme://host[:port] origins permitted to call the landing routes. Anything else is refused.
+   */
+  allowedOrigins: {
+    origin: string;
+    id?: string | null;
+  }[];
+  /**
+   * Leave empty to serve default content with no experiment assignment.
+   */
+  activeExperiment?: (number | null) | LandingExperiment;
+  /**
+   * Bump to force re-consent across every deployment of this property.
+   */
+  consentVersion: string;
+  /**
+   * Days of landing events retained before pruning.
+   */
+  retentionDays: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * A/B definitions for client landing pages. Bump allocationVersion whenever weights or variants change.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-experiments".
+ */
+export interface LandingExperiment {
+  id: number;
+  name: string;
+  client: number | Client;
+  /**
+   * Stable slug sent with every event, such as landing-hero-v1.
+   */
+  experimentId: string;
+  status: 'draft' | 'running' | 'stopped';
+  /**
+   * Bump on ANY weight or variant change. Reusing a version after a change reshuffles live visitors and invalidates results.
+   */
+  allocationVersion: string;
+  /**
+   * Choose before launch and do not change while running. Every other metric is exploratory.
+   */
+  primaryGoal: 'booking_complete' | 'form_submit' | 'cta_click';
+  /**
+   * Weights are relative; they do not need to total 100.
+   */
+  variants: {
+    /**
+     * Matches the deployed variant, such as a or b.
+     */
+    variantId: string;
+    label?: string | null;
+    weight: number;
+    /**
+     * Content profile applied for this variant.
+     */
+    contentProfileId?: string | null;
+    id?: string | null;
+  }[];
+  /**
+   * Allowlisted copy applied by data-content-field. Text only — never markup. URLs must be same-origin or https.
+   */
+  contentProfiles?:
+    | {
+        profileId: string;
+        fields?:
+          | {
+              /**
+               * Letters, numbers, dash and underscore only, such as headline.
+               */
+              key: string;
+              value: string;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  startedAt?: string | null;
+  stoppedAt?: string | null;
+  /**
+   * Hypothesis and decision log for this experiment.
+   */
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Consent-gated landing behaviour events. No raw IP, user agent, form values or free text is retained.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-events".
+ */
+export interface LandingEvent {
+  id: number;
+  /**
+   * Client-generated UUID used for idempotent retries.
+   */
+  eventId: string;
+  property: number | LandingProperty;
+  client: number | Client;
+  eventType:
+    | 'page_view'
+    | 'section_view'
+    | 'section_engaged'
+    | 'cta_click'
+    | 'form_start'
+    | 'form_step'
+    | 'form_error'
+    | 'form_submit'
+    | 'booking_open'
+    | 'booking_complete'
+    | 'scroll_depth';
+  occurredAt: string;
+  receivedAt: string;
+  sessionId: string;
+  pageViewId: string;
+  /**
+   * Present only when the visitor granted analytics consent.
+   */
+  visitorId?: string | null;
+  experimentId?: string | null;
+  variantId?: string | null;
+  allocationVersion?: string | null;
+  contentProfileId?: string | null;
+  route?: string | null;
+  /**
+   * Coarse class such as search or social. Never the full referrer URL.
+   */
+  referrerClass?: string | null;
+  deviceClass?: string | null;
+  /**
+   * Allowlisted Google Ads and UTM values only.
+   */
+  attribution?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Bounded scalars only. Form values and free text are rejected at ingestion.
+   */
+  properties?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "business-costs".
  */
@@ -11148,6 +11329,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'serp-displacement-alerts';
         value: number | SerpDisplacementAlert;
+      } | null)
+    | ({
+        relationTo: 'landing-properties';
+        value: number | LandingProperty;
+      } | null)
+    | ({
+        relationTo: 'landing-experiments';
+        value: number | LandingExperiment;
+      } | null)
+    | ({
+        relationTo: 'landing-events';
+        value: number | LandingEvent;
       } | null)
     | ({
         relationTo: 'business-costs';
@@ -13720,6 +13913,92 @@ export interface SerpDisplacementAlertsSelect<T extends boolean = true> {
   emailSent?: T;
   createdAt?: T;
   updatedAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-properties_select".
+ */
+export interface LandingPropertiesSelect<T extends boolean = true> {
+  name?: T;
+  client?: T;
+  propertyKey?: T;
+  status?: T;
+  allowedOrigins?:
+    | T
+    | {
+        origin?: T;
+        id?: T;
+      };
+  activeExperiment?: T;
+  consentVersion?: T;
+  retentionDays?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-experiments_select".
+ */
+export interface LandingExperimentsSelect<T extends boolean = true> {
+  name?: T;
+  client?: T;
+  experimentId?: T;
+  status?: T;
+  allocationVersion?: T;
+  primaryGoal?: T;
+  variants?:
+    | T
+    | {
+        variantId?: T;
+        label?: T;
+        weight?: T;
+        contentProfileId?: T;
+        id?: T;
+      };
+  contentProfiles?:
+    | T
+    | {
+        profileId?: T;
+        fields?:
+          | T
+          | {
+              key?: T;
+              value?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  startedAt?: T;
+  stoppedAt?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-events_select".
+ */
+export interface LandingEventsSelect<T extends boolean = true> {
+  eventId?: T;
+  property?: T;
+  client?: T;
+  eventType?: T;
+  occurredAt?: T;
+  receivedAt?: T;
+  sessionId?: T;
+  pageViewId?: T;
+  visitorId?: T;
+  experimentId?: T;
+  variantId?: T;
+  allocationVersion?: T;
+  contentProfileId?: T;
+  route?: T;
+  referrerClass?: T;
+  deviceClass?: T;
+  attribution?: T;
+  properties?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

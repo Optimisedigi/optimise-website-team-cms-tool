@@ -107,6 +107,9 @@ import { AgencyKpiSnapshots } from "./collections/AgencyKpiSnapshots";
 import { ClientMetricSnapshots } from "./collections/ClientMetricSnapshots";
 import { ClientPulseHistory } from "./collections/ClientPulseHistory";
 import { ClientAnalyticsSnapshots } from "./collections/ClientAnalyticsSnapshots";
+import { LandingProperties } from "./collections/LandingProperties";
+import { LandingExperiments } from "./collections/LandingExperiments";
+import { LandingEvents } from "./collections/LandingEvents";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -155,6 +158,8 @@ export default buildConfig({
     SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, GoogleAdsAuditSnapshots, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, SearchQueryVocabulary, SearchQueryReviewGroups, NegativeKeywordLists, KeywordDeepDiveSessions, MonthlyKeywordSelections, SiteHealthReports,
     // Reports
     ForecastScenarios, AgencyKpiSnapshots, ClientMetricSnapshots, ClientAnalyticsSnapshots, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
+    // Landing experiments
+    LandingProperties, LandingExperiments, LandingEvents,
     // Finance
     BusinessCosts, CostCategories, CostRules, InvoiceStatementDrafts,
     Contractors, ContractorTimeEntries, ContractorPayments,
