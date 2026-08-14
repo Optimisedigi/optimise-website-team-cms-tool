@@ -100,20 +100,36 @@ export async function GET(req: NextRequest) {
   const allocationVersion = String(experiment.allocationVersion ?? "1");
   const experimentId = String(experiment.experimentId ?? "");
 
-  // The default profile is served here; the SDK assigns the variant locally and
-  // deterministically, so the manifest stays identical for every visitor and
-  // remains edge-cacheable.
+  // Every profile is served, not just the default, and the SDK applies the one
+  // belonging to the variant it assigned. That is what makes the assignment
+  // real: if only the default were sent, each visitor would be labelled with a
+  // variant while being shown identical copy, and the comparison would be
+  // measuring nothing.
+  //
+  // Assignment still happens locally and deterministically, so the manifest is
+  // identical for every visitor and stays edge-cacheable.
   const profiles = Array.isArray(experiment.contentProfiles) ? experiment.contentProfiles : [];
-  const defaultProfile =
-    profiles.find((row: ContentProfileRow) => row.profileId === "default") ?? profiles[0] ?? null;
 
-  const fields: Record<string, string> = {};
-  if (defaultProfile && Array.isArray(defaultProfile.fields)) {
-    for (const entry of defaultProfile.fields) {
+  function readFields(row: ContentProfileRow | null): Record<string, string> {
+    const fields: Record<string, string> = {};
+    if (!row || !Array.isArray(row.fields)) return fields;
+    for (const entry of row.fields) {
       if (!isContentFieldKey(entry?.key)) continue;
       if (typeof entry?.value !== "string") continue;
       fields[entry.key] = entry.value.slice(0, 300);
     }
+    return fields;
+  }
+
+  const defaultProfile =
+    profiles.find((row: ContentProfileRow) => row.profileId === "default") ?? profiles[0] ?? null;
+  const fields = readFields(defaultProfile);
+
+  const contentProfiles: Record<string, { fields: Record<string, string> }> = {};
+  for (const row of profiles) {
+    const id = typeof row?.profileId === "string" ? row.profileId : "";
+    if (!isContentFieldKey(id)) continue;
+    contentProfiles[id] = { fields: readFields(row) };
   }
 
   const assignmentToken = signAssignmentToken(
@@ -128,12 +144,18 @@ export async function GET(req: NextRequest) {
       experiment: {
         id: experimentId,
         allocation_version: allocationVersion,
-        variants: variants.map((row) => ({ id: row.id, weight: row.weight })),
+        variants: variants.map((row) => ({
+          id: row.id,
+          weight: row.weight,
+          content_profile_id: row.contentProfileId,
+        })),
       },
+      // Kept for clients that only understand a single profile.
       content_profile: {
         id: typeof defaultProfile?.profileId === "string" ? defaultProfile.profileId : "default",
         fields,
       },
+      content_profiles: contentProfiles,
       assignment_token: assignmentToken,
     },
     { headers }

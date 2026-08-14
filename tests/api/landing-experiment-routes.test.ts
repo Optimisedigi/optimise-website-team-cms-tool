@@ -34,9 +34,13 @@ const experimentDoc = {
   allocationVersion: "3",
   variants: [
     { variantId: "a", weight: 50, contentProfileId: "default" },
-    { variantId: "b", weight: 50, contentProfileId: "default" },
+    { variantId: "b", weight: 50, contentProfileId: "variant-b-copy" },
   ],
   contentProfiles: [
+    {
+      profileId: "variant-b-copy",
+      fields: [{ key: "headline", value: "Hire developers in Vietnam" }],
+    },
     {
       profileId: "default",
       fields: [
@@ -175,6 +179,24 @@ describe("landing experiment routes", () => {
       );
       expect(res.status).toBe(403);
       expect(payloadMock.create).not.toHaveBeenCalled();
+    });
+
+    it("serves every profile so the assigned variant can differ from the default", async () => {
+      // Sending only the default profile would label visitors with a variant
+      // while showing them identical copy, so the comparison would measure
+      // nothing. Each variant must be able to resolve its own copy.
+      const res = await manifestGET(manifestRequest(ALLOWED_ORIGIN));
+      const body = await res.json();
+
+      expect(body.experiment.variants).toEqual([
+        { id: "a", weight: 50, content_profile_id: "default" },
+        { id: "b", weight: 50, content_profile_id: "variant-b-copy" },
+      ]);
+
+      expect(body.content_profiles["default"].fields.headline).toBe("Build your offshore team");
+      expect(body.content_profiles["variant-b-copy"].fields.headline).toBe(
+        "Hire developers in Vietnam"
+      );
     });
 
     it("manifest serves an allowed origin and echoes it back", async () => {
