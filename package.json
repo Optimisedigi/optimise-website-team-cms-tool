@@ -9,6 +9,8 @@
     "dev": "next dev -p 3004",
     "start": "next start -p 3001",
     "generate:types": "payload generate:types",
+    "seed:landing": "node --experimental-strip-types scripts/seed-landing-demo.mjs",
+    "seed:landing:clear": "node --experimental-strip-types scripts/seed-landing-demo.mjs --clear",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit",
