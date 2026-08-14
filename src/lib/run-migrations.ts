@@ -224,6 +224,111 @@ export async function runMigrations(
     return ((result as { rows?: unknown[] }).rows?.length ?? 0) > 0;
   }
 
+  /**
+   * Create the landing experiment tables.
+   *
+   * Must run before addLandingLockRelations: those ALTERs declare foreign keys
+   * referencing these tables, so on a database that has never seen them the
+   * lock relations would reference something that does not exist.
+   */
+  async function addLandingTables(): Promise<void> {
+    await run("landing_experiments", `CREATE TABLE IF NOT EXISTS \`landing_experiments\` (
+      \`id\` integer PRIMARY KEY NOT NULL, \`name\` text NOT NULL, \`client_id\` integer NOT NULL,
+      \`experiment_id\` text NOT NULL, \`status\` text DEFAULT 'draft' NOT NULL,
+      \`allocation_version\` text DEFAULT '1' NOT NULL,
+      \`primary_goal\` text DEFAULT 'booking_complete' NOT NULL,
+      \`started_at\` text, \`stopped_at\` text, \`notes\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("landing_experiments_client_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_client_idx` ON `landing_experiments` (`client_id`)");
+    await run("landing_experiments_experiment_id_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `landing_experiments_experiment_id_idx` ON `landing_experiments` (`experiment_id`)");
+    await run("landing_experiments_status_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_status_idx` ON `landing_experiments` (`status`)");
+    await run("landing_experiments_updated_at_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_updated_at_idx` ON `landing_experiments` (`updated_at`)");
+    await run("landing_experiments_created_at_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_created_at_idx` ON `landing_experiments` (`created_at`)");
+
+    await run("landing_experiments_variants", `CREATE TABLE IF NOT EXISTS \`landing_experiments_variants\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL, \`id\` text PRIMARY KEY NOT NULL,
+      \`variant_id\` text NOT NULL, \`label\` text, \`weight\` numeric DEFAULT 50 NOT NULL,
+      \`content_profile_id\` text DEFAULT 'default',
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`landing_experiments\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("landing_experiments_variants_order_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_variants_order_idx` ON `landing_experiments_variants` (`_order`)");
+    await run("landing_experiments_variants_parent_id_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_variants_parent_id_idx` ON `landing_experiments_variants` (`_parent_id`)");
+
+    await run("landing_experiments_content_profiles", `CREATE TABLE IF NOT EXISTS \`landing_experiments_content_profiles\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL, \`id\` text PRIMARY KEY NOT NULL,
+      \`profile_id\` text DEFAULT 'default' NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`landing_experiments\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("landing_experiments_content_profiles_order_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_content_profiles_order_idx` ON `landing_experiments_content_profiles` (`_order`)");
+    await run("landing_experiments_content_profiles_parent_id_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_content_profiles_parent_id_idx` ON `landing_experiments_content_profiles` (`_parent_id`)");
+
+    await run("landing_experiments_content_profiles_fields", `CREATE TABLE IF NOT EXISTS \`landing_experiments_content_profiles_fields\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` text NOT NULL, \`id\` text PRIMARY KEY NOT NULL,
+      \`key\` text NOT NULL, \`value\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`landing_experiments_content_profiles\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("landing_experiments_content_profiles_fields_order_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_content_profiles_fields_order_idx` ON `landing_experiments_content_profiles_fields` (`_order`)");
+    await run("landing_experiments_content_profiles_fields_parent_id_idx", "CREATE INDEX IF NOT EXISTS `landing_experiments_content_profiles_fields_parent_id_idx` ON `landing_experiments_content_profiles_fields` (`_parent_id`)");
+
+    await run("landing_properties", `CREATE TABLE IF NOT EXISTS \`landing_properties\` (
+      \`id\` integer PRIMARY KEY NOT NULL, \`name\` text NOT NULL, \`client_id\` integer NOT NULL,
+      \`property_key\` text NOT NULL, \`status\` text DEFAULT 'active' NOT NULL,
+      \`active_experiment_id\` integer,
+      \`consent_version\` text DEFAULT '2026-08-14' NOT NULL,
+      \`retention_days\` numeric DEFAULT 90 NOT NULL,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`active_experiment_id\`) REFERENCES \`landing_experiments\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("landing_properties_client_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_client_idx` ON `landing_properties` (`client_id`)");
+    await run("landing_properties_property_key_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `landing_properties_property_key_idx` ON `landing_properties` (`property_key`)");
+    await run("landing_properties_status_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_status_idx` ON `landing_properties` (`status`)");
+    await run("landing_properties_active_experiment_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_active_experiment_idx` ON `landing_properties` (`active_experiment_id`)");
+    await run("landing_properties_updated_at_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_updated_at_idx` ON `landing_properties` (`updated_at`)");
+    await run("landing_properties_created_at_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_created_at_idx` ON `landing_properties` (`created_at`)");
+
+    await run("landing_properties_allowed_origins", `CREATE TABLE IF NOT EXISTS \`landing_properties_allowed_origins\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL, \`id\` text PRIMARY KEY NOT NULL,
+      \`origin\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`landing_properties\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("landing_properties_allowed_origins_order_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_allowed_origins_order_idx` ON `landing_properties_allowed_origins` (`_order`)");
+    await run("landing_properties_allowed_origins_parent_id_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_allowed_origins_parent_id_idx` ON `landing_properties_allowed_origins` (`_parent_id`)");
+
+    await run("landing_events", `CREATE TABLE IF NOT EXISTS \`landing_events\` (
+      \`id\` integer PRIMARY KEY NOT NULL, \`event_id\` text NOT NULL,
+      \`property_id\` integer NOT NULL, \`client_id\` integer NOT NULL,
+      \`event_type\` text NOT NULL, \`occurred_at\` text NOT NULL, \`received_at\` text NOT NULL,
+      \`session_id\` text NOT NULL, \`page_view_id\` text NOT NULL, \`visitor_id\` text,
+      \`experiment_id\` text, \`variant_id\` text, \`allocation_version\` text,
+      \`content_profile_id\` text, \`route\` text, \`referrer_class\` text, \`device_class\` text,
+      \`attribution\` text, \`properties\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`property_id\`) REFERENCES \`landing_properties\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    // Unique event_id is what makes ingestion retries idempotent: a replayed
+    // batch collapses to one row instead of inflating conversion counts.
+    await run("landing_events_event_id_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `landing_events_event_id_idx` ON `landing_events` (`event_id`)");
+    await run("landing_events_property_idx", "CREATE INDEX IF NOT EXISTS `landing_events_property_idx` ON `landing_events` (`property_id`)");
+    await run("landing_events_client_idx", "CREATE INDEX IF NOT EXISTS `landing_events_client_idx` ON `landing_events` (`client_id`)");
+    await run("landing_events_event_type_idx", "CREATE INDEX IF NOT EXISTS `landing_events_event_type_idx` ON `landing_events` (`event_type`)");
+    await run("landing_events_occurred_at_idx", "CREATE INDEX IF NOT EXISTS `landing_events_occurred_at_idx` ON `landing_events` (`occurred_at`)");
+    await run("landing_events_session_id_idx", "CREATE INDEX IF NOT EXISTS `landing_events_session_id_idx` ON `landing_events` (`session_id`)");
+    await run("landing_events_visitor_id_idx", "CREATE INDEX IF NOT EXISTS `landing_events_visitor_id_idx` ON `landing_events` (`visitor_id`)");
+    await run("landing_events_experiment_id_idx", "CREATE INDEX IF NOT EXISTS `landing_events_experiment_id_idx` ON `landing_events` (`experiment_id`)");
+    await run("landing_events_variant_id_idx", "CREATE INDEX IF NOT EXISTS `landing_events_variant_id_idx` ON `landing_events` (`variant_id`)");
+    await run("landing_events_allocation_version_idx", "CREATE INDEX IF NOT EXISTS `landing_events_allocation_version_idx` ON `landing_events` (`allocation_version`)");
+    await run("landing_events_route_idx", "CREATE INDEX IF NOT EXISTS `landing_events_route_idx` ON `landing_events` (`route`)");
+    await run("landing_events_updated_at_idx", "CREATE INDEX IF NOT EXISTS `landing_events_updated_at_idx` ON `landing_events` (`updated_at`)");
+    await run("landing_events_created_at_idx", "CREATE INDEX IF NOT EXISTS `landing_events_created_at_idx` ON `landing_events` (`created_at`)");
+  }
+
   async function addLandingLockRelations(): Promise<void> {
     for (const collection of ["landing_properties", "landing_experiments", "landing_events"]) {
       await run(
@@ -248,6 +353,7 @@ export async function runMigrations(
     // Production already has every earlier bundled migration. Apply only the
     // new lock relations there, avoiding thousands of remote no-op statements.
     if (await markerExists(previousSchemaMarker)) {
+      await addLandingTables();
       await addLandingLockRelations();
       return results;
     }
@@ -5688,6 +5794,7 @@ export async function runMigrations(
 
     // Payload clears document locks after collection updates. These columns are
     // required in the shared relationship query even when updating team tasks.
+    await addLandingTables();
     await addLandingLockRelations();
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
