@@ -15,7 +15,6 @@ import {
   resolveAllowedOrigin,
   sanitiseAttribution,
   sanitiseProperties,
-  verifyAssignmentToken,
 } from "@/lib/landing-api";
 
 export const dynamic = "force-dynamic";
@@ -36,13 +35,32 @@ export const dynamic = "force-dynamic";
 
 const MAX_EVENT_TYPES = new Set<string>(LANDING_EVENT_TYPES);
 
+/**
+ * CORS preflight for the event POST.
+ *
+ * A preflight carries no body and no query string, so the property cannot be
+ * identified here. Answering it by property key meant returning no CORS headers,
+ * which made the browser block every real POST while sendBeacon still reported
+ * success — events disappeared with nothing logged on either side.
+ *
+ * The origin is instead checked against every active property. That is the same
+ * allowlist the POST itself enforces, so this reveals nothing extra: it only
+ * confirms an origin that is already permitted to send.
+ */
 export async function OPTIONS(req: NextRequest) {
-  const body = req.nextUrl.searchParams.get("property_key");
-  if (!isValidPropertyKey(body)) return new NextResponse(null, { status: 204 });
-  const property = await findProperty(body);
-  if (!property) return new NextResponse(null, { status: 204 });
-  const origin = resolveAllowedOrigin(req, property.origins);
+  const origin = req.headers.get("origin");
   if (!origin) return new NextResponse(null, { status: 204 });
+
+  const payload = await getPayload({ config });
+  const result = await payload.find({
+    collection: "landing-properties",
+    where: { status: { equals: "active" }, "allowedOrigins.origin": { equals: origin } },
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+  });
+
+  if (!result.docs.length) return new NextResponse(null, { status: 204 });
   return new NextResponse(null, { status: 204, headers: corsHeaders(origin) });
 }
 
@@ -74,9 +92,16 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(events) || events.length === 0) return jsonError(400, "No events");
   if (events.length > MAX_EVENTS_PER_BATCH) return jsonError(413, "Batch too large");
 
-  // Experiment context comes from the signed token, never from the event body,
-  // so a caller cannot attribute their traffic to an arbitrary variant.
-  const assignment = verifyAssignmentToken(batch.assignment_token, secret, propertyKey);
+  // Experiment context is read from the property's own experiment record, never
+  // from the request. A caller therefore cannot invent an experiment or claim an
+  // allocation version, and the definition cannot drift out of date the way a
+  // token minted at build time would.
+  //
+  // The variant is the one thing only the client knows, because assignment
+  // happens in the browser. It is accepted, but only when it names a variant
+  // this experiment actually configures, so unrecognised labels are dropped
+  // instead of quietly creating a phantom arm in the results.
+  const assignment = property.experiment;
 
   const payload = await getPayload({ config });
   const now = Date.now();
@@ -120,7 +145,7 @@ export async function POST(req: NextRequest) {
           pageViewId,
           visitorId: boundedString(event.visitor_id, 80),
           experimentId: assignment?.experimentId,
-          variantId: assignment ? boundedString(event.variant_id, 40) : undefined,
+          variantId: variantFor(assignment, event.variant_id),
           allocationVersion: assignment?.allocationVersion,
           contentProfileId: boundedString(event.content_profile_id, 80),
           route: boundedString(event.route, 200),
@@ -145,12 +170,30 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ accepted, rejected }, { status: 202, headers });
 }
 
+interface ExperimentContext {
+  experimentId: string;
+  allocationVersion: string;
+  variantIds: string[];
+}
+
+/**
+ * Accept a client-reported variant only when the experiment configures it.
+ * An unrecognised label would otherwise appear in the dashboard as a third arm
+ * that nobody ran.
+ */
+function variantFor(assignment: ExperimentContext | null, raw: unknown): string | undefined {
+  if (!assignment) return undefined;
+  const variant = boundedString(raw, 40);
+  if (!variant || !assignment.variantIds.includes(variant)) return undefined;
+  return variant;
+}
+
 async function findProperty(propertyKey: string) {
   const payload = await getPayload({ config });
   const result = await payload.find({
     collection: "landing-properties",
     where: { propertyKey: { equals: propertyKey }, status: { equals: "active" } },
-    depth: 0,
+    depth: 1,
     limit: 1,
     overrideAccess: true,
   });
@@ -164,5 +207,20 @@ async function findProperty(propertyKey: string) {
 
   const clientId = typeof doc.client === "object" && doc.client ? doc.client.id : doc.client;
 
-  return { id: doc.id, clientId, origins };
+  const raw =
+    doc.activeExperiment && typeof doc.activeExperiment === "object" ? doc.activeExperiment : null;
+  const experiment: ExperimentContext | null =
+    raw && raw.status === "running"
+      ? {
+          experimentId: String(raw.experimentId ?? ""),
+          allocationVersion: String(raw.allocationVersion ?? "1"),
+          variantIds: (Array.isArray(raw.variants) ? raw.variants : [])
+            .map((row: { variantId?: string | null }) =>
+              typeof row?.variantId === "string" ? row.variantId : ""
+            )
+            .filter(Boolean),
+        }
+      : null;
+
+  return { id: doc.id, clientId, origins, experiment };
 }

@@ -22,7 +22,10 @@ vi.mock("payload", () => ({
 vi.mock("@/payload.config", () => ({ default: {} }));
 
 import { GET as manifestGET } from "@/app/(frontend)/api/landing/v1/manifest/route";
-import { POST as eventsPOST } from "@/app/(frontend)/api/landing/v1/events/route";
+import {
+  POST as eventsPOST,
+  OPTIONS as eventsOPTIONS,
+} from "@/app/(frontend)/api/landing/v1/events/route";
 
 const PROPERTY_KEY = "away-digital-teams-landing";
 const ALLOWED_ORIGIN = "https://awaydigitalteams.com";
@@ -218,6 +221,42 @@ describe("landing experiment routes", () => {
     });
   });
 
+  describe("CORS preflight", () => {
+    function preflight(origin: string | null) {
+      const headers: Record<string, string> = {};
+      if (origin) headers.origin = origin;
+      return new NextRequest("http://localhost/api/landing/v1/events", {
+        method: "OPTIONS",
+        headers,
+      });
+    }
+
+    it("answers a preflight that carries no query string", async () => {
+      // The browser sends no body and no query string here. Requiring a property
+      // key meant returning no CORS headers, so every real POST was blocked
+      // while sendBeacon still reported success and the events vanished.
+      const res = await eventsOPTIONS(preflight(ALLOWED_ORIGIN));
+
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-origin")).toBe(ALLOWED_ORIGIN);
+      expect(res.headers.get("access-control-allow-headers")).toContain("content-type");
+      expect(res.headers.get("access-control-allow-methods")).toContain("POST");
+    });
+
+    it("grants no CORS headers to an origin outside every property allowlist", async () => {
+      payloadMock.find.mockResolvedValue({ docs: [] });
+      const res = await eventsOPTIONS(preflight("https://attacker.example"));
+
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    });
+
+    it("grants no CORS headers when there is no Origin header", async () => {
+      const res = await eventsOPTIONS(preflight(null));
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    });
+  });
+
   describe("signed batch ingestion", () => {
     function validToken() {
       return signAssignmentToken(
@@ -286,12 +325,15 @@ describe("landing experiment routes", () => {
       );
     });
 
-    it("drops experiment context when the assignment token is forged", async () => {
+    it("takes experiment context from the server, whatever the request claims", async () => {
+      // The token no longer decides this. A caller cannot name an experiment or
+      // an allocation version at all: both are read from the property's own
+      // experiment record, so they can be neither forged nor go stale.
       const forged = signAssignmentToken(
         {
           propertyKey: PROPERTY_KEY,
-          experimentId: "landing-hero-v1",
-          allocationVersion: "3",
+          experimentId: "attacker-chosen-experiment",
+          allocationVersion: "999",
           issuedAt: Date.now(),
         },
         "an-entirely-different-secret-that-is-long-enough"
@@ -301,10 +343,22 @@ describe("landing experiment routes", () => {
       expect(res.status).toBe(202);
 
       const written = payloadMock.create.mock.calls[0][0].data;
-      // Unsigned context must not be attributed to a variant.
-      expect(written.experimentId).toBeUndefined();
+      expect(written.experimentId).toBe("landing-hero-v1");
+      expect(written.allocationVersion).toBe("3");
+      expect(written.variantId).toBe("b");
+    });
+
+    it("drops a variant the experiment does not configure", async () => {
+      // Assignment happens in the browser, so the variant has to be accepted
+      // from the request. Anything outside the configured list is discarded
+      // rather than appearing in the dashboard as an arm nobody ran.
+      const event = { ...sampleEvent("evt-phantom"), variant_id: "z-phantom" };
+      const res = await eventsPOST(eventsRequest(eventBatch([event], validToken())));
+      expect(res.status).toBe(202);
+
+      const written = payloadMock.create.mock.calls[0][0].data;
+      expect(written.experimentId).toBe("landing-hero-v1");
       expect(written.variantId).toBeUndefined();
-      expect(written.allocationVersion).toBeUndefined();
     });
 
     it("rejects a batch larger than the contract limit", async () => {
