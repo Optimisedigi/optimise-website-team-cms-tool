@@ -51,6 +51,11 @@ export async function OPTIONS(req: NextRequest) {
   const origin = req.headers.get("origin");
   if (!origin) return new NextResponse(null, { status: 204 });
 
+  // Checked before opening a database connection. The POST this preflights
+  // cannot succeed without a signing secret anyway, and a preflight that blocks
+  // on an unreachable database takes every sendBeacon down with it silently.
+  if (!getSigningSecret()) return new NextResponse(null, { status: 204 });
+
   const payload = await getPayload({ config });
   const result = await payload.find({
     collection: "landing-properties",

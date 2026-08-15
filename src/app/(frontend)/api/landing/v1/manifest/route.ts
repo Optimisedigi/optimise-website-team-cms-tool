@@ -41,6 +41,12 @@ interface ContentProfileRow {
 }
 
 export async function OPTIONS(req: NextRequest) {
+  // Checked before anything touches the database. An unconfigured deployment
+  // cannot serve this route at all, so opening a connection first only risks
+  // blocking on a database that may be locked or unreachable, and a preflight
+  // that hangs silently kills every sendBeacon the page tries to send.
+  if (!getSigningSecret()) return new NextResponse(null, { status: 204 });
+
   const propertyKey = req.nextUrl.searchParams.get("property_key");
   if (!isValidPropertyKey(propertyKey)) return new NextResponse(null, { status: 204 });
 
