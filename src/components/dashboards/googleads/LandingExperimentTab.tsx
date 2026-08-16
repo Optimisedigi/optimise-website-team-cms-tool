@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LANDING_PAGES, type LandingPageMeta } from "@/lib/landing-page-sections";
 
 /**
  * Landing A/B results and on-page behaviour for one client.
@@ -480,54 +481,8 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
         </div>
       )}
 
-      {data.sections.length > 0 && (
-        <div className="pt-2">
-          <h4 className="text-sm font-semibold text-slate-900 mb-1">Where people spend their time</h4>
-          <p className="text-xs text-slate-500 mb-3">
-            Active seconds with the section on screen and the tab focused, so a page left open in a
-            background tab does not read as attention. Median rather than average, because a few
-            long sessions would otherwise move every number.
-          </p>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm text-slate-700">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4">Section</th>
-                  <th className="py-2 pr-4">Sessions</th>
-                  <th className="py-2 pr-4">Median time</th>
-                  <th className="py-2 pr-4">Top 10% spend</th>
-                  <th className="py-2 pr-4">Left from here</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.sections.map((section) => {
-                  const worstExit = Math.max(...data.sections.map((s) => s.exitRate), 0);
-                  const isExitPoint = section.exitRate === worstExit && section.exitRate > 0;
-                  return (
-                    <tr key={section.sectionId} className="border-t border-slate-100">
-                      <td className="py-2 pr-4 font-medium text-slate-900">
-                        {sectionLabel(section.sectionId)}
-                      </td>
-                      <td className="py-2 pr-4 text-slate-700">{section.sessions.toLocaleString()}</td>
-                      <td className="py-2 pr-4 font-medium text-slate-900">{section.medianSeconds}s</td>
-                      <td className="py-2 pr-4 text-slate-500">{section.p90Seconds}s</td>
-                      <td className="py-2 pr-4">
-                        <span className={isExitPoint ? "font-medium text-amber-700" : "text-slate-700"}>
-                          {section.exits.toLocaleString()} ({shortPct(section.exitRate)})
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs text-slate-500 mt-2">
-            A long time on a section is not automatically good: it can mean the content is
-            compelling, or that it is confusing. Read it alongside the drop-off above.
-          </p>
-        </div>
+      {(data.sections.length > 0 || LANDING_PAGES[page]) && (
+        <SectionDwellPanel sections={data.sections} pageMeta={LANDING_PAGES[page] ?? null} />
       )}
 
       {/* The conditional block above is a fragment, so the parent's vertical
@@ -548,6 +503,169 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
           Counts consented visitors only, so they are lower than total traffic and should not be read
           as sitewide volume.
         </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Where people spend their time", in the page's real order when we know the
+ * page, with the actual page embedded alongside so a number is never read
+ * without the section it describes.
+ *
+ * With a known page the rows are the page's real sections top-to-bottom —
+ * including ones no session reached, which event data alone cannot list —
+ * and clicking a row scrolls the embedded page to that section.
+ *
+ * The iframe is sandboxed without allow-same-origin: the preview page's SDK
+ * then calls the CMS from an opaque origin, which the origin allowlist
+ * refuses, so admins scrolling the preview can never pollute the analytics
+ * they are reading.
+ */
+function SectionDwellPanel({
+  sections,
+  pageMeta,
+}: {
+  sections: SectionDwell[];
+  pageMeta: LandingPageMeta | null;
+}) {
+  const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
+
+  const byId = new Map(sections.map((section) => [section.sectionId, section]));
+  const rows: { id: string; label: string; anchor: string | null; dwell: SectionDwell | null }[] =
+    pageMeta
+      ? [
+          ...pageMeta.sections.map((section) => ({
+            id: section.id,
+            label: section.label,
+            anchor: section.anchor,
+            dwell: byId.get(section.id) ?? null,
+          })),
+          // Ids the page reported that the map does not know (e.g. after a
+          // page edit): keep them visible rather than silently dropping data.
+          ...sections
+            .filter((section) => !pageMeta.sections.some((s) => s.id === section.sectionId))
+            .map((section) => ({
+              id: section.sectionId,
+              label: sectionLabel(section.sectionId),
+              anchor: null,
+              dwell: section,
+            })),
+        ]
+      : sections.map((section) => ({
+          id: section.sectionId,
+          label: sectionLabel(section.sectionId),
+          anchor: null,
+          dwell: section,
+        }));
+
+  const worstExit = Math.max(...sections.map((s) => s.exitRate), 0);
+  const previewSrc = pageMeta ? `${pageMeta.url}${activeAnchor ? `#${activeAnchor}` : ""}` : null;
+
+  return (
+    <div className="pt-2">
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-1">
+        <h4 className="text-sm font-semibold text-slate-900">Where people spend their time</h4>
+        {pageMeta && (
+          <div className="flex items-center gap-3">
+            <a
+              href={pageMeta.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-sky-700 hover:underline"
+            >
+              Open page ↗
+            </a>
+            <button
+              type="button"
+              onClick={() => setShowPreview((value) => !value)}
+              aria-pressed={showPreview}
+              className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            >
+              {showPreview ? "Hide page" : "Show page"}
+            </button>
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-slate-500 mb-3">
+        {pageMeta
+          ? "Sections in the order they appear on the page. Click a section to scroll the live page beside the numbers. "
+          : ""}
+        Active seconds with the section on screen and the tab focused, so a page left open in a
+        background tab does not read as attention. Median rather than average, because a few long
+        sessions would otherwise move every number.
+      </p>
+
+      <div className={pageMeta && showPreview ? "grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]" : ""}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm text-slate-700">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="py-2 pr-4">Section</th>
+                <th className="py-2 pr-4">Sessions</th>
+                <th className="py-2 pr-4">Median time</th>
+                <th className="py-2 pr-4">Top 10% spend</th>
+                <th className="py-2 pr-4">Left from here</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const dwell = row.dwell;
+                const isExitPoint = dwell !== null && dwell.exitRate === worstExit && dwell.exitRate > 0;
+                const clickable = pageMeta !== null && showPreview;
+                return (
+                  <tr
+                    key={row.id}
+                    onClick={clickable ? () => setActiveAnchor(row.anchor) : undefined}
+                    className={`border-t border-slate-100 ${
+                      clickable ? "cursor-pointer hover:bg-slate-50" : ""
+                    } ${activeAnchor !== null && activeAnchor === row.anchor ? "bg-sky-50" : ""}`}
+                  >
+                    <td className="py-2 pr-4 font-medium text-slate-900">{row.label}</td>
+                    {dwell ? (
+                      <>
+                        <td className="py-2 pr-4 text-slate-700">{dwell.sessions.toLocaleString()}</td>
+                        <td className="py-2 pr-4 font-medium text-slate-900">{dwell.medianSeconds}s</td>
+                        <td className="py-2 pr-4 text-slate-500">{dwell.p90Seconds}s</td>
+                        <td className="py-2 pr-4">
+                          <span className={isExitPoint ? "font-medium text-amber-700" : "text-slate-700"}>
+                            {dwell.exits.toLocaleString()} ({shortPct(dwell.exitRate)})
+                          </span>
+                        </td>
+                      </>
+                    ) : (
+                      <td colSpan={4} className="py-2 pr-4 text-xs text-slate-400">
+                        No session reached this section in the range
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="text-xs text-slate-500 mt-2">
+            A long time on a section is not automatically good: it can mean the content is
+            compelling, or that it is confusing. Read it alongside the drop-off above.
+          </p>
+        </div>
+
+        {pageMeta && showPreview && previewSrc && (
+          <div className="xl:sticky xl:top-4 self-start">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+                {pageMeta.label} — live page, scrollable. Interactions here are not tracked.
+              </div>
+              <iframe
+                src={previewSrc}
+                title={`Preview of ${pageMeta.label}`}
+                sandbox="allow-scripts allow-forms"
+                className="h-[600px] w-full"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
