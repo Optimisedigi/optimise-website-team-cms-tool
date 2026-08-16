@@ -120,6 +120,7 @@ export interface Config {
     'landing-properties': LandingProperty;
     'landing-experiments': LandingExperiment;
     'landing-events': LandingEvent;
+    'landing-domains': LandingDomain;
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
@@ -234,6 +235,7 @@ export interface Config {
     'landing-properties': LandingPropertiesSelect<false> | LandingPropertiesSelect<true>;
     'landing-experiments': LandingExperimentsSelect<false> | LandingExperimentsSelect<true>;
     'landing-events': LandingEventsSelect<false> | LandingEventsSelect<true>;
+    'landing-domains': LandingDomainsSelect<false> | LandingDomainsSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
@@ -9303,6 +9305,52 @@ export interface LandingEvent {
   createdAt: string;
 }
 /**
+ * Custom hostnames mapped onto the landing Vercel project, with cached DNS instructions and live-check status.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-domains".
+ */
+export interface LandingDomain {
+  id: number;
+  property: number | LandingProperty;
+  /**
+   * Exact hostname, e.g. hire.awaydigitalteams.com. No wildcards.
+   */
+  hostname: string;
+  /**
+   * Vercel project the hostname is attached to.
+   */
+  vercelProjectId: string;
+  status: 'pending-dns' | 'pending-ssl' | 'live' | 'error';
+  /**
+   * Record type the client must create (normally CNAME).
+   */
+  dnsRecordType?: string | null;
+  /**
+   * Record name/host, e.g. `hire`.
+   */
+  dnsRecordName?: string | null;
+  /**
+   * Exact record value from Vercel (project-specific, e.g. 9d3f…vercel-dns-016.com). Never substitute the generic cname.vercel-dns.com.
+   */
+  dnsRecordValue?: string | null;
+  /**
+   * TXT challenge value when the domain belongs to another Vercel account; empty otherwise.
+   */
+  verificationTxt?: string | null;
+  lastCheckedAt?: string | null;
+  /**
+   * Display-only hint of which page the domain fronts (e.g. /outsourcing-au). Origins are host-scoped, so this has no effect on auth.
+   */
+  pathHint?: string | null;
+  /**
+   * Appended automatically: when the domain went live and which origin was added.
+   */
+  auditLog?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "business-costs".
  */
@@ -11350,6 +11398,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'landing-events';
         value: number | LandingEvent;
+      } | null)
+    | ({
+        relationTo: 'landing-domains';
+        value: number | LandingDomain;
       } | null)
     | ({
         relationTo: 'business-costs';
@@ -14008,6 +14060,25 @@ export interface LandingEventsSelect<T extends boolean = true> {
   deviceClass?: T;
   attribution?: T;
   properties?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-domains_select".
+ */
+export interface LandingDomainsSelect<T extends boolean = true> {
+  property?: T;
+  hostname?: T;
+  vercelProjectId?: T;
+  status?: T;
+  dnsRecordType?: T;
+  dnsRecordName?: T;
+  dnsRecordValue?: T;
+  verificationTxt?: T;
+  lastCheckedAt?: T;
+  pathHint?: T;
+  auditLog?: T;
   updatedAt?: T;
   createdAt?: T;
 }

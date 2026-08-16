@@ -110,6 +110,7 @@ import { ClientAnalyticsSnapshots } from "./collections/ClientAnalyticsSnapshots
 import { LandingProperties } from "./collections/LandingProperties";
 import { LandingExperiments } from "./collections/LandingExperiments";
 import { LandingEvents } from "./collections/LandingEvents";
+import { LandingDomains } from "./collections/LandingDomains";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -159,7 +160,7 @@ export default buildConfig({
     // Reports
     ForecastScenarios, AgencyKpiSnapshots, ClientMetricSnapshots, ClientAnalyticsSnapshots, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Landing experiments
-    LandingProperties, LandingExperiments, LandingEvents,
+    LandingProperties, LandingExperiments, LandingEvents, LandingDomains,
     // Finance
     BusinessCosts, CostCategories, CostRules, InvoiceStatementDrafts,
     Contractors, ContractorTimeEntries, ContractorPayments,

@@ -356,6 +356,35 @@ export async function runMigrations(
     await run("landing_events_created_at_idx", "CREATE INDEX IF NOT EXISTS `landing_events_created_at_idx` ON `landing_events` (`created_at`)");
   }
 
+  /**
+   * Custom-domain mappings for landing properties (added 2026-08-16, after the
+   * landing marker shipped, so it gets its own schema check rather than a new
+   * marker — the guard below keys on the newest table, per the marker-trust
+   * lesson documented above).
+   */
+  async function addLandingDomains(): Promise<void> {
+    await run("landing_domains", `CREATE TABLE IF NOT EXISTS \`landing_domains\` (
+      \`id\` integer PRIMARY KEY NOT NULL, \`property_id\` integer,
+      \`hostname\` text NOT NULL, \`vercel_project_id\` text DEFAULT 'od-landing-page-adt' NOT NULL,
+      \`status\` text DEFAULT 'pending-dns' NOT NULL,
+      \`dns_record_type\` text, \`dns_record_name\` text, \`dns_record_value\` text,
+      \`verification_txt\` text, \`last_checked_at\` text, \`path_hint\` text, \`audit_log\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`property_id\`) REFERENCES \`landing_properties\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("landing_domains_property_idx", "CREATE INDEX IF NOT EXISTS `landing_domains_property_idx` ON `landing_domains` (`property_id`)");
+    await run("landing_domains_hostname_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `landing_domains_hostname_idx` ON `landing_domains` (`hostname`)");
+    await run("landing_domains_status_idx", "CREATE INDEX IF NOT EXISTS `landing_domains_status_idx` ON `landing_domains` (`status`)");
+    await run("landing_domains_updated_at_idx", "CREATE INDEX IF NOT EXISTS `landing_domains_updated_at_idx` ON `landing_domains` (`updated_at`)");
+    await run("landing_domains_created_at_idx", "CREATE INDEX IF NOT EXISTS `landing_domains_created_at_idx` ON `landing_domains` (`created_at`)");
+    await run(
+      "locked_docs_rels.landing_domains_id",
+      "ALTER TABLE `payload_locked_documents_rels` ADD `landing_domains_id` integer REFERENCES `landing_domains`(`id`) ON DELETE cascade",
+      ["duplicate column"],
+    );
+  }
+
   async function addLandingLockRelations(): Promise<void> {
     for (const collection of ["landing_properties", "landing_experiments", "landing_events"]) {
       await run(
@@ -379,7 +408,9 @@ export async function runMigrations(
       // The newest column, not just the table. Checking the table alone stopped
       // being sufficient the moment columns were added to it later: the table
       // existed, so the skip fired, and the new columns were never created.
-      (await columnExists("landing_events", "market"))
+      (await columnExists("landing_events", "market")) &&
+      // Newest landing table: domain mappings, added after the marker shipped.
+      (await tableExists("landing_domains"))
     ) {
       const result: MigrationResult = { label: `mark_migration:${currentSchemaMarker}`, status: "skip", message: "already applied" };
       opts?.onProgress?.(result);
@@ -391,6 +422,7 @@ export async function runMigrations(
     // new lock relations there, avoiding thousands of remote no-op statements.
     if (await markerExists(previousSchemaMarker)) {
       await addLandingTables();
+      await addLandingDomains();
       await addLandingLockRelations();
       return results;
     }
@@ -5832,6 +5864,7 @@ export async function runMigrations(
     // Payload clears document locks after collection updates. These columns are
     // required in the shared relationship query even when updating team tasks.
     await addLandingTables();
+    await addLandingDomains();
     await addLandingLockRelations();
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

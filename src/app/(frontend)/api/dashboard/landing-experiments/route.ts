@@ -23,6 +23,12 @@ export const dynamic = "force-dynamic";
  * The client is resolved from the slug the dashboard token was issued for, and
  * every event query is filtered by that client's id, so a token for one client
  * cannot read another's landing data.
+ *
+ * Two independent ways in: the client-facing dashboard token (PIN flow,
+ * unchanged), or an authenticated Payload admin session — which lets the
+ * internal /landing-pages-dashboard reuse this report for any client without
+ * minting client tokens. An admin session is cross-tenant by definition; the
+ * token path stays scoped to its slug exactly as before.
  */
 
 /** Hard ceiling on rows scanned per request, so one busy client cannot stall the dashboard. */
@@ -119,7 +125,13 @@ export async function GET(req: NextRequest) {
 
   const token = req.cookies.get("dashboard_token")?.value;
   if (!validateDashboardToken(token, slug)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // No valid client token — fall back to a Payload admin session, so the
+    // internal dashboard can read any client's report without a minted token.
+    const payloadForAuth = await getPayload({ config });
+    const { user } = await payloadForAuth.auth({ headers: req.headers });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   const requestedDays = Number(req.nextUrl.searchParams.get("days") || "30");

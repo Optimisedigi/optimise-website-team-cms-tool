@@ -19,7 +19,10 @@ import {
  */
 
 const drizzleRun = vi.fn(async () => ({ rows: [] as Record<string, unknown>[] }));
-const payloadMock = { find: vi.fn(), db: { drizzle: { run: drizzleRun } } };
+// `auth` resolves to no user: these tests exercise the client-token path, and
+// an invalid token must stay 401 even though the route now also accepts an
+// admin session (covered in landing-report-auth.test.ts).
+const payloadMock = { find: vi.fn(), auth: vi.fn(async () => ({ user: null })), db: { drizzle: { run: drizzleRun } } };
 
 vi.mock("payload", () => ({ getPayload: vi.fn(async () => payloadMock) }));
 vi.mock("@/payload.config", () => ({ default: {} }));
