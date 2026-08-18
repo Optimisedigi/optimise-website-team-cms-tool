@@ -2,6 +2,7 @@
 
 import { useAllFormFields, useDocumentInfo, useField, useFormFields } from '@payloadcms/ui'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import ClientBreadcrumbSwitcher from './ClientBreadcrumbSwitcher'
 import GoogleAdsClientSwitcher from './GoogleAdsClientSwitcher'
 import {
   firstMonthProrationFactor,
@@ -397,16 +398,24 @@ function ClientRecordHeaderForClient() {
   const selected = new Set(Array.isArray(servicesValue) ? servicesValue : [])
 
   return (
-    <ClientHeaderCard
-      data={data}
-      selectedServices={selected}
-      showRevenue={showRevenue}
-      clientPin={data.clientPin}
-      googleAdsClientId={id}
-      showGoogleAdsClientSwitcher={data.services.includes('google_ads')}
-      onLogoClick={openLogoPicker}
-      onServiceToggle={toggleService}
-    />
+    <>
+      {!data.services.includes('google_ads') && (
+        <ClientBreadcrumbSwitcher
+          currentClientId={id}
+          currentClientName={data.name || 'Untitled client'}
+        />
+      )}
+      <ClientHeaderCard
+        data={data}
+        selectedServices={selected}
+        showRevenue={showRevenue}
+        clientPin={data.clientPin}
+        googleAdsClientId={id}
+        showGoogleAdsClientSwitcher={data.services.includes('google_ads')}
+        onLogoClick={openLogoPicker}
+        onServiceToggle={toggleService}
+      />
+    </>
   )
 }
 
