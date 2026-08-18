@@ -19,3 +19,24 @@ The internal Client Billing field, public `/hosting-pay/[token]` review page and
 - Button keyboard focus uses a high-contrast visible outline. Forced-colors gets native system button/border colors. The layout reflows at 320px without horizontal scrolling or fixed-height content.
 - The animated GIF contains no required information; the written Optimise Digital alternative text remains available if it does not load or animation is reduced.
 - Verified manually in Chromium desktop (1440px) and mobile (390px) during implementation. Screen-reader, 200% text, browser matrix, forced-colors and reduced-motion verification remain release checks.
+
+# Landing performance report
+
+## Scope
+
+`LandingExperimentTab` renders landing A/B and behaviour reporting on three surfaces: `/landing-dashboard/[slug]` (client, PIN-gated), `/landing-pages-dashboard` (internal, cross-client) and the Landing tab of the Google Ads dashboard. The single job is to make the one worst leak in the funnel obvious before anything else, without ever implying a winner the sample cannot support.
+
+## Design read and thesis
+
+- **Surface:** data-dense dashboard, read weekly by a marketer, not a statistician.
+- **Direction:** a light card stack on a slate field. One card per question (drop-off, markets, attribution, attention, events); a headline row of four numbers above them. The single dark card, `Biggest leak`, is the memorable device: the only inverted surface on the page is the one finding worth acting on.
+- **System:** slate ink for structure, sky for neutral funnel volume, amber for the worst drop-off only, teal for the conversion-rate figure and focus rings. Monospaced small caps mark column headings and badges, so tables read as data. No tinted status cards, hover lifts, icon medallions or emoji.
+- **Composition:** every card shares one padding, radius and border; every table shares one heading treatment and a right-aligned numeric column with `tabular-nums`. The page preview keeps its 400px sticky rail beside the section table.
+- **Honesty rules preserved from the previous layout:** uplift always ships with its interval and sample size, an underpowered comparison says so instead of showing a colour, truncated scans warn above the numbers they undercount, and the verdict strip reads `No winner yet` rather than picking one.
+
+## Accessibility and resilience
+
+- Cards are `section`s with `aria-labelledby`; the funnel, markets, attribution, variant and dwell data are real tables with `scope`d headers, and the funnel bars are `aria-hidden` decoration beside the numeric cell.
+- Device filters are `aria-pressed` buttons; page/range selects have visible labels; loading is `role="status"` and the error card `role="alert"`.
+- Muted text is held at slate-500 or darker rather than the mockup's lighter grey, which fails AA at small sizes. Amber and teal are used with text weight, never as the sole signal.
+- Verified in Chromium at 1440px and 390px against a full fixture during implementation. Screen-reader, 200% zoom, forced-colors and reduced-motion checks remain release checks.

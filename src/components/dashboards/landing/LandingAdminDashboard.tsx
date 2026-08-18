@@ -132,9 +132,8 @@ export function LandingAdminDashboard() {
         </div>
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <LandingExperimentTab slug={selected.slug} />
-      </section>
+      {/* The report renders its own cards; no second card around them. */}
+      <LandingExperimentTab slug={selected.slug} />
     </div>
   );
 }

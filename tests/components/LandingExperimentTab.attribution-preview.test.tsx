@@ -73,7 +73,9 @@ describe("LandingExperimentTab attribution table", () => {
     renderTab();
 
     const heading = await screen.findByRole("heading", { name: "Attribution" });
-    const table = heading.parentElement!.querySelector("table")!;
+    // Scoped to the card, not to the heading's immediate parent: the heading
+    // shares a row with other header content, so its parent is not the card.
+    const table = heading.closest("section")!.querySelector("table")!;
     expect(table).toBeTruthy();
 
     const paidRow = within(table).getByText("google / cpc / brand-au").closest("tr")!;
@@ -91,7 +93,7 @@ describe("LandingExperimentTab attribution table", () => {
     renderTab();
 
     const heading = await screen.findByRole("heading", { name: "Attribution" });
-    const table = heading.parentElement!.querySelector("table")!;
+    const table = heading.closest("section")!.querySelector("table")!;
     const headers = within(table)
       .getAllByRole("columnheader")
       .map((cell) => cell.textContent);

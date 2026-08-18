@@ -10,6 +10,13 @@ import { LANDING_PAGES, type LandingPageMeta } from "@/lib/landing-page-sections
  * Uplift is always accompanied by its confidence interval and sample size, and
  * an underpowered test says so plainly instead of showing a green number that
  * invites a decision.
+ *
+ * Layout is a light card stack on a neutral field: a headline row of the four
+ * numbers a reader needs before anything else, then one card per question
+ * (where people drop off, which market, where attention goes, what fired).
+ * Every colour is set explicitly, including on containers, because this tab is
+ * also embedded in the Google Ads dashboard, whose stylesheet defaults text to
+ * white for a dark surface — an inherited colour renders invisible there.
  */
 
 interface VariantSummary {
@@ -98,7 +105,19 @@ const BEHAVIOUR_LABELS: Record<string, string> = {
 };
 
 /** Words that look wrong in plain title case. */
-const SECTION_WORDS: Record<string, string> = { faq: "FAQ", cta: "CTA", roi: "ROI" };
+const SECTION_WORDS: Record<string, string> = {
+  faq: "FAQ",
+  faqs: "FAQs",
+  cta: "CTA",
+  roi: "ROI",
+};
+
+/** Column headings and other microtype: monospaced, so tables read as data. */
+const MICRO = "font-mono text-[10px] uppercase tracking-[0.1em] text-slate-500";
+const CARD = "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm";
+const SELECT =
+  "rounded-lg border border-slate-300 bg-white py-1.5 pl-2.5 pr-8 text-sm text-slate-900 " +
+  "focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/30";
 
 function pct(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
@@ -115,6 +134,40 @@ function sectionLabel(id: string): string {
     .filter(Boolean)
     .map((word) => SECTION_WORDS[word.toLowerCase()] ?? word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+/** One headline number. `tone="dark"` inverts the card, for the single worst finding. */
+function StatCard({
+  label,
+  value,
+  note,
+  tone = "light",
+  accent,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  tone?: "light" | "dark";
+  accent?: boolean;
+}) {
+  const dark = tone === "dark";
+  return (
+    <div
+      className={`rounded-2xl border p-5 shadow-sm ${
+        dark ? "border-slate-900 bg-slate-900" : "border-slate-200 bg-white"
+      }`}
+    >
+      <div className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>{label}</div>
+      <div
+        className={`mt-1.5 text-3xl font-bold tracking-tight tabular-nums ${
+          dark ? "text-amber-300" : accent ? "text-teal-700" : "text-slate-900"
+        }`}
+      >
+        {value}
+      </div>
+      <div className={`mt-1.5 text-xs ${dark ? "text-slate-300" : "text-slate-500"}`}>{note}</div>
+    </div>
+  );
 }
 
 export function LandingExperimentTab({ slug }: { slug: string }) {
@@ -171,8 +224,19 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
     if (busiest) setPage(busiest.key);
   }, [data, page]);
 
-  if (loading) return <div className="text-sm text-slate-500">Loading landing experiment data…</div>;
-  if (error) return <div className="text-sm text-red-600">{error}</div>;
+  if (loading)
+    return (
+      <div className={CARD} role="status">
+        <p className="text-sm text-slate-500">Loading landing performance…</p>
+      </div>
+    );
+  if (error)
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6" role="alert">
+        <p className="text-sm font-medium text-red-800">Could not load landing data</p>
+        <p className="mt-1 text-sm text-red-700">{error}</p>
+      </div>
+    );
   if (!data) return null;
 
   const hasVariants = data.variants.length > 0;
@@ -180,30 +244,64 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
   // mid-session, which is rare enough that the sum is the honest denominator.
   const totalDeviceSessions = data.devices.reduce((sum, entry) => sum + entry.sessions, 0);
 
+  const sessions = data.variants.reduce((sum, variant) => sum + variant.sessions, 0);
+  const conversions = data.variants.reduce((sum, variant) => sum + variant.conversions, 0);
+  const conversionRate = sessions > 0 ? conversions / sessions : 0;
+  const realMarkets = data.markets.filter((entry) => entry.key !== "(unset)");
+
+  // The single worst hand-off in the funnel: the first thing worth fixing.
+  const leak = data.funnel
+    .slice(1)
+    .reduce<FunnelStep | null>(
+      (worst, step) => (step.dropOffRate > (worst?.dropOffRate ?? 0) ? step : worst),
+      null
+    );
+  const leakPrevious = leak ? data.funnel[data.funnel.findIndex((s) => s.key === leak.key) - 1] : null;
+
+  const goalLabel = data.experiment
+    ? BEHAVIOUR_LABELS[data.experiment.primaryGoal] ?? data.experiment.primaryGoal
+    : "Conversions";
+  const running = data.experiment?.status?.toLowerCase() === "running";
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <div className="space-y-6 text-slate-900">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold text-slate-900">
+          <h3 className="text-xl font-bold tracking-tight text-slate-900">
             {data.experiment ? data.experiment.name : "No experiment configured"}
           </h3>
           {data.experiment && (
-            <p className="text-xs text-slate-500 mt-0.5">
-              {data.experiment.id} · allocation v{data.experiment.allocationVersion} ·{" "}
-              <span className="capitalize">{data.experiment.status}</span> · primary goal:{" "}
-              {BEHAVIOUR_LABELS[data.experiment.primaryGoal] ?? data.experiment.primaryGoal}
+            <p className="mt-1 text-sm text-slate-500">
+              {data.experiment.id} · allocation v{data.experiment.allocationVersion} · primary goal:{" "}
+              {goalLabel}
             </p>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3">
+          {data.experiment && (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                running
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-slate-200 bg-slate-50 text-slate-700"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-500" : "bg-slate-400"}`}
+              />
+              <span className="capitalize">{data.experiment.status}</span>
+            </span>
+          )}
+
           {data.pages.length > 1 && (
-            <label className="text-sm text-slate-600">
-              Page{" "}
+            <label className="flex flex-col gap-1 text-xs text-slate-500">
+              Page
               <select
                 value={page}
                 onChange={(event) => setPage(event.target.value)}
-                className="ml-1 rounded-md border border-slate-200 px-2 py-1"
+                className={SELECT}
               >
                 <option value="">All pages</option>
                 {data.pages.map((entry) => (
@@ -215,12 +313,12 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
             </label>
           )}
 
-          <label className="text-sm text-slate-600">
-            Range{" "}
+          <label className="flex flex-col gap-1 text-xs text-slate-500">
+            Range
             <select
               value={days}
               onChange={(event) => setDays(Number(event.target.value))}
-              className="ml-1 rounded-md border border-slate-200 px-2 py-1"
+              className={SELECT}
             >
               <option value={7}>Last 7 days</option>
               <option value={30}>Last 30 days</option>
@@ -230,187 +328,210 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
         </div>
       </div>
 
-      {/* Device split as a summary, then a toggle. The split is always visible,
-          so selecting one device never hides how much traffic the other had. */}
-      {data.devices.length > 0 && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs uppercase tracking-wide text-slate-500 mr-1">Device</span>
-            {[{ key: "", sessions: totalDeviceSessions, conversionRate: null as number | null }]
-              .concat(
-                data.devices.map((entry) => ({
-                  key: entry.key,
-                  sessions: entry.sessions,
-                  conversionRate: entry.conversionRate,
-                }))
-              )
-              .map((entry) => {
-                const active = device === entry.key;
-                const share = totalDeviceSessions > 0 ? entry.sessions / totalDeviceSessions : 0;
-                return (
-                  <button
-                    key={entry.key || "all"}
-                    type="button"
-                    onClick={() => setDevice(entry.key)}
-                    aria-pressed={active}
-                    className={`rounded-md border px-3 py-1.5 text-xs transition ${
-                      active
-                        ? "border-sky-500 bg-white font-medium text-sky-700 shadow-sm"
-                        : "border-transparent text-slate-600 hover:bg-white"
-                    }`}
-                  >
-                    {entry.key === "" ? "All devices" : sectionLabel(entry.key)}
-                    <span className="ml-1.5 text-slate-500">
-                      {entry.sessions.toLocaleString()}
-                      {entry.key !== "" && ` · ${shortPct(share)}`}
-                    </span>
-                    {entry.conversionRate !== null && (
-                      <span className="ml-1.5 text-slate-400">{pct(entry.conversionRate)} conv</span>
-                    )}
-                  </button>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      {data.markets.filter((entry) => entry.key !== "(unset)").length > 1 && (
-        <div>
-          <h4 className="text-sm font-semibold text-slate-900 mb-1">Markets</h4>
-          <p className="text-xs text-slate-500 mb-3">
-            Totals for the whole range, across every page, so the comparison holds while a single
-            page is selected above. Each market runs its own page, so these are separate audiences
-            rather than an experiment: read a difference as a prompt to look, not as a result.
-          </p>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm text-slate-700">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4">Market</th>
-                  <th className="py-2 pr-4">Sessions</th>
-                  <th className="py-2 pr-4">Conversions</th>
-                  <th className="py-2 pr-4">Conversion rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.markets.map((entry) => (
-                  <tr key={entry.key} className="border-t border-slate-100">
-                    <td className="py-2 pr-4 font-medium text-slate-900">{entry.key}</td>
-                    <td className="py-2 pr-4 text-slate-700">{entry.sessions.toLocaleString()}</td>
-                    <td className="py-2 pr-4 text-slate-700">{entry.conversions.toLocaleString()}</td>
-                    <td className="py-2 pr-4 font-medium text-slate-900">{pct(entry.conversionRate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {(data.attribution?.length ?? 0) > 0 && (
-        <div>
-          <h4 className="text-sm font-semibold text-slate-900 mb-1">Attribution</h4>
-          <p className="text-xs text-slate-500 mb-3">
-            Source / medium / campaign from the click that started the session, for the whole
-            range. `(direct)` is a visit that arrived with no campaign tags — typing the URL,
-            a bookmark, or a link that stripped them — not a tracking failure. Sessions are
-            counted once against the attribution they arrived with.
-          </p>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm text-slate-700">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4">Source / medium / campaign</th>
-                  <th className="py-2 pr-4">Sessions</th>
-                  <th className="py-2 pr-4">Conversions</th>
-                  <th className="py-2 pr-4">Conversion rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.attribution.map((entry) => (
-                  <tr key={entry.key} className="border-t border-slate-100">
-                    <td className="py-2 pr-4 font-medium text-slate-900">{entry.key}</td>
-                    <td className="py-2 pr-4 text-slate-700">{entry.sessions.toLocaleString()}</td>
-                    <td className="py-2 pr-4 text-slate-700">{entry.conversions.toLocaleString()}</td>
-                    <td className="py-2 pr-4 font-medium text-slate-900">{pct(entry.conversionRate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {hasVariants && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Sessions"
+            value={sessions.toLocaleString()}
+            note={`Last ${data.rangeDays} days${page ? ` · ${page}` : ""}`}
+          />
+          <StatCard label="Conversions" value={conversions.toLocaleString()} note={goalLabel} />
+          <StatCard
+            label="Conversion rate"
+            value={pct(conversionRate)}
+            accent
+            note={
+              realMarkets.length > 1
+                ? realMarkets.map((m) => `${m.key} ${pct(m.conversionRate)}`).join(" · ")
+                : "Sessions that reached the primary goal"
+            }
+          />
+          {leak && leak.dropOffRate > 0 ? (
+            <StatCard
+              tone="dark"
+              label="Biggest leak"
+              value={leak.label}
+              note={`−${leak.droppedFromPrevious.toLocaleString()} sessions (${shortPct(
+                leak.dropOffRate
+              )}) after “${leakPrevious ? leakPrevious.label : "the previous step"}”`}
+            />
+          ) : (
+            <StatCard
+              label="Biggest leak"
+              value="—"
+              note="No drop-off measured in this range"
+            />
+          )}
         </div>
       )}
 
       {data.truncated && (
-        <p className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-          <strong className="font-semibold">These totals are incomplete.</strong> The scan stopped
-          at {data.eventsScanned.toLocaleString()} events, so every number below undercounts.
-          Choose a single page, or a shorter range, for figures you can act on.
+        <p
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          role="status"
+        >
+          <strong className="font-semibold text-amber-900">These totals are incomplete.</strong> The
+          scan stopped at {data.eventsScanned.toLocaleString()} events, so every number below
+          undercounts. Choose a single page, or a shorter range, for figures you can act on.
         </p>
       )}
 
-      {!hasVariants ? (
-        <p className="text-sm text-slate-500">
-          No landing events recorded in this range.
-        </p>
-      ) : (
-        <>
+      {!hasVariants && (
+        <div className={CARD}>
+          <p className="text-sm text-slate-500">No landing events recorded in this range.</p>
+        </div>
+      )}
+
+      {/* The variant split normally sits under the funnel it splits. With no
+          funnel data there is nothing to sit under, so it stands on its own
+          rather than taking the variant results off the page. */}
+      {hasVariants && !data.funnel.some((step) => step.sessions > 0) && (
+        <section className={CARD}>
+          <VariantSplit
+            variants={data.variants}
+            comparisons={data.comparisons}
+            controlVariantId={data.controlVariantId}
+            funnelByVariant={data.funnelByVariant}
+            funnel={data.funnel}
+          />
+        </section>
+      )}
+
+      {data.funnel.some((step) => step.sessions > 0) && (
+        <section className={`${CARD} space-y-5`} aria-labelledby="landing-funnel-heading">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h4 id="landing-funnel-heading" className="text-base font-bold text-slate-900">
+                Where people drop off
+              </h4>
+              <p className="mt-1 max-w-2xl text-sm text-slate-500">
+                Distinct sessions reaching each step. The percentage on the right is the share lost
+                since the previous step, which is where the journey is actually breaking.
+              </p>
+            </div>
+
+            {/* Device split as a summary, then a toggle. The split is always visible,
+                so selecting one device never hides how much traffic the other had. */}
+            {data.devices.length > 0 && (
+              <div
+                className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1"
+                role="group"
+                aria-label="Filter by device"
+              >
+                {[{ key: "", sessions: totalDeviceSessions, conversionRate: null as number | null }]
+                  .concat(
+                    data.devices.map((entry) => ({
+                      key: entry.key,
+                      sessions: entry.sessions,
+                      conversionRate: entry.conversionRate,
+                    }))
+                  )
+                  .map((entry) => {
+                    const active = device === entry.key;
+                    const share = totalDeviceSessions > 0 ? entry.sessions / totalDeviceSessions : 0;
+                    return (
+                      <button
+                        key={entry.key || "all"}
+                        type="button"
+                        onClick={() => setDevice(entry.key)}
+                        aria-pressed={active}
+                        className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40 ${
+                          active
+                            ? "border-slate-300 bg-white font-semibold text-slate-900 shadow-sm"
+                            : "border-transparent text-slate-600 hover:bg-white/70"
+                        }`}
+                      >
+                        {entry.key === "" ? "All devices" : sectionLabel(entry.key)}
+                        <span className="ml-1.5 text-slate-500 tabular-nums">
+                          {entry.sessions.toLocaleString()}
+                          {entry.key !== "" && ` · ${shortPct(share)}`}
+                        </span>
+                        {entry.conversionRate !== null && (
+                          <span className="ml-1.5 text-slate-500 tabular-nums">
+                            {pct(entry.conversionRate)}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+
           <div className="overflow-x-auto">
-            {/* Every cell sets its own colour. This tab is embedded in the Google
-                Ads dashboard, whose stylesheet defaults text to white for a dark
-                surface, so an inherited colour renders invisible here. */}
             <table className="min-w-full text-sm text-slate-700">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4">Variant</th>
-                  <th className="py-2 pr-4">Sessions</th>
-                  <th className="py-2 pr-4">Conversions</th>
-                  <th className="py-2 pr-4">Conversion rate</th>
-                  <th className="py-2 pr-4">95% interval</th>
-                  <th className="py-2 pr-4">vs control</th>
+                <tr className={`text-left ${MICRO}`}>
+                  <th
+                    scope="col"
+                    className="w-28 border-b border-slate-200 pb-2 pr-4 font-normal sm:w-44"
+                  >
+                    Step
+                  </th>
+                  <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                    Reached
+                  </th>
+                  <th scope="col" className="w-32 border-b border-slate-200 pb-2 pr-4 font-normal">
+                    Sessions
+                  </th>
+                  <th
+                    scope="col"
+                    className="w-40 border-b border-slate-200 pb-2 text-right font-normal"
+                  >
+                    Lost from previous
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {data.variants.map((variant) => {
-                  const comparison = data.comparisons.find((row) => row.variantId === variant.variantId);
-                  const isControl = variant.variantId === data.controlVariantId;
+                {data.funnel.map((step, index) => {
+                  const entry = data.funnel[0]?.sessions ?? 0;
+                  const width = entry > 0 ? Math.max(step.shareOfEntry * 100, 1.5) : 0;
+                  const isWorst = leak !== null && step.key === leak.key && leak.dropOffRate > 0;
 
                   return (
-                    <tr key={variant.variantId} className="border-t border-slate-100">
-                      <td className="py-2 pr-4 font-medium text-slate-900">
-                        {variant.variantId}
-                        {isControl && <span className="ml-2 text-xs text-slate-500">control</span>}
+                    <tr
+                      key={step.key}
+                      className={`border-b border-slate-100 ${isWorst ? "bg-amber-50" : ""}`}
+                    >
+                      <th
+                        scope="row"
+                        className={`py-3 pr-4 text-left text-sm font-semibold ${
+                          isWorst ? "pl-2 text-amber-900" : "text-slate-900"
+                        }`}
+                      >
+                        {step.label}
+                      </th>
+                      {/* The bar sits beside the row rather than under the label:
+                          text over a variable-width fill is unreadable wherever
+                          the fill happens to end. */}
+                      <td className="py-3 pr-4">
+                        <div
+                          aria-hidden="true"
+                          className="h-5 min-w-[6rem] overflow-hidden rounded bg-slate-100"
+                        >
+                          <div
+                            className={`h-full rounded-sm ${isWorst ? "bg-amber-500" : "bg-sky-500"}`}
+                            style={{ width: `${width}%` }}
+                          />
+                        </div>
                       </td>
-                      <td className="py-2 pr-4 text-slate-700">{variant.sessions.toLocaleString()}</td>
-                      <td className="py-2 pr-4 text-slate-700">{variant.conversions.toLocaleString()}</td>
-                      <td className="py-2 pr-4 font-medium text-slate-900">{pct(variant.conversionRate)}</td>
-                      <td className="py-2 pr-4 text-slate-500">
-                        {pct(variant.interval[0])} – {pct(variant.interval[1])}
+                      <td className="py-3 pr-4 tabular-nums">
+                        <span className="font-semibold text-slate-900">
+                          {step.sessions.toLocaleString()}
+                        </span>
+                        <span className="ml-1.5 text-slate-500">{shortPct(step.shareOfEntry)}</span>
                       </td>
-                      <td className="py-2 pr-4 text-slate-700">
-                        {isControl || !comparison ? (
-                          <span className="text-slate-400">—</span>
-                        ) : comparison.underpowered ? (
-                          <span className="text-slate-500">
-                            {comparison.upliftPct === null ? "—" : `${comparison.upliftPct.toFixed(1)}%`}
-                            <span className="ml-2 text-xs">not enough data</span>
-                          </span>
+                      <td className="py-3 text-right tabular-nums">
+                        {index === 0 ? (
+                          <span className="text-slate-500">—</span>
                         ) : (
                           <span
                             className={
-                              comparison.significant
-                                ? comparison.upliftPct !== null && comparison.upliftPct > 0
-                                  ? "text-green-700 font-medium"
-                                  : "text-red-700 font-medium"
-                                : "text-slate-600"
+                              isWorst ? "pr-2 font-bold text-amber-800" : "text-slate-600"
                             }
                           >
-                            {comparison.upliftPct === null ? "—" : `${comparison.upliftPct.toFixed(1)}%`}
-                            <span className="ml-2 text-xs">
-                              {comparison.significant
-                                ? `significant (p=${comparison.pValue?.toFixed(3)})`
-                                : `inconclusive (p=${comparison.pValue?.toFixed(3)})`}
-                            </span>
+                            −{step.droppedFromPrevious.toLocaleString()} (
+                            {shortPct(step.dropOffRate)})
                           </span>
                         )}
                       </td>
@@ -421,68 +542,9 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
             </table>
           </div>
 
-          <p className="text-xs text-slate-500">
-            Sessions are counted once per variant, and a session converts at most once however many
-            goal events it fires. A result is only called significant when it clears both the p-value
-            threshold and a minimum sample, so an early lead is reported as inconclusive rather than
-            as a win.
-          </p>
-        </>
-      )}
-
-      {data.funnel.some((step) => step.sessions > 0) && (
-        <div className="pt-2">
-          <h4 className="text-sm font-semibold text-slate-900 mb-1">Where people drop off</h4>
-          <p className="text-xs text-slate-500 mb-3">
-            Distinct sessions reaching each step. The percentage on the right is the share lost
-            since the previous step, which is where the journey is actually breaking.
-          </p>
-
-          <div className="space-y-1.5">
-            {data.funnel.map((step, index) => {
-              const entry = data.funnel[0]?.sessions ?? 0;
-              const width = entry > 0 ? Math.max(step.shareOfEntry * 100, 1.5) : 0;
-              // The worst single drop is the one worth looking at first.
-              const worst = Math.max(...data.funnel.slice(1).map((s) => s.dropOffRate), 0);
-              const isWorst = index > 0 && step.dropOffRate === worst && step.dropOffRate > 0;
-
-              return (
-                <div key={step.key} className="flex items-center gap-3">
-                  <div className="w-40 shrink-0 text-xs text-slate-600">{step.label}</div>
-                  {/* The bar sits behind the row and the label beside it, rather
-                      than on top of the fill. Text over a variable-width bar is
-                      unreadable wherever the fill happens to end. */}
-                  <div className="relative h-7 flex-1 rounded bg-slate-100">
-                    <div
-                      className={`absolute inset-y-0 left-0 rounded ${isWorst ? "bg-amber-400" : "bg-sky-400"}`}
-                      style={{ width: `${width}%` }}
-                    />
-                  </div>
-                  <div className="w-36 shrink-0 text-xs">
-                    <span className="font-medium text-slate-900">
-                      {step.sessions.toLocaleString()}
-                    </span>
-                    <span className="ml-1.5 text-slate-500">{shortPct(step.shareOfEntry)}</span>
-                  </div>
-                  <div className="w-32 shrink-0 text-right text-xs">
-                    {index === 0 ? (
-                      <span className="text-slate-400">—</span>
-                    ) : (
-                      <span className={isWorst ? "font-medium text-amber-700" : "text-slate-600"}>
-                        −{step.droppedFromPrevious.toLocaleString()} ({shortPct(step.dropOffRate)})
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
           {(data.formSubmissions?.length ?? 0) > 0 && (
-            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-xs font-medium text-slate-700">
-                Which form was submitted
-              </p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-800">Which form was submitted</p>
               <p className="mt-0.5 text-xs text-slate-500">
                 The step above pools every form. The checklist PDF is an email capture, not a
                 qualified lead, so it is counted separately here.
@@ -491,10 +553,10 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
                 {data.formSubmissions!.map((form) => (
                   <li
                     key={form.formId}
-                    className="flex items-center justify-between gap-3 text-xs text-slate-700"
+                    className="flex items-center justify-between gap-3 text-sm text-slate-700"
                   >
                     <span>{form.label}</span>
-                    <span className="font-medium text-slate-900">
+                    <span className="font-semibold text-slate-900 tabular-nums">
                       {form.sessions.toLocaleString()}
                     </span>
                   </li>
@@ -503,66 +565,245 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
             </div>
           )}
 
-          {Object.keys(data.funnelByVariant).length > 1 && (
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-xs text-slate-700">
-                <thead>
-                  <tr className="text-left uppercase tracking-wide text-slate-500">
-                    <th className="py-1.5 pr-4">Step</th>
-                    {Object.keys(data.funnelByVariant).map((variantId) => (
-                      <th key={variantId} className="py-1.5 pr-4">
-                        Variant {variantId}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.funnel.map((step, index) => (
-                    <tr key={step.key} className="border-t border-slate-100">
-                      <td className="py-1.5 pr-4 text-slate-600">{step.label}</td>
-                      {Object.entries(data.funnelByVariant).map(([variantId, steps]) => {
-                        const row = steps[index];
-                        return (
-                          <td key={variantId} className="py-1.5 pr-4 text-slate-700">
-                            {row ? row.sessions.toLocaleString() : "0"}
-                            {row && index > 0 && (
-                              <span className="ml-1.5 text-slate-400">
-                                −{shortPct(row.dropOffRate)}
-                              </span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {hasVariants && (
+            <VariantSplit
+              variants={data.variants}
+              comparisons={data.comparisons}
+              controlVariantId={data.controlVariantId}
+              funnelByVariant={data.funnelByVariant}
+              funnel={data.funnel}
+            />
           )}
-        </div>
+        </section>
+      )}
+
+      {realMarkets.length > 1 && (
+        <section className={`${CARD} space-y-4`} aria-labelledby="landing-markets-heading">
+          <div>
+            <h4 id="landing-markets-heading" className="text-base font-bold text-slate-900">
+              Markets
+            </h4>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
+              Totals for the whole range, across every page, so the comparison holds while a single
+              page is selected above. Each market runs its own page, so these are separate audiences
+              rather than an experiment: read a difference as a prompt to look, not as a result.
+            </p>
+          </div>
+          <SegmentTable rows={data.markets} firstColumn="Market" />
+        </section>
+      )}
+
+      {(data.attribution?.length ?? 0) > 0 && (
+        <section className={`${CARD} space-y-4`} aria-labelledby="landing-attribution-heading">
+          <div>
+            <h4 id="landing-attribution-heading" className="text-base font-bold text-slate-900">
+              Attribution
+            </h4>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
+              Source / medium / campaign from the click that started the session, for the whole
+              range. `(direct)` is a visit that arrived with no campaign tags — typing the URL, a
+              bookmark, or a link that stripped them — not a tracking failure. Sessions are counted
+              once against the attribution they arrived with.
+            </p>
+          </div>
+          <SegmentTable rows={data.attribution} firstColumn="Source / medium / campaign" />
+        </section>
       )}
 
       {(data.sections.length > 0 || LANDING_PAGES[page]) && (
         <SectionDwellPanel sections={data.sections} pageMeta={LANDING_PAGES[page] ?? null} />
       )}
 
-      {/* The conditional block above is a fragment, so the parent's vertical
-          rhythm does not reach across it. This section sets its own top margin. */}
-      <div className="pt-2">
-        <h4 className="text-sm font-semibold text-slate-900 mb-3">On-page behaviour</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <section className={`${CARD} space-y-4`} aria-labelledby="landing-behaviour-heading">
+        <h4 id="landing-behaviour-heading" className="text-base font-bold text-slate-900">
+          On-page behaviour
+        </h4>
+        {/* Gapped cells rather than a hairline-divided block: the count of
+            event types is whatever fired, so a divided grid would end in empty
+            cells that read as missing data. */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
           {Object.entries(data.behaviourTotals)
             .sort((a, b) => b[1] - a[1])
             .map(([eventType, count]) => (
-              <div key={eventType} className="rounded-lg border border-slate-200 bg-white p-3">
-                <div className="text-xs text-slate-500">{BEHAVIOUR_LABELS[eventType] ?? eventType}</div>
-                <div className="text-lg font-semibold text-slate-900">{count.toLocaleString()}</div>
+              <div key={eventType} className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="text-xs text-slate-500">
+                  {BEHAVIOUR_LABELS[eventType] ?? eventType}
+                </div>
+                <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+                  {count.toLocaleString()}
+                </div>
               </div>
             ))}
         </div>
-        <p className="text-xs text-slate-500 mt-2">
-          Counts consented visitors only, so they are lower than total traffic and should not be read
-          as sitewide volume.
+        <p className="text-sm text-slate-500">
+          Counts consented visitors only, so they are lower than total traffic and should not be
+          read as sitewide volume.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+/** Markets and attribution share one shape, so they share one table. */
+function SegmentTable({ rows, firstColumn }: { rows: Segment[]; firstColumn: string }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm text-slate-700">
+        <thead>
+          <tr className={`text-left ${MICRO}`}>
+            <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+              {firstColumn}
+            </th>
+            <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+              Sessions
+            </th>
+            <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+              Conversions
+            </th>
+            <th scope="col" className="border-b border-slate-200 pb-2 font-normal">
+              Conversion rate
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((entry) => (
+            <tr key={entry.key} className="border-b border-slate-100 last:border-0">
+              <th scope="row" className="py-3 pr-4 text-left font-semibold text-slate-900">
+                {entry.key}
+              </th>
+              <td className="py-3 pr-4 text-slate-700 tabular-nums">
+                {entry.sessions.toLocaleString()}
+              </td>
+              <td className="py-3 pr-4 text-slate-700 tabular-nums">
+                {entry.conversions.toLocaleString()}
+              </td>
+              <td className="py-3 font-semibold text-slate-900 tabular-nums">
+                {pct(entry.conversionRate)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * The same funnel, split by variant, with the verdict stated in words.
+ *
+ * Each variant is a card rather than a column in one wide table, so its rate,
+ * its interval and its own drop-off stay together: a reader comparing two
+ * numbers can see the uncertainty attached to each of them without moving.
+ */
+function VariantSplit({
+  variants,
+  comparisons,
+  controlVariantId,
+  funnelByVariant,
+  funnel,
+}: {
+  variants: VariantSummary[];
+  comparisons: ComparisonSummary[];
+  controlVariantId: string;
+  funnelByVariant: Record<string, FunnelStep[]>;
+  funnel: FunnelStep[];
+}) {
+  const winner = comparisons.find((row) => row.significant && (row.upliftPct ?? 0) > 0);
+  const anyUnderpowered = comparisons.some((row) => row.underpowered);
+  const verdict = winner
+    ? `Variant ${winner.variantId} is ahead`
+    : anyUnderpowered
+      ? "Not enough data"
+      : "No winner yet";
+
+  return (
+    <div className="space-y-4 border-t border-slate-200 pt-5">
+      <h5 className="text-sm font-bold text-slate-900">Same funnel, split by variant</h5>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {variants.map((variant) => {
+          const comparison = comparisons.find((row) => row.variantId === variant.variantId);
+          const isControl = variant.variantId === controlVariantId;
+          const steps = funnelByVariant[variant.variantId] ?? [];
+          const badge = isControl
+            ? "Control"
+            : comparison?.upliftPct === null || comparison === undefined
+              ? "No comparison"
+              : comparison.underpowered
+                ? `${comparison.upliftPct.toFixed(1)}% · not enough data`
+                : `${comparison.upliftPct.toFixed(1)}% vs control · ${
+                    comparison.significant ? "significant" : "inconclusive"
+                  }`;
+          // p stays out of the uppercased badge: "P=0.212" is not the notation.
+          const pValueNote =
+            !isControl && comparison && !comparison.underpowered && comparison.pValue !== null
+              ? `p=${comparison.pValue.toFixed(3)}`
+              : null;
+
+          return (
+            <div
+              key={variant.variantId}
+              className="rounded-xl border border-slate-200 bg-white p-4"
+            >
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-base font-bold text-slate-900">
+                  Variant {variant.variantId}
+                </span>
+                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-600">
+                  {badge}
+                </span>
+                {pValueNote && (
+                  <span className="font-mono text-[10px] text-slate-500">{pValueNote}</span>
+                )}
+                <span className="ml-auto text-base font-bold text-slate-900 tabular-nums">
+                  {pct(variant.conversionRate)}
+                </span>
+              </div>
+
+              <dl className="mt-3 space-y-2 text-sm">
+                {(steps.length > 0 ? steps : funnel.map(() => null)).map((step, index) => {
+                  const label = funnel[index]?.label ?? "";
+                  if (!step) return null;
+                  const worstOfVariant = Math.max(...steps.slice(1).map((s) => s.dropOffRate), 0);
+                  const isWorst =
+                    index > 0 && step.dropOffRate === worstOfVariant && step.dropOffRate > 0;
+                  return (
+                    <div key={step.key} className="flex items-baseline justify-between gap-3">
+                      <dt className="text-slate-600">{label}</dt>
+                      <dd className="tabular-nums">
+                        {index > 0 && (
+                          <span className={isWorst ? "text-amber-800" : "text-slate-500"}>
+                            −{shortPct(step.dropOffRate)}{" "}
+                          </span>
+                        )}
+                        <span className="font-semibold text-slate-900">
+                          {step.sessions.toLocaleString()}
+                        </span>
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
+
+              <p className="mt-3 text-xs text-slate-500 tabular-nums">
+                {variant.sessions.toLocaleString()} sessions ·{" "}
+                {variant.conversions.toLocaleString()} conversions · 95% interval{" "}
+                {pct(variant.interval[0])} – {pct(variant.interval[1])}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
+        <span className="rounded-md border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-700">
+          {verdict}
+        </span>
+        <p className="flex-1 text-sm text-slate-600">
+          Sessions are counted once per variant, and a session converts at most once however many
+          goal events it fires. A result is only called significant when it clears both the p-value
+          threshold and a minimum sample, so an early lead is reported as inconclusive rather than
+          as a win.
         </p>
       </div>
     </div>
@@ -622,19 +863,32 @@ function SectionDwellPanel({
         }));
 
   const worstExit = Math.max(...sections.map((s) => s.exitRate), 0);
+  const longestMedian = Math.max(...sections.map((s) => s.medianSeconds), 1);
   const previewSrc = pageMeta ? `${pageMeta.url}${activeAnchor ? `#${activeAnchor}` : ""}` : null;
 
   return (
-    <div className="pt-2">
-      <div className="flex items-center justify-between gap-4 flex-wrap mb-1">
-        <h4 className="text-sm font-semibold text-slate-900">Where people spend their time</h4>
+    <section className={`${CARD} space-y-4`} aria-labelledby="landing-attention-heading">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h4 id="landing-attention-heading" className="text-base font-bold text-slate-900">
+            Where people spend their time
+          </h4>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
+            {pageMeta
+              ? "Sections in the order they appear on the page. Click a section to scroll the live page beside the numbers. "
+              : ""}
+            Active seconds with the section on screen and the tab focused, so a page left open in a
+            background tab does not read as attention. Median rather than average, because a few
+            long sessions would otherwise move every number.
+          </p>
+        </div>
         {pageMeta && (
           <div className="flex items-center gap-3">
             <a
               href={pageMeta.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-sky-700 hover:underline"
+              className="text-sm text-teal-700 underline-offset-2 hover:underline"
             >
               Open page ↗
             </a>
@@ -642,21 +896,13 @@ function SectionDwellPanel({
               type="button"
               onClick={() => setShowPreview((value) => !value)}
               aria-pressed={showPreview}
-              className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
             >
               {showPreview ? "Hide page" : "Show page"}
             </button>
           </div>
         )}
       </div>
-      <p className="text-xs text-slate-500 mb-3">
-        {pageMeta
-          ? "Sections in the order they appear on the page. Click a section to scroll the live page beside the numbers. "
-          : ""}
-        Active seconds with the section on screen and the tab focused, so a page left open in a
-        background tab does not read as attention. Median rather than average, because a few long
-        sessions would otherwise move every number.
-      </p>
 
       {/* Preview first in both source and layout: it is the thing being measured.
           Its outer cell stretches to the grid row, so it matches the sections
@@ -666,8 +912,8 @@ function SectionDwellPanel({
       <div className={pageMeta && showPreview ? "grid gap-6 xl:grid-cols-[400px_minmax(0,1fr)]" : ""}>
         {pageMeta && showPreview && previewSrc && (
           <div className="h-full">
-            <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4">
-              <div className="shrink-0 border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+            <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white xl:sticky xl:top-4">
+              <div className="shrink-0 border-b border-slate-100 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.06em] leading-relaxed text-slate-500">
                 {pageMeta.label} — live page, scrollable. Interactions here are not tracked.
               </div>
               <iframe
@@ -684,41 +930,90 @@ function SectionDwellPanel({
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm text-slate-700">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="py-2 pr-4">Section</th>
-                <th className="py-2 pr-4">Sessions</th>
-                <th className="py-2 pr-4">Median time</th>
-                <th className="py-2 pr-4">Top 10% spend</th>
-                <th className="py-2 pr-4">Left from here</th>
+              <tr className={`text-left ${MICRO}`}>
+                <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                  Section
+                </th>
+                <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                  Sessions
+                </th>
+                <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                  Median time
+                </th>
+                <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                  Top 10%
+                </th>
+                <th scope="col" className="border-b border-slate-200 pb-2 text-right font-normal">
+                  Left from here
+                </th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => {
                 const dwell = row.dwell;
-                const isExitPoint = dwell !== null && dwell.exitRate === worstExit && dwell.exitRate > 0;
+                const isExitPoint =
+                  dwell !== null && dwell.exitRate === worstExit && dwell.exitRate > 0;
                 const clickable = pageMeta !== null && showPreview;
+                const isActive = activeAnchor !== null && activeAnchor === row.anchor;
                 return (
                   <tr
                     key={row.id}
                     onClick={clickable ? () => setActiveAnchor(row.anchor) : undefined}
-                    className={`border-t border-slate-100 ${
+                    className={`border-b border-slate-100 ${
                       clickable ? "cursor-pointer hover:bg-slate-50" : ""
-                    } ${activeAnchor !== null && activeAnchor === row.anchor ? "bg-sky-50" : ""}`}
+                    } ${isActive ? "bg-sky-50" : ""}`}
                   >
-                    <td className="py-2 pr-4 font-medium text-slate-900">{row.label}</td>
+                    <th scope="row" className="py-2.5 pr-4 text-left font-semibold text-slate-900">
+                      {clickable ? (
+                        <button
+                          type="button"
+                          onClick={() => setActiveAnchor(row.anchor)}
+                          className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
+                        >
+                          {row.label}
+                        </button>
+                      ) : (
+                        row.label
+                      )}
+                    </th>
                     {dwell ? (
                       <>
-                        <td className="py-2 pr-4 text-slate-700">{dwell.sessions.toLocaleString()}</td>
-                        <td className="py-2 pr-4 font-medium text-slate-900">{dwell.medianSeconds}s</td>
-                        <td className="py-2 pr-4 text-slate-500">{dwell.p90Seconds}s</td>
-                        <td className="py-2 pr-4">
-                          <span className={isExitPoint ? "font-medium text-amber-700" : "text-slate-700"}>
+                        <td className="py-2.5 pr-4 text-slate-700 tabular-nums">
+                          {dwell.sessions.toLocaleString()}
+                        </td>
+                        <td className="py-2.5 pr-4">
+                          <span className="flex items-center gap-2">
+                            <span
+                              aria-hidden="true"
+                              className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 sm:block"
+                            >
+                              <span
+                                className="block h-full rounded-full bg-teal-700"
+                                style={{
+                                  width: `${Math.round((dwell.medianSeconds / longestMedian) * 100)}%`,
+                                }}
+                              />
+                            </span>
+                            <span className="font-semibold text-slate-900 tabular-nums">
+                              {dwell.medianSeconds}s
+                            </span>
+                          </span>
+                        </td>
+                        <td className="py-2.5 pr-4 text-slate-500 tabular-nums">
+                          {dwell.p90Seconds}s
+                        </td>
+                        <td className="py-2.5 text-right tabular-nums">
+                          <span
+                            className={
+                              isExitPoint ? "font-semibold text-amber-800" : "text-slate-700"
+                            }
+                          >
                             {dwell.exits.toLocaleString()} ({shortPct(dwell.exitRate)})
                           </span>
                         </td>
                       </>
                     ) : (
-                      <td colSpan={4} className="py-2 pr-4 text-xs text-slate-400">
+                      <td colSpan={4} className="py-2.5 pr-4 text-sm text-slate-500">
                         No session reached this section in the range
                       </td>
                     )}
@@ -727,12 +1022,12 @@ function SectionDwellPanel({
               })}
             </tbody>
           </table>
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="mt-3 max-w-2xl text-sm text-slate-500">
             A long time on a section is not automatically good: it can mean the content is
             compelling, or that it is confusing. Read it alongside the drop-off above.
           </p>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

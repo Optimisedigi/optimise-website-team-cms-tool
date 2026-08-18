@@ -53,16 +53,18 @@ export default async function LandingDashboardPage({ params }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 py-10">
-      <div className="mx-auto w-full max-w-5xl px-6">
+    <main className="min-h-screen bg-slate-100 py-10">
+      <div className="mx-auto w-full max-w-7xl px-6">
         <header className="mb-8">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Landing performance</p>
-          <h1 className="text-2xl font-semibold text-slate-900">{client.name}</h1>
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-slate-500">
+            Landing performance
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{client.name}</h1>
         </header>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <LandingExperimentTab slug={slug} />
-        </section>
+        {/* The report renders its own cards, so this page provides the field
+            they sit on rather than a second card around them. */}
+        <LandingExperimentTab slug={slug} />
       </div>
     </main>
   );
