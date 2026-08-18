@@ -697,11 +697,12 @@ export function usePomodoro() {
           alignItems: 'center',
           justifyContent: 'center',
           height: '100vh',
-          gap: 8,
+          gap: 10,
           padding: 16,
           boxSizing: 'border-box',
           position: 'relative',
-          opacity: 0.8,
+          background: '#111',
+          color: '#fff',
         }}>
           <button
             type="button"
@@ -722,12 +723,12 @@ export function usePomodoro() {
             &times;
           </button>
 
+          {/* Mode label — matches PomodoroBody mode tabs style */}
           <div style={{
             fontSize: 11,
-            color: 'rgba(255,255,255,0.45)',
+            color: 'rgba(255,255,255,0.5)',
             fontWeight: 600,
-            letterSpacing: 1,
-            textTransform: 'uppercase',
+            letterSpacing: 0.5,
             maxWidth: 260,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -739,15 +740,16 @@ export function usePomodoro() {
               : MODE_LABELS[mode]}
           </div>
 
+          {/* Flip clock display — 30% larger than in-panel */}
           <div style={{
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            fontSize: 38,
-            fontWeight: 700,
-            letterSpacing: 2,
-            color: trackerPaused ? 'rgba(255,255,255,0.4)' : '#fff',
-            lineHeight: 1.2,
+            transform: 'scale(1.3)',
+            transformOrigin: 'center center',
+            opacity: trackerPaused ? 0.5 : 1,
           }}>
-            {tab === 'tracker' ? formatElapsed(elapsed) : formatTime(timeLeft)}
+            <FlipClockDisplay
+              time={tab === 'tracker' ? formatElapsed(elapsed) : formatTime(timeLeft)}
+              showHours={tab === 'tracker' && elapsed >= 3600}
+            />
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
