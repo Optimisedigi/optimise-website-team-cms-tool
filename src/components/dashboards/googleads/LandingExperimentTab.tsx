@@ -219,7 +219,7 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
    * describes a page that does not exist.
    */
   useEffect(() => {
-    if (page || !data || data.pages.length < 2) return;
+    if (page || !data || data.pages.length === 0) return;
     const busiest = data.pages.find((entry) => entry.key !== "(unset)") ?? data.pages[0];
     if (busiest) setPage(busiest.key);
   }, [data, page]);
@@ -295,7 +295,10 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
             </span>
           )}
 
-          {data.pages.length > 1 && (
+          {/* Shown for a single page too. Selecting the one page is what gives
+              the report its sections and its preview, so hiding the control
+              there hid the preview with it. */}
+          {data.pages.length > 0 && (
             <label className="flex flex-col gap-1 text-xs text-slate-500">
               Page
               <select
