@@ -59,6 +59,7 @@ export const LandingEvents: CollectionConfig = {
         "booking_complete",
         "scroll_depth",
         "section_dwell",
+        "page_dwell",
       ].map((value) => ({ label: value, value })),
     },
     { name: "occurredAt", type: "date", required: true, index: true },

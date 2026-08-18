@@ -42,6 +42,29 @@ export interface ComparisonSummary {
   underpowered: boolean;
 }
 
+/**
+ * Goals that are not event types.
+ *
+ * The readiness checklist is a `form_submit` from one particular form, and the
+ * page has always sent it that way. Treating it as a filter rather than a new
+ * event type means it counts retroactively over data already collected, and no
+ * SDK or schema change is needed.
+ */
+export const READINESS_CHECKLIST_GOAL = "readiness_checklist";
+export const READINESS_CHECKLIST_FORM_ID = "readiness-checklist";
+
+/** Does this event satisfy `goal`, for goals that are event types and for those that are not. */
+export function matchesGoal(
+  goal: string,
+  eventType: string,
+  properties: Record<string, unknown>
+): boolean {
+  if (goal === READINESS_CHECKLIST_GOAL) {
+    return eventType === "form_submit" && properties.form_id === READINESS_CHECKLIST_FORM_ID;
+  }
+  return eventType === goal;
+}
+
 export function createAccumulator(variantId: string): VariantAccumulator {
   return { variantId, sessions: new Set(), convertedSessions: new Set(), eventCounts: {} };
 }
@@ -95,14 +118,25 @@ export interface SectionDwell {
  * usually the finding: it says the journey ends before that point.
  */
 export function buildFunnel(stepSessions: Map<string, Set<string>>): FunnelStep[] {
-  const entry = stepSessions.get(FUNNEL_STEPS[0].key)?.size ?? 0;
+  // A session that reached a later step must have passed through the earlier
+  // ones, so each step counts every session seen at it or beyond. Backfilling
+  // keeps the funnel non-increasing without ever reporting a real conversion as
+  // zero: a missing earlier event is a measurement gap (lost beacon, consent
+  // timing), not proof the visitor never landed.
+  const reachedPerStep: number[] = new Array(FUNNEL_STEPS.length).fill(0);
+  const reachedSessions = new Set<string>();
+  for (let index = FUNNEL_STEPS.length - 1; index >= 0; index -= 1) {
+    for (const sessionId of stepSessions.get(FUNNEL_STEPS[index].key) ?? []) {
+      reachedSessions.add(sessionId);
+    }
+    reachedPerStep[index] = reachedSessions.size;
+  }
+
+  const entry = reachedPerStep[0];
   let previous = entry;
 
   return FUNNEL_STEPS.map((step, index) => {
-    const sessions = stepSessions.get(step.key)?.size ?? 0;
-    // A later step can only be reached through the earlier ones, so a step is
-    // never reported as larger than the one before it.
-    const reached = index === 0 ? sessions : Math.min(sessions, previous);
+    const reached = reachedPerStep[index];
     const dropped = index === 0 ? 0 : Math.max(0, previous - reached);
     const rate = index === 0 || previous === 0 ? 0 : dropped / previous;
     const result = {
@@ -199,6 +233,46 @@ export function summariseSections(
     // Most time first, but a section with no dwell data and real exits still
     // has to appear, so exits break the tie rather than sinking it to the end.
     .sort((a, b) => b.medianSeconds - a.medianSeconds || b.exits - a.exits);
+}
+
+export interface SessionTime {
+  /** Sessions that reported page_dwell at all. */
+  measuredSessions: number;
+  /** Sessions in range with no page_dwell — recorded before the SDK sent it. */
+  unmeasuredSessions: number;
+  medianActiveSeconds: number;
+  p90ActiveSeconds: number;
+  /** Wall clock, including time the tab sat in the background. */
+  medianTotalSeconds: number;
+}
+
+/**
+ * Time on the page per session, from `page_dwell`.
+ *
+ * Reported separately from section dwell because the two cannot be derived from
+ * each other: sections overlap on screen, so summing them overcounts.
+ *
+ * Sessions with no page_dwell are counted, not treated as zero seconds. Every
+ * session recorded before the SDK started sending the event is in that bucket,
+ * and folding them in as zeros would drag the median toward nothing and look
+ * like a collapse in engagement that never happened.
+ */
+export function summariseSessionTime(
+  activeMsBySession: Map<string, number>,
+  totalMsBySession: Map<string, number>,
+  sessionsInRange: number
+): SessionTime {
+  const active = [...activeMsBySession.values()].sort((a, b) => a - b);
+  const total = [...totalMsBySession.values()].sort((a, b) => a - b);
+  const seconds = (ms: number) => Math.round(ms / 100) / 10;
+
+  return {
+    measuredSessions: active.length,
+    unmeasuredSessions: Math.max(0, sessionsInRange - active.length),
+    medianActiveSeconds: seconds(percentile(active, 0.5)),
+    p90ActiveSeconds: seconds(percentile(active, 0.9)),
+    medianTotalSeconds: seconds(percentile(total, 0.5)),
+  };
 }
 
 export function summariseVariant(accumulator: VariantAccumulator): VariantSummary {

@@ -6,7 +6,9 @@ import {
   LANDING_SCHEMA_VERSION,
   MAX_EVENTS_PER_BATCH,
   boundedString,
+  clientIpFromRequest,
   corsHeaders,
+  isExcludedIp,
   getSigningSecret,
   isValidPropertyKey,
   jsonError,
@@ -30,7 +32,9 @@ export const dynamic = "force-dynamic";
  * HMAC assignment token this server minted. A landing page therefore cannot
  * write events into another client's tenant or forge an experiment result.
  *
- * Not stored: raw IP, user agent, form values, free text.
+ * Not stored: raw IP, user agent, form values, free text. The request IP is read
+ * once, compared against the property's exclusion list, and discarded — excluded
+ * batches are dropped before any write.
  */
 
 const MAX_EVENT_TYPES = new Set<string>(LANDING_EVENT_TYPES);
@@ -96,6 +100,17 @@ export async function POST(req: NextRequest) {
   const events = batch.events;
   if (!Array.isArray(events) || events.length === 0) return jsonError(400, "No events");
   if (events.length > MAX_EVENTS_PER_BATCH) return jsonError(413, "Batch too large");
+
+  // Internal traffic is dropped here, before anything is written, so the IP is
+  // compared and thrown away rather than stored. Reported as `excluded` and not
+  // `rejected`: the batch was valid, it just does not belong in the reports, and
+  // the SDK must not retry it.
+  if (isExcludedIp(clientIpFromRequest(req), property.excludedIps)) {
+    return NextResponse.json(
+      { accepted: 0, rejected: 0, excluded: events.length },
+      { status: 202, headers }
+    );
+  }
 
   // Experiment context is read from the property's own experiment record, never
   // from the request. A caller therefore cannot invent an experiment or claim an
@@ -175,7 +190,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ accepted, rejected }, { status: 202, headers });
+  return NextResponse.json({ accepted, rejected, excluded: 0 }, { status: 202, headers });
 }
 
 interface ExperimentContext {
@@ -215,6 +230,10 @@ async function findProperty(propertyKey: string) {
 
   const clientId = typeof doc.client === "object" && doc.client ? doc.client.id : doc.client;
 
+  const excludedIps = (Array.isArray(doc.excludedIps) ? doc.excludedIps : [])
+    .map((row: { ip?: string | null }) => (typeof row?.ip === "string" ? row.ip.trim() : ""))
+    .filter(Boolean);
+
   const raw =
     doc.activeExperiment && typeof doc.activeExperiment === "object" ? doc.activeExperiment : null;
   const experiment: ExperimentContext | null =
@@ -230,5 +249,5 @@ async function findProperty(propertyKey: string) {
         }
       : null;
 
-  return { id: doc.id, clientId, origins, experiment };
+  return { id: doc.id, clientId, origins, excludedIps, experiment };
 }

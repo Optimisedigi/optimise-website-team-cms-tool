@@ -71,10 +71,14 @@ export const LandingExperiments: CollectionConfig = {
         { label: "Booking complete", value: "booking_complete" },
         { label: "Form submit", value: "form_submit" },
         { label: "CTA click", value: "cta_click" },
+        // Not an event type: a form_submit narrowed to the checklist form. The
+        // page already sends it, so this works on data already collected.
+        { label: "Readiness checklist sign-up", value: "readiness_checklist" },
       ],
       admin: {
         description:
-          "Choose before launch and do not change while running. Every other metric is exploratory.",
+          "Choose before launch and do not change while running. Every other metric is exploratory. " +
+          "Readiness checklist sign-up counts a form submit from the checklist form only, not every form.",
       },
     },
     {

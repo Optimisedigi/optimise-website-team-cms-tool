@@ -155,17 +155,34 @@ describe("funnel drop-off", () => {
     expect(funnel[1].dropOffRate).toBeCloseTo(1 / 3);
   });
 
-  it("never reports a later step as larger than the one before it", () => {
-    // Sessions can arrive mid-journey, so a raw count can show a funnel that
-    // grows. Reporting that would invent visitors who never landed.
+  it("backfills earlier steps from later ones instead of truncating", () => {
+    // A session that demonstrably clicked a CTA on the page did land, even when
+    // its page_view never arrived. The funnel therefore counts a session at
+    // every step at or before the furthest one it reached, which keeps the
+    // funnel non-increasing without discarding evidence.
     const funnel = buildFunnel(
       steps({ page_view: ["s1"], cta_click: ["s1", "s2", "s3"], form_start: ["s1", "s2"] })
     );
 
-    expect(funnel[0].sessions).toBe(1);
-    expect(funnel[1].sessions).toBe(1);
-    expect(funnel[2].sessions).toBe(1);
+    expect(funnel[0].sessions).toBe(3);
+    expect(funnel[1].sessions).toBe(3);
+    expect(funnel[2].sessions).toBe(2);
     expect(funnel.every((step) => step.dropOffRate >= 0)).toBe(true);
+    // Still monotonically non-increasing.
+    expect(funnel.every((step, i) => i === 0 || step.sessions <= funnel[i - 1].sessions)).toBe(true);
+  });
+
+  it("never reports a completed booking as zero because an earlier event is missing", () => {
+    // Reproduces the dashboard showing "Conversions 1" beside "Booked 0": the
+    // booking session never fired cta_click, and the old clamp zeroed every
+    // later step because of it.
+    const funnel = buildFunnel(
+      steps({ page_view: ["s1"], booking_complete: ["s1"] })
+    );
+
+    const booked = funnel[funnel.length - 1];
+    expect(booked.sessions).toBe(1);
+    expect(funnel.every((step) => step.sessions === 1)).toBe(true);
   });
 
   it("keeps steps nobody reached, because an empty step is the finding", () => {
@@ -255,6 +272,8 @@ describe("landing experiment dashboard route", () => {
   it("scopes every event query to the client resolved from the slug", async () => {
     payloadMock.find
       .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      // The property lookup: no reporting baseline set, so the selected range stands.
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
       .mockResolvedValueOnce({
         docs: [
           {
@@ -280,7 +299,7 @@ describe("landing experiment dashboard route", () => {
     const res = await GET(request("slug=away-digital&days=30"));
     expect(res.status).toBe(200);
 
-    const eventQuery = payloadMock.find.mock.calls[2][0];
+    const eventQuery = payloadMock.find.mock.calls[3][0];
     expect(eventQuery.collection).toBe("landing-events");
     expect(eventQuery.where.client).toEqual({ equals: 42 });
 
@@ -299,6 +318,8 @@ describe("landing experiment dashboard route", () => {
   it("derives dwell, exits and the funnel from the scanned events", async () => {
     payloadMock.find
       .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      // The property lookup: no reporting baseline set, so the selected range stands.
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
       .mockResolvedValueOnce({
         docs: [
           {
@@ -354,6 +375,8 @@ describe("landing experiment dashboard route", () => {
     // others from the selector, or there is no way back.
     payloadMock.find
       .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      // The property lookup: no reporting baseline set, so the selected range stands.
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
       .mockResolvedValueOnce({ docs: [] })
       .mockResolvedValueOnce({ docs: [], hasNextPage: false });
 
@@ -374,13 +397,15 @@ describe("landing experiment dashboard route", () => {
     ]);
 
     // The events query is narrowed to the selected page.
-    const eventQuery = payloadMock.find.mock.calls[2][0];
+    const eventQuery = payloadMock.find.mock.calls[3][0];
     expect(eventQuery.where.pageId).toEqual({ equals: "offshore-teams-au" });
   });
 
   it("ignores a filter that is not a plain identifier", async () => {
     payloadMock.find
       .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      // The property lookup: no reporting baseline set, so the selected range stands.
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
       .mockResolvedValueOnce({ docs: [] })
       .mockResolvedValueOnce({ docs: [], hasNextPage: false });
 
@@ -389,12 +414,14 @@ describe("landing experiment dashboard route", () => {
 
     expect(body.filters.page).toBeNull();
     expect(body.filters.device).toBeNull();
-    expect(payloadMock.find.mock.calls[2][0].where.pageId).toBeUndefined();
+    expect(payloadMock.find.mock.calls[3][0].where.pageId).toBeUndefined();
   });
 
   it("splits by device without letting the filter hide the other devices", async () => {
     payloadMock.find
       .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      // The property lookup: no reporting baseline set, so the selected range stands.
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
       .mockResolvedValueOnce({
         docs: [
           {
@@ -437,12 +464,126 @@ describe("landing experiment dashboard route", () => {
   it("clamps an absurd range rather than scanning everything", async () => {
     payloadMock.find
       .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      // The property lookup: no reporting baseline set, so the selected range stands.
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
       .mockResolvedValueOnce({ docs: [] })
       .mockResolvedValueOnce({ docs: [], hasNextPage: false });
 
     const res = await GET(request("slug=away-digital&days=99999"));
     const body = await res.json();
     expect(body.rangeDays).toBe(365);
+  });
+
+  it("clamps the range to the property's reporting baseline and says it did", async () => {
+    // The baseline is a filter, never a delete: it moves the start of the scan
+    // forward, and the response has to say so or an empty dashboard looks broken.
+    const baseline = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    payloadMock.find
+      .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: baseline }] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [], hasNextPage: false });
+
+    const res = await GET(request("slug=away-digital&days=90"));
+    const body = await res.json();
+
+    expect(body.baselineApplied).toBe(true);
+    expect(body.dataStartDate).toBe(baseline);
+    expect(body.rangeStart).toBe(baseline);
+    expect(payloadMock.find.mock.calls[3][0].where.occurredAt.greater_than_equal).toBe(baseline);
+  });
+
+  it("leaves the selected range alone when the baseline is older than it", async () => {
+    const oldBaseline = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    payloadMock.find
+      .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: oldBaseline }] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [], hasNextPage: false });
+
+    const res = await GET(request("slug=away-digital&days=30"));
+    const body = await res.json();
+
+    expect(body.baselineApplied).toBe(false);
+    expect(body.rangeStart > oldBaseline).toBe(true);
+  });
+
+  it("counts the readiness checklist goal as a form submit from that form only", async () => {
+    payloadMock.find
+      .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
+      .mockResolvedValueOnce({
+        docs: [
+          {
+            experimentId: "landing-hero-v1",
+            name: "Hero test",
+            status: "running",
+            allocationVersion: "1",
+            primaryGoal: "readiness_checklist",
+            variants: [{ variantId: "a" }],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        docs: [
+          { eventType: "page_view", sessionId: "s1", variantId: "a" },
+          {
+            eventType: "form_submit",
+            sessionId: "s1",
+            variantId: "a",
+            properties: { form_id: "readiness-checklist" },
+          },
+          { eventType: "page_view", sessionId: "s2", variantId: "a" },
+          {
+            eventType: "form_submit",
+            sessionId: "s2",
+            variantId: "a",
+            properties: { form_id: "qualification" },
+          },
+        ],
+        hasNextPage: false,
+      });
+
+    const body = await (await GET(request("slug=away-digital&days=30"))).json();
+
+    // Only the checklist submit converts; the qualification submit does not.
+    expect(body.variants[0].conversions).toBe(1);
+    expect(body.variants[0].sessions).toBe(2);
+  });
+
+  it("reports time on page from page_dwell, and counts untimed sessions as unmeasured", async () => {
+    payloadMock.find
+      .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({
+        docs: [
+          { eventType: "page_view", sessionId: "s1" },
+          {
+            eventType: "page_dwell",
+            sessionId: "s1",
+            pageViewId: "pv1",
+            properties: { active_ms: 12000, total_ms: 30000 },
+          },
+          // A duplicated beacon for the same page view must not double count.
+          {
+            eventType: "page_dwell",
+            sessionId: "s1",
+            pageViewId: "pv1",
+            properties: { active_ms: 12000, total_ms: 30000 },
+          },
+          // A session from before page_dwell existed: unmeasured, not zero.
+          { eventType: "page_view", sessionId: "s2" },
+        ],
+        hasNextPage: false,
+      });
+
+    const body = await (await GET(request("slug=away-digital&days=30"))).json();
+
+    expect(body.sessionTime.measuredSessions).toBe(1);
+    expect(body.sessionTime.unmeasuredSessions).toBe(1);
+    expect(body.sessionTime.medianActiveSeconds).toBe(12);
+    expect(body.sessionTime.medianTotalSeconds).toBe(30);
   });
 
   it("returns 404 for a slug with no client record", async () => {

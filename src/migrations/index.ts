@@ -14,6 +14,7 @@ import * as migration_20260814_120000_add_hosting_billing from './20260814_12000
 import * as migration_20260815_120000_hosting_plans_dollars from './20260815_120000_hosting_plans_dollars'
 import * as migration_20260816_120000_hosting_plan_annual_discount from './20260816_120000_hosting_plan_annual_discount'
 import * as migration_20260817_120000_add_dashboard_hidden_secondary_conversion_actions from './20260817_120000_add_dashboard_hidden_secondary_conversion_actions'
+import * as migration_20260819_120000_add_landing_ip_exclusions_and_data_start from './20260819_120000_add_landing_ip_exclusions_and_data_start'
 import * as migration_20260801_130000_add_proposal_meta_ads_job_state from './20260801_130000_add_proposal_meta_ads_job_state'
 import * as migration_20260304_120000_add_gsc_indexing_audits from './20260304_120000_add_gsc_indexing_audits'
 import * as migration_20260306_120000_add_contracts from './20260306_120000_add_contracts'
@@ -977,5 +978,10 @@ export const migrations = [
     up: migration_20260817_120000_add_dashboard_hidden_secondary_conversion_actions.up,
     down: migration_20260817_120000_add_dashboard_hidden_secondary_conversion_actions.down,
     name: '20260817_120000_add_dashboard_hidden_secondary_conversion_actions',
+  },
+  {
+    up: migration_20260819_120000_add_landing_ip_exclusions_and_data_start.up,
+    down: migration_20260819_120000_add_landing_ip_exclusions_and_data_start.down,
+    name: '20260819_120000_add_landing_ip_exclusions_and_data_start',
   },
 ]

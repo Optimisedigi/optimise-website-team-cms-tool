@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import net from "net";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -32,6 +33,10 @@ export const LANDING_EVENT_TYPES = [
   "booking_complete",
   "scroll_depth",
   "section_dwell",
+  // Whole-page time, emitted once per page view when the tab is hidden or
+  // unloaded. Sessions recorded before this existed have none, which the report
+  // must show as "not measured" rather than zero.
+  "page_dwell",
 ] as const;
 
 export type LandingEventType = (typeof LANDING_EVENT_TYPES)[number];
@@ -83,6 +88,84 @@ export function resolveAllowedOrigin(
   const origin = req.headers.get("origin");
   if (!origin) return null;
   return allowedOrigins.includes(origin) ? origin : null;
+}
+
+/**
+ * Client IP for exclusion matching only — compared, then discarded. Nothing in
+ * this module or the ingest route persists the value; landing events store no
+ * IP by design.
+ *
+ * Only the leftmost `x-forwarded-for` entry is read, because that is the one the
+ * platform edge sets from the real connection. Every later entry is attacker
+ * controlled: a client can send its own `x-forwarded-for` and the edge appends
+ * to it, so trusting the rightmost or the whole chain would let anyone
+ * impersonate an excluded internal address (or, worse, an included one).
+ *
+ * Returns null on anything missing or unparseable, which makes the caller fail
+ * open and record the event. Dropping real events on a header quirk is the
+ * worse failure here: exclusion is a reporting convenience, not a security
+ * control.
+ */
+export function clientIpFromRequest(req: NextRequest): string | null {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (!forwarded) return null;
+
+  let candidate = forwarded.split(",", 1)[0].trim();
+  // Longest possible textual IP is an IPv4-mapped IPv6 address (45 chars).
+  if (!candidate || candidate.length > 64) return null;
+
+  // Some proxies append a port: "[2001:db8::1]:443" or "203.0.113.7:443".
+  const bracketed = candidate.match(/^\[([^\]]+)\]/);
+  if (bracketed) candidate = bracketed[1];
+  else if (candidate.split(":").length === 2) candidate = candidate.split(":")[0];
+
+  return net.isIP(candidate) ? candidate : null;
+}
+
+/**
+ * True when `ip` falls inside one of the property's exclusion entries, each an
+ * exact address or a CIDR range, IPv4 or IPv6.
+ *
+ * Fails open in every ambiguous case: no IP, an unparseable IP, or a list with
+ * no usable entry all return false, so the event is recorded.
+ */
+export function isExcludedIp(ip: string | null, patterns: string[]): boolean {
+  if (!ip) return false;
+  const family = net.isIP(ip);
+  if (!family) return false;
+
+  const blocked = new net.BlockList();
+  let usable = 0;
+
+  for (const raw of patterns) {
+    if (typeof raw !== "string") continue;
+    const entry = raw.trim();
+    if (!entry || entry.length > 64) continue;
+
+    const [address, prefix] = entry.split("/");
+    const entryFamily = net.isIP(address);
+    if (!entryFamily) continue;
+    const type = entryFamily === 6 ? "ipv6" : "ipv4";
+
+    try {
+      if (prefix === undefined) {
+        blocked.addAddress(address, type);
+      } else {
+        // Digits only: an empty or non-numeric prefix must not coerce to /0,
+        // which would silently exclude every visitor.
+        if (!/^\d{1,3}$/.test(prefix)) continue;
+        const bits = Number(prefix);
+        if (bits > (entryFamily === 6 ? 128 : 32)) continue;
+        blocked.addSubnet(address, bits, type);
+      }
+      usable += 1;
+    } catch {
+      // A malformed entry excludes nothing rather than everything.
+    }
+  }
+
+  if (usable === 0) return false;
+  return blocked.check(ip, family === 6 ? "ipv6" : "ipv4");
 }
 
 export function corsHeaders(origin: string): Record<string, string> {

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPayload } from "payload";
+import config from "@/payload.config";
 import { normalizeDashboardRange } from "@/lib/dashboard-date-ranges";
 import { validateDashboardToken } from "../verify/route";
 
@@ -30,7 +32,14 @@ export async function GET(req: NextRequest) {
 
   const token = req.cookies.get("dashboard_token")?.value;
   if (!validateDashboardToken(token, slug)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Same two ways in as the landing report: the client's dashboard token, or
+    // an authenticated Payload admin session for the internal dashboard. Read
+    // only either way — this route never writes to HubSpot.
+    const payloadForAuth = await getPayload({ config });
+    const { user } = await payloadForAuth.auth({ headers: req.headers });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   if (!GROWTH_TOOLS_URL || !GROWTH_TOOLS_API_KEY) {

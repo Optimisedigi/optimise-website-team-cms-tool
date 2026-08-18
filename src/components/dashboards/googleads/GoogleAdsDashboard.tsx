@@ -1167,7 +1167,11 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
           )}
 
           {activeTab === "landing" && data.slug && (
-            <LandingExperimentTab slug={data.slug} />
+            <LandingExperimentTab
+              slug={data.slug}
+              customerId={data.customerId}
+              clientName={data.clientName}
+            />
           )}
         </div>
 

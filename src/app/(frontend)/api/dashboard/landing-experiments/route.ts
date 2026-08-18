@@ -8,7 +8,11 @@ import {
   buildFunnel,
   compareVariants,
   createAccumulator,
+  READINESS_CHECKLIST_FORM_ID,
+  READINESS_CHECKLIST_GOAL,
+  matchesGoal,
   summariseSections,
+  summariseSessionTime,
   summariseVariant,
   type VariantAccumulator,
 } from "@/lib/landing-experiment-report";
@@ -62,6 +66,19 @@ const FORM_LABELS: Record<string, string> = {
   "(unset)": "Unlabelled form",
 };
 
+/**
+ * Conversions worth counting beside the primary goal.
+ *
+ * These are outcomes, not events: the checklist sign-up is a form_submit from
+ * one form. Reported on distinct sessions, and only when the goal is not already
+ * the primary one — the same number twice under two names invites the reader to
+ * add them together.
+ */
+const SECONDARY_GOALS: { id: string; label: string }[] = [
+  { id: "booking_complete", label: "Bookings completed" },
+  { id: READINESS_CHECKLIST_GOAL, label: "Readiness checklist sign-ups" },
+];
+
 export interface FormSubmissionSplit {
   formId: string;
   label: string;
@@ -113,7 +130,7 @@ async function loadFacets(
   payload: Awaited<ReturnType<typeof getPayload>>,
   clientId: number | string,
   since: string,
-  primaryGoal: string,
+  goalPredicate: string,
   pageFilter: string | null
 ): Promise<{ pages: Segment[]; markets: Segment[]; devices: Segment[]; attribution: Segment[] }> {
   // Values are numeric ids or already-validated constants, and the two strings
@@ -128,7 +145,7 @@ async function loadFacets(
     const statement = `
       SELECT COALESCE(NULLIF(${bucketExpr}, ''), '(unset)') AS bucket,
              COUNT(DISTINCT \`session_id\`) AS sessions,
-             COUNT(DISTINCT CASE WHEN \`event_type\` = '${escape(primaryGoal)}' THEN \`session_id\` END) AS conversions
+             COUNT(DISTINCT CASE WHEN ${goalPredicate} THEN \`session_id\` END) AS conversions
       FROM \`landing_events\`
       WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'${pageClause}
       GROUP BY bucket
@@ -165,6 +182,62 @@ async function loadFacets(
   return { pages, markets, devices, attribution };
 }
 
+/**
+ * Post-click paid performance per landing page, from the click ids already
+ * stored on each session's attribution.
+ *
+ * This is deliberately only half the picture. Impressions, clicks, CTR and cost
+ * live in Google Ads and reach this CMS through the Growth Tools service, which
+ * exposes no landing-page endpoint yet, so nothing in this repo can produce
+ * them. What is here — sessions that arrived on an ad click, and what they did
+ * next — comes from data already collected, and the UI states the missing half
+ * rather than implying these are all the numbers there are.
+ */
+async function loadPaidTraffic(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  clientId: number | string,
+  since: string,
+  goalPredicate: string
+): Promise<Segment[]> {
+  const escape = (value: string) => value.replace(/'/g, "''");
+  // A Google Ads click carries one of these three ids; gbraid/wbraid are what
+  // arrives when the click id is restricted for privacy, so reading gclid alone
+  // would undercount iOS traffic.
+  const paidClause =
+    "(json_extract(`attribution`, '$.gclid') IS NOT NULL" +
+    " OR json_extract(`attribution`, '$.gbraid') IS NOT NULL" +
+    " OR json_extract(`attribution`, '$.wbraid') IS NOT NULL)";
+
+  const statement = `
+    SELECT COALESCE(NULLIF(\`page_id\`, ''), '(unset)') AS bucket,
+           COUNT(DISTINCT \`session_id\`) AS sessions,
+           COUNT(DISTINCT CASE WHEN ${goalPredicate} THEN \`session_id\` END) AS conversions
+    FROM \`landing_events\`
+    WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'
+      AND ${paidClause}
+    GROUP BY bucket
+    ORDER BY sessions DESC
+    LIMIT 50`;
+
+  try {
+    const result = await payload.db.drizzle.run(sql.raw(statement));
+    const rows = (result as { rows?: Record<string, unknown>[] })?.rows ?? [];
+    return rows.map((row) => {
+      const sessions = Number(row.sessions ?? 0);
+      const conversions = Number(row.conversions ?? 0);
+      return {
+        key: String(row.bucket ?? "(unset)"),
+        sessions,
+        conversions,
+        conversionRate: sessions > 0 ? conversions / sessions : 0,
+      };
+    });
+  } catch (error) {
+    console.error("[landing-experiments] paid traffic query failed:", error);
+    return [];
+  }
+}
+
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug") || "";
   if (!slug) return NextResponse.json({ error: "Missing slug" }, { status: 400 });
@@ -184,7 +257,7 @@ export async function GET(req: NextRequest) {
   const days = Number.isFinite(requestedDays)
     ? Math.min(Math.max(Math.trunc(requestedDays), 1), MAX_DAYS)
     : 30;
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const requestedSince = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   // Optional filters. Each landing page has its own sections and its own
   // funnel, and behaviour on a phone is not behaviour on a desktop, so
@@ -204,6 +277,24 @@ export async function GET(req: NextRequest) {
   });
   const client = clients.docs[0];
   if (!client) return NextResponse.json({ error: "Unknown client" }, { status: 404 });
+
+  // Reporting baseline. A property can declare a date before which its events
+  // are noise (test traffic, a pre-launch build), and the report clamps to it
+  // rather than deleting anything: clearing the field restores the full history.
+  const properties = await payload.find({
+    collection: "landing-properties",
+    where: { client: { equals: client.id } },
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+  });
+  const rawStart = properties.docs[0]?.dataStartDate;
+  const parsedStart = rawStart ? new Date(rawStart) : null;
+  const dataStartDate =
+    parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart.toISOString() : null;
+  const since =
+    dataStartDate && dataStartDate > requestedSince ? dataStartDate : requestedSince;
+  const baselineApplied = since !== requestedSince;
 
   const experiments = await payload.find({
     collection: "landing-experiments",
@@ -225,7 +316,20 @@ export async function GET(req: NextRequest) {
     : [];
   const controlVariantId = configuredVariants[0] ?? "a";
 
-  const facets = await loadFacets(payload, client.id, since, primaryGoal, pageFilter);
+  // The goal is one of the collection's fixed options, never caller input, and
+  // the checklist goal is a form_submit narrowed by form_id rather than an event
+  // type of its own.
+  const goalPredicate =
+    primaryGoal === READINESS_CHECKLIST_GOAL
+      ? "`event_type` = 'form_submit' AND json_extract(`properties`, '$.form_id') = '" +
+        READINESS_CHECKLIST_FORM_ID +
+        "'"
+      : "`event_type` = '" + primaryGoal.replace(/'/g, "''") + "'";
+
+  const [facets, paidTraffic] = await Promise.all([
+    loadFacets(payload, client.id, since, goalPredicate, pageFilter),
+    loadPaidTraffic(payload, client.id, since, goalPredicate),
+  ]);
 
   const accumulators = new Map<string, VariantAccumulator>();
   for (const variantId of configuredVariants) accumulators.set(variantId, createAccumulator(variantId));
@@ -248,6 +352,16 @@ export async function GET(req: NextRequest) {
   // single funnel step they are indistinguishable, so the checklist can inflate
   // what looks like lead volume. Split by form_id, on distinct sessions.
   const formSubmitSessions = new Map<string, Set<string>>();
+  // Whole-page time per session, summed across that session's page views. A
+  // session's page views are distinct visits to the page, so summing is the
+  // session total; the page_view_id guard stops a re-sent beacon counting twice.
+  const pageActiveMsBySession = new Map<string, number>();
+  const pageTotalMsBySession = new Map<string, number>();
+  const pageDwellSeen = new Set<string>();
+  // Every session in range, so sessions predating page_dwell can be reported as
+  // unmeasured instead of silently disappearing from the denominator.
+  const sessionsInRange = new Set<string>();
+  const secondaryGoalSessions = new Map<string, Set<string>>();
 
 
   let scanned = 0;
@@ -291,6 +405,7 @@ export async function GET(req: NextRequest) {
       if (marketFilter && market !== marketFilter) continue;
 
       totals[eventType] = (totals[eventType] ?? 0) + 1;
+      sessionsInRange.add(sessionId);
 
       // Dwell and exit points are read from every session, with or without a
       // variant: knowing where people stop reading is useful even when no
@@ -317,6 +432,27 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      for (const goal of SECONDARY_GOALS) {
+        if (goal.id === primaryGoal) continue;
+        if (!matchesGoal(goal.id, eventType, properties)) continue;
+        if (!secondaryGoalSessions.has(goal.id)) secondaryGoalSessions.set(goal.id, new Set());
+        secondaryGoalSessions.get(goal.id)!.add(sessionId);
+      }
+
+      if (eventType === "page_dwell") {
+        const pageViewId = String(event.pageViewId ?? "");
+        const dwellKey = `${sessionId}|${pageViewId}`;
+        const activeMs = Number(properties.active_ms);
+        const totalMs = Number(properties.total_ms);
+        if (Number.isFinite(activeMs) && activeMs >= 0 && !pageDwellSeen.has(dwellKey)) {
+          pageDwellSeen.add(dwellKey);
+          pageActiveMsBySession.set(sessionId, (pageActiveMsBySession.get(sessionId) ?? 0) + activeMs);
+          if (Number.isFinite(totalMs) && totalMs >= 0) {
+            pageTotalMsBySession.set(sessionId, (pageTotalMsBySession.get(sessionId) ?? 0) + totalMs);
+          }
+        }
+      }
+
       if (eventType === "form_submit") {
         const formId = typeof properties.form_id === "string" && properties.form_id
           ? properties.form_id
@@ -337,7 +473,7 @@ export async function GET(req: NextRequest) {
       accumulator.sessions.add(sessionId);
       accumulator.eventCounts[eventType] = (accumulator.eventCounts[eventType] ?? 0) + 1;
       // A session converts at most once, however many goal events it fires.
-      if (eventType === primaryGoal) accumulator.convertedSessions.add(sessionId);
+      if (matchesGoal(primaryGoal, eventType, properties)) accumulator.convertedSessions.add(sessionId);
 
       if (funnelSteps.has(eventType)) {
         if (!stepSessions.has(eventType)) stepSessions.set(eventType, new Set());
@@ -382,6 +518,11 @@ export async function GET(req: NextRequest) {
           }
         : null,
       rangeDays: days,
+      // The UI has to be able to explain an empty dashboard, so the baseline is
+      // reported whenever it, and not the selected range, decided the start.
+      dataStartDate,
+      baselineApplied,
+      rangeStart: since,
       filters: { page: pageFilter, device: deviceFilter, market: marketFilter },
       ...facets,
       controlVariantId,
@@ -395,7 +536,29 @@ export async function GET(req: NextRequest) {
           .map(([variantId, steps]) => [variantId, buildFunnel(steps)])
       ),
       formSubmissions: summariseFormSubmissions(formSubmitSessions),
+      paidTraffic: {
+        pages: paidTraffic,
+        // Stated in the payload, not only in the UI, so no consumer can read
+        // these as complete Google Ads figures.
+        preClickAvailable: false,
+      },
+      secondaryConversions: SECONDARY_GOALS.filter((goal) => goal.id !== primaryGoal).map(
+        (goal) => {
+          const sessions = secondaryGoalSessions.get(goal.id)?.size ?? 0;
+          return {
+            id: goal.id,
+            label: goal.label,
+            sessions,
+            rate: sessionsInRange.size > 0 ? sessions / sessionsInRange.size : 0,
+          };
+        }
+      ),
       sections: summariseSections(dwellMs, exitsBySection, lastSectionPerSession.size),
+      sessionTime: summariseSessionTime(
+        pageActiveMsBySession,
+        pageTotalMsBySession,
+        sessionsInRange.size
+      ),
       behaviourTotals: totals,
       eventsScanned: scanned,
       // The UI must say so when a range was cut short, rather than presenting a

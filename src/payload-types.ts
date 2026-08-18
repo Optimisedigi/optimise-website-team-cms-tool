@@ -9143,6 +9143,26 @@ export interface LandingProperty {
     id?: string | null;
   }[];
   /**
+   * Reporting baseline: the dashboard ignores events before this date, however long a range is selected. A filter only — nothing is deleted, so clearing this field brings the older data straight back.
+   */
+  dataStartDate?: string | null;
+  /**
+   * Internal IPs whose events are dropped at ingest, so staff traffic never enters the reports. Single address (203.0.113.7) or CIDR range (203.0.113.0/24), IPv4 or IPv6. The request IP is compared and discarded — it is never stored.
+   */
+  excludedIps?:
+    | {
+        /**
+         * IP address or CIDR range.
+         */
+        ip: string;
+        /**
+         * Who or where this is, so it can be removed later.
+         */
+        label?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Leave empty to serve default content with no experiment assignment.
    */
   activeExperiment?: (number | null) | LandingExperiment;
@@ -9177,9 +9197,9 @@ export interface LandingExperiment {
    */
   allocationVersion: string;
   /**
-   * Choose before launch and do not change while running. Every other metric is exploratory.
+   * Choose before launch and do not change while running. Every other metric is exploratory. Readiness checklist sign-up counts a form submit from the checklist form only, not every form.
    */
-  primaryGoal: 'booking_complete' | 'form_submit' | 'cta_click';
+  primaryGoal: 'booking_complete' | 'form_submit' | 'cta_click' | 'readiness_checklist';
   /**
    * Weights are relative; they do not need to total 100.
    */
@@ -9250,7 +9270,8 @@ export interface LandingEvent {
     | 'booking_open'
     | 'booking_complete'
     | 'scroll_depth'
-    | 'section_dwell';
+    | 'section_dwell'
+    | 'page_dwell';
   occurredAt: string;
   receivedAt: string;
   sessionId: string;
@@ -13988,6 +14009,14 @@ export interface LandingPropertiesSelect<T extends boolean = true> {
     | T
     | {
         origin?: T;
+        id?: T;
+      };
+  dataStartDate?: T;
+  excludedIps?:
+    | T
+    | {
+        ip?: T;
+        label?: T;
         id?: T;
       };
   activeExperiment?: T;

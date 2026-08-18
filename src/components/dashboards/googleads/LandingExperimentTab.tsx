@@ -83,10 +83,25 @@ interface ReportResponse {
   funnel: FunnelStep[];
   funnelByVariant: Record<string, FunnelStep[]>;
   formSubmissions?: { formId: string; label: string; sessions: number }[];
+  /** Outcomes counted beside the primary goal. Absent from older responses. */
+  secondaryConversions?: { id: string; label: string; sessions: number; rate: number }[];
+  /** Post-click ad performance per page. `preClickAvailable` is false until Growth Tools exposes it. */
+  paidTraffic?: { pages: Segment[]; preClickAvailable: boolean };
   sections: SectionDwell[];
+  /** Absent from responses served before session timing shipped. */
+  sessionTime?: {
+    measuredSessions: number;
+    unmeasuredSessions: number;
+    medianActiveSeconds: number;
+    p90ActiveSeconds: number;
+    medianTotalSeconds: number;
+  };
   behaviourTotals: Record<string, number>;
   eventsScanned: number;
   truncated: boolean;
+  /** Reporting baseline: events before this are excluded whatever range is picked. */
+  dataStartDate?: string | null;
+  baselineApplied?: boolean;
 }
 
 const BEHAVIOUR_LABELS: Record<string, string> = {
@@ -102,6 +117,7 @@ const BEHAVIOUR_LABELS: Record<string, string> = {
   booking_complete: "Bookings completed",
   scroll_depth: "Scroll milestones",
   section_dwell: "Sections timed",
+  page_dwell: "Pages timed",
 };
 
 /** Words that look wrong in plain title case. */
@@ -170,8 +186,28 @@ function StatCard({
   );
 }
 
-export function LandingExperimentTab({ slug }: { slug: string }) {
+/** The months of HubSpot post-click data this tab reads. The rest of the payload is ignored. */
+interface PostClickMonth {
+  month: string;
+  paidLeads: number;
+  meetings: number;
+  meetingRate: number | null;
+  qualifiedLeads: number;
+  qualifiedLeadRate: number | null;
+}
+
+export function LandingExperimentTab({
+  slug,
+  customerId,
+  clientName,
+}: {
+  slug: string;
+  customerId?: string;
+  clientName?: string;
+}) {
   const [data, setData] = useState<ReportResponse | null>(null);
+  const [postClick, setPostClick] = useState<PostClickMonth[] | null>(null);
+  const [postClickNote, setPostClickNote] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   // Each landing page has its own sections and funnel, and phone behaviour is
   // not desktop behaviour, so both are selectable rather than averaged.
@@ -208,6 +244,54 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
       cancelled = true;
     };
   }, [slug, days, page, device]);
+
+  /**
+   * What happened to these leads after the form, from HubSpot.
+   *
+   * Read-only, and only for the client that has the integration. Nothing here
+   * creates or edits a HubSpot record. A missing service URL or key is reported
+   * as a configuration gap rather than as zero leads, because "not connected"
+   * and "nobody converted" are opposite findings.
+   */
+  useEffect(() => {
+    if (slug !== "away-digital" || !customerId) return;
+    let cancelled = false;
+
+    const query = new URLSearchParams({
+      slug,
+      customerId,
+      range: "last_14_months",
+      clientName: clientName || "Away Digital Teams",
+    });
+
+    fetch(`/api/dashboard/hubspot-post-click?${query}`, {
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        if (res.status === 503) throw new Error("not-configured");
+        if (!res.ok) throw new Error(`status-${res.status}`);
+        return (await res.json()) as { monthly?: PostClickMonth[] };
+      })
+      .then((json) => {
+        if (cancelled) return;
+        setPostClick(Array.isArray(json.monthly) ? json.monthly : []);
+        setPostClickNote(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setPostClick(null);
+        setPostClickNote(
+          err instanceof Error && err.message === "not-configured"
+            ? "HubSpot is not connected to this environment (the Growth Tools service URL or internal key is unset), so lead outcomes cannot be shown. This is a configuration gap, not zero leads."
+            : "Could not load HubSpot lead outcomes. The on-site numbers above are unaffected."
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, customerId, clientName]);
 
   /**
    * Land on a single page rather than on everything pooled together.
@@ -366,6 +450,20 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
             />
           )}
         </div>
+      )}
+
+      {data.baselineApplied && data.dataStartDate && (
+        <p
+          className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+          role="status"
+        >
+          <strong className="font-semibold text-slate-900">
+            Showing data from {new Date(data.dataStartDate).toLocaleDateString()} onwards.
+          </strong>{" "}
+          The selected range starts earlier, but this property has a reporting baseline set, so
+          anything before that date is left out — including while this view looks empty. The events
+          still exist; clearing the baseline on the property brings them back.
+        </p>
       )}
 
       {data.truncated && (
@@ -580,6 +678,25 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
         </section>
       )}
 
+      {data.devices.filter((entry) => entry.key !== "(unset)").length > 1 && (
+        <section className={`${CARD} space-y-4`} aria-labelledby="landing-devices-heading">
+          <div>
+            <h4 id="landing-devices-heading" className="text-base font-bold text-slate-900">
+              Devices
+            </h4>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
+              The same split as the toggle above, with conversion rate side by side for the selected
+              page. A phone and a desktop are different reading experiences, so a gap here usually
+              points at layout or form length rather than at the audience.
+            </p>
+          </div>
+          <SegmentTable
+            rows={data.devices.filter((entry) => entry.key !== "(unset)")}
+            firstColumn="Device"
+          />
+        </section>
+      )}
+
       {realMarkets.length > 1 && (
         <section className={`${CARD} space-y-4`} aria-labelledby="landing-markets-heading">
           <div>
@@ -613,8 +730,20 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
         </section>
       )}
 
+      <SecondaryConversionsPanel rows={data.secondaryConversions} />
+
+      <PaidTrafficPanel paidTraffic={data.paidTraffic} />
+
+      <PostClickPanel months={postClick} note={postClickNote} />
+
+      <SessionTimePanel sessionTime={data.sessionTime} />
+
       {(data.sections.length > 0 || LANDING_PAGES[page]) && (
-        <SectionDwellPanel sections={data.sections} pageMeta={LANDING_PAGES[page] ?? null} />
+        <SectionDwellPanel
+          sections={data.sections}
+          pageMeta={LANDING_PAGES[page] ?? null}
+          conversions={conversions}
+        />
       )}
 
       <section className={`${CARD} space-y-4`} aria-labelledby="landing-behaviour-heading">
@@ -827,12 +956,245 @@ function VariantSplit({
  * refuses, so admins scrolling the preview can never pollute the analytics
  * they are reading.
  */
+/**
+ * What happened after the form, from HubSpot — read-only.
+ *
+ * Sits beside the on-site funnel rather than inside it: these are different
+ * systems counting different things over different windows, and stacking them
+ * into one funnel would imply a session-level join that does not exist.
+ */
+function PostClickPanel({ months, note }: { months: PostClickMonth[] | null; note: string | null }) {
+  if (!months && !note) return null;
+  const recent = (months ?? []).slice(-6).reverse();
+
+  return (
+    <section className={`${CARD} space-y-4`} aria-labelledby="landing-postclick-heading">
+      <div>
+        <h4 id="landing-postclick-heading" className="text-base font-bold text-slate-900">
+          After the form — HubSpot
+        </h4>
+        <p className="mt-1 max-w-3xl text-sm text-slate-500">
+          Lead outcomes from the CRM, by month, read-only. Counted per lead record rather than per
+          session, so these do not tie row-for-row to the sessions above.
+        </p>
+      </div>
+
+      {note ? (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          {note}
+        </p>
+      ) : recent.length === 0 ? (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          HubSpot returned no months for this range.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm text-slate-700">
+            <thead>
+              <tr className={`text-left ${MICRO}`}>
+                <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                  Month
+                </th>
+                <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                  Paid leads
+                </th>
+                <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                  Meetings
+                </th>
+                <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                  Meeting rate
+                </th>
+                <th scope="col" className="border-b border-slate-200 pb-2 font-normal">
+                  Qualified
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.map((row) => (
+                <tr key={row.month} className="border-b border-slate-100 last:border-0">
+                  <th scope="row" className="py-3 pr-4 text-left font-semibold text-slate-900">
+                    {row.month}
+                  </th>
+                  <td className="py-3 pr-4 tabular-nums">{row.paidLeads.toLocaleString()}</td>
+                  <td className="py-3 pr-4 tabular-nums">{row.meetings.toLocaleString()}</td>
+                  <td className="py-3 pr-4 tabular-nums">
+                    {/* HubSpot rates arrive already scaled to 0–100, unlike the
+                        on-site rates above, which are fractions. */}
+                    {row.meetingRate === null ? "—" : `${row.meetingRate}%`}
+                  </td>
+                  <td className="py-3 font-semibold text-slate-900 tabular-nums">
+                    {row.qualifiedLeads.toLocaleString()}
+                    {row.qualifiedLeadRate !== null && (
+                      <span className="ml-1.5 font-normal text-slate-500">
+                        {row.qualifiedLeadRate}%
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Google Ads traffic, post-click only.
+ *
+ * The missing half is named explicitly rather than left as a blank column:
+ * impressions, clicks, CTR and cost are not in this database at all, and a
+ * dashboard that shows only what it happens to have looks like a complete
+ * account report.
+ */
+function PaidTrafficPanel({
+  paidTraffic,
+}: {
+  paidTraffic?: { pages: Segment[]; preClickAvailable: boolean };
+}) {
+  if (!paidTraffic || paidTraffic.pages.length === 0) return null;
+
+  return (
+    <section className={`${CARD} space-y-4`} aria-labelledby="landing-paid-heading">
+      <div>
+        <h4 id="landing-paid-heading" className="text-base font-bold text-slate-900">
+          Google Ads traffic by landing page
+        </h4>
+        <p className="mt-1 max-w-3xl text-sm text-slate-500">
+          Sessions that arrived on an ad click, identified by the click id on the landing URL
+          (gclid, or gbraid/wbraid when the click id is restricted), and what those sessions did
+          next.
+        </p>
+      </div>
+      <SegmentTable rows={paidTraffic.pages} firstColumn="Landing page" />
+      {!paidTraffic.preClickAvailable && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong className="font-semibold">This is the post-click half only.</strong> Impressions,
+          clicks, CTR and cost per landing page live in Google Ads and are not stored here. They
+          need a landing-page endpoint on the Growth Tools service, which does not exist yet, so no
+          figure for them can be shown — an empty column here would be a missing integration, not a
+          zero.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Outcomes counted beside the primary goal — the checklist sign-up in
+ * particular, which is a form submit from one form rather than an event type of
+ * its own, so it counts retroactively over data already collected.
+ *
+ * Rendered even at zero: "nobody downloaded the checklist" is a finding, and
+ * hiding the row would read as the metric not existing.
+ */
+function SecondaryConversionsPanel({
+  rows,
+}: {
+  rows?: { id: string; label: string; sessions: number; rate: number }[];
+}) {
+  if (!rows || rows.length === 0) return null;
+
+  return (
+    <section className={`${CARD} space-y-4`} aria-labelledby="landing-secondary-heading">
+      <div>
+        <h4 id="landing-secondary-heading" className="text-base font-bold text-slate-900">
+          Other conversions
+        </h4>
+        <p className="mt-1 max-w-3xl text-sm text-slate-500">
+          Counted on distinct sessions, alongside the primary goal rather than added to it. One
+          session can appear in more than one row, so these do not sum to a total.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">{row.label}</div>
+            <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {row.sessions.toLocaleString()}
+            </div>
+            <div className="mt-0.5 text-xs text-slate-500 tabular-nums">
+              {pct(row.rate)} of sessions
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Time on the page per session.
+ *
+ * Sessions with no page_dwell are shown as unmeasured rather than folded in as
+ * zero seconds: every session recorded before the page started sending the
+ * event is in that bucket, and counting them as zero would read as a collapse
+ * in engagement that never happened.
+ */
+function SessionTimePanel({ sessionTime }: { sessionTime?: ReportResponse["sessionTime"] }) {
+  if (!sessionTime) return null;
+  const { measuredSessions, unmeasuredSessions } = sessionTime;
+  const secs = (value: number) => `${value.toLocaleString()}s`;
+
+  return (
+    <section className={`${CARD} space-y-4`} aria-labelledby="landing-session-time-heading">
+      <div>
+        <h4 id="landing-session-time-heading" className="text-base font-bold text-slate-900">
+          Time on page per session
+        </h4>
+        <p className="mt-1 max-w-3xl text-sm text-slate-500">
+          Active time only: the tab in front of the visitor, page on screen. This is not the sum of
+          the section times below — two sections are often half-visible at once, so that sum
+          overcounts. Median first, because a handful of tabs left open all afternoon wrecks a mean.
+        </p>
+      </div>
+
+      {measuredSessions === 0 ? (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Not measured for any session in this range. Page timing started with the current landing
+          build; sessions recorded before it carry no timing at all, which is different from
+          visitors leaving instantly.
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { label: "Median active", value: secs(sessionTime.medianActiveSeconds) },
+              { label: "90th percentile active", value: secs(sessionTime.p90ActiveSeconds) },
+              { label: "Median wall clock", value: secs(sessionTime.medianTotalSeconds) },
+            ].map((cell) => (
+              <div key={cell.label} className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="text-xs text-slate-500">{cell.label}</div>
+                <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+                  {cell.value}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm text-slate-500">
+            Measured on {measuredSessions.toLocaleString()} session
+            {measuredSessions === 1 ? "" : "s"}.
+            {unmeasuredSessions > 0
+              ? ` ${unmeasuredSessions.toLocaleString()} session${
+                  unmeasuredSessions === 1 ? "" : "s"
+                } in this range reported no timing and are excluded rather than counted as zero.`
+              : ""}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 function SectionDwellPanel({
   sections,
   pageMeta,
+  conversions,
 }: {
   sections: SectionDwell[];
   pageMeta: LandingPageMeta | null;
+  conversions: number;
 }) {
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
@@ -864,6 +1226,17 @@ function SectionDwellPanel({
           anchor: null,
           dwell: section,
         }));
+
+  // A conversion recorded while its section never registered as seen is not a
+  // contradiction — the section can be completed without ever clearing the 50%
+  // visibility bar — but it reads as one, so the row says which it is.
+  const goalSectionId = pageMeta?.goalSectionId ?? null;
+  const unseenGoalSection =
+    conversions > 0 &&
+    goalSectionId !== null &&
+    !sections.some((section) => section.sectionId === goalSectionId)
+      ? goalSectionId
+      : null;
 
   const worstExit = Math.max(...sections.map((s) => s.exitRate), 0);
   const longestMedian = Math.max(...sections.map((s) => s.medianSeconds), 1);
@@ -1017,7 +1390,9 @@ function SectionDwellPanel({
                       </>
                     ) : (
                       <td colSpan={4} className="py-2.5 pr-4 text-sm text-slate-500">
-                        No session reached this section in the range
+                        {row.id === unseenGoalSection
+                          ? "Never registered on screen, though the goal was completed — see the note below"
+                          : "No session reached this section in the range"}
                       </td>
                     )}
                   </tr>
@@ -1029,6 +1404,16 @@ function SectionDwellPanel({
             A long time on a section is not automatically good: it can mean the content is
             compelling, or that it is confusing. Read it alongside the drop-off above.
           </p>
+          {unseenGoalSection && (
+            <p className="mt-3 max-w-2xl rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <strong className="font-semibold text-slate-800">Why “{sectionLabel(unseenGoalSection)}” is empty.</strong>{" "}
+              This table measures whether a section was <em>on screen</em>, at least half visible.
+              The goal was completed {conversions.toLocaleString()} time
+              {conversions === 1 ? "" : "s"} in this range without that section ever clearing the
+              bar, so the two numbers do not contradict each other — the conversion is real, the
+              visibility was never recorded.
+            </p>
+          )}
         </div>
       </div>
     </section>

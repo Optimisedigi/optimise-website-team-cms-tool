@@ -63,6 +63,36 @@ export const LandingProperties: CollectionConfig = {
       fields: [{ name: "origin", type: "text", required: true }],
     },
     {
+      name: "dataStartDate",
+      type: "date",
+      admin: {
+        description:
+          "Reporting baseline: the dashboard ignores events before this date, however long a range is selected. A filter only — nothing is deleted, so clearing this field brings the older data straight back.",
+        date: { pickerAppearance: "dayOnly" },
+      },
+    },
+    {
+      name: "excludedIps",
+      type: "array",
+      admin: {
+        description:
+          "Internal IPs whose events are dropped at ingest, so staff traffic never enters the reports. Single address (203.0.113.7) or CIDR range (203.0.113.0/24), IPv4 or IPv6. The request IP is compared and discarded — it is never stored.",
+      },
+      fields: [
+        {
+          name: "ip",
+          type: "text",
+          required: true,
+          admin: { description: "IP address or CIDR range." },
+        },
+        {
+          name: "label",
+          type: "text",
+          admin: { description: "Who or where this is, so it can be removed later." },
+        },
+      ],
+    },
+    {
       name: "activeExperiment",
       type: "relationship",
       relationTo: "landing-experiments",

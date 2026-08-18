@@ -28,6 +28,13 @@ export interface LandingPageMeta {
   /** Publicly served URL, embeddable by the CMS via frame-ancestors. */
   url: string;
   sections: LandingSection[];
+  /**
+   * Section the primary goal is completed in. A conversion can be recorded
+   * while this section never registers as seen (it is revealed late and may
+   * never clear the 50% visibility bar), which reads as a contradiction next to
+   * the conversion count unless the dashboard says so.
+   */
+  goalSectionId?: string;
 }
 
 /** AU and US market pages share one template; the US build only removes the
@@ -51,10 +58,12 @@ const MARKET_SECTIONS: LandingSection[] = [
 ];
 
 /**
- * Served from the landing project's stable Vercel URL until
- * hire.awaydigitalteams.com resolves; swap the base then.
+ * The live public domain. Previews embed these URLs in an iframe, which the
+ * landing project permits through its frame-ancestors header — a domain change
+ * here needs the matching entry there, and in the property's allowedOrigins, or
+ * the preview blanks and ingest refuses the new origin.
  */
-const BASE = "https://od-landing-page-adt.vercel.app";
+const BASE = "https://hire.awaydigitalteams.com";
 
 export const LANDING_PAGES: Record<string, LandingPageMeta> = {
   "offshore-teams-au": {
@@ -62,11 +71,13 @@ export const LANDING_PAGES: Record<string, LandingPageMeta> = {
     label: "AU — Outsourcing to Vietnam",
     url: `${BASE}/outsourcing-au`,
     sections: MARKET_SECTIONS,
+    goalSectionId: "booking",
   },
   "offshore-teams-us": {
     pageId: "offshore-teams-us",
     label: "US — Offshore Teams in Vietnam",
     url: `${BASE}/outsourcing-us`,
     sections: MARKET_SECTIONS,
+    goalSectionId: "booking",
   },
 };

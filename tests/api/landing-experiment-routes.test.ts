@@ -278,7 +278,7 @@ describe("landing experiment routes", () => {
       );
 
       expect(res.status).toBe(202);
-      await expect(res.json()).resolves.toEqual({ accepted: 2, rejected: 0 });
+      await expect(res.json()).resolves.toEqual({ accepted: 2, rejected: 0, excluded: 0 });
       expect(payloadMock.create).toHaveBeenCalledTimes(2);
 
       const first = payloadMock.create.mock.calls[0][0];
@@ -305,14 +305,14 @@ describe("landing experiment routes", () => {
         eventsRequest(eventBatch([sampleEvent("evt-dup")], token))
       );
       expect(first.status).toBe(202);
-      await expect(first.json()).resolves.toEqual({ accepted: 1, rejected: 0 });
+      await expect(first.json()).resolves.toEqual({ accepted: 1, rejected: 0, excluded: 0 });
 
       const replay = await eventsPOST(
         eventsRequest(eventBatch([sampleEvent("evt-dup")], token))
       );
       expect(replay.status).toBe(202);
       // Idempotent: reported accepted, but the duplicate did not create a row.
-      await expect(replay.json()).resolves.toEqual({ accepted: 1, rejected: 0 });
+      await expect(replay.json()).resolves.toEqual({ accepted: 1, rejected: 0, excluded: 0 });
 
       expect(payloadMock.create).toHaveBeenCalledTimes(2);
       const written = payloadMock.create.mock.calls.map((call) => call[0].data.eventId);
@@ -383,7 +383,7 @@ describe("landing experiment routes", () => {
       );
 
       expect(res.status).toBe(202);
-      await expect(res.json()).resolves.toEqual({ accepted: 1, rejected: 2 });
+      await expect(res.json()).resolves.toEqual({ accepted: 1, rejected: 2, excluded: 0 });
       expect(payloadMock.create).toHaveBeenCalledTimes(1);
     });
   });

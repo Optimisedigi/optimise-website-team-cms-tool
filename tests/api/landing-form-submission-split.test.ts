@@ -41,6 +41,8 @@ function submit(sessionId: string, formId: string | null, variantId = "a") {
 function mockEvents(docs: Record<string, unknown>[]) {
   payloadMock.find
     .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+    // The property lookup: no reporting baseline, so the selected range stands.
+    .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
     .mockResolvedValueOnce({
       docs: [
         {
