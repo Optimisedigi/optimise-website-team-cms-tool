@@ -36,6 +36,49 @@ const MAX_EVENTS_SCANNED = 20000;
 const PAGE_SIZE = 1000;
 const MAX_DAYS = 365;
 
+/**
+ * Attribution bucket: source / medium / campaign, the three fields that answer
+ * "which ad spend produced this". Read out of the sanitised `attribution` JSON,
+ * which ingest already restricts to the ATTRIBUTION_KEYS allowlist, so no free
+ * text can reach this label.
+ *
+ * A missing source reads as `(direct)` rather than `(unset)`: an untagged visit
+ * is a real bucket, not absent data.
+ */
+const ATTRIBUTION_BUCKET = `(
+  COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_source'), ''), '(direct)') || ' / ' ||
+  COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_medium'), ''), '(none)') || ' / ' ||
+  COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_campaign'), ''), '(none)')
+)`;
+
+/**
+ * Human labels for the known forms. An unrecognised form_id is shown as-is
+ * rather than dropped, so a newly added form appears in the report instead of
+ * silently vanishing into a pooled total.
+ */
+const FORM_LABELS: Record<string, string> = {
+  qualification: "Qualification form",
+  "readiness-checklist": "Readiness checklist (PDF)",
+  "(unset)": "Unlabelled form",
+};
+
+export interface FormSubmissionSplit {
+  formId: string;
+  label: string;
+  sessions: number;
+}
+
+/** Distinct sessions per form, busiest first. */
+function summariseFormSubmissions(byForm: Map<string, Set<string>>): FormSubmissionSplit[] {
+  return [...byForm.entries()]
+    .map(([formId, sessions]) => ({
+      formId,
+      label: FORM_LABELS[formId] ?? formId,
+      sessions: sessions.size,
+    }))
+    .sort((a, b) => b.sessions - a.sessions || a.formId.localeCompare(b.formId));
+}
+
 /** Filters reach a database query, so anything outside this shape is ignored. */
 function sanitiseFilter(value: string | null, maxLength: number): string | null {
   if (!value) return null;
@@ -72,16 +115,18 @@ async function loadFacets(
   since: string,
   primaryGoal: string,
   pageFilter: string | null
-): Promise<{ pages: Segment[]; markets: Segment[]; devices: Segment[] }> {
+): Promise<{ pages: Segment[]; markets: Segment[]; devices: Segment[]; attribution: Segment[] }> {
   // Values are numeric ids or already-validated constants, and the two strings
   // are escaped, so this cannot carry caller-controlled SQL.
   const escape = (value: string) => value.replace(/'/g, "''");
 
-  async function group(column: string, scopeToPage = false): Promise<Segment[]> {
+  // `bucketExpr` is always one of the constants at the call site below, never
+  // caller input.
+  async function group(bucketExpr: string, scopeToPage = false): Promise<Segment[]> {
     const pageClause =
       scopeToPage && pageFilter ? ` AND \`page_id\` = '${escape(pageFilter)}'` : "";
     const statement = `
-      SELECT COALESCE(NULLIF(\`${column}\`, ''), '(unset)') AS bucket,
+      SELECT COALESCE(NULLIF(${bucketExpr}, ''), '(unset)') AS bucket,
              COUNT(DISTINCT \`session_id\`) AS sessions,
              COUNT(DISTINCT CASE WHEN \`event_type\` = '${escape(primaryGoal)}' THEN \`session_id\` END) AS conversions
       FROM \`landing_events\`
@@ -106,17 +151,18 @@ async function loadFacets(
     } catch (error) {
       // Facets are navigation, not the report. Losing them must not take the
       // whole dashboard down with them.
-      console.error(`[landing-experiments] facet query failed for ${column}:`, error);
+      console.error(`[landing-experiments] facet query failed for ${bucketExpr}:`, error);
       return [];
     }
   }
 
-  const [pages, markets, devices] = await Promise.all([
-    group("page_id"),
-    group("market"),
-    group("device_class", true),
+  const [pages, markets, devices, attribution] = await Promise.all([
+    group("`page_id`"),
+    group("`market`"),
+    group("`device_class`", true),
+    group(ATTRIBUTION_BUCKET),
   ]);
-  return { pages, markets, devices };
+  return { pages, markets, devices, attribution };
 }
 
 export async function GET(req: NextRequest) {
@@ -197,6 +243,11 @@ export async function GET(req: NextRequest) {
   // One dwell figure per session per section: a repeat visit to a section must
   // not count as another reader.
   const dwellSeen = new Set<string>();
+  // `form_submit` covers two unrelated intents: the qualification form (a lead)
+  // and the readiness-checklist PDF download (an email capture). Pooled into a
+  // single funnel step they are indistinguishable, so the checklist can inflate
+  // what looks like lead volume. Split by form_id, on distinct sessions.
+  const formSubmitSessions = new Map<string, Set<string>>();
 
 
   let scanned = 0;
@@ -264,6 +315,14 @@ export async function GET(req: NextRequest) {
         if (eventType === "section_view") {
           lastSectionPerSession.set(sessionId, sectionId);
         }
+      }
+
+      if (eventType === "form_submit") {
+        const formId = typeof properties.form_id === "string" && properties.form_id
+          ? properties.form_id
+          : "(unset)";
+        if (!formSubmitSessions.has(formId)) formSubmitSessions.set(formId, new Set());
+        formSubmitSessions.get(formId)!.add(sessionId);
       }
 
       // Events recorded before an experiment existed carry no variant; they
@@ -335,6 +394,7 @@ export async function GET(req: NextRequest) {
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([variantId, steps]) => [variantId, buildFunnel(steps)])
       ),
+      formSubmissions: summariseFormSubmissions(formSubmitSessions),
       sections: summariseSections(dwellMs, exitsBySection, lastSectionPerSession.size),
       behaviourTotals: totals,
       eventsScanned: scanned,

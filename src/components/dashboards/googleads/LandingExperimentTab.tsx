@@ -60,6 +60,7 @@ interface ReportResponse {
   pages: Segment[];
   markets: Segment[];
   devices: Segment[];
+  attribution: Segment[];
   experiment: {
     id: string;
     name: string;
@@ -74,6 +75,7 @@ interface ReportResponse {
   comparisons: ComparisonSummary[];
   funnel: FunnelStep[];
   funnelByVariant: Record<string, FunnelStep[]>;
+  formSubmissions?: { formId: string; label: string; sessions: number }[];
   sections: SectionDwell[];
   behaviourTotals: Record<string, number>;
   eventsScanned: number;
@@ -305,6 +307,40 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
         </div>
       )}
 
+      {(data.attribution?.length ?? 0) > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900 mb-1">Attribution</h4>
+          <p className="text-xs text-slate-500 mb-3">
+            Source / medium / campaign from the click that started the session, for the whole
+            range. `(direct)` is a visit that arrived with no campaign tags — typing the URL,
+            a bookmark, or a link that stripped them — not a tracking failure. Sessions are
+            counted once against the attribution they arrived with.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-slate-700">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th className="py-2 pr-4">Source / medium / campaign</th>
+                  <th className="py-2 pr-4">Sessions</th>
+                  <th className="py-2 pr-4">Conversions</th>
+                  <th className="py-2 pr-4">Conversion rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.attribution.map((entry) => (
+                  <tr key={entry.key} className="border-t border-slate-100">
+                    <td className="py-2 pr-4 font-medium text-slate-900">{entry.key}</td>
+                    <td className="py-2 pr-4 text-slate-700">{entry.sessions.toLocaleString()}</td>
+                    <td className="py-2 pr-4 text-slate-700">{entry.conversions.toLocaleString()}</td>
+                    <td className="py-2 pr-4 font-medium text-slate-900">{pct(entry.conversionRate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {data.truncated && (
         <p className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
           <strong className="font-semibold">These totals are incomplete.</strong> The scan stopped
@@ -441,6 +477,31 @@ export function LandingExperimentTab({ slug }: { slug: string }) {
               );
             })}
           </div>
+
+          {(data.formSubmissions?.length ?? 0) > 0 && (
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-xs font-medium text-slate-700">
+                Which form was submitted
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                The step above pools every form. The checklist PDF is an email capture, not a
+                qualified lead, so it is counted separately here.
+              </p>
+              <ul className="mt-2 space-y-1">
+                {data.formSubmissions!.map((form) => (
+                  <li
+                    key={form.formId}
+                    className="flex items-center justify-between gap-3 text-xs text-slate-700"
+                  >
+                    <span>{form.label}</span>
+                    <span className="font-medium text-slate-900">
+                      {form.sessions.toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {Object.keys(data.funnelByVariant).length > 1 && (
             <div className="mt-4 overflow-x-auto">
@@ -597,7 +658,29 @@ function SectionDwellPanel({
         sessions would otherwise move every number.
       </p>
 
-      <div className={pageMeta && showPreview ? "grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]" : ""}>
+      {/* Preview first in both source and layout: it is the thing being measured.
+          Its outer cell stretches to the grid row, so it matches the sections
+          table height; the inner card is the sticky element and is capped to the
+          viewport, so a table taller than the screen still leaves the preview in
+          view instead of scrolling it away. */}
+      <div className={pageMeta && showPreview ? "grid gap-6 xl:grid-cols-[400px_minmax(0,1fr)]" : ""}>
+        {pageMeta && showPreview && previewSrc && (
+          <div className="h-full">
+            <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4">
+              <div className="shrink-0 border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+                {pageMeta.label} — live page, scrollable. Interactions here are not tracked.
+              </div>
+              <iframe
+                src={previewSrc}
+                title={`Preview of ${pageMeta.label}`}
+                sandbox="allow-scripts allow-forms"
+                className="w-full flex-1 min-h-[420px]"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm text-slate-700">
             <thead>
@@ -649,23 +732,6 @@ function SectionDwellPanel({
             compelling, or that it is confusing. Read it alongside the drop-off above.
           </p>
         </div>
-
-        {pageMeta && showPreview && previewSrc && (
-          <div className="xl:sticky xl:top-4 self-start">
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
-                {pageMeta.label} — live page, scrollable. Interactions here are not tracked.
-              </div>
-              <iframe
-                src={previewSrc}
-                title={`Preview of ${pageMeta.label}`}
-                sandbox="allow-scripts allow-forms"
-                className="h-[600px] w-full"
-                loading="lazy"
-              />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
