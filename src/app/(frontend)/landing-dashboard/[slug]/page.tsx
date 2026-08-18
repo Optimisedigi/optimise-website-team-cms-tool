@@ -49,7 +49,7 @@ export default async function LandingDashboardPage({ params }: Props) {
   const isAuthenticated = validateDashboardToken(cookieStore.get("dashboard_token")?.value, slug);
 
   if (!isAuthenticated) {
-    return <DashboardPinEntry redirectTo={`/landing-dashboard/${slug}`} />;
+    return <DashboardPinEntry slug={slug} redirectTo={`/landing-dashboard/${slug}`} />;
   }
 
   return (

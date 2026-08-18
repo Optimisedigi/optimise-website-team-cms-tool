@@ -6,6 +6,14 @@ import PinGateLogo from "@/components/PinGateLogo";
 import { usePinDigitClick } from "@/components/usePinDigitClick";
 
 interface DashboardPinEntryProps {
+  /**
+   * Client slug being unlocked. Required, not derived from `redirectTo`:
+   * `/api/dashboard/verify` looks the client up by slug and 400s without one,
+   * which the gate renders as "Something went wrong" — so a correct PIN reads
+   * as a broken dashboard. Making it a required prop means a caller that
+   * forgets it fails at typecheck rather than in front of a client.
+   */
+  slug: string;
   /** Where to redirect on success, e.g. "/dashboard/berendsen" */
   redirectTo: string;
   /** Which verify endpoint to hit */
@@ -13,6 +21,7 @@ interface DashboardPinEntryProps {
 }
 
 export function DashboardPinEntry({
+  slug,
   redirectTo,
   verifyEndpoint = "/api/dashboard/verify",
 }: DashboardPinEntryProps) {
@@ -32,7 +41,10 @@ export function DashboardPinEntry({
         const res = await fetch(verifyEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin }),
+          // The endpoint replies with the session cookie the redirected page
+          // then reads, so the response must be allowed to set it.
+          credentials: "include",
+          body: JSON.stringify({ pin, slug }),
         });
 
         if (res.ok) {
@@ -56,7 +68,7 @@ export function DashboardPinEntry({
         inputRefs.current[0]?.focus();
       }
     },
-    [router, redirectTo, verifyEndpoint],
+    [router, redirectTo, verifyEndpoint, slug],
   );
 
   const handleChange = useCallback(
