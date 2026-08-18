@@ -96,11 +96,20 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   `);
 
   // 4. payload_locked_documents_rels: add column for new collection.
-  await db.run(sql`
-    ALTER TABLE \`payload_locked_documents_rels\`
-    ADD COLUMN \`permission_profiles_id\` integer
-    REFERENCES \`permission_profiles\`(\`id\`) ON UPDATE no action ON DELETE cascade;
-  `);
+  //
+  // Tolerating an existing column matches every other statement in this file.
+  // The raw /api/migrate sweep adds this same column, so an environment that
+  // ran that first fails here — and because one failure aborts the whole run,
+  // it blocks every later migration in the registry as well.
+  try {
+    await db.run(sql`
+      ALTER TABLE \`payload_locked_documents_rels\`
+      ADD COLUMN \`permission_profiles_id\` integer
+      REFERENCES \`permission_profiles\`(\`id\`) ON UPDATE no action ON DELETE cascade;
+    `);
+  } catch (error) {
+    if (!String(error).includes("duplicate column")) throw error;
+  }
 }
 
 export async function down({ db }: MigrateDownArgs): Promise<void> {

@@ -316,6 +316,24 @@ export async function runMigrations(
     await run("landing_properties_allowed_origins_order_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_allowed_origins_order_idx` ON `landing_properties_allowed_origins` (`_order`)");
     await run("landing_properties_allowed_origins_parent_id_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_allowed_origins_parent_id_idx` ON `landing_properties_allowed_origins` (`_parent_id`)");
 
+    // Internal IPs whose events are dropped at ingest. The request IP is
+    // compared against this list and discarded; landing_events stores no IP.
+    await run("landing_properties_excluded_ips", `CREATE TABLE IF NOT EXISTS \`landing_properties_excluded_ips\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL, \`id\` text PRIMARY KEY NOT NULL,
+      \`ip\` text NOT NULL, \`label\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`landing_properties\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("landing_properties_excluded_ips_order_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_excluded_ips_order_idx` ON `landing_properties_excluded_ips` (`_order`)");
+    await run("landing_properties_excluded_ips_parent_id_idx", "CREATE INDEX IF NOT EXISTS `landing_properties_excluded_ips_parent_id_idx` ON `landing_properties_excluded_ips` (`_parent_id`)");
+
+    // Reporting baseline: the dashboard ignores events before this date. A
+    // filter only — no event is deleted, so clearing the field restores them.
+    await run(
+      "landing_properties.data_start_date",
+      "ALTER TABLE `landing_properties` ADD COLUMN `data_start_date` text",
+      ["duplicate column"]
+    );
+
     await run("landing_events", `CREATE TABLE IF NOT EXISTS \`landing_events\` (
       \`id\` integer PRIMARY KEY NOT NULL, \`event_id\` text NOT NULL,
       \`property_id\` integer, \`client_id\` integer,
