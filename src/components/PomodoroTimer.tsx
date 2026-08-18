@@ -100,6 +100,109 @@ function formatElapsed(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+/* ── FlipClock (white + black, adapted from shadcn component) ── */
+function FlipDigit({ digit, size = 'md' }: { digit: string; size?: 'sm' | 'md' }) {
+  const [prevDigit, setPrevDigit] = useState(digit)
+  const [flipping, setFlipping] = useState(false)
+
+  useEffect(() => {
+    if (digit !== prevDigit) {
+      setFlipping(true)
+      const timer = setTimeout(() => {
+        setFlipping(false)
+        setPrevDigit(digit)
+      }, 550)
+      return () => clearTimeout(timer)
+    }
+  }, [digit, prevDigit])
+
+  const sizeClasses = size === 'sm' ? 'w-7 h-10 text-xl' : 'w-10 h-14 text-3xl'
+
+  return (
+    <div className={`relative ${sizeClasses} rounded-md overflow-hidden bg-white text-black font-medium`}
+         style={{ perspective: '1000px', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Background Top (NEW digit waiting) */}
+      <div className="absolute inset-x-0 h-1/2 top-0 bg-inherit text-inherit">
+        <span className="absolute left-0 right-0 w-full h-[200%] flex items-center justify-center" style={{ top: '0%' }}>
+          {digit}
+        </span>
+      </div>
+
+      {/* Background Bottom (OLD digit staying) */}
+      <div className="absolute inset-x-0 h-1/2 bottom-0 bg-inherit text-inherit">
+        <span className="absolute left-0 right-0 w-full h-[200%] flex items-center justify-center" style={{ top: '-100%' }}>
+          {prevDigit}
+        </span>
+      </div>
+
+      {/* Top Flap (OLD digit falling) */}
+      <div
+        className="absolute inset-x-0 h-1/2 top-0 bg-inherit text-inherit z-20"
+        style={{
+          transformOrigin: 'bottom center',
+          backfaceVisibility: 'hidden',
+          ...(flipping ? { animation: 'pomo-flip-top 0.6s ease-in forwards' } : {}),
+        }}
+      >
+        <span className="absolute left-0 right-0 w-full h-[200%] flex items-center justify-center" style={{ top: '0%' }}>
+          {prevDigit}
+        </span>
+      </div>
+
+      {/* Bottom Flap (NEW digit appearing) */}
+      <div
+        className="absolute inset-x-0 h-1/2 bottom-0 bg-inherit text-inherit z-10"
+        style={{
+          transformOrigin: 'top center',
+          backfaceVisibility: 'hidden',
+          transform: flipping ? undefined : 'rotateX(90deg)',
+          ...(flipping ? { animation: 'pomo-flip-bottom 0.6s ease-out forwards' } : {}),
+        }}
+      >
+        <span className="absolute left-0 right-0 w-full h-[200%] flex items-center justify-center" style={{ top: '-100%' }}>
+          {digit}
+        </span>
+      </div>
+
+      {/* Center divider */}
+      <div className="absolute top-1/2 left-0 w-full h-px -translate-y-1/2 bg-black/10 z-30" />
+    </div>
+  )
+}
+
+export function FlipClockDisplay({ time, showHours }: { time: string; showHours?: boolean }) {
+  const parts = time.split(':')
+  const digits = showHours || parts.length === 3
+    ? [parts[0][0], parts[0][1], ':', parts[1][0], parts[1][1], ':', parts[2][0], parts[2][1]]
+    : [parts[0][0], parts[0][1], ':', parts[1][0], parts[1][1]]
+
+  return (
+    <>
+      <style>{`
+        @keyframes pomo-flip-top {
+          0% { transform: rotateX(0deg); z-index: 30; }
+          50%, 100% { transform: rotateX(-90deg); z-index: 10; }
+        }
+        @keyframes pomo-flip-bottom {
+          0%, 50% { transform: rotateX(90deg); z-index: 10; }
+          100% { transform: rotateX(0deg); z-index: 30; }
+        }
+      `}</style>
+      <div className="flex items-center justify-center gap-1" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        {digits.map((d, i) =>
+          d === ':' ? (
+            <span key={`sep-${i}`} className="font-bold text-xl text-black/60">
+              :
+            </span>
+          ) : (
+            <FlipDigit key={`d-${i}`} digit={d} />
+          )
+        )}
+      </div>
+    </>
+  )
+}
+
 /* ── Breathwork phase helper ── */
 type BreathPhase = 'inhale' | 'hold' | 'exhale'
 
@@ -637,7 +740,7 @@ export function usePomodoro() {
           </div>
 
           <div style={{
-            fontFamily: '"Press Start 2P", "Courier New", monospace',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
             fontSize: 38,
             fontWeight: 700,
             letterSpacing: 2,
@@ -920,17 +1023,7 @@ export function PomodoroBody({ pomo }: { pomo: ReturnType<typeof usePomodoro> })
               padding: '10px 14px 20px',
             }}
           >
-            <div
-              style={{
-                fontFamily: '"Press Start 2P", "Courier New", monospace',
-                fontSize: 40,
-                fontWeight: 700,
-                letterSpacing: 2,
-                lineHeight: 1.2,
-              }}
-            >
-              {formatTime(timeLeft)}
-            </div>
+            <FlipClockDisplay time={formatTime(timeLeft)} />
           </div>
 
           {/* Controls */}
@@ -1125,20 +1218,10 @@ export function PomodoroBody({ pomo }: { pomo: ReturnType<typeof usePomodoro> })
             style={{
               textAlign: 'center',
               padding: '10px 14px 20px',
+              opacity: trackerPaused ? 0.5 : 1,
             }}
           >
-            <div
-              style={{
-                fontFamily: '"Press Start 2P", "Courier New", monospace',
-                fontSize: 40,
-                fontWeight: 700,
-                letterSpacing: 2,
-                lineHeight: 1.2,
-                color: trackerPaused ? 'rgba(255,255,255,0.4)' : '#fff',
-              }}
-            >
-              {formatElapsed(elapsed)}
-            </div>
+            <FlipClockDisplay time={formatElapsed(elapsed)} showHours={elapsed >= 3600} />
           </div>
 
           {/* Admin: custom start time */}
