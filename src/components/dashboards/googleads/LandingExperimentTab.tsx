@@ -429,8 +429,11 @@ export function LandingExperimentTab({
         </div>
       </div>
 
+      {/* One row at desktop width. These five are read together as a single
+          headline — stacked two-up they stop being a summary and start being a
+          list you have to scroll. */}
       {hasVariants && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard
             label="Sessions"
             value={sessions.toLocaleString()}
@@ -487,15 +490,13 @@ export function LandingExperimentTab({
         </p>
       )}
 
+      {/* A quiet footnote, not a warning banner. It only appears once the scan
+          actually hits its ceiling, and by then the numbers shown are the most
+          recent ones — which is what the reader wanted anyway. */}
       {data.truncated && (
-        <p
-          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-          role="status"
-        >
-          <strong className="font-semibold text-amber-900">Older activity is not counted here.</strong>{" "}
-          This range holds more than {data.eventsScanned.toLocaleString()} events, so the headline
-          numbers cover the most recent ones and leave out the oldest. Recent days are complete;
-          choose a shorter range to have the whole period counted.
+        <p className="text-xs text-slate-500" role="status">
+          Showing the most recent {data.eventsScanned.toLocaleString()} events in this range. Older
+          activity is not included in the figures above.
         </p>
       )}
 
