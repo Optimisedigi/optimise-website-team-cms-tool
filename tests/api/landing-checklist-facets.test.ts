@@ -82,8 +82,12 @@ function sqlText(statement?: SqlStatement): string {
 function mockFacets(byBucket: Record<string, Record<string, unknown>[]>) {
   drizzleRun.mockImplementation(async (statement?: SqlStatement) => {
     const sql = sqlText(statement);
+    // The per-bucket timing query groups by `bucket, session_id` and shares the
+    // same bucket expression, so it has to be excluded explicitly or it would
+    // be answered with session-count rows and silently skew the medians.
+    const isTiming = sql.includes("GROUP BY bucket, session_id");
     for (const [needle, rows] of Object.entries(byBucket)) {
-      if (sql.includes(needle) && sql.includes("GROUP BY bucket")) return { rows };
+      if (!isTiming && sql.includes(needle) && sql.includes("GROUP BY bucket")) return { rows };
     }
     return { rows: [] };
   });
@@ -107,6 +111,8 @@ describe("checklist sign-ups on the market and device facets", () => {
 
     const body = await (await GET(request())).json();
 
+    // No page_dwell rows are seeded, so the time column is null — "nobody was
+    // measured", which the table renders as a dash rather than 0s.
     expect(body.markets).toEqual([
       {
         key: "AU",
@@ -114,6 +120,7 @@ describe("checklist sign-ups on the market and device facets", () => {
         conversions: 74,
         conversionRate: 74 / 1298,
         checklistSessions: 2,
+        medianActiveSeconds: null,
       },
       {
         key: "US",
@@ -121,8 +128,37 @@ describe("checklist sign-ups on the market and device facets", () => {
         conversions: 36,
         conversionRate: 36 / 781,
         checklistSessions: 1,
+        medianActiveSeconds: null,
       },
     ]);
+  });
+
+  it("reports the median active seconds per market, not the mean", async () => {
+    mockLookups();
+    drizzleRun.mockImplementation(async (statement?: SqlStatement) => {
+      const sql = sqlText(statement);
+      if (sql.includes("GROUP BY bucket, session_id") && sql.includes("`market`")) {
+        // Four AU sessions. The mean is skewed by one tab left open for an
+        // hour; the median ignores it and reports the typical visit.
+        return {
+          rows: [
+            { bucket: "AU", session_ms: 10_000 },
+            { bucket: "AU", session_ms: 20_000 },
+            { bucket: "AU", session_ms: 30_000 },
+            { bucket: "AU", session_ms: 3_600_000 },
+          ],
+        };
+      }
+      if (sql.includes("`market`") && sql.includes("GROUP BY bucket")) {
+        return { rows: [{ bucket: "AU", sessions: 4, conversions: 1, checklist: 0 }] };
+      }
+      return { rows: [] };
+    });
+
+    const body = await (await GET(request())).json();
+
+    // Lower of the two middle values (20s), not the 917s mean.
+    expect(body.markets[0].medianActiveSeconds).toBe(20);
   });
 
   it("reports checklist sessions per device", async () => {

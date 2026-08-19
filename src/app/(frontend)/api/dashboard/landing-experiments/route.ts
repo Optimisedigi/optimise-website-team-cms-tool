@@ -153,12 +153,69 @@ async function loadFacets(
   // are escaped, so this cannot carry caller-controlled SQL.
   const escape = (value: string) => value.replace(/'/g, "''");
 
+  /**
+   * Median active seconds per session, bucketed the same way as the facet it
+   * decorates.
+   *
+   * De-duplicated by page_view_id first, because a re-sent exit beacon would
+   * otherwise count one session's time twice. Median rather than mean, and
+   * taken in JS because SQLite has no percentile function: a single tab left
+   * open all afternoon would drag a mean past anything a real visitor did.
+   *
+   * Unlimited on purpose — a LIMIT truncates in grouping-key order, which
+   * would drop whole buckets off the end and report them as unmeasured.
+   */
+  async function medianSecondsByBucket(
+    bucketExpr: string,
+    pageClause: string
+  ): Promise<Map<string, number>> {
+    const statement = `
+      SELECT bucket, SUM(ms) AS session_ms
+      FROM (
+        SELECT COALESCE(NULLIF(${bucketExpr}, ''), '(unset)') AS bucket,
+               \`session_id\` AS session_id,
+               \`page_view_id\` AS page_view_id,
+               MAX(CAST(json_extract(\`properties\`, '$.active_ms') AS REAL)) AS ms
+        FROM \`landing_events\`
+        WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'${pageClause}
+          AND \`event_type\` = 'page_dwell'
+          AND json_extract(\`properties\`, '$.active_ms') IS NOT NULL
+        GROUP BY bucket, session_id, page_view_id
+      )
+      GROUP BY bucket, session_id`;
+
+    const byBucket = new Map<string, number[]>();
+    try {
+      const result = await payload.db.drizzle.run(sql.raw(statement));
+      for (const row of (result as { rows?: Record<string, unknown>[] })?.rows ?? []) {
+        const ms = Number(row.session_ms);
+        if (!Number.isFinite(ms) || ms < 0) continue;
+        const bucket = String(row.bucket ?? "(unset)");
+        if (!byBucket.has(bucket)) byBucket.set(bucket, []);
+        byBucket.get(bucket)!.push(ms);
+      }
+    } catch (error) {
+      // Timing is one column of a table, not the table. Losing it must not
+      // blank the sessions and conversions sitting beside it.
+      console.error(`[landing-experiments] timing query failed for ${bucketExpr}:`, error);
+      return new Map();
+    }
+
+    const medians = new Map<string, number>();
+    for (const [bucket, values] of byBucket) {
+      values.sort((a, b) => a - b);
+      medians.set(bucket, Math.round(values[Math.floor((values.length - 1) / 2)] / 1000));
+    }
+    return medians;
+  }
+
   // `bucketExpr` is always one of the constants at the call site below, never
   // caller input.
   async function group(
     bucketExpr: string,
     scopeToPage = false,
-    withChecklist = false
+    withChecklist = false,
+    withTiming = false
   ): Promise<Segment[]> {
     const pageClause =
       scopeToPage && pageFilter ? ` AND \`page_id\` = '${escape(pageFilter)}'` : "";
@@ -179,17 +236,26 @@ async function loadFacets(
       LIMIT 50`;
 
     try {
-      const result = await payload.db.drizzle.run(sql.raw(statement));
+      const [result, timings] = await Promise.all([
+        payload.db.drizzle.run(sql.raw(statement)),
+        withTiming
+          ? medianSecondsByBucket(bucketExpr, pageClause)
+          : Promise.resolve(new Map<string, number>()),
+      ]);
       const rows = (result as { rows?: Record<string, unknown>[] })?.rows ?? [];
       return rows.map((row) => {
         const sessions = Number(row.sessions ?? 0);
         const conversions = Number(row.conversions ?? 0);
+        const key = String(row.bucket ?? "(unset)");
         return {
-          key: String(row.bucket ?? "(unset)"),
+          key,
           sessions,
           conversions,
           conversionRate: sessions > 0 ? conversions / sessions : 0,
           ...(withChecklist ? { checklistSessions: Number(row.checklist ?? 0) } : {}),
+          // null, not 0: "nobody was measured" and "everyone left instantly"
+          // are opposite findings, and the table renders them differently.
+          ...(withTiming ? { medianActiveSeconds: timings.get(key) ?? null } : {}),
         };
       });
     } catch (error) {
@@ -205,8 +271,8 @@ async function loadFacets(
     // Markets, devices and attribution all carry the checklist count: it is the
     // page's second outcome, so every table that reports conversions reports it
     // too rather than sending the reader to a separate panel.
-    group("`market`", false, true),
-    group("`device_class`", true, true),
+    group("`market`", false, true, true),
+    group("`device_class`", true, true, true),
     group(ATTRIBUTION_BUCKET, false, true),
   ]);
   return { pages, markets, devices, attribution };

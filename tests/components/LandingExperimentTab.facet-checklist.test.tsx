@@ -85,6 +85,7 @@ describe("checklist sign-ups on the market and device tables", () => {
       "Sessions",
       "Conversions",
       "Conversion rate",
+      "Average time on site",
       "Readiness checklist sign-ups",
     ]);
 
@@ -104,6 +105,7 @@ describe("checklist sign-ups on the market and device tables", () => {
       "Sessions",
       "Conversions",
       "Conversion rate",
+      "Average time on site",
       "Readiness checklist sign-ups",
     ]);
 

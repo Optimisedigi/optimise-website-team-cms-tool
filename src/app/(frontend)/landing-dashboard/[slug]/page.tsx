@@ -106,19 +106,17 @@ export default async function LandingDashboardPage({ params }: Props) {
         <LandingExperimentTab slug={slug} />
       </div>
 
-      {/* Quiet brand footer, matching the PIN gate's lockup but in the dark
-          mark for a light page. Fixed bottom-right and non-interactive so it
-          never covers a control the reader is reaching for. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed bottom-6 right-6 z-10 opacity-70"
-      >
+      {/* Quiet brand sign-off at the end of the document, not pinned to the
+          viewport: it belongs after the report, where you arrive once you have
+          read it, rather than floating over the numbers the whole way down. */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-10 flex justify-end">
         <img
           src="/optimise-digital-logo-black.webp"
           alt=""
+          aria-hidden="true"
           width={150}
           height={Math.round((150 * 151) / 1068)}
-          style={{ display: "block", width: 150, height: "auto" }}
+          style={{ display: "block", width: 150, height: "auto", opacity: 0.7 }}
         />
       </div>
     </main>

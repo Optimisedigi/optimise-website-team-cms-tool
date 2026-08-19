@@ -149,6 +149,20 @@ function shortPct(value: number): string {
   return `${(value * 100).toFixed(0)}%`;
 }
 
+/**
+ * Seconds as a duration a reader can judge at a glance.
+ *
+ * Under a minute stays in seconds, because "0m 42s" is harder to read than
+ * "42s". Above it, minutes lead: "3m 05s" lands faster than "185s".
+ */
+function formatSeconds(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round(seconds % 60);
+  return `${minutes}m ${String(rest).padStart(2, "0")}s`;
+}
+
 /** Turn a section id into something readable without inventing a label. */
 /**
  * The section template used to describe the report.
@@ -369,13 +383,10 @@ export function LandingExperimentTab({
 
   return (
     <div className="space-y-6 text-slate-900">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h3 className="text-xl font-bold tracking-tight text-slate-900">
-            {data.experiment ? data.experiment.name : "No experiment configured"}
-          </h3>
-        </div>
-
+      {/* No report title: the page header already names the client and the
+          report, so an experiment name here was a second heading saying
+          nothing the reader needed. The controls stand on their own row. */}
+      <div className="flex flex-wrap items-end justify-end gap-4">
         <div className="flex flex-wrap items-end gap-3">
           {data.experiment && (
             <span
@@ -433,7 +444,7 @@ export function LandingExperimentTab({
           headline — stacked two-up they stop being a summary and start being a
           list you have to scroll. */}
       {hasVariants && (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard
             label="Sessions"
             value={sessions.toLocaleString()}
@@ -472,6 +483,22 @@ export function LandingExperimentTab({
             label={checklist ? checklist.label : "Readiness checklist sign-ups"}
             value={checklist ? checklist.sessions.toLocaleString() : "—"}
             note={checklist ? `${pct(checklist.rate)} of sessions` : "Not counted in this range"}
+          />
+          {/* Active time, not wall-clock: a tab left open in the background is
+              not someone reading. Median, because a handful of abandoned tabs
+              would pull a mean away from the typical visit. */}
+          <StatCard
+            label="Average time on site"
+            value={
+              data.sessionTime && data.sessionTime.measuredSessions > 0
+                ? formatSeconds(data.sessionTime.medianActiveSeconds)
+                : "—"
+            }
+            note={
+              data.sessionTime && data.sessionTime.measuredSessions > 0
+                ? `Median across ${data.sessionTime.measuredSessions.toLocaleString()} measured sessions`
+                : "Not measured in this range"
+            }
           />
         </div>
       )}
@@ -533,7 +560,13 @@ export function LandingExperimentTab({
               <h4 id="landing-markets-heading" className="text-base font-bold text-slate-900">
                 Markets
               </h4>
-              <SegmentTable rows={data.markets} firstColumn="Market" checklistColumn />
+              <SegmentTable
+                rows={data.markets}
+                firstColumn="Market"
+                checklistColumn
+                timeColumn
+                timeLabel="Average time on site"
+              />
             </section>
           )}
 
@@ -546,6 +579,8 @@ export function LandingExperimentTab({
                 rows={data.devices.filter((entry) => entry.key !== "(unset)")}
                 firstColumn="Device"
                 checklistColumn
+                timeColumn
+                timeLabel="Average time on site"
               />
             </section>
           )}
@@ -611,11 +646,15 @@ function SegmentTable({
   firstColumn,
   checklistColumn = false,
   timeColumn = false,
+  // Named by the caller: the same median reads as "time on page" for one
+  // landing page and "time on site" for a market spanning several.
+  timeLabel = "Time on page per session",
 }: {
   rows: Segment[];
   firstColumn: string;
   checklistColumn?: boolean;
   timeColumn?: boolean;
+  timeLabel?: string;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -636,7 +675,7 @@ function SegmentTable({
             </th>
             {timeColumn && (
               <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
-                Time on page per session
+                {timeLabel}
               </th>
             )}
             {checklistColumn && (
@@ -663,11 +702,11 @@ function SegmentTable({
               </td>
               {timeColumn && (
                 <td className="py-3 pr-4 text-slate-700 tabular-nums">
-                  {/* Unmeasured is a dash, never 0s: a session that predates page
-                      timing is not a visitor who left instantly. */}
+                  {/* Unmeasured is a dash, never 0s: a session recorded before
+                      page timing shipped is not a visitor who left instantly. */}
                   {entry.medianActiveSeconds === null || entry.medianActiveSeconds === undefined
                     ? "—"
-                    : `${entry.medianActiveSeconds}s`}
+                    : formatSeconds(entry.medianActiveSeconds)}
                 </td>
               )}
               {checklistColumn && (
