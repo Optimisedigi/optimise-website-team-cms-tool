@@ -37,24 +37,33 @@ export interface LandingPageMeta {
   goalSectionId?: string;
 }
 
-/** AU and US market pages share one template; the US build only removes the
- * time-overlap block, which is not a tracked section. */
+/**
+ * AU and US market pages share one template; the US build only removes the
+ * time-overlap block, which is not a tracked section.
+ *
+ * Labels are the section's own on-page heading, verbatim, and the array is in
+ * the page's DOM order top-to-bottom. Both are deliberate: the dashboard row
+ * has to be findable on the page it describes, so a paraphrased label ("Key
+ * sectors" for a section headed "We hire for these key sectors") makes the
+ * reader hunt for the block the number belongs to.
+ */
 const MARKET_SECTIONS: LandingSection[] = [
-  { id: "hero", label: "Hero", anchor: null },
+  // The hero leads with the page h1; every other row is its h2.
+  { id: "hero", label: "Outsourcing, done better", anchor: null },
   { id: "logostrip", label: "Trusted by 200+ companies", anchor: "logostrip-h" },
   { id: "compare", label: "Vietnam vs. the alternatives", anchor: "compare" },
-  { id: "concerns", label: "Common concerns", anchor: "concerns-h" },
-  { id: "how", label: "How it works", anchor: "how" },
-  { id: "tools", label: "Planning tools & calculator", anchor: "tools" },
-  { id: "sectors", label: "Key sectors", anchor: "sectors" },
+  { id: "concerns", label: "The most common concerns we hear", anchor: "concerns-h" },
+  { id: "how", label: "How it Works", anchor: "how" },
+  { id: "tools", label: "Are you ready to outsource?", anchor: "tools" },
+  { id: "sectors", label: "We hire for these key sectors. Here are the facts.", anchor: "sectors" },
   { id: "why-vietnam", label: "Why Vietnam?", anchor: "why-vietnam" },
-  { id: "detail", label: "How working together looks", anchor: "detail-h" },
-  { id: "approach", label: "What makes us different", anchor: "approach" },
-  { id: "proof", label: "Testimonials & proof", anchor: "proof" },
+  { id: "detail", label: "How working with Away Digital Teams looks", anchor: "detail-h" },
+  { id: "approach", label: "What makes outsourcing with us different?", anchor: "approach" },
+  { id: "proof", label: "200+ companies grow faster with our top-tier talent.", anchor: "proof" },
   { id: "faqs", label: "FAQs", anchor: "faqs" },
   { id: "contact", label: "Talk to our team", anchor: "contact" },
-  // Revealed at form step 6; it has no static anchor to scroll to.
-  { id: "booking", label: "Booking (form step 6)", anchor: null },
+  // Revealed at form step 6, so it carries its own h3 and no static anchor.
+  { id: "booking", label: "Choose your time", anchor: null },
 ];
 
 /**

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LandingExperimentTab } from "@/components/dashboards/googleads/LandingExperimentTab";
@@ -12,7 +12,7 @@ import { LandingExperimentTab } from "@/components/dashboards/googleads/LandingE
  * back or the sticky classes are dropped in a later tidy-up.
  */
 
-/** Two pages, so the component auto-selects the busiest and resolves pageMeta. */
+/** Two pages, so a page can be selected to resolve pageMeta and the preview. */
 const report = {
   filters: { page: null, device: null, market: null },
   pages: [
@@ -22,8 +22,20 @@ const report = {
   markets: [],
   devices: [],
   attribution: [
-    { key: "google / cpc / brand-au", sessions: 2076, conversions: 110, conversionRate: 0.052987 },
-    { key: "(direct) / (none) / (none)", sessions: 318, conversions: 4, conversionRate: 0.012579 },
+    {
+      key: "google / cpc / brand-au",
+      sessions: 2076,
+      conversions: 110,
+      conversionRate: 0.052987,
+      checklistSessions: 64,
+    },
+    {
+      key: "(direct) / (none) / (none)",
+      sessions: 318,
+      conversions: 4,
+      conversionRate: 0.012579,
+      checklistSessions: 9,
+    },
   ],
   experiment: {
     id: "landing-hero-v1",
@@ -68,6 +80,16 @@ function renderTab() {
   render(<LandingExperimentTab slug="away-digital" />);
 }
 
+/**
+ * The report opens on all pages pooled, and a preview only makes sense once a
+ * single page is chosen — so the preview cases select one first.
+ */
+async function renderTabWithPage() {
+  renderTab();
+  const select = await screen.findByLabelText("Page");
+  fireEvent.change(select, { target: { value: "offshore-teams-au" } });
+}
+
 describe("LandingExperimentTab attribution table", () => {
   it("lists each source/medium/campaign with its sessions and conversions", async () => {
     renderTab();
@@ -103,48 +125,53 @@ describe("LandingExperimentTab attribution table", () => {
       "Sessions",
       "Conversions",
       "Conversion rate",
+      "Readiness checklist sign-ups",
     ]);
+  });
+
+  it("reports checklist sign-ups per attribution bucket", async () => {
+    renderTab();
+
+    const heading = await screen.findByRole("heading", { name: "Attribution" });
+    const table = heading.closest("section")!.querySelector("table")!;
+
+    const paidRow = within(table).getByText("google / cpc / brand-au").closest("tr")!;
+    expect(within(paidRow).getByText("64")).toBeTruthy();
+
+    const directRow = within(table).getByText("(direct) / (none) / (none)").closest("tr")!;
+    expect(within(directRow).getByText("9")).toBeTruthy();
   });
 });
 
-describe("LandingExperimentTab form submission split", () => {
-  it("shows checklist PDF downloads as their own row, apart from qualification", async () => {
+/**
+ * The funnel card was removed from the report, and the form split and its
+ * pooled step went with it: both lived inside that card. Checklist sign-ups are
+ * now reported as a headline figure and as an attribution column instead.
+ *
+ * Asserted rather than deleted, so the removal stays deliberate — a later edit
+ * that reinstates the funnel has to reinstate this decision too.
+ */
+describe("LandingExperimentTab funnel removal", () => {
+  it("drops the funnel card and the form split that lived inside it", async () => {
     renderTab();
-
-    const heading = await screen.findByText("Which form was submitted");
-    const list = heading.parentElement!.querySelector("ul")!;
-    const rows = within(list)
-      .getAllByRole("listitem")
-      .map((row) => row.textContent);
-
-    // Busiest first, and the PDF is legible as a PDF rather than a raw form id.
-    expect(rows).toEqual(["Readiness checklist (PDF)128", "Qualification form52"]);
-  });
-
-  it("keeps the pooled funnel step visible alongside the split", async () => {
-    renderTab();
-
-    // The split explains the pooled step (128 + 52 = 180); it must not replace
-    // it, or the funnel stops reconciling.
-    await screen.findByText("Which form was submitted");
-    expect(screen.getByText("Submitted the form")).toBeTruthy();
-  });
-
-  it("hides the split entirely when no form was submitted", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...report, formSubmissions: [] }) }),
-    );
-    render(<LandingExperimentTab slug="away-digital" />);
 
     await screen.findByRole("heading", { name: "Attribution" });
+    expect(screen.queryByText("Where people drop off")).toBeNull();
     expect(screen.queryByText("Which form was submitted")).toBeNull();
+    expect(screen.queryByText("Submitted the form")).toBeNull();
+  });
+
+  it("still reports checklist sign-ups, the outcome the split was read for", async () => {
+    renderTab();
+
+    await screen.findByRole("heading", { name: "Attribution" });
+    expect(screen.getAllByText("Readiness checklist sign-ups").length).toBeGreaterThan(0);
   });
 });
 
 describe("LandingExperimentTab page preview placement", () => {
   it("puts the preview in the first grid cell, before the section table", async () => {
-    renderTab();
+    await renderTabWithPage();
 
     const iframe = await screen.findByTitle(/^Preview of /);
     const card = iframe.closest("div.xl\\:sticky")!;
@@ -162,7 +189,7 @@ describe("LandingExperimentTab page preview placement", () => {
   });
 
   it("sizes the preview to the sections table height", async () => {
-    renderTab();
+    await renderTabWithPage();
 
     const iframe = await screen.findByTitle(/^Preview of /);
     const card = iframe.closest("div.xl\\:sticky")!;
@@ -179,7 +206,7 @@ describe("LandingExperimentTab page preview placement", () => {
   });
 
   it("keeps the preview pinned while the rest of the report scrolls", async () => {
-    renderTab();
+    await renderTabWithPage();
 
     const iframe = await screen.findByTitle(/^Preview of /);
     const card = iframe.closest("div.xl\\:sticky")!;
@@ -192,7 +219,7 @@ describe("LandingExperimentTab page preview placement", () => {
   });
 
   it("sandboxes the preview so admin scrolling cannot record events", async () => {
-    renderTab();
+    await renderTabWithPage();
 
     const iframe = await screen.findByTitle(/^Preview of /);
     // No allow-same-origin: the SDK then calls from an opaque origin, which the

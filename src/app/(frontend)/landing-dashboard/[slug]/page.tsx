@@ -1,11 +1,29 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getPayload } from "payload";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../../api/dashboard/verify/route";
 import { LandingExperimentTab } from "@/components/dashboards/googleads/LandingExperimentTab";
 import { DashboardPinEntry } from "@/components/dashboards/shared/DashboardPinEntry";
+import { PinGateFrame } from "@/components/PinGateFrame";
 import "../../google-dashboard/globals.css";
+
+// The PIN gate and header type in these faces; without the variables they fall
+// back to system-ui and the page stops matching the Ads dashboard it sits beside.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 /**
  * Standalone landing A/B and behaviour reporting for one client.
@@ -49,22 +67,59 @@ export default async function LandingDashboardPage({ params }: Props) {
   const isAuthenticated = validateDashboardToken(cookieStore.get("dashboard_token")?.value, slug);
 
   if (!isAuthenticated) {
-    return <DashboardPinEntry slug={slug} redirectTo={`/landing-dashboard/${slug}`} />;
+    return (
+      <div className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
+        <PinGateFrame
+          eyebrow="Landing Performance"
+          title={client.name}
+          subtitle="Enter your 4-digit PIN access code to view the dashboard"
+        >
+          <DashboardPinEntry slug={slug} redirectTo={`/landing-dashboard/${slug}`} />
+        </PinGateFrame>
+      </div>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 py-10">
-      <div className="mx-auto w-full max-w-7xl px-6">
-        <header className="mb-8">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-slate-500">
-            Landing performance
-          </p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{client.name}</h1>
-        </header>
+    <main
+      className={`od-dashboard-root min-h-screen bg-slate-50 text-slate-900 ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
+    >
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
+        {/* Same title lockup as the Google Ads dashboard: the client's name
+            carries the weight, and the grey label says which report this is. */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-[20px]">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1
+              className="font-bold tracking-tight text-slate-900 leading-tight my-0"
+              style={{ fontSize: "26px", transform: "translateY(-1px)" }}
+            >
+              {client.name}
+            </h1>
+            <span className="text-slate-400 font-normal" style={{ fontSize: "18px" }}>
+              Landing Performance
+            </span>
+          </div>
+        </div>
 
         {/* The report renders its own cards, so this page provides the field
             they sit on rather than a second card around them. */}
         <LandingExperimentTab slug={slug} />
+      </div>
+
+      {/* Quiet brand footer, matching the PIN gate's lockup but in the dark
+          mark for a light page. Fixed bottom-right and non-interactive so it
+          never covers a control the reader is reaching for. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed bottom-6 right-6 z-10 opacity-70"
+      >
+        <img
+          src="/optimise-digital-logo-black.webp"
+          alt=""
+          width={150}
+          height={Math.round((150 * 151) / 1068)}
+          style={{ display: "block", width: 150, height: "auto" }}
+        />
       </div>
     </main>
   );

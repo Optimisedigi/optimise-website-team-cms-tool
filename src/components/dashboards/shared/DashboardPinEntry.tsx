@@ -2,7 +2,11 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import PinGateLogo from "@/components/PinGateLogo";
+import {
+  pinGateBlurredInputStyle,
+  pinGateFocusedInputStyle,
+  pinGateInputStyle,
+} from "@/components/PinGateFrame";
 import { usePinDigitClick } from "@/components/usePinDigitClick";
 
 interface DashboardPinEntryProps {
@@ -132,9 +136,13 @@ export function DashboardPinEntry({
     inputRefs.current[0]?.focus();
   }, []);
 
+  // Shared with every other PIN gate in the app, so unlocking a dashboard looks
+  // the same wherever a client arrives. The logo is the frame's job, not this
+  // component's: rendering one here too would stack two logos on the screen.
+  const mono = "var(--font-jetbrains-mono), ui-monospace, monospace";
   return (
-    <div>
-      <div className="flex justify-center gap-3" onPaste={handlePaste}>
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: 18 }} onPaste={handlePaste}>
         {digits.map((digit, i) => (
           <input
             key={i}
@@ -146,23 +154,30 @@ export function DashboardPinEntry({
             disabled={loading}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
-            className="w-16 h-20 text-center text-2xl font-semibold border-2 rounded-xl
-              bg-slate-800 border-slate-600 text-white
-              focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20
-              disabled:opacity-50 transition-colors"
+            onFocus={(e) => {
+              e.currentTarget.select();
+              Object.assign(e.currentTarget.style, pinGateFocusedInputStyle);
+            }}
+            onBlur={(e) => {
+              Object.assign(e.currentTarget.style, pinGateBlurredInputStyle);
+            }}
+            style={{ ...pinGateInputStyle, opacity: loading ? 0.5 : 1 }}
             aria-label={`Digit ${i + 1}`}
           />
         ))}
       </div>
 
       {loading && (
-        <p className="mt-6 text-sm text-slate-400">Verifying...</p>
+        <p style={{ marginTop: 24, fontFamily: mono, fontSize: 13, color: "#8b90ad", textAlign: "center" }}>
+          Verifying...
+        </p>
       )}
 
       {error && (
-        <p className="mt-6 text-sm text-red-400">{error}</p>
+        <p style={{ marginTop: 24, fontFamily: mono, fontSize: 13, color: "#ff7a7a", textAlign: "center" }}>
+          {error}
+        </p>
       )}
-      <PinGateLogo />
     </div>
   );
 }

@@ -60,6 +60,10 @@ interface Segment {
   sessions: number;
   conversions: number;
   conversionRate: number;
+  /** Attribution rows only: distinct sessions that signed up for the checklist. */
+  checklistSessions?: number;
+  /** Paid-traffic rows only: median active seconds per session, null when unmeasured. */
+  medianActiveSeconds?: number | null;
 }
 
 interface ReportResponse {
@@ -131,9 +135,11 @@ const SECTION_WORDS: Record<string, string> = {
 /** Column headings and other microtype: monospaced, so tables read as data. */
 const MICRO = "font-mono text-[10px] uppercase tracking-[0.1em] text-slate-500";
 const CARD = "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm";
+// Matches the Google Ads dashboard's range control, so the two reports read as
+// one product rather than two apps that happen to share a login.
 const SELECT =
-  "rounded-lg border border-slate-300 bg-white py-1.5 pl-2.5 pr-8 text-sm text-slate-900 " +
-  "focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/30";
+  "rounded-lg border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-sm font-medium text-slate-700 " +
+  "hover:bg-slate-50 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 function pct(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
@@ -144,6 +150,30 @@ function shortPct(value: number): string {
 }
 
 /** Turn a section id into something readable without inventing a label. */
+/**
+ * The section template used to describe the report.
+ *
+ * A selected page uses its own. "All pages" uses the shared template when every
+ * page in range runs the same one — true of the market pages, which are one
+ * build with one section order — so the pooled view still reads in real page
+ * order, with the page's own headings, and can still show the page it
+ * describes. When templates differ it returns null and the table falls back to
+ * raw ids ordered by time: one ordered list across two different pages would
+ * describe a page that does not exist.
+ */
+function resolveSectionTemplate(page: string, pages: Segment[]): LandingPageMeta | null {
+  if (page) return LANDING_PAGES[page] ?? null;
+
+  const known = pages
+    .filter((entry) => entry.key !== "(unset)")
+    .map((entry) => LANDING_PAGES[entry.key]);
+  if (known.length === 0 || known.some((meta) => !meta)) return null;
+
+  const shape = (meta: LandingPageMeta) => meta.sections.map((section) => section.id).join("|");
+  const [first, ...rest] = known;
+  return rest.every((meta) => shape(meta) === shape(first)) ? first : null;
+}
+
 function sectionLabel(id: string): string {
   return id
     .split(/[-_]+/)
@@ -293,21 +323,6 @@ export function LandingExperimentTab({
     };
   }, [slug, customerId, clientName]);
 
-  /**
-   * Land on a single page rather than on everything pooled together.
-   *
-   * Pooling is both inaccurate and meaningless here. Inaccurate because the scan
-   * is capped, so "all pages" silently reports partial totals once a client runs
-   * more than one page. Meaningless because pages have different sections: a
-   * section table mixing one page's Security block with another's How It Works
-   * describes a page that does not exist.
-   */
-  useEffect(() => {
-    if (page || !data || data.pages.length === 0) return;
-    const busiest = data.pages.find((entry) => entry.key !== "(unset)") ?? data.pages[0];
-    if (busiest) setPage(busiest.key);
-  }, [data, page]);
-
   if (loading)
     return (
       <div className={CARD} role="status">
@@ -345,7 +360,12 @@ export function LandingExperimentTab({
   const goalLabel = data.experiment
     ? BEHAVIOUR_LABELS[data.experiment.primaryGoal] ?? data.experiment.primaryGoal
     : "Conversions";
+  // Promoted to the headline row: the checklist is the second outcome the page
+  // is built to produce, so it belongs beside the primary goal rather than
+  // further down the page.
+  const checklist = data.secondaryConversions?.find((row) => row.id === "readiness_checklist");
   const running = data.experiment?.status?.toLowerCase() === "running";
+  const sectionTemplate = resolveSectionTemplate(page, data.pages);
 
   return (
     <div className="space-y-6 text-slate-900">
@@ -354,12 +374,6 @@ export function LandingExperimentTab({
           <h3 className="text-xl font-bold tracking-tight text-slate-900">
             {data.experiment ? data.experiment.name : "No experiment configured"}
           </h3>
-          {data.experiment && (
-            <p className="mt-1 text-sm text-slate-500">
-              {data.experiment.id} · allocation v{data.experiment.allocationVersion} · primary goal:{" "}
-              {goalLabel}
-            </p>
-          )}
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -416,7 +430,7 @@ export function LandingExperimentTab({
       </div>
 
       {hasVariants && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <StatCard
             label="Sessions"
             value={sessions.toLocaleString()}
@@ -449,6 +463,13 @@ export function LandingExperimentTab({
               note="No drop-off measured in this range"
             />
           )}
+          {/* Rendered even at zero: "nobody downloaded the checklist" is a
+              finding, and an absent box would read as the metric not existing. */}
+          <StatCard
+            label={checklist ? checklist.label : "Readiness checklist sign-ups"}
+            value={checklist ? checklist.sessions.toLocaleString() : "—"}
+            note={checklist ? `${pct(checklist.rate)} of sessions` : "Not counted in this range"}
+          />
         </div>
       )}
 
@@ -483,273 +504,74 @@ export function LandingExperimentTab({
         </div>
       )}
 
-      {/* The variant split normally sits under the funnel it splits. With no
-          funnel data there is nothing to sit under, so it stands on its own
-          rather than taking the variant results off the page. */}
-      {hasVariants && !data.funnel.some((step) => step.sessions > 0) && (
-        <section className={CARD}>
-          <VariantSplit
-            variants={data.variants}
-            comparisons={data.comparisons}
-            controlVariantId={data.controlVariantId}
-            funnelByVariant={data.funnelByVariant}
-            funnel={data.funnel}
-          />
-        </section>
+      {/* "Where people spend their time" leads: with no experiment running it is
+          the question the page is actually being read for, so it sits directly
+          under the headline numbers. It owns the device toggle, because the
+          device split is what changes the numbers inside it. */}
+      {(data.sections.length > 0 || sectionTemplate) && (
+        <SectionDwellPanel
+          sections={data.sections}
+          pageMeta={sectionTemplate}
+          conversions={conversions}
+          devices={data.devices}
+          totalDeviceSessions={totalDeviceSessions}
+          device={device}
+          onDeviceChange={setDevice}
+        />
       )}
 
-      {data.funnel.some((step) => step.sessions > 0) && (
-        <section className={`${CARD} space-y-5`} aria-labelledby="landing-funnel-heading">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h4 id="landing-funnel-heading" className="text-base font-bold text-slate-900">
-                Where people drop off
+      {/* Markets and devices answer the same shape of question, so they sit on
+          one row: comparing two small tables side by side is the whole point of
+          having both. */}
+      {(realMarkets.length > 1 ||
+        data.devices.filter((entry) => entry.key !== "(unset)").length > 1) && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {realMarkets.length > 1 && (
+            <section className={`${CARD} space-y-4`} aria-labelledby="landing-markets-heading">
+              <h4 id="landing-markets-heading" className="text-base font-bold text-slate-900">
+                Markets
               </h4>
-              <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                Distinct sessions reaching each step. The percentage on the right is the share lost
-                since the previous step, which is where the journey is actually breaking.
-              </p>
-            </div>
-
-            {/* Device split as a summary, then a toggle. The split is always visible,
-                so selecting one device never hides how much traffic the other had. */}
-            {data.devices.length > 0 && (
-              <div
-                className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1"
-                role="group"
-                aria-label="Filter by device"
-              >
-                {[{ key: "", sessions: totalDeviceSessions, conversionRate: null as number | null }]
-                  .concat(
-                    data.devices.map((entry) => ({
-                      key: entry.key,
-                      sessions: entry.sessions,
-                      conversionRate: entry.conversionRate,
-                    }))
-                  )
-                  .map((entry) => {
-                    const active = device === entry.key;
-                    const share = totalDeviceSessions > 0 ? entry.sessions / totalDeviceSessions : 0;
-                    return (
-                      <button
-                        key={entry.key || "all"}
-                        type="button"
-                        onClick={() => setDevice(entry.key)}
-                        aria-pressed={active}
-                        className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40 ${
-                          active
-                            ? "border-slate-300 bg-white font-semibold text-slate-900 shadow-sm"
-                            : "border-transparent text-slate-600 hover:bg-white/70"
-                        }`}
-                      >
-                        {entry.key === "" ? "All devices" : sectionLabel(entry.key)}
-                        <span className="ml-1.5 text-slate-500 tabular-nums">
-                          {entry.sessions.toLocaleString()}
-                          {entry.key !== "" && ` · ${shortPct(share)}`}
-                        </span>
-                        {entry.conversionRate !== null && (
-                          <span className="ml-1.5 text-slate-500 tabular-nums">
-                            {pct(entry.conversionRate)}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm text-slate-700">
-              <thead>
-                <tr className={`text-left ${MICRO}`}>
-                  <th
-                    scope="col"
-                    className="w-28 border-b border-slate-200 pb-2 pr-4 font-normal sm:w-44"
-                  >
-                    Step
-                  </th>
-                  <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
-                    Reached
-                  </th>
-                  <th scope="col" className="w-32 border-b border-slate-200 pb-2 pr-4 font-normal">
-                    Sessions
-                  </th>
-                  <th
-                    scope="col"
-                    className="w-40 border-b border-slate-200 pb-2 text-right font-normal"
-                  >
-                    Lost from previous
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.funnel.map((step, index) => {
-                  const entry = data.funnel[0]?.sessions ?? 0;
-                  const width = entry > 0 ? Math.max(step.shareOfEntry * 100, 1.5) : 0;
-                  const isWorst = leak !== null && step.key === leak.key && leak.dropOffRate > 0;
-
-                  return (
-                    <tr
-                      key={step.key}
-                      className={`border-b border-slate-100 ${isWorst ? "bg-amber-50" : ""}`}
-                    >
-                      <th
-                        scope="row"
-                        className={`py-3 pr-4 text-left text-sm font-semibold ${
-                          isWorst ? "pl-2 text-amber-900" : "text-slate-900"
-                        }`}
-                      >
-                        {step.label}
-                      </th>
-                      {/* The bar sits beside the row rather than under the label:
-                          text over a variable-width fill is unreadable wherever
-                          the fill happens to end. */}
-                      <td className="py-3 pr-4">
-                        <div
-                          aria-hidden="true"
-                          className="h-5 min-w-[6rem] overflow-hidden rounded bg-slate-100"
-                        >
-                          <div
-                            className={`h-full rounded-sm ${isWorst ? "bg-amber-500" : "bg-sky-500"}`}
-                            style={{ width: `${width}%` }}
-                          />
-                        </div>
-                      </td>
-                      <td className="py-3 pr-4 tabular-nums">
-                        <span className="font-semibold text-slate-900">
-                          {step.sessions.toLocaleString()}
-                        </span>
-                        <span className="ml-1.5 text-slate-500">{shortPct(step.shareOfEntry)}</span>
-                      </td>
-                      <td className="py-3 text-right tabular-nums">
-                        {index === 0 ? (
-                          <span className="text-slate-500">—</span>
-                        ) : (
-                          <span
-                            className={
-                              isWorst ? "pr-2 font-bold text-amber-800" : "text-slate-600"
-                            }
-                          >
-                            −{step.droppedFromPrevious.toLocaleString()} (
-                            {shortPct(step.dropOffRate)})
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {(data.formSubmissions?.length ?? 0) > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-sm font-semibold text-slate-800">Which form was submitted</p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                The step above pools every form. The checklist PDF is an email capture, not a
-                qualified lead, so it is counted separately here.
-              </p>
-              <ul className="mt-2 space-y-1">
-                {data.formSubmissions!.map((form) => (
-                  <li
-                    key={form.formId}
-                    className="flex items-center justify-between gap-3 text-sm text-slate-700"
-                  >
-                    <span>{form.label}</span>
-                    <span className="font-semibold text-slate-900 tabular-nums">
-                      {form.sessions.toLocaleString()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+              <SegmentTable rows={data.markets} firstColumn="Market" checklistColumn />
+            </section>
           )}
 
-          {hasVariants && (
-            <VariantSplit
-              variants={data.variants}
-              comparisons={data.comparisons}
-              controlVariantId={data.controlVariantId}
-              funnelByVariant={data.funnelByVariant}
-              funnel={data.funnel}
-            />
+          {data.devices.filter((entry) => entry.key !== "(unset)").length > 1 && (
+            <section className={`${CARD} space-y-4`} aria-labelledby="landing-devices-heading">
+              <h4 id="landing-devices-heading" className="text-base font-bold text-slate-900">
+                Devices
+              </h4>
+              <SegmentTable
+                rows={data.devices.filter((entry) => entry.key !== "(unset)")}
+                firstColumn="Device"
+                checklistColumn
+              />
+            </section>
           )}
-        </section>
-      )}
-
-      {data.devices.filter((entry) => entry.key !== "(unset)").length > 1 && (
-        <section className={`${CARD} space-y-4`} aria-labelledby="landing-devices-heading">
-          <div>
-            <h4 id="landing-devices-heading" className="text-base font-bold text-slate-900">
-              Devices
-            </h4>
-            <p className="mt-1 max-w-3xl text-sm text-slate-500">
-              The same split as the toggle above, with conversion rate side by side for the selected
-              page. A phone and a desktop are different reading experiences, so a gap here usually
-              points at layout or form length rather than at the audience.
-            </p>
-          </div>
-          <SegmentTable
-            rows={data.devices.filter((entry) => entry.key !== "(unset)")}
-            firstColumn="Device"
-          />
-        </section>
-      )}
-
-      {realMarkets.length > 1 && (
-        <section className={`${CARD} space-y-4`} aria-labelledby="landing-markets-heading">
-          <div>
-            <h4 id="landing-markets-heading" className="text-base font-bold text-slate-900">
-              Markets
-            </h4>
-            <p className="mt-1 max-w-3xl text-sm text-slate-500">
-              Totals for the whole range, across every page, so the comparison holds while a single
-              page is selected above. Each market runs its own page, so these are separate audiences
-              rather than an experiment: read a difference as a prompt to look, not as a result.
-            </p>
-          </div>
-          <SegmentTable rows={data.markets} firstColumn="Market" />
-        </section>
+        </div>
       )}
 
       {(data.attribution?.length ?? 0) > 0 && (
         <section className={`${CARD} space-y-4`} aria-labelledby="landing-attribution-heading">
-          <div>
-            <h4 id="landing-attribution-heading" className="text-base font-bold text-slate-900">
-              Attribution
-            </h4>
-            <p className="mt-1 max-w-3xl text-sm text-slate-500">
-              Source / medium / campaign from the click that started the session, for the whole
-              range. `(direct)` is a visit that arrived with no campaign tags — typing the URL, a
-              bookmark, or a link that stripped them — not a tracking failure. Sessions are counted
-              once against the attribution they arrived with.
-            </p>
-          </div>
-          <SegmentTable rows={data.attribution} firstColumn="Source / medium / campaign" />
+          <h4 id="landing-attribution-heading" className="text-base font-bold text-slate-900">
+            Attribution
+          </h4>
+          <SegmentTable
+            rows={data.attribution}
+            firstColumn="Source / medium / campaign"
+            checklistColumn
+          />
         </section>
       )}
-
-      <SecondaryConversionsPanel rows={data.secondaryConversions} />
 
       <PaidTrafficPanel paidTraffic={data.paidTraffic} />
 
       <PostClickPanel months={postClick} note={postClickNote} />
 
-      <SessionTimePanel sessionTime={data.sessionTime} />
-
-      {(data.sections.length > 0 || LANDING_PAGES[page]) && (
-        <SectionDwellPanel
-          sections={data.sections}
-          pageMeta={LANDING_PAGES[page] ?? null}
-          conversions={conversions}
-        />
-      )}
-
       <section className={`${CARD} space-y-4`} aria-labelledby="landing-behaviour-heading">
         <h4 id="landing-behaviour-heading" className="text-base font-bold text-slate-900">
           On-page behaviour
         </h4>
+
         {/* Gapped cells rather than a hairline-divided block: the count of
             event types is whatever fired, so a divided grid would end in empty
             cells that read as missing data. */}
@@ -776,8 +598,23 @@ export function LandingExperimentTab({
   );
 }
 
-/** Markets and attribution share one shape, so they share one table. */
-function SegmentTable({ rows, firstColumn }: { rows: Segment[]; firstColumn: string }) {
+/**
+ * Markets, devices, attribution and paid traffic share one shape, so they share
+ * one table. The two optional columns are opt-in per caller rather than derived
+ * from the data: a column that appears only when a value happens to be present
+ * reads as a rendering bug.
+ */
+function SegmentTable({
+  rows,
+  firstColumn,
+  checklistColumn = false,
+  timeColumn = false,
+}: {
+  rows: Segment[];
+  firstColumn: string;
+  checklistColumn?: boolean;
+  timeColumn?: boolean;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm text-slate-700">
@@ -792,9 +629,19 @@ function SegmentTable({ rows, firstColumn }: { rows: Segment[]; firstColumn: str
             <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
               Conversions
             </th>
-            <th scope="col" className="border-b border-slate-200 pb-2 font-normal">
+            <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
               Conversion rate
             </th>
+            {timeColumn && (
+              <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
+                Time on page per session
+              </th>
+            )}
+            {checklistColumn && (
+              <th scope="col" className="border-b border-slate-200 pb-2 font-normal">
+                Readiness checklist sign-ups
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -809,9 +656,23 @@ function SegmentTable({ rows, firstColumn }: { rows: Segment[]; firstColumn: str
               <td className="py-3 pr-4 text-slate-700 tabular-nums">
                 {entry.conversions.toLocaleString()}
               </td>
-              <td className="py-3 font-semibold text-slate-900 tabular-nums">
+              <td className="py-3 pr-4 font-semibold text-slate-900 tabular-nums">
                 {pct(entry.conversionRate)}
               </td>
+              {timeColumn && (
+                <td className="py-3 pr-4 text-slate-700 tabular-nums">
+                  {/* Unmeasured is a dash, never 0s: a session that predates page
+                      timing is not a visitor who left instantly. */}
+                  {entry.medianActiveSeconds === null || entry.medianActiveSeconds === undefined
+                    ? "—"
+                    : `${entry.medianActiveSeconds}s`}
+                </td>
+              )}
+              {checklistColumn && (
+                <td className="py-3 text-slate-700 tabular-nums">
+                  {(entry.checklistSessions ?? 0).toLocaleString()}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -820,142 +681,6 @@ function SegmentTable({ rows, firstColumn }: { rows: Segment[]; firstColumn: str
   );
 }
 
-/**
- * The same funnel, split by variant, with the verdict stated in words.
- *
- * Each variant is a card rather than a column in one wide table, so its rate,
- * its interval and its own drop-off stay together: a reader comparing two
- * numbers can see the uncertainty attached to each of them without moving.
- */
-function VariantSplit({
-  variants,
-  comparisons,
-  controlVariantId,
-  funnelByVariant,
-  funnel,
-}: {
-  variants: VariantSummary[];
-  comparisons: ComparisonSummary[];
-  controlVariantId: string;
-  funnelByVariant: Record<string, FunnelStep[]>;
-  funnel: FunnelStep[];
-}) {
-  const winner = comparisons.find((row) => row.significant && (row.upliftPct ?? 0) > 0);
-  const anyUnderpowered = comparisons.some((row) => row.underpowered);
-  const verdict = winner
-    ? `Variant ${winner.variantId} is ahead`
-    : anyUnderpowered
-      ? "Not enough data"
-      : "No winner yet";
-
-  return (
-    <div className="space-y-4 border-t border-slate-200 pt-5">
-      <h5 className="text-sm font-bold text-slate-900">Same funnel, split by variant</h5>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {variants.map((variant) => {
-          const comparison = comparisons.find((row) => row.variantId === variant.variantId);
-          const isControl = variant.variantId === controlVariantId;
-          const steps = funnelByVariant[variant.variantId] ?? [];
-          const badge = isControl
-            ? "Control"
-            : comparison?.upliftPct === null || comparison === undefined
-              ? "No comparison"
-              : comparison.underpowered
-                ? `${comparison.upliftPct.toFixed(1)}% · not enough data`
-                : `${comparison.upliftPct.toFixed(1)}% vs control · ${
-                    comparison.significant ? "significant" : "inconclusive"
-                  }`;
-          // p stays out of the uppercased badge: "P=0.212" is not the notation.
-          const pValueNote =
-            !isControl && comparison && !comparison.underpowered && comparison.pValue !== null
-              ? `p=${comparison.pValue.toFixed(3)}`
-              : null;
-
-          return (
-            <div
-              key={variant.variantId}
-              className="rounded-xl border border-slate-200 bg-white p-4"
-            >
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-base font-bold text-slate-900">
-                  Variant {variant.variantId}
-                </span>
-                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-600">
-                  {badge}
-                </span>
-                {pValueNote && (
-                  <span className="font-mono text-[10px] text-slate-500">{pValueNote}</span>
-                )}
-                <span className="ml-auto text-base font-bold text-slate-900 tabular-nums">
-                  {pct(variant.conversionRate)}
-                </span>
-              </div>
-
-              <dl className="mt-3 space-y-2 text-sm">
-                {(steps.length > 0 ? steps : funnel.map(() => null)).map((step, index) => {
-                  const label = funnel[index]?.label ?? "";
-                  if (!step) return null;
-                  const worstOfVariant = Math.max(...steps.slice(1).map((s) => s.dropOffRate), 0);
-                  const isWorst =
-                    index > 0 && step.dropOffRate === worstOfVariant && step.dropOffRate > 0;
-                  return (
-                    <div key={step.key} className="flex items-baseline justify-between gap-3">
-                      <dt className="text-slate-600">{label}</dt>
-                      <dd className="tabular-nums">
-                        {index > 0 && (
-                          <span className={isWorst ? "text-amber-800" : "text-slate-500"}>
-                            −{shortPct(step.dropOffRate)}{" "}
-                          </span>
-                        )}
-                        <span className="font-semibold text-slate-900">
-                          {step.sessions.toLocaleString()}
-                        </span>
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-
-              <p className="mt-3 text-xs text-slate-500 tabular-nums">
-                {variant.sessions.toLocaleString()} sessions ·{" "}
-                {variant.conversions.toLocaleString()} conversions · 95% interval{" "}
-                {pct(variant.interval[0])} – {pct(variant.interval[1])}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
-        <span className="rounded-md border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-700">
-          {verdict}
-        </span>
-        <p className="flex-1 text-sm text-slate-600">
-          Sessions are counted once per variant, and a session converts at most once however many
-          goal events it fires. A result is only called significant when it clears both the p-value
-          threshold and a minimum sample, so an early lead is reported as inconclusive rather than
-          as a win.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/**
- * "Where people spend their time", in the page's real order when we know the
- * page, with the actual page embedded alongside so a number is never read
- * without the section it describes.
- *
- * With a known page the rows are the page's real sections top-to-bottom —
- * including ones no session reached, which event data alone cannot list —
- * and clicking a row scrolls the embedded page to that section.
- *
- * The iframe is sandboxed without allow-same-origin: the preview page's SDK
- * then calls the CMS from an opaque origin, which the origin allowlist
- * refuses, so admins scrolling the preview can never pollute the analytics
- * they are reading.
- */
 /**
  * What happened after the form, from HubSpot — read-only.
  *
@@ -969,15 +694,9 @@ function PostClickPanel({ months, note }: { months: PostClickMonth[] | null; not
 
   return (
     <section className={`${CARD} space-y-4`} aria-labelledby="landing-postclick-heading">
-      <div>
-        <h4 id="landing-postclick-heading" className="text-base font-bold text-slate-900">
-          After the form — HubSpot
-        </h4>
-        <p className="mt-1 max-w-3xl text-sm text-slate-500">
-          Lead outcomes from the CRM, by month, read-only. Counted per lead record rather than per
-          session, so these do not tie row-for-row to the sessions above.
-        </p>
-      </div>
+      <h4 id="landing-postclick-heading" className="text-base font-bold text-slate-900">
+        After the form — HubSpot
+      </h4>
 
       {note ? (
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -1057,17 +776,10 @@ function PaidTrafficPanel({
 
   return (
     <section className={`${CARD} space-y-4`} aria-labelledby="landing-paid-heading">
-      <div>
-        <h4 id="landing-paid-heading" className="text-base font-bold text-slate-900">
-          Google Ads traffic by landing page
-        </h4>
-        <p className="mt-1 max-w-3xl text-sm text-slate-500">
-          Sessions that arrived on an ad click, identified by the click id on the landing URL
-          (gclid, or gbraid/wbraid when the click id is restricted), and what those sessions did
-          next.
-        </p>
-      </div>
-      <SegmentTable rows={paidTraffic.pages} firstColumn="Landing page" />
+      <h4 id="landing-paid-heading" className="text-base font-bold text-slate-900">
+        Google Ads traffic by landing page
+      </h4>
+      <SegmentTable rows={paidTraffic.pages} firstColumn="Landing page" timeColumn />
       {!paidTraffic.preClickAvailable && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <strong className="font-semibold">This is the post-click half only.</strong> Impressions,
@@ -1082,119 +794,35 @@ function PaidTrafficPanel({
 }
 
 /**
- * Outcomes counted beside the primary goal — the checklist sign-up in
- * particular, which is a form submit from one form rather than an event type of
- * its own, so it counts retroactively over data already collected.
+ * "Where people spend their time", in the page's real order when we know the
+ * page, with the actual page embedded alongside so a number is never read
+ * without the section it describes.
  *
- * Rendered even at zero: "nobody downloaded the checklist" is a finding, and
- * hiding the row would read as the metric not existing.
- */
-function SecondaryConversionsPanel({
-  rows,
-}: {
-  rows?: { id: string; label: string; sessions: number; rate: number }[];
-}) {
-  if (!rows || rows.length === 0) return null;
-
-  return (
-    <section className={`${CARD} space-y-4`} aria-labelledby="landing-secondary-heading">
-      <div>
-        <h4 id="landing-secondary-heading" className="text-base font-bold text-slate-900">
-          Other conversions
-        </h4>
-        <p className="mt-1 max-w-3xl text-sm text-slate-500">
-          Counted on distinct sessions, alongside the primary goal rather than added to it. One
-          session can appear in more than one row, so these do not sum to a total.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {rows.map((row) => (
-          <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-xs text-slate-500">{row.label}</div>
-            <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-              {row.sessions.toLocaleString()}
-            </div>
-            <div className="mt-0.5 text-xs text-slate-500 tabular-nums">
-              {pct(row.rate)} of sessions
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/**
- * Time on the page per session.
+ * With a known page the rows are the page's real sections top-to-bottom —
+ * including ones no session reached, which event data alone cannot list —
+ * and clicking a row scrolls the embedded page to that section.
  *
- * Sessions with no page_dwell are shown as unmeasured rather than folded in as
- * zero seconds: every session recorded before the page started sending the
- * event is in that bucket, and counting them as zero would read as a collapse
- * in engagement that never happened.
+ * The iframe is sandboxed without allow-same-origin: the preview page's SDK
+ * then calls the CMS from an opaque origin, which the origin allowlist
+ * refuses, so admins scrolling the preview can never pollute the analytics
+ * they are reading.
  */
-function SessionTimePanel({ sessionTime }: { sessionTime?: ReportResponse["sessionTime"] }) {
-  if (!sessionTime) return null;
-  const { measuredSessions, unmeasuredSessions } = sessionTime;
-  const secs = (value: number) => `${value.toLocaleString()}s`;
-
-  return (
-    <section className={`${CARD} space-y-4`} aria-labelledby="landing-session-time-heading">
-      <div>
-        <h4 id="landing-session-time-heading" className="text-base font-bold text-slate-900">
-          Time on page per session
-        </h4>
-        <p className="mt-1 max-w-3xl text-sm text-slate-500">
-          Active time only: the tab in front of the visitor, page on screen. This is not the sum of
-          the section times below — two sections are often half-visible at once, so that sum
-          overcounts. Median first, because a handful of tabs left open all afternoon wrecks a mean.
-        </p>
-      </div>
-
-      {measuredSessions === 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          Not measured for any session in this range. Page timing started with the current landing
-          build; sessions recorded before it carry no timing at all, which is different from
-          visitors leaving instantly.
-        </p>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {[
-              { label: "Median active", value: secs(sessionTime.medianActiveSeconds) },
-              { label: "90th percentile active", value: secs(sessionTime.p90ActiveSeconds) },
-              { label: "Median wall clock", value: secs(sessionTime.medianTotalSeconds) },
-            ].map((cell) => (
-              <div key={cell.label} className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="text-xs text-slate-500">{cell.label}</div>
-                <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-                  {cell.value}
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-sm text-slate-500">
-            Measured on {measuredSessions.toLocaleString()} session
-            {measuredSessions === 1 ? "" : "s"}.
-            {unmeasuredSessions > 0
-              ? ` ${unmeasuredSessions.toLocaleString()} session${
-                  unmeasuredSessions === 1 ? "" : "s"
-                } in this range reported no timing and are excluded rather than counted as zero.`
-              : ""}
-          </p>
-        </>
-      )}
-    </section>
-  );
-}
-
 function SectionDwellPanel({
   sections,
   pageMeta,
   conversions,
+  devices,
+  totalDeviceSessions,
+  device,
+  onDeviceChange,
 }: {
   sections: SectionDwell[];
   pageMeta: LandingPageMeta | null;
   conversions: number;
+  devices: Segment[];
+  totalDeviceSessions: number;
+  device: string;
+  onDeviceChange: (device: string) => void;
 }) {
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
@@ -1245,39 +873,72 @@ function SectionDwellPanel({
   return (
     <section className={`${CARD} space-y-4`} aria-labelledby="landing-attention-heading">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h4 id="landing-attention-heading" className="text-base font-bold text-slate-900">
-            Where people spend their time
-          </h4>
-          <p className="mt-1 max-w-3xl text-sm text-slate-500">
-            {pageMeta
-              ? "Sections in the order they appear on the page. Click a section to scroll the live page beside the numbers. "
-              : ""}
-            Active seconds with the section on screen and the tab focused, so a page left open in a
-            background tab does not read as attention. Median rather than average, because a few
-            long sessions would otherwise move every number.
-          </p>
+        <h4 id="landing-attention-heading" className="text-base font-bold text-slate-900">
+          Where people spend their time
+        </h4>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* The split is always visible beside the toggle, so selecting one
+              device never hides how much traffic the other had. */}
+          {devices.length > 0 && (
+            <div
+              className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1"
+              role="group"
+              aria-label="Filter by device"
+            >
+              {[{ key: "", sessions: totalDeviceSessions, conversionRate: null as number | null }]
+                .concat(
+                  devices.map((entry) => ({
+                    key: entry.key,
+                    sessions: entry.sessions,
+                    conversionRate: entry.conversionRate,
+                  }))
+                )
+                .map((entry) => {
+                  const active = device === entry.key;
+                  const share = totalDeviceSessions > 0 ? entry.sessions / totalDeviceSessions : 0;
+                  return (
+                    <button
+                      key={entry.key || "all"}
+                      type="button"
+                      onClick={() => onDeviceChange(entry.key)}
+                      aria-pressed={active}
+                      className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40 ${
+                        active
+                          ? "border-slate-300 bg-white font-semibold text-slate-900 shadow-sm"
+                          : "border-transparent text-slate-600 hover:bg-white/70"
+                      }`}
+                    >
+                      {entry.key === "" ? "All devices" : sectionLabel(entry.key)}
+                      <span className="ml-1.5 text-slate-500 tabular-nums">
+                        {entry.sessions.toLocaleString()}
+                        {entry.key !== "" && ` · ${shortPct(share)}`}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          )}
+          {pageMeta && (
+            <>
+              <a
+                href={pageMeta.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-teal-700 underline-offset-2 hover:underline"
+              >
+                Open page ↗
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowPreview((value) => !value)}
+                aria-pressed={showPreview}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
+              >
+                {showPreview ? "Hide page" : "Show page"}
+              </button>
+            </>
+          )}
         </div>
-        {pageMeta && (
-          <div className="flex items-center gap-3">
-            <a
-              href={pageMeta.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-teal-700 underline-offset-2 hover:underline"
-            >
-              Open page ↗
-            </a>
-            <button
-              type="button"
-              onClick={() => setShowPreview((value) => !value)}
-              aria-pressed={showPreview}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
-            >
-              {showPreview ? "Hide page" : "Show page"}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Preview first in both source and layout: it is the thing being measured.
@@ -1400,10 +1061,6 @@ function SectionDwellPanel({
               })}
             </tbody>
           </table>
-          <p className="mt-3 max-w-2xl text-sm text-slate-500">
-            A long time on a section is not automatically good: it can mean the content is
-            compelling, or that it is confusing. Read it alongside the drop-off above.
-          </p>
           {unseenGoalSection && (
             <p className="mt-3 max-w-2xl rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
               <strong className="font-semibold text-slate-800">Why “{sectionLabel(unseenGoalSection)}” is empty.</strong>{" "}

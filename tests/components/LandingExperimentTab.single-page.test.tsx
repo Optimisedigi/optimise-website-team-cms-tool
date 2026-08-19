@@ -1,17 +1,20 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LandingExperimentTab } from "@/components/dashboards/googleads/LandingExperimentTab";
 
 /**
- * A client running exactly one landing page must still get the page preview
- * and the page selector.
+ * A client running exactly one landing page must still get the page selector,
+ * and the preview once that page is chosen.
  *
  * Both were gated on `pages.length > 1`, written when demo data always had two
  * markets. Real traffic arrived on a single page, so the selector never
- * rendered, the page auto-select never ran, `page` stayed "", and the preview
- * — which is keyed off `LANDING_PAGES[page]` — silently disappeared along with
- * the section labels it anchors.
+ * rendered and the preview — which is keyed off `LANDING_PAGES[page]` —
+ * silently disappeared along with the section labels it anchors.
+ *
+ * The report now opens on all pages pooled rather than auto-selecting one, so
+ * the preview follows an explicit choice: a preview implies "these numbers are
+ * this page's", which is not true of a pooled view.
  */
 
 const report = {
@@ -79,9 +82,12 @@ function stubFetch() {
 afterEach(() => vi.restoreAllMocks());
 
 describe("LandingExperimentTab with a single landing page", () => {
-  it("shows the page preview", async () => {
+  it("shows the page preview once that page is selected", async () => {
     stubFetch();
     render(<LandingExperimentTab slug="away-digital" />);
+
+    const select = await screen.findByLabelText("Page");
+    fireEvent.change(select, { target: { value: "offshore-teams-au" } });
 
     const frame = await screen.findByTitle(/^Preview of /);
     expect(frame.getAttribute("src")).toContain("/outsourcing-au");
@@ -97,13 +103,18 @@ describe("LandingExperimentTab with a single landing page", () => {
     ).toContain("offshore-teams-au (3)");
   });
 
-  it("selects that page instead of leaving the report pooled", async () => {
+  it("opens on every page pooled rather than silently picking one", async () => {
     const fetchMock = stubFetch();
     render(<LandingExperimentTab slug="away-digital" />);
 
-    await waitFor(() => {
-      const urls = fetchMock.mock.calls.map(([url]) => String(url));
-      expect(urls.some((url) => url.includes("page=offshore-teams-au"))).toBe(true);
-    });
+    // The selector reads "All pages" on arrival, so the request must not carry a
+    // page filter: a pre-filtered report under an "all" label understates every
+    // number on the screen.
+    const select = (await screen.findByLabelText("Page")) as HTMLSelectElement;
+    expect(select.value).toBe("");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.includes("page="))).toBe(false);
   });
 });

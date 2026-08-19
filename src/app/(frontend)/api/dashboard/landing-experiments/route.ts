@@ -109,7 +109,23 @@ interface Segment {
   sessions: number;
   conversions: number;
   conversionRate: number;
+  /** Distinct sessions that signed up for the readiness checklist. Attribution rows only. */
+  checklistSessions?: number;
+  /** Median active seconds per session for this bucket. Paid-traffic rows only. */
+  medianActiveSeconds?: number | null;
 }
+
+/**
+ * The readiness checklist as a SQL predicate.
+ *
+ * It is a `form_submit` narrowed by form id rather than an event type, so it
+ * cannot be expressed as an equality like the other goals. Both halves are
+ * module constants, never caller input.
+ */
+const CHECKLIST_PREDICATE =
+  "`event_type` = 'form_submit' AND json_extract(`properties`, '$.form_id') = '" +
+  READINESS_CHECKLIST_FORM_ID +
+  "'";
 
 /**
  * Which pages, markets and devices exist in this range, and how each performs.
@@ -139,13 +155,23 @@ async function loadFacets(
 
   // `bucketExpr` is always one of the constants at the call site below, never
   // caller input.
-  async function group(bucketExpr: string, scopeToPage = false): Promise<Segment[]> {
+  async function group(
+    bucketExpr: string,
+    scopeToPage = false,
+    withChecklist = false
+  ): Promise<Segment[]> {
     const pageClause =
       scopeToPage && pageFilter ? ` AND \`page_id\` = '${escape(pageFilter)}'` : "";
+    // Counted in the same pass as sessions so the column cannot disagree with
+    // the row it sits on.
+    const checklistColumn = withChecklist
+      ? `,
+             COUNT(DISTINCT CASE WHEN ${CHECKLIST_PREDICATE} THEN \`session_id\` END) AS checklist`
+      : "";
     const statement = `
       SELECT COALESCE(NULLIF(${bucketExpr}, ''), '(unset)') AS bucket,
              COUNT(DISTINCT \`session_id\`) AS sessions,
-             COUNT(DISTINCT CASE WHEN ${goalPredicate} THEN \`session_id\` END) AS conversions
+             COUNT(DISTINCT CASE WHEN ${goalPredicate} THEN \`session_id\` END) AS conversions${checklistColumn}
       FROM \`landing_events\`
       WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'${pageClause}
       GROUP BY bucket
@@ -163,6 +189,7 @@ async function loadFacets(
           sessions,
           conversions,
           conversionRate: sessions > 0 ? conversions / sessions : 0,
+          ...(withChecklist ? { checklistSessions: Number(row.checklist ?? 0) } : {}),
         };
       });
     } catch (error) {
@@ -175,9 +202,12 @@ async function loadFacets(
 
   const [pages, markets, devices, attribution] = await Promise.all([
     group("`page_id`"),
-    group("`market`"),
-    group("`device_class`", true),
-    group(ATTRIBUTION_BUCKET),
+    // Markets, devices and attribution all carry the checklist count: it is the
+    // page's second outcome, so every table that reports conversions reports it
+    // too rather than sending the reader to a separate panel.
+    group("`market`", false, true),
+    group("`device_class`", true, true),
+    group(ATTRIBUTION_BUCKET, false, true),
   ]);
   return { pages, markets, devices, attribution };
 }
@@ -219,17 +249,74 @@ async function loadPaidTraffic(
     ORDER BY sessions DESC
     LIMIT 50`;
 
+  // Active time per paid session, so the table can answer "did this click read
+  // the page" beside "did it convert".
+  //
+  // Summed per session across its page views, de-duplicated by page_view_id
+  // first because a re-sent exit beacon would otherwise double a session's
+  // time. The median is taken in JS: SQLite has no percentile function, and a
+  // mean here would be moved by a single tab left open all afternoon.
+  //
+  // Deliberately unlimited: the row count is already bounded by paid sessions
+  // in range, and a LIMIT here truncates in grouping-key order rather than
+  // evenly. That would drop whole landing pages off the end of the alphabet,
+  // rendering their time as "—" (not measured) while they in fact have data,
+  // and would compute the surviving pages' medians from a partial set.
+  const timingStatement = `
+    SELECT bucket, SUM(ms) AS session_ms
+    FROM (
+      SELECT COALESCE(NULLIF(\`page_id\`, ''), '(unset)') AS bucket,
+             \`session_id\` AS session_id,
+             \`page_view_id\` AS page_view_id,
+             MAX(CAST(json_extract(\`properties\`, '$.active_ms') AS REAL)) AS ms
+      FROM \`landing_events\`
+      WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'
+        AND ${paidClause}
+        AND \`event_type\` = 'page_dwell'
+        AND json_extract(\`properties\`, '$.active_ms') IS NOT NULL
+      GROUP BY bucket, session_id, page_view_id
+    )
+    GROUP BY bucket, session_id`;
+
   try {
-    const result = await payload.db.drizzle.run(sql.raw(statement));
+    const [result, timingResult] = await Promise.all([
+      payload.db.drizzle.run(sql.raw(statement)),
+      payload.db.drizzle
+        .run(sql.raw(timingStatement))
+        .catch((error: unknown) => {
+          // Timing is one column of the table, not the table. A session with no
+          // page_dwell is normal, so failing here must not blank the rest.
+          console.error("[landing-experiments] paid timing query failed:", error);
+          return { rows: [] };
+        }),
+    ]);
+
+    const msByPage = new Map<string, number[]>();
+    for (const row of (timingResult as { rows?: Record<string, unknown>[] })?.rows ?? []) {
+      const bucket = String(row.bucket ?? "(unset)");
+      const ms = Number(row.session_ms);
+      if (!Number.isFinite(ms) || ms < 0) continue;
+      if (!msByPage.has(bucket)) msByPage.set(bucket, []);
+      msByPage.get(bucket)!.push(ms);
+    }
+
     const rows = (result as { rows?: Record<string, unknown>[] })?.rows ?? [];
     return rows.map((row) => {
       const sessions = Number(row.sessions ?? 0);
       const conversions = Number(row.conversions ?? 0);
+      const key = String(row.bucket ?? "(unset)");
+      const timings = (msByPage.get(key) ?? []).sort((a, b) => a - b);
       return {
-        key: String(row.bucket ?? "(unset)"),
+        key,
         sessions,
         conversions,
         conversionRate: sessions > 0 ? conversions / sessions : 0,
+        // null, not 0: "nobody was measured" and "everybody left instantly" are
+        // opposite findings, and the UI renders them differently.
+        medianActiveSeconds:
+          timings.length > 0
+            ? Math.round(timings[Math.floor((timings.length - 1) / 2)] / 1000)
+            : null,
       };
     });
   } catch (error) {
