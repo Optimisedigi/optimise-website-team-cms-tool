@@ -80,6 +80,13 @@ h1, h2, h3, h4, h5, h6, p {
   filter: brightness(0) invert(1);
 }
 
+/* Light surfaces (the landing performance report) keep the black mark: the
+   inversion above is exactly what makes it readable on slate-900, and exactly
+   what makes it vanish on slate-50. */
+.od-splash--light .od-splash__rocket img {
+  filter: none;
+}
+
 .od-splash__flames {
   position: absolute;
   bottom: 0;
@@ -138,6 +145,11 @@ h1, h2, h3, h4, h5, h6, p {
   font-weight: 500;
   color: #94a3b8; /* slate-400, matches dashboard dark theme */
   letter-spacing: 0.5px;
+}
+
+/* slate-400 is tuned for slate-900; on a light field it is too faint to read. */
+.od-splash--light .od-splash__text {
+  color: #64748b;
 }
 
 /* Flame X offset is calc(-50% - 3px) on the dashboard (vs -5px in the
