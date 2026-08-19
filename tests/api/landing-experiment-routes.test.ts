@@ -77,8 +77,12 @@ function manifestRequest(origin: string | null, propertyKey = PROPERTY_KEY) {
   );
 }
 
-function eventsRequest(body: unknown, origin: string | null = ALLOWED_ORIGIN) {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+function eventsRequest(
+  body: unknown,
+  origin: string | null = ALLOWED_ORIGIN,
+  contentType = "application/json"
+) {
+  const headers: Record<string, string> = { "content-type": contentType };
   if (origin) headers.origin = origin;
   return new NextRequest("http://localhost/api/landing/v1/events", {
     method: "POST",
@@ -269,6 +273,20 @@ describe("landing experiment routes", () => {
         SECRET
       );
     }
+
+    it("accepts preflight-free text/plain JSON without weakening validation", async () => {
+      const res = await eventsPOST(
+        eventsRequest(
+          eventBatch([sampleEvent("evt-simple")], validToken()),
+          ALLOWED_ORIGIN,
+          "text/plain;charset=UTF-8"
+        )
+      );
+
+      expect(res.status).toBe(202);
+      await expect(res.json()).resolves.toEqual({ accepted: 1, rejected: 0, excluded: 0 });
+      expect(payloadMock.create).toHaveBeenCalledTimes(1);
+    });
 
     it("writes a two-event batch once each, scoped to the server-owned tenant", async () => {
       const res = await eventsPOST(
