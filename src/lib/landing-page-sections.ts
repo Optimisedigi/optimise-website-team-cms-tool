@@ -77,14 +77,14 @@ const BASE = "https://hire.awaydigitalteams.com";
 export const LANDING_PAGES: Record<string, LandingPageMeta> = {
   "offshore-teams-au": {
     pageId: "offshore-teams-au",
-    label: "AU — Outsourcing to Vietnam",
+    label: "AU: Outsourcing to Vietnam",
     url: `${BASE}/outsourcing-au`,
     sections: MARKET_SECTIONS,
     goalSectionId: "booking",
   },
   "offshore-teams-us": {
     pageId: "offshore-teams-us",
-    label: "US — Offshore Teams in Vietnam",
+    label: "US: Offshore Teams in Vietnam",
     url: `${BASE}/outsourcing-us`,
     sections: MARKET_SECTIONS,
     goalSectionId: "booking",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import RocketSplash from "@/components/RocketSplash";
 import { LANDING_PAGES, type LandingPageMeta } from "@/lib/landing-page-sections";
 
 /**
@@ -141,6 +142,15 @@ const SELECT =
   "rounded-lg border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-sm font-medium text-slate-700 " +
   "hover:bg-slate-50 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500";
 
+/**
+ * Shown where a figure genuinely has no value behind it.
+ *
+ * Spelled out rather than a dash: "n/a" survives being read aloud, copied into
+ * a spreadsheet, or skimmed at a glance, where a lone punctuation mark reads as
+ * a rendering fault. Never used for a real zero, which is a finding of its own.
+ */
+const NO_DATA = "n/a";
+
 function pct(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
@@ -156,7 +166,7 @@ function shortPct(value: number): string {
  * "42s". Above it, minutes lead: "3m 05s" lands faster than "185s".
  */
 function formatSeconds(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return "—";
+  if (!Number.isFinite(seconds) || seconds < 0) return NO_DATA;
   if (seconds < 60) return `${Math.round(seconds)}s`;
   const minutes = Math.floor(seconds / 60);
   const rest = Math.round(seconds % 60);
@@ -337,10 +347,12 @@ export function LandingExperimentTab({
     };
   }, [slug, customerId, clientName]);
 
+  // The same rocket the Google Ads dashboard shows, so moving between the two
+  // reports does not look like moving between two different products.
   if (loading)
     return (
-      <div className={CARD} role="status">
-        <p className="text-sm text-slate-500">Loading landing performance…</p>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center">
+        <RocketSplash />
       </div>
     );
   if (error)
@@ -440,11 +452,13 @@ export function LandingExperimentTab({
         </div>
       </div>
 
-      {/* One row at desktop width. These five are read together as a single
-          headline — stacked two-up they stop being a summary and start being a
-          list you have to scroll. */}
+      {/* Six across for as long as they fit, because they are read together as
+          one headline; stacked they stop being a summary and start being a list
+          you have to scroll. The dashboard renders at 85% zoom, so the sm/md
+          breakpoints land far wider than they read, and holding six to `xl`
+          wrapped them two-up on a laptop that had room for the row. */}
       {hasVariants && (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-4 grid-cols-1 min-[560px]:grid-cols-2 min-[860px]:grid-cols-3 min-[1120px]:grid-cols-6">
           <StatCard
             label="Sessions"
             value={sessions.toLocaleString()}
@@ -473,7 +487,7 @@ export function LandingExperimentTab({
           ) : (
             <StatCard
               label="Biggest leak"
-              value="—"
+              value={NO_DATA}
               note="No drop-off measured in this range"
             />
           )}
@@ -481,7 +495,7 @@ export function LandingExperimentTab({
               finding, and an absent box would read as the metric not existing. */}
           <StatCard
             label={checklist ? checklist.label : "Readiness checklist sign-ups"}
-            value={checklist ? checklist.sessions.toLocaleString() : "—"}
+            value={checklist ? checklist.sessions.toLocaleString() : NO_DATA}
             note={checklist ? `${pct(checklist.rate)} of sessions` : "Not counted in this range"}
           />
           {/* Active time, not wall-clock: a tab left open in the background is
@@ -492,7 +506,7 @@ export function LandingExperimentTab({
             value={
               data.sessionTime && data.sessionTime.measuredSessions > 0
                 ? formatSeconds(data.sessionTime.medianActiveSeconds)
-                : "—"
+                : NO_DATA
             }
             note={
               data.sessionTime && data.sessionTime.measuredSessions > 0
@@ -512,7 +526,7 @@ export function LandingExperimentTab({
             Showing data from {new Date(data.dataStartDate).toLocaleDateString()} onwards.
           </strong>{" "}
           The selected range starts earlier, but this property has a reporting baseline set, so
-          anything before that date is left out — including while this view looks empty. The events
+          anything before that date is left out, including while this view looks empty. The events
           still exist; clearing the baseline on the property brings them back.
         </p>
       )}
@@ -705,7 +719,7 @@ function SegmentTable({
                   {/* Unmeasured is a dash, never 0s: a session recorded before
                       page timing shipped is not a visitor who left instantly. */}
                   {entry.medianActiveSeconds === null || entry.medianActiveSeconds === undefined
-                    ? "—"
+                    ? NO_DATA
                     : formatSeconds(entry.medianActiveSeconds)}
                 </td>
               )}
@@ -736,7 +750,7 @@ function PostClickPanel({ months, note }: { months: PostClickMonth[] | null; not
   return (
     <section className={`${CARD} space-y-4`} aria-labelledby="landing-postclick-heading">
       <h4 id="landing-postclick-heading" className="text-base font-bold text-slate-900">
-        After the form — HubSpot
+        After the form: HubSpot
       </h4>
 
       {note ? (
@@ -780,7 +794,7 @@ function PostClickPanel({ months, note }: { months: PostClickMonth[] | null; not
                   <td className="py-3 pr-4 tabular-nums">
                     {/* HubSpot rates arrive already scaled to 0–100, unlike the
                         on-site rates above, which are fractions. */}
-                    {row.meetingRate === null ? "—" : `${row.meetingRate}%`}
+                    {row.meetingRate === null ? NO_DATA : `${row.meetingRate}%`}
                   </td>
                   <td className="py-3 font-semibold text-slate-900 tabular-nums">
                     {row.qualifiedLeads.toLocaleString()}
@@ -803,10 +817,10 @@ function PostClickPanel({ months, note }: { months: PostClickMonth[] | null; not
 /**
  * Google Ads traffic, post-click only.
  *
- * The missing half is named explicitly rather than left as a blank column:
- * impressions, clicks, CTR and cost are not in this database at all, and a
- * dashboard that shows only what it happens to have looks like a complete
- * account report.
+ * Impressions, clicks, CTR and cost per landing page are not in this database;
+ * they live in Google Ads behind a Growth Tools endpoint that does not exist
+ * yet. `preClickAvailable` stays on the payload so the columns can be added
+ * once it does.
  */
 function PaidTrafficPanel({
   paidTraffic,
@@ -821,15 +835,6 @@ function PaidTrafficPanel({
         Google Ads traffic by landing page
       </h4>
       <SegmentTable rows={paidTraffic.pages} firstColumn="Landing page" timeColumn />
-      {!paidTraffic.preClickAvailable && (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <strong className="font-semibold">This is the post-click half only.</strong> Impressions,
-          clicks, CTR and cost per landing page live in Google Ads and are not stored here. They
-          need a landing-page endpoint on the Growth Tools service, which does not exist yet, so no
-          figure for them can be shown — an empty column here would be a missing integration, not a
-          zero.
-        </p>
-      )}
     </section>
   );
 }
@@ -992,7 +997,7 @@ function SectionDwellPanel({
           <div className="h-full">
             <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white xl:sticky xl:top-4">
               <div className="shrink-0 border-b border-slate-100 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.06em] leading-relaxed text-slate-500">
-                {pageMeta.label} — live page, scrollable. Interactions here are not tracked.
+                {pageMeta.label}: live page, scrollable. Interactions here are not tracked.
               </div>
               <iframe
                 src={previewSrc}
@@ -1093,7 +1098,7 @@ function SectionDwellPanel({
                     ) : (
                       <td colSpan={4} className="py-2.5 pr-4 text-sm text-slate-500">
                         {row.id === unseenGoalSection
-                          ? "Never registered on screen, though the goal was completed — see the note below"
+                          ? "Never registered on screen, though the goal was completed. See the note below."
                           : "No session reached this section in the range"}
                       </td>
                     )}
@@ -1108,7 +1113,7 @@ function SectionDwellPanel({
               This table measures whether a section was <em>on screen</em>, at least half visible.
               The goal was completed {conversions.toLocaleString()} time
               {conversions === 1 ? "" : "s"} in this range without that section ever clearing the
-              bar, so the two numbers do not contradict each other — the conversion is real, the
+              bar, so the two numbers do not contradict each other. The conversion is real, the
               visibility was never recorded.
             </p>
           )}
