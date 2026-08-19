@@ -492,9 +492,10 @@ export function LandingExperimentTab({
           className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
           role="status"
         >
-          <strong className="font-semibold text-amber-900">These totals are incomplete.</strong> The
-          scan stopped at {data.eventsScanned.toLocaleString()} events, so every number below
-          undercounts. Choose a single page, or a shorter range, for figures you can act on.
+          <strong className="font-semibold text-amber-900">Older activity is not counted here.</strong>{" "}
+          This range holds more than {data.eventsScanned.toLocaleString()} events, so the headline
+          numbers cover the most recent ones and leave out the oldest. Recent days are complete;
+          choose a shorter range to have the whole period counted.
         </p>
       )}
 

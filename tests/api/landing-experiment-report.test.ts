@@ -332,19 +332,22 @@ describe("landing experiment dashboard route", () => {
           },
         ],
       })
+      // Newest first, as the route now scans, so a capped scan drops the
+      // oldest events rather than the most recent. Read bottom-up for the
+      // journey: s1 landed, viewed hero, clicked twice, then reached pricing.
       .mockResolvedValueOnce({
         docs: [
-          { eventType: "page_view", sessionId: "s1", variantId: "a" },
-          { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "hero" } },
-          { eventType: "cta_click", sessionId: "s1", variantId: "a" },
-          { eventType: "cta_click", sessionId: "s1", variantId: "a" },
-          { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "pricing" } },
-          { eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 2000 } },
+          { eventType: "section_dwell", sessionId: "s2", variantId: "b", properties: { section_id: "hero", active_ms: 4000 } },
+          { eventType: "section_view", sessionId: "s2", variantId: "b", properties: { section_id: "hero" } },
+          { eventType: "page_view", sessionId: "s2", variantId: "b" },
           // A duplicate dwell for the same session and section must not count twice.
           { eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 9000 } },
-          { eventType: "page_view", sessionId: "s2", variantId: "b" },
-          { eventType: "section_view", sessionId: "s2", variantId: "b", properties: { section_id: "hero" } },
-          { eventType: "section_dwell", sessionId: "s2", variantId: "b", properties: { section_id: "hero", active_ms: 4000 } },
+          { eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 2000 } },
+          { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "pricing" } },
+          { eventType: "cta_click", sessionId: "s1", variantId: "a" },
+          { eventType: "cta_click", sessionId: "s1", variantId: "a" },
+          { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "hero" } },
+          { eventType: "page_view", sessionId: "s1", variantId: "a" },
         ],
         hasNextPage: false,
       });

@@ -472,7 +472,13 @@ export async function GET(req: NextRequest) {
       depth: 0,
       limit: PAGE_SIZE,
       page,
-      sort: "occurredAt",
+      // Newest first, deliberately. The scan stops at a ceiling, so the sort
+      // decides which end of the range gets dropped: ascending silently
+      // discarded the most recent days, meaning today could be missing from
+      // the headline numbers while the range still claimed to cover a month.
+      // Descending drops the oldest instead, which is the half a reader is far
+      // less likely to be asking about.
+      sort: "-occurredAt",
       overrideAccess: true,
     });
 
@@ -514,7 +520,11 @@ export async function GET(req: NextRequest) {
         // emitted together as the page is left, in whatever order the sections
         // were recorded, so letting them set this would pick an arbitrary
         // section as the exit point rather than the one reached last.
-        if (eventType === "section_view") {
+        //
+        // The scan runs newest-first, so the first section_view seen for a
+        // session is the last one it reached: first write wins, and later
+        // (older) views must not overwrite it.
+        if (eventType === "section_view" && !lastSectionPerSession.has(sessionId)) {
           lastSectionPerSession.set(sessionId, sectionId);
         }
       }
