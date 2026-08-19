@@ -403,6 +403,88 @@ export async function runMigrations(
     );
   }
 
+  /**
+   * Repair `clients_services.id` back to `integer PRIMARY KEY`.
+   *
+   * `services` is a hasMany **select** field. The Drizzle adapter builds those
+   * side tables with `order` / `parent_id` / `value` only and lets the shared
+   * table builder add `id` as `integer PRIMARY KEY` (see @payloadcms/drizzle
+   * `setColumnID`), so inserts omit `id` and rely on SQLite's rowid alias to
+   * fill it. A 2026-06-18 migration converted this one table to
+   * `id text PRIMARY KEY NOT NULL` on the false premise that select rows carry
+   * text IDs — that is true of **array** field tables, not select tables. A
+   * text primary key has no default, so every insert wrote NULL and failed with
+   * `NOT NULL constraint failed: clients_services.id`, surfacing in the admin
+   * as "Something went wrong." whenever a client was saved with any service
+   * selected. Every sibling select table (e.g.
+   * `clients_client_pulse_analytics_metrics`) still has the integer shape.
+   *
+   * Runs before the marker short-circuit below: production has the marker, so
+   * anything placed in the main sweep would never execute there. Guarded on the
+   * live column type, so it is a single PRAGMA no-op once healed.
+   */
+  async function repairClientsServicesSelectId(): Promise<void> {
+    const label = "clients_services.id_integer_repair";
+    try {
+      if (!(await tableExists("clients_services"))) {
+        // Fresh database: the sweep below creates the table in the correct
+        // shape, so there is nothing to repair.
+        const r: MigrationResult = { label, status: "skip", message: "table not present" };
+        opts?.onProgress?.(r);
+        results.push(r);
+        return;
+      }
+
+      const info = await client!.execute("PRAGMA table_info(`clients_services`)");
+      const rows = (info as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+      const idCol = rows.find((row) => row.name === "id");
+      if (!idCol || String(idCol.type).toLowerCase() === "integer") {
+        const r: MigrationResult = { label, status: "skip", message: "already integer" };
+        opts?.onProgress?.(r);
+        results.push(r);
+        return;
+      }
+
+      // `id` is a synthetic surrogate for a select row — only `order`,
+      // `parent_id` and `value` carry meaning. Omitting `id` from the copy lets
+      // the integer rowid alias renumber the rows, which also sidesteps the
+      // fact that existing text IDs would all cast to 0 and collide.
+      // No PRAGMA foreign_keys toggling: it is a documented no-op inside a
+      // transaction (which batch opens), and none is needed — no table
+      // references `clients_services`, so dropping it breaks no inbound key.
+      const statements = [
+        "CREATE TABLE `clients_services__idfix` (" +
+          "`order` integer NOT NULL, `parent_id` integer NOT NULL, `value` text, " +
+          "`id` integer PRIMARY KEY NOT NULL, " +
+          "FOREIGN KEY (`parent_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE cascade)",
+        "INSERT INTO `clients_services__idfix` (`order`, `parent_id`, `value`) " +
+          "SELECT `order`, `parent_id`, `value` FROM `clients_services`",
+        "DROP TABLE `clients_services`",
+        "ALTER TABLE `clients_services__idfix` RENAME TO `clients_services`",
+        "CREATE INDEX IF NOT EXISTS `clients_services_order_idx` ON `clients_services` (`order`)",
+        "CREATE INDEX IF NOT EXISTS `clients_services_parent_id_idx` ON `clients_services` (`parent_id`)",
+      ];
+      const batch = (client as unknown as { batch?: (s: string[], mode: string) => Promise<unknown> }).batch;
+      if (typeof batch === "function") {
+        // Atomic: a partial rebuild would leave the table dropped.
+        await batch.call(client, statements, "write");
+      } else {
+        for (const statement of statements) await client!.execute(statement);
+      }
+      const r: MigrationResult = { label, status: "ok" };
+      opts?.onProgress?.(r);
+      results.push(r);
+    } catch (e: unknown) {
+      const r: MigrationResult = {
+        label,
+        status: "error",
+        message: e instanceof Error ? e.message : String(e),
+      };
+      opts?.onProgress?.(r);
+      results.push(r);
+    }
+  }
+
   async function addLandingLockRelations(): Promise<void> {
     for (const collection of ["landing_properties", "landing_experiments", "landing_events"]) {
       await run(
@@ -417,6 +499,10 @@ export async function runMigrations(
   }
 
   try {
+    // Must precede the marker short-circuit: production carries the marker and
+    // would otherwise return before any repair ran.
+    await repairClientsServicesSelectId();
+
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the
     // landing tables existed when they did not.
@@ -497,18 +583,9 @@ export async function runMigrations(
     )`);
     await run("clients_services_order_idx", "CREATE INDEX IF NOT EXISTS `clients_services_order_idx` ON `clients_services` (`order`)");
     await run("clients_services_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_services_parent_id_idx` ON `clients_services` (`parent_id`)");
-    await run("clients_services_text_id_new", `CREATE TABLE IF NOT EXISTS \`clients_services_new\` (
-      \`order\` integer NOT NULL,
-      \`parent_id\` integer NOT NULL,
-      \`value\` text,
-      \`id\` text PRIMARY KEY NOT NULL,
-      FOREIGN KEY (\`parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
-    )`);
-    await run("clients_services_text_id_copy", "INSERT INTO `clients_services_new` (`order`, `parent_id`, `value`, `id`) SELECT `order`, `parent_id`, `value`, CAST(`id` AS text) FROM `clients_services`", ["UNIQUE constraint failed", "no such table"]);
-    await run("clients_services_text_id_drop_old", "DROP TABLE IF EXISTS `clients_services`");
-    await run("clients_services_text_id_rename", "ALTER TABLE `clients_services_new` RENAME TO `clients_services`", ["no such table", "already exists"]);
-    await run("clients_services_text_id_order_idx", "CREATE INDEX IF NOT EXISTS `clients_services_order_idx` ON `clients_services` (`order`)");
-    await run("clients_services_text_id_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_services_parent_id_idx` ON `clients_services` (`parent_id`)");
+    // NOTE: a text-`id` conversion used to follow here. It broke every insert
+    // into this table — see repairClientsServicesSelectId() above, which heals
+    // databases that already ran it. The CREATE above is the correct shape.
 
     // --- Client Pulse leadership config ---
     await run("clients.client_pulse_enabled", "ALTER TABLE `clients` ADD `client_pulse_enabled` integer DEFAULT false");

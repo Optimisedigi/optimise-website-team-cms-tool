@@ -103,6 +103,9 @@ export async function POST(request: NextRequest) {
     "qogs_work_delivered",
     "forecast_scenarios",
     "client_portal_requests",
+    // Rebuilt by the clients_services.id_integer_repair migration; the count
+    // confirms rows survived that table swap.
+    "clients_services",
   ];
   for (const tableName of diagnosticTables) {
     try {
