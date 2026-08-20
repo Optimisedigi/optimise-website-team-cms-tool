@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createClient } from "@libsql/client";
 import {
   MIN_CONVERSIONS_FOR_CALL,
   MIN_SESSIONS_FOR_CALL,
@@ -31,9 +32,36 @@ vi.mock("@/app/(frontend)/api/dashboard/verify/route", () => ({
   validateDashboardToken: (token: string | undefined) => token === "valid-token",
 }));
 
-import { GET } from "@/app/(frontend)/api/dashboard/landing-experiments/route";
+import {
+  ATTRIBUTION_BUCKET,
+  GET,
+} from "@/app/(frontend)/api/dashboard/landing-experiments/route";
 
 describe("landing experiment statistics", () => {
+  it("builds a parseable attribution bucket that includes the landing route", async () => {
+    const db = createClient({ url: "file::memory:" });
+    try {
+      await db.execute("CREATE TABLE landing_events (attribution TEXT, route TEXT)");
+      await db.execute({
+        sql: "INSERT INTO landing_events VALUES (?, ?)",
+        args: [
+          JSON.stringify({
+            utm_source: "adwords",
+            utm_medium: "ppc",
+            utm_campaign: "1234567890",
+          }),
+          "/lp/bpo-services-au",
+        ],
+      });
+      const result = await db.execute(`SELECT ${ATTRIBUTION_BUCKET} AS bucket FROM landing_events`);
+
+      expect(result.rows[0].bucket).toBe(
+        "adwords / ppc / 1234567890 / Landing page: /lp/bpo-services-au",
+      );
+    } finally {
+      db.close();
+    }
+  });
   it("keeps Wilson intervals inside [0, 1] at extremes", () => {
     expect(wilsonInterval(0, 0)).toEqual([0, 0]);
 

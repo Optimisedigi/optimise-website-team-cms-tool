@@ -54,11 +54,11 @@ const PAGE_SIZE = 1000;
  * A missing source reads as `(direct)` rather than `(unset)`: an untagged visit
  * is a real bucket, not absent data.
  */
-const ATTRIBUTION_BUCKET = `(
+export const ATTRIBUTION_BUCKET = `(
   COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_source'), ''), '(direct)') || ' / ' ||
   COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_medium'), ''), '(none)') || ' / ' ||
   COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_campaign'), ''), '(none)') || ' / Landing page: ' ||
-  COALESCE(NULLIF(\`route\`, ''), '(unknown page)'
+  COALESCE(NULLIF(\`route\`, ''), '(unknown page)')
 )`;
 
 /**
