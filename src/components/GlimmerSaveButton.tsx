@@ -39,6 +39,46 @@ import {
 const STYLE_ID = 'glimmer-save-button-styles'
 const SAVED_DURATION_MS = 1800
 
+function Ellipsis(): React.ReactElement {
+  return (
+    <svg aria-hidden="true" height="18" viewBox="0 0 24 24" width="18">
+      <circle cx="4" cy="12" fill="currentColor" r="2">
+        <animate
+          attributeName="cy"
+          begin="0s"
+          calcMode="spline"
+          dur="0.6s"
+          keySplines=".33,.66,.66,1;.33,0,.66,.33"
+          repeatCount="indefinite"
+          values="12;6;12"
+        />
+      </circle>
+      <circle cx="12" cy="12" fill="currentColor" r="2">
+        <animate
+          attributeName="cy"
+          begin="0.1s"
+          calcMode="spline"
+          dur="0.6s"
+          keySplines=".33,.66,.66,1;.33,0,.66,.33"
+          repeatCount="indefinite"
+          values="12;6;12"
+        />
+      </circle>
+      <circle cx="20" cy="12" fill="currentColor" r="2">
+        <animate
+          attributeName="cy"
+          begin="0.2s"
+          calcMode="spline"
+          dur="0.6s"
+          keySplines=".33,.66,.66,1;.33,0,.66,.33"
+          repeatCount="indefinite"
+          values="12;6;12"
+        />
+      </circle>
+    </svg>
+  )
+}
+
 function ensureStyles(): void {
   if (typeof document === 'undefined') return
   if (document.getElementById(STYLE_ID)) return
@@ -153,10 +193,10 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
   }
 
   // While this button's submit is in flight — or while an external autosave is
-  // running — surface a "Saving…" label so the user gets immediate feedback
+  // running — surface an animated ellipsis so the user gets immediate feedback
   // between pressing Save and the "Saved" pulse.
-  const isSaving = (processing && pendingSaveRef.current) || externalSaving
-  const label = isSaving ? 'Saving…' : justSaved ? 'Saved' : defaultLabel
+  const isSaving = processing || externalSaving
+  const label = justSaved ? 'Saved' : defaultLabel
 
   return (
     <FormSubmit
@@ -168,7 +208,14 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
       size="medium"
       type="button"
     >
-      {label}
+      {isSaving ? (
+        <span style={{ alignItems: 'center', display: 'inline-flex', gap: 6 }}>
+          Saving
+          <Ellipsis />
+        </span>
+      ) : (
+        label
+      )}
     </FormSubmit>
   )
 }
