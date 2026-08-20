@@ -5,6 +5,10 @@ import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
 import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
 import {
+  labelCampaignIds,
+  loadGoogleAdsCampaignNames,
+} from "@/lib/google-ads-campaign-names";
+import {
   FUNNEL_STEPS,
   buildFunnel,
   compareVariants,
@@ -486,10 +490,12 @@ export async function GET(req: NextRequest) {
         "'"
       : "`event_type` = '" + primaryGoal.replace(/'/g, "''") + "'";
 
-  const [facets, paidTraffic] = await Promise.all([
+  const [facets, paidTraffic, campaignNames] = await Promise.all([
     loadFacets(payload, client.id, since, goalPredicate, pageFilter),
     loadPaidTraffic(payload, client.id, since, goalPredicate),
+    loadGoogleAdsCampaignNames(String(client.googleAdsCustomerId ?? "")),
   ]);
+  facets.attribution = labelCampaignIds(facets.attribution, campaignNames);
 
   const accumulators = new Map<string, VariantAccumulator>();
   for (const variantId of configuredVariants) accumulators.set(variantId, createAccumulator(variantId));
