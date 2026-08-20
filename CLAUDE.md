@@ -1,5 +1,6 @@
 # Content CMS — Optimise Digital
 
+## What is this
 Internal Optimise Digital agency platform: a private Payload CMS/Next.js app for clients, proposals, contracts, audits, SEO/GSC and Google Ads workflows, OptiMate agent approvals, finance, contractor tracking, and token/PIN-gated client surfaces.
 
 ## Stack confirmed from local config

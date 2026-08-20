@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import RocketSplash from "@/components/RocketSplash";
-import { LANDING_PAGES, type LandingPageMeta } from "@/lib/landing-page-sections";
+import { resolveLandingPage, type LandingPageMeta } from "@/lib/landing-page-sections";
 import { isAwayDigitalSlug } from "@/lib/away-digital";
 
 /**
@@ -187,12 +187,17 @@ function formatSeconds(seconds: number): string {
  * describe a page that does not exist.
  */
 function resolveSectionTemplate(page: string, pages: Segment[]): LandingPageMeta | null {
-  if (page) return LANDING_PAGES[page] ?? null;
+  if (page) return resolveLandingPage(page) ?? null;
 
+  /* Unrecognised ids are skipped rather than treated as fatal. Bailing out on
+     the first unknown id meant one stray page_id - or one new page - removed
+     the section table AND the preview for every page in the report, which is a
+     far worse answer than describing the pages we do recognise. */
   const known = pages
     .filter((entry) => entry.key !== "(unset)")
-    .map((entry) => LANDING_PAGES[entry.key]);
-  if (known.length === 0 || known.some((meta) => !meta)) return null;
+    .map((entry) => resolveLandingPage(entry.key))
+    .filter((meta): meta is LandingPageMeta => meta !== null);
+  if (known.length === 0) return null;
 
   const shape = (meta: LandingPageMeta) => meta.sections.map((section) => section.id).join("|");
   const [first, ...rest] = known;
@@ -261,6 +266,7 @@ export function LandingExperimentTab({
   clientName?: string;
 }) {
   const [data, setData] = useState<ReportResponse | null>(null);
+  const [catalogPages, setCatalogPages] = useState<Array<{ pageId: string; title: string }>>([]);
   const [postClick, setPostClick] = useState<PostClickMonth[] | null>(null);
   const [postClickNote, setPostClickNote] = useState<string | null>(null);
   const [days, setDays] = useState(30);
@@ -300,6 +306,38 @@ export function LandingExperimentTab({
     };
   }, [slug, days, page, device]);
 
+  useEffect(() => {
+    if (!isAwayDigitalSlug(slug)) return;
+    let cancelled = false;
+
+    fetch(`/api/dashboard/landing-pages?slug=${encodeURIComponent(slug)}&catalog=1`, {
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        return (await res.json()) as { pages?: unknown[] };
+      })
+      .then(({ pages }) => {
+        if (cancelled || !Array.isArray(pages)) return;
+        setCatalogPages(
+          pages.flatMap((entry) => {
+            if (!entry || typeof entry !== "object") return [];
+            const row = entry as Record<string, unknown>;
+            const pageId = typeof row.pageId === "string" ? row.pageId : "";
+            const title = typeof row.title === "string" ? row.title : pageId;
+            return resolveLandingPage(pageId) ? [{ pageId, title }] : [];
+          }),
+        );
+      })
+      .catch(() => {
+        // Event-backed pages remain usable if the optional catalog is unavailable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
   /**
    * What happened to these leads after the form, from HubSpot.
    *
@@ -374,6 +412,13 @@ export function LandingExperimentTab({
   const conversions = data.variants.reduce((sum, variant) => sum + variant.conversions, 0);
   const conversionRate = sessions > 0 ? conversions / sessions : 0;
   const realMarkets = data.markets.filter((entry) => entry.key !== "(unset)");
+  const catalogTitles = new Map(catalogPages.map((entry) => [entry.pageId, entry.title]));
+  const pageOptions = [...data.pages];
+  for (const entry of catalogPages) {
+    if (!pageOptions.some((option) => option.key === entry.pageId)) {
+      pageOptions.push({ key: entry.pageId, sessions: 0, conversions: 0, conversionRate: 0 });
+    }
+  }
 
   // The single worst hand-off in the funnel: the first thing worth fixing.
   const leak = data.funnel
@@ -392,7 +437,7 @@ export function LandingExperimentTab({
   // further down the page.
   const checklist = data.secondaryConversions?.find((row) => row.id === "readiness_checklist");
   const running = data.experiment?.status?.toLowerCase() === "running";
-  const sectionTemplate = resolveSectionTemplate(page, data.pages);
+  const sectionTemplate = resolveSectionTemplate(page, pageOptions);
 
   return (
     <div className="space-y-6 text-slate-900">
@@ -420,7 +465,7 @@ export function LandingExperimentTab({
           {/* Shown for a single page too. Selecting the one page is what gives
               the report its sections and its preview, so hiding the control
               there hid the preview with it. */}
-          {data.pages.length > 0 && (
+          {pageOptions.length > 0 && (
             <label className="flex flex-col gap-1 text-xs text-slate-500">
               Page
               <select
@@ -429,9 +474,9 @@ export function LandingExperimentTab({
                 className={SELECT}
               >
                 <option value="">All pages</option>
-                {data.pages.map((entry) => (
+                {pageOptions.map((entry) => (
                   <option key={entry.key} value={entry.key}>
-                    {entry.key} ({entry.sessions.toLocaleString()})
+                    {catalogTitles.get(entry.key) ?? entry.key} ({entry.sessions.toLocaleString()})
                   </option>
                 ))}
               </select>

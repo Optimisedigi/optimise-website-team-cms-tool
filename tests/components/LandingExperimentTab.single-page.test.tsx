@@ -93,16 +93,36 @@ describe("LandingExperimentTab with a single landing page", () => {
     expect(frame.getAttribute("src")).toContain("/outsourcing-au");
   });
 
-  it("offers the page selector rather than hiding it", async () => {
-    stubFetch();
-    render(<LandingExperimentTab slug="away-digital" />);
+  it("offers every deployed page, including pages with no recorded sessions", async () => {
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          String(url).includes("landing-pages")
+            ? {
+                pages: [
+                  { pageId: "ag-bpo-services-au", title: "BPO Services in Vietnam" },
+                  { pageId: "ag-rpo-recruitment-us", title: "RPO in Vietnam" },
+                ],
+              }
+            : report,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<LandingExperimentTab slug="away-digital-teams" />);
 
     const select = await screen.findByLabelText("Page");
-    expect(
-      Array.from(select.querySelectorAll("option")).map((option) => option.textContent),
-    ).toContain("offshore-teams-au (3)");
+    await waitFor(() => {
+      const labels = Array.from(select.querySelectorAll("option")).map((option) => option.textContent);
+      expect(labels).toContain("offshore-teams-au (3)");
+      expect(labels).toContain("BPO Services in Vietnam (0)");
+      expect(labels).toContain("RPO in Vietnam (0)");
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/dashboard/landing-pages?slug=away-digital-teams&catalog=1",
+      expect.objectContaining({ credentials: "include" }),
+    );
   });
-
   it("opens on every page pooled rather than silently picking one", async () => {
     const fetchMock = stubFetch();
     render(<LandingExperimentTab slug="away-digital" />);

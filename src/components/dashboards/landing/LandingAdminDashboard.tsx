@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { LandingExperimentTab } from "../googleads/LandingExperimentTab";
+import { AdGroupPagesPanel } from "./AdGroupPagesPanel";
 
 /**
  * Internal landing overview: client list with 30-day health on the left,
@@ -134,6 +135,10 @@ export function LandingAdminDashboard() {
 
       {/* The report renders its own cards; no second card around them. */}
       <LandingExperimentTab slug={selected.slug} />
+
+      {/* Below the report: the report answers "how are they doing", this answers
+          "what exists and does it look right" - which needs no traffic. */}
+      <AdGroupPagesPanel slug={selected.slug} />
     </div>
   );
 }

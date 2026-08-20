@@ -90,3 +90,54 @@ export const LANDING_PAGES: Record<string, LandingPageMeta> = {
     goalSectionId: "booking",
   },
 };
+
+/**
+ * Ad-group pages are derived from their page_id, not listed here.
+ *
+ * The landing build generates one page per search intent from the same source
+ * as the market pages, so the section structure is identical and the id encodes
+ * the path: `ag-bpo-services-au` is served at `/lp/bpo-services-au`. Deriving it
+ * means a page added over there needs no edit here - which matters, because the
+ * previous hand-maintained map is exactly what broke the dashboard: an id it did
+ * not recognise made the whole report fall back to "no template", taking the
+ * preview with it.
+ */
+const AD_GROUP_PAGE_ID = /^ag-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
+
+/** Words that read wrong in title case; the market suffix is shown separately. */
+const ACRONYMS = new Set(["bpo", "rpo", "cx", "hr", "it"]);
+
+function titleCase(slug: string): string {
+  return slug
+    .split("-")
+    .map((word) => (ACRONYMS.has(word) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(" ");
+}
+
+/**
+ * Resolve any landing page_id to the page it describes, or null if the id is not
+ * one of ours.
+ *
+ * The id reaches here from stored events, which originate in a browser, so it is
+ * untrusted. The pattern above admits only lowercase alphanumerics and single
+ * hyphens, and the URL is always built against `BASE` - a crafted id can never
+ * point the preview iframe at another origin, only at a path on our own site.
+ */
+export function resolveLandingPage(pageId: string): LandingPageMeta | null {
+  const known = LANDING_PAGES[pageId];
+  if (known) return known;
+
+  const slug = AD_GROUP_PAGE_ID.exec(pageId)?.[1];
+  if (!slug) return null;
+
+  const market = /-(au|us)$/.exec(slug)?.[1];
+  const name = titleCase(market ? slug.slice(0, -3) : slug);
+
+  return {
+    pageId,
+    label: market ? `${market.toUpperCase()}: ${name}` : name,
+    url: `${BASE}/lp/${slug}`,
+    sections: MARKET_SECTIONS,
+    goalSectionId: "booking",
+  };
+}
