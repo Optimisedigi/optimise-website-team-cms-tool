@@ -42,8 +42,7 @@ const INTEGRATIONS: Array<{
     name: 'Google Analytics 4',
     idLabel: 'GA4 Property ID',
     idFieldPath: 'ga4PropertyId',
-    emptyHint:
-      'Set the numeric GA4 property ID on the Google Analytics tab to enable.',
+    emptyHint: 'Set the numeric GA4 property ID above, then save, to enable.',
   },
   {
     key: 'gsc',
@@ -58,16 +57,14 @@ const INTEGRATIONS: Array<{
     name: 'Google Ads',
     idLabel: 'Customer ID',
     idFieldPath: 'googleAdsCustomerId',
-    emptyHint:
-      'Set the Google Ads customer ID on the Business tab to enable.',
+    emptyHint: 'Set the Google Ads customer ID above, then save, to enable.',
   },
   {
     key: 'metaAds',
     name: 'Meta Ads',
     idLabel: 'Ad Account ID',
     idFieldPath: 'metaAdAccountId',
-    emptyHint:
-      'Set the Meta Ads account ID below (act_XXXXXXXXX) to enable.',
+    emptyHint: 'Set the Meta Ads account ID above (act_XXXXXXXXX), then save, to enable.',
   },
 ]
 
@@ -191,7 +188,10 @@ function IntegrationRow({
                 ? 'ui-monospace, SFMono-Regular, Menlo, monospace'
                 : 'inherit',
             fontStyle: hasId ? 'normal' : 'italic',
-            wordBreak: 'break-all',
+            // break-all keeps long IDs and GSC URLs inside the card, but it
+            // shreds the prose hints mid-word ("Con sole") at narrow widths.
+            wordBreak: hasId ? 'break-all' : 'normal',
+            overflowWrap: 'anywhere',
           }}
         >
           {hasId ? `${idLabel}: ${idValue}` : emptyHint}

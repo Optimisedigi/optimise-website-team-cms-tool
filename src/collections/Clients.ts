@@ -21,7 +21,10 @@ import {
   sensitiveFieldAccess,
 } from "../lib/access";
 import { hasValidApiKey } from "./api-key-access";
-import { createSnapshotForAudit } from "../lib/google-ads-audit-snapshots";
+import {
+  ensureGoogleAdsAudit,
+  startInitialGoogleAdsSnapshot,
+} from "../lib/google-ads-audit-bootstrap";
 
 const restrictBlogTaxonomyUpdates: CollectionBeforeChangeHook = ({ data, operation, req }) => {
   if (
@@ -243,6 +246,11 @@ export const Clients: CollectionConfig = {
         const nextId = doc?.googleAdsCustomerId || "";
         if (prevId === nextId) return;
         try {
+          // Deliberately NOT joined to this request's transaction. A sub-operation
+          // that throws calls Payload's killTransaction, which rolls back and
+          // deletes req.transactionID; the catch below would then hide it and the
+          // outer commit would silently no-op, discarding the client's save. These
+          // flushes are best-effort, so they stay isolated.
           await req.payload.delete({
             collection: "negative-keyword-avoided-spend-cache",
             where: { client: { equals: doc.id } },
@@ -262,38 +270,35 @@ export const Clients: CollectionConfig = {
         }
       },
       // First account access: create one audit and freeze its immutable snapshot window.
+      //
+      // Bootstrapping the audit must never cost the user the ID they typed, so
+      // nothing here touches the client's save:
+      //  - the audit row is written OUTSIDE this request's transaction. Joined to
+      //    it, a failing create would call Payload's killTransaction (rollback +
+      //    delete of req.transactionID), the catch below would hide it, and the
+      //    outer commit would no-op — silently discarding the save.
+      //  - the snapshot is not awaited at all: it makes a Google Ads API call, and
+      //    awaiting it made saving a client depend on an external service. A slow
+      //    or failing upstream (403/502 for an account the MCC cannot read yet)
+      //    then put the typed ID at risk while the admin still reported "Saved".
       async ({ doc, previousDoc, operation, req }) => {
         if (operation !== "create" && operation !== "update") return;
         const previousCustomerId = String(previousDoc?.googleAdsCustomerId || "").trim();
         const customerId = String(doc?.googleAdsCustomerId || "").trim();
         if (previousCustomerId || !customerId) return;
+        const payload = req.payload;
+        let audit: { id: string | number } | null = null;
         try {
-          const existing = await req.payload.find({
-            collection: "google-ads-audits",
-            where: { and: [{ client: { equals: doc.id } }, { customerId: { equals: customerId } }] },
-            limit: 1,
-            depth: 0,
-            overrideAccess: true,
-          });
-          const audit = existing.docs[0] ?? await req.payload.create({
-            collection: "google-ads-audits",
-            data: {
-              businessName: doc.name,
-              customerId,
-              websiteUrl: doc.websiteUrl || undefined,
-              client: doc.id,
-              presentationPin: doc.clientPin || undefined,
-              auditStatus: "pending",
-            } as any,
-            overrideAccess: true,
-          });
-          await createSnapshotForAudit(req.payload, audit.id);
-        } catch (error) {
-          req.payload.logger.error(`[Clients] Automatic Google Ads snapshot failed for client ${doc.id}: ${error instanceof Error ? error.message : error}`);
-          const audits = await req.payload.find({ collection: "google-ads-audits", where: { client: { equals: doc.id } }, sort: "-createdAt", limit: 1, depth: 0, overrideAccess: true }).catch(() => null);
-          const audit = audits?.docs?.[0];
-          if (audit) await req.payload.update({ collection: "google-ads-audits", id: audit.id, data: { auditStatus: "failed", snapshotState: "failed", auditError: error instanceof Error ? error.message : String(error) } as any, overrideAccess: true }).catch(() => undefined);
+          audit = await ensureGoogleAdsAudit(payload, doc);
+        } catch (err) {
+          payload.logger?.warn?.(`[Clients] Google Ads audit bootstrap failed: ${err}`);
+          return;
         }
+        if (!audit) return;
+        const auditId = audit.id;
+        setTimeout(() => {
+          void startInitialGoogleAdsSnapshot(payload, auditId, doc.id);
+        }, 0);
       },
       // Wipe the per-month waste/relevancy cache whenever the client's
       // brand keywords change, so the Overview tab's brand/generic split
@@ -762,36 +767,19 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
-            // ── Google Ads ID + conversion goals (moved here from Contacts) ──
+            // ── Conversion goals ──
+            // The Google Ads customer ID used to live here; it now sits with the
+            // GA4 and Meta Ads IDs on the Integrations tab, so every platform
+            // account ID has one home next to the Test connection controls.
             {
               type: "row",
               fields: [
-                {
-                  name: "googleAdsCustomerId",
-                  type: "text",
-                  hooks: {
-                    beforeChange: [
-                      ({ value }) =>
-                        typeof value === "string"
-                          ? value.replace(/\D/g, "").slice(0, 10)
-                          : value,
-                    ],
-                  },
-                  admin: {
-                    description:
-                      "Google Ads customer ID (e.g. 955-493-5739). Client must grant MCC access.",
-                    width: "33%",
-                    components: {
-                      Field: "./components/GoogleAdsCustomerIdField#GoogleAdsCustomerIdField",
-                    },
-                  },
-                },
                 {
                   name: "conversionGoal",
                   type: "select",
                   admin: {
                     description: "Primary conversion goal. Shown on client reports.",
-                    width: "33%",
+                    width: "50%",
                   },
                   options: [
                     { label: "Lead Generation", value: "lead generation" },
@@ -811,7 +799,7 @@ export const Clients: CollectionConfig = {
                   type: "select",
                   admin: {
                     description: "Secondary conversion goal",
-                    width: "33%",
+                    width: "50%",
                   },
                   options: [
                     { label: "Lead Generation", value: "lead generation" },
@@ -1117,7 +1105,7 @@ export const Clients: CollectionConfig = {
               admin: {
                 initCollapsed: false,
                 description:
-                  "Primary contact, additional stakeholders, the Optimise account managers assigned to this client, plus conversion goals and Google Ads linkage.",
+                  "Primary contact, additional stakeholders, and the Optimise account managers assigned to this client.",
               },
               fields: [
             {
@@ -3963,14 +3951,6 @@ export const Clients: CollectionConfig = {
               },
             },
             {
-              name: "ga4PropertyId",
-              type: "text",
-              admin: {
-                description:
-                  "Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes and Growth Tools, including OptiMax GA4 admin actions for audiences and key events. Set before connecting OAuth, and reconnect if the saved token only has read-only access.",
-              },
-            },
-            {
               name: "ga4AccessToken",
               type: "text",
               access: sensitiveFieldAccess("clients"),
@@ -4208,11 +4188,45 @@ export const Clients: CollectionConfig = {
         {
           label: "Integrations",
           description:
-            "Per-client integration status and connect/reconnect controls (GA4, GSC, Google Ads, Meta Ads). GSC uses per-client OAuth (Connect/Reconnect/Disconnect below). GA4, Google Ads, and Meta Ads use shared agency access — use Test connection to verify. Gmail is intentionally excluded (per-user OAuth).",
+            "Every platform account ID lives here, next to the status and connect/reconnect controls (GA4, GSC, Google Ads, Meta Ads). GSC uses per-client OAuth (Connect/Reconnect/Disconnect below). GA4, Google Ads, and Meta Ads use shared agency access — use Test connection to verify. Gmail is intentionally excluded (per-user OAuth).",
           fields: [
+            // ── Account IDs ──
+            // Google Ads moved from the Business tab and GA4 from the Google
+            // Analytics tab: three IDs in three places meant the tab that tests
+            // them was never the tab that set them.
+            {
+              name: "googleAdsCustomerId",
+              type: "text",
+              label: "Google Ads Customer ID",
+              hooks: {
+                beforeChange: [
+                  ({ value }) =>
+                    typeof value === "string"
+                      ? value.replace(/\D/g, "").slice(0, 10)
+                      : value,
+                ],
+              },
+              admin: {
+                description:
+                  "Google Ads customer ID (e.g. 955-493-5739). Client must grant MCC access.",
+                components: {
+                  Field: "./components/GoogleAdsCustomerIdField#GoogleAdsCustomerIdField",
+                },
+              },
+            },
+            {
+              name: "ga4PropertyId",
+              type: "text",
+              label: "GA4 Property ID",
+              admin: {
+                description:
+                  "Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes and Growth Tools, including OptiMax GA4 admin actions for audiences and key events. Set before connecting OAuth, and reconnect if the saved token only has read-only access.",
+              },
+            },
             {
               name: "metaAdAccountId",
               type: "text",
+              label: "Meta Ad Account ID",
               admin: {
                 description:
                   "Meta Ads account ID (format: act_XXXXXXXXX). Client must grant the Optimise Digital Business Manager access. Used by the Tools panel below.",

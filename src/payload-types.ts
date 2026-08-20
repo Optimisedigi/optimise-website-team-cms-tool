@@ -395,10 +395,6 @@ export interface Client {
    */
   numberOfLocations?: number | null;
   /**
-   * Google Ads customer ID (e.g. 955-493-5739). Client must grant MCC access.
-   */
-  googleAdsCustomerId?: string | null;
-  /**
    * Primary conversion goal. Shown on client reports.
    */
   conversionGoal?:
@@ -1558,10 +1554,6 @@ export interface Client {
    * Whether Google Analytics 4 is connected via OAuth with edit-capable access for OptiMax audience and key-event setup. Existing read-only connections may need reconnecting.
    */
   ga4Connected?: boolean | null;
-  /**
-   * Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes and Growth Tools, including OptiMax GA4 admin actions for audiences and key events. Set before connecting OAuth, and reconnect if the saved token only has read-only access.
-   */
-  ga4PropertyId?: string | null;
   ga4AccessToken?: string | null;
   ga4RefreshToken?: string | null;
   ga4TokenExpiry?: string | null;
@@ -1635,6 +1627,14 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Google Ads customer ID (e.g. 955-493-5739). Client must grant MCC access.
+   */
+  googleAdsCustomerId?: string | null;
+  /**
+   * Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes and Growth Tools, including OptiMax GA4 admin actions for audiences and key events. Set before connecting OAuth, and reconnect if the saved token only has read-only access.
+   */
+  ga4PropertyId?: string | null;
   /**
    * Meta Ads account ID (format: act_XXXXXXXXX). Client must grant the Optimise Digital Business Manager access. Used by the Tools panel below.
    */
@@ -11651,7 +11651,6 @@ export interface ClientsSelect<T extends boolean = true> {
   isAgency?: T;
   hasPhysicalLocations?: T;
   numberOfLocations?: T;
-  googleAdsCustomerId?: T;
   conversionGoal?: T;
   secondaryConversionGoal?: T;
   clientPulse?:
@@ -12075,7 +12074,6 @@ export interface ClientsSelect<T extends boolean = true> {
   expectedEvents?: T;
   tagSetupAudits?: T;
   ga4Connected?: T;
-  ga4PropertyId?: T;
   ga4AccessToken?: T;
   ga4RefreshToken?: T;
   ga4TokenExpiry?: T;
@@ -12104,6 +12102,8 @@ export interface ClientsSelect<T extends boolean = true> {
         deckPayload?: T;
         id?: T;
       };
+  googleAdsCustomerId?: T;
+  ga4PropertyId?: T;
   metaAdAccountId?: T;
   updatedAt?: T;
   createdAt?: T;

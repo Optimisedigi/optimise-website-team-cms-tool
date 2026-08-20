@@ -2,7 +2,7 @@
 
 import type { TextFieldClientProps } from 'payload'
 
-import { TextInput, useField } from '@payloadcms/ui'
+import { FieldDescription, FieldLabel, TextInput, useField } from '@payloadcms/ui'
 import React, { useCallback } from 'react'
 
 /**
@@ -37,7 +37,7 @@ function formatCustomerId(raw: string): string {
 }
 
 export function GoogleAdsCustomerIdField(props: TextFieldClientProps): React.ReactElement {
-  const { path: pathFromProps } = props
+  const { field, path: pathFromProps } = props
   const {
     customComponents: { Description, Error, Label } = {},
     path,
@@ -54,11 +54,22 @@ export function GoogleAdsCustomerIdField(props: TextFieldClientProps): React.Rea
     [setValue],
   )
 
+  // Payload only passes `customComponents.Label`/`.Description` through for
+  // some field configs. Without these fallbacks the input renders bare — no
+  // field name, and none of the "client must grant MCC access" guidance that
+  // every neighbouring ID field on the Integrations tab shows.
+  const label = Label ?? <FieldLabel label={field?.label ?? 'Google Ads Customer ID'} path={path} />
+  const description =
+    Description ??
+    (field?.admin?.description ? (
+      <FieldDescription description={field.admin.description as string} path={path} />
+    ) : undefined)
+
   return (
     <TextInput
-      Description={Description}
+      Description={description}
       Error={Error}
-      Label={Label}
+      Label={label}
       onChange={handleChange}
       path={path}
       placeholder="179-349-8760"
