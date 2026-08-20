@@ -28,6 +28,10 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     return
   }
 
+  // Retry safety: a scratch table stranded by a half-finished earlier run would
+  // fail this CREATE forever, permanently blocking the fix.
+  await db.run(sql`DROP TABLE IF EXISTS \`clients_services__idfix\`;`)
+
   await db.run(sql`CREATE TABLE \`clients_services__idfix\` (
     \`order\` integer NOT NULL,
     \`parent_id\` integer NOT NULL,

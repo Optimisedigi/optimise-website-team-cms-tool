@@ -453,6 +453,9 @@ export async function runMigrations(
       // transaction (which batch opens), and none is needed — no table
       // references `clients_services`, so dropping it breaks no inbound key.
       const statements = [
+        // Retry safety: a scratch table stranded by a half-finished earlier
+        // run would fail this CREATE forever, permanently blocking the fix.
+        "DROP TABLE IF EXISTS `clients_services__idfix`",
         "CREATE TABLE `clients_services__idfix` (" +
           "`order` integer NOT NULL, `parent_id` integer NOT NULL, `value` text, " +
           "`id` integer PRIMARY KEY NOT NULL, " +

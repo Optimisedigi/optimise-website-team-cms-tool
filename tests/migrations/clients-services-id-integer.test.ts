@@ -133,6 +133,22 @@ describe("clients_services id repair", () => {
       message: "table not present",
     });
   });
+
+  it("recovers when an earlier half-finished run stranded the scratch table", async () => {
+    await client.execute(BROKEN_TABLE);
+    await client.execute(
+      "INSERT INTO `clients_services` (`order`, `parent_id`, `value`, `id`) VALUES (0, 1, 'seo', 'txt-a')",
+    );
+    // Leftover from a run that died between CREATE and RENAME.
+    await client.execute("CREATE TABLE `clients_services__idfix` (`bogus` text)");
+
+    const results = await runMigrations(payloadWith(client));
+
+    expect(results).toContainEqual({ label: "clients_services.id_integer_repair", status: "ok" });
+    expect(await idColumnType(client)).toBe("integer");
+    const rows = await client.execute("SELECT `value` FROM `clients_services`");
+    expect(rows.rows.map((r) => r.value)).toEqual(["seo"]);
+  });
 });
 
 /**
@@ -218,5 +234,19 @@ describe("20260819_130000_fix_clients_services_id_integer up()", () => {
 
   it("does not throw when the table is absent", async () => {
     await expect(fixClientsServicesIdInteger(migrationArgs(client))).resolves.toBeUndefined();
+  });
+
+  it("recovers when an earlier half-finished run stranded the scratch table", async () => {
+    await client.execute(BROKEN_TABLE);
+    await client.execute(
+      "INSERT INTO `clients_services` (`order`, `parent_id`, `value`, `id`) VALUES (0, 1, 'seo', 'txt-a')",
+    );
+    await client.execute("CREATE TABLE `clients_services__idfix` (`bogus` text)");
+
+    await fixClientsServicesIdInteger(migrationArgs(client));
+
+    expect(await idColumnType(client)).toBe("integer");
+    const rows = await client.execute("SELECT `value` FROM `clients_services`");
+    expect(rows.rows.map((r) => r.value)).toEqual(["seo"]);
   });
 });
