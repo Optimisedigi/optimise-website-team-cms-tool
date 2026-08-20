@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import { sql } from "drizzle-orm";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
+import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
 
 /**
  * The generated landing pages, read from the manifest the landing build emits.
@@ -265,6 +266,12 @@ export async function GET(req: NextRequest) {
     const { user } = await payload.auth({ headers: req.headers });
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const productionData = await proxyProductionLandingDashboard(
+    req,
+    "/api/dashboard/landing-pages",
+  );
+  if (productionData) return productionData;
 
   try {
     const upstream = await fetch(MANIFEST_URL, {

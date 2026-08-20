@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import { sql } from "drizzle-orm";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
+import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
 import {
   FUNNEL_STEPS,
   buildFunnel,
@@ -405,6 +406,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
+
+  const productionData = await proxyProductionLandingDashboard(
+    req,
+    "/api/dashboard/landing-experiments",
+  );
+  if (productionData) return productionData;
 
   const requestedDays = Number(req.nextUrl.searchParams.get("days") || "30");
   const days = Number.isFinite(requestedDays)

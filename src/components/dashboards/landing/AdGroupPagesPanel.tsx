@@ -55,15 +55,11 @@ function adGroupSummary(groups: { name: string; campaign: string }[]) {
   return [...byCampaign].map(([campaign, names]) => ({ campaign, names: names.join(", ") }));
 }
 
-function Metric({ label, value, strong, tone }: { label: string; value: string; strong?: boolean; tone?: "warn" }) {
+function Metric({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="min-w-[4.5rem]">
       <dt className={LABEL}>{label}</dt>
-      <dd
-        className={`font-mono text-xs ${
-          tone === "warn" ? "text-amber-700" : strong ? "text-slate-900" : "text-slate-600"
-        }`}
-      >
+      <dd className={`font-mono text-xs ${strong ? "text-slate-900" : "text-slate-600"}`}>
         {value}
       </dd>
     </div>
@@ -143,8 +139,7 @@ export function AdGroupPagesPanel({ slug }: { slug: string }) {
           <ul className="divide-y divide-slate-100 border-t border-slate-100">
             {pages
               .filter((page) => page.market === market)
-              /* Spend descending: the page costing the most is the one whose
-                 bounce rate is worth acting on first. */
+              /* Spend descending: the page costing the most appears first. */
               .sort((a, b) => b.cost - a.cost || b.sessions - a.sessions || a.slug.localeCompare(b.slug))
               .map((page) => {
                 const open = openSlug === page.slug;
@@ -191,15 +186,8 @@ export function AdGroupPagesPanel({ slug }: { slug: string }) {
                               <Metric label="Clicks" value={String(page.clicks)} />
                             </>
                           )}
-                          <Metric
-                            label="Bounce"
-                            value={page.bounceRate === null ? "n/a" : `${page.bounceRate}%`}
-                            tone={page.bounceRate !== null && page.bounceRate >= 80 ? "warn" : undefined}
-                          />
-                          <Metric
-                            label="Time on site"
-                            value={page.medianSeconds === null ? "n/a" : `${page.medianSeconds}s`}
-                          />
+                          <Metric label="Bounce" value="n/a" />
+                          <Metric label="Time on site" value="n/a" />
                         </dl>
 
                         <div className="flex shrink-0 items-center gap-3 pt-3">
