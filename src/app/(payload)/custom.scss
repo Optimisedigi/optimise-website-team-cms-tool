@@ -5111,6 +5111,11 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
       0 1px 3px rgba(16, 24, 40, 0.06),
       0 1px 2px rgba(16, 24, 40, 0.04);
 
+    // The Clients list renders its open account-manager menu inside the cell.
+    // Let that menu escape the table instead of clipping at the card edge.
+    &:has(.od-cell-mgr__popover) {
+      overflow: visible;
+    }
     table {
       width: 100%;
       max-width: 100%;
@@ -5302,6 +5307,13 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
     background: rgb(var(--theme-bg-rgb, 255, 255, 255));
     box-shadow: 0 12px 30px rgb(0 0 0 / 22%);
     color: var(--odc-t1);
+  }
+
+  // Keep menus for the final rows inside the desktop viewport, including their
+  // action buttons. Earlier rows still open downward where there is more room.
+  tbody tr:nth-last-child(-n + 5) .od-cell-mgr__popover {
+    top: auto;
+    bottom: calc(100% + 7px);
   }
 
   .od-cell-mgr__option {

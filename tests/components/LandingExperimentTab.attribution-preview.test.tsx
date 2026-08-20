@@ -121,7 +121,7 @@ describe("LandingExperimentTab attribution table", () => {
       .map((cell) => cell.textContent);
 
     expect(headers).toEqual([
-      "Source / medium / campaign",
+      "Source / medium / campaign / landing page",
       "Sessions",
       "Conversions",
       "Conversion rate",
