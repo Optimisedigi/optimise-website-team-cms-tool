@@ -5174,6 +5174,11 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
       &:last-child td {
         border-bottom: none;
       }
+
+      &:has(.od-cell-mgr__trigger[aria-expanded='true']) {
+        position: relative;
+        z-index: 30;
+      }
     }
 
     // When the row-click enhancer is mounted, show a pointer cursor on data
@@ -5294,8 +5299,8 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
     padding: 12px;
     border: 1px solid var(--theme-elevation-150);
     border-radius: 8px;
-    background: var(--theme-elevation-0);
-    box-shadow: 0 12px 30px rgb(0 0 0 / 16%);
+    background: rgb(var(--theme-bg-rgb, 255, 255, 255));
+    box-shadow: 0 12px 30px rgb(0 0 0 / 22%);
     color: var(--odc-t1);
   }
 
