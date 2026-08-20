@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { GoogleAdsDashboardMonthlyWasteRelevancy, HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
+import { isAwayDigitalAccount } from "@/lib/away-digital";
 
 type MetricKey = "paidLeads" | "meetings" | "totalMeetings" | "googleAdsConversions" | "meetingRate" | "cpaGoogleAdsConversions" | "cpaLeadsWithMeetings" | "cpaMeetings" | "googleAdsSpend";
 type MonthlyPoint = HubSpotPostClickDashboardData["monthly"][number];
@@ -64,11 +65,8 @@ export type RegionFilter = "all" | "AU" | "US";
 
 const REGION_CYCLE: RegionFilter[] = ["all", "AU", "US"];
 
-const AWAY_DIGITAL_SLUG = "away-digital";
-const AWAY_DIGITAL_CUSTOMER_ID = "3425353766";
-
 export function supportsRegionSplit(data: Pick<HubSpotPostClickDashboardData, "slug" | "customerId">): boolean {
-  return data.slug === AWAY_DIGITAL_SLUG || (data.customerId || "").replace(/-/g, "") === AWAY_DIGITAL_CUSTOMER_ID;
+  return isAwayDigitalAccount(data.slug || "", data.customerId || "");
 }
 
 export function campaignRegion(name?: string | null): "AU" | "US" | "other" {

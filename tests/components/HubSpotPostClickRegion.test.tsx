@@ -33,7 +33,7 @@ describe("campaignRegion", () => {
 
 describe("supportsRegionSplit", () => {
   it("enables the region toggle for Away Digital Teams only", () => {
-    expect(supportsRegionSplit({ slug: "away-digital", customerId: "1111111111" })).toBe(true);
+    expect(supportsRegionSplit({ slug: "away-digital-teams", customerId: "1111111111" })).toBe(true);
     expect(supportsRegionSplit({ slug: "other-client", customerId: "3425353766" })).toBe(true);
     expect(supportsRegionSplit({ slug: "other-client", customerId: "342-535-3766" })).toBe(true);
   });
@@ -41,6 +41,13 @@ describe("supportsRegionSplit", () => {
   it("disables the region toggle for every other client", () => {
     expect(supportsRegionSplit({ slug: "other-client", customerId: "1111111111" })).toBe(false);
     expect(supportsRegionSplit({ slug: "", customerId: "" })).toBe(false);
+  });
+
+  // `away-digital` now belongs to a different client, so on the slug alone it
+  // must not read as Away. (A matching customer id still enables the toggle;
+  // that id is validated against the client record server-side.)
+  it("does not treat the reassigned legacy slug as Away", () => {
+    expect(supportsRegionSplit({ slug: "away-digital", customerId: "1111111111" })).toBe(false);
   });
 });
 

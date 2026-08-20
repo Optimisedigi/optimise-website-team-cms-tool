@@ -14,6 +14,7 @@
 import type { ReactNode } from 'react'
 import './away-digital.css'
 import AuditPasswordGate from '@/components/AuditPasswordGate'
+import { AWAY_DIGITAL_SLUG } from '@/lib/away-digital'
 import Starfield from './Starfield'
 import DeckScrollEffects from './DeckScrollEffects'
 import AccountGlanceChart from './AccountGlanceChart'
@@ -548,7 +549,9 @@ function adGroupIsClass(row: AdGroupRow): string {
 export default function AwayDigitalAuditPage() {
   return (
     <AuditPasswordGate
-      auditSlug="away-digital/google-ads-audit"
+      // `<clientSlug>/<deckSlug>`, resolved against the client record by
+      // /api/audit-auth — so it tracks the client slug, not this URL path.
+      auditSlug={`${AWAY_DIGITAL_SLUG}/google-ads-audit`}
       businessName="Away Digital Teams"
       featureLabel="Google Ads Audit"
     >

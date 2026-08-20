@@ -11,6 +11,7 @@
 import { getPayload } from "payload";
 import configPromise from "../payload.config";
 import { googleAdsAudit15SlideSamplePayload } from "../lib/decks/templates/google-ads-audit-15-slide/payload";
+import { AWAY_DIGITAL_SLUG } from "../lib/away-digital";
 
 async function main() {
   const payload = await getPayload({ config: configPromise });
@@ -18,13 +19,13 @@ async function main() {
   // Find Away Digital client.
   const clients = await payload.find({
     collection: "clients",
-    where: { slug: { equals: "away-digital" } },
+    where: { slug: { equals: AWAY_DIGITAL_SLUG } },
     limit: 1,
     depth: 0,
   });
   const client = clients.docs[0];
   if (!client) {
-    console.error("Client with slug 'away-digital' not found.");
+    console.error(`Client with slug '${AWAY_DIGITAL_SLUG}' not found.`);
     process.exit(1);
   }
 

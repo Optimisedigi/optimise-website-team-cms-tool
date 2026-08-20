@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { normalizeDashboardRange } from "@/lib/dashboard-date-ranges";
+import { isAwayDigitalSlug } from "@/lib/away-digital";
 import { validateDashboardToken } from "../verify/route";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   const clientName = req.nextUrl.searchParams.get("clientName") || "Away Digital Teams";
   const conversionActions = req.nextUrl.searchParams.get("conversionActions") || "";
 
-  if (slug !== "away-digital") {
+  if (!isAwayDigitalSlug(slug)) {
     return NextResponse.json({ error: "HubSpot post-click dashboard is only available for Away Digital Teams" }, { status: 404 });
   }
 
@@ -40,6 +41,24 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+  }
+
+  // `customerId` arrives from the query string, so it is caller-controlled and
+  // cannot be trusted to name the caller's own account. Bind it to the client
+  // record this slug resolves to: without this, anyone holding a valid token for
+  // their own dashboard could pass another client's customer id and read that
+  // account's lead PII. Slugs get reassigned between clients — the Google Ads
+  // account is the identity that has to match.
+  const payloadForClient = await getPayload({ config });
+  const clientLookup = await payloadForClient.find({
+    collection: "clients",
+    where: { slug: { equals: slug } },
+    depth: 0,
+    limit: 1,
+  });
+  const ownCustomerId = String((clientLookup.docs[0] as { googleAdsCustomerId?: string } | undefined)?.googleAdsCustomerId || "").replace(/-/g, "");
+  if (!ownCustomerId || ownCustomerId !== customerId.replace(/-/g, "")) {
+    return NextResponse.json({ error: "Customer id does not belong to this client" }, { status: 403 });
   }
 
   if (!GROWTH_TOOLS_URL || !GROWTH_TOOLS_API_KEY) {

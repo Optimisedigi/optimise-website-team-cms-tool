@@ -17,6 +17,7 @@ import { ProgressTab } from "./ProgressTab";
 import { AccountStructureTab } from "./AccountStructureTab";
 import { HubSpotPostClickTab } from "./HubSpotPostClickTab";
 import { LandingExperimentTab } from "./LandingExperimentTab";
+import { isAwayDigitalAccount } from "@/lib/away-digital";
 
 const GOOGLE_ADS_MONTHLY_TREND_WINDOW = 18;
 
@@ -135,7 +136,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const [avoidedSpend, setAvoidedSpend] = useState<GoogleAdsDashboardAvoidedSpend | null>(null);
   // Keyword Deep Dive shares the global date range with every other tab, so
   // it reads the same `data` payload — no tab-scoped range or extra fetch.
-  const isAwayDigital = initialData.slug === "away-digital" || initialData.customerId === "3425353766";
+  const isAwayDigital = isAwayDigitalAccount(initialData.slug || "", initialData.customerId || "");
   const [postClickData, setPostClickData] = useState<HubSpotPostClickDashboardData | null>(null);
   const [postClickLoading, setPostClickLoading] = useState(false);
   const [postClickError, setPostClickError] = useState("");

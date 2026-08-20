@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { AWAY_DIGITAL_SLUG } from "@/lib/away-digital";
 
 /**
  * Figma-style horizontal account structure explorer.
@@ -1783,7 +1784,7 @@ export default function AccountStructureTree({
             {!googleAdsCustomerId && (
               <p className="text-[11px] text-gray-400 mt-4">
                 Tip: this client has no Google Ads Customer ID set. Currently only{" "}
-                <span className="font-mono">away-digital</span> has structure data available.
+                <span className="font-mono">{AWAY_DIGITAL_SLUG}</span> has structure data available.
               </p>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { Children, isValidElement, type ReactNode } from 'react'
 import '../google-ads-audit/away-digital.css'
 import AuditPasswordGate from '@/components/AuditPasswordGate'
+import { AWAY_DIGITAL_SLUG } from '@/lib/away-digital'
 import DeckScrollEffects from '../google-ads-audit/DeckScrollEffects'
 import Starfield from '../google-ads-audit/Starfield'
 import DownloadPdfButton from './DownloadPdfButton'
@@ -574,7 +575,9 @@ function GanttBar({ row }: { row: TimelineRow }) {
 export default function AwayDigitalOptimisationPlanPage() {
   return (
     <AuditPasswordGate
-      auditSlug="away-digital/google-ads-audit"
+      // `<clientSlug>/<deckSlug>`, resolved against the client record by
+      // /api/audit-auth — so it tracks the client slug, not this URL path.
+      auditSlug={`${AWAY_DIGITAL_SLUG}/google-ads-audit`}
       businessName="Away Digital Teams"
       featureLabel="Google Ads Optimisation Plan"
     >

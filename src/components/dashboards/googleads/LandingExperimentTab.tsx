@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import RocketSplash from "@/components/RocketSplash";
 import { LANDING_PAGES, type LandingPageMeta } from "@/lib/landing-page-sections";
+import { isAwayDigitalSlug } from "@/lib/away-digital";
 
 /**
  * Landing A/B results and on-page behaviour for one client.
@@ -308,7 +309,7 @@ export function LandingExperimentTab({
    * and "nobody converted" are opposite findings.
    */
   useEffect(() => {
-    if (slug !== "away-digital" || !customerId) return;
+    if (!isAwayDigitalSlug(slug) || !customerId) return;
     let cancelled = false;
 
     const query = new URLSearchParams({
