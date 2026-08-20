@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 describe("AdGroupPagesPanel measurement labels", () => {
-  it("shows unavailable bounce and time-on-site as n/a instead of misleading values", async () => {
+  it("shows measured bounce and time-on-site and consolidates duplicate ad-group names", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() =>
@@ -26,9 +26,12 @@ describe("AdGroupPagesPanel measurement labels", () => {
                 url: "https://hire.awaydigitalteams.com/lp/bpo-services-au",
                 title: "BPO Services",
                 headline: "BPO services without the churn",
-                adGroupIds: ["1"],
+                adGroupIds: ["1", "2"],
                 noindex: true,
-                adGroups: [{ id: "1", name: "bpo", campaign: "Search", clicks: 49, cost: 1340 }],
+                adGroups: [
+                  { id: "1", name: "bpo", campaign: "Search Exact", clicks: 29, cost: 800 },
+                  { id: "2", name: "bpo", campaign: "Search Phrase", clicks: 20, cost: 540 },
+                ],
                 clicks: 49,
                 cost: 1340,
                 conversions: 0,
@@ -46,8 +49,9 @@ describe("AdGroupPagesPanel measurement labels", () => {
     render(<AdGroupPagesPanel slug="away-digital-teams" />);
 
     await screen.findByText("/lp/bpo-services-au");
-    await waitFor(() => expect(screen.getAllByText("n/a")).toHaveLength(2));
-    expect(screen.queryByText("100%")).toBeNull();
-    expect(screen.queryByText("8s")).toBeNull();
+    await waitFor(() => expect(screen.getByText("100.0%")).toBeTruthy());
+    expect(screen.getByText("8s")).toBeTruthy();
+    expect(screen.getAllByText(/Ad group/)).toHaveLength(1);
+    expect(screen.getByText(/Search Exact · Search Phrase/)).toBeTruthy();
   });
 });

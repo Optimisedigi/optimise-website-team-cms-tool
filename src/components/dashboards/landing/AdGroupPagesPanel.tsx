@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  DEFAULT_LANDING_DATE_RANGE,
+  landingDateRangeLabel,
+  landingDateRangeParams,
+  type LandingDateRange,
+} from "@/lib/landing-date-range";
 
 /**
  * Every generated ad-group landing page, with a preview.
@@ -39,20 +45,16 @@ const MICRO = "font-mono text-[10px] uppercase tracking-[0.1em] text-slate-500";
 
 const LABEL = "font-mono text-[9px] uppercase tracking-[0.08em] text-slate-400";
 
-/**
- * One line per campaign, so a page fed by two campaigns reads as two lines
- * rather than a run-on list where it is unclear which group sits under which.
- */
+/** One line per ad-group name; its campaigns stay attached without repeating it. */
 function adGroupSummary(groups: { name: string; campaign: string }[]) {
-  const byCampaign = new Map<string, string[]>();
-  for (const g of groups) {
-    const campaign = g.campaign || "unknown campaign";
-    if (!byCampaign.has(campaign)) byCampaign.set(campaign, []);
-    const names = byCampaign.get(campaign)!;
-    // Match-type twins share a name; showing it twice reads as a duplicate row.
-    if (g.name && !names.includes(g.name)) names.push(g.name);
+  const byName = new Map<string, string[]>();
+  for (const group of groups) {
+    const name = group.name || "unknown ad group";
+    const campaigns = byName.get(name) ?? [];
+    if (group.campaign && !campaigns.includes(group.campaign)) campaigns.push(group.campaign);
+    byName.set(name, campaigns);
   }
-  return [...byCampaign].map(([campaign, names]) => ({ campaign, names: names.join(", ") }));
+  return [...byName].map(([name, campaigns]) => ({ name, campaigns }));
 }
 
 function Metric({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
@@ -70,7 +72,13 @@ function Metric({ label, value, strong }: { label: string; value: string; strong
 const money = (value: number) =>
   `A$${Math.round(value).toLocaleString("en-AU")}`;
 
-export function AdGroupPagesPanel({ slug }: { slug: string }) {
+export function AdGroupPagesPanel({
+  slug,
+  range = DEFAULT_LANDING_DATE_RANGE,
+}: {
+  slug: string;
+  range?: LandingDateRange;
+}) {
   const [pages, setPages] = useState<ManifestPage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openSlug, setOpenSlug] = useState<string | null>(null);
@@ -80,7 +88,9 @@ export function AdGroupPagesPanel({ slug }: { slug: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/dashboard/landing-pages?slug=${encodeURIComponent(slug)}`);
+        const query = new URLSearchParams({ slug });
+        landingDateRangeParams(range).forEach((value, key) => query.set(key, value));
+        const res = await fetch(`/api/dashboard/landing-pages?${query}`);
         const json = await res.json();
         if (cancelled) return;
         if (!res.ok) throw new Error(json?.error || `Failed (${res.status})`);
@@ -93,7 +103,7 @@ export function AdGroupPagesPanel({ slug }: { slug: string }) {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, range]);
 
   if (error) {
     return (
@@ -114,6 +124,8 @@ export function AdGroupPagesPanel({ slug }: { slug: string }) {
   }
 
   const markets = [...new Set(pages.map((p) => p.market))].sort();
+  const adGroupCount = new Set(pages.flatMap((page) => page.adGroups.map((group) => group.name))).size;
+  const rangeLabel = landingDateRangeLabel(range);
 
   return (
     <section className={CARD} aria-labelledby="ad-group-pages-heading">
@@ -122,12 +134,12 @@ export function AdGroupPagesPanel({ slug }: { slug: string }) {
           Ad-group landing pages
         </h3>
         <p className={MICRO}>
-          {pages.length} pages · {pages.reduce((n, p) => n + p.adGroupIds.length, 0)} ad groups
+          {pages.length} pages · {adGroupCount} ad groups
           {adMetrics && (
             <>
               {" · "}
               {money(pages.reduce((n, p) => n + p.cost, 0))} · {pages.reduce((n, p) => n + p.clicks, 0)} clicks
-              {" (30d)"}
+              {` (${rangeLabel})`}
             </>
           )}
         </p>
@@ -165,10 +177,10 @@ export function AdGroupPagesPanel({ slug }: { slug: string }) {
                             an id says nothing about what someone searched for. */}
                         {page.adGroups.length ? (
                           adGroupSummary(page.adGroups).map((line) => (
-                            <span key={line.campaign} className="mt-0.5 block text-[11px] leading-relaxed text-slate-600">
-                              <span className={LABEL}>Ad group</span> {line.names}
+                            <span key={line.name} className="mt-0.5 block text-[11px] leading-relaxed text-slate-600">
+                              <span className={LABEL}>Ad group</span> {line.name}
                               <span className="text-slate-400"> · </span>
-                              <span className={LABEL}>Campaign</span> {line.campaign}
+                              <span className={LABEL}>Campaigns</span> {line.campaigns.join(" · ")}
                             </span>
                           ))
                         ) : (
@@ -182,12 +194,18 @@ export function AdGroupPagesPanel({ slug }: { slug: string }) {
                         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-right sm:grid-cols-4">
                           {adMetrics && (
                             <>
-                              <Metric label="Spend 30d" value={money(page.cost)} strong />
+                              <Metric label={`Spend · ${rangeLabel}`} value={money(page.cost)} strong />
                               <Metric label="Clicks" value={String(page.clicks)} />
                             </>
                           )}
-                          <Metric label="Bounce" value="n/a" />
-                          <Metric label="Time on site" value="n/a" />
+                          <Metric
+                            label="Bounce"
+                            value={page.bounceRate == null ? "n/a" : `${page.bounceRate.toFixed(1)}%`}
+                          />
+                          <Metric
+                            label="Time on site"
+                            value={page.medianSeconds == null ? "n/a" : `${page.medianSeconds}s`}
+                          />
                         </dl>
 
                         <div className="flex shrink-0 items-center gap-3 pt-3">

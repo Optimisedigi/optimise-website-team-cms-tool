@@ -267,7 +267,9 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await GET(get(`?slug=${SLUG}`, "dashboard_token=valid-token"));
+    const res = await GET(
+      get(`?slug=${SLUG}&start=2026-08-19&end=2026-08-20`, "dashboard_token=valid-token"),
+    );
     const body = await res.json();
     const bpo = body.pages.find((p: { slug: string }) => p.slug === "bpo-services-au");
 
@@ -289,7 +291,7 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
     });
     expect(JSON.parse(String(adGroupInit?.body))).toEqual({
       customerId: "3425353766",
-      dateRange: "LAST_30_DAYS",
+      dateRange: "2026-08-19,2026-08-20",
       statusFilter: "ALL",
     });
   });

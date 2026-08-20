@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import RocketSplash from "@/components/RocketSplash";
 import { resolveLandingPage, type LandingPageMeta } from "@/lib/landing-page-sections";
 import { isAwayDigitalSlug } from "@/lib/away-digital";
+import {
+  DEFAULT_LANDING_DATE_RANGE,
+  landingDateRangeLabel,
+  landingDateRangeParams,
+  type LandingDateRange,
+  type LandingDateRangeMode,
+} from "@/lib/landing-date-range";
 
 /**
  * Landing A/B results and on-page behaviour for one client.
@@ -260,16 +267,25 @@ export function LandingExperimentTab({
   slug,
   customerId,
   clientName,
+  range: controlledRange,
+  onRangeChange,
 }: {
   slug: string;
   customerId?: string;
   clientName?: string;
+  range?: LandingDateRange;
+  onRangeChange?: (range: LandingDateRange) => void;
 }) {
   const [data, setData] = useState<ReportResponse | null>(null);
   const [catalogPages, setCatalogPages] = useState<Array<{ pageId: string; title: string }>>([]);
   const [postClick, setPostClick] = useState<PostClickMonth[] | null>(null);
   const [postClickNote, setPostClickNote] = useState<string | null>(null);
-  const [days, setDays] = useState(30);
+  const [internalRange, setInternalRange] = useState<LandingDateRange>(DEFAULT_LANDING_DATE_RANGE);
+  const range = controlledRange ?? internalRange;
+  const updateRange = (next: LandingDateRange) => {
+    setInternalRange(next);
+    onRangeChange?.(next);
+  };
   // Each landing page has its own sections and funnel, and phone behaviour is
   // not desktop behaviour, so both are selectable rather than averaged.
   const [page, setPage] = useState("");
@@ -282,7 +298,8 @@ export function LandingExperimentTab({
     setLoading(true);
     setError(null);
 
-    const query = new URLSearchParams({ slug, days: String(days) });
+    const query = new URLSearchParams({ slug });
+    landingDateRangeParams(range).forEach((value, key) => query.set(key, value));
     if (page) query.set("page", page);
     if (device) query.set("device", device);
 
@@ -304,7 +321,7 @@ export function LandingExperimentTab({
     return () => {
       cancelled = true;
     };
-  }, [slug, days, page, device]);
+  }, [slug, range, page, device]);
 
   useEffect(() => {
     if (!isAwayDigitalSlug(slug)) return;
@@ -486,15 +503,50 @@ export function LandingExperimentTab({
           <label className="flex flex-col gap-1 text-xs text-slate-500">
             Range
             <select
-              value={days}
-              onChange={(event) => setDays(Number(event.target.value))}
+              value={range.mode}
+              onChange={(event) => {
+                const mode = event.target.value as LandingDateRangeMode;
+                if (mode === "custom") {
+                  const today = new Date().toISOString().slice(0, 10);
+                  updateRange({ mode, start: range.start ?? today, end: range.end ?? today });
+                } else {
+                  updateRange({ mode });
+                }
+              }}
               className={SELECT}
             >
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
+              <option value="today">Today</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="custom">Custom dates</option>
             </select>
           </label>
+          {range.mode === "custom" && (
+            <div className="flex items-end gap-2">
+              <label className="flex flex-col gap-1 text-xs text-slate-500">
+                From
+                <input
+                  type="date"
+                  value={range.start ?? ""}
+                  max={range.end ?? new Date().toISOString().slice(0, 10)}
+                  onChange={(event) => updateRange({ ...range, start: event.target.value })}
+                  className={SELECT}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-slate-500">
+                To
+                <input
+                  type="date"
+                  value={range.end ?? ""}
+                  min={range.start}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(event) => updateRange({ ...range, end: event.target.value })}
+                  className={SELECT}
+                />
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
@@ -508,7 +560,7 @@ export function LandingExperimentTab({
           <StatCard
             label="Sessions"
             value={sessions.toLocaleString()}
-            note={`Last ${data.rangeDays} days${page ? ` · ${page}` : ""}`}
+            note={`${landingDateRangeLabel(range)}${page ? ` · ${page}` : ""}`}
           />
           <StatCard label="Conversions" value={conversions.toLocaleString()} note={goalLabel} />
           <StatCard

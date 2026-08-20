@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
 import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
+import { resolveLandingDateRange } from "@/lib/landing-date-range";
 
 /**
  * The generated landing pages, read from the manifest the landing build emits.
@@ -109,7 +110,10 @@ function sanitise(raw: unknown): ManifestPage[] {
  * that renders without spend is far more useful than an error where the list
  * should be.
  */
-async function loadAdGroupMetrics(customerId: string): Promise<Map<string, AdGroupMetric>> {
+async function loadAdGroupMetrics(
+  customerId: string,
+  dateRange: string,
+): Promise<Map<string, AdGroupMetric>> {
   const base = process.env.GROWTH_TOOLS_URL;
   const key = process.env.INTERNAL_API_KEY;
   const empty = new Map<string, AdGroupMetric>();
@@ -119,7 +123,7 @@ async function loadAdGroupMetrics(customerId: string): Promise<Map<string, AdGro
     const res = await fetch(`${base.replace(/\/+$/, "")}/api/google-ads/ad-groups/list`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-internal-key": key },
-      body: JSON.stringify({ customerId, dateRange: "LAST_30_DAYS", statusFilter: "ALL" }),
+      body: JSON.stringify({ customerId, dateRange, statusFilter: "ALL" }),
       signal: AbortSignal.timeout(30_000),
       cache: "no-store",
     });
@@ -174,6 +178,7 @@ async function loadEngagement(
   payload: Awaited<ReturnType<typeof getPayload>>,
   clientId: number | string,
   since: string,
+  until: string,
 ): Promise<Map<string, Engagement>> {
   const out = new Map<string, Engagement>();
 
@@ -182,8 +187,9 @@ async function loadEngagement(
      SQL should not rely on a caller two functions away staying trustworthy. */
   const id = String(clientId).replace(/[^0-9]/g, "");
   if (!id) return out;
-  const window = since.replace(/'/g, "''");
-  const scope = `client_id = ${id} AND occurred_at >= '${window}' AND page_id LIKE 'ag-%'`;
+  const windowStart = since.replace(/'/g, "''");
+  const windowEnd = until.replace(/'/g, "''");
+  const scope = `client_id = ${id} AND occurred_at >= '${windowStart}' AND occurred_at < '${windowEnd}' AND page_id LIKE 'ag-%'`;
 
   const engagementSql = `
     SELECT page_id,
@@ -273,6 +279,9 @@ export async function GET(req: NextRequest) {
   );
   if (productionData) return productionData;
 
+  const range = resolveLandingDateRange(req.nextUrl.searchParams);
+  if (!range) return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
+
   try {
     const upstream = await fetch(MANIFEST_URL, {
       // Revalidate rather than cache forever: the manifest changes on deploy.
@@ -295,12 +304,16 @@ export async function GET(req: NextRequest) {
       await payload.find({ collection: "clients", where: { slug: { equals: slug } }, limit: 1, overrideAccess: true })
     ).docs[0] as { id?: number | string; googleAdsCustomerId?: string } | undefined;
 
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const [adGroups, engagement] = await Promise.all([
       client?.googleAdsCustomerId
-        ? loadAdGroupMetrics(String(client.googleAdsCustomerId).replace(/[^0-9]/g, ""))
+        ? loadAdGroupMetrics(
+            String(client.googleAdsCustomerId).replace(/[^0-9]/g, ""),
+            range.googleAdsRange,
+          )
         : Promise.resolve(new Map<string, AdGroupMetric>()),
-      client?.id ? loadEngagement(payload, client.id, since) : Promise.resolve(new Map<string, Engagement>()),
+      client?.id
+        ? loadEngagement(payload, client.id, range.since, range.until)
+        : Promise.resolve(new Map<string, Engagement>()),
     ]);
 
     const decorated = pages.map((page) => {
@@ -331,6 +344,7 @@ export async function GET(req: NextRequest) {
       pages: decorated,
       // The UI says "no ad data" rather than showing a misleading zero spend.
       adMetricsAvailable: adGroups.size > 0,
+      rangeLabel: range.label,
     });
   } catch (error) {
     return NextResponse.json(

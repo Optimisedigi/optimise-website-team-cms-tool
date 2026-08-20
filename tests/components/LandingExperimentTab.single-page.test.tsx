@@ -137,4 +137,24 @@ describe("LandingExperimentTab with a single landing page", () => {
     const urls = fetchMock.mock.calls.map(([url]) => String(url));
     expect(urls.some((url) => url.includes("page="))).toBe(false);
   });
+
+  it("offers today and an exact custom date range", async () => {
+    const fetchMock = stubFetch();
+    render(<LandingExperimentTab slug="away-digital" />);
+
+    const range = await screen.findByLabelText("Range");
+    expect(Array.from(range.querySelectorAll("option")).map((option) => option.textContent)).toContain(
+      "Today",
+    );
+    fireEvent.change(range, { target: { value: "custom" } });
+    fireEvent.change(await screen.findByLabelText("From"), { target: { value: "2026-08-19" } });
+    fireEvent.change(await screen.findByLabelText("To"), { target: { value: "2026-08-20" } });
+
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map(([url]) => String(url));
+      expect(
+        urls.some((url) => url.includes("start=2026-08-19") && url.includes("end=2026-08-20")),
+      ).toBe(true);
+    });
+  });
 });

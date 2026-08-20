@@ -477,6 +477,25 @@ describe("landing experiment dashboard route", () => {
     expect(body.rangeDays).toBe(365);
   });
 
+  it("applies both ends of a custom date range", async () => {
+    payloadMock.find
+      .mockResolvedValueOnce({ docs: [{ id: 42, slug: "away-digital" }] })
+      .mockResolvedValueOnce({ docs: [{ dataStartDate: null }] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [], hasNextPage: false });
+
+    const res = await GET(
+      request("slug=away-digital&start=2026-08-18&end=2026-08-20"),
+    );
+    const body = await res.json();
+
+    expect(body.rangeDays).toBe(3);
+    expect(payloadMock.find.mock.calls[3][0].where.occurredAt).toEqual({
+      greater_than_equal: "2026-08-18T00:00:00.000Z",
+      less_than: "2026-08-21T00:00:00.000Z",
+    });
+  });
+
   it("clamps the range to the property's reporting baseline and says it did", async () => {
     // The baseline is a filter, never a delete: it moves the start of the scan
     // forward, and the response has to say so or an empty dashboard looks broken.

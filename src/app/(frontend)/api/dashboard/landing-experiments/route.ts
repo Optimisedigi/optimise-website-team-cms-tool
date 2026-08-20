@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
 import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
+import { resolveLandingDateRange } from "@/lib/landing-date-range";
 import {
   labelCampaignIds,
   loadGoogleAdsCampaignNames,
@@ -43,7 +44,6 @@ export const dynamic = "force-dynamic";
 /** Hard ceiling on rows scanned per request, so one busy client cannot stall the dashboard. */
 const MAX_EVENTS_SCANNED = 20000;
 const PAGE_SIZE = 1000;
-const MAX_DAYS = 365;
 
 /**
  * Attribution bucket: source / medium / campaign, the three fields that answer
@@ -151,6 +151,7 @@ async function loadFacets(
   payload: Awaited<ReturnType<typeof getPayload>>,
   clientId: number | string,
   since: string,
+  until: string,
   goalPredicate: string,
   pageFilter: string | null
 ): Promise<{ pages: Segment[]; markets: Segment[]; devices: Segment[]; attribution: Segment[] }> {
@@ -182,7 +183,7 @@ async function loadFacets(
                \`page_view_id\` AS page_view_id,
                MAX(CAST(json_extract(\`properties\`, '$.active_ms') AS REAL)) AS ms
         FROM \`landing_events\`
-        WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'${pageClause}
+        WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}' AND \`occurred_at\` < '${escape(until)}'${pageClause}
           AND \`event_type\` = 'page_dwell'
           AND json_extract(\`properties\`, '$.active_ms') IS NOT NULL
         GROUP BY bucket, session_id, page_view_id
@@ -235,7 +236,7 @@ async function loadFacets(
              COUNT(DISTINCT \`session_id\`) AS sessions,
              COUNT(DISTINCT CASE WHEN ${goalPredicate} THEN \`session_id\` END) AS conversions${checklistColumn}
       FROM \`landing_events\`
-      WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'${pageClause}
+      WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}' AND \`occurred_at\` < '${escape(until)}'${pageClause}
       GROUP BY bucket
       ORDER BY sessions DESC
       LIMIT 50`;
@@ -298,6 +299,7 @@ async function loadPaidTraffic(
   payload: Awaited<ReturnType<typeof getPayload>>,
   clientId: number | string,
   since: string,
+  until: string,
   goalPredicate: string
 ): Promise<Segment[]> {
   const escape = (value: string) => value.replace(/'/g, "''");
@@ -314,7 +316,7 @@ async function loadPaidTraffic(
            COUNT(DISTINCT \`session_id\`) AS sessions,
            COUNT(DISTINCT CASE WHEN ${goalPredicate} THEN \`session_id\` END) AS conversions
     FROM \`landing_events\`
-    WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'
+    WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}' AND \`occurred_at\` < '${escape(until)}'
       AND ${paidClause}
     GROUP BY bucket
     ORDER BY sessions DESC
@@ -341,7 +343,7 @@ async function loadPaidTraffic(
              \`page_view_id\` AS page_view_id,
              MAX(CAST(json_extract(\`properties\`, '$.active_ms') AS REAL)) AS ms
       FROM \`landing_events\`
-      WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}'
+      WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}' AND \`occurred_at\` < '${escape(until)}'
         AND ${paidClause}
         AND \`event_type\` = 'page_dwell'
         AND json_extract(\`properties\`, '$.active_ms') IS NOT NULL
@@ -417,11 +419,9 @@ export async function GET(req: NextRequest) {
   );
   if (productionData) return productionData;
 
-  const requestedDays = Number(req.nextUrl.searchParams.get("days") || "30");
-  const days = Number.isFinite(requestedDays)
-    ? Math.min(Math.max(Math.trunc(requestedDays), 1), MAX_DAYS)
-    : 30;
-  const requestedSince = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const range = resolveLandingDateRange(req.nextUrl.searchParams);
+  if (!range) return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
+  const requestedSince = range.since;
 
   // Optional filters. Each landing page has its own sections and its own
   // funnel, and behaviour on a phone is not behaviour on a desktop, so
@@ -491,8 +491,8 @@ export async function GET(req: NextRequest) {
       : "`event_type` = '" + primaryGoal.replace(/'/g, "''") + "'";
 
   const [facets, paidTraffic, campaignNames] = await Promise.all([
-    loadFacets(payload, client.id, since, goalPredicate, pageFilter),
-    loadPaidTraffic(payload, client.id, since, goalPredicate),
+    loadFacets(payload, client.id, since, range.until, goalPredicate, pageFilter),
+    loadPaidTraffic(payload, client.id, since, range.until, goalPredicate),
     loadGoogleAdsCampaignNames(String(client.googleAdsCustomerId ?? "")),
   ]);
   facets.attribution = labelCampaignIds(facets.attribution, campaignNames);
@@ -540,7 +540,7 @@ export async function GET(req: NextRequest) {
       collection: "landing-events",
       where: {
         client: { equals: client.id },
-        occurredAt: { greater_than_equal: since },
+        occurredAt: { greater_than_equal: since, less_than: range.until },
         ...(running?.experimentId ? { experimentId: { equals: running.experimentId } } : {}),
         // Only the page filter narrows the query. Device and market are
         // applied in memory below, because their summaries have to show the
@@ -693,7 +693,7 @@ export async function GET(req: NextRequest) {
             startedAt: running.startedAt ?? null,
           }
         : null,
-      rangeDays: days,
+      rangeDays: range.days,
       // The UI has to be able to explain an empty dashboard, so the baseline is
       // reported whenever it, and not the selected range, decided the start.
       dataStartDate,

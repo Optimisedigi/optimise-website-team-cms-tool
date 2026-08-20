@@ -4,9 +4,8 @@ import { getPayload } from "payload";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../../api/dashboard/verify/route";
-import { LandingExperimentTab } from "@/components/dashboards/googleads/LandingExperimentTab";
 import { DashboardPinEntry } from "@/components/dashboards/shared/DashboardPinEntry";
-import { AdGroupPagesPanel } from "@/components/dashboards/landing/AdGroupPagesPanel";
+import { LandingDashboardReport } from "@/components/dashboards/landing/LandingDashboardReport";
 import { PinGateFrame } from "@/components/PinGateFrame";
 import "../../google-dashboard/globals.css";
 
@@ -104,14 +103,7 @@ export default async function LandingDashboardPage({ params }: Props) {
 
         {/* The report renders its own cards, so this page provides the field
             they sit on rather than a second card around them. */}
-        <LandingExperimentTab slug={slug} />
-
-        {/* The report above covers pages that have had traffic; this lists every
-            page that exists and lets you open one. A page with no visits yet is
-            invisible to the report and is the one most worth eyeballing. */}
-        <div className="mt-6">
-          <AdGroupPagesPanel slug={slug} />
-        </div>
+        <LandingDashboardReport slug={slug} />
       </div>
 
       {/* Quiet brand sign-off at the end of the document, not pinned to the
