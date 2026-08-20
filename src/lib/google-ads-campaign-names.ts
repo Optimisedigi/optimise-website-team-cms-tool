@@ -18,14 +18,14 @@ export function labelCampaignIds(
   names: ReadonlyMap<string, string>,
 ): AttributionRow[] {
   return rows.map((row) => {
-    const separator = row.key.lastIndexOf(" / ");
-    if (separator < 0) return row;
+    const parts = row.key.split(" / ");
+    const campaignIndex = parts.findIndex((part) => /^\d{6,20}$/.test(part));
+    if (campaignIndex < 0) return row;
 
-    const campaignId = row.key.slice(separator + 3);
-    if (!/^\d{6,20}$/.test(campaignId)) return row;
-
-    const campaignName = names.get(campaignId);
-    return campaignName ? { ...row, key: `${row.key.slice(0, separator + 3)}${campaignName}` } : row;
+    const campaignName = names.get(parts[campaignIndex]);
+    if (!campaignName) return row;
+    parts[campaignIndex] = campaignName;
+    return { ...row, key: parts.join(" / ") };
   });
 }
 

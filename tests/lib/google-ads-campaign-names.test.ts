@@ -14,9 +14,9 @@ afterEach(() => {
 describe("Google Ads campaign names", () => {
   it("replaces numeric campaign attribution while preserving direct and missing attribution", () => {
     const rows = [
-      row("adwords / ppc / 23970828617"),
-      row("adwords / ppc / (none)"),
-      row("(direct) / (none) / (none)"),
+      row("adwords / ppc / 23970828617 / Landing page: /lp/bpo-services-us"),
+      row("adwords / ppc / (none) / Landing page: /outsourcing-us"),
+      row("(direct) / (none) / (none) / Landing page: /outsourcing-us"),
     ];
 
     expect(
@@ -25,9 +25,9 @@ describe("Google Ads campaign names", () => {
         new Map([["23970828617", "Search - Generic - Outsourcing - US - Exact (Manual CPC)"]]),
       ).map((entry) => entry.key),
     ).toEqual([
-      "adwords / ppc / Search - Generic - Outsourcing - US - Exact (Manual CPC)",
-      "adwords / ppc / (none)",
-      "(direct) / (none) / (none)",
+      "adwords / ppc / Search - Generic - Outsourcing - US - Exact (Manual CPC) / Landing page: /lp/bpo-services-us",
+      "adwords / ppc / (none) / Landing page: /outsourcing-us",
+      "(direct) / (none) / (none) / Landing page: /outsourcing-us",
     ]);
   });
 

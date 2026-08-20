@@ -57,7 +57,8 @@ const PAGE_SIZE = 1000;
 const ATTRIBUTION_BUCKET = `(
   COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_source'), ''), '(direct)') || ' / ' ||
   COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_medium'), ''), '(none)') || ' / ' ||
-  COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_campaign'), ''), '(none)')
+  COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_campaign'), ''), '(none)') || ' / Landing page: ' ||
+  COALESCE(NULLIF(\`route\`, ''), '(unknown page)'
 )`;
 
 /**

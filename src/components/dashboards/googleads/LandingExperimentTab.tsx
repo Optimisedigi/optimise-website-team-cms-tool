@@ -706,7 +706,7 @@ export function LandingExperimentTab({
           </h4>
           <SegmentTable
             rows={data.attribution}
-            firstColumn="Source / medium / campaign"
+            firstColumn="Source / medium / campaign / landing page"
             checklistColumn
           />
         </section>
