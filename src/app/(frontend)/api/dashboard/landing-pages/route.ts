@@ -210,18 +210,24 @@ async function loadEngagement(
     )
     GROUP BY page_id`;
 
-  /* Median of summed active milliseconds per session - the report's own timing
-     query, narrowed to these pages. */
+  /* Prefer the tracker's active page dwell. If a browser drops the lifecycle
+     beacon, the first-to-last event span is a conservative lower bound rather
+     than pretending the session has no measurable time at all. */
   const timingSql = `
-    SELECT page_id, SUM(ms) AS session_ms
-    FROM (
+    WITH page_views AS (
       SELECT page_id, session_id, page_view_id,
-             MAX(CAST(json_extract(properties, '$.active_ms') AS REAL)) AS ms
+             MAX(CASE WHEN event_type = 'page_dwell'
+                      THEN CAST(json_extract(properties, '$.active_ms') AS REAL) END) AS active_ms,
+             (julianday(MAX(occurred_at)) - julianday(MIN(occurred_at))) * 86400000 AS observed_ms,
+             COUNT(*) AS event_count
       FROM landing_events
-      WHERE ${scope} AND event_type = 'page_dwell'
-        AND json_extract(properties, '$.active_ms') IS NOT NULL
+      WHERE ${scope}
       GROUP BY page_id, session_id, page_view_id
     )
+    SELECT page_id, session_id,
+           SUM(COALESCE(active_ms, CASE WHEN event_count > 1 THEN observed_ms END)) AS session_ms
+    FROM page_views
+    WHERE active_ms IS NOT NULL OR event_count > 1
     GROUP BY page_id, session_id`;
 
   const rowsOf = async (statement: string) => {
