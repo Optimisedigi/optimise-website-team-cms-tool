@@ -75,6 +75,21 @@ function useFieldValue(path: string): string {
   })
 }
 
+/**
+ * The value currently saved on the document, not the one being typed.
+ *
+ * Test connection runs server-side against the saved doc, so showing the live
+ * form value here made the panel contradict itself — "Customer ID: 4894896666"
+ * directly above "No Google Ads customer ID set." Reading `initialValue` keeps
+ * the panel showing exactly what the server will see.
+ */
+function useSavedFieldValue(path: string): string {
+  return useFormFields(([fields]) => {
+    const v = fields?.[path]?.initialValue
+    return typeof v === 'string' ? v : ''
+  })
+}
+
 function useBoolFieldValue(path: string): boolean {
   return useFormFields(([fields]) => {
     const v = fields?.[path]?.value
@@ -114,6 +129,13 @@ type ActionButton = {
   onClick: () => void
   disabled?: boolean
   variant?: 'primary' | 'secondary' | 'danger'
+  /**
+   * Set on actions that read the saved ID, so an unsaved edit blocks them.
+   * Disconnect and Reconnect deliberately leave this off — they act on the
+   * stored OAuth grant, not the field being typed, and gating them would trap
+   * a user who merely touched the ID input.
+   */
+  blockedByUnsaved?: boolean
 }
 
 function buttonStyle(
@@ -143,6 +165,7 @@ function IntegrationRow({
   name,
   idLabel,
   idValue,
+  unsaved = false,
   emptyHint,
   result,
   actions,
@@ -150,6 +173,7 @@ function IntegrationRow({
   name: string
   idLabel: string
   idValue: string
+  unsaved?: boolean
   emptyHint: string
   result: IntegrationResult
   actions: ActionButton[]
@@ -196,6 +220,19 @@ function IntegrationRow({
         >
           {hasId ? `${idLabel}: ${idValue}` : emptyHint}
         </div>
+        {unsaved ? (
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--theme-warning-500, #b45309)',
+            }}
+          >
+            Unsaved change above — press Save before testing, or the test will
+            still use the value shown here.
+          </div>
+        ) : null}
         {result.message ? (
           <div
             style={{
@@ -220,17 +257,22 @@ function IntegrationRow({
           justifyContent: 'flex-end',
         }}
       >
-        {actions.map((action) => (
-          <button
-            key={action.label}
-            type="button"
-            onClick={action.onClick}
-            disabled={action.disabled}
-            style={buttonStyle(action.variant, action.disabled)}
-          >
-            {action.label}
-          </button>
-        ))}
+        {actions.map((action) => {
+          const blocked = Boolean(action.blockedByUnsaved && unsaved)
+          const isDisabled = Boolean(action.disabled) || blocked
+          return (
+            <button
+              key={action.label}
+              type="button"
+              onClick={action.onClick}
+              disabled={isDisabled}
+              style={buttonStyle(action.variant, isDisabled)}
+              title={blocked ? 'Save the client first — this runs against saved data.' : undefined}
+            >
+              {action.label}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -240,18 +282,32 @@ function ClientToolsTab() {
   const { id: clientId } = useDocumentInfo()
   // Hooks must run unconditionally and in stable order — call useFieldValue
   // once per integration at the top level, not inside a map callback.
-  const ga4Id = useFieldValue('ga4PropertyId')
-  const gscId = useFieldValue('gscPropertyUrl')
+  // Saved values drive the panel; live values only tell us an edit is pending.
+  const ga4Id = useSavedFieldValue('ga4PropertyId')
+  const gscId = useSavedFieldValue('gscPropertyUrl')
   const ga4Connected = useBoolFieldValue('ga4Connected')
   const gscConnected = useBoolFieldValue('gscConnected')
   const dispatchFields = useFormFields(([, dispatch]) => dispatch)
-  const googleAdsId = useFieldValue('googleAdsCustomerId')
-  const metaAdsId = useFieldValue('metaAdAccountId')
+  const googleAdsId = useSavedFieldValue('googleAdsCustomerId')
+  const metaAdsId = useSavedFieldValue('metaAdAccountId')
   const idValues: Record<IntegrationKey, string> = {
     ga4: ga4Id,
     gsc: gscId,
     googleAds: googleAdsId,
     metaAds: metaAdsId,
+  }
+
+  const ga4Draft = useFieldValue('ga4PropertyId')
+  const gscDraft = useFieldValue('gscPropertyUrl')
+  const googleAdsDraft = useFieldValue('googleAdsCustomerId')
+  const metaAdsDraft = useFieldValue('metaAdAccountId')
+  // An ID typed but not saved yet is invisible to the server-side test, so say
+  // so instead of testing a value the server cannot see.
+  const unsavedIds: Record<IntegrationKey, boolean> = {
+    ga4: ga4Draft.trim() !== ga4Id.trim(),
+    gsc: gscDraft.trim() !== gscId.trim(),
+    googleAds: googleAdsDraft.trim() !== googleAdsId.trim(),
+    metaAds: metaAdsDraft.trim() !== metaAdsId.trim(),
   }
 
   const [results, setResults] = useState<Record<IntegrationKey, IntegrationResult>>({
@@ -424,6 +480,8 @@ function ClientToolsTab() {
             onClick: () => connectOAuth(key),
             variant: 'primary',
             disabled: !clientId || (key === 'ga4' && !hasId),
+            // GA4 OAuth reads the saved property ID; GSC's does not.
+            blockedByUnsaved: key === 'ga4',
           },
         ]
         if (connected) {
@@ -432,6 +490,7 @@ function ClientToolsTab() {
             onClick: () => testIntegration(key),
             variant: 'secondary',
             disabled: !hasId || checking,
+            blockedByUnsaved: true,
           })
           buttons.push({
             label: isDisconnecting ? 'Disconnecting…' : 'Disconnect',
@@ -450,6 +509,7 @@ function ClientToolsTab() {
           onClick: () => testIntegration(key),
           variant: 'primary',
           disabled: !hasId || checking,
+          blockedByUnsaved: true,
         },
       ]
     },
@@ -503,6 +563,7 @@ function ClientToolsTab() {
             name={cfg.name}
             idLabel={cfg.idLabel}
             idValue={idValues[cfg.key]}
+            unsaved={unsavedIds[cfg.key]}
             emptyHint={cfg.emptyHint}
             result={results[cfg.key]}
             actions={actionsFor(cfg.key)}
