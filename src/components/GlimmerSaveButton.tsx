@@ -38,6 +38,7 @@ import {
 
 const STYLE_ID = 'glimmer-save-button-styles'
 const SAVED_DURATION_MS = 1800
+const MINIMUM_SAVING_DURATION_MS = 800
 
 function Ellipsis(): React.ReactElement {
   return (
@@ -133,10 +134,13 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
   const wasProcessingRef = useRef(false)
   const pendingSaveRef = useRef(false)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [justSaved, setJustSaved] = useState(false)
+  const [minimumSaving, setMinimumSaving] = useState(false)
   // Mirrors an external autosave (e.g. the Monthly negative KWs view) so this
   // bottom button shows "Saving…" in step with that view's top status line.
   const [externalSaving, setExternalSaving] = useState(false)
+  const activelySaving = processing || externalSaving
 
   const defaultLabel = labelProp || t('general:save')
 
@@ -154,6 +158,19 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
     window.addEventListener('cms:external-save-state', handler)
     return () => window.removeEventListener('cms:external-save-state', handler)
   }, [])
+
+  // Fast saves can complete between visible frames. Keep the ellipsis present
+  // for one perceptible beat without delaying the actual submission.
+  useEffect(() => {
+    if (!activelySaving) return
+
+    setMinimumSaving(true)
+    if (savingTimerRef.current) clearTimeout(savingTimerRef.current)
+    savingTimerRef.current = setTimeout(() => {
+      setMinimumSaving(false)
+      savingTimerRef.current = null
+    }, MINIMUM_SAVING_DURATION_MS)
+  }, [activelySaving])
 
   // Detect a completed, successful save: processing fell from true → false and
   // the form is not flagged as submitted-with-errors.
@@ -174,6 +191,7 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
   useEffect(() => {
     return () => {
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+      if (savingTimerRef.current) clearTimeout(savingTimerRef.current)
     }
   }, [])
 
@@ -195,7 +213,7 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
   // While this button's submit is in flight — or while an external autosave is
   // running — surface an animated ellipsis so the user gets immediate feedback
   // between pressing Save and the "Saved" pulse.
-  const isSaving = processing || externalSaving
+  const isSaving = activelySaving || minimumSaving
   const label = justSaved ? 'Saved' : defaultLabel
 
   return (

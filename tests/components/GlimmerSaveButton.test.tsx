@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { GlimmerSaveButton } from '@/components/GlimmerSaveButton'
@@ -35,12 +35,14 @@ describe('GlimmerSaveButton', () => {
     submit.mockReset()
   })
 
-  it('renders the animated ellipsis only while the form is processing', () => {
+  it('keeps the animated ellipsis visible long enough to perceive a fast save', () => {
+    vi.useFakeTimers()
     const { rerender } = render(<GlimmerSaveButton />)
     const button = screen.getByRole('button', { name: 'Save' })
 
     expect(button.querySelector('svg')).not.toBeInTheDocument()
 
+    fireEvent.click(button)
     processing = true
     rerender(<GlimmerSaveButton />)
 
@@ -51,9 +53,13 @@ describe('GlimmerSaveButton', () => {
 
     processing = false
     rerender(<GlimmerSaveButton />)
+    expect(screen.getByRole('button', { name: 'Saving' })).toBeInTheDocument()
+
+    act(() => vi.advanceTimersByTime(800))
 
     expect(
-      screen.getByRole('button', { name: 'Save' }).querySelector('svg'),
+      screen.getByRole('button', { name: 'Saved' }).querySelector('svg'),
     ).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 })

@@ -5246,8 +5246,12 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
     color: var(--odc-t2);
   }
 
-  // Account manager stacks the name and the "+N" suffix on two lines with very
-  // tight spacing.
+  // Inline account-manager editor.
+  .od-cell-mgr-editor {
+    position: relative;
+    width: max-content;
+  }
+
   .od-cell-mgr {
     display: inline-flex;
     flex-direction: column;
@@ -5255,9 +5259,106 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
     color: var(--odc-t2);
   }
 
+  .od-cell-mgr__trigger {
+    padding: 3px 7px;
+    margin: -3px -7px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &[aria-expanded='true'] {
+      background: var(--theme-elevation-100);
+      color: var(--odc-t1);
+    }
+  }
+
   .od-cell-mgr__more {
     color: var(--odc-t3);
     font-size: 11px;
+  }
+
+  .od-cell-mgr__popover {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 7px);
+    left: -8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 220px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 12px;
+    border: 1px solid var(--theme-elevation-150);
+    border-radius: 8px;
+    background: var(--theme-elevation-0);
+    box-shadow: 0 12px 30px rgb(0 0 0 / 16%);
+    color: var(--odc-t1);
+  }
+
+  .od-cell-mgr__option {
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 4px;
+    border: 0;
+    background: transparent;
+    color: var(--odc-t1);
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+
+    > span:first-child {
+      display: inline-grid;
+      width: 16px;
+      height: 16px;
+      place-items: center;
+      border: 1px solid var(--theme-elevation-250);
+      border-radius: 3px;
+      color: var(--theme-elevation-0);
+      font-size: 11px;
+    }
+
+    &[aria-checked='true'] > span:first-child {
+      border-color: var(--theme-success-500);
+      background: var(--theme-success-500);
+    }
+  }
+
+  .od-cell-mgr__error {
+    color: var(--theme-error-500);
+    font-size: 12px;
+  }
+
+  .od-cell-mgr__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 4px;
+
+    button {
+      padding: 5px 9px;
+      border: 1px solid var(--theme-elevation-150);
+      border-radius: 5px;
+      background: var(--theme-elevation-50);
+      color: var(--odc-t1);
+      cursor: pointer;
+
+      &:last-child {
+        border-color: var(--theme-success-500);
+        background: var(--theme-success-500);
+        color: #fff;
+      }
+
+      &:disabled {
+        cursor: wait;
+        opacity: 0.6;
+      }
+    }
   }
 
   .od-cell-months {
