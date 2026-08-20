@@ -7552,6 +7552,13 @@ body:has(:is(
   }
 }
 
+// Breadcrumb switchers are mounted in Payload's topbar, outside the collection
+// wrappers above. Size against only the selected option so the arrow follows
+// short and long client names instead of the longest option in the list.
+.od-google-ads-client-switcher--breadcrumb {
+  field-sizing: content;
+}
+
 @media (max-width: 768px) {
   .collection-edit--google-ads-audits:has(.od-client-head) {
     .document-fields__fields > .tabs-field:not(.tabs-field--within-collapsible) > .tabs-field__tabs {

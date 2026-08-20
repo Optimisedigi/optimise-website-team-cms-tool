@@ -58,6 +58,24 @@ const icons: MiniIcon[] = [
     ),
   },
   {
+    label: 'Team Tasks',
+    shortLabel: 'Tasks',
+    href: '/admin/collections/team-tasks',
+    feature: 'team-tasks',
+    svg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M8 2v4" />
+        <path d="M16 2v4" />
+        <path d="M3 10h18" />
+        <path d="M8 14h.01" />
+        <path d="M12 14h4" />
+        <path d="M8 18h.01" />
+        <path d="M12 18h4" />
+      </svg>
+    ),
+  },
+  {
     label: 'Proposals',
     shortLabel: 'Props',
     href: '/admin/collections/client-proposals',
