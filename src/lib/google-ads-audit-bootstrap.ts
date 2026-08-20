@@ -1,6 +1,26 @@
 import type { Payload } from "payload";
 import { createSnapshotForAudit } from "@/lib/google-ads-audit-snapshots";
 
+/**
+ * Run side-effect DB work AFTER the current save's transaction has committed.
+ *
+ * SQLite/libSQL allows one writer. A Payload save holds its write transaction
+ * open across every afterChange hook; any hook that opens a second connection
+ * (payload.delete / create / update without `req`) while that transaction is
+ * still live contends with its lock — proven locally as the save's own COMMIT
+ * failing with SQLITE_BUSY while @payloadcms/drizzle swallows the error and
+ * still returns the doc, so the admin says "Saved" but the row was rolled
+ * back. Deferring one macrotask lets the save commit first; these effects are
+ * best-effort and must never be able to cost the user their save.
+ */
+export function deferPostCommit(payload: Payload, label: string, work: () => Promise<void>): void {
+  setTimeout(() => {
+    void work().catch((err) => {
+      payload.logger?.warn?.(`[Clients] ${label} failed: ${err}`);
+    });
+  }, 0);
+}
+
 type BootstrapClient = {
   id: string | number;
   name?: string | null;

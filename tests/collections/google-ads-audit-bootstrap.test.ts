@@ -21,6 +21,7 @@ vi.mock("@/lib/google-ads-audit-snapshots", () => ({
 }));
 
 import {
+  deferPostCommit,
   ensureGoogleAdsAudit,
   startInitialGoogleAdsSnapshot,
 } from "@/lib/google-ads-audit-bootstrap";
@@ -122,30 +123,68 @@ describe("startInitialGoogleAdsSnapshot", () => {
   });
 });
 
+describe("deferPostCommit", () => {
+  it("runs the work on a later macrotask, never synchronously with the save", async () => {
+    const payload = makePayload();
+    let ran = false;
+
+    deferPostCommit(payload, "probe", async () => {
+      ran = true;
+    });
+
+    expect(ran).toBe(false); // still inside the save's tick — must not have run
+    await new Promise((r) => setTimeout(r, 5));
+    expect(ran).toBe(true);
+  });
+
+  it("contains a rejecting effect instead of surfacing an unhandled rejection", async () => {
+    const payload = makePayload();
+
+    deferPostCommit(payload, "probe", async () => {
+      throw new Error("boom");
+    });
+    await new Promise((r) => setTimeout(r, 5));
+
+    expect(
+      (payload as unknown as { logger: { warn: ReturnType<typeof vi.fn> } }).logger.warn,
+    ).toHaveBeenCalledWith(expect.stringContaining("probe failed"));
+  });
+});
+
 describe("Clients afterChange hook", () => {
-  it("schedules the Google Ads API call instead of awaiting it in the save", async () => {
+  it("defers every gads-triggered DB effect — nothing runs inside the save", async () => {
     const { Clients } = await import("@/collections/Clients");
     const hook = (Clients.hooks?.afterChange ?? []).find((h: unknown) =>
-      /startInitialGoogleAdsSnapshot/.test(String(h)),
+      /ensureGoogleAdsAudit/.test(String(h)),
     );
     expect(hook).toBeDefined();
 
     const source = String(hook);
-    expect(source).toMatch(/setTimeout/);
-    expect(source).not.toMatch(/await\s+startInitialGoogleAdsSnapshot/);
-    // The audit row is awaited, but without `req` — isolated from the save.
-    // (Vitest's SSR transform rewrites the imported name, so match loosely.)
-    expect(source).toMatch(/await[\s\S]{0,80}ensureGoogleAdsAudit\)?\(payload, doc\)/);
+    // The whole bootstrap (audit row + snapshot) lives behind deferPostCommit;
+    // any await BEFORE the deferral runs inside the save's transaction window
+    // and re-opens the SQLITE_BUSY self-deadlock. Awaits inside the deferred
+    // callback are fine — the save has committed by then.
+    // (Vitest's SSR transform rewrites imported names, so match loosely.)
+    expect(source).toMatch(/deferPostCommit\)?\(/);
+    const beforeDeferral = source.slice(0, source.search(/deferPostCommit\)?\(/));
+    expect(beforeDeferral).not.toMatch(/\bawait\b/);
   });
 
-  it("keeps every swallowed afterChange sub-operation off the request transaction", async () => {
+  it("keeps every afterChange hook from awaiting second-connection writes in the save", async () => {
     const { Clients } = await import("@/collections/Clients");
-    // A payload call that passes `req` inside a hook that swallows its error is
-    // the silent-data-loss pattern: killTransaction rolls the save back, the
-    // catch hides it, and the outer commit no-ops on the dead transaction.
+    // `await payload.delete/create/update` without `req` inside afterChange
+    // opens a second connection while the save's single-writer transaction is
+    // still live — the save's own COMMIT then fails with SQLITE_BUSY and
+    // Payload swallows it ("Saved", but rolled back). Passing `req` instead is
+    // the other trap: killTransaction + a catch silently discards the save.
+    // Everything must go through deferPostCommit.
     for (const hook of Clients.hooks?.afterChange ?? []) {
       const source = String(hook);
-      if (!/catch\s*\(/.test(source)) continue;
+      // Only the part that executes inside the save matters: everything before
+      // the first deferPostCommit. Awaits inside deferred callbacks are safe.
+      const deferralAt = source.search(/deferPostCommit\)?\(/);
+      const insideSave = deferralAt === -1 ? source : source.slice(0, deferralAt);
+      expect(insideSave).not.toMatch(/await\s+(?:req\.)?payload\.(?:delete|create|update)\)?\(/);
       expect(source).not.toMatch(/overrideAccess:\s*(?:!0|true),\s*req\b/);
     }
   });

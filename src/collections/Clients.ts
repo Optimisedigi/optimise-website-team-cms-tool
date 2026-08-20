@@ -22,6 +22,7 @@ import {
 } from "../lib/access";
 import { hasValidApiKey } from "./api-key-access";
 import {
+  deferPostCommit,
   ensureGoogleAdsAudit,
   startInitialGoogleAdsSnapshot,
 } from "../lib/google-ads-audit-bootstrap";
@@ -240,65 +241,61 @@ export const Clients: CollectionConfig = {
       // if the client switches accounts (rare but possible) every cached row
       // is suddenly wrong. Flushing forces the next dashboard load (or the
       // next prewarm cron run) to refetch.
+      //
+      // All DB work is deferred past this save's transaction (deferPostCommit).
+      // Run inline, these deletes open a second connection while the save's
+      // write transaction is still live; on single-writer SQLite that made the
+      // save's own COMMIT fail with SQLITE_BUSY — which Payload swallows — so
+      // exactly this field kept reporting "Saved" while the row rolled back.
       async ({ doc, previousDoc, operation, req }) => {
         if (operation !== "update") return;
         const prevId = previousDoc?.googleAdsCustomerId || "";
         const nextId = doc?.googleAdsCustomerId || "";
         if (prevId === nextId) return;
-        try {
-          // Deliberately NOT joined to this request's transaction. A sub-operation
-          // that throws calls Payload's killTransaction, which rolls back and
-          // deletes req.transactionID; the catch below would then hide it and the
-          // outer commit would silently no-op, discarding the client's save. These
-          // flushes are best-effort, so they stay isolated.
-          await req.payload.delete({
+        const payload = req.payload;
+        const clientId = doc.id;
+        deferPostCommit(payload, "avoided-spend cache flush", async () => {
+          await payload.delete({
             collection: "negative-keyword-avoided-spend-cache",
-            where: { client: { equals: doc.id } },
+            where: { client: { equals: clientId } },
             overrideAccess: true,
           });
-        } catch (err) {
-          req.payload.logger?.warn?.(`[Clients] avoided-spend cache flush failed: ${err}`);
-        }
-        try {
-          await req.payload.delete({
+        });
+        deferPostCommit(payload, "waste-relevancy cache flush", async () => {
+          await payload.delete({
             collection: "negative-keyword-monthly-waste-relevancy-cache",
-            where: { client: { equals: doc.id } },
+            where: { client: { equals: clientId } },
             overrideAccess: true,
           });
-        } catch (err) {
-          req.payload.logger?.warn?.(`[Clients] waste-relevancy cache flush failed: ${err}`);
-        }
+        });
       },
       // First account access: create one audit and freeze its immutable snapshot window.
       //
       // Bootstrapping the audit must never cost the user the ID they typed, so
-      // nothing here touches the client's save:
-      //  - the audit row is written OUTSIDE this request's transaction. Joined to
-      //    it, a failing create would call Payload's killTransaction (rollback +
-      //    delete of req.transactionID), the catch below would hide it, and the
-      //    outer commit would no-op — silently discarding the save.
-      //  - the snapshot is not awaited at all: it makes a Google Ads API call, and
-      //    awaiting it made saving a client depend on an external service. A slow
-      //    or failing upstream (403/502 for an account the MCC cannot read yet)
-      //    then put the typed ID at risk while the admin still reported "Saved".
+      // NOTHING here runs inside the save: audit row and snapshot are both
+      // deferred past the save's transaction (deferPostCommit — see its comment
+      // for the SQLITE_BUSY self-deadlock this prevents), and the snapshot's
+      // Google Ads API call additionally must never make a save depend on an
+      // external service (a 403/502 upstream used to eat the typed ID while the
+      // admin still reported "Saved").
       async ({ doc, previousDoc, operation, req }) => {
         if (operation !== "create" && operation !== "update") return;
         const previousCustomerId = String(previousDoc?.googleAdsCustomerId || "").trim();
         const customerId = String(doc?.googleAdsCustomerId || "").trim();
         if (previousCustomerId || !customerId) return;
         const payload = req.payload;
-        let audit: { id: string | number } | null = null;
-        try {
-          audit = await ensureGoogleAdsAudit(payload, doc);
-        } catch (err) {
-          payload.logger?.warn?.(`[Clients] Google Ads audit bootstrap failed: ${err}`);
-          return;
-        }
-        if (!audit) return;
-        const auditId = audit.id;
-        setTimeout(() => {
-          void startInitialGoogleAdsSnapshot(payload, auditId, doc.id);
-        }, 0);
+        const bootstrapDoc = {
+          id: doc.id,
+          name: doc.name,
+          websiteUrl: doc.websiteUrl,
+          clientPin: doc.clientPin,
+          googleAdsCustomerId: customerId,
+        };
+        deferPostCommit(payload, "Google Ads audit bootstrap", async () => {
+          const audit = await ensureGoogleAdsAudit(payload, bootstrapDoc);
+          if (!audit) return;
+          await startInitialGoogleAdsSnapshot(payload, audit.id, bootstrapDoc.id);
+        });
       },
       // Wipe the per-month waste/relevancy cache whenever the client's
       // brand keywords change, so the Overview tab's brand/generic split
@@ -308,15 +305,15 @@ export const Clients: CollectionConfig = {
         const prev = String(previousDoc?.brandKeywords || "").trim();
         const next = String(doc?.brandKeywords || "").trim();
         if (prev === next) return;
-        try {
-          await req.payload.delete({
+        const payload = req.payload;
+        const clientId = doc.id;
+        deferPostCommit(payload, "waste-relevancy brand cache flush", async () => {
+          await payload.delete({
             collection: "negative-keyword-monthly-waste-relevancy-cache",
-            where: { client: { equals: doc.id } },
+            where: { client: { equals: clientId } },
             overrideAccess: true,
           });
-        } catch (err) {
-          req.payload.logger?.warn?.(`[Clients] waste-relevancy brand cache flush failed: ${err}`);
-        }
+        });
       },
     ],
     afterRead: [
