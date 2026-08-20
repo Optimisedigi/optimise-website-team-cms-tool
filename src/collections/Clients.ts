@@ -526,6 +526,28 @@ export const Clients: CollectionConfig = {
                       Cell: "./components/clients-list/SlugCell",
                     },
                   },
+                  // Catch a duplicate slug here so the admin shows which client
+                  // already owns it. Without this the unique index rejects the
+                  // insert at the database level, which surfaces as a generic
+                  // 500 "Something went wrong." with no indication of the field
+                  // or the conflict. Mirrors the clientPin validator below.
+                  validate: async (value: string | null | undefined, { req, id }: any) => {
+                    if (!value) return true;
+                    try {
+                      const existing = await req.payload.find({
+                        collection: "clients",
+                        where: {
+                          slug: { equals: value },
+                          ...(id ? { id: { not_equals: id } } : {}),
+                        },
+                        limit: 1,
+                      });
+                      if (existing.totalDocs > 0) {
+                        return `Slug "${value}" is already in use by another client (${existing.docs[0].name}). Try a different slug.`;
+                      }
+                    } catch { /* skip check if payload not available */ }
+                    return true;
+                  },
                 },
               ],
             },

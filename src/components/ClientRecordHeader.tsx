@@ -348,12 +348,19 @@ function ClientRecordHeaderForClient() {
   // Read live from form state so toggling Is Agency immediately hides revenue stats.
   const isAgency = useFormFields(([fields]) => !!fields.isAgency?.value)
 
+  // Only tag <body> once the record exists. The scoped `od-client-record` CSS
+  // visually hides the in-body Logo and Services fields because the header card
+  // replaces them (avatar opens the logo picker; pills write to `services`).
+  // On the create screen this header renders nothing (see the `!id` early return
+  // below), so tagging <body> there hid both fields with no header to edit them
+  // from — leaving Logo and Services unreachable when creating a client.
   useEffect(() => {
+    if (!id) return
     document.body.classList.add('od-client-record')
     return () => {
       document.body.classList.remove('od-client-record')
     }
-  }, [])
+  }, [id])
 
   useEffect(() => {
     if (!id) return
