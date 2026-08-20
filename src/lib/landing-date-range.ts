@@ -1,4 +1,4 @@
-export type LandingDateRangeMode = "today" | "7" | "30" | "90" | "custom";
+export type LandingDateRangeMode = "this_week" | "today" | "7" | "30" | "90" | "custom";
 
 export interface LandingDateRange {
   mode: LandingDateRangeMode;
@@ -6,7 +6,7 @@ export interface LandingDateRange {
   end?: string;
 }
 
-export const DEFAULT_LANDING_DATE_RANGE: LandingDateRange = { mode: "30" };
+export const DEFAULT_LANDING_DATE_RANGE: LandingDateRange = { mode: "this_week" };
 
 export interface ResolvedLandingDateRange {
   since: string;
@@ -23,6 +23,22 @@ export function resolveLandingDateRange(
   params: URLSearchParams,
   now = new Date(),
 ): ResolvedLandingDateRange | null {
+  if (params.get("period") === "this_week") {
+    const monday = new Date(now);
+    const daysSinceMonday = (monday.getUTCDay() + 6) % 7;
+    monday.setUTCDate(monday.getUTCDate() - daysSinceMonday);
+    monday.setUTCHours(0, 0, 0, 0);
+    const nextMonday = new Date(monday.valueOf() + 7 * DAY_MS);
+    const sunday = new Date(nextMonday.valueOf() - DAY_MS);
+    return {
+      since: monday.toISOString(),
+      until: nextMonday.toISOString(),
+      days: 7,
+      googleAdsRange: `${monday.toISOString().slice(0, 10)},${sunday.toISOString().slice(0, 10)}`,
+      label: "This week",
+    };
+  }
+
   const start = params.get("start");
   const end = params.get("end");
   if (start || end) {
@@ -73,6 +89,12 @@ export function landingDateRangeParams(
   range: LandingDateRange,
   now = new Date(),
 ): URLSearchParams {
+  if (range.mode === "this_week") {
+    const monday = new Date(now);
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+    const today = now.toISOString().slice(0, 10);
+    return new URLSearchParams({ start: monday.toISOString().slice(0, 10), end: today });
+  }
   if (range.mode === "today") {
     const today = now.toISOString().slice(0, 10);
     return new URLSearchParams({ start: today, end: today });
@@ -84,6 +106,7 @@ export function landingDateRangeParams(
 }
 
 export function landingDateRangeLabel(range: LandingDateRange): string {
+  if (range.mode === "this_week") return "This week";
   if (range.mode === "today") return "Today";
   if (range.mode === "custom" && range.start && range.end) {
     return range.start === range.end ? range.start : `${range.start} – ${range.end}`;

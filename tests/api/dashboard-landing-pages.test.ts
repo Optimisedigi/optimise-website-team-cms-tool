@@ -107,7 +107,7 @@ describe("GET /api/dashboard/landing-pages", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.pages).toHaveLength(2);
+    expect(body.pages).toHaveLength(4);
     expect(body.pages[0].pageId).toBe("ag-bpo-services-au");
     expect(mockValidateDashboardToken).toHaveBeenCalledWith("valid-token", SLUG);
     // A valid client token must not require an admin session as well.
@@ -122,7 +122,7 @@ describe("GET /api/dashboard/landing-pages", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.pages).toHaveLength(2);
+    expect(body.pages).toHaveLength(4);
     expect(mockAuth).toHaveBeenCalled();
   });
 
@@ -169,11 +169,13 @@ describe("GET /api/dashboard/landing-pages", () => {
     const res = await GET(get(`?slug=${SLUG}`, "dashboard_token=valid-token"));
     const body = await res.json();
 
-    // Only the two well-formed https entries on our host survive.
-    expect(body.pages).toHaveLength(2);
+    // The two valid manifest entries and two trusted legacy pages survive.
+    expect(body.pages).toHaveLength(4);
     expect(body.pages.map((p: { pageId: string }) => p.pageId)).toEqual([
       "ag-bpo-services-au",
       "ag-rpo-recruitment-us",
+      "offshore-teams-au",
+      "offshore-teams-us",
     ]);
   });
 
@@ -314,7 +316,7 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
 
     // The list is the point; the spend is decoration on top of it.
     expect(res.status).toBe(200);
-    expect(body.pages).toHaveLength(2);
+    expect(body.pages).toHaveLength(4);
     expect(body.adMetricsAvailable).toBe(false);
   });
 
@@ -326,8 +328,30 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
       .mockResolvedValueOnce({
         rows: [
           // 10 sessions, 7 bounced -> 70%.
-          { page_id: "ag-bpo-services-au", sessions: 10, bounced: 7, paid: 4 },
-          { page_id: "ag-rpo-recruitment-us", sessions: 5, bounced: 0, paid: 5 },
+          {
+            page_id: "ag-bpo-services-au",
+            sessions: 10,
+            bounced: 7,
+            paid: 4,
+            engaged: 6,
+            paid_engaged: 3,
+          },
+          {
+            page_id: "ag-rpo-recruitment-us",
+            sessions: 5,
+            bounced: 0,
+            paid: 5,
+            engaged: 2,
+            paid_engaged: 2,
+          },
+          {
+            page_id: "offshore-teams-au",
+            sessions: 20,
+            bounced: 4,
+            paid: 12,
+            engaged: 9,
+            paid_engaged: 7,
+          },
         ],
       })
       .mockResolvedValueOnce({
@@ -343,13 +367,17 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
     const body = await res.json();
     const bpo = body.pages.find((p: { slug: string }) => p.slug === "bpo-services-au");
     const rpo = body.pages.find((p: { slug: string }) => p.slug === "rpo-recruitment-us");
+    const legacyAu = body.pages.find((p: { pageId: string }) => p.pageId === "offshore-teams-au");
 
     expect(bpo.sessions).toBe(10);
     expect(bpo.bounceRate).toBe(70);
     expect(bpo.medianSeconds).toBe(20);
-    // Paid sessions are tracked separately, because a page on an ads-only host
-    // whose traffic carries no click id is being measured on crawlers.
     expect(bpo.paidSessions).toBe(4);
+    expect(bpo.engagedSessions).toBe(6);
+    expect(bpo.paidEngagedSessions).toBe(3);
+    expect(legacyAu.url).toBe("https://hire.awaydigitalteams.com/outsourcing-au");
+    expect(legacyAu.engagedSessions).toBe(9);
+    expect(legacyAu.paidEngagedSessions).toBe(7);
 
     expect(rpo.bounceRate).toBe(0);
     // No dwell beacon means unknown, not zero: "0s" would claim they left at once.

@@ -5,6 +5,7 @@ import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
 import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
 import { resolveLandingDateRange } from "@/lib/landing-date-range";
+import { LANDING_PAGES } from "@/lib/landing-page-sections";
 
 /**
  * The generated landing pages, read from the manifest the landing build emits.
@@ -50,8 +51,12 @@ interface AdGroupMetric {
 
 interface Engagement {
   sessions: number;
-  /** Sessions that arrived on a paid click; the rest are crawlers or strays. */
+  /** Sessions that carried a Google click ID. */
   paidSessions: number;
+  /** Sessions where a section stayed at least 50% visible for three seconds. */
+  engagedSessions: number;
+  /** Engaged sessions that also carried a Google click ID. */
+  paidEngagedSessions: number;
   /** Percent of sessions that left the first section without scrolling. */
   bounceRate: number;
   /** Median active seconds per session, or null when no dwell beacon arrived. */
@@ -189,17 +194,20 @@ async function loadEngagement(
   if (!id) return out;
   const windowStart = since.replace(/'/g, "''");
   const windowEnd = until.replace(/'/g, "''");
-  const scope = `client_id = ${id} AND occurred_at >= '${windowStart}' AND occurred_at < '${windowEnd}' AND page_id LIKE 'ag-%'`;
+  const scope = `client_id = ${id} AND occurred_at >= '${windowStart}' AND occurred_at < '${windowEnd}'`;
 
   const engagementSql = `
     SELECT page_id,
            COUNT(*) AS sessions,
            SUM(bounced) AS bounced,
-           SUM(paid) AS paid
+           SUM(paid) AS paid,
+           SUM(engaged) AS engaged,
+           SUM(CASE WHEN paid = 1 AND engaged = 1 THEN 1 ELSE 0 END) AS paid_engaged
     FROM (
       SELECT session_id,
              page_id,
              MAX(CASE WHEN attribution LIKE '%gclid%' OR attribution LIKE '%gbraid%' THEN 1 ELSE 0 END) AS paid,
+             MAX(CASE WHEN event_type = 'section_engaged' THEN 1 ELSE 0 END) AS engaged,
              CASE WHEN COUNT(DISTINCT CASE WHEN event_type = 'section_view'
                                            THEN json_extract(properties, '$.section_id') END) > 1
                     OR MAX(CASE WHEN event_type = 'scroll_depth' THEN 1 ELSE 0 END) = 1
@@ -255,6 +263,8 @@ async function loadEngagement(
       out.set(page, {
         sessions,
         paidSessions: Number(row.paid ?? 0),
+        engagedSessions: Number(row.engaged ?? 0),
+        paidEngagedSessions: Number(row.paid_engaged ?? 0),
         bounceRate: Math.round((Number(row.bounced ?? 0) / sessions) * 1000) / 10,
         medianSeconds: values.length ? Math.round(values[Math.floor((values.length - 1) / 2)] / 1000) : null,
       });
@@ -322,7 +332,22 @@ export async function GET(req: NextRequest) {
         : Promise.resolve(new Map<string, Engagement>()),
     ]);
 
-    const decorated = pages.map((page) => {
+    const legacyPages: ManifestPage[] = Object.values(LANDING_PAGES).map((page) => ({
+      pageId: page.pageId,
+      slug: new URL(page.url).pathname.replace(/^\/+/, ""),
+      market: page.pageId.endsWith("-us") ? "US" : "AU",
+      url: page.url,
+      title: page.label,
+      headline: page.sections[0]?.label ?? page.label,
+      adGroupIds: [],
+      noindex: false,
+    }));
+    const reportPages = [
+      ...pages,
+      ...legacyPages.filter((legacy) => !pages.some((page) => page.pageId === legacy.pageId)),
+    ];
+
+    const decorated = reportPages.map((page) => {
       const groups = page.adGroupIds
         .map((id) => adGroups.get(id))
         .filter((g): g is AdGroupMetric => Boolean(g));
@@ -341,6 +366,8 @@ export async function GET(req: NextRequest) {
         conversions: groups.reduce((n, g) => n + g.conversions, 0),
         sessions: stats?.sessions ?? 0,
         paidSessions: stats?.paidSessions ?? 0,
+        engagedSessions: stats?.engagedSessions ?? 0,
+        paidEngagedSessions: stats?.paidEngagedSessions ?? 0,
         bounceRate: stats?.bounceRate ?? null,
         medianSeconds: stats?.medianSeconds ?? null,
       };

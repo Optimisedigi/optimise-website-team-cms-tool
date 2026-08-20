@@ -58,6 +58,7 @@ interface FunnelStep {
 interface SectionDwell {
   sectionId: string;
   sessions: number;
+  timingSamples?: number;
   medianSeconds: number;
   p90Seconds: number;
   exits: number;
@@ -219,36 +220,31 @@ function sectionLabel(id: string): string {
     .join(" ");
 }
 
-/** One headline number. `tone="dark"` inverts the card, for the single worst finding. */
+/** One headline number. */
 function StatCard({
   label,
   value,
   note,
-  tone = "light",
   accent,
 }: {
   label: string;
   value: string;
   note: string;
-  tone?: "light" | "dark";
   accent?: boolean;
 }) {
-  const dark = tone === "dark";
   return (
-    <div
-      className={`rounded-2xl border p-5 shadow-sm ${
-        dark ? "border-slate-900 bg-slate-900" : "border-slate-200 bg-white"
-      }`}
-    >
-      <div className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>{label}</div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm min-[1120px]:p-5">
+      <div className="text-[11px] text-slate-500 min-[1120px]:text-xs">{label}</div>
       <div
-        className={`mt-1.5 text-3xl font-bold tracking-tight tabular-nums ${
-          dark ? "text-amber-300" : accent ? "text-teal-700" : "text-slate-900"
+        className={`mt-1.5 text-[clamp(1rem,2.1vw,1.875rem)] font-bold leading-tight tracking-tight tabular-nums ${
+          accent ? "text-teal-700" : "text-slate-900"
         }`}
       >
         {value}
       </div>
-      <div className={`mt-1.5 text-xs ${dark ? "text-slate-300" : "text-slate-500"}`}>{note}</div>
+      <div className="mt-1.5 text-[11px] leading-snug text-slate-500 min-[1120px]:text-xs">
+        {note}
+      </div>
     </div>
   );
 }
@@ -269,18 +265,23 @@ export function LandingExperimentTab({
   clientName,
   range: controlledRange,
   onRangeChange,
+  standaloneHeader = false,
 }: {
   slug: string;
   customerId?: string;
   clientName?: string;
   range?: LandingDateRange;
   onRangeChange?: (range: LandingDateRange) => void;
+  standaloneHeader?: boolean;
 }) {
   const [data, setData] = useState<ReportResponse | null>(null);
-  const [catalogPages, setCatalogPages] = useState<Array<{ pageId: string; title: string }>>([]);
+  const [catalogPages, setCatalogPages] = useState<
+    Array<{ pageId: string; title: string; adGroupName?: string }>
+  >([]);
   const [postClick, setPostClick] = useState<PostClickMonth[] | null>(null);
   const [postClickNote, setPostClickNote] = useState<string | null>(null);
   const [internalRange, setInternalRange] = useState<LandingDateRange>(DEFAULT_LANDING_DATE_RANGE);
+  const [rangeTooltipVisible, setRangeTooltipVisible] = useState(false);
   const range = controlledRange ?? internalRange;
   const updateRange = (next: LandingDateRange) => {
     setInternalRange(next);
@@ -326,8 +327,10 @@ export function LandingExperimentTab({
   useEffect(() => {
     if (!isAwayDigitalSlug(slug)) return;
     let cancelled = false;
+    const catalogQuery = new URLSearchParams({ slug, catalog: "1" });
+    landingDateRangeParams(range).forEach((value, key) => catalogQuery.set(key, value));
 
-    fetch(`/api/dashboard/landing-pages?slug=${encodeURIComponent(slug)}&catalog=1`, {
+    fetch(`/api/dashboard/landing-pages?${catalogQuery}`, {
       credentials: "include",
       cache: "no-store",
     })
@@ -343,7 +346,14 @@ export function LandingExperimentTab({
             const row = entry as Record<string, unknown>;
             const pageId = typeof row.pageId === "string" ? row.pageId : "";
             const title = typeof row.title === "string" ? row.title : pageId;
-            return resolveLandingPage(pageId) ? [{ pageId, title }] : [];
+            const adGroupName = Array.isArray(row.adGroups)
+              ? row.adGroups.flatMap((group) => {
+                  if (!group || typeof group !== "object") return [];
+                  const name = (group as Record<string, unknown>).name;
+                  return typeof name === "string" && name.trim() ? [name.trim()] : [];
+                })[0]
+              : undefined;
+            return resolveLandingPage(pageId) ? [{ pageId, title, adGroupName }] : [];
           }),
         );
       })
@@ -354,7 +364,7 @@ export function LandingExperimentTab({
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, range]);
   /**
    * What happened to these leads after the form, from HubSpot.
    *
@@ -430,6 +440,8 @@ export function LandingExperimentTab({
   const conversionRate = sessions > 0 ? conversions / sessions : 0;
   const realMarkets = data.markets.filter((entry) => entry.key !== "(unset)");
   const catalogTitles = new Map(catalogPages.map((entry) => [entry.pageId, entry.title]));
+  const pageLabel = (key: string) =>
+    (catalogTitles.get(key) ?? key).replace(/\s*\|\s*Away Digital Teams[’']?\s*$/i, "");
   const pageOptions = [...data.pages];
   for (const entry of catalogPages) {
     if (!pageOptions.some((option) => option.key === entry.pageId)) {
@@ -455,14 +467,33 @@ export function LandingExperimentTab({
   const checklist = data.secondaryConversions?.find((row) => row.id === "readiness_checklist");
   const running = data.experiment?.status?.toLowerCase() === "running";
   const sectionTemplate = resolveSectionTemplate(page, pageOptions);
+  // The shared market previews predate ad-group landing page IDs; each is the
+  // template behind its matching generic Vietnam outsourcing ad group.
+  const previewCatalogPageId =
+    sectionTemplate?.pageId === "offshore-teams-au"
+      ? "ag-vietnam-outsourcing-au"
+      : sectionTemplate?.pageId === "offshore-teams-us"
+        ? "ag-vietnam-outsourcing-us"
+        : sectionTemplate?.pageId;
+  const previewAdGroupName = catalogPages.find(
+    (entry) => entry.pageId === previewCatalogPageId,
+  )?.adGroupName;
 
   return (
     <div className="space-y-6 text-slate-900">
-      {/* No report title: the page header already names the client and the
-          report, so an experiment name here was a second heading saying
-          nothing the reader needed. The controls stand on their own row. */}
-      <div className="flex flex-wrap items-end justify-end gap-4">
-        <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        {standaloneHeader && (
+          <div className="flex flex-wrap items-baseline gap-3">
+            <h1 className="my-0 text-[26px] font-bold leading-tight tracking-tight text-slate-900">
+              {clientName}
+            </h1>
+            <span className="text-lg font-normal text-slate-400">Landing Page Performance</span>
+          </div>
+        )}
+        <div
+          className="relative ml-auto flex flex-wrap items-end gap-3"
+          onMouseLeave={() => setRangeTooltipVisible(false)}
+        >
           {data.experiment && (
             <span
               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
@@ -483,26 +514,50 @@ export function LandingExperimentTab({
               the report its sections and its preview, so hiding the control
               there hid the preview with it. */}
           {pageOptions.length > 0 && (
-            <label className="flex flex-col gap-1 text-xs text-slate-500">
+            <label className="flex max-w-full flex-col gap-1 text-xs text-slate-500">
               Page
               <select
                 value={page}
                 onChange={(event) => setPage(event.target.value)}
-                className={SELECT}
+                className={`${SELECT} max-w-full`}
               >
                 <option value="">All pages</option>
                 {pageOptions.map((entry) => (
                   <option key={entry.key} value={entry.key}>
-                    {catalogTitles.get(entry.key) ?? entry.key} ({entry.sessions.toLocaleString()})
+                    {pageLabel(entry.key)}
                   </option>
                 ))}
               </select>
             </label>
           )}
 
-          <label className="flex flex-col gap-1 text-xs text-slate-500">
-            Range
+          <div className="flex flex-col gap-1 text-xs text-slate-500">
+            <label htmlFor="landing-range-select" className="flex items-center gap-1">
+              Range
+              {data.baselineApplied && data.dataStartDate && (
+                <span className="inline-flex">
+                  <button
+                    type="button"
+                    aria-label="About this report's data range"
+                    aria-describedby="landing-range-tooltip"
+                    onMouseEnter={() => setRangeTooltipVisible(true)}
+                    onFocus={() => setRangeTooltipVisible(true)}
+                    onBlur={() => setRangeTooltipVisible(false)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        setRangeTooltipVisible(false);
+                        event.currentTarget.blur();
+                      }
+                    }}
+                    className="flex size-5 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px] font-medium text-slate-400 hover:border-slate-300 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/30"
+                  >
+                    ?
+                  </button>
+                </span>
+              )}
+            </label>
             <select
+              id="landing-range-select"
               value={range.mode}
               onChange={(event) => {
                 const mode = event.target.value as LandingDateRangeMode;
@@ -515,13 +570,14 @@ export function LandingExperimentTab({
               }}
               className={SELECT}
             >
+              <option value="this_week">This week (Mon–Sun)</option>
               <option value="today">Today</option>
               <option value="7">Last 7 days</option>
               <option value="30">Last 30 days</option>
               <option value="90">Last 90 days</option>
               <option value="custom">Custom dates</option>
             </select>
-          </label>
+          </div>
           {range.mode === "custom" && (
             <div className="flex items-end gap-2">
               <label className="flex flex-col gap-1 text-xs text-slate-500">
@@ -547,6 +603,17 @@ export function LandingExperimentTab({
               </label>
             </div>
           )}
+          {data.baselineApplied && data.dataStartDate && (
+            <span
+              id="landing-range-tooltip"
+              role="tooltip"
+              className={`absolute right-0 top-full z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg bg-slate-900 px-3 py-2 text-xs font-normal leading-relaxed text-white shadow-lg ${
+                rangeTooltipVisible ? "visible" : "invisible"
+              }`}
+            >
+              Showing data from {new Date(data.dataStartDate).toLocaleDateString()} onwards.
+            </span>
+          )}
         </div>
       </div>
 
@@ -556,7 +623,7 @@ export function LandingExperimentTab({
           breakpoints land far wider than they read, and holding six to `xl`
           wrapped them two-up on a laptop that had room for the row. */}
       {hasVariants && (
-        <div className="grid gap-4 grid-cols-1 min-[560px]:grid-cols-2 min-[860px]:grid-cols-3 min-[1120px]:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 min-[640px]:grid-cols-3 min-[760px]:grid-cols-6 min-[1120px]:gap-4">
           <StatCard
             label="Sessions"
             value={sessions.toLocaleString()}
@@ -575,7 +642,6 @@ export function LandingExperimentTab({
           />
           {leak && leak.dropOffRate > 0 ? (
             <StatCard
-              tone="dark"
               label="Biggest leak"
               value={leak.label}
               note={`−${leak.droppedFromPrevious.toLocaleString()} sessions (${shortPct(
@@ -615,19 +681,6 @@ export function LandingExperimentTab({
         </div>
       )}
 
-      {data.baselineApplied && data.dataStartDate && (
-        <p
-          className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700"
-          role="status"
-        >
-          <strong className="font-semibold text-slate-900">
-            Showing data from {new Date(data.dataStartDate).toLocaleDateString()} onwards.
-          </strong>{" "}
-          The selected range starts earlier, but this property has a reporting baseline set, so
-          anything before that date is left out, including while this view looks empty. The events
-          still exist; clearing the baseline on the property brings them back.
-        </p>
-      )}
 
       {/* A quiet footnote, not a warning banner. It only appears once the scan
           actually hits its ceiling, and by then the numbers shown are the most
@@ -653,6 +706,7 @@ export function LandingExperimentTab({
         <SectionDwellPanel
           sections={data.sections}
           pageMeta={sectionTemplate}
+          previewLabel={previewAdGroupName ?? sectionTemplate?.label ?? "Landing page"}
           conversions={conversions}
           devices={data.devices}
           totalDeviceSessions={totalDeviceSessions}
@@ -912,14 +966,7 @@ function PostClickPanel({ months, note }: { months: PostClickMonth[] | null; not
   );
 }
 
-/**
- * Google Ads traffic, post-click only.
- *
- * Impressions, clicks, CTR and cost per landing page are not in this database;
- * they live in Google Ads behind a Growth Tools endpoint that does not exist
- * yet. `preClickAvailable` stays on the payload so the columns can be added
- * once it does.
- */
+/** Google Ads-attributed sessions recorded by the landing-page tracker. */
 function PaidTrafficPanel({
   paidTraffic,
 }: {
@@ -930,9 +977,14 @@ function PaidTrafficPanel({
   return (
     <section className={`${CARD} space-y-4`} aria-labelledby="landing-paid-heading">
       <h4 id="landing-paid-heading" className="text-base font-bold text-slate-900">
-        Google Ads traffic by landing page
+        Ads-tagged sessions by actual landing page
       </h4>
-      <SegmentTable rows={paidTraffic.pages} firstColumn="Landing page" timeColumn />
+      <p className="text-xs leading-relaxed text-slate-500">
+        Exact pages where a consented session arrived carrying a Google click ID (gclid or gbraid).
+        These are tracked post-click sessions, not Google Ads click or spend totals, and a reload can
+        create another session.
+      </p>
+      <SegmentTable rows={paidTraffic.pages} firstColumn="Tracked landing page ID" timeColumn />
     </section>
   );
 }
@@ -954,6 +1006,7 @@ function PaidTrafficPanel({
 function SectionDwellPanel({
   sections,
   pageMeta,
+  previewLabel,
   conversions,
   devices,
   totalDeviceSessions,
@@ -962,6 +1015,7 @@ function SectionDwellPanel({
 }: {
   sections: SectionDwell[];
   pageMeta: LandingPageMeta | null;
+  previewLabel: string;
   conversions: number;
   devices: Segment[];
   totalDeviceSessions: number;
@@ -1012,6 +1066,7 @@ function SectionDwellPanel({
 
   const worstExit = Math.max(...sections.map((s) => s.exitRate), 0);
   const longestMedian = Math.max(...sections.map((s) => s.medianSeconds), 1);
+  const hasReachData = sections.length > 0 && sections.every((section) => section.timingSamples !== undefined);
   const previewSrc = pageMeta ? `${pageMeta.url}${activeAnchor ? `#${activeAnchor}` : ""}` : null;
 
   return (
@@ -1062,25 +1117,14 @@ function SectionDwellPanel({
                 })}
             </div>
           )}
-          {pageMeta && (
-            <>
-              <a
-                href={pageMeta.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-teal-700 underline-offset-2 hover:underline"
-              >
-                Open page ↗
-              </a>
-              <button
-                type="button"
-                onClick={() => setShowPreview((value) => !value)}
-                aria-pressed={showPreview}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
-              >
-                {showPreview ? "Hide page" : "Show page"}
-              </button>
-            </>
+          {pageMeta && !showPreview && (
+            <button
+              type="button"
+              onClick={() => setShowPreview(true)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
+            >
+              Show preview
+            </button>
           )}
         </div>
       </div>
@@ -1090,12 +1134,18 @@ function SectionDwellPanel({
           table height; the inner card is the sticky element and is capped to the
           viewport, so a table taller than the screen still leaves the preview in
           view instead of scrolling it away. */}
-      <div className={pageMeta && showPreview ? "grid gap-6 xl:grid-cols-[400px_minmax(0,1fr)]" : ""}>
+      <div
+        className={
+          pageMeta && showPreview
+            ? "grid gap-6 min-[860px]:grid-cols-[clamp(280px,32vw,400px)_minmax(0,1fr)]"
+            : ""
+        }
+      >
         {pageMeta && showPreview && previewSrc && (
           <div className="h-full">
-            <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white xl:sticky xl:top-4">
+            <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white min-[860px]:sticky min-[860px]:top-4">
               <div className="shrink-0 border-b border-slate-100 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.06em] leading-relaxed text-slate-500">
-                {pageMeta.label}: live page, scrollable. Interactions here are not tracked.
+                {previewLabel}
               </div>
               <iframe
                 src={previewSrc}
@@ -1104,6 +1154,23 @@ function SectionDwellPanel({
                 className="w-full flex-1 min-h-[420px]"
                 loading="lazy"
               />
+              <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 px-3 py-2">
+                <a
+                  href={pageMeta.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-teal-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
+                >
+                  Open page ↗
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(false)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
+                >
+                  Hide preview
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1116,10 +1183,10 @@ function SectionDwellPanel({
                   Section
                 </th>
                 <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
-                  Sessions
+                  {hasReachData ? "Reached" : "Sessions"}
                 </th>
                 <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
-                  Median time
+                  Median dwell
                 </th>
                 <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
                   Top 10%
@@ -1132,6 +1199,7 @@ function SectionDwellPanel({
             <tbody>
               {rows.map((row) => {
                 const dwell = row.dwell;
+                const timingSamples = dwell?.timingSamples ?? dwell?.sessions ?? 0;
                 const isExitPoint =
                   dwell !== null && dwell.exitRate === worstExit && dwell.exitRate > 0;
                 const clickable = pageMeta !== null && showPreview;
@@ -1163,25 +1231,32 @@ function SectionDwellPanel({
                           {dwell.sessions.toLocaleString()}
                         </td>
                         <td className="py-2.5 pr-4">
-                          <span className="flex items-center gap-2">
-                            <span
-                              aria-hidden="true"
-                              className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 sm:block"
-                            >
+                          {timingSamples > 0 ? (
+                            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                               <span
-                                className="block h-full rounded-full bg-teal-700"
-                                style={{
-                                  width: `${Math.round((dwell.medianSeconds / longestMedian) * 100)}%`,
-                                }}
-                              />
+                                aria-hidden="true"
+                                className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 sm:block"
+                              >
+                                <span
+                                  className="block h-full rounded-full bg-teal-700"
+                                  style={{
+                                    width: `${Math.round((dwell.medianSeconds / longestMedian) * 100)}%`,
+                                  }}
+                                />
+                              </span>
+                              <span className="font-semibold text-slate-900 tabular-nums">
+                                {dwell.medianSeconds}s
+                              </span>
+                              <span className="text-[10px] text-slate-400 tabular-nums">
+                                {timingSamples.toLocaleString()} timed
+                              </span>
                             </span>
-                            <span className="font-semibold text-slate-900 tabular-nums">
-                              {dwell.medianSeconds}s
-                            </span>
-                          </span>
+                          ) : (
+                            <span className="text-slate-400">Not timed</span>
+                          )}
                         </td>
                         <td className="py-2.5 pr-4 text-slate-500 tabular-nums">
-                          {dwell.p90Seconds}s
+                          {timingSamples > 0 ? `${dwell.p90Seconds}s` : "—"}
                         </td>
                         <td className="py-2.5 text-right tabular-nums">
                           <span

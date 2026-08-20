@@ -100,8 +100,10 @@ export interface FunnelStep {
 
 export interface SectionDwell {
   sectionId: string;
-  /** Sessions that saw the section at all. */
+  /** Distinct sessions where at least half of the section entered the viewport. */
   sessions: number;
+  /** Sessions that supplied usable active-time data for this section. */
+  timingSamples: number;
   /** Median active seconds on screen. Median, because a few idle tabs skew a mean badly. */
   medianSeconds: number;
   /** 90th percentile, to show the spread rather than implying everyone behaved alike. */
@@ -210,12 +212,16 @@ export function twoProportionPValue(
 export function summariseSections(
   dwellMs: Map<string, number[]>,
   exitsBySection: Map<string, number>,
-  sessionsWithExit: number
+  sessionsWithExit: number,
+  reachedSessionsBySection: Map<string, Set<string>> = new Map(),
 ): SectionDwell[] {
-  // Sections are taken from both sources, not just from dwell. A section people
-  // leave immediately produces little or no dwell data, so listing only
-  // sections with samples would hide the sharpest drop-off point on the page.
-  const sectionIds = new Set([...dwellMs.keys(), ...exitsBySection.keys()]);
+  // Include reached-only sections: a dropped lifecycle beacon must remove timing,
+  // not erase evidence that the visitor reached the section.
+  const sectionIds = new Set([
+    ...reachedSessionsBySection.keys(),
+    ...dwellMs.keys(),
+    ...exitsBySection.keys(),
+  ]);
 
   return [...sectionIds]
     .map((sectionId) => {
@@ -223,7 +229,8 @@ export function summariseSections(
       const exits = exitsBySection.get(sectionId) ?? 0;
       return {
         sectionId,
-        sessions: sorted.length,
+        sessions: reachedSessionsBySection.get(sectionId)?.size ?? 0,
+        timingSamples: sorted.length,
         medianSeconds: Math.round(percentile(sorted, 0.5) / 100) / 10,
         p90Seconds: Math.round(percentile(sorted, 0.9) / 100) / 10,
         exits,

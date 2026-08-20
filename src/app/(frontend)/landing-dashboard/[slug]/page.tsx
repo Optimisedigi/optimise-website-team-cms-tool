@@ -45,7 +45,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<{ title: string }> {
   const { slug } = await params;
-  return { title: `Landing performance | ${slug}` };
+  return { title: `Landing page performance | ${slug}` };
 }
 
 export default async function LandingDashboardPage({ params }: Props) {
@@ -70,7 +70,7 @@ export default async function LandingDashboardPage({ params }: Props) {
     return (
       <div className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
         <PinGateFrame
-          eyebrow="Landing Performance"
+          eyebrow="Landing Page Performance"
           title={client.name}
           subtitle="Enter your 4-digit PIN access code to view the dashboard"
         >
@@ -85,25 +85,7 @@ export default async function LandingDashboardPage({ params }: Props) {
       className={`od-dashboard-root min-h-screen bg-slate-50 text-slate-900 ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
-        {/* Same title lockup as the Google Ads dashboard: the client's name
-            carries the weight, and the grey label says which report this is. */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-[20px]">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1
-              className="font-bold tracking-tight text-slate-900 leading-tight my-0"
-              style={{ fontSize: "26px", transform: "translateY(-1px)" }}
-            >
-              {client.name}
-            </h1>
-            <span className="text-slate-400 font-normal" style={{ fontSize: "18px" }}>
-              Landing Performance
-            </span>
-          </div>
-        </div>
-
-        {/* The report renders its own cards, so this page provides the field
-            they sit on rather than a second card around them. */}
-        <LandingDashboardReport slug={slug} />
+        <LandingDashboardReport slug={slug} clientName={client.name} standaloneHeader />
       </div>
 
       {/* Quiet brand sign-off at the end of the document, not pinned to the

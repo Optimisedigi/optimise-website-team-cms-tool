@@ -36,6 +36,8 @@ interface ManifestPage {
   conversions: number;
   sessions: number;
   paidSessions: number;
+  engagedSessions: number;
+  paidEngagedSessions: number;
   bounceRate: number | null;
   medianSeconds: number | null;
 }
@@ -68,10 +70,6 @@ function Metric({ label, value, strong }: { label: string; value: string; strong
   );
 }
 
-/** Whole dollars: cents are noise next to a monthly spend figure. */
-const money = (value: number) =>
-  `A$${Math.round(value).toLocaleString("en-AU")}`;
-
 export function AdGroupPagesPanel({
   slug,
   range = DEFAULT_LANDING_DATE_RANGE,
@@ -82,7 +80,6 @@ export function AdGroupPagesPanel({
   const [pages, setPages] = useState<ManifestPage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openSlug, setOpenSlug] = useState<string | null>(null);
-  const [adMetrics, setAdMetrics] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,7 +92,6 @@ export function AdGroupPagesPanel({
         if (cancelled) return;
         if (!res.ok) throw new Error(json?.error || `Failed (${res.status})`);
         setPages(json.pages as ManifestPage[]);
-        setAdMetrics(Boolean(json.adMetricsAvailable));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not load pages");
       }
@@ -108,7 +104,7 @@ export function AdGroupPagesPanel({
   if (error) {
     return (
       <section className={CARD}>
-        <h3 className="text-base font-bold text-slate-900">Ad-group landing pages</h3>
+        <h3 className="text-base font-bold text-slate-900">Engaged landing pages</h3>
         <p className="mt-2 text-sm text-red-600">{error}</p>
       </section>
     );
@@ -117,45 +113,58 @@ export function AdGroupPagesPanel({
   if (pages.length === 0) {
     return (
       <section className={CARD}>
-        <h3 className="text-base font-bold text-slate-900">Ad-group landing pages</h3>
+        <h3 className="text-base font-bold text-slate-900">Engaged landing pages</h3>
         <p className="mt-2 text-sm text-slate-500">No generated pages found in the manifest.</p>
       </section>
     );
   }
 
-  const markets = [...new Set(pages.map((p) => p.market))].sort();
-  const adGroupCount = new Set(pages.flatMap((page) => page.adGroups.map((group) => group.name))).size;
+  const servedPages = pages.filter((page) => page.engagedSessions > 0);
   const rangeLabel = landingDateRangeLabel(range);
+  if (servedPages.length === 0) {
+    return (
+      <section className={CARD}>
+        <h3 className="text-base font-bold text-slate-900">Engaged landing pages</h3>
+        <p className="mt-2 text-sm text-slate-500">
+          No landing page recorded an engaged session in {rangeLabel.toLowerCase()}.
+        </p>
+      </section>
+    );
+  }
+  const markets = [...new Set(servedPages.map((page) => page.market))].sort();
+  const adGroupCount = new Set(
+    servedPages.flatMap((page) => page.adGroups.map((group) => group.name)),
+  ).size;
 
   return (
     <section className={CARD} aria-labelledby="ad-group-pages-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3 id="ad-group-pages-heading" className="text-base font-bold text-slate-900">
-          Ad-group landing pages
+          Engaged landing pages
         </h3>
         <p className={MICRO}>
-          {pages.length} pages · {adGroupCount} ad groups
-          {adMetrics && (
-            <>
-              {" · "}
-              {money(pages.reduce((n, p) => n + p.cost, 0))} · {pages.reduce((n, p) => n + p.clicks, 0)} clicks
-              {` (${rangeLabel})`}
-            </>
-          )}
+          {servedPages.length} URLs · {adGroupCount} mapped ad groups ·{" "}
+          {servedPages.reduce((total, page) => total + page.engagedSessions, 0)} engaged sessions ·{" "}
+          {servedPages.reduce((total, page) => total + page.paidEngagedSessions, 0)} Google Ads
+          {` (${rangeLabel})`}
         </p>
       </div>
-      <p className="mt-2 text-xs text-slate-500">
-        Spend and clicks come from Google Ads. Sessions, bounce, and time on site come from consented page tracking.
+      <p className="mt-2 max-w-5xl text-xs leading-relaxed text-slate-500">
+        Pages on hire.awaydigitalteams.com are shown after at least one session kept a section 50%
+        visible for three seconds. Engaged sessions are human-like activity, not absolute proof of a
+        person; Google Ads is the subset of those engaged sessions carrying gclid or gbraid.
       </p>
 
       {markets.map((market) => (
         <div key={market} className="mt-5">
           <h4 className={`${MICRO} mb-2`}>{market}</h4>
           <ul className="divide-y divide-slate-100 border-t border-slate-100">
-            {pages
+            {servedPages
               .filter((page) => page.market === market)
-              /* Spend descending: the page costing the most appears first. */
-              .sort((a, b) => b.cost - a.cost || b.sessions - a.sessions || a.slug.localeCompare(b.slug))
+              .sort(
+                (a, b) =>
+                  b.engagedSessions - a.engagedSessions || a.url.localeCompare(b.url),
+              )
               .map((page) => {
                 const open = openSlug === page.slug;
                 return (
@@ -170,45 +179,44 @@ export function AdGroupPagesPanel({
                         aria-expanded={open}
                         className="min-w-[16rem] flex-1 text-left hover:text-teal-700"
                       >
-                        <span className="block text-sm font-medium text-slate-900">/lp/{page.slug}</span>
+                        <span className="block break-all text-sm font-medium text-slate-900">
+                          {page.url}
+                        </span>
 
-                        <span className="mt-1 block text-[11px] leading-relaxed text-slate-600">
+                        <span className="mt-1 block text-sm leading-relaxed text-slate-600">
                           <span className={LABEL}>Headline</span> {page.headline}
                         </span>
 
-                        {/* Ad group names and their campaign, not numeric ids:
-                            an id says nothing about what someone searched for. */}
+                        {/* Campaign first, then its ad group: that is how the account is organised. */}
                         {page.adGroups.length ? (
                           adGroupSummary(page.adGroups).map((line) => (
                             <span key={line.name} className="mt-0.5 block text-[11px] leading-relaxed text-slate-600">
-                              <span className={LABEL}>Ad group</span> {line.name}
-                              <span className="text-slate-400"> · </span>
-                              <span className={LABEL}>Campaigns</span> {line.campaigns.join(" · ")}
+                              <span className="block">
+                                <span className={LABEL}>Campaign</span> {line.campaigns.join(" · ")}
+                              </span>
+                              <span className="block">
+                                <span className={LABEL}>Ad group</span> {line.name}
+                              </span>
                             </span>
                           ))
                         ) : (
-                          <span className="mt-0.5 block text-[11px] text-slate-400">
-                            <span className={LABEL}>Ad group</span> none reporting
+                          <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-400">
+                            <span className="block"><span className={LABEL}>Campaign</span> not mapped</span>
+                            <span className="block"><span className={LABEL}>Ad group</span> not mapped</span>
                           </span>
                         )}
                       </button>
 
                       <div className="flex items-start gap-4">
-                        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-right sm:grid-cols-5">
-                          {adMetrics && (
-                            <>
-                              <Metric label={`Spend · ${rangeLabel}`} value={money(page.cost)} strong />
-                              <Metric label="Clicks" value={String(page.clicks)} />
-                            </>
-                          )}
-                          <Metric label="Sessions" value={String(page.sessions)} />
+                        <dl className="grid grid-cols-2 gap-4 text-right">
                           <Metric
-                            label="Bounce"
-                            value={page.bounceRate == null ? "n/a" : `${page.bounceRate.toFixed(1)}%`}
+                            label="Engaged sessions"
+                            value={String(page.engagedSessions)}
+                            strong
                           />
                           <Metric
-                            label="Time on site"
-                            value={page.medianSeconds == null ? "n/a" : `${page.medianSeconds}s`}
+                            label="Google Ads"
+                            value={String(page.paidEngagedSessions)}
                           />
                         </dl>
 

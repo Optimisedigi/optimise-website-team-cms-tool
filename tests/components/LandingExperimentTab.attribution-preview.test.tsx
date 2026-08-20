@@ -174,14 +174,16 @@ describe("LandingExperimentTab page preview placement", () => {
     await renderTabWithPage();
 
     const iframe = await screen.findByTitle(/^Preview of /);
-    const card = iframe.closest("div.xl\\:sticky")!;
+    const card = iframe.parentElement!;
     const previewCell = card.parentElement!;
     const grid = previewCell.parentElement!;
 
     // First child of the grid: the preview renders left of the numbers rather
     // than after them.
     expect(grid.firstElementChild).toBe(previewCell);
-    expect(grid.className).toContain("xl:grid-cols-[400px_minmax(0,1fr)]");
+    expect(grid.className).toContain(
+      "min-[860px]:grid-cols-[clamp(280px,32vw,400px)_minmax(0,1fr)]",
+    );
 
     // The section table is the cell that follows it.
     expect(grid.children).toHaveLength(2);
@@ -192,7 +194,7 @@ describe("LandingExperimentTab page preview placement", () => {
     await renderTabWithPage();
 
     const iframe = await screen.findByTitle(/^Preview of /);
-    const card = iframe.closest("div.xl\\:sticky")!;
+    const card = iframe.parentElement!;
     const previewCell = card.parentElement!;
 
     // Cell stretches to the grid row (the table), card fills the cell, iframe
@@ -209,10 +211,10 @@ describe("LandingExperimentTab page preview placement", () => {
     await renderTabWithPage();
 
     const iframe = await screen.findByTitle(/^Preview of /);
-    const card = iframe.closest("div.xl\\:sticky")!;
+    const card = iframe.parentElement!;
 
-    expect(card.className).toContain("xl:sticky");
-    expect(card.className).toContain("xl:top-4");
+    expect(card.className).toContain("min-[860px]:sticky");
+    expect(card.className).toContain("min-[860px]:top-4");
     // Capped to the viewport, so a table taller than the screen still leaves the
     // preview visible rather than scrolling it off.
     expect(card.className).toContain("max-h-[calc(100vh-2rem)]");

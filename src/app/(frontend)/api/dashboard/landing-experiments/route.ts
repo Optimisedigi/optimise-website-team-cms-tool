@@ -509,6 +509,7 @@ export async function GET(req: NextRequest) {
   const stepSessions = new Map<string, Set<string>>();
   const stepSessionsByVariant = new Map<string, Map<string, Set<string>>>();
   const dwellMs = new Map<string, number[]>();
+  const sectionViewSessions = new Map<string, Set<string>>();
   const exitsBySection = new Map<string, number>();
   const lastSectionPerSession = new Map<string, string>();
   // One dwell figure per session per section: a repeat visit to a section must
@@ -604,8 +605,14 @@ export async function GET(req: NextRequest) {
         // The scan runs newest-first, so the first section_view seen for a
         // session is the last one it reached: first write wins, and later
         // (older) views must not overwrite it.
-        if (eventType === "section_view" && !lastSectionPerSession.has(sessionId)) {
-          lastSectionPerSession.set(sessionId, sectionId);
+        if (eventType === "section_view") {
+          if (!sectionViewSessions.has(sectionId)) {
+            sectionViewSessions.set(sectionId, new Set());
+          }
+          sectionViewSessions.get(sectionId)!.add(sessionId);
+          if (!lastSectionPerSession.has(sessionId)) {
+            lastSectionPerSession.set(sessionId, sectionId);
+          }
         }
       }
 
@@ -730,7 +737,12 @@ export async function GET(req: NextRequest) {
           };
         }
       ),
-      sections: summariseSections(dwellMs, exitsBySection, lastSectionPerSession.size),
+      sections: summariseSections(
+        dwellMs,
+        exitsBySection,
+        lastSectionPerSession.size,
+        sectionViewSessions,
+      ),
       sessionTime: summariseSessionTime(
         pageActiveMsBySession,
         pageTotalMsBySession,

@@ -114,12 +114,12 @@ describe("LandingExperimentTab with a single landing page", () => {
     const select = await screen.findByLabelText("Page");
     await waitFor(() => {
       const labels = Array.from(select.querySelectorAll("option")).map((option) => option.textContent);
-      expect(labels).toContain("offshore-teams-au (3)");
-      expect(labels).toContain("BPO Services in Vietnam (0)");
-      expect(labels).toContain("RPO in Vietnam (0)");
+      expect(labels).toContain("offshore-teams-au");
+      expect(labels).toContain("BPO Services in Vietnam");
+      expect(labels).toContain("RPO in Vietnam");
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/dashboard/landing-pages?slug=away-digital-teams&catalog=1",
+      "/api/dashboard/landing-pages?slug=away-digital-teams&catalog=1&start=2026-08-17&end=2026-08-20",
       expect.objectContaining({ credentials: "include" }),
     );
   });
