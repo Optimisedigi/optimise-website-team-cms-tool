@@ -166,6 +166,12 @@ export const Clients: CollectionConfig = {
     useAsTitle: "name",
     group: "Clients",
     description: "Manage client websites",
+    // 20 clients per page. `limits` must contain 20 or the Per Page picker
+    // can't offer it (Payload's default options are 5/10/25/50/100).
+    pagination: {
+      defaultLimit: 20,
+      limits: [10, 20, 50, 100],
+    },
     defaultColumns: [
       "name",
       "slug",

@@ -488,6 +488,50 @@ export async function runMigrations(
     }
   }
 
+  /**
+   * Force the clients list to 20 rows per page for users who already have a
+   * saved list preference.
+   *
+   * `admin.pagination.defaultLimit` (20, in src/collections/Clients.ts) only
+   * applies to users with no `collection-clients` preference row. Anyone who
+   * has opened the list carries a stored `limit` (10) that wins over config
+   * forever, so the config change alone would be invisible to every existing
+   * user. Rewrites only that one JSON key; users can still pick another value
+   * from the Per Page menu afterwards.
+   *
+   * Preferences are disposable UI state — no client data is touched. Runs
+   * ahead of the marker short-circuit (production carries the marker) and is a
+   * no-op once every row already reads 20.
+   */
+  async function setClientsListPerPage(): Promise<void> {
+    const label = "payload_preferences.clients_list_limit_20";
+    try {
+      if (!(await tableExists("payload_preferences"))) {
+        const r: MigrationResult = { label, status: "skip", message: "table not present" };
+        opts?.onProgress?.(r);
+        results.push(r);
+        return;
+      }
+      await client!.execute(
+        "UPDATE `payload_preferences` SET `value` = json_set(`value`, '$.limit', 20) " +
+          "WHERE `key` = 'collection-clients' AND json_valid(`value`) " +
+          "AND json_extract(`value`, '$.limit') IS NOT NULL " +
+          "AND json_extract(`value`, '$.limit') <> 20",
+      );
+      const r: MigrationResult = { label, status: "ok" };
+      opts?.onProgress?.(r);
+      results.push(r);
+    } catch (e: unknown) {
+      const r: MigrationResult = {
+        label,
+        status: "error",
+        message: e instanceof Error ? e.message : String(e),
+      };
+      opts?.onProgress?.(r);
+      results.push(r);
+    }
+  }
+
   async function addLandingLockRelations(): Promise<void> {
     for (const collection of ["landing_properties", "landing_experiments", "landing_events"]) {
       await run(
@@ -505,6 +549,7 @@ export async function runMigrations(
     // Must precede the marker short-circuit: production carries the marker and
     // would otherwise return before any repair ran.
     await repairClientsServicesSelectId();
+    await setClientsListPerPage();
 
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the

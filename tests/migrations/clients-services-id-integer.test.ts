@@ -100,11 +100,12 @@ describe("clients_services id repair", () => {
 
     const results = await runMigrations(payloadWith(client));
 
-    // Repair, then the early return — proof the repair is not stranded behind it.
-    expect(results.map((r) => r.label)).toEqual([
-      "clients_services.id_integer_repair",
-      `mark_migration:${MARKER}`,
-    ]);
+    // Repair before the early return — proof it is not stranded behind it.
+    // (Other pre-short-circuit steps may sit between the two labels.)
+    const labels = results.map((r) => r.label);
+    expect(labels.indexOf("clients_services.id_integer_repair")).toBe(0);
+    expect(labels).toContain(`mark_migration:${MARKER}`);
+    expect(labels[labels.length - 1]).toBe(`mark_migration:${MARKER}`);
   });
 
   it("is a no-op once the column is already integer", async () => {
