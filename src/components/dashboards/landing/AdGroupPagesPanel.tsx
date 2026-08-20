@@ -144,6 +144,9 @@ export function AdGroupPagesPanel({
           )}
         </p>
       </div>
+      <p className="mt-2 text-xs text-slate-500">
+        Spend and clicks come from Google Ads. Sessions, bounce, and time on site come from consented page tracking.
+      </p>
 
       {markets.map((market) => (
         <div key={market} className="mt-5">
@@ -191,13 +194,14 @@ export function AdGroupPagesPanel({
                       </button>
 
                       <div className="flex items-start gap-4">
-                        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-right sm:grid-cols-4">
+                        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-right sm:grid-cols-5">
                           {adMetrics && (
                             <>
                               <Metric label={`Spend · ${rangeLabel}`} value={money(page.cost)} strong />
                               <Metric label="Clicks" value={String(page.clicks)} />
                             </>
                           )}
+                          <Metric label="Sessions" value={String(page.sessions)} />
                           <Metric
                             label="Bounce"
                             value={page.bounceRate == null ? "n/a" : `${page.bounceRate.toFixed(1)}%`}

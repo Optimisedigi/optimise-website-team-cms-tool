@@ -51,6 +51,8 @@ describe("AdGroupPagesPanel measurement labels", () => {
     await screen.findByText("/lp/bpo-services-au");
     await waitFor(() => expect(screen.getByText("100.0%")).toBeTruthy());
     expect(screen.getByText("8s")).toBeTruthy();
+    expect(screen.getByText("Sessions")).toBeTruthy();
+    expect(screen.getByText("12")).toBeTruthy();
     expect(screen.getAllByText(/Ad group/)).toHaveLength(1);
     expect(screen.getByText(/Search Exact · Search Phrase/)).toBeTruthy();
   });
