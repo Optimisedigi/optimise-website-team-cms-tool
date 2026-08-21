@@ -28,7 +28,7 @@ interface StageEmailReplyArgs {
 export const stageEmailReplyTool: CanonicalTool<StageEmailReplyArgs> = {
   name: "stage_email_reply",
   description:
-    "Show your drafted email reply directly in the chat so the user can read it, ask for edits, and confirm. NO side effects — this does NOT save to Gmail. This is your PRIMARY and MANDATORY drafting tool: whenever you have written or revised any email body, you MUST call this with the finished, polished `body` (plain text or markdown-lite; do NOT include a signature, it is added automatically on save) and an optional `subject`. Never describe, summarise, or claim a draft is ready in chat text without calling this tool — the user only sees the draft when you call it. By default, improve rough user notes, direct requests, dictation, or blunt wording into a clear customer-facing email; do not copy the user's instruction verbatim as the body. Preserve specific wording when the user frames a point as wording to include, for example 'say it this way', 'word it like', or quoted text they ask you to add. After calling this, the draft appears in the chat and the user can click Create Gmail draft to push it to Gmail Drafts. Re-call this to revise after feedback. Only use create_gmail_draft instead when the user explicitly says to save the draft to Gmail right now.",
+    "Show your drafted email reply directly in the chat so the user can read it, ask for edits, and confirm. NO side effects — this does NOT save to Gmail. This is your PRIMARY and MANDATORY drafting tool: whenever you have written or revised any email body, you MUST call this with the finished, polished `body` and an optional `subject`. Start with a natural greeting, put the introduction immediately after it, and end on the final substantive sentence. Do NOT include a manual sign-off or sender name (including 'Thanks', 'Regards', or 'Peter'); Gmail adds the automated signature on save. Never describe, summarise, or claim a draft is ready in chat text without calling this tool — the user only sees the draft when you call it. By default, improve rough user notes, direct requests, dictation, or blunt wording into a clear customer-facing email; do not copy the user's instruction verbatim as the body. Preserve specific wording when the user frames a point as wording to include, for example 'say it this way', 'word it like', or quoted text they ask you to add. After calling this, the draft appears in the chat and the user can click Create Gmail draft to push it to Gmail Drafts. Re-call this to revise after feedback. Only use create_gmail_draft instead when the user explicitly says to save the draft to Gmail right now.",
   inputSchema: {
     type: "object",
     properties: {
@@ -36,7 +36,7 @@ export const stageEmailReplyTool: CanonicalTool<StageEmailReplyArgs> = {
         type: "string",
         minLength: 1,
         description:
-          "The full polished email reply body in plain text or markdown-lite. Rewrite rough user notes into natural email copy by default; preserve specific phrasing when the user clearly asks you to include it. No subject line, headers, or signature.",
+          "The full polished email reply body in plain text or markdown-lite. Rewrite rough user notes into natural email copy by default; preserve specific phrasing when the user clearly asks you to include it. Start with a natural greeting and end after the final substantive sentence. No subject line, headers, manual sign-off, sender name, or signature.",
       },
       subject: {
         type: "string",

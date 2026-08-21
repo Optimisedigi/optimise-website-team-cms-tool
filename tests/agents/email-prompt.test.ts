@@ -18,6 +18,16 @@ describe("GmailMate email drafting prompt", () => {
     expect(prompt).toContain("'say it this way', 'word it like', or quoted text they ask you to add");
   });
 
+  it("starts with a greeting and omits the manual Gmail sign-off", () => {
+    const prompt = buildEmailReplySystemPrompt();
+
+    expect(prompt).toContain("Start every draft with a natural greeting");
+    expect(prompt).toContain("put any introduction immediately after it");
+    expect(prompt).toContain("Never add a manual sign-off or sender name");
+    expect(prompt).toContain("Gmail appends the user's automated signature");
+    expect(stageEmailReplyTool.description).toContain("Do NOT include a manual sign-off or sender name");
+  });
+
   it("describes staged email bodies as polished customer-facing copy", () => {
     expect(stageEmailReplyTool.description).toContain("finished, polished `body`");
     expect(stageEmailReplyTool.description).toContain("By default, improve rough user notes, direct requests, dictation, or blunt wording");

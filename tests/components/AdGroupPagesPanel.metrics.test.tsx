@@ -121,7 +121,7 @@ describe("AdGroupPagesPanel measurement labels", () => {
     expect(screen.getByRole("heading", { name: "AU" })).toHaveClass("text-sm");
     const campaign = screen.getByText(/Search Exact · Search Phrase/);
     const adGroup = screen.getByText("bpo", { exact: true });
-    expect(campaign).toHaveClass("min-[1200px]:whitespace-nowrap");
+    expect(campaign).toHaveClass("lg:whitespace-nowrap");
     expect(campaign.compareDocumentPosition(adGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getAllByText(/not mapped/)).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Preview" })[0]?.parentElement).toHaveClass(

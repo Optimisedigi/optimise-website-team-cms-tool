@@ -202,7 +202,7 @@ export function AdGroupPagesPanel({
                     key={page.slug}
                     className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm"
                   >
-                    <div className="grid grid-cols-1 items-start gap-4 min-[1200px]:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,46%)_minmax(0,1fr)] lg:items-center">
                       {/* Identity on the left, measurement on the right: the
                           left column answers "which page is this", the right
                           answers "how is it doing". */}
@@ -223,7 +223,7 @@ export function AdGroupPagesPanel({
                         {page.adGroups.length ? (
                           adGroupSummary(page.adGroups).map((line) => (
                             <span key={line.name} className="mt-0.5 block text-[11px] leading-relaxed text-slate-600">
-                              <span className="block min-[1200px]:whitespace-nowrap">
+                              <span className="block lg:whitespace-nowrap">
                                 <span className={LABEL}>Campaign</span> {line.campaigns.join(" · ")}
                               </span>
                               <span className="block">
@@ -239,8 +239,8 @@ export function AdGroupPagesPanel({
                         )}
                       </button>
 
-                      <div className="flex w-full flex-wrap items-end justify-between gap-4 min-[1200px]:w-auto min-[1200px]:justify-end">
-                        <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-3 text-left sm:grid-cols-3 min-[1200px]:w-auto min-[1200px]:grid-cols-6 min-[1200px]:text-right">
+                      <div className="flex w-full flex-wrap items-end justify-between gap-4 lg:justify-end">
+                        <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-3 text-left sm:grid-cols-3 lg:w-auto lg:grid-cols-6 lg:text-right">
                           <Metric label="Google Ads clicks" value={String(page.clicks)} />
                           <Metric label="Google Ads sessions" value={String(page.paidSessions)} strong />
                           <Metric label="Engaged sessions" value={String(page.paidEngagedSessions)} />
