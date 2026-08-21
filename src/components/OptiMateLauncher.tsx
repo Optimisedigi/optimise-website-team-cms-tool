@@ -8,9 +8,10 @@ import OptiMateMultiChat, {
 } from './OptiMateMultiChat'
 import InvoiceAssistantChat from './InvoiceAssistantChat'
 import GmailReplyChat from './GmailReplyChat'
+import TaskMateChat from './TaskMateChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 
-type AgentKey = 'google-ads' | 'invoices'
+type AgentKey = 'google-ads' | 'invoices' | 'taskmate'
 
 interface AgentDef {
   key: AgentKey
@@ -23,7 +24,7 @@ interface AgentDef {
 const AGENTS: AgentDef[] = [
   { key: 'google-ads', label: 'GoogleMate', icon: '/optimate-icon.png', enabled: true },
   { key: 'invoices', label: 'InvoiceMate', icon: '/optimate-icon.png', enabled: true },
-  // Add more agents here as they ship — just append a row; the grid auto-fills.
+  { key: 'taskmate', label: 'TaskMate', icon: '/optimate-icon.png', enabled: true },
 ]
 
 interface AuditOption {
@@ -32,7 +33,7 @@ interface AuditOption {
   customerId: string
 }
 
-type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'gmail' | 'email-reply' | 'email-summarise' | 'pomodoro'
+type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'taskmate' | 'gmail' | 'email-reply' | 'email-summarise' | 'pomodoro'
 
 const PILL_RIGHT = 20 // pixels — pomodoro pill is gone, sit bottom-right alone
 const PILL_BOTTOM = 20
@@ -93,6 +94,17 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
     }
   }, [open, step, audits, auditsLoading, loadAudits])
 
+  useEffect(() => {
+    const openTaskMate = () => {
+      if ((user as { role?: string } | null)?.role !== 'admin') return
+      setAgent('taskmate')
+      setStep('taskmate')
+      setOpen(true)
+    }
+    window.addEventListener('optimate:open-taskmate', openTaskMate)
+    return () => window.removeEventListener('optimate:open-taskmate', openTaskMate)
+  }, [user])
+
   // Reset to agent step when closing the panel.
   const close = () => {
     setOpen(false)
@@ -120,10 +132,12 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
   const handleAgentSelect = (key: AgentKey) => {
     setAgent(key)
-    // The invoice assistant doesn't need an audit/account picker — it
-    // operates against Xero directly, so jump straight to chat.
     if (key === 'invoices') {
       setStep('invoice-chat')
+      return
+    }
+    if (key === 'taskmate') {
+      setStep('taskmate')
       return
     }
     setStep('audit')
@@ -305,6 +319,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   · InvoiceMate
                 </span>
               )}
+              {step === 'taskmate' && (
+                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
+                  · TaskMate
+                </span>
+              )}
               {step === 'gmail' && (
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
                   · Gmail
@@ -334,7 +353,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 ← Accounts
               </button>
             )}
-            {(step === 'invoice-chat' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise') && (
+            {(step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise') && (
               <button
                 type="button"
                 onClick={() => {
@@ -541,11 +560,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               flex: 1,
               padding: step === 'pomodoro' ? 0 : 14,
               overflowY:
-                step === 'chat' || step === 'invoice-chat' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
+                step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
                   ? 'hidden'
                   : 'auto',
               display:
-                step === 'chat' || step === 'invoice-chat' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
+                step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
                   ? 'flex'
                   : 'block',
               flexDirection: 'column',
@@ -574,9 +593,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     gap: 10,
                   }}
                 >
-                  {AGENTS.map((a) => (
+                  {AGENTS.filter((a) => a.key !== 'taskmate' || (user as { role?: string }).role === 'admin').map((a) => (
                     <button
-                      key={a.key}
+                      {...{ key: a.key }}
                       type="button"
                       onClick={() => a.enabled && handleAgentSelect(a.key)}
                       disabled={!a.enabled}
@@ -826,7 +845,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     const checked = selectedAudits.some((a) => String(a.id) === String(opt.id))
                     return (
                       <button
-                        key={String(opt.id)}
+                        {...{ key: String(opt.id) }}
                         type="button"
                         onClick={() => toggleAudit(opt)}
                         aria-pressed={checked}
@@ -947,7 +966,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             {step === 'chat' && (selectedAudits.length > 0 || portfolioSelected) && (
               <OptiMateMultiChat
                 ref={multiChatRef}
-                key={portfolioSelected ? 'portfolio' : selectedAudits.map((a) => String(a.id)).join('|')}
+                {...{ key: portfolioSelected ? 'portfolio' : selectedAudits.map((a) => String(a.id)).join('|') }}
                 targets={
                   portfolioSelected
                     ? [{ mode: 'portfolio', id: 'portfolio', businessName: 'Portfolio' }]
@@ -966,6 +985,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             )}
 
             {step === 'invoice-chat' && <InvoiceAssistantChat />}
+
+            {step === 'taskmate' && <TaskMateChat />}
 
             {step === 'gmail' && <GmailReplyChat initialPhase="compose" />}
 

@@ -7,24 +7,7 @@ import type {
 } from "payload";
 import { adminOnlyDelete, hideUnlessFeature, userHasFeature } from "../lib/access";
 import { logActivity } from "../lib/activity-log";
-
-const TASK_TYPE_OPTIONS = [
-  { label: "Blog Post", value: "blog_post" },
-  { label: "Email", value: "email" },
-  { label: "Product Page", value: "product_page" },
-  { label: "Product Update", value: "product_update" },
-  { label: "Research", value: "research" },
-  { label: "Website Content", value: "website_content" },
-  { label: "SEO", value: "seo" },
-  { label: "Internal Documentation", value: "internal_documentation" },
-  { label: "Reporting", value: "reporting" },
-  { label: "Google Ads", value: "google_ads" },
-  { label: "Schema Fix", value: "schema_fix" },
-  { label: "FAQ Schema", value: "faq_schema" },
-  { label: "Product Feed", value: "product_feed" },
-  { label: "Google Sheet", value: "google_sheet" },
-  { label: "Other", value: "other" },
-] as const;
+import { TEAM_TASK_PRIORITY_OPTIONS, TEAM_TASK_TYPE_OPTIONS } from "../lib/team-task-options";
 
 const STATUS_OPTIONS = [
   { label: "Not Started", value: "not_started" },
@@ -35,12 +18,6 @@ const STATUS_OPTIONS = [
   { label: "Task Postponed", value: "task_postponed" },
 ] as const;
 
-const PRIORITY_OPTIONS = [
-  { label: "Low", value: "low" },
-  { label: "Normal", value: "normal" },
-  { label: "High", value: "high" },
-  { label: "Urgent", value: "urgent" },
-] as const;
 
 const LINK_KIND_OPTIONS = [
   { label: "Brief", value: "brief" },
@@ -105,7 +82,7 @@ const prepareTeamTask: CollectionBeforeChangeHook = ({ data, originalDoc, operat
 
 const logTeamTaskActivity: CollectionAfterChangeHook = async ({ doc, previousDoc, operation, req }) => {
   const clientId = getRelationshipId(doc.client);
-  const taskTypeLabel = TASK_TYPE_OPTIONS.find((option) => option.value === doc.taskType)?.label || "Task";
+  const taskTypeLabel = TEAM_TASK_TYPE_OPTIONS.find((option) => option.value === doc.taskType)?.label || "Task";
 
   if (operation === "create" || previousDoc?.status === doc.status) return;
 
@@ -215,7 +192,7 @@ export const TeamTasks: CollectionConfig = {
                   type: "select",
                   required: true,
                   defaultValue: "other",
-                  options: TASK_TYPE_OPTIONS as unknown as { label: string; value: string }[],
+                  options: TEAM_TASK_TYPE_OPTIONS as unknown as { label: string; value: string }[],
                   index: true,
                   access: {
                     update: adminOrManagerField,
@@ -234,7 +211,7 @@ export const TeamTasks: CollectionConfig = {
                   type: "select",
                   required: true,
                   defaultValue: "normal",
-                  options: PRIORITY_OPTIONS as unknown as { label: string; value: string }[],
+                  options: TEAM_TASK_PRIORITY_OPTIONS as unknown as { label: string; value: string }[],
                   access: {
                     update: adminOrManagerField,
                   },

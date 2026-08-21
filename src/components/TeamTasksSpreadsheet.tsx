@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import TeamTaskDetailPane from './TeamTaskDetailPane'
+import { TEAM_TASK_TYPE_OPTIONS } from '@/lib/team-task-options'
 import { isEmptyTeamTaskPlaceholder } from '@/lib/team-task-placeholder'
 
 type Option = { id: string | number; name: string; email?: string; slug?: string }
@@ -24,18 +25,6 @@ type TeamTask = {
   createdAt?: string | null
 }
 
-const taskTypes = [
-  ['blog_post', 'Blog Post'],
-  ['email', 'Email'],
-  ['product_page', 'Product Page'],
-  ['research', 'Research'],
-  ['website_content', 'Website Content'],
-  ['seo', 'SEO'],
-  ['reporting', 'Reporting'],
-  ['google_ads', 'Google Ads'],
-  ['product_feed', 'Product Feed'],
-  ['other', 'Other'],
-]
 
 const statuses = [
   ['not_started', 'Not Started'],
@@ -46,12 +35,6 @@ const statuses = [
   ['task_postponed', 'Task Postponed'],
 ]
 
-const priorities = [
-  ['low', 'Low'],
-  ['normal', 'Normal'],
-  ['high', 'High'],
-  ['urgent', 'Urgent'],
-]
 
 function relId(value: Rel): string {
   if (value && typeof value === 'object') return String(value.id)
@@ -325,13 +308,14 @@ export default function TeamTasksSpreadsheet() {
   const [error, setError] = useState('')
   const [canManage, setCanManage] = useState(false)
   const [canEditTaskFields, setCanEditTaskFields] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | number | null>(null)
 
-  const load = async () => {
+  const load = async (requestedWeek = weekStart, requestedMode = weekMode) => {
     setLoading(true)
     setError('')
     try {
-      const params = new URLSearchParams({ status: statusFilter, weekStart: weekMode === 'week' ? weekStart : weekMode })
+      const params = new URLSearchParams({ status: statusFilter, weekStart: requestedMode === 'week' ? requestedWeek : requestedMode })
       if (clientFilter) params.set('client', clientFilter)
       const res = await fetch(`/api/team-tasks/grid?${params.toString()}`)
       const json = await res.json()
@@ -341,6 +325,7 @@ export default function TeamTasksSpreadsheet() {
       setUsers(json.users || [])
       setCanManage(Boolean(json.canManage))
       setCanEditTaskFields(Boolean(json.canEditTaskFields ?? json.canManage))
+      setIsAdmin(Boolean(json.isAdmin))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load tasks')
     } finally {
@@ -349,6 +334,18 @@ export default function TeamTasksSpreadsheet() {
   }
 
   useEffect(() => { void load() }, [statusFilter, clientFilter, weekStart, weekMode])
+
+  useEffect(() => {
+    const handleAssigned = (event: Event) => {
+      const assignedWeek = (event as CustomEvent<{ weekStart?: string }>).detail?.weekStart
+      if (!assignedWeek) return
+      setWeekMode('week')
+      setWeekStart(assignedWeek)
+      void load(assignedWeek, 'week')
+    }
+    window.addEventListener('optimate:taskmate-assigned', handleAssigned)
+    return () => window.removeEventListener('optimate:taskmate-assigned', handleAssigned)
+  }, [statusFilter, clientFilter])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -594,7 +591,7 @@ export default function TeamTasksSpreadsheet() {
                 </td>
                 <td style={tdStyle}>
                   <select value={task.taskType || 'other'} onChange={(e) => patch(task.id, { taskType: e.target.value })} style={inputStyle} disabled={!canEditTaskFields}>
-                    {taskTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    {TEAM_TASK_TYPE_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </td>
                 <td style={tdStyle}>
@@ -676,6 +673,11 @@ export default function TeamTasksSpreadsheet() {
                       <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#7c3aed', borderColor: '#5b21b6', color: '#fff' }}>
                         {savingId === 'new' ? 'Adding week…' : '+ Add week'}
                       </button>
+                      {isAdmin && (
+                        <button type="button" onClick={() => window.dispatchEvent(new Event('optimate:open-taskmate'))} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#111827', borderColor: '#111827', color: '#fff' }}>
+                          Open TaskMate
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

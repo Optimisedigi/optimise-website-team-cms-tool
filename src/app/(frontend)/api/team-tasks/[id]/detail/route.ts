@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
+import { isAssignableTeamTaskUser, toTeamTaskUserOption } from "@/lib/team-task-users";
 
 function relationshipId(value: unknown) {
   if (value == null || value === "") return undefined;
   const numeric = Number(value);
   return Number.isNaN(numeric) ? value : numeric;
-}
-
-function isAssignableUser(user: { email?: string | null; name?: string | null }) {
-  return user.email !== "admin@optimise.digital" && user.name !== "Admin User";
 }
 
 async function getAuthedPayload(req: NextRequest) {
@@ -55,7 +52,7 @@ export async function GET(
     return NextResponse.json({
       task,
       comments: commentsResult.docs,
-      users: usersResult.docs.filter(isAssignableUser).map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email, role: u.role })),
+      users: usersResult.docs.filter(isAssignableTeamTaskUser).map(toTeamTaskUserOption),
       currentUser: { id: user.id, name: user.name || user.email, email: user.email, role: user.role },
       canManage: user.role === "admin" || user.role === "manager",
     });

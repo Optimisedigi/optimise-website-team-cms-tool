@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
+import { isAssignableTeamTaskUser } from "@/lib/team-task-users";
 
 type UserOption = { id: string | number; name?: string | null; email?: string | null };
 
@@ -24,10 +25,6 @@ function normaliseMention(value: string): string {
 
 function stripHtml(value: string): string {
   return value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function isAssignableUser(user: { email?: string | null; name?: string | null }) {
-  return user.email !== "admin@optimise.digital" && user.name !== "Admin User";
 }
 
 function mentionedUserIds(body: string, users: UserOption[], explicit: unknown): Array<string | number> {
@@ -114,7 +111,7 @@ export async function POST(
       }),
     ]);
 
-    const users = (usersResult.docs as UserOption[]).filter(isAssignableUser);
+    const users = (usersResult.docs as UserOption[]).filter(isAssignableTeamTaskUser);
     const mentions = mentionedUserIds(commentBody, users, body.mentions);
     const comment = await payload.create({
       collection: "team-task-comments" as any,

@@ -4,6 +4,7 @@ import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import { userHasFeature } from "@/lib/access";
 import { isEmptyTeamTaskPlaceholder } from "@/lib/team-task-placeholder";
+import { isAssignableTeamTaskUser, toTeamTaskUserOption } from "@/lib/team-task-users";
 
 const TASK_SELECT = {
   title: true,
@@ -28,9 +29,6 @@ function relationshipId(value: unknown) {
   return Number.isNaN(numeric) ? value : numeric;
 }
 
-function isAssignableUser(user: { email?: string | null; name?: string | null }) {
-  return user.email !== "admin@optimise.digital" && user.name !== "Admin User";
-}
 
 async function getAuthedPayload() {
   const payload = await getPayload({ config });
@@ -113,9 +111,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       tasks: tasksResult.docs,
       clients: clientsResult.docs.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug })),
-      users: usersResult.docs.filter(isAssignableUser).map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email, role: u.role })),
+      users: usersResult.docs.filter(isAssignableTeamTaskUser).map(toTeamTaskUserOption),
       canEditTaskFields: userHasFeature(user, "team-tasks"),
       canManage: user.role === "admin" || user.role === "manager",
+      isAdmin: user.role === "admin",
     });
   } catch (error) {
     console.error("[team-tasks/grid] GET error:", error);
