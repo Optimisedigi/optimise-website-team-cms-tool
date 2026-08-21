@@ -59,8 +59,21 @@ export const ATTRIBUTION_BUCKET = `(
   COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_medium'), ''), '(none)') || ' / ' ||
   COALESCE(NULLIF(json_extract(\`attribution\`, '$.utm_campaign'), ''), '(none)') || ' / Landing page: ' ||
   COALESCE(NULLIF(\`route\`, ''), '(unknown page)')
-)`;
+  )`;
 
+/** A paid session must carry an immutable Google Ads click identifier. */
+export const GOOGLE_ADS_SESSION_PREDICATE =
+  "(json_extract(`attribution`, '$.gclid') IS NOT NULL" +
+  " OR json_extract(`attribution`, '$.gbraid') IS NOT NULL" +
+  " OR json_extract(`attribution`, '$.wbraid') IS NOT NULL)";
+
+function hasGoogleAdsClickId(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const attribution = value as Record<string, unknown>;
+  return [attribution.gclid, attribution.gbraid, attribution.wbraid].some(
+    (id) => typeof id === "string" && id.trim().length > 0,
+  );
+}
 /**
  * Human labels for the known forms. An unrecognised form_id is shown as-is
  * rather than dropped, so a newly added form appears in the report instead of
@@ -185,6 +198,7 @@ async function loadFacets(
                MAX(CAST(json_extract(\`properties\`, '$.active_ms') AS REAL)) AS ms
         FROM \`landing_events\`
         WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}' AND \`occurred_at\` < '${escape(until)}'${pageClause}
+          AND ${GOOGLE_ADS_SESSION_PREDICATE}
           AND \`event_type\` = 'page_dwell'
           AND json_extract(\`properties\`, '$.active_ms') IS NOT NULL
         GROUP BY bucket, session_id, page_view_id
@@ -238,6 +252,7 @@ async function loadFacets(
              COUNT(DISTINCT CASE WHEN ${goalPredicate} THEN \`session_id\` END) AS conversions${checklistColumn}
       FROM \`landing_events\`
       WHERE \`client_id\` = '${escape(String(clientId))}' AND \`occurred_at\` >= '${escape(since)}' AND \`occurred_at\` < '${escape(until)}'${pageClause}
+        AND ${GOOGLE_ADS_SESSION_PREDICATE}
       GROUP BY bucket
       ORDER BY sessions DESC
       LIMIT 50`;
@@ -307,10 +322,7 @@ async function loadPaidTraffic(
   // A Google Ads click carries one of these three ids; gbraid/wbraid are what
   // arrives when the click id is restricted for privacy, so reading gclid alone
   // would undercount iOS traffic.
-  const paidClause =
-    "(json_extract(`attribution`, '$.gclid') IS NOT NULL" +
-    " OR json_extract(`attribution`, '$.gbraid') IS NOT NULL" +
-    " OR json_extract(`attribution`, '$.wbraid') IS NOT NULL)";
+  const paidClause = GOOGLE_ADS_SESSION_PREDICATE;
 
   const statement = `
     SELECT COALESCE(NULLIF(\`page_id\`, ''), '(unset)') AS bucket,
@@ -529,6 +541,7 @@ export async function GET(req: NextRequest) {
   // Every session in range, so sessions predating page_dwell can be reported as
   // unmeasured instead of silently disappearing from the denominator.
   const sessionsInRange = new Set<string>();
+  const engagedSessionsInRange = new Set<string>();
   const secondaryGoalSessions = new Map<string, Set<string>>();
 
 
@@ -567,7 +580,7 @@ export async function GET(req: NextRequest) {
       const eventType = String(event.eventType ?? "");
       const sessionId = String(event.sessionId ?? "");
       const variantId = String(event.variantId ?? "");
-      if (!eventType || !sessionId) continue;
+      if (!eventType || !sessionId || !hasGoogleAdsClickId(event.attribution)) continue;
 
       const pageId = String(event.pageId ?? "") || "(unset)";
       const market = String(event.market ?? "") || "(unset)";
@@ -580,6 +593,7 @@ export async function GET(req: NextRequest) {
 
       totals[eventType] = (totals[eventType] ?? 0) + 1;
       sessionsInRange.add(sessionId);
+      if (eventType === "section_engaged") engagedSessionsInRange.add(sessionId);
 
       // Dwell and exit points are read from every session, with or without a
       // variant: knowing where people stop reading is useful even when no
@@ -709,6 +723,7 @@ export async function GET(req: NextRequest) {
       rangeStart: since,
       filters: { page: pageFilter, device: deviceFilter, market: marketFilter },
       ...facets,
+      engagedSessions: engagedSessionsInRange.size,
       controlVariantId,
       variants,
       comparisons: compareVariants(variants, controlVariantId),

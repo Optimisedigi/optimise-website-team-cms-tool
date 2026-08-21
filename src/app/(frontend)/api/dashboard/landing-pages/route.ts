@@ -57,10 +57,22 @@ interface Engagement {
   engagedSessions: number;
   /** Engaged sessions that also carried a Google click ID. */
   paidEngagedSessions: number;
+  /** Sessions with a tracked form submission or completed booking. */
+  conversionSessions: number;
+  /** Converted sessions that also carried a Google click ID. */
+  paidConversionSessions: number;
   /** Percent of sessions that left the first section without scrolling. */
   bounceRate: number;
+  /** Mean measured active seconds per session, or null without timing data. */
+  averageSeconds: number | null;
   /** Median active seconds per session, or null when no dwell beacon arrived. */
   medianSeconds: number | null;
+  /** Number of Google Ads sessions with a usable timing sample. */
+  paidTimedSessions: number;
+  /** Mean measured active seconds across Google Ads sessions. */
+  paidAverageSeconds: number | null;
+  /** Median measured active seconds across Google Ads sessions. */
+  paidMedianSeconds: number | null;
 }
 
 /**
@@ -202,12 +214,15 @@ async function loadEngagement(
            SUM(bounced) AS bounced,
            SUM(paid) AS paid,
            SUM(engaged) AS engaged,
-           SUM(CASE WHEN paid = 1 AND engaged = 1 THEN 1 ELSE 0 END) AS paid_engaged
+           SUM(CASE WHEN paid = 1 AND engaged = 1 THEN 1 ELSE 0 END) AS paid_engaged,
+           SUM(converted) AS converted,
+           SUM(CASE WHEN paid = 1 AND converted = 1 THEN 1 ELSE 0 END) AS paid_converted
     FROM (
       SELECT session_id,
              page_id,
-             MAX(CASE WHEN attribution LIKE '%gclid%' OR attribution LIKE '%gbraid%' THEN 1 ELSE 0 END) AS paid,
+             MAX(CASE WHEN attribution LIKE '%gclid%' OR attribution LIKE '%gbraid%' OR attribution LIKE '%wbraid%' THEN 1 ELSE 0 END) AS paid,
              MAX(CASE WHEN event_type = 'section_engaged' THEN 1 ELSE 0 END) AS engaged,
+             MAX(CASE WHEN event_type IN ('booking_complete', 'form_submit') THEN 1 ELSE 0 END) AS converted,
              CASE WHEN COUNT(DISTINCT CASE WHEN event_type = 'section_view'
                                            THEN json_extract(properties, '$.section_id') END) > 1
                     OR MAX(CASE WHEN event_type = 'scroll_depth' THEN 1 ELSE 0 END) = 1
@@ -224,6 +239,7 @@ async function loadEngagement(
   const timingSql = `
     WITH page_views AS (
       SELECT page_id, session_id, page_view_id,
+             MAX(CASE WHEN attribution LIKE '%gclid%' OR attribution LIKE '%gbraid%' OR attribution LIKE '%wbraid%' THEN 1 ELSE 0 END) AS paid,
              MAX(CASE WHEN event_type = 'page_dwell'
                       THEN CAST(json_extract(properties, '$.active_ms') AS REAL) END) AS active_ms,
              (julianday(MAX(occurred_at)) - julianday(MIN(occurred_at))) * 86400000 AS observed_ms,
@@ -233,7 +249,8 @@ async function loadEngagement(
       GROUP BY page_id, session_id, page_view_id
     )
     SELECT page_id, session_id,
-           SUM(COALESCE(active_ms, CASE WHEN event_count > 1 THEN observed_ms END)) AS session_ms
+           SUM(COALESCE(active_ms, CASE WHEN event_count > 1 THEN observed_ms END)) AS session_ms,
+           MAX(paid) AS paid
     FROM page_views
     WHERE active_ms IS NOT NULL OR event_count > 1
     GROUP BY page_id, session_id`;
@@ -247,12 +264,17 @@ async function loadEngagement(
     const [engagement, timing] = await Promise.all([rowsOf(engagementSql), rowsOf(timingSql)]);
 
     const msByPage = new Map<string, number[]>();
+    const paidMsByPage = new Map<string, number[]>();
     for (const row of timing) {
       const ms = Number(row.session_ms);
       if (!Number.isFinite(ms) || ms < 0) continue;
       const page = String(row.page_id ?? "");
       if (!msByPage.has(page)) msByPage.set(page, []);
       msByPage.get(page)!.push(ms);
+      if (Number(row.paid) === 1) {
+        if (!paidMsByPage.has(page)) paidMsByPage.set(page, []);
+        paidMsByPage.get(page)!.push(ms);
+      }
     }
 
     for (const row of engagement) {
@@ -260,13 +282,26 @@ async function loadEngagement(
       if (!sessions) continue;
       const page = String(row.page_id ?? "");
       const values = (msByPage.get(page) ?? []).sort((a, b) => a - b);
+      const paidValues = (paidMsByPage.get(page) ?? []).sort((a, b) => a - b);
       out.set(page, {
         sessions,
         paidSessions: Number(row.paid ?? 0),
         engagedSessions: Number(row.engaged ?? 0),
         paidEngagedSessions: Number(row.paid_engaged ?? 0),
+        conversionSessions: Number(row.converted ?? 0),
+        paidConversionSessions: Number(row.paid_converted ?? 0),
         bounceRate: Math.round((Number(row.bounced ?? 0) / sessions) * 1000) / 10,
+        averageSeconds: values.length
+          ? Math.round(values.reduce((total, value) => total + value, 0) / values.length / 1000)
+          : null,
         medianSeconds: values.length ? Math.round(values[Math.floor((values.length - 1) / 2)] / 1000) : null,
+        paidTimedSessions: paidValues.length,
+        paidAverageSeconds: paidValues.length
+          ? Math.round(paidValues.reduce((total, value) => total + value, 0) / paidValues.length / 1000)
+          : null,
+        paidMedianSeconds: paidValues.length
+          ? Math.round(paidValues[Math.floor((paidValues.length - 1) / 2)] / 1000)
+          : null,
       });
     }
   } catch (error) {
@@ -368,8 +403,14 @@ export async function GET(req: NextRequest) {
         paidSessions: stats?.paidSessions ?? 0,
         engagedSessions: stats?.engagedSessions ?? 0,
         paidEngagedSessions: stats?.paidEngagedSessions ?? 0,
+        trackedConversions: stats?.conversionSessions ?? 0,
+        paidTrackedConversions: stats?.paidConversionSessions ?? 0,
         bounceRate: stats?.bounceRate ?? null,
+        averageSeconds: stats?.averageSeconds ?? null,
         medianSeconds: stats?.medianSeconds ?? null,
+        paidTimedSessions: stats?.paidTimedSessions ?? 0,
+        paidAverageSeconds: stats?.paidAverageSeconds ?? null,
+        paidMedianSeconds: stats?.paidMedianSeconds ?? null,
       };
     });
 

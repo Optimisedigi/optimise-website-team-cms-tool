@@ -325,10 +325,11 @@ describe("landing experiment dashboard route", () => {
       })
       .mockResolvedValueOnce({
         docs: [
-          { eventType: "page_view", sessionId: "s1", variantId: "a" },
-          { eventType: "booking_complete", sessionId: "s1", variantId: "a" },
-          { eventType: "booking_complete", sessionId: "s1", variantId: "a" },
-          { eventType: "page_view", sessionId: "s2", variantId: "b" },
+          { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "s1", variantId: "a" },
+          { attribution: { gclid: "test-click" }, eventType: "booking_complete", sessionId: "s1", variantId: "a" },
+          { attribution: { gclid: "test-click" }, eventType: "booking_complete", sessionId: "s1", variantId: "a" },
+          { attribution: { wbraid: "privacy-click" }, eventType: "page_view", sessionId: "s2", variantId: "b" },
+          { attribution: {}, eventType: "page_view", sessionId: "test-session", variantId: "b" },
         ],
         hasNextPage: false,
       });
@@ -348,7 +349,9 @@ describe("landing experiment dashboard route", () => {
     expect(variantA.sessions).toBe(1);
     expect(variantA.conversions).toBe(1);
 
+    // Untagged test/client traffic is excluded; wbraid is accepted as Google Ads traffic.
     expect(body.behaviourTotals.page_view).toBe(2);
+    expect(body.variants.find((row: { variantId: string }) => row.variantId === "b").sessions).toBe(1);
     expect(body.behaviourTotals.booking_complete).toBe(2);
   });
 
@@ -375,18 +378,18 @@ describe("landing experiment dashboard route", () => {
       .mockResolvedValueOnce({
         docs: [
           // Reached the hero but closed before a dwell beacon was delivered.
-          { eventType: "section_view", sessionId: "s3", variantId: "", properties: { section_id: "hero" } },
-          { eventType: "section_dwell", sessionId: "s2", variantId: "b", properties: { section_id: "hero", active_ms: 4000 } },
-          { eventType: "section_view", sessionId: "s2", variantId: "b", properties: { section_id: "hero" } },
-          { eventType: "page_view", sessionId: "s2", variantId: "b" },
+          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s3", variantId: "", properties: { section_id: "hero" } },
+          { attribution: { gclid: "test-click" }, eventType: "section_dwell", sessionId: "s2", variantId: "b", properties: { section_id: "hero", active_ms: 4000 } },
+          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s2", variantId: "b", properties: { section_id: "hero" } },
+          { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "s2", variantId: "b" },
           // A duplicate dwell for the same session and section must not count twice.
-          { eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 9000 } },
-          { eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 2000 } },
-          { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "pricing" } },
-          { eventType: "cta_click", sessionId: "s1", variantId: "a" },
-          { eventType: "cta_click", sessionId: "s1", variantId: "a" },
-          { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "hero" } },
-          { eventType: "page_view", sessionId: "s1", variantId: "a" },
+          { attribution: { gclid: "test-click" }, eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 9000 } },
+          { attribution: { gclid: "test-click" }, eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 2000 } },
+          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "pricing" } },
+          { attribution: { gclid: "test-click" }, eventType: "cta_click", sessionId: "s1", variantId: "a" },
+          { attribution: { gclid: "test-click" }, eventType: "cta_click", sessionId: "s1", variantId: "a" },
+          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "hero" } },
+          { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "s1", variantId: "a" },
         ],
         hasNextPage: false,
       });
@@ -478,9 +481,9 @@ describe("landing experiment dashboard route", () => {
       })
       .mockResolvedValueOnce({
         docs: [
-          { eventType: "page_view", sessionId: "m1", variantId: "a", deviceClass: "mobile" },
-          { eventType: "page_view", sessionId: "d1", variantId: "a", deviceClass: "desktop" },
-          { eventType: "cta_click", sessionId: "d1", variantId: "a", deviceClass: "desktop" },
+          { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "m1", variantId: "a", deviceClass: "mobile" },
+          { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "d1", variantId: "a", deviceClass: "desktop" },
+          { attribution: { gclid: "test-click" }, eventType: "cta_click", sessionId: "d1", variantId: "a", deviceClass: "desktop" },
         ],
         hasNextPage: false,
       });
@@ -587,15 +590,17 @@ describe("landing experiment dashboard route", () => {
       })
       .mockResolvedValueOnce({
         docs: [
-          { eventType: "page_view", sessionId: "s1", variantId: "a" },
+          { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "s1", variantId: "a" },
           {
+            attribution: { gclid: "test-click" },
             eventType: "form_submit",
             sessionId: "s1",
             variantId: "a",
             properties: { form_id: "readiness-checklist" },
           },
-          { eventType: "page_view", sessionId: "s2", variantId: "a" },
+          { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "s2", variantId: "a" },
           {
+            attribution: { gclid: "test-click" },
             eventType: "form_submit",
             sessionId: "s2",
             variantId: "a",
@@ -619,8 +624,9 @@ describe("landing experiment dashboard route", () => {
       .mockResolvedValueOnce({ docs: [] })
       .mockResolvedValueOnce({
         docs: [
-          { eventType: "page_view", sessionId: "s1" },
+          { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "s1" },
           {
+            attribution: { gclid: "test-click" },
             eventType: "page_dwell",
             sessionId: "s1",
             pageViewId: "pv1",
@@ -628,13 +634,14 @@ describe("landing experiment dashboard route", () => {
           },
           // A duplicated beacon for the same page view must not double count.
           {
+            attribution: { gclid: "test-click" },
             eventType: "page_dwell",
             sessionId: "s1",
             pageViewId: "pv1",
             properties: { active_ms: 12000, total_ms: 30000 },
           },
           // A session from before page_dwell existed: unmeasured, not zero.
-          { eventType: "page_view", sessionId: "s2" },
+          { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "s2" },
         ],
         hasNextPage: false,
       });

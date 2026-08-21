@@ -93,6 +93,8 @@ interface ReportResponse {
   rangeDays: number;
   controlVariantId: string;
   variants: VariantSummary[];
+  /** Distinct Google Ads sessions that reached the engagement threshold. */
+  engagedSessions?: number;
   comparisons: ComparisonSummary[];
   funnel: FunnelStep[];
   funnelByVariant: Record<string, FunnelStep[]>;
@@ -266,6 +268,7 @@ export function LandingExperimentTab({
   range: controlledRange,
   onRangeChange,
   standaloneHeader = false,
+  landingPages,
 }: {
   slug: string;
   customerId?: string;
@@ -273,11 +276,29 @@ export function LandingExperimentTab({
   range?: LandingDateRange;
   onRangeChange?: (range: LandingDateRange) => void;
   standaloneHeader?: boolean;
+  landingPages?: Array<{
+    pageId: string;
+    title: string;
+    clicks: number;
+    paidSessions: number;
+    paidEngagedSessions: number;
+    paidTrackedConversions?: number;
+    paidTimedSessions?: number;
+    paidAverageSeconds?: number | null;
+    adGroups: Array<{ name: string }>;
+  }>;
 }) {
   const [data, setData] = useState<ReportResponse | null>(null);
   const [catalogPages, setCatalogPages] = useState<
-    Array<{ pageId: string; title: string; adGroupName?: string }>
+    Array<{ pageId: string; title: string; adGroupName?: string; clicks: number }>
   >([]);
+  const providedCatalogPages = landingPages?.map((entry) => ({
+    pageId: entry.pageId,
+    title: entry.title,
+    clicks: entry.clicks,
+    adGroupName: entry.adGroups[0]?.name,
+  }));
+  const effectiveCatalogPages = providedCatalogPages ?? catalogPages;
   const [postClick, setPostClick] = useState<PostClickMonth[] | null>(null);
   const [postClickNote, setPostClickNote] = useState<string | null>(null);
   const [internalRange, setInternalRange] = useState<LandingDateRange>(DEFAULT_LANDING_DATE_RANGE);
@@ -325,9 +346,9 @@ export function LandingExperimentTab({
   }, [slug, range, page, device]);
 
   useEffect(() => {
-    if (!isAwayDigitalSlug(slug)) return;
+    if (landingPages !== undefined || !isAwayDigitalSlug(slug)) return;
     let cancelled = false;
-    const catalogQuery = new URLSearchParams({ slug, catalog: "1" });
+    const catalogQuery = new URLSearchParams({ slug });
     landingDateRangeParams(range).forEach((value, key) => catalogQuery.set(key, value));
 
     fetch(`/api/dashboard/landing-pages?${catalogQuery}`, {
@@ -346,6 +367,8 @@ export function LandingExperimentTab({
             const row = entry as Record<string, unknown>;
             const pageId = typeof row.pageId === "string" ? row.pageId : "";
             const title = typeof row.title === "string" ? row.title : pageId;
+            const numericClicks = Number(row.clicks);
+            const clicks = Number.isFinite(numericClicks) && numericClicks >= 0 ? numericClicks : 0;
             const adGroupName = Array.isArray(row.adGroups)
               ? row.adGroups.flatMap((group) => {
                   if (!group || typeof group !== "object") return [];
@@ -353,7 +376,7 @@ export function LandingExperimentTab({
                   return typeof name === "string" && name.trim() ? [name.trim()] : [];
                 })[0]
               : undefined;
-            return resolveLandingPage(pageId) ? [{ pageId, title, adGroupName }] : [];
+            return resolveLandingPage(pageId) ? [{ pageId, title, adGroupName, clicks }] : [];
           }),
         );
       })
@@ -364,7 +387,7 @@ export function LandingExperimentTab({
     return () => {
       cancelled = true;
     };
-  }, [slug, range]);
+  }, [slug, range, landingPages]);
   /**
    * What happened to these leads after the form, from HubSpot.
    *
@@ -437,34 +460,48 @@ export function LandingExperimentTab({
 
   const sessions = data.variants.reduce((sum, variant) => sum + variant.sessions, 0);
   const conversions = data.variants.reduce((sum, variant) => sum + variant.conversions, 0);
-  const conversionRate = sessions > 0 ? conversions / sessions : 0;
   const realMarkets = data.markets.filter((entry) => entry.key !== "(unset)");
-  const catalogTitles = new Map(catalogPages.map((entry) => [entry.pageId, entry.title]));
+  const catalogTitles = new Map(effectiveCatalogPages.map((entry) => [entry.pageId, entry.title]));
+  const headlinePages = landingPages?.filter((entry) => !page || entry.pageId === page);
+  const googleAdsClicks = (headlinePages ?? effectiveCatalogPages)
+    .filter((entry) => !page || entry.pageId === page)
+    .reduce((sum, entry) => sum + entry.clicks, 0);
+  const headlineSessions = headlinePages
+    ? headlinePages.reduce((sum, entry) => sum + entry.paidSessions, 0)
+    : sessions;
+  const headlineEngagedSessions = headlinePages
+    ? headlinePages.reduce((sum, entry) => sum + entry.paidEngagedSessions, 0)
+    : (data.engagedSessions ?? 0);
+  const headlineConversions = headlinePages
+    ? headlinePages.reduce((sum, entry) => sum + (entry.paidTrackedConversions ?? 0), 0)
+    : conversions;
+  const headlineConversionRate =
+    headlineSessions > 0 ? headlineConversions / headlineSessions : 0;
+  const headlineTimedSessions = headlinePages
+    ? headlinePages.reduce((sum, entry) => sum + (entry.paidTimedSessions ?? 0), 0)
+    : (data.sessionTime?.measuredSessions ?? 0);
+  const headlineAverageSeconds = headlinePages
+    ? headlineTimedSessions > 0
+      ? headlinePages.reduce(
+          (sum, entry) =>
+            sum + (entry.paidAverageSeconds ?? 0) * (entry.paidTimedSessions ?? 0),
+          0,
+        ) / headlineTimedSessions
+      : null
+    : (data.sessionTime?.medianActiveSeconds ?? null);
+  const hasHeadlineData = headlineSessions > 0 || googleAdsClicks > 0;
   const pageLabel = (key: string) =>
     (catalogTitles.get(key) ?? key).replace(/\s*\|\s*Away Digital Teams[’']?\s*$/i, "");
   const pageOptions = [...data.pages];
-  for (const entry of catalogPages) {
+  for (const entry of effectiveCatalogPages) {
     if (!pageOptions.some((option) => option.key === entry.pageId)) {
       pageOptions.push({ key: entry.pageId, sessions: 0, conversions: 0, conversionRate: 0 });
     }
   }
 
-  // The single worst hand-off in the funnel: the first thing worth fixing.
-  const leak = data.funnel
-    .slice(1)
-    .reduce<FunnelStep | null>(
-      (worst, step) => (step.dropOffRate > (worst?.dropOffRate ?? 0) ? step : worst),
-      null
-    );
-  const leakPrevious = leak ? data.funnel[data.funnel.findIndex((s) => s.key === leak.key) - 1] : null;
-
   const goalLabel = data.experiment
     ? BEHAVIOUR_LABELS[data.experiment.primaryGoal] ?? data.experiment.primaryGoal
     : "Conversions";
-  // Promoted to the headline row: the checklist is the second outcome the page
-  // is built to produce, so it belongs beside the primary goal rather than
-  // further down the page.
-  const checklist = data.secondaryConversions?.find((row) => row.id === "readiness_checklist");
   const running = data.experiment?.status?.toLowerCase() === "running";
   const sectionTemplate = resolveSectionTemplate(page, pageOptions);
   // The shared market previews predate ad-group landing page IDs; each is the
@@ -475,7 +512,7 @@ export function LandingExperimentTab({
       : sectionTemplate?.pageId === "offshore-teams-us"
         ? "ag-vietnam-outsourcing-us"
         : sectionTemplate?.pageId;
-  const previewAdGroupName = catalogPages.find(
+  const previewAdGroupName = effectiveCatalogPages.find(
     (entry) => entry.pageId === previewCatalogPageId,
   )?.adGroupName;
 
@@ -622,59 +659,43 @@ export function LandingExperimentTab({
           you have to scroll. The dashboard renders at 85% zoom, so the sm/md
           breakpoints land far wider than they read, and holding six to `xl`
           wrapped them two-up on a laptop that had room for the row. */}
-      {hasVariants && (
+      {hasHeadlineData && (
         <div className="grid grid-cols-2 gap-3 min-[640px]:grid-cols-3 min-[760px]:grid-cols-6 min-[1120px]:gap-4">
           <StatCard
-            label="Sessions"
-            value={sessions.toLocaleString()}
-            note={`${landingDateRangeLabel(range)}${page ? ` · ${page}` : ""}`}
+            label="Google Ads clicks"
+            value={googleAdsClicks.toLocaleString()}
+            note="Mapped ad-group clicks from Google Ads"
           />
-          <StatCard label="Conversions" value={conversions.toLocaleString()} note={goalLabel} />
+          <StatCard
+            label="Google Ads sessions"
+            value={headlineSessions.toLocaleString()}
+            note={`${landingDateRangeLabel(range)}${page ? ` · ${pageLabel(page)}` : ""}`}
+          />
+          <StatCard
+            label="Engaged sessions"
+            value={headlineEngagedSessions.toLocaleString()}
+            note="Google Ads sessions engaged for at least three seconds"
+          />
+          <StatCard label="Conversions" value={headlineConversions.toLocaleString()} note={goalLabel} />
           <StatCard
             label="Conversion rate"
-            value={pct(conversionRate)}
+            value={pct(headlineConversionRate)}
             accent
             note={
               realMarkets.length > 1
                 ? realMarkets.map((m) => `${m.key} ${pct(m.conversionRate)}`).join(" · ")
-                : "Sessions that reached the primary goal"
+                : "Google Ads sessions that reached the primary goal"
             }
-          />
-          {leak && leak.dropOffRate > 0 ? (
-            <StatCard
-              label="Biggest leak"
-              value={leak.label}
-              note={`−${leak.droppedFromPrevious.toLocaleString()} sessions (${shortPct(
-                leak.dropOffRate
-              )}) after “${leakPrevious ? leakPrevious.label : "the previous step"}”`}
-            />
-          ) : (
-            <StatCard
-              label="Biggest leak"
-              value={NO_DATA}
-              note="No drop-off measured in this range"
-            />
-          )}
-          {/* Rendered even at zero: "nobody downloaded the checklist" is a
-              finding, and an absent box would read as the metric not existing. */}
-          <StatCard
-            label={checklist ? checklist.label : "Readiness checklist sign-ups"}
-            value={checklist ? checklist.sessions.toLocaleString() : NO_DATA}
-            note={checklist ? `${pct(checklist.rate)} of sessions` : "Not counted in this range"}
           />
           {/* Active time, not wall-clock: a tab left open in the background is
               not someone reading. Median, because a handful of abandoned tabs
               would pull a mean away from the typical visit. */}
           <StatCard
-            label="Average time on site"
-            value={
-              data.sessionTime && data.sessionTime.measuredSessions > 0
-                ? formatSeconds(data.sessionTime.medianActiveSeconds)
-                : NO_DATA
-            }
+            label="Time / session"
+            value={headlineAverageSeconds == null ? NO_DATA : formatSeconds(headlineAverageSeconds)}
             note={
-              data.sessionTime && data.sessionTime.measuredSessions > 0
-                ? `Median across ${data.sessionTime.measuredSessions.toLocaleString()} measured sessions`
+              headlineTimedSessions > 0
+                ? `Average across ${headlineTimedSessions.toLocaleString()} measured Google Ads sessions`
                 : "Not measured in this range"
             }
           />
@@ -753,50 +774,9 @@ export function LandingExperimentTab({
         </div>
       )}
 
-      {(data.attribution?.length ?? 0) > 0 && (
-        <section className={`${CARD} space-y-4`} aria-labelledby="landing-attribution-heading">
-          <h4 id="landing-attribution-heading" className="text-base font-bold text-slate-900">
-            Attribution
-          </h4>
-          <SegmentTable
-            rows={data.attribution}
-            firstColumn="Source / medium / campaign / landing page"
-            checklistColumn
-          />
-        </section>
-      )}
-
-      <PaidTrafficPanel paidTraffic={data.paidTraffic} />
 
       <PostClickPanel months={postClick} note={postClickNote} />
 
-      <section className={`${CARD} space-y-4`} aria-labelledby="landing-behaviour-heading">
-        <h4 id="landing-behaviour-heading" className="text-base font-bold text-slate-900">
-          On-page behaviour
-        </h4>
-
-        {/* Gapped cells rather than a hairline-divided block: the count of
-            event types is whatever fired, so a divided grid would end in empty
-            cells that read as missing data. */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-          {Object.entries(data.behaviourTotals)
-            .sort((a, b) => b[1] - a[1])
-            .map(([eventType, count]) => (
-              <div key={eventType} className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="text-xs text-slate-500">
-                  {BEHAVIOUR_LABELS[eventType] ?? eventType}
-                </div>
-                <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-                  {count.toLocaleString()}
-                </div>
-              </div>
-            ))}
-        </div>
-        <p className="text-sm text-slate-500">
-          Counts consented visitors only, so they are lower than total traffic and should not be
-          read as sitewide volume.
-        </p>
-      </section>
     </div>
   );
 }
@@ -966,28 +946,6 @@ function PostClickPanel({ months, note }: { months: PostClickMonth[] | null; not
   );
 }
 
-/** Google Ads-attributed sessions recorded by the landing-page tracker. */
-function PaidTrafficPanel({
-  paidTraffic,
-}: {
-  paidTraffic?: { pages: Segment[]; preClickAvailable: boolean };
-}) {
-  if (!paidTraffic || paidTraffic.pages.length === 0) return null;
-
-  return (
-    <section className={`${CARD} space-y-4`} aria-labelledby="landing-paid-heading">
-      <h4 id="landing-paid-heading" className="text-base font-bold text-slate-900">
-        Ads-tagged sessions by actual landing page
-      </h4>
-      <p className="text-xs leading-relaxed text-slate-500">
-        Exact pages where a consented session arrived carrying a Google click ID (gclid or gbraid).
-        These are tracked post-click sessions, not Google Ads click or spend totals, and a reload can
-        create another session.
-      </p>
-      <SegmentTable rows={paidTraffic.pages} firstColumn="Tracked landing page ID" timeColumn />
-    </section>
-  );
-}
 
 /**
  * "Where people spend their time", in the page's real order when we know the

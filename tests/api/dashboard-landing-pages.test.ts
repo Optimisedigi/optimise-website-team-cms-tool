@@ -335,6 +335,8 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
             paid: 4,
             engaged: 6,
             paid_engaged: 3,
+            converted: 2,
+            paid_converted: 1,
           },
           {
             page_id: "ag-rpo-recruitment-us",
@@ -343,6 +345,8 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
             paid: 5,
             engaged: 2,
             paid_engaged: 2,
+            converted: 0,
+            paid_converted: 0,
           },
           {
             page_id: "offshore-teams-au",
@@ -351,15 +355,17 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
             paid: 12,
             engaged: 9,
             paid_engaged: 7,
+            converted: 1,
+            paid_converted: 1,
           },
         ],
       })
       .mockResolvedValueOnce({
         rows: [
           // Median of 4s, 20s, 90s is 20s - not the 38s mean a long tab would give.
-          { page_id: "ag-bpo-services-au", session_ms: 4000 },
-          { page_id: "ag-bpo-services-au", session_ms: 20000 },
-          { page_id: "ag-bpo-services-au", session_ms: 90000 },
+          { page_id: "ag-bpo-services-au", session_ms: 4000, paid: 1 },
+          { page_id: "ag-bpo-services-au", session_ms: 20000, paid: 1 },
+          { page_id: "ag-bpo-services-au", session_ms: 90000, paid: 0 },
         ],
       });
 
@@ -375,13 +381,22 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
     expect(bpo.paidSessions).toBe(4);
     expect(bpo.engagedSessions).toBe(6);
     expect(bpo.paidEngagedSessions).toBe(3);
+    expect(bpo.trackedConversions).toBe(2);
+    expect(bpo.paidTrackedConversions).toBe(1);
+    expect(bpo.averageSeconds).toBe(38);
+    expect(bpo.paidAverageSeconds).toBe(12);
+    expect(bpo.paidMedianSeconds).toBe(4);
     expect(legacyAu.url).toBe("https://hire.awaydigitalteams.com/outsourcing-au");
     expect(legacyAu.engagedSessions).toBe(9);
     expect(legacyAu.paidEngagedSessions).toBe(7);
 
     expect(rpo.bounceRate).toBe(0);
     // No dwell beacon means unknown, not zero: "0s" would claim they left at once.
+    expect(rpo.averageSeconds).toBeNull();
     expect(rpo.medianSeconds).toBeNull();
+    expect(rpo.paidAverageSeconds).toBeNull();
+    expect(rpo.paidMedianSeconds).toBeNull();
+
   });
 
   it("reports no engagement rather than failing when the query errors", async () => {

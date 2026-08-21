@@ -119,7 +119,7 @@ describe("LandingExperimentTab with a single landing page", () => {
       expect(labels).toContain("RPO in Vietnam");
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/dashboard/landing-pages?slug=away-digital-teams&catalog=1&start=2026-08-17&end=2026-08-20",
+      "/api/dashboard/landing-pages?slug=away-digital-teams&start=2026-08-17&end=2026-08-21",
       expect.objectContaining({ credentials: "include" }),
     );
   });

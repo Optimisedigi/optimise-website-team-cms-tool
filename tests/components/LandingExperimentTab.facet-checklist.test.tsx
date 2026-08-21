@@ -47,6 +47,7 @@ const report = {
     { id: "readiness_checklist", label: "Readiness checklist sign-ups", sessions: 3, rate: 0.0014 },
   ],
   sections: [],
+  engagedSessions: 1200,
   behaviourTotals: {},
   eventsScanned: 4200,
   truncated: false,
@@ -57,9 +58,26 @@ afterEach(() => vi.restoreAllMocks());
 function renderTab(overrides: Partial<typeof report> = {}) {
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...report, ...overrides }) })
+    vi.fn((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          url.includes("landing-pages")
+            ? {
+                pages: [
+                  {
+                    pageId: "offshore-teams-au",
+                    title: "Outsourcing AU",
+                    clicks: 2400,
+                    adGroups: [{ name: "Generic outsourcing" }],
+                  },
+                ],
+              }
+            : { ...report, ...overrides },
+      }),
+    ),
   );
-  render(<LandingExperimentTab slug="away-digital" />);
+  render(<LandingExperimentTab slug="away-digital-teams" />);
 }
 
 /** The table under a given card heading. */
@@ -138,9 +156,7 @@ describe("checklist sign-ups on the market and device tables", () => {
     expect(screen.queryByRole("heading", { name: "Other conversions" })).toBeNull();
   });
 
-  it("keeps the headline checklist figure, which the card is not needed for", async () => {
-    // The headline row only renders with variants present, so this case supplies
-    // them; the tables above do not need them.
+  it("shows the Google Ads funnel in the headline cards", async () => {
     renderTab({
       variants: [
         { variantId: "a", sessions: 2079, conversions: 110, conversionRate: 0.053, interval: [0, 0], eventCounts: {} },
@@ -148,12 +164,11 @@ describe("checklist sign-ups on the market and device tables", () => {
     } as Partial<typeof report>);
 
     await screen.findByRole("heading", { name: "Markets" });
-
-    // Still reported at the top beside the primary goal: removing the card must
-    // not remove the number, only the second place it was shown.
-    const label = screen.getAllByText("Readiness checklist sign-ups")[0];
-    const card = label.parentElement!;
-    expect(within(card).getByText("3")).toBeTruthy();
-    expect(within(card).getByText("0.14% of sessions")).toBeTruthy();
+    expect(screen.getByText("Google Ads clicks")).toBeTruthy();
+    expect(screen.getByText("2,400")).toBeTruthy();
+    expect(screen.getByText("Google Ads sessions")).toBeTruthy();
+    expect(screen.getByText("Engaged sessions")).toBeTruthy();
+    expect(screen.queryByText("Biggest leak")).toBeNull();
+    expect(screen.queryByText("Readiness checklist sign-ups", { selector: "dt" })).toBeNull();
   });
 });

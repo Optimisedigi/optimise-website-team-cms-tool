@@ -1,15 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LandingExperimentTab } from "@/components/dashboards/googleads/LandingExperimentTab";
 
 /**
- * Covers the two things typecheck cannot see: that the attribution facet
- * actually reaches the table, and that the page preview is the first cell of
- * the section grid and stays pinned while the numbers beside it scroll.
- *
- * Both are pure render assertions, so they fail if the grid order is flipped
- * back or the sticky classes are dropped in a later tidy-up.
+ * Covers deliberate report removals and the page-preview layout that typecheck
+ * cannot see. The landing-pages panel now owns per-page acquisition metrics.
  */
 
 /** Two pages, so a page can be selected to resolve pageMeta and the preview. */
@@ -37,6 +33,12 @@ const report = {
       checklistSessions: 9,
     },
   ],
+  paidTraffic: {
+    pages: [
+      { key: "outsourcing-au", sessions: 12, conversions: 2, conversionRate: 0.1667, medianSeconds: 8 },
+    ],
+    preClickAvailable: true,
+  },
   experiment: {
     id: "landing-hero-v1",
     name: "Hero test",
@@ -90,82 +92,34 @@ async function renderTabWithPage() {
   fireEvent.change(select, { target: { value: "offshore-teams-au" } });
 }
 
-describe("LandingExperimentTab attribution table", () => {
-  it("lists each source/medium/campaign with its sessions and conversions", async () => {
+describe("LandingExperimentTab consolidated report", () => {
+  it("does not render the superseded attribution or Ads-tagged landing-page panels", async () => {
     renderTab();
 
-    const heading = await screen.findByRole("heading", { name: "Attribution" });
-    // Scoped to the card, not to the heading's immediate parent: the heading
-    // shares a row with other header content, so its parent is not the card.
-    const table = heading.closest("section")!.querySelector("table")!;
-    expect(table).toBeTruthy();
-
-    const paidRow = within(table).getByText("google / cpc / brand-au").closest("tr")!;
-    expect(within(paidRow).getByText("2,076")).toBeTruthy();
-    expect(within(paidRow).getByText("110")).toBeTruthy();
-    expect(within(paidRow).getByText("5.30%")).toBeTruthy();
-
-    // An untagged visit is a real bucket, not missing data, so it must appear.
-    const directRow = within(table).getByText("(direct) / (none) / (none)").closest("tr")!;
-    expect(within(directRow).getByText("318")).toBeTruthy();
-    expect(within(directRow).getByText("4")).toBeTruthy();
-  });
-
-  it("names the three attribution columns", async () => {
-    renderTab();
-
-    const heading = await screen.findByRole("heading", { name: "Attribution" });
-    const table = heading.closest("section")!.querySelector("table")!;
-    const headers = within(table)
-      .getAllByRole("columnheader")
-      .map((cell) => cell.textContent);
-
-    expect(headers).toEqual([
-      "Source / medium / campaign / landing page",
-      "Sessions",
-      "Conversions",
-      "Conversion rate",
-      "Readiness checklist sign-ups",
-    ]);
-  });
-
-  it("reports checklist sign-ups per attribution bucket", async () => {
-    renderTab();
-
-    const heading = await screen.findByRole("heading", { name: "Attribution" });
-    const table = heading.closest("section")!.querySelector("table")!;
-
-    const paidRow = within(table).getByText("google / cpc / brand-au").closest("tr")!;
-    expect(within(paidRow).getByText("64")).toBeTruthy();
-
-    const directRow = within(table).getByText("(direct) / (none) / (none)").closest("tr")!;
-    expect(within(directRow).getByText("9")).toBeTruthy();
+    await screen.findByLabelText("Page");
+    expect(screen.queryByRole("heading", { name: "Attribution" })).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Ads-tagged sessions by actual landing page" }),
+    ).toBeNull();
   });
 });
 
-/**
- * The funnel card was removed from the report, and the form split and its
- * pooled step went with it: both lived inside that card. Checklist sign-ups are
- * now reported as a headline figure and as an attribution column instead.
- *
- * Asserted rather than deleted, so the removal stays deliberate — a later edit
- * that reinstates the funnel has to reinstate this decision too.
- */
+/** Removed report cards stay removed unless the product decision changes. */
 describe("LandingExperimentTab funnel removal", () => {
   it("drops the funnel card and the form split that lived inside it", async () => {
     renderTab();
 
-    await screen.findByRole("heading", { name: "Attribution" });
+    await screen.findByLabelText("Page");
     expect(screen.queryByText("Where people drop off")).toBeNull();
     expect(screen.queryByText("Which form was submitted")).toBeNull();
     expect(screen.queryByText("Submitted the form")).toBeNull();
   });
 
-  it("still reports checklist sign-ups, the outcome the split was read for", async () => {
+  it("drops the separate on-page behaviour card", async () => {
     renderTab();
 
-    await screen.findByRole("heading", { name: "Attribution" });
-    expect(screen.getAllByText("Readiness checklist sign-ups").length).toBeGreaterThan(0);
+    await screen.findByLabelText("Page");
+    expect(screen.queryByText("On-page behaviour")).toBeNull();
   });
 });
 

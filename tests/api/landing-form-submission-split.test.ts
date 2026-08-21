@@ -55,7 +55,10 @@ function mockEvents(docs: Record<string, unknown>[]) {
         },
       ],
     })
-    .mockResolvedValueOnce({ docs, hasNextPage: false });
+    .mockResolvedValueOnce({
+      docs: docs.map((event) => ({ attribution: { gclid: "test-click" }, ...event })),
+      hasNextPage: false,
+    });
 }
 
 beforeEach(() => {

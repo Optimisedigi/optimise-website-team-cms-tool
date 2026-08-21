@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { LandingExperimentTab } from "../googleads/LandingExperimentTab";
 import { DEFAULT_LANDING_DATE_RANGE, type LandingDateRange } from "@/lib/landing-date-range";
-import { AdGroupPagesPanel } from "./AdGroupPagesPanel";
+import { AdGroupPagesPanel, type ManifestPage } from "./AdGroupPagesPanel";
 
 export function LandingDashboardReport({
   slug,
@@ -15,6 +15,7 @@ export function LandingDashboardReport({
   standaloneHeader?: boolean;
 }) {
   const [range, setRange] = useState<LandingDateRange>(DEFAULT_LANDING_DATE_RANGE);
+  const [landingPages, setLandingPages] = useState<ManifestPage[]>([]);
 
   return (
     <>
@@ -24,9 +25,10 @@ export function LandingDashboardReport({
         range={range}
         onRangeChange={setRange}
         standaloneHeader={standaloneHeader}
+        landingPages={landingPages}
       />
       <div className="mt-6">
-        <AdGroupPagesPanel slug={slug} range={range} />
+        <AdGroupPagesPanel slug={slug} range={range} onPagesLoaded={setLandingPages} />
       </div>
     </>
   );
