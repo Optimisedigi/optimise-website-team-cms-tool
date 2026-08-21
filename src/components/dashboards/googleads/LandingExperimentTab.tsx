@@ -58,8 +58,11 @@ interface FunnelStep {
 interface SectionDwell {
   sectionId: string;
   sessions: number;
+  reachRate?: number;
   timingSamples?: number;
   medianSeconds: number;
+  engagedSessions?: number;
+  engagedRate?: number;
   p90Seconds: number;
   exits: number;
   exitRate: number;
@@ -104,6 +107,8 @@ interface ReportResponse {
   /** Post-click ad performance per page. `preClickAvailable` is false until Growth Tools exposes it. */
   paidTraffic?: { pages: Segment[]; preClickAvailable: boolean };
   sections: SectionDwell[];
+  /** Visits eligible for version-2 reach and dominant-dwell metrics. */
+  sectionMeasurementSessions?: number;
   /** Absent from responses served before session timing shipped. */
   sessionTime?: {
     measuredSessions: number;
@@ -731,6 +736,7 @@ export function LandingExperimentTab({
           conversions={conversions}
           devices={data.devices}
           totalDeviceSessions={totalDeviceSessions}
+          sectionMeasurementSessions={data.sectionMeasurementSessions ?? 0}
           device={device}
           onDeviceChange={setDevice}
         />
@@ -968,6 +974,7 @@ function SectionDwellPanel({
   conversions,
   devices,
   totalDeviceSessions,
+  sectionMeasurementSessions,
   device,
   onDeviceChange,
 }: {
@@ -977,6 +984,7 @@ function SectionDwellPanel({
   conversions: number;
   devices: Segment[];
   totalDeviceSessions: number;
+  sectionMeasurementSessions: number;
   device: string;
   onDeviceChange: (device: string) => void;
 }) {
@@ -1011,9 +1019,8 @@ function SectionDwellPanel({
           dwell: section,
         }));
 
-  // A conversion recorded while its section never registered as seen is not a
-  // contradiction — the section can be completed without ever clearing the 50%
-  // visibility bar — but it reads as one, so the row says which it is.
+  // A completed goal with no reach event means the lifecycle beacon was lost
+  // or the conversion happened before the current measurement version shipped.
   const goalSectionId = pageMeta?.goalSectionId ?? null;
   const unseenGoalSection =
     conversions > 0 &&
@@ -1022,17 +1029,28 @@ function SectionDwellPanel({
       ? goalSectionId
       : null;
 
-  const worstExit = Math.max(...sections.map((s) => s.exitRate), 0);
   const longestMedian = Math.max(...sections.map((s) => s.medianSeconds), 1);
-  const hasReachData = sections.length > 0 && sections.every((section) => section.timingSamples !== undefined);
+  const hasCurrentSectionMetrics = sections.some((section) => section.reachRate !== undefined);
   const previewSrc = pageMeta ? `${pageMeta.url}${activeAnchor ? `#${activeAnchor}` : ""}` : null;
 
   return (
     <section className={`${CARD} space-y-4`} aria-labelledby="landing-attention-heading">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <h4 id="landing-attention-heading" className="text-base font-bold text-slate-900">
-          Where people spend their time
-        </h4>
+        <div>
+          <h4 id="landing-attention-heading" className="text-base font-bold text-slate-900">
+            Where people spend their time
+          </h4>
+          {hasCurrentSectionMetrics ? (
+            <p className="mt-1 text-xs text-slate-500">
+              Current reach and active-dwell measurement · {sectionMeasurementSessions.toLocaleString()} eligible session
+              {sectionMeasurementSessions === 1 ? "" : "s"}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-slate-500">
+              New section measurement starts with the next tracked visit; legacy visibility data is excluded.
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           {/* The split is always visible beside the toggle, so selecting one
               device never hides how much traffic the other had. */}
@@ -1141,25 +1159,30 @@ function SectionDwellPanel({
                   Section
                 </th>
                 <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
-                  {hasReachData ? "Reached" : "Sessions"}
+                  Reached
                 </th>
                 <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
-                  Median dwell
+                  Median active dwell
                 </th>
                 <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">
-                  Top 10%
+                  Engaged
                 </th>
                 <th scope="col" className="border-b border-slate-200 pb-2 text-right font-normal">
-                  Left from here
+                  Drop-off to next
                 </th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {rows.map((row, index) => {
                 const dwell = row.dwell;
+                const nextDwell = rows[index + 1]?.dwell ?? null;
                 const timingSamples = dwell?.timingSamples ?? dwell?.sessions ?? 0;
-                const isExitPoint =
-                  dwell !== null && dwell.exitRate === worstExit && dwell.exitRate > 0;
+                const dropOff = dwell && index < rows.length - 1
+                  ? Math.max(0, dwell.sessions - (nextDwell?.sessions ?? 0))
+                  : null;
+                const dropOffRate = dwell && dropOff !== null && dwell.sessions > 0
+                  ? dropOff / dwell.sessions
+                  : null;
                 const clickable = pageMeta !== null && showPreview;
                 const isActive = activeAnchor !== null && activeAnchor === row.anchor;
                 return (
@@ -1186,7 +1209,10 @@ function SectionDwellPanel({
                     {dwell ? (
                       <>
                         <td className="py-2.5 pr-4 text-slate-700 tabular-nums">
-                          {dwell.sessions.toLocaleString()}
+                          <span className="font-medium">{dwell.sessions.toLocaleString()}</span>
+                          <span className="ml-1.5 text-[10px] text-slate-400">
+                            {shortPct(dwell.reachRate ?? (totalDeviceSessions > 0 ? dwell.sessions / totalDeviceSessions : 0))}
+                          </span>
                         </td>
                         <td className="py-2.5 pr-4">
                           {timingSamples > 0 ? (
@@ -1213,17 +1239,20 @@ function SectionDwellPanel({
                             <span className="text-slate-400">Not timed</span>
                           )}
                         </td>
-                        <td className="py-2.5 pr-4 text-slate-500 tabular-nums">
-                          {timingSamples > 0 ? `${dwell.p90Seconds}s` : "—"}
+                        <td className="py-2.5 pr-4 text-slate-700 tabular-nums">
+                          {hasCurrentSectionMetrics && dwell.engagedSessions !== undefined ? (
+                            <>
+                              <span className="font-medium">{dwell.engagedSessions.toLocaleString()}</span>
+                              <span className="ml-1.5 text-[10px] text-slate-400">
+                                {shortPct(dwell.engagedRate ?? 0)}
+                              </span>
+                            </>
+                          ) : "—"}
                         </td>
-                        <td className="py-2.5 text-right tabular-nums">
-                          <span
-                            className={
-                              isExitPoint ? "font-semibold text-amber-800" : "text-slate-700"
-                            }
-                          >
-                            {dwell.exits.toLocaleString()} ({shortPct(dwell.exitRate)})
-                          </span>
+                        <td className="py-2.5 text-right tabular-nums text-slate-700">
+                          {dropOff === null || dropOffRate === null
+                            ? "—"
+                            : `${dropOff.toLocaleString()} (${shortPct(dropOffRate)})`}
                         </td>
                       </>
                     ) : (
@@ -1241,11 +1270,9 @@ function SectionDwellPanel({
           {unseenGoalSection && (
             <p className="mt-3 max-w-2xl rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
               <strong className="font-semibold text-slate-800">Why “{sectionLabel(unseenGoalSection)}” is empty.</strong>{" "}
-              This table measures whether a section was <em>on screen</em>, at least half visible.
-              The goal was completed {conversions.toLocaleString()} time
-              {conversions === 1 ? "" : "s"} in this range without that section ever clearing the
-              bar, so the two numbers do not contradict each other. The conversion is real, the
-              visibility was never recorded.
+              The conversion is real, but its section-reach event was not delivered. Reach now uses
+              scroll depth rather than a visibility percentage, so new visits should not contain the
+              tall-section gaps found in the previous measurement.
             </p>
           )}
         </div>

@@ -100,15 +100,19 @@ export interface FunnelStep {
 
 export interface SectionDwell {
   sectionId: string;
-  /** Distinct sessions where at least half of the section entered the viewport. */
+  /** Distinct sessions whose scroll depth crossed the section's leading edge. */
   sessions: number;
-  /** Sessions that supplied usable active-time data for this section. */
+  /** Reached sessions as a share of all filtered landing-page sessions. */
+  reachRate: number;
+  /** Sessions that supplied usable dominant-section active time. */
   timingSamples: number;
-  /** Median active seconds on screen. Median, because a few idle tabs skew a mean badly. */
+  /** Median active seconds while this was the dominant visible section. */
   medianSeconds: number;
-  /** 90th percentile, to show the spread rather than implying everyone behaved alike. */
+  /** Sessions that gave this section at least three active seconds. */
+  engagedSessions: number;
+  engagedRate: number;
+  /** Retained in the API for older dashboard clients; no longer shown. */
   p90Seconds: number;
-  /** Sessions whose last seen section was this one: where people stopped reading. */
   exits: number;
   exitRate: number;
 }
@@ -214,11 +218,14 @@ export function summariseSections(
   exitsBySection: Map<string, number>,
   sessionsWithExit: number,
   reachedSessionsBySection: Map<string, Set<string>> = new Map(),
+  engagedSessionsBySection: Map<string, Set<string>> = new Map(),
+  totalSessions = 0,
 ): SectionDwell[] {
   // Include reached-only sections: a dropped lifecycle beacon must remove timing,
   // not erase evidence that the visitor reached the section.
   const sectionIds = new Set([
     ...reachedSessionsBySection.keys(),
+    ...engagedSessionsBySection.keys(),
     ...dwellMs.keys(),
     ...exitsBySection.keys(),
   ]);
@@ -227,19 +234,22 @@ export function summariseSections(
     .map((sectionId) => {
       const sorted = [...(dwellMs.get(sectionId) ?? [])].sort((a, b) => a - b);
       const exits = exitsBySection.get(sectionId) ?? 0;
+      const sessions = reachedSessionsBySection.get(sectionId)?.size ?? 0;
+      const engagedSessions = engagedSessionsBySection.get(sectionId)?.size ?? 0;
       return {
         sectionId,
-        sessions: reachedSessionsBySection.get(sectionId)?.size ?? 0,
+        sessions,
+        reachRate: totalSessions > 0 ? sessions / totalSessions : 0,
         timingSamples: sorted.length,
         medianSeconds: Math.round(percentile(sorted, 0.5) / 100) / 10,
+        engagedSessions,
+        engagedRate: sessions > 0 ? engagedSessions / sessions : 0,
         p90Seconds: Math.round(percentile(sorted, 0.9) / 100) / 10,
         exits,
         exitRate: sessionsWithExit > 0 ? exits / sessionsWithExit : 0,
       };
     })
-    // Most time first, but a section with no dwell data and real exits still
-    // has to appear, so exits break the tie rather than sinking it to the end.
-    .sort((a, b) => b.medianSeconds - a.medianSeconds || b.exits - a.exits);
+    .sort((a, b) => b.medianSeconds - a.medianSeconds || b.sessions - a.sessions);
 }
 
 export interface SessionTime {

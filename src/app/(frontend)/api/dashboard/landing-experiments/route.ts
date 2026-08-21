@@ -522,6 +522,7 @@ export async function GET(req: NextRequest) {
   const stepSessionsByVariant = new Map<string, Map<string, Set<string>>>();
   const dwellMs = new Map<string, number[]>();
   const sectionViewSessions = new Map<string, Set<string>>();
+  const sectionEngagedSessions = new Map<string, Set<string>>();
   const exitsBySection = new Map<string, number>();
   const lastSectionPerSession = new Map<string, string>();
   // One dwell figure per session per section: a repeat visit to a section must
@@ -541,6 +542,7 @@ export async function GET(req: NextRequest) {
   // Every session in range, so sessions predating page_dwell can be reported as
   // unmeasured instead of silently disappearing from the denominator.
   const sessionsInRange = new Set<string>();
+  const sectionMeasurementSessions = new Set<string>();
   const engagedSessionsInRange = new Set<string>();
   const secondaryGoalSessions = new Map<string, Set<string>>();
 
@@ -600,25 +602,33 @@ export async function GET(req: NextRequest) {
       // experiment is running.
       const properties = (event.properties ?? {}) as Record<string, unknown>;
       const sectionId = typeof properties.section_id === "string" ? properties.section_id : "";
+      const isCurrentSectionMeasurement =
+        Number(properties.measurement_version) === 2 ||
+        Number(properties.section_measurement_version) === 2;
+      if (isCurrentSectionMeasurement) {
+        sectionMeasurementSessions.add(sessionId);
+      }
 
-      if (sectionId) {
+      // Version 2 starts a clean reporting baseline: legacy section events used
+      // the broken 50%-of-element rule and cannot be mixed with scroll-depth reach.
+      if (sectionId && isCurrentSectionMeasurement) {
         if (eventType === "section_dwell") {
           const activeMs = Number(properties.active_ms);
           const key = `${sessionId}|${sectionId}`;
-          if (Number.isFinite(activeMs) && activeMs > 0 && !dwellSeen.has(key)) {
+          if (Number.isFinite(activeMs) && activeMs >= 0 && !dwellSeen.has(key)) {
             dwellSeen.add(key);
             if (!dwellMs.has(sectionId)) dwellMs.set(sectionId, []);
             dwellMs.get(sectionId)!.push(activeMs);
           }
         }
-        // Only section_view marks progress through the page. Dwell events are
-        // emitted together as the page is left, in whatever order the sections
-        // were recorded, so letting them set this would pick an arbitrary
-        // section as the exit point rather than the one reached last.
-        //
+        if (eventType === "section_engaged") {
+          if (!sectionEngagedSessions.has(sectionId)) {
+            sectionEngagedSessions.set(sectionId, new Set());
+          }
+          sectionEngagedSessions.get(sectionId)!.add(sessionId);
+        }
         // The scan runs newest-first, so the first section_view seen for a
-        // session is the last one it reached: first write wins, and later
-        // (older) views must not overwrite it.
+        // session is the deepest section it reached: first write wins.
         if (eventType === "section_view") {
           if (!sectionViewSessions.has(sectionId)) {
             sectionViewSessions.set(sectionId, new Set());
@@ -757,7 +767,10 @@ export async function GET(req: NextRequest) {
         exitsBySection,
         lastSectionPerSession.size,
         sectionViewSessions,
+        sectionEngagedSessions,
+        sectionMeasurementSessions.size,
       ),
+      sectionMeasurementSessions: sectionMeasurementSessions.size,
       sessionTime: summariseSessionTime(
         pageActiveMsBySession,
         pageTotalMsBySession,

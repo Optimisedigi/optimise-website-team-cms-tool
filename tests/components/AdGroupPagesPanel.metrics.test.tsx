@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 describe("AdGroupPagesPanel measurement labels", () => {
-  it("shows only Google Ads landing sessions, paid metrics, and stacked actions", async () => {
+  it("shows only Google Ads landing sessions, paid metrics, and compact actions", async () => {
     const openMock = vi.fn();
     vi.stubGlobal("open", openMock);
     vi.stubGlobal(
@@ -112,20 +112,20 @@ describe("AdGroupPagesPanel measurement labels", () => {
     expect(screen.getAllByText("Engaged sessions")).toHaveLength(2);
     expect(screen.getAllByText("Conversions")).toHaveLength(2);
     expect(screen.getAllByText("Conversion rate")).toHaveLength(2);
-    expect(screen.getAllByText("Time / session")).toHaveLength(2);
-    expect(screen.getByText("9s")).toBeTruthy();
-    expect(screen.getByText("20s")).toBeTruthy();
+    expect(screen.getAllByText("Median active time")).toHaveLength(2);
+    expect(screen.getByText("7s")).toBeTruthy();
+    expect(screen.getByText("18s")).toBeTruthy();
     expect(screen.getByText("8.33%")).toBeTruthy();
     expect(screen.getByText("0.00%")).toBeTruthy();
     expect(screen.getByText(/Only sessions carrying gclid, gbraid or wbraid/)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "AU" })).toHaveClass("text-sm");
-    const campaign = screen.getByText(/Search Exact · Search Phrase/);
+    const campaign = screen.getByText(/Search Exact, Search Phrase/);
     const adGroup = screen.getByText("bpo", { exact: true });
-    expect(campaign).toHaveClass("lg:whitespace-nowrap");
+    expect(campaign).toHaveClass("whitespace-normal");
     expect(campaign.compareDocumentPosition(adGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getAllByText(/not mapped/)).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Preview" })[0]?.parentElement).toHaveClass(
-      "flex-col",
+      "items-center",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open all" }));

@@ -243,11 +243,15 @@ describe("time on section", () => {
     // twenty seconds of attention that nobody actually gave.
     const dwell = new Map([["hero", [2000, 3000, 4000, 5000, 600000]]]);
     const reached = new Map([["hero", new Set(["a", "b", "c", "d", "e", "f", "g"])]]);
-    const [hero] = summariseSections(dwell, new Map(), 7, reached);
+    const engaged = new Map([["hero", new Set(["a", "b", "c"])]]);
+    const [hero] = summariseSections(dwell, new Map(), 7, reached, engaged, 10);
 
     expect(hero.medianSeconds).toBe(4);
     expect(hero.p90Seconds).toBe(600);
     expect(hero.sessions).toBe(7);
+    expect(hero.reachRate).toBeCloseTo(0.7);
+    expect(hero.engagedSessions).toBe(3);
+    expect(hero.engagedRate).toBeCloseTo(3 / 7);
     expect(hero.timingSamples).toBe(5);
   });
 
@@ -378,17 +382,20 @@ describe("landing experiment dashboard route", () => {
       .mockResolvedValueOnce({
         docs: [
           // Reached the hero but closed before a dwell beacon was delivered.
-          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s3", variantId: "", properties: { section_id: "hero" } },
-          { attribution: { gclid: "test-click" }, eventType: "section_dwell", sessionId: "s2", variantId: "b", properties: { section_id: "hero", active_ms: 4000 } },
-          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s2", variantId: "b", properties: { section_id: "hero" } },
+          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s3", variantId: "", properties: { section_id: "hero", measurement_version: 2 } },
+          { attribution: { gclid: "test-click" }, eventType: "section_dwell", sessionId: "s2", variantId: "b", properties: { section_id: "hero", active_ms: 4000, measurement_version: 2 } },
+          { attribution: { gclid: "test-click" }, eventType: "section_engaged", sessionId: "s2", variantId: "b", properties: { section_id: "hero", active_ms: 3000, measurement_version: 2 } },
+          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s2", variantId: "b", properties: { section_id: "hero", measurement_version: 2 } },
           { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "s2", variantId: "b" },
           // A duplicate dwell for the same session and section must not count twice.
-          { attribution: { gclid: "test-click" }, eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 9000 } },
-          { attribution: { gclid: "test-click" }, eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 2000 } },
-          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "pricing" } },
+          { attribution: { gclid: "test-click" }, eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 9000, measurement_version: 2 } },
+          { attribution: { gclid: "test-click" }, eventType: "section_dwell", sessionId: "s1", variantId: "a", properties: { section_id: "hero", active_ms: 2000, measurement_version: 2 } },
+          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "pricing", measurement_version: 2 } },
           { attribution: { gclid: "test-click" }, eventType: "cta_click", sessionId: "s1", variantId: "a" },
           { attribution: { gclid: "test-click" }, eventType: "cta_click", sessionId: "s1", variantId: "a" },
-          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "hero" } },
+          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "hero", measurement_version: 2 } },
+          // Legacy reach events are deliberately excluded from the new baseline.
+          { attribution: { gclid: "test-click" }, eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "legacy-gap" } },
           { attribution: { gclid: "test-click" }, eventType: "page_view", sessionId: "s1", variantId: "a" },
         ],
         hasNextPage: false,
@@ -405,7 +412,12 @@ describe("landing experiment dashboard route", () => {
     const hero = body.sections.find((s: { sectionId: string }) => s.sectionId === "hero");
     // Three sessions reached hero; only two delivered timing beacons.
     expect(hero.sessions).toBe(3);
+    expect(body.sectionMeasurementSessions).toBe(3);
+    expect(hero.reachRate).toBe(1);
     expect(hero.timingSamples).toBe(2);
+    expect(hero.engagedSessions).toBe(1);
+    expect(hero.engagedRate).toBeCloseTo(1 / 3);
+    expect(body.sections.some((s: { sectionId: string }) => s.sectionId === "legacy-gap")).toBe(false);
     // s1's last section was pricing; s2 and untimed s3 stopped at hero.
     const pricing = body.sections.find((s: { sectionId: string }) => s.sectionId === "pricing");
     expect(pricing?.exits ?? 0).toBe(1);

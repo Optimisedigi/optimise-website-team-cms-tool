@@ -80,8 +80,8 @@ describe("event scan recency", () => {
     // 'faqs' last, then 'how' earlier. The later-arriving (older) row must not
     // overwrite the exit point.
     mockLookups([
-      { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "faqs" } },
-      { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "how" } },
+      { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "faqs", measurement_version: 2 } },
+      { eventType: "section_view", sessionId: "s1", variantId: "a", properties: { section_id: "how", measurement_version: 2 } },
     ]);
 
     const body = await (await GET(request())).json();

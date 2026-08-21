@@ -362,7 +362,7 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
       })
       .mockResolvedValueOnce({
         rows: [
-          // Median of 4s, 20s, 90s is 20s - not the 38s mean a long tab would give.
+          // Three measured sessions total 114s; all 10 visits produce 11s average time on site.
           { page_id: "ag-bpo-services-au", session_ms: 4000, paid: 1 },
           { page_id: "ag-bpo-services-au", session_ms: 20000, paid: 1 },
           { page_id: "ag-bpo-services-au", session_ms: 90000, paid: 0 },
@@ -383,8 +383,9 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
     expect(bpo.paidEngagedSessions).toBe(3);
     expect(bpo.trackedConversions).toBe(2);
     expect(bpo.paidTrackedConversions).toBe(1);
-    expect(bpo.averageSeconds).toBe(38);
-    expect(bpo.paidAverageSeconds).toBe(12);
+    expect(bpo.averageSeconds).toBe(11);
+    // Two paid timing samples total 24s; all four paid visits produce a 6s average.
+    expect(bpo.paidAverageSeconds).toBe(6);
     expect(bpo.paidMedianSeconds).toBe(4);
     expect(legacyAu.url).toBe("https://hire.awaydigitalteams.com/outsourcing-au");
     expect(legacyAu.engagedSessions).toBe(9);

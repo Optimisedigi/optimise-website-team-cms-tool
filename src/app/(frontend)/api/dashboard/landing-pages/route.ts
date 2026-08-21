@@ -63,13 +63,13 @@ interface Engagement {
   paidConversionSessions: number;
   /** Percent of sessions that left the first section without scrolling. */
   bounceRate: number;
-  /** Mean measured active seconds per session, or null without timing data. */
+  /** Mean active seconds across all sessions; single-event exits contribute zero. */
   averageSeconds: number | null;
-  /** Median active seconds per session, or null when no dwell beacon arrived. */
+  /** Median active seconds per measured session, or null when no dwell beacon arrived. */
   medianSeconds: number | null;
   /** Number of Google Ads sessions with a usable timing sample. */
   paidTimedSessions: number;
-  /** Mean measured active seconds across Google Ads sessions. */
+  /** Mean active seconds across all Google Ads sessions. */
   paidAverageSeconds: number | null;
   /** Median measured active seconds across Google Ads sessions. */
   paidMedianSeconds: number | null;
@@ -280,24 +280,27 @@ async function loadEngagement(
     for (const row of engagement) {
       const sessions = Number(row.sessions ?? 0);
       if (!sessions) continue;
+      const paidSessions = Number(row.paid ?? 0);
       const page = String(row.page_id ?? "");
       const values = (msByPage.get(page) ?? []).sort((a, b) => a - b);
       const paidValues = (paidMsByPage.get(page) ?? []).sort((a, b) => a - b);
       out.set(page, {
         sessions,
-        paidSessions: Number(row.paid ?? 0),
+        paidSessions,
         engagedSessions: Number(row.engaged ?? 0),
         paidEngagedSessions: Number(row.paid_engaged ?? 0),
         conversionSessions: Number(row.converted ?? 0),
         paidConversionSessions: Number(row.paid_converted ?? 0),
         bounceRate: Math.round((Number(row.bounced ?? 0) / sessions) * 1000) / 10,
+        // Traditional time-on-site treats a single-event exit as zero seconds.
+        // Dwell medians below still describe measured sessions only.
         averageSeconds: values.length
-          ? Math.round(values.reduce((total, value) => total + value, 0) / values.length / 1000)
+          ? Math.round(values.reduce((total, value) => total + value, 0) / sessions / 1000)
           : null,
         medianSeconds: values.length ? Math.round(values[Math.floor((values.length - 1) / 2)] / 1000) : null,
         paidTimedSessions: paidValues.length,
-        paidAverageSeconds: paidValues.length
-          ? Math.round(paidValues.reduce((total, value) => total + value, 0) / paidValues.length / 1000)
+        paidAverageSeconds: paidValues.length && paidSessions
+          ? Math.round(paidValues.reduce((total, value) => total + value, 0) / paidSessions / 1000)
           : null,
         paidMedianSeconds: paidValues.length
           ? Math.round(paidValues[Math.floor((paidValues.length - 1) / 2)] / 1000)

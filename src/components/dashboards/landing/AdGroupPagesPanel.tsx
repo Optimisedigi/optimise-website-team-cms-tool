@@ -53,23 +53,14 @@ const MICRO = "font-mono text-[10px] uppercase tracking-[0.1em] text-slate-500";
 
 const LABEL = "font-mono text-[9px] uppercase tracking-[0.08em] text-slate-400";
 
-/** One line per ad-group name; its campaigns stay attached without repeating it. */
-function adGroupSummary(groups: { name: string; campaign: string }[]) {
-  const byName = new Map<string, string[]>();
-  for (const group of groups) {
-    const name = group.name || "unknown ad group";
-    const campaigns = byName.get(name) ?? [];
-    if (group.campaign && !campaigns.includes(group.campaign)) campaigns.push(group.campaign);
-    byName.set(name, campaigns);
-  }
-  return [...byName].map(([name, campaigns]) => ({ name, campaigns }));
-}
 
 function Metric({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="min-w-0">
-      <dt className={`${LABEL} block leading-tight`}>{label}</dt>
-      <dd className={`font-mono text-xs ${strong ? "text-slate-900" : "text-slate-600"}`}>
+      <dt className="flex min-h-[3.75em] items-end font-mono text-[10px] uppercase leading-tight tracking-[0.08em] text-slate-400 lg:justify-end">
+        {label}
+      </dt>
+      <dd className={`font-mono text-sm ${strong ? "text-slate-900" : "text-slate-600"}`}>
         {value}
       </dd>
     </div>
@@ -192,7 +183,9 @@ export function AdGroupPagesPanel({
               .map((page) => {
                 const open = openSlug === page.slug;
                 const trackedConversions = page.paidTrackedConversions ?? 0;
-                const timePerSession = page.paidAverageSeconds ?? page.paidMedianSeconds;
+                const medianActiveTime = page.paidMedianSeconds;
+                const campaignNames = [...new Set(page.adGroups.map((group) => group.campaign).filter(Boolean))];
+                const adGroupNames = [...new Set(page.adGroups.map((group) => group.name).filter(Boolean))];
                 const conversionRate =
                   page.paidSessions > 0
                     ? `${((trackedConversions / page.paidSessions) * 100).toFixed(2)}%`
@@ -200,18 +193,18 @@ export function AdGroupPagesPanel({
                 return (
                   <li
                     key={page.slug}
-                    className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm"
+                    className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm lg:py-3"
                   >
-                    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,46%)_minmax(0,1fr)] lg:items-center">
-                      {/* Identity on the left, measurement on the right: the
-                          left column answers "which page is this", the right
-                          answers "how is it doing". */}
+                    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,46%)_minmax(0,1fr)_auto] lg:items-center">
+                      {/* Page identity, measurements and actions stay in three
+                          columns so each card remains compact and scannable. */}
                       <button
                         type="button"
                         onClick={() => setOpenSlug(open ? null : page.slug)}
                         aria-expanded={open}
                         className="min-w-0 text-left hover:text-teal-700"
                       >
+                        <span className={`${LABEL} block`}>Page headline</span>
                         <span className="block text-lg font-semibold leading-tight text-slate-900">
                           {page.headline}
                         </span>
@@ -219,57 +212,47 @@ export function AdGroupPagesPanel({
                           {page.url.replace(/^https?:\/\//, "")}
                         </span>
 
-                        {/* Campaign first, then its ad group: that is how the account is organised. */}
-                        {page.adGroups.length ? (
-                          adGroupSummary(page.adGroups).map((line) => (
-                            <span key={line.name} className="mt-0.5 block text-[11px] leading-relaxed text-slate-600">
-                              <span className="block lg:whitespace-nowrap">
-                                <span className={LABEL}>Campaign</span> {line.campaigns.join(" · ")}
-                              </span>
-                              <span className="block">
-                                <span className={LABEL}>Ad group</span> {line.name}
-                              </span>
-                            </span>
-                          ))
-                        ) : (
-                          <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-400">
-                            <span className="block"><span className={LABEL}>Campaign</span> not mapped</span>
-                            <span className="block"><span className={LABEL}>Ad group</span> not mapped</span>
+                        <span className="mt-1 block text-[11px] leading-relaxed text-slate-600">
+                          <span className="block whitespace-normal">
+                            <span className={LABEL}>Campaign</span>{" "}
+                            {campaignNames.length ? campaignNames.join(", ") : "not mapped"}
                           </span>
-                        )}
+                          <span className="block whitespace-normal">
+                            <span className={LABEL}>Ad group</span>{" "}
+                            {adGroupNames.length ? adGroupNames.join(", ") : "not mapped"}
+                          </span>
+                        </span>
                       </button>
 
-                      <div className="flex w-full flex-wrap items-end justify-between gap-4 lg:justify-end">
-                        <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-3 text-left sm:grid-cols-3 lg:w-auto lg:grid-cols-6 lg:text-right">
-                          <Metric label="Google Ads clicks" value={String(page.clicks)} />
-                          <Metric label="Google Ads sessions" value={String(page.paidSessions)} strong />
-                          <Metric label="Engaged sessions" value={String(page.paidEngagedSessions)} />
-                          <Metric
-                            label="Time / session"
-                            value={timePerSession == null ? "n/a" : `${timePerSession}s`}
-                          />
-                          <Metric label="Conversions" value={String(trackedConversions)} />
-                          <Metric label="Conversion rate" value={conversionRate} />
-                        </dl>
+                      <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-3 text-left sm:grid-cols-3 lg:grid-cols-6 lg:text-right">
+                        <Metric label="Google Ads clicks" value={String(page.clicks)} />
+                        <Metric label="Google Ads sessions" value={String(page.paidSessions)} strong />
+                        <Metric label="Engaged sessions" value={String(page.paidEngagedSessions)} />
+                        <Metric
+                          label="Median active time"
+                          value={medianActiveTime == null ? "n/a" : `${medianActiveTime}s`}
+                        />
+                        <Metric label="Conversions" value={String(trackedConversions)} />
+                        <Metric label="Conversion rate" value={conversionRate} />
+                      </dl>
 
-                        <div className="ml-auto flex shrink-0 flex-col items-stretch gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setOpenSlug(open ? null : page.slug)}
-                            aria-expanded={open}
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
-                          >
-                            {open ? "Hide preview" : "Preview"}
-                          </button>
-                          <a
-                            href={page.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="rounded-lg px-3 py-1.5 text-center text-xs text-teal-700 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
-                          >
-                            Open ↗
-                          </a>
-                        </div>
+                      <div className="ml-auto flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setOpenSlug(open ? null : page.slug)}
+                          aria-expanded={open}
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
+                        >
+                          {open ? "Hide preview" : "Preview"}
+                        </button>
+                        <a
+                          href={page.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-center text-xs text-teal-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
+                        >
+                          Open ↗
+                        </a>
                       </div>
                     </div>
 
