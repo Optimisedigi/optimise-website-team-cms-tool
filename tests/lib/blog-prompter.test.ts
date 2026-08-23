@@ -73,6 +73,18 @@ describe('blog-prompter helpers', () => {
     expect(requirements).toContain('Use only the exact URLs listed above')
   })
 
+  it('pins AI and automation anchors to the GEO service page in the generated prompt', () => {
+    const prompt = buildBlogPrompt(baseFields)
+
+    expect(prompt).toContain(
+      '"AI and automation" must link to /services/ai-search-optimisation',
+    )
+    expect(prompt).toContain('[AI and automation](/ai-and-automation) is wrong')
+    expect(prompt).toContain(
+      'Only link /services/ai-automation when the anchor is specifically about automating internal workflows',
+    )
+  })
+
   it('does not present the placeholder page path as a link the model can copy', () => {
     expect(DEFAULT_GLOBAL_MARKDOWN_RULES).not.toContain('[text](/page-path)')
   })

@@ -58,7 +58,7 @@ export const DEFAULT_GLOBAL_MARKDOWN_RULES = `- Make sure you stick to this mark
   - H2 Section: ## Heading
   - H3 Subsection: ### Heading
   - External Link: [descriptive anchor text](https://verified-url.com)
-  - Internal Link: [descriptive anchor text](/verified-path-from-the-service-page-list)
+  - Internal Link: [descriptive anchor text](/exact-path-copied-from-the-approved-service-page-list)
   - Bullet List: - Item
   - Numbered List: 1. Item
   - Inline Code: \`code\`
@@ -131,8 +131,12 @@ export function buildServiceLinkingRequirements(servicePages?: string | null): s
 - Blog content should align with relevant business services or products.
 - These are the only approved service or product pages for internal links:
 ${services}
-- Use only the exact URLs listed above. Never guess, derive, or invent a URL from a service name.
+- Use only the exact URLs listed above, copied character for character. Never guess, derive, shorten, or invent a URL.
+- Never build a URL from the anchor text, heading, keyword, or service name. Anchor text and URL are unrelated: writing [AI and automation](/ai-and-automation) is wrong and 404s.
+- Anchor wording that mentions AI, GEO, AI search, LLM visibility, or "AI and automation" must link to /services/ai-search-optimisation. Only link /services/ai-automation when the anchor is specifically about automating internal workflows or processes, and only if that URL is listed above.
+- If the exact destination is not in the list above, write the words as plain text with no link.
 - If an entry has no URL, mention the service without linking it.
+- Before finishing, re-check every markdown link in the post and confirm each path appears verbatim in the approved list above. Remove or unlink any that does not.
 - Add a link only where it is contextually useful.
 - Do not add any internal links inside the TLDR section.
 - Each unique URL should only be linked once in the entire blog post. Do not link multiple anchor texts to the same destination.
