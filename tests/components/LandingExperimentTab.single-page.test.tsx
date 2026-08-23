@@ -2,6 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LandingExperimentTab } from "@/components/dashboards/googleads/LandingExperimentTab";
+import {
+  DEFAULT_LANDING_DATE_RANGE,
+  landingDateRangeParams,
+} from "@/lib/landing-date-range";
 
 /**
  * A client running exactly one landing page must still get the page selector,
@@ -118,8 +122,12 @@ describe("LandingExperimentTab with a single landing page", () => {
       expect(labels).toContain("BPO Services in Vietnam");
       expect(labels).toContain("RPO in Vietnam");
     });
+    // The default range is "this week" (Monday -> today), so the expected
+    // start/end move every day. Derive them from the same helper the component
+    // uses instead of hard-coding a date pair that rots overnight.
+    const expectedRange = landingDateRangeParams(DEFAULT_LANDING_DATE_RANGE);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/dashboard/landing-pages?slug=away-digital-teams&start=2026-08-17&end=2026-08-21",
+      `/api/dashboard/landing-pages?slug=away-digital-teams&${expectedRange}`,
       expect.objectContaining({ credentials: "include" }),
     );
   });
