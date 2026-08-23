@@ -190,6 +190,38 @@ describe("GET /api/dashboard/landing-pages", () => {
     expect((await res.json()).pages[0].adGroupIds).toEqual(["197465406426"]);
   });
 
+  it("exposes category campaign and ad-group labels when live metrics are unavailable", async () => {
+    mockValidateDashboardToken.mockReturnValue(true);
+    stubManifest({
+      pages: [{
+        pageId: "ag-data-engineer-vietnam-us",
+        slug: "data-engineer-vietnam-us",
+        market: "US",
+        url: "https://hire.awaydigitalteams.com/data-engineer-vietnam-us",
+        title: "Hire a data engineer in Vietnam | Away Digital Teams",
+        headline: "Hire a data engineer in Vietnam",
+        adGroupIds: ["180491343342"],
+        noindex: true,
+        campaignName: "Category – Developer/IT – US – Exact",
+        adGroupName: "Data Engineer",
+      }],
+    });
+
+    const res = await GET(get(`?slug=${SLUG}`, "dashboard_token=valid-token"));
+    const body = await res.json();
+    const page = body.pages.find((entry: { slug: string }) => entry.slug === "data-engineer-vietnam-us");
+
+    expect(res.status).toBe(200);
+    expect(page.headline).toBe("Hire a data engineer in Vietnam");
+    expect(page.adGroups).toEqual([{
+      id: "180491343342",
+      name: "Data Engineer",
+      campaign: "Category – Developer/IT – US – Exact",
+      clicks: 0,
+      cost: 0,
+    }]);
+  });
+
   it("reports a 502 rather than an empty list when the manifest is unreachable", async () => {
     mockValidateDashboardToken.mockReturnValue(true);
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network down"))));

@@ -25,6 +25,7 @@ import { LANDING_PAGES } from "@/lib/landing-page-sections";
  */
 
 const MANIFEST_URL = "https://hire.awaydigitalteams.com/lp/pages.json";
+const LOCAL_PREVIEW_MANIFEST_URL = "http://localhost:4321/lp/pages.json";
 
 /** Only these hosts may ever be previewed or linked from the dashboard. */
 const ALLOWED_HOSTS = new Set(["hire.awaydigitalteams.com"]);
@@ -38,6 +39,8 @@ interface ManifestPage {
   headline: string;
   adGroupIds: string[];
   noindex: boolean;
+  campaignName?: string;
+  adGroupName?: string;
 }
 
 interface AdGroupMetric {
@@ -111,6 +114,8 @@ function sanitise(raw: unknown): ManifestPage[] {
           ? page.adGroupIds.map(String).filter((id) => /^[0-9]+$/.test(id))
           : [],
         noindex: Boolean(page.noindex),
+        campaignName: typeof page.campaignName === "string" ? page.campaignName.slice(0, 200) : undefined,
+        adGroupName: typeof page.adGroupName === "string" ? page.adGroupName.slice(0, 200) : undefined,
       }];
     });
 }
@@ -327,25 +332,30 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const productionData = await proxyProductionLandingDashboard(
-    req,
-    "/api/dashboard/landing-pages",
-  );
-  if (productionData) return productionData;
+  const localPreview = process.env.NODE_ENV === "development" && req.nextUrl.searchParams.get("preview") === "1";
+  if (!localPreview) {
+    const productionData = await proxyProductionLandingDashboard(
+      req,
+      "/api/dashboard/landing-pages",
+    );
+    if (productionData) return productionData;
+  }
 
   const range = resolveLandingDateRange(req.nextUrl.searchParams);
   if (!range) return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
 
   try {
-    const upstream = await fetch(MANIFEST_URL, {
-      // Revalidate rather than cache forever: the manifest changes on deploy.
-      next: { revalidate: 300 },
+    const upstream = await fetch(localPreview ? LOCAL_PREVIEW_MANIFEST_URL : MANIFEST_URL, {
+      // Local previews must reflect the latest generated file immediately; production can cache briefly.
+      ...(localPreview ? { cache: "no-store" as const } : { next: { revalidate: 300 } }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!upstream.ok) {
       return NextResponse.json({ error: `Manifest unavailable (${upstream.status})`, pages: [] }, { status: 502 });
     }
-    const pages = sanitise(await upstream.json());
+    const pages = sanitise(await upstream.json()).map((page) => localPreview
+      ? { ...page, url: `http://localhost:4321/${page.slug}.html` }
+      : page);
     if (req.nextUrl.searchParams.get("catalog") === "1") {
       return NextResponse.json({ pages }, { headers: { "cache-control": "no-store" } });
     }
@@ -386,9 +396,19 @@ export async function GET(req: NextRequest) {
     ];
 
     const decorated = reportPages.map((page) => {
-      const groups = page.adGroupIds
-        .map((id) => adGroups.get(id))
-        .filter((g): g is AdGroupMetric => Boolean(g));
+      const groups = page.adGroupIds.flatMap((id) => {
+        const metric = adGroups.get(id);
+        if (metric) return [metric];
+        if (!page.adGroupName || !page.campaignName) return [];
+        return [{
+          adGroupId: id,
+          name: page.adGroupName,
+          campaign: page.campaignName,
+          clicks: 0,
+          cost: 0,
+          conversions: 0,
+        }];
+      });
       const stats = engagement.get(page.pageId);
       return {
         ...page,
