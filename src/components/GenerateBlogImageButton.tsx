@@ -12,9 +12,9 @@ const GenerateBlogImageButton = () => {
   const [error, setError] = useState<string | null>(null)
   const [mediaUrl, setMediaUrl] = useState<string | null>(null)
   const [mediaId, setMediaId] = useState<string | null>(null)
-  // Set when the OAuth path failed and the API-key fallback is available;
-  // holds the message the user must confirm before we spend billed credits.
-  const [apiKeyPrompt, setApiKeyPrompt] = useState<string | null>(null)
+  // Set when the OAuth path failed and the Gemini API key produced the image
+  // instead, so the admin can see which path was used.
+  const [notice, setNotice] = useState<string | null>(null)
 
   const title = fields?.title?.value as string | undefined
   const excerpt = fields?.excerpt?.value as string | undefined
@@ -63,14 +63,14 @@ const GenerateBlogImageButton = () => {
     }
   }
 
-  // useApiKey=false tries ChatGPT OAuth (free on the plan); the server only
-  // touches the billed API key when the user confirms the fallback.
-  const handleGenerateImage = async (useApiKey = false) => {
+  // The server tries ChatGPT OAuth first (free on the plan) and falls back to
+  // the Gemini API key on its own, reporting which path produced the image.
+  const handleGenerateImage = async () => {
     if (busy) return
     setGeneratingImage(true)
     setMessage(null)
     setError(null)
-    setApiKeyPrompt(null)
+    setNotice(null)
     setMediaUrl(null)
     setMediaId(null)
 
@@ -84,23 +84,19 @@ const GenerateBlogImageButton = () => {
           title: title?.trim(),
           excerpt: excerpt?.trim(),
           imagePromptOverride: imagePromptOverride?.trim(),
-          useApiKey,
         }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        if (res.status === 409 && data.canRetryWithApiKey) {
-          setApiKeyPrompt(data.error)
-        } else {
-          setError(data.error || `Failed (${res.status})`)
-        }
+        setError(data.error || `Failed (${res.status})`)
         return
       }
 
       setMediaUrl(data.url)
       setMediaId(data.mediaId)
+      if (data.notice) setNotice(data.notice)
       setMessage(
         data.source === 'api-key'
           ? 'Image generated via the API key. Review it below, then assign it as the featured image.'
@@ -145,7 +141,7 @@ const GenerateBlogImageButton = () => {
         {/* Step 2: Generate Image */}
         <button
           type="button"
-          onClick={() => handleGenerateImage(false)}
+          onClick={() => handleGenerateImage()}
           disabled={busy || notSaved || missingTitle || !hasPrompt}
           style={{
             ...buttonBase,
@@ -183,48 +179,8 @@ const GenerateBlogImageButton = () => {
         <p style={{ marginTop: 8, fontSize: 13, color: '#dc2626' }}>{error}</p>
       )}
 
-      {apiKeyPrompt && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: '10px 12px',
-            border: '1px solid #f59e0b',
-            borderRadius: 8,
-            background: 'rgba(245, 158, 11, 0.08)',
-          }}
-        >
-          <p style={{ margin: 0, fontSize: 13, color: '#b45309' }}>{apiKeyPrompt}</p>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button
-              type="button"
-              onClick={() => handleGenerateImage(true)}
-              disabled={busy}
-              style={{
-                ...buttonBase,
-                padding: '8px 16px',
-                background: busy ? '#9ca3af' : '#d97706',
-                cursor: busy ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Yes, use the API key
-            </button>
-            <button
-              type="button"
-              onClick={() => setApiKeyPrompt(null)}
-              disabled={busy}
-              style={{
-                ...buttonBase,
-                padding: '8px 16px',
-                background: 'transparent',
-                color: '#6b7280',
-                border: '1px solid #d1d5db',
-                cursor: busy ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+      {notice && (
+        <p style={{ marginTop: 8, fontSize: 13, color: '#b45309' }}>{notice}</p>
       )}
 
       {generatingPrompt && (

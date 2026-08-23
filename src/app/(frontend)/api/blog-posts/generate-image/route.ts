@@ -14,17 +14,18 @@ import { generateImageViaCodexOAuth } from "@/lib/blog/openai-image";
  *   1. ChatGPT (Codex) OAuth -> gpt-image-2. Free on the ChatGPT plan, no
  *      billed API key. Tried first on every request.
  *   2. API key -> Gemini Imagen (GOOGLE_GENERATIVE_AI_API_KEY). This is the
- *      original, billed path. It runs ONLY when the client sends
- *      `useApiKey: true`, which the admin UI sets after the user confirms the
- *      "OAuth image generation didn't work" prompt. Never automatic — a billed
- *      call is always a deliberate, confirmed choice.
+ *      original, billed path. It runs automatically when step 1 fails, and the
+ *      response carries a `notice` so the admin UI can say the OAuth path was
+ *      skipped. `useApiKey: true` forces this path directly.
  *
- * When step 1 fails without confirmation we return 409 + `canRetryWithApiKey`
- * so the UI can ask. Both paths share the same resize + Media upload tail.
+ * Automatic fallback is deliberate: the Codex image tool is currently stripped
+ * server-side for ChatGPT accounts (verified 2026-08-23 — the same failure hits
+ * gg-framework's own generate_image tool), so requiring a confirmation click on
+ * every generation was pure friction. Both paths share the resize + upload tail.
  */
 
 const OAUTH_FAILED_MESSAGE =
-  "OAuth image generation didn't work. If you'd like, we can generate the image through the API key.";
+  "OAuth image generation didn't work, so this image was generated through the API key instead.";
 
 export async function POST(req: NextRequest) {
   const payloadConfig = await config;
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
   try {
     let rawBuffer: Buffer;
     let source: "oauth" | "api-key";
+    let notice: string | undefined;
 
     if (useApiKey) {
       rawBuffer = await generateWithGeminiApiKey(payload, prompt);
@@ -85,15 +87,10 @@ export async function POST(req: NextRequest) {
       } catch (oauthErr) {
         const detail =
           oauthErr instanceof Error ? oauthErr.message : String(oauthErr);
-        console.warn("[generate-image] OAuth path failed:", detail);
-        return NextResponse.json(
-          {
-            error: OAUTH_FAILED_MESSAGE,
-            canRetryWithApiKey: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-            detail,
-          },
-          { status: 409 }
-        );
+        console.warn("[generate-image] OAuth path failed, falling back to Gemini:", detail);
+        rawBuffer = await generateWithGeminiApiKey(payload, prompt);
+        source = "api-key";
+        notice = OAUTH_FAILED_MESSAGE;
       }
     }
 
@@ -130,6 +127,7 @@ export async function POST(req: NextRequest) {
       mediaId: mediaDoc.id,
       url: mediaDoc.url,
       source,
+      notice,
     });
   } catch (err: unknown) {
     const message =
