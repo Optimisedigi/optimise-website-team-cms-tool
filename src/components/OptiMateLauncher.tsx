@@ -10,6 +10,7 @@ import InvoiceAssistantChat from './InvoiceAssistantChat'
 import GmailReplyChat from './GmailReplyChat'
 import TaskMateChat from './TaskMateChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
+import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
 
 type AgentKey = 'google-ads' | 'invoices' | 'taskmate'
 
@@ -18,13 +19,28 @@ interface AgentDef {
   label: string
   /** Public path to the agent's icon. Falls back to the OptiMate mark if missing. */
   icon: string
+  /** Icon width/height in px; defaults to 44 (the CSS baseline). */
+  iconSize?: number
   enabled: boolean
 }
 
 const AGENTS: AgentDef[] = [
-  { key: 'google-ads', label: 'GoogleMate', icon: '/optimate-icon.png', enabled: true },
-  { key: 'invoices', label: 'InvoiceMate', icon: '/optimate-icon.png', enabled: true },
-  { key: 'taskmate', label: 'TaskMate', icon: '/optimate-icon.png', enabled: true },
+  { key: 'google-ads', label: 'GoogleMate', icon: '/optimate-orb.png', enabled: true },
+  { key: 'invoices', label: 'InvoiceMate', icon: '/invoicemate-orb.png', iconSize: 28, enabled: true },
+  { key: 'taskmate', label: 'TaskMate', icon: '/taskmate-orb.png', iconSize: 28, enabled: true },
+]
+
+/** Gmail shortcuts on the agent step. Tints match the Gmail palette. */
+const QUICK_ACTIONS: Array<{
+  step: Step
+  label: string
+  glyph: string
+  tint: string
+  ink: string
+}> = [
+  { step: 'gmail', label: 'Draft an email', glyph: '✉', tint: '#eaf1fe', ink: '#2b6cb0' },
+  { step: 'email-reply', label: 'Reply to an email', glyph: '↩', tint: '#fdeeee', ink: '#c2413a' },
+  { step: 'email-summarise', label: 'Summarise an email', glyph: '≡', tint: '#eaf7ee', ink: '#2f7d47' },
 ]
 
 interface AuditOption {
@@ -38,8 +54,8 @@ type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'taskmate' | 'gmail' |
 const PILL_RIGHT = 24 // pixels — pomodoro pill is gone, sit bottom-right alone
 const PILL_BOTTOM = 24
 
-const PANEL_WIDTH = 420
-const PANEL_HEIGHT = 600
+const PANEL_WIDTH = 412
+const PANEL_HEIGHT = 640
 
 /**
  * Floating OptiMate launcher mounted globally on every admin page.
@@ -162,6 +178,29 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
     setStep('chat')
   }
 
+  /** Agent + context line under the OptiMate wordmark, e.g. "GoogleMate · Away Digital". */
+  const accountLabel = portfolioSelected
+    ? 'Portfolio'
+    : selectedAudits.length === 1
+      ? (selectedAudits[0]?.businessName ?? selectedAudits[0]?.customerId ?? '')
+      : selectedAudits.length > 1
+        ? `${selectedAudits.length} accounts`
+        : ''
+  const headerSub =
+    step === 'chat'
+      ? ['GoogleMate', accountLabel].filter(Boolean).join(' · ')
+      : step === 'invoice-chat'
+        ? 'InvoiceMate'
+        : step === 'taskmate'
+          ? 'TaskMate'
+          : step === 'gmail'
+            ? 'Gmail · Draft'
+            : step === 'email-reply'
+              ? 'Gmail · Reply'
+              : step === 'email-summarise'
+                ? 'Gmail · Summarise'
+                : ''
+
   const filteredAudits = (audits ?? []).filter((a) => {
     if (!filter.trim()) return true
     const q = filter.trim().toLowerCase()
@@ -207,6 +246,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       {/* Expanded panel */}
       {open && (
         <div
+          className="om-panel"
           style={{
             position: 'fixed',
             bottom: PILL_BOTTOM,
@@ -216,315 +256,192 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             maxWidth: 'calc(100vw - 40px)',
             height: PANEL_HEIGHT,
             maxHeight: 'calc(100vh - 40px)',
-            background: 'var(--theme-input-bg, #fff)',
-            color: 'var(--theme-text, #1f2937)',
-            border: '1px solid var(--theme-border-color, #e5e7eb)',
-            borderRadius: 12,
-            boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
           }}
           onKeyDown={(e) => e.stopPropagation()}
         >
           {/* Panel header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 12px',
-              borderBottom: '1px solid var(--theme-border-color, #e5e7eb)',
-              background: '#111',
-              color: '#fff',
-            }}
-          >
-            <img
-              src="/optimate-icon.png"
-              alt=""
-              width={24}
-              height={24}
-              style={{ borderRadius: '50%', display: 'block' }}
-            />
-            <div
-              style={{
-                fontWeight: 600,
-                fontSize: 13,
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                flexWrap: 'wrap',
-              }}
-            >
-              <span>{step === 'pomodoro' ? 'Pomodoro' : 'OptiMate'}</span>
+          <div className="om-head">
+            <span className="om-avatar">
+              <img src="/optimate-orb.png" alt="" />
+            </span>
+            <div className="om-head-titles">
+              <span className="om-brand">{step === 'pomodoro' ? 'Pomodoro' : 'OptiMate'}</span>
+              {headerSub && <span className="om-head-sub">{headerSub}</span>}
+            </div>
+            <div className="om-head-actions">
               {pomo.pillLabel && (
                 <span
+                  className="om-timer-chip"
                   title={pomo.tracking ? `Tracking: ${pomo.taskName}` : 'Pomodoro running'}
-                  style={{
-                    fontFamily: '"Press Start 2P", "Courier New", monospace',
-                    fontSize: 9,
-                    letterSpacing: 0.5,
-                    background: 'rgba(34,197,94,0.18)',
-                    color: '#22c55e',
-                    padding: '3px 6px',
-                    borderRadius: 6,
-                  }}
                 >
                   ⏱ {pomo.pillLabel}
                 </span>
               )}
-              {step === 'audit' && (
-                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · Pick Google Ads accounts
-                </span>
+              {step === 'chat' && (
+                <button type="button" className="om-headlink" onClick={() => setStep('audit')}>
+                  ← Accounts
+                </button>
+              )}
+              {(step === 'invoice-chat' ||
+                step === 'taskmate' ||
+                step === 'gmail' ||
+                step === 'email-reply' ||
+                step === 'email-summarise') && (
+                <button
+                  type="button"
+                  className="om-headlink"
+                  onClick={() => {
+                    setAgent('')
+                    setStep('agent')
+                  }}
+                >
+                  ← Change agent
+                </button>
+              )}
+              {(step === 'invoice-chat' ||
+                step === 'gmail' ||
+                step === 'email-reply' ||
+                step === 'email-summarise') && (
+                <button
+                  type="button"
+                  className="om-iconbtn lg"
+                  onClick={() => {
+                    // Open standalone agents in a separate browser window so the
+                    // user can park them next to their work. Gmail keeps the same
+                    // entry mode (new draft vs reply search) via the phase param.
+                    const features = [
+                      'popup=yes',
+                      'width=680',
+                      'height=720',
+                      'menubar=no',
+                      'toolbar=no',
+                      'location=no',
+                      'status=no',
+                    ].join(',')
+                    const url =
+                      step === 'invoice-chat'
+                        ? '/optimate-popout?agent=invoices'
+                        : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
+                    const name = step === 'invoice-chat' ? 'invoices' : `gmail-${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
+                    window.open(url, `optimate-popout-${name}`, features)
+                    setOpen(false)
+                  }}
+                  title="Pop out to a separate window"
+                  aria-label="Pop out to a separate window"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                  </svg>
+                </button>
               )}
               {step === 'chat' && (selectedAudits.length > 0 || portfolioSelected) && (
-                // Agent name lives in the black bar slot that used to show the
-                // client name. The active account label is already surfaced by
-                // the per-account tab strip inside OptiMateMultiChat (and by
-                // the chat-body header when only one account is selected), so
-                // we don't repeat it here.
-                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · GoogleMate
-                </span>
+                <button
+                  type="button"
+                  className="om-iconbtn lg"
+                  onClick={() => {
+                    // Open the chat in a separate browser window so the user
+                    // can park it next to their work without keeping the CMS
+                    // panel open. The popout page reads ?audits=... and
+                    // re-mounts the multi-chat full-window. Close the launcher
+                    // panel as soon as we hand off so we don't have two
+                    // copies of the same conversation.
+                    //
+                    // Pass each tab's live sessionId in the URL so the popout
+                    // window resumes the same thread instead of starting a
+                    // fresh one. Without this, the new window mounts a fresh
+                    // ChatCore and the in-progress conversation appears lost
+                    // (the rows are still in the DB — reachable via the
+                    // History popover — but the user expects the chat to be
+                    // there).
+                    const ids = selectedAudits.map((a) => String(a.id)).join(',')
+                    const sessionMap = multiChatRef.current?.getSessionIds() ?? {}
+                    // Pair sessionIds with audit ids by index so the popout
+                    // page can zip them back together. Empty string for any
+                    // tab whose ChatCore hasn't reported a sessionId yet (the
+                    // popout falls back to a fresh thread for those).
+                    const sessionIds = selectedAudits
+                      .map((a) => sessionMap[String(a.id)] ?? '')
+                      .join(',')
+                    // Popout lives under (frontend), NOT (payload), so the
+                    // Payload admin layout doesn't wrap it with a sidebar +
+                    // floating launcher and doesn't trap our `position:
+                    // fixed` container — the chat fills the whole window
+                    // and resizes with it.
+                    const url = portfolioSelected
+                      ? `/optimate-popout?mode=portfolio&sessionIds=${encodeURIComponent(sessionMap.portfolio ?? '')}`
+                      : `/optimate-popout?audits=${encodeURIComponent(ids)}` +
+                        `&sessionIds=${encodeURIComponent(sessionIds)}`
+                    const features = [
+                      'popup=yes',
+                      'width=680',
+                      'height=720',
+                      'menubar=no',
+                      'toolbar=no',
+                      'location=no',
+                      'status=no',
+                    ].join(',')
+                    window.open(url, `optimate-popout-${portfolioSelected ? 'portfolio' : ids}`, features)
+                    setOpen(false)
+                  }}
+                  title="Pop out to a separate window"
+                  aria-label="Pop out to a separate window"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                  </svg>
+                </button>
               )}
-              {step === 'invoice-chat' && (
-                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · InvoiceMate
-                </span>
-              )}
-              {step === 'taskmate' && (
-                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · TaskMate
-                </span>
-              )}
-              {step === 'gmail' && (
-                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · Gmail
-                </span>
-              )}
-              {step === 'email-reply' && (
-                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · Email Reply
-                </span>
-              )}
+              <button
+                type="button"
+                className={`om-iconbtn lg${step === 'pomodoro' ? ' is-on' : ''}${
+                  pomo.running || pomo.tracking ? ' is-live' : ''
+                }`}
+                onClick={togglePomodoro}
+                title={step === 'pomodoro' ? 'Back to OptiMate' : 'Open Pomodoro / Tracker'}
+                aria-label={step === 'pomodoro' ? 'Back to OptiMate' : 'Open Pomodoro / Tracker'}
+                style={{
+                  animation:
+                    pomo.running || pomo.tracking
+                      ? 'optimate-pulse 1.6s ease-in-out infinite'
+                      : undefined,
+                }}
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </button>
+              <button type="button" className="om-iconbtn" onClick={close} title="Close" aria-label="Close">
+                ✕
+              </button>
             </div>
-            {step === 'chat' && (
-              <button
-                type="button"
-                onClick={() => setStep('audit')}
-                title="Switch accounts"
-                style={{
-                  background: 'transparent',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  borderRadius: 6,
-                  fontSize: 11,
-                  padding: '3px 8px',
-                  cursor: 'pointer',
-                }}
-              >
-                ← Accounts
-              </button>
-            )}
-            {(step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAgent('')
-                  setStep('agent')
-                }}
-                title="Switch agent"
-                style={{
-                  background: 'transparent',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  borderRadius: 6,
-                  fontSize: 11,
-                  padding: '3px 8px',
-                  cursor: 'pointer',
-                }}
-              >
-                ← Agents
-              </button>
-            )}
-            {(step === 'invoice-chat' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise') && (
-              <button
-                type="button"
-                onClick={() => {
-                  // Open standalone agents in a separate browser window so the
-                  // user can park them next to their work. Gmail keeps the same
-                  // entry mode (new draft vs reply search) via the phase param.
-                  const features = [
-                    'popup=yes',
-                    'width=680',
-                    'height=720',
-                    'menubar=no',
-                    'toolbar=no',
-                    'location=no',
-                    'status=no',
-                  ].join(',')
-                  const url =
-                    step === 'invoice-chat'
-                      ? '/optimate-popout?agent=invoices'
-                      : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
-                  const name = step === 'invoice-chat' ? 'invoices' : `gmail-${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
-                  window.open(url, `optimate-popout-${name}`, features)
-                  setOpen(false)
-                }}
-                title="Pop out to a separate window"
-                style={{
-                  background: 'transparent',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.25)',
-                  borderRadius: 6,
-                  padding: '4px 6px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  lineHeight: 1,
-                }}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                </svg>
-              </button>
-            )}
-            {step === 'chat' && (selectedAudits.length > 0 || portfolioSelected) && (
-              <button
-                type="button"
-                onClick={() => {
-                  // Open the chat in a separate browser window so the user
-                  // can park it next to their work without keeping the CMS
-                  // panel open. The popout page reads ?audits=... and
-                  // re-mounts the multi-chat full-window. Close the launcher
-                  // panel as soon as we hand off so we don't have two
-                  // copies of the same conversation.
-                  //
-                  // Pass each tab's live sessionId in the URL so the popout
-                  // window resumes the same thread instead of starting a
-                  // fresh one. Without this, the new window mounts a fresh
-                  // ChatCore and the in-progress conversation appears lost
-                  // (the rows are still in the DB — reachable via the
-                  // History popover — but the user expects the chat to be
-                  // there).
-                  const ids = selectedAudits.map((a) => String(a.id)).join(',')
-                  const sessionMap = multiChatRef.current?.getSessionIds() ?? {}
-                  // Pair sessionIds with audit ids by index so the popout
-                  // page can zip them back together. Empty string for any
-                  // tab whose ChatCore hasn't reported a sessionId yet (the
-                  // popout falls back to a fresh thread for those).
-                  const sessionIds = selectedAudits
-                    .map((a) => sessionMap[String(a.id)] ?? '')
-                    .join(',')
-                  // Popout lives under (frontend), NOT (payload), so the
-                  // Payload admin layout doesn't wrap it with a sidebar +
-                  // floating launcher and doesn't trap our `position:
-                  // fixed` container — the chat fills the whole window
-                  // and resizes with it.
-                  const url = portfolioSelected
-                    ? `/optimate-popout?mode=portfolio&sessionIds=${encodeURIComponent(sessionMap.portfolio ?? '')}`
-                    : `/optimate-popout?audits=${encodeURIComponent(ids)}` +
-                      `&sessionIds=${encodeURIComponent(sessionIds)}`
-                  const features = [
-                    'popup=yes',
-                    'width=680',
-                    'height=720',
-                    'menubar=no',
-                    'toolbar=no',
-                    'location=no',
-                    'status=no',
-                  ].join(',')
-                  window.open(url, `optimate-popout-${portfolioSelected ? 'portfolio' : ids}`, features)
-                  setOpen(false)
-                }}
-                title="Pop out to a separate window"
-                style={{
-                  background: 'transparent',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.25)',
-                  borderRadius: 6,
-                  padding: '4px 6px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  lineHeight: 1,
-                }}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                </svg>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={togglePomodoro}
-              title={step === 'pomodoro' ? 'Back to OptiMate' : 'Open Pomodoro / Tracker'}
-              style={{
-                background: step === 'pomodoro' ? 'rgba(255,255,255,0.18)' : 'transparent',
-                color: pomo.running || pomo.tracking ? '#22c55e' : '#fff',
-                border: '1px solid rgba(255,255,255,0.25)',
-                borderRadius: 6,
-                padding: '4px 6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                lineHeight: 1,
-                animation:
-                  pomo.running || pomo.tracking
-                    ? 'optimate-pulse 1.6s ease-in-out infinite'
-                    : undefined,
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={close}
-              title="Close"
-              style={{
-                background: 'transparent',
-                color: '#fff',
-                border: 'none',
-                fontSize: 18,
-                lineHeight: 1,
-                cursor: 'pointer',
-                padding: '0 4px',
-              }}
-            >
-              ×
-            </button>
           </div>
 
           {/* Panel body. Note: chat steps use flex layout (no scroll on the
@@ -533,13 +450,16 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
           <div
             style={{
               flex: 1,
-              padding: step === 'pomodoro' ? 0 : 14,
+              // Steps that own their internal spacing (pomodoro, agent picker,
+              // account picker) run full-bleed; only the chat steps get the
+              // wrapper's padding.
+              padding: step === 'pomodoro' || step === 'agent' || step === 'audit' ? 0 : 14,
               overflowY:
-                step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
+                step === 'audit' || step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
                   ? 'hidden'
                   : 'auto',
               display:
-                step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
+                step === 'audit' || step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
                   ? 'flex'
                   : 'block',
               flexDirection: 'column',
@@ -549,391 +469,171 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             {step === 'pomodoro' && <PomodoroBody pomo={pomo} />}
 
             {step === 'agent' && (
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    marginBottom: 10,
-                    color: '#374151',
-                  }}
-                >
-                  Choose an agent
-                </label>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
-                    gap: 10,
-                  }}
-                >
-                  {AGENTS.filter((a) => a.key !== 'taskmate' || (user as { role?: string }).role === 'admin').map((a) => (
-                    <button
-                      {...{ key: a.key }}
-                      type="button"
-                      onClick={() => a.enabled && handleAgentSelect(a.key)}
-                      disabled={!a.enabled}
-                      title={a.enabled ? a.label : `${a.label} (coming soon)`}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '14px 8px',
-                        border: '1px solid var(--theme-border-color, #e5e7eb)',
-                        borderRadius: 10,
-                        background: 'var(--theme-input-bg, #fff)',
-                        cursor: a.enabled ? 'pointer' : 'not-allowed',
-                        opacity: a.enabled ? 1 : 0.5,
-                        transition: 'background 0.15s, transform 0.1s',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!a.enabled) return
-                        e.currentTarget.style.background = '#f9fafb'
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!a.enabled) return
-                        e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
-                      }}
-                    >
-                      <img
-                        src={a.icon}
-                        alt=""
-                        width={36}
-                        height={36}
-                        style={{ borderRadius: '50%', display: 'block' }}
-                        onError={(e) => {
-                          const t = e.currentTarget
-                          if (t.src.endsWith('/optimate-icon.png')) return
-                          t.src = '/optimate-icon.png'
-                        }}
-                      />
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: 'var(--theme-text, #1f2937)',
-                          textAlign: 'center',
-                        }}
+              <div className="om-s1">
+                <div className="om-group">
+                  <span className="om-label">Choose an agent</span>
+                  <div className="om-agents">
+                    {AGENTS.filter(
+                      (a) => a.key !== 'taskmate' || (user as { role?: string }).role === 'admin',
+                    ).map((a) => (
+                      <button
+                        key={a.key}
+                        type="button"
+                        className="om-agent"
+                        onClick={() => a.enabled && handleAgentSelect(a.key)}
+                        disabled={!a.enabled}
+                        title={a.enabled ? a.label : `${a.label} (coming soon)`}
                       >
-                        {a.label}
-                      </span>
-                    </button>
-                  ))}
+                        <span className="om-agent-orb">
+                          <img
+                            src={a.icon}
+                            alt=""
+                            style={a.iconSize ? { width: a.iconSize, height: a.iconSize } : undefined}
+                            onError={(e) => {
+                              const t = e.currentTarget
+                              if (t.src.endsWith('/optimate-orb.png')) return
+                              t.src = '/optimate-orb.png'
+                            }}
+                          />
+                        </span>
+                        <span><span style={{ color: '#1a3a6b' }}>{a.label.replace('Mate', '')}</span>Mate</span>
+                      </button>
+                    ))}
+                  </div>
+
                 </div>
-                <p style={{ fontSize: 11, color: '#6b7280', marginTop: 12 }}>
-                  More agents coming soon.
-                </p>
 
                 {/* Persistent Gmail shortcuts: draft, reply, summarise. */}
-                <div
-                  style={{
-                    marginTop: 16,
-                    paddingTop: 12,
-                    borderTop: '1px solid var(--theme-border-color, #e5e7eb)',
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: 10,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setStep('gmail')}
-                    title="Draft an email"
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '12px 8px',
-                      border: '1px solid var(--theme-border-color, #e5e7eb)',
-                      borderRadius: 10,
-                      background: 'var(--theme-input-bg, #fff)',
-                      color: 'var(--theme-text, #1f2937)',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 700,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#f9fafb'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
-                    }}
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        fill="#4285F4"
-                        d="M2 6.5A1.5 1.5 0 0 1 3.5 5H4l8 6 8-6h.5A1.5 1.5 0 0 1 22 6.5V18a1.5 1.5 0 0 1-1.5 1.5h-2V9.2l-6.5 4.9L5.5 9.2v10.3h-2A1.5 1.5 0 0 1 2 18V6.5Z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M2 6.5 12 14l10-7.5V6.5A1.5 1.5 0 0 0 20.5 5h-17A1.5 1.5 0 0 0 2 6.5Z"
-                      />
-                    </svg>
-                    Draft an email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStep('email-reply')}
-                    title="Reply to an email"
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '12px 8px',
-                      border: '1px solid var(--theme-border-color, #e5e7eb)',
-                      borderRadius: 10,
-                      background: 'var(--theme-input-bg, #fff)',
-                      color: 'var(--theme-text, #1f2937)',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 700,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#f9fafb'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
-                    }}
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M4 7h16v10H4z" fill="#F9AB00" opacity="0.22" />
-                      <path d="M4 7l8 6 8-6" stroke="#EA4335" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M9 16H5a1 1 0 0 1-1-1V7" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" />
-                      <path d="M15 16h4a1 1 0 0 0 1-1V7" stroke="#34A853" strokeWidth="2" strokeLinecap="round" />
-                      <path d="M7 21v-3.5A2.5 2.5 0 0 1 9.5 15H17" stroke="#111827" strokeWidth="2" strokeLinecap="round" />
-                      <path d="M14 12l3 3-3 3" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Reply to an email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStep('email-summarise')}
-                    title="Summarise an email"
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '12px 8px',
-                      border: '1px solid var(--theme-border-color, #e5e7eb)',
-                      borderRadius: 10,
-                      background: 'var(--theme-input-bg, #fff)',
-                      color: 'var(--theme-text, #1f2937)',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 700,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#f9fafb'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
-                    }}
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M4 4h16v16H4z" fill="#F9AB00" opacity="0.22" />
-                      <path d="M8 9h8M8 13h5" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" />
-                      <path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" stroke="#34A853" strokeWidth="2" />
-                    </svg>
-                    Summarise an email
-                  </button>
+                <div className="om-group">
+                  <span className="om-label">Quick actions</span>
+                  <div className="om-actions">
+                    {QUICK_ACTIONS.map((action) => (
+                      <button
+                        key={action.step}
+                        type="button"
+                        className="om-action"
+                        onClick={() => setStep(action.step)}
+                        title={action.label}
+                      >
+                        <span
+                          className="om-action-ico"
+                          style={{ background: action.tint, color: action.ink }}
+                          aria-hidden="true"
+                        >
+                          {action.glyph}
+                        </span>
+                        <b>{action.label}</b>
+                        <span className="om-chev" aria-hidden="true">
+                          ›
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
             {step === 'audit' && (
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    marginBottom: 6,
-                    color: '#374151',
-                  }}
-                >
-                  Pick Google Ads accounts
-                  <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>
-                    (select one or more)
+              <div className="om-s2">
+                <div className="om-s2-top">
+                  <div className="om-s2-title">
+                    <b>Google Ads</b>
+                    <span>Select one or more</span>
+                  </div>
+                  <label className="om-search">
+                    <span aria-hidden="true">⌕</span>
+                    <input
+                      type="text"
+                      value={filter}
+                      onChange={(e) => setFilter(e.target.value)}
+                      placeholder="Filter accounts…"
+                      aria-label="Filter accounts by business name or customer ID"
+                    />
+                  </label>
+                </div>
+
+                <button type="button" className="om-portfolio" onClick={startPortfolioChat}>
+                  <span className="om-portfolio-ico" aria-hidden="true">
+                    ◱
                   </span>
-                </label>
-                <button
-                  type="button"
-                  onClick={startPortfolioChat}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    padding: '10px 12px',
-                    border: 'none',
-                    borderRadius: 8,
-                    background: '#2563eb',
-                    color: '#fff',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    marginBottom: 10,
-                  }}
-                >
-                  <span aria-hidden="true">↗</span>
-                  Start portfolio chat
+                  <span className="om-portfolio-copy">
+                    <b>Start portfolio chat</b>
+                    <span>Ask across every account at once</span>
+                  </span>
+                  <span className="om-portfolio-go" aria-hidden="true">
+                    →
+                  </span>
                 </button>
-                <input
-                  type="text"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                  placeholder="Filter by business name or customer ID…"
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    border: '1px solid var(--theme-border-color, #e5e7eb)',
-                    borderRadius: 6,
-                    background: 'var(--theme-input-bg, #fff)',
-                    color: 'var(--theme-text, #1f2937)',
-                    fontSize: 13,
-                    marginBottom: 10,
-                  }}
-                />
-                {auditsLoading && (
-                  <p style={{ fontSize: 12, color: '#6b7280' }}>Loading accounts…</p>
-                )}
-                {auditsError && <p style={{ fontSize: 12, color: '#dc2626' }}>{auditsError}</p>}
-                {!auditsLoading && !auditsError && filteredAudits.length === 0 && (
-                  <p style={{ fontSize: 12, color: '#6b7280' }}>
-                    No accounts with a Customer ID found.
-                  </p>
-                )}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
-                    gap: 6,
-                  }}
-                >
+
+                <div className="om-accounts">
+                  {auditsLoading && <p className="om-accounts-msg">Loading accounts…</p>}
+                  {auditsError && <p className="om-accounts-msg is-error">{auditsError}</p>}
+                  {!auditsLoading && !auditsError && filteredAudits.length === 0 && (
+                    <p className="om-accounts-msg">No accounts with a Customer ID found.</p>
+                  )}
                   {filteredAudits.map((opt) => {
                     const checked = selectedAudits.some((a) => String(a.id) === String(opt.id))
                     return (
                       <button
-                        {...{ key: String(opt.id) }}
+                        key={String(opt.id)}
                         type="button"
+                        className={`om-acct${checked ? ' is-on' : ''}`}
                         onClick={() => toggleAudit(opt)}
                         aria-pressed={checked}
-                        style={{
-                          textAlign: 'left',
-                          padding: '8px 10px',
-                          border: `1px solid ${checked ? '#2563eb' : 'var(--theme-border-color, #e5e7eb)'}`,
-                          borderRadius: 6,
-                          background: checked ? '#eff6ff' : 'var(--theme-input-bg, #fff)',
-                          color: 'var(--theme-text, #1f2937)',
-                          fontSize: 13,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          minWidth: 0,
-                        }}
-                        onMouseEnter={(e) => {
-                          if (checked) return
-                          e.currentTarget.style.background = '#f3f4f6'
-                        }}
-                        onMouseLeave={(e) => {
-                          if (checked) return
-                          e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
-                        }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          readOnly
-                          tabIndex={-1}
-                          style={{ margin: 0, pointerEvents: 'none' }}
-                        />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
+                        <span className="om-acct-box" aria-hidden="true">
+                          {checked ? '✓' : ''}
+                        </span>
+                        <span className="om-acct-txt">
+                          <span className="om-acct-name">
                             {opt.businessName || 'Untitled audit'}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: '#6b7280',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {opt.customerId}
-                          </div>
-                        </div>
+                          </span>
+                          <span className="om-acct-id">{opt.customerId}</span>
+                        </span>
                       </button>
                     )
                   })}
                 </div>
 
-                {/* Sticky-ish action row at the bottom of the picker. */}
-                <div
-                  style={{
-                    marginTop: 14,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAgent('')
-                      setSelectedAudits([])
-                      setPortfolioSelected(false)
-                      setStep('agent')
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#2563eb',
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    ← Change agent
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goToChat}
-                    disabled={selectedAudits.length === 0 && !portfolioSelected}
-                    style={{
-                      padding: '8px 14px',
-                      background: selectedAudits.length === 0 && !portfolioSelected ? '#9ca3af' : '#2563eb',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 6,
-                      fontWeight: 600,
-                      fontSize: 13,
-                      cursor: selectedAudits.length === 0 && !portfolioSelected ? 'not-allowed' : 'pointer',
-                    }}
-                  >
+                {/* Action row pinned under the account list. */}
+                <div className="om-foot">
+                  <span className="om-count">
                     {portfolioSelected
-                      ? 'Continue with portfolio'
+                      ? 'Portfolio selected'
                       : selectedAudits.length === 0
-                        ? 'Select accounts'
-                        : selectedAudits.length === 1
-                          ? 'Continue'
-                          : `Continue with ${selectedAudits.length}`}
-                  </button>
+                        ? 'No accounts selected'
+                        : `${selectedAudits.length} selected`}
+                  </span>
+                  <div className="om-btnrow">
+                    <button
+                      type="button"
+                      className="om-btn"
+                      onClick={() => {
+                        setAgent('')
+                        setSelectedAudits([])
+                        setPortfolioSelected(false)
+                        setStep('agent')
+                      }}
+                    >
+                      ← Change agent
+                    </button>
+                    <button
+                      type="button"
+                      className={`om-btn om-btn--primary${
+                        selectedAudits.length > 0 || portfolioSelected ? ' is-ready' : ''
+                      }`}
+                      onClick={goToChat}
+                      disabled={selectedAudits.length === 0 && !portfolioSelected}
+                    >
+                      {portfolioSelected
+                        ? 'Continue with portfolio'
+                        : selectedAudits.length === 0
+                          ? 'Select accounts'
+                          : selectedAudits.length === 1
+                            ? 'Continue'
+                            : `Continue with ${selectedAudits.length}`}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -941,7 +641,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             {step === 'chat' && (selectedAudits.length > 0 || portfolioSelected) && (
               <OptiMateMultiChat
                 ref={multiChatRef}
-                {...{ key: portfolioSelected ? 'portfolio' : selectedAudits.map((a) => String(a.id)).join('|') }}
+                key={portfolioSelected ? 'portfolio' : selectedAudits.map((a) => String(a.id)).join('|')}
                 targets={
                   portfolioSelected
                     ? [{ mode: 'portfolio', id: 'portfolio', businessName: 'Portfolio' }]
@@ -980,6 +680,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
       {/* Pulse keyframe for the pomodoro icon when timer/tracker is active. */}
       <style>{`@keyframes optimate-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.55 } }`}</style>
+
+      {/* Panel + chat styling, shared with OptiMateChatCore. */}
+      <style>{OPTIMATE_MODAL_CSS}</style>
 
       {/* Collapsed launcher styling. Kept as a stylesheet rather than inline
           styles because it needs pseudo-classes, keyframes and the

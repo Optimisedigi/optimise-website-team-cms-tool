@@ -7,6 +7,7 @@ import {
   isCanonicalModel,
   modelRequiresReasoning,
 } from '@/lib/agents/_shared/llm/registry'
+import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
 
 type ReasoningMode = 'off' | 'low' | 'medium' | 'high'
 
@@ -1643,7 +1644,15 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         }
 
     return (
-      <div ref={rootRef} style={wrapperStyle} onKeyDown={(e) => e.stopPropagation()}>
+      <div
+        ref={rootRef}
+        className="om-chatui"
+        style={wrapperStyle}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        {/* Panel styling is also injected here, not only by the launcher: the
+            popout window and the admin audit page mount this chat on its own. */}
+        <style>{OPTIMATE_MODAL_CSS}</style>
         <style>{`
           @keyframes optimateTyping {
             0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
@@ -1722,18 +1731,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             }}
             title="Clear this chat and start a new one with no prior context"
             aria-label="New chat"
-            style={{
-              flexShrink: 0,
-              padding: '4px 8px',
-              fontSize: 11,
-              lineHeight: 1.2,
-              background: '#f3f4f6',
-              border: '1px solid #e5e7eb',
-              borderRadius: 6,
-              cursor: 'pointer',
-              color: '#2563eb',
-              fontWeight: 600,
-            }}
+            className="om-pill om-pill--blue"
           >
             + New
           </button>
@@ -1751,16 +1749,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               }}
               title="Show previous chats for this audit"
               aria-label="Chat history"
-              style={{
-                padding: '4px 8px',
-                fontSize: 11,
-                lineHeight: 1.2,
-                background: historyOpen ? '#e0e7ff' : '#f3f4f6',
-                border: '1px solid #e5e7eb',
-                borderRadius: 6,
-                cursor: 'pointer',
-                color: '#374151',
-              }}
+              className={`om-pill${historyOpen ? ' is-on' : ''}`}
             >
               History
             </button>
@@ -1873,17 +1862,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             }}
             title={expanded ? 'Exit fullscreen (Esc)' : 'Open in fullscreen'}
             aria-label={expanded ? 'Exit fullscreen' : 'Open in fullscreen'}
-            style={{
-              padding: '4px 8px',
-              fontSize: 12,
-              lineHeight: 1,
-              background: '#f3f4f6',
-              border: '1px solid #e5e7eb',
-              borderRadius: 6,
-              cursor: 'pointer',
-              color: '#374151',
-              flexShrink: 0,
-            }}
+            className="om-pill om-pill--icon"
           >
             {expanded ? '✕' : '⛶'}
           </button>
@@ -1944,47 +1923,42 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           )}
 
           {messages.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '32px 8px' }}>
-              <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
-                {mode === 'portfolio'
-                  ? 'Ask OptiMate for compact cross-account Google Ads analysis.'
-                  : 'Ask OptiMate anything about this Google Ads account.'}
-              </p>
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  justifyContent: 'center',
-                }}
-              >
+            <div style={{ padding: '20px 4px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="om-hero">
+                <span className="om-hero-orb">
+                  <img src="/optimate-orb.png" alt="" />
+                </span>
+                <h2>How can I help?</h2>
+                <p className="om-note" style={{ textAlign: 'center' }}>
+                  {mode === 'portfolio'
+                    ? 'Ask for compact cross-account Google Ads analysis.'
+                    : 'Ask anything about this Google Ads account.'}
+                </p>
+              </div>
+              <div className="om-prompts">
                 {(mode === 'portfolio' ? portfolioStarterQuestions : starterQuestions).map((q) => (
                   <button
                     key={q}
                     type="button"
+                    className="om-card om-ask"
+                    title={q}
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
                       sendMessage(q)
                     }}
-                    style={{
-                      padding: '5px 10px',
-                      fontSize: 11,
-                      background: '#f3f4f6',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 14,
-                      cursor: 'pointer',
-                      color: '#374151',
-                      transition: 'background 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#e5e7eb'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#f3f4f6'
-                    }}
                   >
-                    {q}
+                    <span
+                      className="om-badge"
+                      style={{ background: '#eef4ff', color: '#2563eb' }}
+                      aria-hidden="true"
+                    >
+                      ✦
+                    </span>
+                    <b>{q}</b>
+                    <span className="om-chev" aria-hidden="true">
+                      ›
+                    </span>
                   </button>
                 ))}
               </div>
@@ -2512,16 +2486,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               </div>
             )}
 
-            <div
-              style={{
-                position: 'relative',
-                minHeight: 104,
-                border: '1px solid var(--theme-border-color, #e5e7eb)',
-                borderRadius: 14,
-                background: 'var(--theme-input-bg, #fff)',
-                padding: '12px 14px 46px',
-              }}
-            >
+            <div className="om-inputwrap" style={{ position: 'relative', minHeight: 104, padding: '12px 14px 46px' }}>
               <input
                 ref={imageInputRef}
                 type="file"
@@ -2572,20 +2537,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   }}
                   disabled={loading}
                   title="Browse your Gmail inbox to attach an email"
-                  style={{
-                    width: 29,
-                    height: 29,
-                    padding: 0,
-                    background: pickerOpen ? '#e0e7ff' : '#fff',
-                    color: '#374151',
-                    border: '1px solid var(--theme-border-color, #e5e7eb)',
-                    borderRadius: 8,
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    lineHeight: 1,
-                  }}
+                  className={`om-tool${pickerOpen ? ' is-on' : ''}`}
                   aria-label="Browse Gmail inbox"
                 >
                   <svg
@@ -2618,27 +2570,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                         } attached — paste, drop, or click to add more`
                       : 'Attach a screenshot — click, paste (⌘V), or drop an image'
                   }
-                  style={{
-                    position: 'relative',
-                    width: 29,
-                    height: 29,
-                    padding: 0,
-                    background: imageAttachments.length > 0 ? '#dcfce7' : '#fff',
-                    color: imageAttachments.length > 0 ? '#166534' : '#374151',
-                    border:
-                      imageAttachments.length > 0
-                        ? '1px solid #86efac'
-                        : '1px solid var(--theme-border-color, #e5e7eb)',
-                    borderRadius: 8,
-                    cursor:
-                      loading || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS
-                        ? 'not-allowed'
-                        : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    lineHeight: 1,
-                  }}
+                  className={`om-tool${imageAttachments.length > 0 ? ' is-attached' : ''}`}
+                  style={{ position: 'relative' }}
                   aria-label={
                     imageAttachments.length > 0
                       ? `Attach image screenshot. ${imageAttachments.length} attached.`
@@ -2705,25 +2638,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   disabled={loading || (!input.trim() && imageAttachments.length === 0)}
                   title="Send"
                   aria-label="Send"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 29,
-                    height: 29,
-                    background:
-                      loading || (!input.trim() && imageAttachments.length === 0)
-                        ? '#9ca3af'
-                        : '#2563eb',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 8,
-                    cursor:
-                      loading || (!input.trim() && imageAttachments.length === 0)
-                        ? 'not-allowed'
-                        : 'pointer',
-                    transition: 'background 0.15s',
-                  }}
+                  className="om-send"
+                  style={{ marginLeft: 0, width: 29, height: 29, borderRadius: 9 }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path
@@ -2777,16 +2693,12 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             </div>
 
             {/* Model selector lives BELOW the input row so the typebox is the
-              primary affordance. Width is set to fit the longest current
-              label ("Claude Sonnet 4.6 (OAuth)" — ~25 chars) without
-              truncation. Browsers ignore most styling on <option> elements,
-              but the closed-select width is controlled here. */}
+              primary affordance. Both selects share the row's width rather than
+              using fixed pixel widths, which overflowed the 412px panel.
+              Browsers ignore most styling on <option> elements. */}
             <div
+              className="om-selects"
               style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'center',
-                justifyContent: 'flex-end',
                 marginTop: 6,
                 // Keep a clear gap below the model selector so it isn't clipped
                 // by the bottom edge of the popout window.
@@ -2811,17 +2723,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     ? 'This model requires reasoning on. Off is unavailable.'
                     : 'Reasoning mode for the next request. Off is fastest/cheapest.'
                 }
-                style={{
-                  fontSize: 11,
-                  padding: '4px 8px',
-                  border: '1px solid var(--theme-border-color, #e5e7eb)',
-                  borderRadius: 6,
-                  background: 'var(--theme-input-bg, #fff)',
-                  color: 'var(--theme-text, #1f2937)',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  width: 150,
-                  maxWidth: '100%',
-                }}
+                className="om-select"
+                style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
               >
                 <option value="off" disabled={modelRequiresReasoning(selectedModel)}>
                   Reasoning off
@@ -2845,17 +2748,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 }}
                 disabled={loading}
                 title="Model used for the next message"
-                style={{
-                  fontSize: 11,
-                  padding: '4px 8px',
-                  border: '1px solid var(--theme-border-color, #e5e7eb)',
-                  borderRadius: 6,
-                  background: 'var(--theme-input-bg, #fff)',
-                  color: 'var(--theme-text, #1f2937)',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  width: 270,
-                  maxWidth: '100%',
-                }}
+                className="om-select om-select--wide"
+                style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
               >
                 {CHAT_PICKER_MODELS.map((m) => (
                   <option key={m.canonical} value={m.canonical}>
