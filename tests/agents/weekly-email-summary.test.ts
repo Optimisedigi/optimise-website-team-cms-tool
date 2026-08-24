@@ -44,6 +44,16 @@ describe('weekly email top-line summary', () => {
     expect(summary).toMatch(/target/)
   })
 
+  it('rounds every dollar figure to whole dollars', () => {
+    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7]) {
+      const summary = buildWeeklyEmailSummary({ rows, components, dashboardData, budget, seed })
+      expect(summary).not.toMatch(/\$[\d,]+\.\d/)
+      // CPA trend 58.11 -> $58 and 43.04 -> $43 in the shared insight sentence.
+      expect(summary).toMatch(/\$58\b/)
+      expect(summary).toMatch(/\$43\b/)
+    }
+  })
+
   describe('week-on-week comparison', () => {
     it('compares the latest week against the prior completed week', () => {
       // 25 -> 28 conversions, so the sentence must cite both weeks' figures.

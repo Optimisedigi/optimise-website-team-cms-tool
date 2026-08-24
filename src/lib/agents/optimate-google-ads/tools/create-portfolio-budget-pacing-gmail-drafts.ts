@@ -16,6 +16,7 @@ import {
   selectPortfolioAccountsByAccountRefs,
 } from './_portfolio-accounts'
 import { copySeed, pickGreeting, pickVariant, seedCustomerId } from './_email-copy-variants'
+import { loadClientEmailCopy } from '@/lib/agents/_shared/client-email-copy'
 import type { EmailComponentData } from './_email-component-insights'
 
 interface CreatePortfolioBudgetPacingGmailDraftsArgs {
@@ -250,6 +251,8 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
       // Span ending on the last completed calendar month, shared by the trend
       // table and the dashboard components so both describe the same month.
       const monthSpan = monthSpanEndingPreviousMonth(MONTHLY_TREND_MONTHS)
+      // Loaded once for the whole batch: every draft shares the same wording rules.
+      const copy = await loadClientEmailCopy()
 
       for (const account of auditBackedAccounts) {
         const auditId = account.accountRef as string | number
@@ -370,6 +373,7 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
               'monthly',
               monthSpan.endMonth,
             ),
+            copy,
           })
         } else {
           // Seeded per account + period so a batch of drafts does not repeat the
@@ -398,6 +402,7 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
                       'monthly',
                       monthSpan.endMonth,
                     ),
+                    copy,
                   ),
                 )}</p>`,
               ]
@@ -553,9 +558,9 @@ function buildPerformanceSummary(
       avgCpc !== null
         ? pickVariant(
             [
-              `Average CPC was ${formatCurrency(avgCpc)}.`,
-              `Average cost per click landed at ${formatCurrency(avgCpc)}.`,
-              `Average cost per click came in at ${formatCurrency(avgCpc)}.`,
+              `Average CPC was ${formatCpc(avgCpc)}.`,
+              `Average cost per click landed at ${formatCpc(avgCpc)}.`,
+              `Average cost per click came in at ${formatCpc(avgCpc)}.`,
             ],
             seed,
             'pacing-cpc',
@@ -592,6 +597,16 @@ function formatCurrency(value: number): string {
     style: 'currency',
     currency: 'AUD',
     maximumFractionDigits: 0,
+  }).format(Number.isFinite(value) ? value : 0)
+}
+
+/** CPC is the one email figure kept to cents - whole dollars lose too much of it. */
+function formatCpc(value: number): string {
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(Number.isFinite(value) ? value : 0)
 }
 

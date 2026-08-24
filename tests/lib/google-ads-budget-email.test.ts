@@ -165,12 +165,13 @@ describe("formatCostPerConv", () => {
     expect(formatCostPerConv(0, 0)).toBe("\u2014");
   });
 
-  it("returns $X.XX when CPL < $100", () => {
-    expect(formatCostPerConv(200, 4)).toBe("$50.00");
-    expect(formatCostPerConv(99, 1)).toBe("$99.00");
+  it("rounds to whole dollars below $100", () => {
+    expect(formatCostPerConv(200, 4)).toBe("$50");
+    expect(formatCostPerConv(99, 1)).toBe("$99");
+    expect(formatCostPerConv(71.04, 2)).toBe("$36");
   });
 
-  it("returns $X (rounded) when CPL >= $100", () => {
+  it("rounds to whole dollars at or above $100", () => {
     expect(formatCostPerConv(1000, 5)).toBe("$200");
     expect(formatCostPerConv(1234, 10)).toBe("$123");
   });

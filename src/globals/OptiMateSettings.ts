@@ -14,6 +14,12 @@ import {
   DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
   DEFAULT_VOICE_REALTIME_MODEL,
 } from "../lib/agents/_shared/optimate-default-models";
+import {
+  CLIENT_EMAIL_COPY_SLOTS,
+  copyFieldName,
+  EMAIL_COPY_SLOT_KEYS,
+  type EmailCopySlotKey,
+} from "../lib/agents/optimate-google-ads/tools/_email-copy-slots";
 
 /**
  * OptiMate agent settings.
@@ -96,6 +102,38 @@ function starterQuestionField(name: string, label: string, questions: readonly s
         maxLength: 240,
       },
     ],
+  };
+}
+
+/**
+ * One textarea per copy slot, seeded with the shipped phrasings so the tab
+ * reads as the current wording until someone edits it.
+ */
+function clientCopyField(slot: EmailCopySlotKey) {
+  const definition = CLIENT_EMAIL_COPY_SLOTS[slot];
+  const tokens = definition.tokens as readonly string[];
+  const tokenHint =
+    tokens.length > 0
+      ? ` Tokens: ${tokens.map((token) => `{${token}}`).join(", ")}.`
+      : " No tokens in this sentence.";
+  return {
+    name: copyFieldName(slot),
+    type: "textarea" as const,
+    label: definition.label,
+    defaultValue: definition.defaults.join("\n"),
+    admin: {
+      description: `${definition.description} One phrasing per line.${tokenHint}`,
+      rows: Math.min(definition.defaults.length + 1, 10),
+    },
+  };
+}
+
+function clientCopyCollapsible(label: string, slots: readonly EmailCopySlotKey[]) {
+  return {
+    type: "collapsible" as const,
+    label,
+    admin: { initCollapsed: true },
+    fields: slots.map(clientCopyField),
   };
 }
 
@@ -389,6 +427,29 @@ export const OptiMateSettings: GlobalConfig = {
                   Field: "./components/agent/OptiMateSoulSettingsPanel",
                 },
               },
+            },
+          ],
+        },
+        {
+          label: "Client Email Copy",
+          description:
+            "Wording for the client-facing weekly and monthly Google Ads report emails. Each box holds interchangeable phrasings, one per line; the account and reporting period decide which one is used, so the same account and period always reads the same while a batch of accounts reads differently. {tokens} are filled in with the real figures - the numbers themselves are always computed, never typed here. Clear a box, or use a token that is not listed, and that sentence falls back to its shipped default.",
+          fields: [
+            {
+              name: "clientEmailCopy",
+              type: "group",
+              label: false,
+              fields: [
+                clientCopyCollapsible("Greeting", ["greeting"]),
+                clientCopyCollapsible(
+                  "Weekly report",
+                  EMAIL_COPY_SLOT_KEYS.filter((slot) => slot.startsWith("weekly-")),
+                ),
+                clientCopyCollapsible(
+                  "Monthly report",
+                  EMAIL_COPY_SLOT_KEYS.filter((slot) => slot.startsWith("monthly-")),
+                ),
+              ],
             },
           ],
         },

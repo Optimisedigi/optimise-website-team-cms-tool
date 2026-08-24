@@ -90,7 +90,7 @@ describe("buildWeeklyBuckets", () => {
       conversions: 15,
     });
     expect(rows[1].partial).toBe(true);
-    expect(rows[1].label).toBe("May 18 - 20 (Mon-Wed)");
+    expect(rows[1].label).toBe("18th May - 20th May (Mon-Wed)");
   });
 });
 

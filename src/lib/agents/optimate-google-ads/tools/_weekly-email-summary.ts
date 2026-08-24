@@ -1,6 +1,7 @@
 import type { GoogleAdsEmailComponentKey } from "@/lib/google-ads-email-components";
 import type { WeeklyBucketRow } from "@/lib/google-ads-weekly-metric-table";
-import { pickVariant } from "./_email-copy-variants";
+import { pickCopy } from "./_email-copy-variants";
+import type { ClientEmailCopy } from "./_email-copy-slots";
 import { buildComponentInsightSentence, type EmailComponentData } from "./_email-component-insights";
 
 /**
@@ -17,6 +18,9 @@ import { buildComponentInsightSentence, type EmailComponentData } from "./_email
  * varies independently, so a batch of accounts does not repeat the same
  * sentence shapes, while a re-run for the same account and week is byte-stable.
  * Only wording varies - never the numbers.
+ *
+ * The phrasings themselves live in `_email-copy-slots.ts` and are overridable
+ * from OptiMate Settings; pass the loaded overrides as `copy`.
  */
 
 export interface WeeklySummaryBudget {
@@ -32,6 +36,8 @@ export interface WeeklyEmailSummaryInput {
   dashboardData?: EmailComponentData;
   budget?: WeeklySummaryBudget;
   seed?: number;
+  /** Editable phrasings from OptiMate Settings; defaults are used when absent. */
+  copy?: ClientEmailCopy;
 }
 
 export function buildWeeklyEmailSummary({
@@ -40,11 +46,12 @@ export function buildWeeklyEmailSummary({
   dashboardData,
   budget,
   seed = 0,
+  copy,
 }: WeeklyEmailSummaryInput): string {
   return [
-    buildPerformanceSentence(rows, seed),
+    buildPerformanceSentence(rows, seed, copy),
     buildComponentInsightSentence(components, dashboardData, seed),
-    buildPacingSentence(budget, seed),
+    buildPacingSentence(budget, seed, copy),
   ]
     .filter(Boolean)
     .join(" ");
@@ -55,7 +62,11 @@ export function buildWeeklyEmailSummary({
  * sentence states the direction of travel for conversions and CPA; otherwise it
  * falls back to describing the latest week on its own.
  */
-function buildPerformanceSentence(rows: WeeklyBucketRow[], seed: number): string {
+function buildPerformanceSentence(
+  rows: WeeklyBucketRow[],
+  seed: number,
+  copy: ClientEmailCopy | undefined,
+): string {
   const latest = rows[rows.length - 1];
   const previous = rows[rows.length - 2];
   if (!latest)
@@ -82,172 +93,93 @@ function buildPerformanceSentence(rows: WeeklyBucketRow[], seed: number): string
     previousConversions !== null ? formatNumber(previousConversions) : "";
   const previousCpaText = previousCpa !== null ? formatCurrency(previousCpa) : "";
 
+  const tokens = {
+    period: label,
+    conversions: conversionsText,
+    prevConversions: previousConversionsText,
+    cpa: cpaText,
+    prevCpa: previousCpaText,
+    spend: spendText,
+  };
+
   // Best case: more conversions and cheaper than the week before.
   if (conversionsUp && cpaImproved) {
-    return pickVariant(
-      [
-        `${label} was a strong week: conversions rose to ${conversionsText} from ${previousConversionsText} while CPA improved to ${cpaText} from ${previousCpaText}.`,
-        `${label} performed well, lifting conversions to ${conversionsText} from ${previousConversionsText} and bringing CPA down to ${cpaText} from ${previousCpaText}.`,
-        `A strong ${label}: ${conversionsText} conversions against ${previousConversionsText} the week prior, with CPA tightening to ${cpaText} from ${previousCpaText}.`,
-        `${label} moved in the right direction on both counts, with conversions up to ${conversionsText} from ${previousConversionsText} and CPA down to ${cpaText} from ${previousCpaText}.`,
-        `Both volume and efficiency improved in ${label}: ${conversionsText} conversions from ${previousConversionsText}, at ${cpaText} against ${previousCpaText}.`,
-        `${label} delivered more for less, with conversions at ${conversionsText} from ${previousConversionsText} and CPA at ${cpaText} from ${previousCpaText}.`,
-        `A productive ${label}, lifting conversions to ${conversionsText} from ${previousConversionsText} while CPA fell to ${cpaText} from ${previousCpaText}.`,
-        `Week-on-week ${label} improved on both fronts: ${conversionsText} conversions versus ${previousConversionsText}, CPA ${cpaText} versus ${previousCpaText}.`,
-      ],
-      seed,
-      "weekly-performance-up-efficient",
-    );
+    return pickCopy("weekly-performance-up-efficient", seed, copy, tokens);
   }
 
   // More conversions, but CPA flat or higher.
   if (conversionsUp) {
-    const cpaClause =
-      cpa !== null
-        ? cpaWorsened
-          ? `, with CPA easing to ${cpaText} from ${previousCpaText}`
-          : ` at a CPA of ${cpaText}`
-        : "";
-    return pickVariant(
-      [
-        `${label} lifted conversions to ${conversionsText} from ${previousConversionsText}${cpaClause}.`,
-        `Conversions grew across ${label} to ${conversionsText} from ${previousConversionsText}${cpaClause}.`,
-        `${label} came in ahead of the prior week on volume, at ${conversionsText} conversions against ${previousConversionsText}${cpaClause}.`,
-        `Volume improved in ${label}, with ${conversionsText} conversions versus ${previousConversionsText} the week before${cpaClause}.`,
-        `${label} built on the prior week, reaching ${conversionsText} conversions from ${previousConversionsText}${cpaClause}.`,
-        `The account converted ${conversionsText} times in ${label}, up from ${previousConversionsText}${cpaClause}.`,
-        `${label} pushed volume higher, to ${conversionsText} conversions from ${previousConversionsText}${cpaClause}.`,
-        `Week-on-week, ${label} added volume at ${conversionsText} conversions against ${previousConversionsText}${cpaClause}.`,
-      ],
-      seed,
-      "weekly-performance-up",
-    );
+    return pickCopy("weekly-performance-up", seed, copy, {
+      ...tokens,
+      cpaClause: buildCpaClause(cpa, cpaWorsened, cpaText, previousCpaText, "easing"),
+    });
   }
 
   // Fewer conversions, but cheaper acquisition.
   if (conversionsDown && cpaImproved) {
-    return pickVariant(
-      [
-        `${label} traded volume for efficiency: conversions eased to ${conversionsText} from ${previousConversionsText}, while CPA improved to ${cpaText} from ${previousCpaText}.`,
-        `Conversions softened across ${label} to ${conversionsText} from ${previousConversionsText}, though CPA came down to ${cpaText} from ${previousCpaText}.`,
-        `${label} saw ${conversionsText} conversions against ${previousConversionsText} the week prior, with CPA tightening to ${cpaText} from ${previousCpaText}.`,
-        `Volume dipped in ${label} to ${conversionsText} from ${previousConversionsText}, but each conversion came cheaper at ${cpaText} versus ${previousCpaText}.`,
-      ],
-      seed,
-      "weekly-performance-down-efficient",
-    );
+    return pickCopy("weekly-performance-down-efficient", seed, copy, tokens);
   }
 
   // Fewer conversions and no efficiency gain.
   if (conversionsDown) {
-    const cpaClause =
-      cpa !== null
-        ? cpaWorsened
-          ? `, and CPA rose to ${cpaText} from ${previousCpaText}`
-          : ` at a CPA of ${cpaText}`
-        : "";
-    return pickVariant(
-      [
-        `${label} eased back to ${conversionsText} conversions from ${previousConversionsText}${cpaClause}.`,
-        `Conversions softened across ${label} to ${conversionsText} from ${previousConversionsText}${cpaClause}.`,
-        `${label} came in behind the prior week, at ${conversionsText} conversions against ${previousConversionsText}${cpaClause}.`,
-        `Volume slipped in ${label} to ${conversionsText} from ${previousConversionsText}${cpaClause}.`,
-        `${label} finished below the week prior, with ${conversionsText} conversions against ${previousConversionsText}${cpaClause}.`,
-        `The account converted ${conversionsText} times in ${label}, down from ${previousConversionsText}${cpaClause}.`,
-        `Week-on-week, ${label} gave back some volume at ${conversionsText} conversions from ${previousConversionsText}${cpaClause}.`,
-        `${label} tracked lower on volume, at ${conversionsText} conversions versus ${previousConversionsText}${cpaClause}.`,
-      ],
-      seed,
-      "weekly-performance-down",
-    );
+    return pickCopy("weekly-performance-down", seed, copy, {
+      ...tokens,
+      cpaClause: buildCpaClause(cpa, cpaWorsened, cpaText, previousCpaText, "rose"),
+    });
   }
 
   // Volume flat week-on-week, so lead on the efficiency move.
   if (previousConversions !== null && cpa !== null && (cpaImproved || cpaWorsened)) {
-    const direction = cpaImproved ? "improved" : "rose";
-    return pickVariant(
-      [
-        `${label} held conversions at ${conversionsText}, with CPA ${direction} to ${cpaText} from ${previousCpaText}.`,
-        `Conversions were steady across ${label} at ${conversionsText}, while CPA ${direction} to ${cpaText} from ${previousCpaText}.`,
-        `${label} matched the prior week at ${conversionsText} conversions, and CPA ${direction} to ${cpaText} from ${previousCpaText}.`,
-        `Volume held flat in ${label} at ${conversionsText} conversions, with CPA ${direction} to ${cpaText} from ${previousCpaText}.`,
-      ],
-      seed,
-      "weekly-performance-flat-cpa-move",
-    );
+    return pickCopy("weekly-performance-flat-cpa-move", seed, copy, {
+      ...tokens,
+      direction: cpaImproved ? "improved" : "rose",
+    });
   }
 
   // No prior week to compare against: describe the latest week on its own.
   if (conversions > 0 && cpa !== null) {
-    return pickVariant(
-      [
-        `${label} delivered ${conversionsText} conversions at a CPA of ${cpaText}, with ${spendText} in spend.`,
-        `${label} brought in ${conversionsText} conversions from ${spendText} in spend, at a CPA of ${cpaText}.`,
-        `Across ${label}, ${spendText} in spend produced ${conversionsText} conversions at ${cpaText} each.`,
-        `${label} closed out with ${conversionsText} conversions, ${spendText} in spend and a CPA of ${cpaText}.`,
-      ],
-      seed,
-      "weekly-intro-converting",
-    );
+    return pickCopy("weekly-intro-converting", seed, copy, tokens);
   }
   if (spend > 0) {
-    return pickVariant(
-      [
-        `${label} recorded ${spendText} in Google Ads spend, with the completed-week trend included below for context.`,
-        `Google Ads spend for ${label} came in at ${spendText}, and the completed-week trend is below for context.`,
-        `${label} used ${spendText} in spend, with the completed-week trend set out below.`,
-        `Spend across ${label} was ${spendText}, and the completed-week trend follows below.`,
-      ],
-      seed,
-      "weekly-intro-spend",
-    );
+    return pickCopy("weekly-intro-spend", seed, copy, tokens);
   }
-  return pickVariant(
-    [
-      `${label} is included as the completed-week view, with the budget tracker below for current pacing context.`,
-      `${label} is the completed-week view, and the budget tracker below covers current pacing.`,
-      `Below is the completed week for ${label}, along with the budget tracker for current pacing.`,
-    ],
-    seed,
-    "weekly-intro-flat",
-  );
+  return pickCopy("weekly-intro-flat", seed, copy, tokens);
 }
 
-function buildPacingSentence(budget: WeeklySummaryBudget | undefined, seed: number): string {
+/**
+ * The trailing CPA clause for the mixed-direction sentences. Rendered here
+ * rather than in a slot template because it is conditional: it names the prior
+ * week only when CPA actually moved the wrong way.
+ */
+function buildCpaClause(
+  cpa: number | null,
+  cpaWorsened: boolean,
+  cpaText: string,
+  previousCpaText: string,
+  verb: "easing" | "rose",
+): string {
+  if (cpa === null) return "";
+  if (!cpaWorsened) return ` at a CPA of ${cpaText}`;
+  return verb === "easing"
+    ? `, with CPA easing to ${cpaText} from ${previousCpaText}`
+    : `, and CPA rose to ${cpaText} from ${previousCpaText}`;
+}
+
+function buildPacingSentence(
+  budget: WeeklySummaryBudget | undefined,
+  seed: number,
+  copy: ClientEmailCopy | undefined,
+): string {
   if (!budget || budget.monthlyBudget <= 0) return "";
-  if (budget.pacingDifference <= 0) {
-    return pickVariant(
-      [
-        "Spend stayed controlled, keeping the account under budget and giving us a strong base for the rest of the month.",
-        "Spend is tracking under budget for the month, which leaves room to lean into what is working.",
-        "Budget pacing is comfortable, with the account sitting under target and the rest of the month still to run.",
-        "Spend remains below the month-to-date target, so there is headroom left for the back half of the month.",
-        "Pacing is sitting under the month-to-date target, leaving budget available for the weeks ahead.",
-        "The account is running below budget for the month, so there is room to scale what is performing.",
-      ],
-      seed,
-      "weekly-budget-under",
-    );
-  }
-  return pickVariant(
-    [
-      "Spend is currently ahead of the month-to-date target, so we’ll keep pacing closely through the rest of the month.",
-      "Spend is running ahead of the month-to-date target, so we’re watching pacing closely for the remainder of the month.",
-      "The account is tracking ahead of the month-to-date budget target, so we’ll manage pacing tightly through month end.",
-      "Month-to-date spend sits above target, so pacing is being adjusted for the rest of the month.",
-      "Pacing is ahead of the month-to-date target, so we’re moderating delivery through the back half of the month.",
-      "The account is above its month-to-date budget target, so spend is being reined in for the rest of the month.",
-    ],
-    seed,
-    "weekly-budget-over",
-  );
+  const slot = budget.pacingDifference <= 0 ? "weekly-budget-under" : "weekly-budget-over";
+  return pickCopy(slot, seed, copy);
 }
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
-    maximumFractionDigits: value >= 100 ? 0 : 2,
+    maximumFractionDigits: 0,
   }).format(value);
 }
 

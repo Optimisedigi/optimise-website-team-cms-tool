@@ -266,7 +266,7 @@ function formatTrendValue(value: number, suffix: string, formatValue?: (value: n
 
 function callbackFormatter(suffix: string, formatValue?: (value: number) => string): string {
   if (formatValue === moneyOrDash) {
-    return "function(value){return !isFinite(value)||value<=0?'-':value<100?'$'+Number(value).toFixed(2):'$'+Math.round(value).toLocaleString('en-AU');}";
+    return "function(value){return !isFinite(value)||value<=0?'-':'$'+Math.round(value).toLocaleString('en-AU');}";
   }
   if (suffix === "%") {
     return "function(value){return Number(value).toLocaleString('en-AU',{maximumFractionDigits:1})+'%';}";
@@ -347,7 +347,7 @@ function money(value: number | null | undefined): string {
 function moneyOrDash(value: number | null | undefined): string {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return "-";
-  return n < 100 ? `$${n.toFixed(2)}` : `$${Math.round(n).toLocaleString("en-AU")}`;
+  return `$${Math.round(n).toLocaleString("en-AU")}`;
 }
 
 function number(value: number | null | undefined): string {

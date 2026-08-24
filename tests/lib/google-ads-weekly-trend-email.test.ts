@@ -36,7 +36,7 @@ function perDayRange(
 }
 
 describe("buildWeeklyTrendRows", () => {
-  it("produces 4 Monday-anchored weeks ending Thu 21 May 2026 with the latest row flagged partial and labelled 'May 18 - 21 (Mon-Thu)'", () => {
+  it("produces 4 Monday-anchored weeks ending Thu 21 May 2026 with the latest row flagged partial and labelled '18th May - 21st May (Mon-Thu)'", () => {
     // 4 weeks ending Thu 2026-05-21 (the screenshot bug was the LLM
     // producing 'May 19 to May 21' instead of 'May 18 - 21' with the
     // partial-week suffix):
@@ -56,10 +56,10 @@ describe("buildWeeklyTrendRows", () => {
     expect(rows[3].weekStart).toBe("2026-05-18");
     expect(rows[3].weekEnd).toBe("2026-05-21");
     expect(rows[3].partial).toBe(true);
-    expect(rows[3].label).toBe("May 18 - 21 (Mon-Thu)");
-    // And confirm we didn't accidentally produce "May 19 to 21" - the
+    expect(rows[3].label).toBe("18th May - 21st May (Mon-Thu)");
+    // And confirm we didn't accidentally produce "19th May to 21st" - the
     // direct regression from the user's screenshot.
-    expect(rows[3].label).not.toContain("May 19");
+    expect(rows[3].label).not.toContain("19th May");
   });
 
   it("when endDate is a Sunday the latest row is a full Mon-Sun week with no suffix", () => {
@@ -72,7 +72,7 @@ describe("buildWeeklyTrendRows", () => {
     expect(last.weekStart).toBe("2026-05-18");
     expect(last.weekEnd).toBe("2026-05-24");
     expect(last.partial).toBe(false);
-    expect(last.label).toBe("May 18 - May 24");
+    expect(last.label).toBe("18th May - 24th May");
     expect(last.label).not.toContain("(");
   });
 
@@ -86,7 +86,7 @@ describe("buildWeeklyTrendRows", () => {
     expect(last.weekStart).toBe("2026-05-18");
     expect(last.weekEnd).toBe("2026-05-18");
     expect(last.partial).toBe(true);
-    expect(last.label).toBe("May 18 (Mon)");
+    expect(last.label).toBe("18th May (Mon)");
   });
 
   it("buckets per-day rows correctly - only days inside the [weekStart, weekEnd] window count", () => {

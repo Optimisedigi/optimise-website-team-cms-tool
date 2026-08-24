@@ -195,7 +195,7 @@ describe("get_weekly_trend_note - execute", () => {
     expect(result.ok).toBe(true);
     const data = result.data as { html: string; rows: Array<{ partial: boolean; label: string }> };
     expect(data.rows[1].partial).toBe(true);
-    expect(data.rows[1].label).toBe("May 18 - 21 (Mon-Thu)");
+    expect(data.rows[1].label).toBe("18th May - 21st May (Mon-Thu)");
     expect(data.html).toContain("background:#f0fdf4");
   });
 

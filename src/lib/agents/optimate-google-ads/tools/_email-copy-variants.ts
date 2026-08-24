@@ -17,6 +17,14 @@
  * diverges between surfaces. Stripping to digits keeps one account's wording
  * identical everywhere, while different accounts still read differently.
  */
+import {
+  renderCopyTemplate,
+  resolveSlotVariants,
+  type ClientEmailCopy,
+  type EmailCopySlotKey,
+  type EmailCopyTokens,
+} from "./_email-copy-slots";
+
 export function seedCustomerId(customerId: unknown): string {
   return typeof customerId === "string" || typeof customerId === "number"
     ? String(customerId).replace(/\D/g, "")
@@ -64,15 +72,24 @@ export function pickVariant<T>(variants: readonly [T, ...T[]], seed: number, slo
   return variants[index]!;
 }
 
-export const GREETING_VARIANTS = [
-  "Hey team,",
-  "Hi team,",
-  "Hey all,",
-  "Hi all,",
-  "Morning team,",
-] as const;
+/**
+ * Picks and renders one phrasing for an editable copy slot.
+ *
+ * The slot's phrasings come from OptiMate Settings when set and from the
+ * shipped defaults otherwise, so editing a slot changes the wording without
+ * touching the figures - those are computed by the caller and substituted in.
+ */
+export function pickCopy(
+  slot: EmailCopySlotKey,
+  seed: number,
+  copy: ClientEmailCopy | undefined,
+  tokens: EmailCopyTokens = {},
+): string {
+  const variants = resolveSlotVariants(slot, copy);
+  return renderCopyTemplate(pickVariant(variants, seed, slot), tokens);
+}
 
 /** Greeting line, varied per account so batched drafts do not open identically. */
-export function pickGreeting(seed: number): string {
-  return pickVariant(GREETING_VARIANTS, seed, "greeting");
+export function pickGreeting(seed: number, copy?: ClientEmailCopy): string {
+  return pickCopy("greeting", seed, copy);
 }

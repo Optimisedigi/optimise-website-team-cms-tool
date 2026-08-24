@@ -149,9 +149,25 @@ function mondayOfWeekUtc(d: Date): Date {
   return addDaysUtc(d, -daysSinceMonday);
 }
 
-/** Format "May 11" - no year, no day-of-week. */
+/** Ordinal suffix for a day of the month: 1st, 2nd, 3rd, 11th, 21st, 23rd. */
+function ordinal(day: number): string {
+  // 11-13 are the exceptions: "11th", not "11st".
+  const suffix =
+    day % 100 >= 11 && day % 100 <= 13
+      ? "th"
+      : day % 10 === 1
+        ? "st"
+        : day % 10 === 2
+          ? "nd"
+          : day % 10 === 3
+            ? "rd"
+            : "th";
+  return `${day}${suffix}`;
+}
+
+/** Format "11th May" - no year, no day-of-week. */
 function fmtMonthDay(d: Date): string {
-  return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCDate()}`;
+  return `${ordinal(d.getUTCDate())} ${MONTH_NAMES[d.getUTCMonth()]}`;
 }
 
 /** Day-of-week label for partial-week suffix, e.g. "Wed". */
@@ -167,14 +183,12 @@ function buildLabel(weekStartIso: string, weekEndIso: string, partial: boolean):
     return `${fmtMonthDay(start)} - ${fmtMonthDay(end)}`;
   }
   // Partial week. Two shapes:
-  //   - "May 18 - 21 (Mon-Wed)" when the partial spans more than one day.
-  //   - "May 18 (Mon)" when the partial is the Monday only.
+  //   - "18th May - 21st May (Mon-Wed)" when the partial spans more than one day.
+  //   - "18th May (Mon)" when the partial is the Monday only.
   if (weekStartIso === weekEndIso) {
     return `${fmtMonthDay(start)} (${fmtDow(start)})`;
   }
-  const sameMonth = start.getUTCMonth() === end.getUTCMonth();
-  const endLabel = sameMonth ? String(end.getUTCDate()) : fmtMonthDay(end);
-  return `${fmtMonthDay(start)} - ${endLabel} (${fmtDow(start)}-${fmtDow(end)})`;
+  return `${fmtMonthDay(start)} - ${fmtMonthDay(end)} (${fmtDow(start)}-${fmtDow(end)})`;
 }
 
 /**

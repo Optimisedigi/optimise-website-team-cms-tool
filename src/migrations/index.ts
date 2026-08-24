@@ -16,6 +16,7 @@ import * as migration_20260816_120000_hosting_plan_annual_discount from './20260
 import * as migration_20260817_120000_add_dashboard_hidden_secondary_conversion_actions from './20260817_120000_add_dashboard_hidden_secondary_conversion_actions'
 import * as migration_20260819_120000_add_landing_ip_exclusions_and_data_start from './20260819_120000_add_landing_ip_exclusions_and_data_start'
 import * as migration_20260819_130000_fix_clients_services_id_integer from './20260819_130000_fix_clients_services_id_integer'
+import * as migration_20260824_120000_add_client_email_copy_settings from './20260824_120000_add_client_email_copy_settings'
 import * as migration_20260801_130000_add_proposal_meta_ads_job_state from './20260801_130000_add_proposal_meta_ads_job_state'
 import * as migration_20260304_120000_add_gsc_indexing_audits from './20260304_120000_add_gsc_indexing_audits'
 import * as migration_20260306_120000_add_contracts from './20260306_120000_add_contracts'
@@ -989,5 +990,10 @@ export const migrations = [
     up: migration_20260819_130000_fix_clients_services_id_integer.up,
     down: migration_20260819_130000_fix_clients_services_id_integer.down,
     name: '20260819_130000_fix_clients_services_id_integer',
+  },
+  {
+    up: migration_20260824_120000_add_client_email_copy_settings.up,
+    down: migration_20260824_120000_add_client_email_copy_settings.down,
+    name: '20260824_120000_add_client_email_copy_settings',
   },
 ]

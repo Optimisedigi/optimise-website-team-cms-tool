@@ -1,5 +1,6 @@
 import type { GoogleAdsEmailComponentKey } from "@/lib/google-ads-email-components";
-import { pickVariant } from "./_email-copy-variants";
+import { pickCopy } from "./_email-copy-variants";
+import type { ClientEmailCopy } from "./_email-copy-slots";
 import { buildComponentInsightSentence, type EmailComponentData } from "./_email-component-insights";
 
 /**
@@ -13,6 +14,9 @@ import { buildComponentInsightSentence, type EmailComponentData } from "./_email
  * batch of accounts does not repeat identical boilerplate while a re-run for
  * the same account and month is byte-stable. Only wording varies, never the
  * figures.
+ *
+ * The phrasings themselves live in `_email-copy-slots.ts` and are overridable
+ * from OptiMate Settings; pass the loaded overrides as `copy`.
  */
 
 export interface MonthlySummaryRow {
@@ -26,6 +30,8 @@ export interface MonthlyEmailSummaryInput {
   components: GoogleAdsEmailComponentKey[];
   dashboardData?: EmailComponentData;
   seed?: number;
+  /** Editable phrasings from OptiMate Settings; defaults are used when absent. */
+  copy?: ClientEmailCopy;
 }
 
 export function buildMonthlyEmailSummary({
@@ -33,9 +39,10 @@ export function buildMonthlyEmailSummary({
   components,
   dashboardData,
   seed = 0,
+  copy,
 }: MonthlyEmailSummaryInput): string {
   return [
-    buildPerformanceSentence(rows, seed),
+    buildPerformanceSentence(rows, seed, copy),
     buildComponentInsightSentence(components, dashboardData, seed),
   ]
     .filter(Boolean)
@@ -56,7 +63,11 @@ function resolveCpa(row: MonthlySummaryRow | undefined): number | null {
  * sentence states the direction of travel for conversions and CPA; otherwise it
  * falls back to describing the latest month on its own.
  */
-function buildPerformanceSentence(rows: MonthlySummaryRow[], seed: number): string {
+function buildPerformanceSentence(
+  rows: MonthlySummaryRow[],
+  seed: number,
+  copy: ClientEmailCopy | undefined,
+): string {
   const latest = rows[rows.length - 1];
   const previous = rows[rows.length - 2];
   if (!latest) return "Here is the monthly Google Ads performance update.";
@@ -80,132 +91,81 @@ function buildPerformanceSentence(rows: MonthlySummaryRow[], seed: number): stri
   const cpaImproved = cpa !== null && previousCpa !== null && cpa < previousCpa;
   const cpaWorsened = cpa !== null && previousCpa !== null && cpa > previousCpa;
 
+  const tokens = {
+    period: label,
+    conversions: conversionsText,
+    prevConversions: previousConversionsText,
+    cpa: cpaText,
+    prevCpa: previousCpaText,
+    spend: spendText,
+  };
+
   // Best case: more conversions and cheaper than the month before.
   if (conversionsUp && cpaImproved) {
-    return pickVariant(
-      [
-        `${label} was a strong month: conversions rose to ${conversionsText} from ${previousConversionsText} while CPA improved to ${cpaText} from ${previousCpaText}.`,
-        `${label} performed well, lifting conversions to ${conversionsText} from ${previousConversionsText} and bringing CPA down to ${cpaText} from ${previousCpaText}.`,
-        `A strong ${label}: ${conversionsText} conversions against ${previousConversionsText} the month prior, with CPA tightening to ${cpaText} from ${previousCpaText}.`,
-        `Both volume and efficiency improved in ${label}: ${conversionsText} conversions from ${previousConversionsText}, at ${cpaText} against ${previousCpaText}.`,
-        `${label} delivered more for less, with conversions at ${conversionsText} from ${previousConversionsText} and CPA at ${cpaText} from ${previousCpaText}.`,
-        `Month-on-month ${label} improved on both fronts: ${conversionsText} conversions versus ${previousConversionsText}, CPA ${cpaText} versus ${previousCpaText}.`,
-      ],
-      seed,
-      "monthly-performance-up-efficient",
-    );
+    return pickCopy("monthly-performance-up-efficient", seed, copy, tokens);
   }
 
   // More conversions, but CPA flat or higher.
   if (conversionsUp) {
-    const cpaClause =
-      cpa !== null
-        ? cpaWorsened
-          ? `, with CPA easing to ${cpaText} from ${previousCpaText}`
-          : ` at a CPA of ${cpaText}`
-        : "";
-    return pickVariant(
-      [
-        `${label} lifted conversions to ${conversionsText} from ${previousConversionsText}${cpaClause}.`,
-        `Conversions grew across ${label} to ${conversionsText} from ${previousConversionsText}${cpaClause}.`,
-        `${label} came in ahead of the prior month on volume, at ${conversionsText} conversions against ${previousConversionsText}${cpaClause}.`,
-        `Volume improved in ${label}, with ${conversionsText} conversions versus ${previousConversionsText} the month before${cpaClause}.`,
-        `${label} built on the prior month, reaching ${conversionsText} conversions from ${previousConversionsText}${cpaClause}.`,
-        `Month-on-month, ${label} added volume at ${conversionsText} conversions against ${previousConversionsText}${cpaClause}.`,
-      ],
-      seed,
-      "monthly-performance-up",
-    );
+    return pickCopy("monthly-performance-up", seed, copy, {
+      ...tokens,
+      cpaClause: buildCpaClause(cpa, cpaWorsened, cpaText, previousCpaText, "easing"),
+    });
   }
 
   // Fewer conversions, but cheaper acquisition.
   if (conversionsDown && cpaImproved) {
-    return pickVariant(
-      [
-        `${label} traded volume for efficiency: conversions eased to ${conversionsText} from ${previousConversionsText}, while CPA improved to ${cpaText} from ${previousCpaText}.`,
-        `Conversions softened across ${label} to ${conversionsText} from ${previousConversionsText}, though CPA came down to ${cpaText} from ${previousCpaText}.`,
-        `${label} saw ${conversionsText} conversions against ${previousConversionsText} the month prior, with CPA tightening to ${cpaText} from ${previousCpaText}.`,
-        `Volume dipped in ${label} to ${conversionsText} from ${previousConversionsText}, but each conversion came cheaper at ${cpaText} versus ${previousCpaText}.`,
-      ],
-      seed,
-      "monthly-performance-down-efficient",
-    );
+    return pickCopy("monthly-performance-down-efficient", seed, copy, tokens);
   }
 
   // Fewer conversions and no efficiency gain.
   if (conversionsDown) {
-    const cpaClause =
-      cpa !== null
-        ? cpaWorsened
-          ? `, and CPA rose to ${cpaText} from ${previousCpaText}`
-          : ` at a CPA of ${cpaText}`
-        : "";
-    return pickVariant(
-      [
-        `${label} eased back to ${conversionsText} conversions from ${previousConversionsText}${cpaClause}.`,
-        `Conversions softened across ${label} to ${conversionsText} from ${previousConversionsText}${cpaClause}.`,
-        `${label} came in behind the prior month, at ${conversionsText} conversions against ${previousConversionsText}${cpaClause}.`,
-        `Volume slipped in ${label} to ${conversionsText} from ${previousConversionsText}${cpaClause}.`,
-        `The account converted ${conversionsText} times in ${label}, down from ${previousConversionsText}${cpaClause}.`,
-        `Month-on-month, ${label} gave back some volume at ${conversionsText} conversions from ${previousConversionsText}${cpaClause}.`,
-      ],
-      seed,
-      "monthly-performance-down",
-    );
+    return pickCopy("monthly-performance-down", seed, copy, {
+      ...tokens,
+      cpaClause: buildCpaClause(cpa, cpaWorsened, cpaText, previousCpaText, "rose"),
+    });
   }
 
   // Volume flat month-on-month, so lead on the efficiency move.
   if (previousConversions !== null && cpa !== null && (cpaImproved || cpaWorsened)) {
-    const direction = cpaImproved ? "improved" : "rose";
-    return pickVariant(
-      [
-        `${label} held conversions at ${conversionsText}, with CPA ${direction} to ${cpaText} from ${previousCpaText}.`,
-        `Conversions were steady across ${label} at ${conversionsText}, while CPA ${direction} to ${cpaText} from ${previousCpaText}.`,
-        `${label} matched the prior month at ${conversionsText} conversions, and CPA ${direction} to ${cpaText} from ${previousCpaText}.`,
-        `Volume held flat in ${label} at ${conversionsText} conversions, with CPA ${direction} to ${cpaText} from ${previousCpaText}.`,
-      ],
-      seed,
-      "monthly-performance-flat-cpa-move",
-    );
+    return pickCopy("monthly-performance-flat-cpa-move", seed, copy, {
+      ...tokens,
+      direction: cpaImproved ? "improved" : "rose",
+    });
   }
 
   // No prior month to compare against: describe the latest month on its own.
   if (conversions > 0 && cpa !== null) {
-    const cpaTone = cpa <= 100 ? "efficient" : cpa <= 150 ? "steady" : "heavier than target";
-    return pickVariant(
-      [
-        `${label} delivered ${conversionsText} conversions from ${spendText} in spend, with CPA ${cpaTone} at ${cpaText}.`,
-        `Across ${label}, ${spendText} in spend produced ${conversionsText} conversions, with CPA ${cpaTone} at ${cpaText}.`,
-        `${label} finished with ${conversionsText} conversions on ${spendText} of spend, and CPA ${cpaTone} at ${cpaText}.`,
-        `In ${label} the account converted ${conversionsText} times off ${spendText} in spend, keeping CPA ${cpaTone} at ${cpaText}.`,
-      ],
-      seed,
-      "monthly-performance-converting",
-    );
+    return pickCopy("monthly-performance-converting", seed, copy, {
+      ...tokens,
+      cpaTone: cpa <= 100 ? "efficient" : cpa <= 150 ? "steady" : "heavier than target",
+    });
   }
 
   if (spend > 0) {
-    return pickVariant(
-      [
-        `${label} recorded ${spendText} in Google Ads spend, with the monthly trend included below for context.`,
-        `Google Ads spend for ${label} came in at ${spendText}, and the monthly trend is below for context.`,
-        `${label} used ${spendText} in spend, with the monthly trend set out below.`,
-        `Spend across ${label} was ${spendText}, and the monthly trend follows below.`,
-      ],
-      seed,
-      "monthly-performance-spend",
-    );
+    return pickCopy("monthly-performance-spend", seed, copy, tokens);
   }
 
-  return pickVariant(
-    [
-      `${label} is included as the completed-month view, with the trend below for context.`,
-      `${label} is the completed-month view, and the trend below covers recent performance.`,
-      `Below is the completed month for ${label}, along with the recent performance trend.`,
-    ],
-    seed,
-    "monthly-performance-flat",
-  );
+  return pickCopy("monthly-performance-flat", seed, copy, tokens);
+}
+
+/**
+ * The trailing CPA clause for the mixed-direction sentences. Rendered here
+ * rather than in a slot template because it is conditional: it names the prior
+ * month only when CPA actually moved the wrong way.
+ */
+function buildCpaClause(
+  cpa: number | null,
+  cpaWorsened: boolean,
+  cpaText: string,
+  previousCpaText: string,
+  verb: "easing" | "rose",
+): string {
+  if (cpa === null) return "";
+  if (!cpaWorsened) return ` at a CPA of ${cpaText}`;
+  return verb === "easing"
+    ? `, with CPA easing to ${cpaText} from ${previousCpaText}`
+    : `, and CPA rose to ${cpaText} from ${previousCpaText}`;
 }
 
 function formatCurrency(value: number): string {
@@ -213,7 +173,7 @@ function formatCurrency(value: number): string {
     style: "currency",
     currency: "AUD",
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(value);
 }
 

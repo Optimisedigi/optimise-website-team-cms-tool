@@ -6,6 +6,7 @@ import { getBudgetManagementEmail } from "./get-budget-management-email";
 import { getDashboardEmailComponents } from "./get-dashboard-email-components";
 import { getMonthlyMetricTable } from "./get-monthly-metric-table";
 import { copySeed, pickGreeting, pickVariant, seedCustomerId } from "./_email-copy-variants";
+import { loadClientEmailCopy } from "@/lib/agents/_shared/client-email-copy";
 import { buildMonthlyEmailSummary, type MonthlySummaryRow } from "./_monthly-email-summary";
 import { prepareMonthlyBudgetBreakdownHtml } from "./_monthly-budget-html";
 import type { EmailComponentData } from "./_email-component-insights";
@@ -208,14 +209,16 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
       "monthly",
       monthSpan.endMonth,
     );
+    const copy = await loadClientEmailCopy();
     const summary = buildMonthlyEmailSummary({
       rows: monthly.rows,
       components: args.components,
       dashboardData: dashboard.componentData,
       seed,
+      copy,
     });
     const budgetHtml = prepareMonthlyBudgetBreakdownHtml(budget.html);
-    const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">${pickGreeting(seed)}</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budgetHtml}`;
+    const htmlBody = `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b">${pickGreeting(seed, copy)}</p>\n<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>\n${monthly.html}\n${dashboard.html}\n${budgetHtml}`;
     const subject = buildMonthlySubject(ctx, budget.subject, reportMonthLabel);
 
     const draftResult = await createGmailDraftTool.execute(
@@ -268,18 +271,6 @@ function buildMonthlySubject(ctx: ToolContext, fallbackSubject: string, monthLab
 
 
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(value);
-}
 
 
 

@@ -35,8 +35,8 @@ interface AuditOption {
 
 type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'taskmate' | 'gmail' | 'email-reply' | 'email-summarise' | 'pomodoro'
 
-const PILL_RIGHT = 20 // pixels — pomodoro pill is gone, sit bottom-right alone
-const PILL_BOTTOM = 20
+const PILL_RIGHT = 24 // pixels — pomodoro pill is gone, sit bottom-right alone
+const PILL_BOTTOM = 24
 
 const PANEL_WIDTH = 420
 const PANEL_HEIGHT = 600
@@ -174,58 +174,33 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
     <>
       {children}
 
-      {/* Collapsed pill */}
+      {/* Collapsed launcher: floating orb with an "Ask OptiMate" tooltip. */}
       {!open && (
         <button
           type="button"
+          className="om-launcher"
           onClick={() => {
             setOpen(true)
             pomo.requestNotificationPermission()
           }}
-          title="Open OptiMate"
-          style={{
-            position: 'fixed',
-            bottom: PILL_BOTTOM,
-            right: PILL_RIGHT,
-            zIndex: 99998, // just below Pomodoro (99999) so we don't fight z-order
-            background: '#111',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 24,
-            padding: '0 14px 0 0',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          }}
+          aria-label="Ask OptiMate"
+          style={{ bottom: PILL_BOTTOM, right: PILL_RIGHT }}
         >
-          <img
-            src="/optimate-icon.png"
-            alt=""
-            width={43}
-            height={43}
-            style={{ borderRadius: '50%', display: 'block', flex: '0 0 43px', border: '1px solid #000' }}
-          />
-          OptiMate
-          {pomo.pillLabel && (
-            <span
-              style={{
-                fontFamily: '"Press Start 2P", "Courier New", monospace',
-                fontSize: 10,
-                letterSpacing: 0.5,
-                background: 'rgba(255,255,255,0.12)',
-                padding: '3px 6px',
-                borderRadius: 6,
-                marginLeft: 2,
-              }}
-              title={pomo.tracking ? `Tracking: ${pomo.taskName}` : 'Pomodoro running'}
-            >
-              ⏱ {pomo.pillLabel}
-            </span>
-          )}
+          <span className="om-tip">
+            Ask OptiMate
+            {pomo.pillLabel && (
+              <span
+                className="om-timer"
+                title={pomo.tracking ? `Tracking: ${pomo.taskName}` : 'Pomodoro running'}
+              >
+                ⏱ {pomo.pillLabel}
+              </span>
+            )}
+          </span>
+          <span className="om-orb">
+            <span className="om-ring" />
+            <img src="/optimate-orb.png" alt="" />
+          </span>
         </button>
       )}
 
@@ -1005,6 +980,82 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
       {/* Pulse keyframe for the pomodoro icon when timer/tracker is active. */}
       <style>{`@keyframes optimate-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.55 } }`}</style>
+
+      {/* Collapsed launcher styling. Kept as a stylesheet rather than inline
+          styles because it needs pseudo-classes, keyframes and the
+          reduced-motion query. z-index sits just below Pomodoro (99999). */}
+      <style>{`
+        .om-launcher {
+          position: fixed;
+          z-index: 99998;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 0;
+          border: none;
+          background: transparent;
+          font-family: 'Manrope', Helvetica, Arial, sans-serif;
+          cursor: pointer;
+        }
+        .om-tip {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          color: #11141a;
+          background: #fff;
+          padding: 8px 13px;
+          border-radius: 12px;
+          box-shadow: 0 6px 20px rgba(16, 20, 28, 0.14);
+          white-space: nowrap;
+        }
+        .om-timer {
+          font-family: 'Press Start 2P', 'Courier New', monospace;
+          font-size: 9px;
+          letter-spacing: 0.5px;
+          color: #15803d;
+          background: rgba(34, 197, 94, 0.16);
+          padding: 3px 6px;
+          border-radius: 6px;
+        }
+        .om-orb {
+          position: relative;
+          width: 72px;
+          height: 72px;
+          border-radius: 999px;
+          display: grid;
+          place-items: center;
+          background: linear-gradient(160deg, #fff, #e8f2fb);
+          border: 1px solid rgba(255, 255, 255, 0.9);
+          box-shadow: 0 10px 30px rgba(46, 92, 140, 0.26), inset 0 1px 0 #fff;
+          transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .om-launcher:hover .om-orb { transform: scale(1.06); }
+        .om-launcher:focus-visible { outline: none; }
+        .om-launcher:focus-visible .om-orb {
+          box-shadow: 0 0 0 3px #7fb6e8, 0 10px 30px rgba(46, 92, 140, 0.26);
+        }
+        .om-ring {
+          position: absolute;
+          inset: 0;
+          border-radius: 999px;
+          border: 2px solid #7fb6e8;
+          animation: om-ring 2.6s ease-out infinite;
+        }
+        .om-orb img {
+          position: relative;
+          width: 72px;
+          height: 72px;
+          object-fit: contain;
+          animation: om-bob 3.4s ease-in-out infinite;
+        }
+        @keyframes om-bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
+        @keyframes om-ring { 0% { transform: scale(1); opacity: 0.5 } 70%, 100% { transform: scale(1.5); opacity: 0 } }
+        @media (prefers-reduced-motion: reduce) {
+          .om-orb img, .om-ring { animation: none }
+        }
+      `}</style>
     </>
   )
 }

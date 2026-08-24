@@ -11,6 +11,8 @@ import { getWeeklyMetricTable } from './get-weekly-metric-table'
 import { getDashboardEmailComponents } from './get-dashboard-email-components'
 import type { GoogleAdsEmailComponentKey } from '@/lib/google-ads-email-components'
 import { copySeed, pickGreeting, seedCustomerId } from './_email-copy-variants'
+import type { ClientEmailCopy } from './_email-copy-slots'
+import { loadClientEmailCopy } from '@/lib/agents/_shared/client-email-copy'
 import { buildWeeklyEmailSummary } from './_weekly-email-summary'
 import type { EmailComponentData } from './_email-component-insights'
 
@@ -176,6 +178,8 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
         return { ok: false, error: 'None of the selected Google Ads accounts could be found.' }
 
       const endDate = args.endDate ?? previousSundayInAgencyTime()
+      // Loaded once for the whole batch: every draft shares the same wording rules.
+      const copy = await loadClientEmailCopy()
       const drafts: Array<{
         accountRef?: string | number
         displayName: string
@@ -314,12 +318,13 @@ export const createPortfolioWeeklyGmailDraftsTool: CanonicalTool<CreatePortfolio
           dashboardData: dashboard?.componentData,
           budget: budget.budget,
           seed,
+          copy,
         })
         const subject = `${account.displayName} - Google Ads Weekly Report`
         // Section order matches create_weekly_budget_gmail_draft exactly:
         // greeting, summary, weekly table, dashboard graphs, budget tracker.
         const htmlBody = [
-          greetingHtml(seed),
+          greetingHtml(seed, copy),
           summaryHtml(summary),
           weekly.html,
           ...(dashboard ? [dashboard.html] : []),
@@ -416,8 +421,8 @@ function contextForAccount(ctx: ToolContext, account: PortfolioAccount): ToolCon
 }
 
 
-function greetingHtml(seed = 0): string {
-  return `<p style="margin:0 0 20px;color:#1e293b;font-size:14px;font-family:Arial,sans-serif;width:100%;max-width:none;display:block">${pickGreeting(seed)}</p>`
+function greetingHtml(seed = 0, copy?: ClientEmailCopy): string {
+  return `<p style="margin:0 0 20px;color:#1e293b;font-size:14px;font-family:Arial,sans-serif;width:100%;max-width:none;display:block">${pickGreeting(seed, copy)}</p>`
 }
 
 function summaryHtml(summary: string): string {

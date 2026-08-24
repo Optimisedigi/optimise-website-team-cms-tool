@@ -216,7 +216,7 @@ function formatCurrency(value: number): string {
     style: "currency",
     currency: "AUD",
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(value);
 }
 

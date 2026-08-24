@@ -15474,6 +15474,84 @@ export interface OptimateSetting {
         id?: string | null;
       }[]
     | null;
+  clientEmailCopy?: {
+    /**
+     * Opening line of every weekly and monthly report email. One phrasing per line. No tokens in this sentence.
+     */
+    greeting?: string | null;
+    /**
+     * Best case: more conversions than the prior week, at a lower CPA. One phrasing per line. Tokens: {period}, {conversions}, {prevConversions}, {cpa}, {prevCpa}.
+     */
+    weeklyPerformanceUpEfficient?: string | null;
+    /**
+     * More conversions than the prior week, without an efficiency gain. One phrasing per line. Tokens: {period}, {conversions}, {prevConversions}, {cpaClause}.
+     */
+    weeklyPerformanceUp?: string | null;
+    /**
+     * Fewer conversions than the prior week, but cheaper acquisition. One phrasing per line. Tokens: {period}, {conversions}, {prevConversions}, {cpa}, {prevCpa}.
+     */
+    weeklyPerformanceDownEfficient?: string | null;
+    /**
+     * Fewer conversions than the prior week, with CPA flat or higher. One phrasing per line. Tokens: {period}, {conversions}, {prevConversions}, {cpaClause}.
+     */
+    weeklyPerformanceDown?: string | null;
+    /**
+     * Same conversions as the prior week, so the sentence leads on CPA. One phrasing per line. Tokens: {period}, {conversions}, {cpa}, {prevCpa}, {direction}.
+     */
+    weeklyPerformanceFlatCpaMove?: string | null;
+    /**
+     * First reported week: describes the week on its own. One phrasing per line. Tokens: {period}, {conversions}, {cpa}, {spend}.
+     */
+    weeklyIntroConverting?: string | null;
+    /**
+     * First reported week with spend but no conversions. One phrasing per line. Tokens: {period}, {spend}.
+     */
+    weeklyIntroSpend?: string | null;
+    /**
+     * Fallback when the week has nothing to report. One phrasing per line. Tokens: {period}.
+     */
+    weeklyIntroFlat?: string | null;
+    /**
+     * Closing pacing sentence when spend is at or below the month-to-date target. One phrasing per line. No tokens in this sentence.
+     */
+    weeklyBudgetUnder?: string | null;
+    /**
+     * Closing pacing sentence when spend is ahead of the month-to-date target. One phrasing per line. No tokens in this sentence.
+     */
+    weeklyBudgetOver?: string | null;
+    /**
+     * Best case: more conversions than the prior month, at a lower CPA. One phrasing per line. Tokens: {period}, {conversions}, {prevConversions}, {cpa}, {prevCpa}.
+     */
+    monthlyPerformanceUpEfficient?: string | null;
+    /**
+     * More conversions than the prior month, without an efficiency gain. One phrasing per line. Tokens: {period}, {conversions}, {prevConversions}, {cpaClause}.
+     */
+    monthlyPerformanceUp?: string | null;
+    /**
+     * Fewer conversions than the prior month, but cheaper acquisition. One phrasing per line. Tokens: {period}, {conversions}, {prevConversions}, {cpa}, {prevCpa}.
+     */
+    monthlyPerformanceDownEfficient?: string | null;
+    /**
+     * Fewer conversions than the prior month, with CPA flat or higher. One phrasing per line. Tokens: {period}, {conversions}, {prevConversions}, {cpaClause}.
+     */
+    monthlyPerformanceDown?: string | null;
+    /**
+     * Same conversions as the prior month, so the sentence leads on CPA. One phrasing per line. Tokens: {period}, {conversions}, {cpa}, {prevCpa}, {direction}.
+     */
+    monthlyPerformanceFlatCpaMove?: string | null;
+    /**
+     * First reported month: describes the month on its own. One phrasing per line. Tokens: {period}, {conversions}, {cpa}, {spend}, {cpaTone}.
+     */
+    monthlyPerformanceConverting?: string | null;
+    /**
+     * First reported month with spend but no conversions. One phrasing per line. Tokens: {period}, {spend}.
+     */
+    monthlyPerformanceSpend?: string | null;
+    /**
+     * Fallback when the month has nothing to report. One phrasing per line. Tokens: {period}.
+     */
+    monthlyPerformanceFlat?: string | null;
+  };
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -15737,6 +15815,29 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
     | {
         question?: T;
         id?: T;
+      };
+  clientEmailCopy?:
+    | T
+    | {
+        greeting?: T;
+        weeklyPerformanceUpEfficient?: T;
+        weeklyPerformanceUp?: T;
+        weeklyPerformanceDownEfficient?: T;
+        weeklyPerformanceDown?: T;
+        weeklyPerformanceFlatCpaMove?: T;
+        weeklyIntroConverting?: T;
+        weeklyIntroSpend?: T;
+        weeklyIntroFlat?: T;
+        weeklyBudgetUnder?: T;
+        weeklyBudgetOver?: T;
+        monthlyPerformanceUpEfficient?: T;
+        monthlyPerformanceUp?: T;
+        monthlyPerformanceDownEfficient?: T;
+        monthlyPerformanceDown?: T;
+        monthlyPerformanceFlatCpaMove?: T;
+        monthlyPerformanceConverting?: T;
+        monthlyPerformanceSpend?: T;
+        monthlyPerformanceFlat?: T;
       };
   updatedAt?: T;
   createdAt?: T;

@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   copySeed,
-  GREETING_VARIANTS,
   pickGreeting,
   pickVariant,
 } from "@/lib/agents/optimate-google-ads/tools/_email-copy-variants";
+import { CLIENT_EMAIL_COPY_SLOTS } from "@/lib/agents/optimate-google-ads/tools/_email-copy-slots";
 
 const FOUR = ["a", "b", "c", "d"] as const;
 
@@ -16,7 +16,7 @@ describe("email copy variants", () => {
       pickVariant(FOUR, seed, "weekly-budget-under"),
     );
     expect(pickGreeting(seed)).toBe(pickGreeting(seed));
-    expect(GREETING_VARIANTS).toContain(pickGreeting(seed));
+    expect(CLIENT_EMAIL_COPY_SLOTS.greeting.defaults).toContain(pickGreeting(seed));
   });
 
   it("ignores casing and surrounding whitespace when seeding", () => {

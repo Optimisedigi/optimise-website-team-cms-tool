@@ -6,6 +6,7 @@ import { getBudgetManagementEmail } from "./get-budget-management-email";
 import { getDashboardEmailComponents } from "./get-dashboard-email-components";
 import { getWeeklyMetricTable } from "./get-weekly-metric-table";
 import { copySeed, pickGreeting, seedCustomerId } from "./_email-copy-variants";
+import { loadClientEmailCopy } from "@/lib/agents/_shared/client-email-copy";
 import { buildWeeklyEmailSummary, type WeeklySummaryBudget } from "./_weekly-email-summary";
 import type { EmailComponentData } from "./_email-component-insights";
 
@@ -188,15 +189,17 @@ export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetG
     const clientName = String(ctx.context.clientName || "Client").trim() || "Client";
     // Seeded per client + week so batched drafts do not all read the same way.
     const seed = copySeed(clientName, seedCustomerId(ctx.context.customerId), endDate, args.weeks);
+    const copy = await loadClientEmailCopy();
     const summary = buildWeeklyEmailSummary({
       rows: weekly.rows,
       components: args.components,
       dashboardData: dashboard.componentData,
       budget: budget.budget,
       seed,
+      copy,
     });
     const subject = `${clientName} - Google Ads Weekly Report`;
-    const htmlBody = `<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 12px;line-height:1.5">${pickGreeting(seed)}</p>\n<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 16px;line-height:1.5">${escapeHtml(summary)}</p>\n${weekly.html}\n${dashboard.html}\n${budget.html}`;
+    const htmlBody = `<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 12px;line-height:1.5">${pickGreeting(seed, copy)}</p>\n<p style="font-family:Verdana,sans-serif;font-size:13px;color:#222;margin:0 0 16px;line-height:1.5">${escapeHtml(summary)}</p>\n${weekly.html}\n${dashboard.html}\n${budget.html}`;
 
     const draftResult = await createGmailDraftTool.execute(
       { subject, htmlBody },

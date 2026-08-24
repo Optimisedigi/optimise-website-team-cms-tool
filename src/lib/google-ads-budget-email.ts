@@ -224,12 +224,12 @@ export function calculateStandaloneDailyBudget(c: BudgetCampaign): number {
   return remaining / daysRemaining;
 }
 
-// Format Cost / Conversion: $X.XX (<100) or $X (>=100); em dash when no conversions.
+// Format Cost / Conversion in whole dollars; em dash when no conversions.
 export function formatCostPerConv(mtdSpend: number, conversions: number): string {
   if (!conversions || conversions <= 0) return '\u2014';
-  const cpc = mtdSpend / conversions;
-  if (!Number.isFinite(cpc) || cpc <= 0) return '\u2014';
-  return cpc < 100 ? `$${cpc.toFixed(2)}` : `$${Math.round(cpc)}`;
+  const costPerConv = mtdSpend / conversions;
+  if (!Number.isFinite(costPerConv) || costPerConv <= 0) return '\u2014';
+  return `$${Math.round(costPerConv).toLocaleString('en-US')}`;
 }
 
 // Calculate smart daily budget for a campaign based on remaining budget and days
