@@ -1638,8 +1638,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           maxWidth: wrapperMaxWidth,
           marginBottom: compact || fluid ? 0 : 20,
           width: '100%',
-          ...(fluid
-            ? { height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+          ...(compact || fluid
+            ? { flex: '1 1 auto', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
             : {}),
         }
 
@@ -1877,11 +1877,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             minHeight: messagesMinHeight,
             maxHeight: messagesMaxHeight,
             overflowY: 'auto',
-            padding: 16,
+            padding: messages.length === 0 ? '10px 12px 12px' : 16,
             display: 'flex',
             flexDirection: 'column',
             gap: 12,
-            ...(fluid || expanded ? { flex: '1 1 auto', minHeight: 0, maxHeight: 'none' } : {}),
+            ...(compact || fluid || expanded ? { flex: '1 1 auto', minHeight: 0, maxHeight: 'none' } : {}),
           }}
         >
           {pendingForAudit.length > 0 && (
@@ -1923,44 +1923,40 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           )}
 
           {messages.length === 0 && (
-            <div style={{ padding: '20px 4px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div className="om-hero">
-                <span className="om-hero-orb">
-                  <img src="/optimate-orb.png" alt="" />
-                </span>
-                <h2>How can I help?</h2>
-                <p className="om-note" style={{ textAlign: 'center' }}>
-                  {mode === 'portfolio'
-                    ? 'Ask for compact cross-account Google Ads analysis.'
-                    : 'Ask anything about this Google Ads account.'}
-                </p>
-              </div>
+            <div className="om-empty-chat">
+              <p className="om-note" style={{ textAlign: 'center', margin: 0 }}>
+                {mode === 'portfolio'
+                  ? 'Ask for compact cross-account Google Ads analysis.'
+                  : 'Ask anything about this Google Ads account.'}
+              </p>
               <div className="om-prompts">
-                {(mode === 'portfolio' ? portfolioStarterQuestions : starterQuestions).map((q) => (
-                  <button
-                    key={q}
-                    type="button"
-                    className="om-card om-ask"
-                    title={q}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      sendMessage(q)
-                    }}
-                  >
-                    <span
-                      className="om-badge"
-                      style={{ background: '#eef4ff', color: '#2563eb' }}
-                      aria-hidden="true"
+                {(mode === 'portfolio' ? portfolioStarterQuestions : starterQuestions)
+                  .slice(0, compact ? 3 : undefined)
+                  .map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      className="om-card om-ask"
+                      title={q}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        sendMessage(q)
+                      }}
                     >
-                      ✦
-                    </span>
-                    <b>{q}</b>
-                    <span className="om-chev" aria-hidden="true">
-                      ›
-                    </span>
-                  </button>
-                ))}
+                      <span
+                        className="om-badge"
+                        style={{ background: '#eef4ff', color: '#2563eb' }}
+                        aria-hidden="true"
+                      >
+                        ✦
+                      </span>
+                      <span className="om-ask-label">{q}</span>
+                      <span className="om-chev" aria-hidden="true">
+                        ›
+                      </span>
+                    </button>
+                  ))}
               </div>
             </div>
           )}

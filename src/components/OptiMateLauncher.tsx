@@ -178,7 +178,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
     setStep('chat')
   }
 
-  /** Agent + context line under the OptiMate wordmark, e.g. "GoogleMate · Away Digital". */
+  /** Client context under the selected agent name. */
   const accountLabel = portfolioSelected
     ? 'Portfolio'
     : selectedAudits.length === 1
@@ -186,20 +186,26 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       : selectedAudits.length > 1
         ? `${selectedAudits.length} accounts`
         : ''
-  const headerSub =
+  const headerTitle =
     step === 'chat'
-      ? ['GoogleMate', accountLabel].filter(Boolean).join(' · ')
+      ? 'GoogleMate'
       : step === 'invoice-chat'
         ? 'InvoiceMate'
         : step === 'taskmate'
           ? 'TaskMate'
-          : step === 'gmail'
-            ? 'Gmail · Draft'
-            : step === 'email-reply'
-              ? 'Gmail · Reply'
-              : step === 'email-summarise'
-                ? 'Gmail · Summarise'
-                : ''
+          : step === 'pomodoro'
+            ? 'Pomodoro'
+            : 'OptiMate'
+  const headerSub =
+    step === 'chat'
+      ? accountLabel
+      : step === 'gmail'
+        ? 'Gmail · Draft'
+        : step === 'email-reply'
+          ? 'Gmail · Reply'
+          : step === 'email-summarise'
+            ? 'Gmail · Summarise'
+            : ''
 
   const filteredAudits = (audits ?? []).filter((a) => {
     if (!filter.trim()) return true
@@ -265,7 +271,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               <img src="/optimate-orb.png" alt="" />
             </span>
             <div className="om-head-titles">
-              <span className="om-brand">{step === 'pomodoro' ? 'Pomodoro' : 'OptiMate'}</span>
+              <span className="om-brand">{headerTitle}</span>
               {headerSub && <span className="om-head-sub">{headerSub}</span>}
             </div>
             <div className="om-head-actions">

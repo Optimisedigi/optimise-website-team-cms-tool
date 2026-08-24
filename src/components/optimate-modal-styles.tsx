@@ -425,7 +425,14 @@ export const OPTIMATE_MODAL_CSS = `
 .om-btn--primary.is-ready:hover { background: var(--om-blue); box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28); }
 
 /* ---------- step 3: chat ---------- */
-.om-chatui { font-family: var(--om-font); color: var(--om-ink); }
+.om-chatui {
+  font-family: var(--om-font);
+  color: var(--om-ink);
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
 .om-subbar {
   display: flex;
   align-items: center;
@@ -495,6 +502,14 @@ export const OPTIMATE_MODAL_CSS = `
 .om-pill--blue:hover { background: #f2f7ff; }
 .om-pill--icon { padding: 0 9px; font-size: 13px; }
 
+.om-empty-chat {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
 .om-hero { display: flex; flex-direction: column; align-items: center; gap: 7px; }
 .om-hero-orb {
   width: 52px;
@@ -506,8 +521,12 @@ export const OPTIMATE_MODAL_CSS = `
   box-shadow: 0 8px 22px rgba(60, 110, 170, 0.18);
 }
 .om-hero-orb img { width: 40px; height: 40px; object-fit: contain; animation: om-bob 3.4s ease-in-out infinite; }
-.om-hero h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
-.om-prompts { display: flex; flex-direction: column; gap: 9px; }
+.om-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 0;
+}
 .om-prompt { padding: 13px 14px; display: flex; flex-direction: column; gap: 6px; }
 .om-prompt-head { display: flex; align-items: center; gap: 8px; }
 .om-prompt-head b { font-size: 13.5px; font-weight: 700; letter-spacing: -0.01em; }
@@ -522,9 +541,9 @@ export const OPTIMATE_MODAL_CSS = `
   overflow: hidden;
 }
 .om-ask { display: flex; align-items: center; gap: 8px; padding: 11px 13px; width: 100%; }
-.om-ask b {
+.om-ask-label {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: -0.01em;
   text-wrap: pretty;
   min-width: 0;
