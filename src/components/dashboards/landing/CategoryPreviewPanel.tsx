@@ -7,11 +7,28 @@ import type { ManifestPage } from "./AdGroupPagesPanel";
 const CARD = "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm";
 const LABEL = "font-mono text-[9px] uppercase tracking-[0.08em] text-slate-400";
 
+/**
+ * Which pages each set shows, keyed off the slug shape the build emits:
+ * role pages end `-vietnam-au|us`, market-intent pages start `vietnam-`, and
+ * anything else is a generic service page.
+ */
+const PAGE_SETS = {
+  job: { label: "Job categories", match: (page: ManifestPage) => /-vietnam-(?:au|us)$/.test(page.slug) },
+  vietnam: { label: "Vietnam categories", match: (page: ManifestPage) => /^vietnam-/.test(page.slug) },
+  generic: {
+    label: "Generic categories",
+    match: (page: ManifestPage) => !/-vietnam-(?:au|us)$/.test(page.slug) && !/^vietnam-/.test(page.slug),
+  },
+} as const;
+
+type PageSet = keyof typeof PAGE_SETS;
+
 /** Local-only review catalog for category pages that have not been deployed yet. */
 export function CategoryPreviewPanel({ slug, range }: { slug: string; range: LandingDateRange }) {
   const [pages, setPages] = useState<ManifestPage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openSlug, setOpenSlug] = useState<string | null>(null);
+  const [pageSet, setPageSet] = useState<PageSet>("job");
 
   useEffect(() => {
     let cancelled = false;
@@ -23,7 +40,7 @@ export function CategoryPreviewPanel({ slug, range }: { slug: string; range: Lan
         const json = await response.json();
         if (!response.ok) throw new Error(json?.error || `Failed (${response.status})`);
         if (!cancelled) {
-          setPages((json.pages as ManifestPage[]).filter((page) => /-vietnam-(?:au|us)$/.test(page.slug)));
+          setPages(json.pages as ManifestPage[]);
           setError(null);
         }
       } catch (cause) {
@@ -36,7 +53,9 @@ export function CategoryPreviewPanel({ slug, range }: { slug: string; range: Lan
   if (error) return <section className={CARD}><h3 className="text-base font-bold">Category page previews</h3><p className="mt-2 text-sm text-red-600">{error}</p></section>;
   if (!pages) return <section className={CARD}><h3 className="text-base font-bold">Category page previews</h3><p className="mt-2 text-sm text-slate-500">Loading previews…</p></section>;
 
-  const campaignGroups = [...pages.reduce((groups, page) => {
+  const selected = pages.filter(PAGE_SETS[pageSet].match);
+
+  const campaignGroups = [...selected.reduce((groups, page) => {
     const campaign = page.adGroups.find((group) => group.campaign)?.campaign || "Campaign not mapped";
     groups.set(campaign, [...(groups.get(campaign) ?? []), page]);
     return groups;
@@ -44,12 +63,27 @@ export function CategoryPreviewPanel({ slug, range }: { slug: string; range: Lan
 
   return (
     <section className={CARD} aria-labelledby="category-preview-heading">
-      <div>
-        <h3 id="category-preview-heading" className="text-base font-bold text-slate-900">Category page previews</h3>
-        <p className="mt-1 text-xs text-slate-500">{pages.length} local pages across {campaignGroups.length} campaigns. No performance metrics are shown.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 id="category-preview-heading" className="text-base font-bold text-slate-900">Category page previews</h3>
+          <p className="mt-1 text-xs text-slate-500">{selected.length} local pages across {campaignGroups.length} campaigns. No performance metrics are shown.</p>
+        </div>
+        <label className="flex items-center gap-2">
+          <span className={LABEL}>Category set</span>
+          <select
+            value={pageSet}
+            onChange={(event) => { setPageSet(event.target.value as PageSet); setOpenSlug(null); }}
+            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
+          >
+            {Object.entries(PAGE_SETS).map(([value, set]) => (
+              <option key={value} value={value}>{set.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="mt-4 space-y-4">
+        {selected.length === 0 && <p className="text-sm text-slate-500">No pages in this category set.</p>}
         {campaignGroups.map(([campaign, campaignPages]) => (
           <section key={campaign} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50/60" aria-label={campaign}>
             <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-100/80 px-4 py-2.5">

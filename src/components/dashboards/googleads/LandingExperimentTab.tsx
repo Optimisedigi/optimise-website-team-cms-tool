@@ -11,6 +11,14 @@ import {
   type LandingDateRange,
   type LandingDateRangeMode,
 } from "@/lib/landing-date-range";
+import { CampaignAdGroupTable } from "../landing/CampaignAdGroupTable";
+import {
+  LANDING_CATEGORY_LABELS,
+  landingPageCategory,
+  landingPageMarket,
+  type LandingCategory,
+  type LandingMarket,
+} from "@/lib/landing-page-categories";
 
 /**
  * Landing A/B results and on-page behaviour for one client.
@@ -152,6 +160,12 @@ const SECTION_WORDS: Record<string, string> = {
 /** Column headings and other microtype: monospaced, so tables read as data. */
 const MICRO = "font-mono text-[10px] uppercase tracking-[0.1em] text-slate-500";
 const CARD = "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm";
+/* Stands in for "this category covers no pages". No page id looks like this, so
+   the report scopes to nothing and returns an empty result, which is what an
+   empty category means. It has to survive the API's id allowlist to get that
+   far, hence letters and underscores only. */
+const NO_PAGES = "__no_pages__";
+
 // Matches the Google Ads dashboard's range control, so the two reports read as
 // one product rather than two apps that happen to share a login.
 const SELECT =
@@ -274,6 +288,7 @@ export function LandingExperimentTab({
   onRangeChange,
   standaloneHeader = false,
   landingPages,
+  onLoadingChange,
 }: {
   slug: string;
   customerId?: string;
@@ -290,18 +305,25 @@ export function LandingExperimentTab({
     paidTrackedConversions?: number;
     paidTimedSessions?: number;
     paidAverageSeconds?: number | null;
-    adGroups: Array<{ name: string }>;
+    paidChecklistSessions?: number;
+    market?: string;
+    adGroups: Array<{ name: string; campaign: string }>;
   }>;
+  /** Fires whenever the report starts or finishes loading, so a parent can keep
+   *  its own panels out of sight until this one has something to show. */
+  onLoadingChange?: (loading: boolean) => void;
 }) {
   const [data, setData] = useState<ReportResponse | null>(null);
   const [catalogPages, setCatalogPages] = useState<
-    Array<{ pageId: string; title: string; adGroupName?: string; clicks: number }>
+    Array<{ pageId: string; title: string; adGroupName?: string; clicks: number; campaign?: string; market?: string }>
   >([]);
   const providedCatalogPages = landingPages?.map((entry) => ({
     pageId: entry.pageId,
     title: entry.title,
     clicks: entry.clicks,
     adGroupName: entry.adGroups[0]?.name,
+    campaign: entry.adGroups.find((group) => group.campaign)?.campaign,
+    market: entry.market,
   }));
   const effectiveCatalogPages = providedCatalogPages ?? catalogPages;
   const [postClick, setPostClick] = useState<PostClickMonth[] | null>(null);
@@ -317,18 +339,40 @@ export function LandingExperimentTab({
   // not desktop behaviour, so both are selectable rather than averaged.
   const [page, setPage] = useState("");
   const [device, setDevice] = useState("");
+  // Category and market scope the whole report, not just the page list: a
+  // headline that ignored the filter above it would be read as the filtered
+  // number and quietly be the unfiltered one.
+  const [category, setCategory] = useState<LandingCategory | "">("");
+  const [market, setMarket] = useState<LandingMarket | "">("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  /* Which pages the category covers. A category is a set of pages rather than a
+     dimension the events carry, so the ids are resolved here and sent to the
+     report. Sorted and joined into one string so the effect below re-runs when
+     the membership changes, not merely when the catalog array is rebuilt. */
+  const scopedPageIds = effectiveCatalogPages
+    .filter((entry) => !category || landingPageCategory(entry.campaign) === category)
+    .map((entry) => entry.pageId)
+    .sort();
+  /* A category that covers no pages - a client with none in that sector, or the
+     catalog still loading - must still send a scope. Sending nothing would drop
+     the filter and report every page while the dropdown named one category, so
+     an id no page can have stands in and the report comes back empty. */
+  const scopedPageKey = category ? scopedPageIds.join(",") || NO_PAGES : "";
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    onLoadingChange?.(true);
     setError(null);
 
     const query = new URLSearchParams({ slug });
     landingDateRangeParams(range).forEach((value, key) => query.set(key, value));
     if (page) query.set("page", page);
     if (device) query.set("device", device);
+    if (scopedPageKey) query.set("pages", scopedPageKey);
+    if (market) query.set("market", market);
 
     fetch(`/api/dashboard/landing-experiments?${query}`)
       .then(async (res) => {
@@ -342,13 +386,15 @@ export function LandingExperimentTab({
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not load landing data");
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        setLoading(false);
+        onLoadingChange?.(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [slug, range, page, device]);
+  }, [slug, range, page, device, scopedPageKey, market]);
 
   useEffect(() => {
     if (landingPages !== undefined || !isAwayDigitalSlug(slug)) return;
@@ -381,7 +427,16 @@ export function LandingExperimentTab({
                   return typeof name === "string" && name.trim() ? [name.trim()] : [];
                 })[0]
               : undefined;
-            return resolveLandingPage(pageId) ? [{ pageId, title, adGroupName, clicks }] : [];
+            const campaign = Array.isArray(row.adGroups)
+              ? row.adGroups.flatMap((group) => {
+                  const value = (group as Record<string, unknown> | null)?.campaign;
+                  return typeof value === "string" && value.trim() ? [value.trim()] : [];
+                })[0]
+              : undefined;
+            const market = typeof row.market === "string" ? row.market : undefined;
+            return resolveLandingPage(pageId)
+              ? [{ pageId, title, adGroupName, clicks, campaign, market }]
+              : [];
           }),
         );
       })
@@ -467,9 +522,23 @@ export function LandingExperimentTab({
   const conversions = data.variants.reduce((sum, variant) => sum + variant.conversions, 0);
   const realMarkets = data.markets.filter((entry) => entry.key !== "(unset)");
   const catalogTitles = new Map(effectiveCatalogPages.map((entry) => [entry.pageId, entry.title]));
-  const headlinePages = landingPages?.filter((entry) => !page || entry.pageId === page);
-  const googleAdsClicks = (headlinePages ?? effectiveCatalogPages)
-    .filter((entry) => !page || entry.pageId === page)
+  /* The headline reads the manifest, not the event scan, so the filters have to
+     be applied here too - the API cannot narrow numbers it never returned. */
+  const inScope = (entry: { pageId: string; campaign?: string; market?: string }) => {
+    if (page) return entry.pageId === page;
+    if (category && landingPageCategory(entry.campaign) !== category) return false;
+    if (market && landingPageMarket(entry.market, entry.pageId) !== market) return false;
+    return true;
+  };
+  const headlinePages = landingPages
+    ?.filter((entry) => inScope({
+      pageId: entry.pageId,
+      campaign: entry.adGroups.find((group) => group.campaign)?.campaign,
+      market: entry.market,
+    }));
+  const googleAdsClicks = (headlinePages
+    ? headlinePages.map((entry) => ({ pageId: entry.pageId, clicks: entry.clicks }))
+    : effectiveCatalogPages.filter(inScope))
     .reduce((sum, entry) => sum + entry.clicks, 0);
   const headlineSessions = headlinePages
     ? headlinePages.reduce((sum, entry) => sum + entry.paidSessions, 0)
@@ -495,20 +564,45 @@ export function LandingExperimentTab({
       : null
     : (data.sessionTime?.medianActiveSeconds ?? null);
   const hasHeadlineData = headlineSessions > 0 || googleAdsClicks > 0;
-  const pageLabel = (key: string) =>
-    (catalogTitles.get(key) ?? key).replace(/\s*\|\s*Away Digital Teams[’']?\s*$/i, "");
-  const pageOptions = [...data.pages];
+  /* Titles are written for the page, not for this list, and the AU and US
+     versions of a page read identically in it. The market is appended so the
+     two are still tellable apart when no market filter is set. */
+  const pageLabel = (key: string) => {
+    const title = (catalogTitles.get(key) ?? key).replace(/\s*\|\s*Away Digital Teams[’']?\s*$/i, "");
+    const entry = catalogEntries.get(key);
+    const pageMarket = landingPageMarket(entry?.market, key);
+    // A label that already ends in its market - a bare page id, say - says it
+    // once rather than twice.
+    if (!pageMarket || new RegExp(`[-\\s]${pageMarket}$`, "i").test(title)) return title;
+    return `${title} — ${pageMarket}`;
+  };
+  const allPageOptions = [...data.pages];
   for (const entry of effectiveCatalogPages) {
-    if (!pageOptions.some((option) => option.key === entry.pageId)) {
-      pageOptions.push({ key: entry.pageId, sessions: 0, conversions: 0, conversionRate: 0 });
+    if (!allPageOptions.some((option) => option.key === entry.pageId)) {
+      allPageOptions.push({ key: entry.pageId, sessions: 0, conversions: 0, conversionRate: 0 });
     }
   }
+
+  /* A page the catalog does not describe has no category or market to match on,
+     so it is shown while no filter is set and dropped once one is - claiming it
+     belongs to whichever set happens to be selected would be a guess. */
+  const catalogEntries = new Map(effectiveCatalogPages.map((entry) => [entry.pageId, entry]));
+  const pageOptions = allPageOptions.filter((option) => {
+    if (!category && !market) return true;
+    const entry = catalogEntries.get(option.key);
+    if (!entry) return false;
+    if (category && landingPageCategory(entry.campaign) !== category) return false;
+    if (market && landingPageMarket(entry.market, entry.pageId) !== market) return false;
+    return true;
+  });
 
   const goalLabel = data.experiment
     ? BEHAVIOUR_LABELS[data.experiment.primaryGoal] ?? data.experiment.primaryGoal
     : "Conversions";
   const running = data.experiment?.status?.toLowerCase() === "running";
-  const sectionTemplate = resolveSectionTemplate(page, pageOptions);
+  // Resolved against every page, not the filtered list: the selected page keeps
+  // its sections and preview regardless of what the list is currently showing.
+  const sectionTemplate = resolveSectionTemplate(page, allPageOptions);
   // The shared market previews predate ad-group landing page IDs; each is the
   // template behind its matching generic Vietnam outsourcing ad group.
   const previewCatalogPageId =
@@ -523,47 +617,102 @@ export function LandingExperimentTab({
 
   return (
     <div className="space-y-6 text-slate-900">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        {standaloneHeader && (
-          <div className="flex flex-wrap items-baseline gap-3">
-            <h1 className="my-0 text-[26px] font-bold leading-tight tracking-tight text-slate-900">
-              {clientName}
-            </h1>
-            <span className="text-lg font-normal text-slate-400">Landing Page Performance</span>
+      <div className="space-y-4">
+        {/* The status pill answers "is this live?" about the client named beside
+            it, so it reads on that line rather than at the head of the filters. */}
+        {(standaloneHeader || data.experiment) && (
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+            {standaloneHeader && (
+              <div className="flex flex-wrap items-baseline gap-3">
+                <h1 className="my-0 text-[26px] font-bold leading-tight tracking-tight text-slate-900">
+                  {clientName}
+                </h1>
+                <span className="text-lg font-normal text-slate-400">Landing Page Performance</span>
+              </div>
+            )}
+            {data.experiment && (
+              <span
+                className={`ml-auto inline-flex items-center gap-1.5 self-center rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                  running
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-slate-200 bg-slate-50 text-slate-700"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-500" : "bg-slate-400"}`}
+                />
+                <span className="capitalize">{data.experiment.status}</span>
+              </span>
+            )}
           </div>
         )}
+
+        {/* Category, Market, Page and Range are one control - each narrows what
+            the next one means - so they hold a single line. Page takes whatever
+            width is left and truncates rather than pushing Range onto its own
+            row; the custom date inputs are free to wrap beneath. */}
         <div
-          className="relative ml-auto flex flex-wrap items-end gap-3"
+          className="relative flex flex-wrap items-end gap-3"
           onMouseLeave={() => setRangeTooltipVisible(false)}
         >
-          {data.experiment && (
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                running
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-slate-200 bg-slate-50 text-slate-700"
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-500" : "bg-slate-400"}`}
-              />
-              <span className="capitalize">{data.experiment.status}</span>
-            </span>
-          )}
-
           {/* Shown for a single page too. Selecting the one page is what gives
               the report its sections and its preview, so hiding the control
               there hid the preview with it. */}
-          {pageOptions.length > 0 && (
-            <label className="flex max-w-full flex-col gap-1 text-xs text-slate-500">
+          {allPageOptions.length > 0 && (
+            <label className="flex flex-col gap-1 text-xs text-slate-500">
+              Category
+              <select
+                value={category}
+                onChange={(event) => {
+                  setCategory(event.target.value as LandingCategory | "");
+                  // The chosen page may not survive the new filter, and a report
+                  // scoped to an invisible page is a report nobody can explain.
+                  setPage("");
+                }}
+                className={SELECT}
+              >
+                <option value="">All categories</option>
+                {(Object.keys(LANDING_CATEGORY_LABELS) as LandingCategory[]).map((key) => (
+                  <option key={key} value={key}>
+                    {LANDING_CATEGORY_LABELS[key]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {allPageOptions.length > 0 && (
+            <label className="flex flex-col gap-1 text-xs text-slate-500">
+              Market
+              <select
+                value={market}
+                onChange={(event) => {
+                  setMarket(event.target.value as LandingMarket | "");
+                  setPage("");
+                }}
+                className={SELECT}
+              >
+                <option value="">All markets</option>
+                <option value="AU">Australia</option>
+                <option value="US">United States</option>
+              </select>
+            </label>
+          )}
+
+          {allPageOptions.length > 0 && (
+            <label className="flex min-w-[8rem] flex-1 flex-col gap-1 text-xs text-slate-500">
               Page
               <select
                 value={page}
                 onChange={(event) => setPage(event.target.value)}
-                className={`${SELECT} max-w-full`}
+                className={`${SELECT} w-full`}
               >
-                <option value="">All pages</option>
+                <option value="">
+                  {pageOptions.length === allPageOptions.length
+                    ? "All pages"
+                    : `All ${pageOptions.length} matching pages`}
+                </option>
                 {pageOptions.map((entry) => (
                   <option key={entry.key} value={entry.key}>
                     {pageLabel(entry.key)}
@@ -573,7 +722,7 @@ export function LandingExperimentTab({
             </label>
           )}
 
-          <div className="flex flex-col gap-1 text-xs text-slate-500">
+          <div className="flex shrink-0 flex-col gap-1 text-xs text-slate-500">
             <label htmlFor="landing-range-select" className="flex items-center gap-1">
               Range
               {data.baselineApplied && data.dataStartDate && (
@@ -780,6 +929,9 @@ export function LandingExperimentTab({
         </div>
       )}
 
+      {/* Campaigns sit below the market and device splits: those are the quick
+          read on the same sessions, and this is the long one you scroll into. */}
+      {headlinePages && headlinePages.length > 0 && <CampaignAdGroupTable pages={headlinePages} />}
 
       <PostClickPanel months={postClick} note={postClickNote} />
 

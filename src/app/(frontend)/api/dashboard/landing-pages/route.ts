@@ -6,6 +6,7 @@ import { validateDashboardToken } from "../verify/route";
 import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
 import { resolveLandingDateRange } from "@/lib/landing-date-range";
 import { LANDING_PAGES } from "@/lib/landing-page-sections";
+import { READINESS_CHECKLIST_FORM_ID } from "@/lib/landing-experiment-report";
 
 /**
  * The generated landing pages, read from the manifest the landing build emits.
@@ -62,17 +63,23 @@ interface Engagement {
   paidEngagedSessions: number;
   /** Sessions with a tracked form submission or completed booking. */
   conversionSessions: number;
+  /** Sessions that signed up for the readiness checklist. */
+  checklistSessions: number;
+  /** Checklist sign-ups from sessions that carried a Google click ID. */
+  paidChecklistSessions: number;
   /** Converted sessions that also carried a Google click ID. */
   paidConversionSessions: number;
   /** Percent of sessions that left the first section without scrolling. */
   bounceRate: number;
-  /** Mean active seconds across all sessions; single-event exits contribute zero. */
+  /** Sessions with a usable dwell beacon. The rest are unmeasured, not zero. */
+  timedSessions: number;
+  /** Mean active seconds across measured sessions only. */
   averageSeconds: number | null;
   /** Median active seconds per measured session, or null when no dwell beacon arrived. */
   medianSeconds: number | null;
   /** Number of Google Ads sessions with a usable timing sample. */
   paidTimedSessions: number;
-  /** Mean active seconds across all Google Ads sessions. */
+  /** Mean active seconds across measured Google Ads sessions only. */
   paidAverageSeconds: number | null;
   /** Median measured active seconds across Google Ads sessions. */
   paidMedianSeconds: number | null;
@@ -221,13 +228,20 @@ async function loadEngagement(
            SUM(engaged) AS engaged,
            SUM(CASE WHEN paid = 1 AND engaged = 1 THEN 1 ELSE 0 END) AS paid_engaged,
            SUM(converted) AS converted,
-           SUM(CASE WHEN paid = 1 AND converted = 1 THEN 1 ELSE 0 END) AS paid_converted
+           SUM(CASE WHEN paid = 1 AND converted = 1 THEN 1 ELSE 0 END) AS paid_converted,
+           SUM(checklist) AS checklist,
+           SUM(CASE WHEN paid = 1 AND checklist = 1 THEN 1 ELSE 0 END) AS paid_checklist
     FROM (
       SELECT session_id,
              page_id,
              MAX(CASE WHEN attribution LIKE '%gclid%' OR attribution LIKE '%gbraid%' OR attribution LIKE '%wbraid%' THEN 1 ELSE 0 END) AS paid,
              MAX(CASE WHEN event_type = 'section_engaged' THEN 1 ELSE 0 END) AS engaged,
              MAX(CASE WHEN event_type IN ('booking_complete', 'form_submit') THEN 1 ELSE 0 END) AS converted,
+             /* The checklist sign-up is a form_submit narrowed by form id, not
+                its own event type. The id is a module constant. */
+             MAX(CASE WHEN event_type = 'form_submit'
+                       AND json_extract(properties, '$.form_id') = '${READINESS_CHECKLIST_FORM_ID}'
+                      THEN 1 ELSE 0 END) AS checklist,
              CASE WHEN COUNT(DISTINCT CASE WHEN event_type = 'section_view'
                                            THEN json_extract(properties, '$.section_id') END) > 1
                     OR MAX(CASE WHEN event_type = 'scroll_depth' THEN 1 ELSE 0 END) = 1
@@ -238,26 +252,28 @@ async function loadEngagement(
     )
     GROUP BY page_id`;
 
-  /* Prefer the tracker's active page dwell. If a browser drops the lifecycle
-     beacon, the first-to-last event span is a conservative lower bound rather
-     than pretending the session has no measurable time at all. */
+  /* Only the tracker's own active dwell counts. A browser that drops the
+     lifecycle beacon leaves no honest measurement: the first-to-last event span
+     used to stand in for it, but that clock never pauses for idle or background
+     time, and the sessions that lose their beacon (killed tabs, lost coverage)
+     are exactly the ones that sat open longest. Substituting it inflated the
+     average precisely where it was least trustworthy. Those sessions are now
+     reported as unmeasured, and the count is surfaced beside the figure. */
   const timingSql = `
     WITH page_views AS (
       SELECT page_id, session_id, page_view_id,
              MAX(CASE WHEN attribution LIKE '%gclid%' OR attribution LIKE '%gbraid%' OR attribution LIKE '%wbraid%' THEN 1 ELSE 0 END) AS paid,
              MAX(CASE WHEN event_type = 'page_dwell'
-                      THEN CAST(json_extract(properties, '$.active_ms') AS REAL) END) AS active_ms,
-             (julianday(MAX(occurred_at)) - julianday(MIN(occurred_at))) * 86400000 AS observed_ms,
-             COUNT(*) AS event_count
+                      THEN CAST(json_extract(properties, '$.active_ms') AS REAL) END) AS active_ms
       FROM landing_events
       WHERE ${scope}
       GROUP BY page_id, session_id, page_view_id
     )
     SELECT page_id, session_id,
-           SUM(COALESCE(active_ms, CASE WHEN event_count > 1 THEN observed_ms END)) AS session_ms,
+           SUM(active_ms) AS session_ms,
            MAX(paid) AS paid
     FROM page_views
-    WHERE active_ms IS NOT NULL OR event_count > 1
+    WHERE active_ms IS NOT NULL
     GROUP BY page_id, session_id`;
 
   const rowsOf = async (statement: string) => {
@@ -295,17 +311,23 @@ async function loadEngagement(
         engagedSessions: Number(row.engaged ?? 0),
         paidEngagedSessions: Number(row.paid_engaged ?? 0),
         conversionSessions: Number(row.converted ?? 0),
+        checklistSessions: Number(row.checklist ?? 0),
+        paidChecklistSessions: Number(row.paid_checklist ?? 0),
         paidConversionSessions: Number(row.paid_converted ?? 0),
         bounceRate: Math.round((Number(row.bounced ?? 0) / sessions) * 1000) / 10,
-        // Traditional time-on-site treats a single-event exit as zero seconds.
-        // Dwell medians below still describe measured sessions only.
+        /* Averaged across measured sessions only, not all sessions. With the
+           wall-clock fallback gone, dividing by every session would count an
+           unbeaconed visit as zero seconds - the opposite error to the one just
+           removed. Callers get the sample size beside the figure so a mean drawn
+           from a handful of sessions can be read as such. */
+        timedSessions: values.length,
         averageSeconds: values.length
-          ? Math.round(values.reduce((total, value) => total + value, 0) / sessions / 1000)
+          ? Math.round(values.reduce((total, value) => total + value, 0) / values.length / 1000)
           : null,
         medianSeconds: values.length ? Math.round(values[Math.floor((values.length - 1) / 2)] / 1000) : null,
         paidTimedSessions: paidValues.length,
-        paidAverageSeconds: paidValues.length && paidSessions
-          ? Math.round(paidValues.reduce((total, value) => total + value, 0) / paidSessions / 1000)
+        paidAverageSeconds: paidValues.length
+          ? Math.round(paidValues.reduce((total, value) => total + value, 0) / paidValues.length / 1000)
           : null,
         paidMedianSeconds: paidValues.length
           ? Math.round(paidValues[Math.floor((paidValues.length - 1) / 2)] / 1000)
@@ -427,10 +449,13 @@ export async function GET(req: NextRequest) {
         engagedSessions: stats?.engagedSessions ?? 0,
         paidEngagedSessions: stats?.paidEngagedSessions ?? 0,
         trackedConversions: stats?.conversionSessions ?? 0,
+        checklistSessions: stats?.checklistSessions ?? 0,
+        paidChecklistSessions: stats?.paidChecklistSessions ?? 0,
         paidTrackedConversions: stats?.paidConversionSessions ?? 0,
         bounceRate: stats?.bounceRate ?? null,
         averageSeconds: stats?.averageSeconds ?? null,
         medianSeconds: stats?.medianSeconds ?? null,
+        timedSessions: stats?.timedSessions ?? 0,
         paidTimedSessions: stats?.paidTimedSessions ?? 0,
         paidAverageSeconds: stats?.paidAverageSeconds ?? null,
         paidMedianSeconds: stats?.paidMedianSeconds ?? null,

@@ -118,9 +118,11 @@ describe("LandingExperimentTab with a single landing page", () => {
     const select = await screen.findByLabelText("Page");
     await waitFor(() => {
       const labels = Array.from(select.querySelectorAll("option")).map((option) => option.textContent);
+      // Titles carry their market, so the AU and US builds of one page are
+      // tellable apart. A label already ending in its market keeps it once.
       expect(labels).toContain("offshore-teams-au");
-      expect(labels).toContain("BPO Services in Vietnam");
-      expect(labels).toContain("RPO in Vietnam");
+      expect(labels).toContain("BPO Services in Vietnam — AU");
+      expect(labels).toContain("RPO in Vietnam — US");
     });
     // The default range is "this week" (Monday -> today), so the expected
     // start/end move every day. Derive them from the same helper the component

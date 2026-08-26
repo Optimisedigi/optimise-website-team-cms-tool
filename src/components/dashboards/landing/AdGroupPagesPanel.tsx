@@ -40,6 +40,8 @@ export interface ManifestPage {
   paidEngagedSessions: number;
   trackedConversions?: number;
   paidTrackedConversions?: number;
+  checklistSessions?: number;
+  paidChecklistSessions?: number;
   averageSeconds?: number | null;
   paidTimedSessions?: number;
   paidAverageSeconds?: number | null;

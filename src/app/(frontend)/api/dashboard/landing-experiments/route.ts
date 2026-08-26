@@ -155,11 +155,12 @@ const CHECKLIST_PREDICATE =
  * scan only contains that page, which would remove every other option from the
  * selector and leave no way back.
  *
- * The page and market lists stay global on purpose: they are how you move
- * between pages and how AU is compared with US, so narrowing them by the
- * current page would remove the only route back. The device split does follow
- * the selected page, because it sits directly above that page's own funnel and
- * two different totals in one view read as a bug.
+ * The page list stays global on purpose: it is how you move between pages, so
+ * narrowing it by the current page would remove the only route back. The market
+ * and device splits do follow the selected pages, because they sit directly
+ * above those pages' own funnel and two different totals in one view read as a
+ * bug. Neither follows the market selector itself - a market toggle that hides
+ * the other market's share is not a toggle, it is a dead end.
  */
 async function loadFacets(
   payload: Awaited<ReturnType<typeof getPayload>>,
@@ -167,7 +168,8 @@ async function loadFacets(
   since: string,
   until: string,
   goalPredicate: string,
-  pageFilter: string | null
+  /** Page ids the report is scoped to; empty means every page. */
+  pageScope: string[]
 ): Promise<{ pages: Segment[]; markets: Segment[]; devices: Segment[]; attribution: Segment[] }> {
   // Values are numeric ids or already-validated constants, and the two strings
   // are escaped, so this cannot carry caller-controlled SQL.
@@ -239,7 +241,9 @@ async function loadFacets(
     withTiming = false
   ): Promise<Segment[]> {
     const pageClause =
-      scopeToPage && pageFilter ? ` AND \`page_id\` = '${escape(pageFilter)}'` : "";
+      scopeToPage && pageScope.length > 0
+        ? ` AND \`page_id\` IN (${pageScope.map((id) => `'${escape(id)}'`).join(", ")})`
+        : "";
     // Counted in the same pass as sessions so the column cannot disagree with
     // the row it sits on.
     const checklistColumn = withChecklist
@@ -293,7 +297,7 @@ async function loadFacets(
     // Markets, devices and attribution all carry the checklist count: it is the
     // page's second outcome, so every table that reports conversions reports it
     // too rather than sending the reader to a separate panel.
-    group("`market`", false, true, true),
+    group("`market`", true, true, true),
     group("`device_class`", true, true, true),
     group(ATTRIBUTION_BUCKET, false, true),
   ]);
@@ -440,6 +444,17 @@ export async function GET(req: NextRequest) {
   // funnel, and behaviour on a phone is not behaviour on a desktop, so
   // reporting everything together averages away the thing worth seeing.
   const pageFilter = sanitiseFilter(req.nextUrl.searchParams.get("page"), 60);
+  /* A category is a set of pages, not a dimension the events carry, so the
+     caller sends the ids it resolved to. Capped and sanitised per id: this ends
+     up in an IN list, and an unbounded one would be both a slow query and a way
+     to hand the database a caller-sized string. */
+  const pageSetFilter = (req.nextUrl.searchParams.get("pages") ?? "")
+    .split(",")
+    .map((value) => sanitiseFilter(value, 60))
+    .filter((value): value is string => Boolean(value))
+    .slice(0, 200);
+  // An explicit single page always wins: it is the narrower of the two.
+  const pageScope = pageFilter ? [pageFilter] : pageSetFilter;
   const deviceFilter = sanitiseFilter(req.nextUrl.searchParams.get("device"), 20);
   const marketFilter = sanitiseFilter(req.nextUrl.searchParams.get("market"), 12);
 
@@ -504,7 +519,7 @@ export async function GET(req: NextRequest) {
       : "`event_type` = '" + primaryGoal.replace(/'/g, "''") + "'";
 
   const [facets, paidTraffic, campaignNames] = await Promise.all([
-    loadFacets(payload, client.id, since, range.until, goalPredicate, pageFilter),
+    loadFacets(payload, client.id, since, range.until, goalPredicate, pageScope),
     loadPaidTraffic(payload, client.id, since, range.until, goalPredicate),
     loadGoogleAdsCampaignNames(String(client.googleAdsCustomerId ?? "")),
   ]);
@@ -563,7 +578,11 @@ export async function GET(req: NextRequest) {
         // applied in memory below, because their summaries have to show the
         // whole split even while one of them is selected — a device toggle that
         // hides the other device's share is not a toggle, it is a dead end.
-        ...(pageFilter ? { pageId: { equals: pageFilter } } : {}),
+        ...(pageScope.length === 1
+          ? { pageId: { equals: pageScope[0] } }
+          : pageScope.length > 1
+            ? { pageId: { in: pageScope } }
+            : {}),
       },
       depth: 0,
       limit: PAGE_SIZE,
@@ -731,7 +750,7 @@ export async function GET(req: NextRequest) {
       dataStartDate,
       baselineApplied,
       rangeStart: since,
-      filters: { page: pageFilter, device: deviceFilter, market: marketFilter },
+      filters: { page: pageFilter, pages: pageScope, device: deviceFilter, market: marketFilter },
       ...facets,
       engagedSessions: engagedSessionsInRange.size,
       controlVariantId,

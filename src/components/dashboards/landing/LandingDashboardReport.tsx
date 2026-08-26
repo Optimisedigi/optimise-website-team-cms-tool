@@ -17,6 +17,7 @@ export function LandingDashboardReport({
 }) {
   const [range, setRange] = useState<LandingDateRange>(DEFAULT_LANDING_DATE_RANGE);
   const [landingPages, setLandingPages] = useState<ManifestPage[]>([]);
+  const [reportLoading, setReportLoading] = useState(true);
 
   return (
     <>
@@ -27,12 +28,20 @@ export function LandingDashboardReport({
         onRangeChange={setRange}
         standaloneHeader={standaloneHeader}
         landingPages={landingPages}
+        onLoadingChange={setReportLoading}
       />
-      <div className="mt-6">
-        <AdGroupPagesPanel slug={slug} range={range} onPagesLoaded={setLandingPages} />
-      </div>
-      <div className="mt-6">
-        <CategoryPreviewPanel slug={slug} range={range} />
+      {/* While the report is loading it fills the page with the rocket splash, and
+          a panel finishing early underneath it - or failing early - showed up as a
+          stray card floating below the animation. The panels stay mounted so their
+          own requests still run in parallel; they are just kept out of sight until
+          there is a report for them to sit beneath. */}
+      <div hidden={reportLoading}>
+        <div className="mt-6">
+          <AdGroupPagesPanel slug={slug} range={range} onPagesLoaded={setLandingPages} />
+        </div>
+        <div className="mt-6">
+          <CategoryPreviewPanel slug={slug} range={range} />
+        </div>
       </div>
     </>
   );
