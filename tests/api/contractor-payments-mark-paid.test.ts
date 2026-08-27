@@ -40,7 +40,9 @@ describe('POST /api/contractor-payments/mark-paid', () => {
       weekCommencing: '2026-07-13T00:00:00.000Z',
       status: 'approved',
     }
-    mockPayload.findByID.mockResolvedValue({ id: 1, name: 'Lorenzo', email: null })
+    mockPayload.findByID
+      .mockResolvedValueOnce({ id: 1, name: 'Lorenzo', email: null })
+      .mockResolvedValueOnce({ id: 77, contractor: 1, status: 'sent' })
     mockPayload.find
       .mockResolvedValueOnce({ docs: [{ id: 3, name: 'Lorenzo', email: 'lorenzo@example.com' }] })
       .mockResolvedValueOnce({ docs: [legacyEntry] })

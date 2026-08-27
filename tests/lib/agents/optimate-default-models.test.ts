@@ -75,6 +75,16 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.negativeSweepModel).toBeUndefined();
     expect(result.blogImageGenerationModel).toBe(DEFAULT_BLOG_IMAGE_GENERATION_MODEL);
     expect(result.voiceRealtimeModel).toBe(DEFAULT_VOICE_REALTIME_MODEL);
+    expect(result.invoiceMateStarterQuestions).toContain("Show unpaid invoices");
+  });
+
+  it("appends new InvoiceMate default chips onto saved starter questions", async () => {
+    nextGlobal = {
+      invoiceMateStarterQuestions: [{ question: "Show me overdue invoices" }],
+    };
+    const result = await getOptiMateDefaultModels();
+    expect(result.invoiceMateStarterQuestions[0]).toBe("Show me overdue invoices");
+    expect(result.invoiceMateStarterQuestions).toContain("Show unpaid invoices");
   });
 
   it("falls back when a stored value is not a canonical/picker model", async () => {

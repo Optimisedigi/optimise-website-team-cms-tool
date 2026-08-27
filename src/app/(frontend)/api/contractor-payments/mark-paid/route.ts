@@ -110,6 +110,18 @@ export async function POST(req: NextRequest) {
         user,
       });
 
+  // Confirm the payment row is visible before writing payment_id FKs. Payload
+  // create can return an id whose INSERT is still inside an uncommitted txn.
+  const persisted = await payload.findByID({
+    collection: "contractor-payments",
+    id: (payment as any).id,
+    depth: 0,
+    overrideAccess: true,
+  }).catch(() => null);
+  if (!persisted) {
+    return NextResponse.json({ error: "Payment was created but is not yet readable. Try again." }, { status: 503 });
+  }
+
   // Keep the Time Entries view authoritative even if a collection hook fails:
   // every approved/submitted entry in the paid fortnight is linked and marked paid.
   const entriesToSync = await payload.find({

@@ -26,6 +26,7 @@ import {
   DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
   DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
   DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
+  mergeStarterQuestions,
   resolveStarterQuestions,
 } from "./optimate-starter-questions";
 
@@ -161,8 +162,11 @@ export async function getOptiMateDefaultModels(
         global?.googleMatePortfolioStarterQuestions,
         DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
       ),
-      invoiceMateStarterQuestions: resolveStarterQuestions(
-        global?.invoiceMateStarterQuestions,
+      invoiceMateStarterQuestions: mergeStarterQuestions(
+        resolveStarterQuestions(
+          global?.invoiceMateStarterQuestions,
+          DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
+        ),
         DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
       ),
       ...(blogPrompterModel ? { blogPrompterModel } : {}),

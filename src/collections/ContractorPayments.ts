@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 import { canAccess, adminOnlyDelete } from "../lib/access";
 import { reimbursementForFortnight } from "../lib/contractor-reimbursement";
+import { deferPostCommit } from "@/lib/google-ads-audit-bootstrap";
 
 function fmtShort(d: Date): string {
   return `${String(d.getUTCDate()).padStart(2, "0")}${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -145,10 +146,10 @@ export const ContractorPayments: CollectionConfig = {
       },
     ],
     afterChange: [
-      async ({ doc, req, operation }) => {
-        // Link time entries inside the fortnight to this payment, and flip
-        // them to paid when the payment is marked sent.
-        try {
+      ({ doc, req, operation }) => {
+        // Nested updates inside this save's transaction cannot see the new
+        // contractor_payments row, so payment_id FK writes fail (SQLITE_CONSTRAINT).
+        deferPostCommit(req.payload, "contractor payment entry link", async () => {
           const cid = typeof doc.contractor === "object" ? doc.contractor?.id : doc.contractor;
           if (!cid || !doc.fortnightStartDate || !doc.fortnightEndDate) return;
           const start = new Date(doc.fortnightStartDate);
@@ -193,9 +194,7 @@ export const ContractorPayments: CollectionConfig = {
             }
           }
           void operation;
-        } catch (err) {
-          req.payload.logger?.warn?.(`[ContractorPayments] entry link failed: ${err}`);
-        }
+        });
       },
     ],
   },

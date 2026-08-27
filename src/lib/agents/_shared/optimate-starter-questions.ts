@@ -28,6 +28,7 @@ export const DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS = [
 ] as const;
 
 export const DEFAULT_INVOICE_MATE_STARTER_QUESTIONS = [
+  "Show unpaid invoices",
   "Show me overdue invoices",
   "Summarise outstanding invoices",
   "What invoices are scheduled to send?",
@@ -67,4 +68,21 @@ export function resolveStarterQuestions(
   }
 
   return questions;
+}
+
+/** Keep saved chips, then append any new default chips that are not already present. */
+export function mergeStarterQuestions(
+  saved: readonly string[],
+  defaults: readonly string[],
+  max = MAX_STARTER_QUESTIONS,
+): string[] {
+  const seen = new Set(saved.map((question) => question.trim().toLowerCase()));
+  const merged = [...saved];
+  for (const question of defaults) {
+    const key = question.trim().toLowerCase();
+    if (!key || seen.has(key) || merged.length >= max) continue;
+    seen.add(key);
+    merged.push(question);
+  }
+  return merged;
 }
