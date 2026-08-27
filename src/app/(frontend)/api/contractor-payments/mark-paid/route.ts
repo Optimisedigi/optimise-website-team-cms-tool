@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import { userHasFeature } from "@/lib/access";
 import { buildUserToContractorMap, resolveEntryContractorId } from "@/lib/contractor-user-link";
 
 function addDaysIso(dateIso: string, days: number): string {
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest) {
   const { user } = await payload.auth({ headers: headersList });
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userHasFeature(user, "nav:contractor-costs") && !userHasFeature(user, "contractors")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   let body: { contractorId?: number; fortnightStartDate?: string };
   try {

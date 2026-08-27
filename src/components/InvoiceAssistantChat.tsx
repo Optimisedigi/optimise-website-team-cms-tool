@@ -8,6 +8,7 @@ import {
   isCanonicalModel,
 } from '@/lib/agents/_shared/llm/registry'
 import { DEFAULT_INVOICE_MATE_STARTER_QUESTIONS } from '@/lib/agents/_shared/optimate-starter-questions'
+import { parseContractorCostPayments } from '@/lib/agents/optimate-invoice/contractor-cost-parse'
 import { renderMarkdown } from './OptiMateChatCore'
 
 /**
@@ -41,6 +42,18 @@ interface ChatMessage {
   content: string
   /** Model that produced an assistant reply (shown as a small caption). */
   modelUsed?: string
+  contractorPayments?: ContractorCostPayment[]
+}
+
+interface ContractorCostPayment {
+  contractorId: number
+  contractorName: string
+  fortnightStartDate: string
+  fortnightEndDate: string | null
+  amount: number
+  currency: string
+  transferReference: string
+  status: 'paid' | 'unpaid'
 }
 
 interface ImageAttachment {
@@ -86,6 +99,22 @@ function hasExplicitModelChoice(): boolean {
   } catch {
     return false
   }
+}
+
+function fmtMoney(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(amount)
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`
+  }
+}
+
+function fmtFortnight(start: string, end: string | null): string {
+  if (!end) return start
+  const startDate = new Date(`${start}T00:00:00.000Z`)
+  const endDate = new Date(`${end}T00:00:00.000Z`)
+  const fmt = (date: Date) => date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+  return `${fmt(startDate)} – ${fmt(endDate)}`
 }
 
 function savePersistedModel(model: string): void {
@@ -221,9 +250,11 @@ export default function InvoiceAssistantChat() {
         setMessages((prev) => [
           ...prev,
           {
+            id: `assistant-${Date.now().toString(36)}`,
             role: 'assistant',
             content: data.reply ?? '(no reply)',
             modelUsed: data.model,
+            contractorPayments: parseContractorCostPayments(data.actions),
           },
         ])
         setImageAttachments([])
@@ -491,6 +522,29 @@ export default function InvoiceAssistantChat() {
             >
               {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
             </div>
+            {msg.role === 'assistant' && msg.contractorPayments && msg.contractorPayments.length > 0 && (
+              <div style={{ width: '90%', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {msg.contractorPayments.map((payment) => (
+                  <ContractorCostPaymentCard
+                    key={`${payment.contractorId}-${payment.fortnightStartDate}`}
+                    payment={payment}
+                    onMarkedPaid={(next) => {
+                      setMessages((prev) => prev.map((item) => {
+                        if (item.id !== msg.id) return item
+                        return {
+                          ...item,
+                          contractorPayments: item.contractorPayments?.map((row) =>
+                            row.contractorId === next.contractorId && row.fortnightStartDate === next.fortnightStartDate
+                              ? next
+                              : row,
+                          ),
+                        }
+                      }))
+                    }}
+                  />
+                ))}
+              </div>
+            )}
             {msg.role === 'assistant' && msg.modelUsed && (
               <div
                 style={{
@@ -766,6 +820,77 @@ export default function InvoiceAssistantChat() {
           40% { opacity: 1; transform: scale(1); }
         }
       `}</style>
+    </div>
+  )
+}
+
+function ContractorCostPaymentCard({
+  payment,
+  onMarkedPaid,
+}: {
+  payment: ContractorCostPayment
+  onMarkedPaid: (next: ContractorCostPayment) => void
+}) {
+  const [status, setStatus] = useState(payment.status)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const markPaid = async () => {
+    if (status === 'paid' || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/contractor-payments/mark-paid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          contractorId: payment.contractorId,
+          fortnightStartDate: payment.fortnightStartDate,
+        }),
+      })
+      if (!response.ok) throw new Error('mark-paid failed')
+      const next: ContractorCostPayment = { ...payment, status: 'paid' }
+      setStatus('paid')
+      onMarkedPaid(next)
+    } catch {
+      setError('Could not mark this fortnight as paid.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        padding: '10px 12px',
+        border: '1px solid #e5e7eb',
+        borderRadius: 10,
+        background: '#fff',
+        fontSize: 12,
+        color: '#1f2937',
+      }}
+    >
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{payment.contractorName}</div>
+      <div>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</div>
+      <div>Transfer {fmtMoney(payment.amount, payment.currency)}</div>
+      <div style={{ fontFamily: 'monospace', margin: '4px 0 8px' }}>{payment.transferReference || '—'}</div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span>Status</span>
+        <select
+          aria-label={`Payment status for ${payment.contractorName}, ${fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}`}
+          value={status}
+          disabled={status === 'paid' || saving}
+          onChange={(event) => {
+            if (event.target.value === 'paid') void markPaid()
+          }}
+          style={{ padding: '4px 8px', border: '1px solid #cbd5e1', borderRadius: 6, color: status === 'paid' ? '#166534' : '#b45309', fontWeight: 600 }}
+        >
+          <option value="unpaid">{saving ? 'Saving…' : 'Unpaid'}</option>
+          <option value="paid">Paid</option>
+        </select>
+      </label>
+      {error && <div style={{ color: '#b91c1c', marginTop: 6 }}>{error}</div>}
     </div>
   )
 }

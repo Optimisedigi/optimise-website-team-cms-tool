@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import { headers as nextHeaders } from "next/headers";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
+import { CONTRACTOR_COST_TOOL_NAMES, executeContractorCostTool } from "@/lib/agents/optimate-invoice/contractor-cost-tools";
 import { executeMemoryTool, executeTool, getInvoiceRealtimeTools, MEMORY_TOOL_NAMES } from "../chat/route";
 
 export const runtime = "nodejs";
@@ -57,7 +58,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const result = MEMORY_TOOL_NAMES.has(name)
       ? await executeMemoryTool(name, args, user.id)
-      : await executeInvoiceGrowthTool(name, args);
+      : CONTRACTOR_COST_TOOL_NAMES.has(name)
+        ? await executeContractorCostTool(name, args, user)
+        : await executeInvoiceGrowthTool(name, args);
     if (result && typeof result === "object" && "error" in result) {
       return NextResponse.json({ ok: false, error: String((result as { error: unknown }).error), data: result });
     }

@@ -32,6 +32,7 @@ export const DEFAULT_INVOICE_MATE_STARTER_QUESTIONS = [
   "Summarise outstanding invoices",
   "What invoices are scheduled to send?",
   "Create this month’s retainer",
+  "How much do I owe in contractor cost?",
 ] as const;
 
 const MAX_STARTER_QUESTIONS = 12;

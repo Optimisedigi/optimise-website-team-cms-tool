@@ -3258,6 +3258,59 @@ body:has(.global-edit--hosting-billing-settings) {
     width: 100%;
   }
 
+  // Contractor costs tables: stack as cards. Global `.od-box { overflow-x: clip }`
+  // otherwise cuts off columns and blocks sideways scroll.
+  .contractor-costs-scroll.od-box {
+    overflow: visible !important;
+    overflow-x: visible !important;
+  }
+
+  .contractor-costs-table {
+    display: block !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+
+    thead {
+      display: none;
+    }
+
+    tbody {
+      display: block;
+      width: 100%;
+    }
+
+    tr {
+      display: block;
+      padding: 12px 14px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    td {
+      display: block;
+      padding: 6px 0 !important;
+      white-space: normal;
+
+      &::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 2px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #64748b;
+      }
+
+      &[colspan]::before {
+        display: none;
+      }
+
+      select {
+        width: 100% !important;
+        max-width: 100%;
+      }
+    }
+  }
+
   .table .row .cell {
     padding: 8px 10px;
     font-size: 13px;

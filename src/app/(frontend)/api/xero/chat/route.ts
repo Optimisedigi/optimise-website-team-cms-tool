@@ -17,6 +17,7 @@ import type { Message, ToolDef } from "@/lib/agents/_shared/llm/types";
 import { memorySearch } from "@/lib/agents/optimate-google-ads/tools/memory-search";
 import { remember } from "@/lib/agents/optimate-google-ads/tools/remember";
 import { soulSet } from "@/lib/agents/optimate-google-ads/tools/soul-set";
+import { CONTRACTOR_COST_TOOL_NAMES, contractorCostTools, executeContractorCostTool } from "@/lib/agents/optimate-invoice/contractor-cost-tools";
 
 /** Resolve a client-requested model to a usable canonical name, or undefined
  *  when the value is missing/unknown/not offered in the chat picker. Mirrors
@@ -301,6 +302,7 @@ export const tools: ToolDef[] = [
       required: [],
     },
   },
+  ...contractorCostTools,
 ];
 
 function getInvoiceToolsForPrompt(text: string): ToolDef[] {
@@ -559,12 +561,14 @@ export async function POST(req: NextRequest) {
         for (const toolUse of toolUses) {
           const result = MEMORY_TOOL_NAMES.has(toolUse.name)
             ? await executeMemoryTool(toolUse.name, toolUse.input, user.id)
-            : await executeTool(
-                toolUse.name,
-                toolUse.input,
-                GROWTH_TOOLS_URL,
-                INTERNAL_API_KEY
-              );
+            : CONTRACTOR_COST_TOOL_NAMES.has(toolUse.name)
+              ? await executeContractorCostTool(toolUse.name, toolUse.input, user)
+              : await executeTool(
+                  toolUse.name,
+                  toolUse.input,
+                  GROWTH_TOOLS_URL,
+                  INTERNAL_API_KEY
+                );
 
           actions.push({ tool: toolUse.name, result });
 

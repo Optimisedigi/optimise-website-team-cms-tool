@@ -19,6 +19,18 @@ beforeEach(() => {
 })
 
 describe('POST /api/contractor-payments/mark-paid', () => {
+  it('rejects users without contractor cost access', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 2, role: 'specialist', featureAccess: ['nav:invoices'] } })
+    const { POST } = await import('@/app/(frontend)/api/contractor-payments/mark-paid/route')
+    const response = await POST(new NextRequest('http://localhost/api/contractor-payments/mark-paid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contractorId: 1, fortnightStartDate: '2026-07-13' }),
+    }))
+    expect(response.status).toBe(403)
+    expect(mockPayload.create).not.toHaveBeenCalled()
+  })
+
   it('marks every approved fortnight entry paid so All Time Entries stays synchronized', async () => {
     const { POST } = await import('@/app/(frontend)/api/contractor-payments/mark-paid/route')
     const legacyEntry = {

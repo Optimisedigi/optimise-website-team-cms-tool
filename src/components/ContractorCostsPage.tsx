@@ -413,25 +413,25 @@ export default function ContractorCostsPage() {
           </label>
           <span style={{ fontSize: 12, color: '#64748b', paddingBottom: 8 }}>{filteredPayments.length} of {payments.length} shown</span>
         </div>
-        <div className="od-box" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
-          <table style={{ width: '100%', minWidth: 1240, borderCollapse: 'collapse', fontSize: 13 }}>
+        <div className="od-box contractor-costs-scroll" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
+          <table className="contractor-costs-table" style={{ width: '100%', minWidth: 1240, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr>
               <th style={thStyle}>Contractor</th><th style={thStyle}>Fortnight</th><th style={thStyle}>Logged hours</th><th style={thStyle}>Amount</th><th style={thStyle}>Reference</th><th style={thStyle}>Status</th><th style={thStyle}>Date Paid</th>
             </tr></thead>
             <tbody>{payments.length === 0 ? <tr><td colSpan={7} style={{ ...paymentTdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No approved time entries yet. Approve a contractor&apos;s weeks to build a fortnightly payment.</td></tr> : filteredPayments.map((payment) => (
               <tr key={payment.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={paymentTdStyle}><strong>{payment.contractorName}</strong></td>
-                <td style={paymentTdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td>
-                <td style={paymentTdStyle}>{payment.totalHours.toFixed(2)}h</td>
-                <td style={paymentTdStyle}>
+                <td data-label="Contractor" style={paymentTdStyle}><strong>{payment.contractorName}</strong></td>
+                <td data-label="Fortnight" style={paymentTdStyle}>{fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}</td>
+                <td data-label="Logged hours" style={paymentTdStyle}>{payment.totalHours.toFixed(2)}h</td>
+                <td data-label="Amount" style={paymentTdStyle}>
                   <HoverTooltip label={fmtMoney(payment.amount, payment.currency)}>
                     <span style={{ display: 'block' }}>Hours: {fmtMoney(payment.subtotal, payment.currency)}</span>
                     <span style={{ display: 'block' }}>Reimbursement: {fmtMoney(payment.reimbursement, payment.currency)}</span>
                     <span style={{ display: 'block' }}>Transfer fee: {fmtMoney(payment.fee, payment.currency)}</span>
                   </HoverTooltip>
                 </td>
-                <td style={paymentTdStyle}>{payment.transferReference ? <button type="button" onClick={() => handleCopy(payment.transferReference, payment.id)} style={{ padding: '3px 7px', border: '1px solid #cbd5e1', borderRadius: 3, background: '#f8fafc', color: '#334155', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}>{copied === payment.id ? 'Copied' : payment.transferReference}</button> : '—'}</td>
-                <td style={paymentTdStyle}>
+                <td data-label="Reference" style={paymentTdStyle}>{payment.transferReference ? <button type="button" onClick={() => handleCopy(payment.transferReference, payment.id)} style={{ padding: '3px 7px', border: '1px solid #cbd5e1', borderRadius: 3, background: '#f8fafc', color: '#334155', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}>{copied === payment.id ? 'Copied' : payment.transferReference}</button> : '—'}</td>
+                <td data-label="Status" style={paymentTdStyle}>
                   <select
                     aria-label={`Payment status for ${payment.contractorName}, ${fmtFortnight(payment.fortnightStartDate, payment.fortnightEndDate)}`}
                     value={payment.status}
@@ -443,7 +443,7 @@ export default function ContractorCostsPage() {
                     <option value="paid">Paid</option>
                   </select>
                 </td>
-                <td style={paymentTdStyle}>{payment.status === 'paid' && payment.paidDate ? fmtDate(payment.paidDate) : '—'}</td>
+                <td data-label="Date Paid" style={paymentTdStyle}>{payment.status === 'paid' && payment.paidDate ? fmtDate(payment.paidDate) : '—'}</td>
               </tr>
             ))}</tbody>
           </table>
@@ -453,19 +453,19 @@ export default function ContractorCostsPage() {
       <details style={{ marginBottom: 24 }}>
         <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a', padding: '8px 0' }}>Contractors ({contractors.length})</summary>
         <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#64748b' }}>Rates, reimbursements, monthly costs, all-time totals, and the latest submitted week. Click a reimbursement to edit the amount, frequency, and start date without leaving this page.</p>
-        <div className="od-box" style={{ padding: 0, overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: 1180, borderCollapse: 'collapse', fontSize: 13 }}>
+        <div className="od-box contractor-costs-scroll" style={{ padding: 0, overflowX: 'auto' }}>
+          <table className="contractor-costs-table" style={{ width: '100%', minWidth: 1180, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}><tr><th style={thStyle}>Contractor</th><th style={thStyle}>Start date</th><th style={thStyle}>Tenure</th><th style={thStyle}>Rate</th><th style={thStyle}>Reimbursement</th><th style={thStyle}>Monthly cost</th><th style={thStyle}>Total paid / hours</th><th style={thStyle}>Latest logged week</th></tr></thead>
             <tbody>{contractors.length === 0 ? <tr><td colSpan={8} style={{ ...tdStyle, padding: 28, textAlign: 'center', color: '#64748b' }}>No active contractors yet.</td></tr> : contractors.map((contractor) => (
               <tr key={contractor.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={tdStyle}><strong>{contractor.name}</strong>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}</td>
-                <td style={tdStyle}>{fmtDate(contractor.startDate)}</td>
-                <td style={tdStyle}>{tenureLabel(contractor.startDate)}</td>
-                <td style={tdStyle}>{fmtMoney(contractor.hourlyRate, contractor.currency)}/hr</td>
-                <td style={tdStyle}><button type="button" onClick={() => setEditing(contractor)} style={{ padding: 0, border: 0, background: 'none', color: '#2563eb', cursor: 'pointer', font: 'inherit', textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: 3 }} title="Edit rate & reimbursement">{reimbursementSummary(contractor.reimbursement, contractor.currency)}</button></td>
-                <td style={tdStyle}>{fmtMoney(contractor.mtd.cost, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.mtd.hours.toFixed(1)}h this month</div></td>
-                <td style={tdStyle}>{fmtMoney(contractor.totalPaid, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.totalHours.toFixed(1)}h logged</div></td>
-                <td style={tdStyle}>{contractor.latestWeek ? <HoverTooltip label={fmtDate(contractor.latestWeek.weekCommencing)}>{contractor.latestWeek.clientAllocations.length ? contractor.latestWeek.clientAllocations.map((allocation) => <span key={allocation.clientName} style={{ display: 'block' }}>{allocation.clientName}: {allocation.hours.toFixed(2)}h</span>) : 'No client allocations'}</HoverTooltip> : 'No logged weeks'}</td>
+                <td data-label="Contractor" style={tdStyle}><strong>{contractor.name}</strong>{contractor.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{contractor.email}</div>}</td>
+                <td data-label="Start date" style={tdStyle}>{fmtDate(contractor.startDate)}</td>
+                <td data-label="Tenure" style={tdStyle}>{tenureLabel(contractor.startDate)}</td>
+                <td data-label="Rate" style={tdStyle}>{fmtMoney(contractor.hourlyRate, contractor.currency)}/hr</td>
+                <td data-label="Reimbursement" style={tdStyle}><button type="button" onClick={() => setEditing(contractor)} style={{ padding: 0, border: 0, background: 'none', color: '#2563eb', cursor: 'pointer', font: 'inherit', textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: 3 }} title="Edit rate & reimbursement">{reimbursementSummary(contractor.reimbursement, contractor.currency)}</button></td>
+                <td data-label="Monthly cost" style={tdStyle}>{fmtMoney(contractor.mtd.cost, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.mtd.hours.toFixed(1)}h this month</div></td>
+                <td data-label="Total paid / hours" style={tdStyle}>{fmtMoney(contractor.totalPaid, contractor.currency)}<div style={{ fontSize: 12, color: '#64748b' }}>{contractor.totalHours.toFixed(1)}h logged</div></td>
+                <td data-label="Latest logged week" style={tdStyle}>{contractor.latestWeek ? <HoverTooltip label={fmtDate(contractor.latestWeek.weekCommencing)}>{contractor.latestWeek.clientAllocations.length ? contractor.latestWeek.clientAllocations.map((allocation) => <span key={allocation.clientName} style={{ display: 'block' }}>{allocation.clientName}: {allocation.hours.toFixed(2)}h</span>) : 'No client allocations'}</HoverTooltip> : 'No logged weeks'}</td>
               </tr>
             ))}</tbody>
           </table>
