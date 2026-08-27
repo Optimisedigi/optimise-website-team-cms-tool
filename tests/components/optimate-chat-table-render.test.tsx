@@ -98,3 +98,34 @@ describe('renderMarkdown — GFM tables', () => {
     expect(container.querySelectorAll('table').length).toBe(0)
   })
 })
+
+describe('renderMarkdown — invoice lists', () => {
+  it('renders hyphen bullets as a disc list with visible markers', () => {
+    const md = [
+      'Recent unpaid:',
+      '- **INV-000177** We Can Quit, $76, due 1st Jun',
+      '- **INV-000178** We Can Quit, $76, due 3rd Jul',
+    ].join('\n')
+
+    const { container } = renderMd(md)
+    const items = container.querySelectorAll('ul li')
+    expect(items.length).toBe(2)
+    expect(items[0].textContent).toContain('INV-000177')
+    expect(container.querySelector('ul')?.getAttribute('style')).toContain('list-style-type: disc')
+    expect(items[0].getAttribute('style')).toContain('display: list-item')
+  })
+
+  it('treats indented invoice lines without a hyphen as bullets', () => {
+    const md = [
+      'Recent unpaid:',
+      '  **INV-000177** We Can Quit, $76, due 1st Jun',
+      '  **INV-000178** We Can Quit, $76, due 3rd Jul',
+    ].join('\n')
+
+    const { container } = renderMd(md)
+    const items = container.querySelectorAll('ul li')
+    expect(items.length).toBe(2)
+    expect(items[0].textContent).toContain('INV-000177')
+    expect(items[1].textContent).toContain('INV-000178')
+  })
+})

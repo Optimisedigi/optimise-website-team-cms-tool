@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { refreshStatementSnapshot } from "@/lib/invoice-statement-snapshot";
+import {
+  fetchOutstandingContacts,
+  outstandingRowToSnapshot,
+  refreshStatementSnapshot,
+} from "@/lib/invoice-statement-snapshot";
 import type { StatementSnapshot } from "@/lib/invoice-statement-email";
 
 const globalFetch = vi.fn();
@@ -243,5 +247,42 @@ describe("refreshStatementSnapshot — upstream flapping mitigation", () => {
 
     const calledUrl = String(globalFetch.mock.calls[0]![0]);
     expect(new URL(calledUrl).searchParams.has("skipUrlInvoiceIds")).toBe(false);
+  });
+});
+
+describe("fetchOutstandingContacts", () => {
+  it("fills blank emails from /api/xero/contacts", async () => {
+    globalFetch.mockImplementation((url: string) => {
+      if (String(url).includes("/with-outstanding")) {
+        return Promise.resolve(
+          okJson([
+            {
+              ...(row(["https://x/1"]) as object),
+              emailAddress: "",
+            },
+          ]),
+        );
+      }
+      return Promise.resolve(
+        okJson([{ contactId: CONTACT_ID, name: "Acme Pty Ltd", emailAddress: "alex@acme.example" }]),
+      );
+    });
+
+    const result = await fetchOutstandingContacts();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0]?.emailAddress).toBe("alex@acme.example");
+  });
+});
+
+describe("outstandingRowToSnapshot", () => {
+  it("copies contact and unpaid invoices", () => {
+    const snapshot = outstandingRowToSnapshot(
+      row(["https://x/1"]) as never,
+      "2026-08-27T00:00:00.000Z",
+    );
+    expect(snapshot.contact.contactId).toBe(CONTACT_ID);
+    expect(snapshot.unpaid[0]?.onlineInvoiceUrl).toBe("https://x/1");
+    expect(snapshot.capturedAt).toBe("2026-08-27T00:00:00.000Z");
   });
 });

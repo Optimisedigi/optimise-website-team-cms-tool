@@ -301,7 +301,7 @@ function summarizeToolSetDiff(textTools: string[], voiceTools: string[]): string
 
 /**
  * Lightweight markdown renderer for chat messages.
- * Handles: **bold**, bullet lists (- item), numbered lists, paragraphs, fenced code.
+ * Handles: **bold**, bullet lists (- item, including indented / •), numbered lists, paragraphs, fenced code.
  */
 export function renderMarkdown(text: string) {
   const lines = text.split('\n')
@@ -323,7 +323,12 @@ export function renderMarkdown(text: string) {
     if (listItems.length > 0 && listType) {
       const Tag = listType
       elements.push(
-        <Tag key={`list-${elements.length}`} style={{ margin: '6px 0', paddingLeft: 20 }}>
+        <Tag key={`list-${elements.length}`} style={{
+            margin: '6px 0',
+            paddingLeft: 22,
+            listStyleType: Tag === 'ol' ? 'decimal' : 'disc',
+            listStylePosition: 'outside',
+          }}>
           {listItems}
         </Tag>,
       )
@@ -562,29 +567,32 @@ export function renderMarkdown(text: string) {
       continue
     }
 
-    const bulletMatch = line.match(/^[-*]\s+(.+)/)
-    const numberedMatch = line.match(/^\d+\.\s+(.+)/)
+    const bulletMatch = line.match(/^\s*[-*•]\s+(.+)/)
+    const numberedMatch = line.match(/^\s*\d+\.\s+(.+)/)
+    const indentedInvoiceMatch =
+      !bulletMatch && !numberedMatch ? line.match(/^\s{2,}(\*\*[A-Z]{2,}-\d+[A-Z0-9-]*\*\*.+)$/) : null
+    const listText = bulletMatch?.[1] ?? indentedInvoiceMatch?.[1] ?? numberedMatch?.[1]
 
-    if (bulletMatch) {
+    if (bulletMatch || indentedInvoiceMatch) {
       if (listType !== 'ul') flushList()
       listType = 'ul'
       listItems.push(
-        <li key={`li-${i}`} style={{ marginBottom: 2 }}>
-          {formatInline(bulletMatch[1])}
+        <li key={`b-${i}`} style={{ marginBottom: 2, display: 'list-item' }}>
+          {formatInline(listText!)}
         </li>,
       )
     } else if (numberedMatch) {
       if (listType !== 'ol') flushList()
       listType = 'ol'
       listItems.push(
-        <li key={`li-${i}`} style={{ marginBottom: 2 }}>
+        <li key={`n-${i}`} style={{ marginBottom: 2, display: 'list-item' }}>
           {formatInline(numberedMatch[1])}
         </li>,
       )
     } else {
       flushList()
       if (line.trim() === '') {
-        elements.push(<div key={`br-${i}`} style={{ height: 8 }} />)
+        elements.push(<div key={`sp-${i}`} style={{ height: 8 }} />)
       } else {
         elements.push(
           <p key={`p-${i}`} style={{ margin: '4px 0' }}>

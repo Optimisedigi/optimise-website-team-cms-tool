@@ -27,12 +27,20 @@ export const DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS = [
   "Find cross-account search-term waste",
 ] as const;
 
+export const INVOICE_MATE_OVERDUE_CHASE_STARTER =
+  "Draft chase emails for overdue invoices, show me the full emails, then ask if I want them as Gmail drafts";
+
+const RETAINER_STARTER_KEYS = new Set([
+  "create this month's retainer",
+  "create this month’s retainer",
+]);
+
 export const DEFAULT_INVOICE_MATE_STARTER_QUESTIONS = [
   "Show unpaid invoices",
   "Show me overdue invoices",
   "Summarise outstanding invoices",
   "What invoices are scheduled to send?",
-  "Create this month’s retainer",
+  INVOICE_MATE_OVERDUE_CHASE_STARTER,
   "How much do I owe in contractor cost?",
 ] as const;
 
@@ -58,8 +66,11 @@ export function resolveStarterQuestions(
 
     if (typeof rawQuestion !== "string") continue;
 
-    const question = rawQuestion.trim().replace(/\s+/g, " ").slice(0, MAX_STARTER_QUESTION_LENGTH);
-    const key = question.toLocaleLowerCase();
+    const normalised = rawQuestion.trim().replace(/\s+/g, " ").slice(0, MAX_STARTER_QUESTION_LENGTH);
+    const question = RETAINER_STARTER_KEYS.has(normalised.toLowerCase())
+      ? INVOICE_MATE_OVERDUE_CHASE_STARTER
+      : normalised;
+    const key = question.toLowerCase();
     if (!question || seen.has(key)) continue;
 
     seen.add(key);

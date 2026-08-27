@@ -18,6 +18,7 @@ import { memorySearch } from "@/lib/agents/optimate-google-ads/tools/memory-sear
 import { remember } from "@/lib/agents/optimate-google-ads/tools/remember";
 import { soulSet } from "@/lib/agents/optimate-google-ads/tools/soul-set";
 import { CONTRACTOR_COST_TOOL_NAMES, contractorCostTools, executeContractorCostTool } from "@/lib/agents/optimate-invoice/contractor-cost-tools";
+import { OVERDUE_EMAIL_TOOL_NAMES, overdueEmailTools, executeOverdueEmailTool } from "@/lib/agents/optimate-invoice/overdue-email-tools";
 
 /** Resolve a client-requested model to a usable canonical name, or undefined
  *  when the value is missing/unknown/not offered in the chat picker. Mirrors
@@ -303,6 +304,7 @@ export const tools: ToolDef[] = [
     },
   },
   ...contractorCostTools,
+  ...overdueEmailTools,
 ];
 
 function getInvoiceToolsForPrompt(text: string): ToolDef[] {
@@ -563,7 +565,9 @@ export async function POST(req: NextRequest) {
             ? await executeMemoryTool(toolUse.name, toolUse.input, user.id)
             : CONTRACTOR_COST_TOOL_NAMES.has(toolUse.name)
               ? await executeContractorCostTool(toolUse.name, toolUse.input, user)
-              : await executeTool(
+              : OVERDUE_EMAIL_TOOL_NAMES.has(toolUse.name)
+                ? await executeOverdueEmailTool(toolUse.name, toolUse.input, user)
+                : await executeTool(
                   toolUse.name,
                   toolUse.input,
                   GROWTH_TOOLS_URL,

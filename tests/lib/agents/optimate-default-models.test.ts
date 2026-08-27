@@ -76,6 +76,9 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.blogImageGenerationModel).toBe(DEFAULT_BLOG_IMAGE_GENERATION_MODEL);
     expect(result.voiceRealtimeModel).toBe(DEFAULT_VOICE_REALTIME_MODEL);
     expect(result.invoiceMateStarterQuestions).toContain("Show unpaid invoices");
+    expect(result.invoiceMateStarterQuestions).toContain(
+      "Draft chase emails for overdue invoices, show me the full emails, then ask if I want them as Gmail drafts",
+    );
   });
 
   it("appends new InvoiceMate default chips onto saved starter questions", async () => {

@@ -66,7 +66,7 @@ function sleep(ms: number): Promise<void> {
 
 
 
-interface GrowthToolsRow {
+export interface OutstandingContactRow {
   contactId: string;
   contactName: string;
   firstName: string;
@@ -79,6 +79,9 @@ interface GrowthToolsRow {
   unpaidCount: number;
   overdueCount: number;
 }
+
+/** @deprecated Use OutstandingContactRow. */
+type GrowthToolsRow = OutstandingContactRow;
 
 interface XeroContactRow {
   contactId: string;
@@ -127,6 +130,122 @@ async function fetchXeroContactEmail(
     return match?.emailAddress ?? "";
   } catch {
     return "";
+  }
+}
+
+async function hydrateOutstandingContactEmails(
+  growthUrl: string,
+  internalKey: string,
+  rows: OutstandingContactRow[],
+): Promise<OutstandingContactRow[]> {
+  if (rows.every((row) => row.emailAddress)) return rows;
+  try {
+    const res = await fetch(`${growthUrl}/api/xero/contacts`, {
+      headers: { "x-internal-key": internalKey },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return rows;
+    const contacts = (await res.json()) as XeroContactRow[];
+    const byId = new Map(
+      contacts.map((contact) => [contact.contactId, contact.emailAddress ?? ""]),
+    );
+    return rows.map((row) =>
+      row.emailAddress
+        ? row
+        : { ...row, emailAddress: byId.get(row.contactId) ?? "" },
+    );
+  } catch {
+    return rows;
+  }
+}
+
+export function outstandingRowToSnapshot(
+  row: OutstandingContactRow,
+  capturedAt = new Date().toISOString(),
+): StatementSnapshot {
+  return {
+    contact: {
+      contactId: row.contactId,
+      contactName: row.contactName,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      emailAddress: row.emailAddress,
+    },
+    unpaid: row.unpaid.map((inv) => ({
+      invoiceId: inv.invoiceId,
+      invoiceNumber: inv.invoiceNumber,
+      reference: inv.reference,
+      date: inv.date,
+      dueDate: inv.dueDate,
+      total: inv.total,
+      amountDue: inv.amountDue,
+      status: inv.status,
+      onlineInvoiceUrl: inv.onlineInvoiceUrl ?? null,
+    })),
+    paid: (row.paid ?? []).map((inv) => ({
+      invoiceId: inv.invoiceId,
+      invoiceNumber: inv.invoiceNumber,
+      reference: inv.reference,
+      date: inv.date,
+      dueDate: inv.dueDate,
+      total: inv.total,
+      amountDue: inv.amountDue,
+      status: inv.status,
+      onlineInvoiceUrl: null,
+    })),
+    totalOutstanding: row.totalOutstanding,
+    totalOverdue: row.totalOverdue,
+    unpaidCount: row.unpaidCount,
+    overdueCount: row.overdueCount,
+    capturedAt,
+  };
+}
+
+export type OutstandingContactsResult =
+  | { ok: true; rows: OutstandingContactRow[] }
+  | { ok: false; error: string; status: number };
+
+/**
+ * Fetch every Xero contact that currently has at least one unpaid invoice.
+ * Shared by invoice-statement refresh and InvoiceMate overdue-email tools.
+ */
+export async function fetchOutstandingContacts(
+  options: { paidSinceDays?: number } = {},
+): Promise<OutstandingContactsResult> {
+  const growthUrl = process.env.GROWTH_TOOLS_URL;
+  const internalKey = process.env.INTERNAL_API_KEY;
+  if (!growthUrl || !internalKey) {
+    return { ok: false, error: "Growth Tools not configured", status: 500 };
+  }
+
+  const url = new URL(`${growthUrl}/api/xero/contacts/with-outstanding`);
+  url.searchParams.set("minCount", "1");
+  url.searchParams.set(
+    "paidSinceDays",
+    String(options.paidSinceDays ?? 90),
+  );
+
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { "x-internal-key": internalKey },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: `Growth Tools fetch failed (${res.status})`,
+        status: 502,
+      };
+    }
+    const rows = (await res.json()) as OutstandingContactRow[];
+    if (!Array.isArray(rows)) return { ok: true, rows: [] };
+    return { ok: true, rows: await hydrateOutstandingContactEmails(growthUrl, internalKey, rows) };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Growth Tools request failed: ${err instanceof Error ? err.message : String(err)}`,
+      status: 502,
+    };
   }
 }
 
