@@ -66,7 +66,7 @@ function normaliseModelName(value: unknown): unknown {
   if (value === "gpt-5.5-codex" || value === "gpt-5.5-codex-medium" || value === "gpt-5.5-codex-low" || value === "gpt-5.4") return "gpt-5.6-terra";
   if (value === "gpt-5.4-mini") return "gpt-5.6-luna";
   if (value === "claude-opus-4-8") return "claude-opus-5";
-  if (value === "claude-sonnet-4.6" || value === "claude-haiku-4.5") return "claude-sonnet-5";
+  if (value === "claude-sonnet-4.6") return "claude-sonnet-5";
   if (value === "grok-build") return "grok-4.6";
   if (value === "grok-composer-2.5-fast") return "grok-4.5";
   return value;

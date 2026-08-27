@@ -15321,6 +15321,7 @@ export interface OptimateSetting {
   defaultChatModel:
     | 'claude-sonnet-5'
     | 'claude-opus-5'
+    | 'claude-haiku-4.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
     | 'minimax-m3'
@@ -15335,6 +15336,7 @@ export interface OptimateSetting {
   defaultAutonomousModel:
     | 'claude-sonnet-5'
     | 'claude-opus-5'
+    | 'claude-haiku-4.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
     | 'minimax-m3'
@@ -15350,6 +15352,7 @@ export interface OptimateSetting {
     | (
         | 'claude-sonnet-5'
         | 'claude-opus-5'
+        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
@@ -15367,6 +15370,7 @@ export interface OptimateSetting {
     | (
         | 'claude-sonnet-5'
         | 'claude-opus-5'
+        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
@@ -15384,6 +15388,7 @@ export interface OptimateSetting {
     | (
         | 'claude-sonnet-5'
         | 'claude-opus-5'
+        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
@@ -15401,6 +15406,7 @@ export interface OptimateSetting {
     | (
         | 'claude-sonnet-5'
         | 'claude-opus-5'
+        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
@@ -15418,6 +15424,7 @@ export interface OptimateSetting {
     | (
         | 'claude-sonnet-5'
         | 'claude-opus-5'
+        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'

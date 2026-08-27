@@ -718,6 +718,9 @@ export default function AgentAuthPage() {
           <button onClick={() => handleProbe("claude-sonnet-5")} style={ghostButtonStyle}>
             Probe Sonnet 5 (OAuth)
           </button>
+          <button onClick={() => handleProbe("claude-haiku-4.5")} style={ghostButtonStyle}>
+            Probe Haiku 4.5 (OAuth)
+          </button>
           <button onClick={() => handleProbe("kimi-for-coding")} style={ghostButtonStyle}>
             Probe Kimi For Coding (OAuth)
           </button>

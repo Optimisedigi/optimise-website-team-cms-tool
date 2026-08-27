@@ -6009,6 +6009,17 @@ export async function runMigrations(
     await addLandingTables();
     await addLandingDomains();
     await addLandingLockRelations();
+
+    // AutoTrader partner audit PIN (idempotent). Inserts the client + deck
+    // only when missing. Never overwrites an existing PIN or other client data.
+    await run(
+      "seed_autotrader_client",
+      "INSERT INTO clients (name, slug, client_pin, updated_at, created_at) SELECT 'AutoTrader', 'autotrader', '2244', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM clients WHERE slug = 'autotrader') AND NOT EXISTS (SELECT 1 FROM clients WHERE client_pin = '2244')",
+    );
+    await run(
+      "seed_autotrader_audit_deck",
+      "INSERT INTO clients_presentations (_order, _parent_id, id, title, deck_slug, kind, is_public) SELECT COALESCE((SELECT MAX(_order) FROM clients_presentations WHERE _parent_id = c.id), 0) + 1, c.id, 'autotrader-google-ads-audit', 'Google Ads Audit', 'google-ads-audit', 'deck', 1 FROM clients c WHERE c.slug = 'autotrader' AND NOT EXISTS (SELECT 1 FROM clients_presentations p WHERE p._parent_id = c.id AND p.deck_slug = 'google-ads-audit')",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

@@ -7,6 +7,7 @@ const DEFAULT_OUTPUT_DIR = ".gg/blog-evals";
 const DEFAULT_MODELS: CanonicalModelName[] = [
   "claude-sonnet-5",
   "claude-opus-5",
+  "claude-haiku-4.5",
   "kimi-for-coding",
   "minimax-m3",
   "gpt-5.6-terra",

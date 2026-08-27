@@ -22,7 +22,7 @@ describe("OptiMate OAuth model registry", () => {
     },
   );
 
-  it.each(["claude-opus-4-8", "gpt-5.5-codex", "claude-haiku-4.5", "grok-build"])("does not surface retired model %s in the picker", (canonical) => {
+  it.each(["claude-opus-4-8", "gpt-5.5-codex", "grok-build"])("does not surface retired model %s in the picker", (canonical) => {
     expect(CHAT_PICKER_MODELS).not.toContainEqual(expect.objectContaining({ canonical }));
   });
 

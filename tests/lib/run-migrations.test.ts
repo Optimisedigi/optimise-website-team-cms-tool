@@ -71,6 +71,17 @@ describe("runMigrations", () => {
     }
   });
 
+  it("seeds AutoTrader PIN and audit deck without overwriting an existing client", async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] })
+    const payload = { db: { client: { execute, batch: vi.fn() } } } as any
+    const results = await runMigrations(payload)
+    expect(results).toContainEqual({ label: "seed_autotrader_client", status: "ok" })
+    expect(results).toContainEqual({ label: "seed_autotrader_audit_deck", status: "ok" })
+    const clientSql = execute.mock.calls.map((call) => String(call[0])).find((sql) => sql.includes("seed_autotrader") || sql.includes("'autotrader'"))
+    expect(clientSql).toContain("WHERE NOT EXISTS (SELECT 1 FROM clients WHERE slug = 'autotrader')")
+    expect(clientSql).toContain("AND NOT EXISTS (SELECT 1 FROM clients WHERE client_pin = '2244')")
+  })
+
   it("uses the current schema marker to avoid a production timeout", async () => {
     const execute = vi.fn().mockImplementation(async (sql: string) => {
       if (sql.includes("20260814_120000_add_hosting_billing") && sql.startsWith("SELECT")) {

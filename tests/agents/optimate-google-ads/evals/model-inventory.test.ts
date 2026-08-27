@@ -8,6 +8,7 @@ import { getActivePickerModels, getLegacyHiddenModels, getModelInventory } from 
     const legacy = getLegacyHiddenModels();
 
     expect(active).toContain("claude-sonnet-5");
+    expect(active).toContain("claude-haiku-4.5");
     expect(active).toContain("gpt-5.6-sol");
     expect(active).toContain("gpt-5.6-terra");
     expect(active).toContain("gpt-5.6-luna");
@@ -15,7 +16,6 @@ import { getActivePickerModels, getLegacyHiddenModels, getModelInventory } from 
     expect(active).toContain("grok-4.6");
     expect(active).toContain("grok-4.5");
     expect(legacy).toContain("grok-build");
-    expect(legacy).toContain("claude-haiku-4.5");
     expect(legacy).toContain("gpt-4o");
     expect(legacy).toContain("gpt-4");
     expect(legacy).toContain("gpt-4o-mini");
