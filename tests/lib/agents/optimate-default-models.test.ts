@@ -58,9 +58,9 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.defaultChatModel).toBe("gpt-5.6-terra");
     expect(result.defaultAutonomousModel).toBe("minimax-m3");
     expect(result.emailAssistantModel).toBe("claude-opus-5");
-    expect(result.blogPrompterModel).toBe("claude-sonnet-4.6");
+    expect(result.blogPrompterModel).toBe("claude-sonnet-5");
     expect(result.searchTermResearchModel).toBe("kimi-k3");
-    expect(result.negativeSweepModel).toBe("claude-haiku-4.5");
+    expect(result.negativeSweepModel).toBe("claude-sonnet-5");
     expect(result.blogImageGenerationModel).toBe("custom-imagen");
     expect(result.voiceRealtimeModel).toBe("gpt-realtime-2");
   });
@@ -123,7 +123,7 @@ describe("getOptiMateDefaultModels", () => {
     };
     const override = { findGlobal: findGlobalImpl } as never;
     const result = await getOptiMateDefaultModels(override);
-    expect(result.defaultChatModel).toBe("claude-haiku-4.5");
+    expect(result.defaultChatModel).toBe("claude-sonnet-5");
     expect(getPayloadImpl).not.toHaveBeenCalled();
   });
 });

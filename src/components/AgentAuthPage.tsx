@@ -420,7 +420,7 @@ export default function AgentAuthPage() {
       <h1 style={{ margin: "0 0 4px" }}>OptiMate auth</h1>
       <p style={{ color: "#666", marginTop: 0 }}>
         Per-provider credential status for OptiMate. Claude uses Anthropic OAuth/API keys; Kimi is available through both API keys and Kimi For Coding OAuth; MiniMax uses API keys.
-        GPT-5.5 is exposed through the ChatGPT subscription Codex OAuth path (the <code>gpt-5.5-codex</code> model), and Grok through the SuperGrok subscription OAuth path (the <code>grok-build</code> / <code>grok-composer-2.5-fast</code> models) — connect subscription models below.
+        GPT-5.5 is exposed through the ChatGPT subscription Codex OAuth path (the <code>gpt-5.5-codex</code> model), and Grok through the SuperGrok subscription OAuth path (the <code>grok-4.6</code> / <code>grok-4.5</code> models) — connect subscription models below.
       </p>
 
       {message && (
@@ -557,7 +557,7 @@ export default function AgentAuthPage() {
         <p style={{ marginTop: 0, fontSize: 13, color: "#666", lineHeight: 1.5 }}>
           Opens xAI sign-in in a new tab and uses the OAuth device-code flow — no code to paste. Spends your
           {" "}<strong>SuperGrok subscription</strong> (via the grok-cli proxy), not billed <code>XAI_API_KEY</code> tokens.
-          Powers the <code>grok-build</code> and <code>grok-composer-2.5-fast</code> models. This reuses the grok CLI's
+          Powers the <code>grok-4.6</code> and <code>grok-4.5</code> models. This reuses the grok CLI's
           private OAuth client against an undocumented endpoint — a ToS grey area xAI can break at any time — so any
           failure falls through the normal fallback chain (Kimi → MiniMax → Claude). Kill-switch: set
           {" "}<code>XAI_GROK_OAUTH_DISABLED=1</code> in the environment to disable it fleet-wide instantly.
@@ -715,11 +715,8 @@ export default function AgentAuthPage() {
           Sends a 1-token "ok" prompt to the chosen model and reports the credential source that served it.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button onClick={() => handleProbe("claude-haiku-4.5")} style={ghostButtonStyle}>
-            Probe Claude Haiku (OAuth)
-          </button>
-          <button onClick={() => handleProbe("claude-sonnet-4.6")} style={ghostButtonStyle}>
-            Probe Sonnet 4.6 (OAuth)
+          <button onClick={() => handleProbe("claude-sonnet-5")} style={ghostButtonStyle}>
+            Probe Sonnet 5 (OAuth)
           </button>
           <button onClick={() => handleProbe("kimi-for-coding")} style={ghostButtonStyle}>
             Probe Kimi For Coding (OAuth)
@@ -733,8 +730,8 @@ export default function AgentAuthPage() {
           <button onClick={() => handleProbe("gpt-5.5-codex")} style={ghostButtonStyle}>
             Probe GPT-5.5 Codex (ChatGPT OAuth)
           </button>
-          <button onClick={() => handleProbe("grok-build")} style={ghostButtonStyle}>
-            Probe Grok Build (SuperGrok OAuth)
+          <button onClick={() => handleProbe("grok-4.6")} style={ghostButtonStyle}>
+            Probe Grok 4.6 (SuperGrok OAuth)
           </button>
         </div>
         {probeResult && (

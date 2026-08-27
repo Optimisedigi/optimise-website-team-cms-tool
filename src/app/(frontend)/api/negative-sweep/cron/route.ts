@@ -12,7 +12,7 @@ import { parseBrandTerms } from "@/lib/brand-terms";
 import { callLLM } from "@/lib/agents/_shared/llm";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 
-const AUTONOMOUS_FALLBACK_MODELS = ["claude-sonnet-4.6", "kimi-k2.6"];
+const AUTONOMOUS_FALLBACK_MODELS = ["claude-sonnet-5", "kimi-k2.6"];
 
 const WEEKDAYS = [
   "sunday",

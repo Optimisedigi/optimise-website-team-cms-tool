@@ -7,12 +7,15 @@ import { getActivePickerModels, getLegacyHiddenModels, getModelInventory } from 
     const active = getActivePickerModels();
     const legacy = getLegacyHiddenModels();
 
-    expect(active).toContain("claude-sonnet-4.6");
+    expect(active).toContain("claude-sonnet-5");
     expect(active).toContain("gpt-5.6-sol");
     expect(active).toContain("gpt-5.6-terra");
     expect(active).toContain("gpt-5.6-luna");
     expect(legacy).toContain("gpt-5.5-codex");
-    expect(active).toContain("grok-build");
+    expect(active).toContain("grok-4.6");
+    expect(active).toContain("grok-4.5");
+    expect(legacy).toContain("grok-build");
+    expect(legacy).toContain("claude-haiku-4.5");
     expect(legacy).toContain("gpt-4o");
     expect(legacy).toContain("gpt-4");
     expect(legacy).toContain("gpt-4o-mini");
@@ -20,6 +23,6 @@ import { getActivePickerModels, getLegacyHiddenModels, getModelInventory } from 
     expect(legacy).toContain("gpt-5.4");
     expect(legacy).toContain("gpt-5.4-mini");
     expect(inventory.find((entry) => entry.canonical === "gpt-4o")?.status).toBe("legacy_hidden");
-    expect(inventory.find((entry) => entry.canonical === "claude-sonnet-4.6")?.status).toBe("active_picker");
+    expect(inventory.find((entry) => entry.canonical === "claude-sonnet-5")?.status).toBe("active_picker");
   });
 });

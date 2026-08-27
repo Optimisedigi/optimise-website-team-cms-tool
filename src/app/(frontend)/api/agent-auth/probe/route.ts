@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json().catch(() => ({}))) as { model?: string };
-  const model = body.model ?? "claude-haiku-4.5";
+  const model = body.model ?? "claude-sonnet-5";
 
   const start = Date.now();
   try {

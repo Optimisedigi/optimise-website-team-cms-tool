@@ -10,7 +10,10 @@ describe("OptiMate OAuth model registry", () => {
   it.each([
     ["gpt-5.6-luna", "openai-codex", "gpt-5.6-luna"],
     ["gpt-5.6-terra", "openai-codex", "gpt-5.6-terra"],
+    ["claude-sonnet-5", "anthropic", "claude-sonnet-5"],
     ["claude-opus-5", "anthropic", "claude-opus-5"],
+    ["grok-4.6", "xai-grok", "grok-4.6"],
+    ["grok-4.5", "xai-grok", "grok-4.5"],
   ] as const)(
     "surfaces %s in the OAuth picker with its provider model ID",
     (canonical, provider, model) => {
@@ -19,7 +22,7 @@ describe("OptiMate OAuth model registry", () => {
     },
   );
 
-  it.each(["claude-opus-4-8", "gpt-5.5-codex"])("does not surface retired model %s in the picker", (canonical) => {
+  it.each(["claude-opus-4-8", "gpt-5.5-codex", "claude-haiku-4.5", "grok-build"])("does not surface retired model %s in the picker", (canonical) => {
     expect(CHAT_PICKER_MODELS).not.toContainEqual(expect.objectContaining({ canonical }));
   });
 

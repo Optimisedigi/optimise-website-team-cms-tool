@@ -15319,48 +15319,45 @@ export interface OptimateSetting {
    * Model the OptiMate chat picker defaults to, and the model used when a chat request doesn't pick one. Users can still switch models per-conversation.
    */
   defaultChatModel:
-    | 'claude-sonnet-4.6'
+    | 'claude-sonnet-5'
     | 'claude-opus-5'
-    | 'claude-haiku-4.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
     | 'minimax-m3'
     | 'gpt-5.6-sol'
     | 'gpt-5.6-terra'
     | 'gpt-5.6-luna'
-    | 'grok-build'
-    | 'grok-composer-2.5-fast';
+    | 'grok-4.6'
+    | 'grok-4.5';
   /**
    * Model used for unattended Google Ads runs (scheduled tasks, cron) where no human picks a model.
    */
   defaultAutonomousModel:
-    | 'claude-sonnet-4.6'
+    | 'claude-sonnet-5'
     | 'claude-opus-5'
-    | 'claude-haiku-4.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
     | 'minimax-m3'
     | 'gpt-5.6-sol'
     | 'gpt-5.6-terra'
     | 'gpt-5.6-luna'
-    | 'grok-build'
-    | 'grok-composer-2.5-fast';
+    | 'grok-4.6'
+    | 'grok-4.5';
   /**
    * Optional. Model used by blog and copy features — the Blog Prompter AI Suggest button, blog draft generation, blog post image-prompt generation, and Google Ads ad copy generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.
    */
   blogPrompterModel?:
     | (
-        | 'claude-sonnet-4.6'
+        | 'claude-sonnet-5'
         | 'claude-opus-5'
-        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'grok-build'
-        | 'grok-composer-2.5-fast'
+        | 'grok-4.6'
+        | 'grok-4.5'
       )
     | null;
   /**
@@ -15368,17 +15365,16 @@ export interface OptimateSetting {
    */
   invoiceAssistantModel?:
     | (
-        | 'claude-sonnet-4.6'
+        | 'claude-sonnet-5'
         | 'claude-opus-5'
-        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'grok-build'
-        | 'grok-composer-2.5-fast'
+        | 'grok-4.6'
+        | 'grok-4.5'
       )
     | null;
   /**
@@ -15386,17 +15382,16 @@ export interface OptimateSetting {
    */
   emailAssistantModel?:
     | (
-        | 'claude-sonnet-4.6'
+        | 'claude-sonnet-5'
         | 'claude-opus-5'
-        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'grok-build'
-        | 'grok-composer-2.5-fast'
+        | 'grok-4.6'
+        | 'grok-4.5'
       )
     | null;
   /**
@@ -15404,17 +15399,16 @@ export interface OptimateSetting {
    */
   searchTermResearchModel?:
     | (
-        | 'claude-sonnet-4.6'
+        | 'claude-sonnet-5'
         | 'claude-opus-5'
-        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'grok-build'
-        | 'grok-composer-2.5-fast'
+        | 'grok-4.6'
+        | 'grok-4.5'
       )
     | null;
   /**
@@ -15422,17 +15416,16 @@ export interface OptimateSetting {
    */
   negativeSweepModel?:
     | (
-        | 'claude-sonnet-4.6'
+        | 'claude-sonnet-5'
         | 'claude-opus-5'
-        | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
-        | 'grok-build'
-        | 'grok-composer-2.5-fast'
+        | 'grok-4.6'
+        | 'grok-4.5'
       )
     | null;
   /**

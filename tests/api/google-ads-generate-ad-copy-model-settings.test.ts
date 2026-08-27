@@ -93,7 +93,7 @@ describe('POST /api/google-ads-audits/[id]/generate-ad-copy', () => {
 
     expect(callLLM).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'grok-build',
+        model: 'grok-4.6',
         system: expect.stringContaining('Google Ads RSA'),
       }),
     )

@@ -309,7 +309,7 @@ describe('GET /api/negative-sweep/cron', () => {
     expect(mockCallLLM).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'minimax-m3',
-        fallbackModels: ['claude-sonnet-4.6', 'kimi-k2.6'],
+        fallbackModels: ['claude-sonnet-5', 'kimi-k2.6'],
         temperature: 0.3,
         maxTokens: 4000,
       }),

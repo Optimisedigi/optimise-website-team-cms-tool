@@ -37,7 +37,8 @@ function hasAdaptiveThinking(providerModel: string): boolean {
     providerModel.includes("opus-4-6") ||
     providerModel.includes("opus-4.6") ||
     providerModel.includes("sonnet-4-6") ||
-    providerModel.includes("sonnet-4.6")
+    providerModel.includes("sonnet-4.6") ||
+    providerModel.includes("sonnet-5")
   );
 }
 

@@ -26,6 +26,7 @@ export const MODEL_REGISTRY = {
   // Anthropic (native API). All connect via OAuth (Claude Code client
   // impersonation) when ANTHROPIC OAuth is connected; otherwise via
   // ANTHROPIC_API_KEY when explicitly selected by the user.
+  "claude-sonnet-5": { provider: "anthropic", model: "claude-sonnet-5" },
   "claude-sonnet-4.6": { provider: "anthropic", model: "claude-sonnet-4-6" },
   "claude-sonnet-4.5": { provider: "anthropic", model: "claude-sonnet-4-5" },
   "claude-opus-5": { provider: "anthropic", model: "claude-opus-5" },
@@ -76,8 +77,10 @@ export const MODEL_REGISTRY = {
 
   // xAI Grok over the grok-cli proxy (cli-chat-proxy.grok.com), served by a
   // SuperGrok subscription via device-code OAuth — NOT the billed XAI_API_KEY
-  // path. These are the only models the subscription proxy exposes; the raw
-  // grok-4.x API models require an API key and are deliberately omitted.
+  // path. grok-4.6 / grok-4.5 are the current chat models; grok-build and
+  // grok-composer-2.5-fast stay as stored-setting aliases.
+  "grok-4.6": { provider: "xai-grok", model: "grok-4.6" },
+  "grok-4.5": { provider: "xai-grok", model: "grok-4.5" },
   "grok-build": { provider: "xai-grok", model: "grok-build" },
   "grok-composer-2.5-fast": { provider: "xai-grok", model: "grok-composer-2.5-fast" },
 } as const;
@@ -196,11 +199,11 @@ export function isCanonicalModel(name: string): name is CanonicalModelName {
 
 /**
  * Default model when a chat session starts (sticky until the user picks
- * something else). Sonnet 4.6 is Anthropic's current best Sonnet and
+ * something else). Sonnet 5 is Anthropic's current best Sonnet and
  * connects via OAuth (Claude Code client impersonation), drawing from the
  * agency's $150/mo Max plan rather than billed API.
  */
-export const DEFAULT_CHAT_MODEL: CanonicalModelName = "claude-sonnet-4.6";
+export const DEFAULT_CHAT_MODEL: CanonicalModelName = "claude-sonnet-5";
 
 /**
  * Default fallback chain for autonomous (non-chat) agent runs. Kept separate
@@ -211,7 +214,7 @@ export const DEFAULT_AUTONOMOUS_MODEL: CanonicalModelName = "kimi-k3";
 export const DEFAULT_AUTONOMOUS_FALLBACKS: CanonicalModelName[] = [
   "gpt-5.6-terra",
   "kimi-k3",
-  "claude-sonnet-4.6",
+  "claude-sonnet-5",
   "minimax-m3",
 ];
 
@@ -233,17 +236,16 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
    */
   requiresReasoning?: boolean;
 }> = [
-  { canonical: "claude-sonnet-4.6", label: "Claude Sonnet 4.6 (OAuth)", hint: "Default. Best brand voice, free via Claude Max." },
+  { canonical: "claude-sonnet-5", label: "Claude Sonnet 5 (OAuth)", hint: "Default. Best brand voice, free via Claude Max." },
   { canonical: "claude-opus-5", label: "Claude Opus 5 (OAuth)", hint: "Latest Opus. Heaviest reasoning for complex investigations." },
-  { canonical: "claude-haiku-4.5", label: "Claude Haiku 4.5 (OAuth)", hint: "Fast and cheap. Good for simple chat replies." },
   { canonical: "kimi-k3", label: "Kimi K3 (Kimi OAuth)", hint: "Kimi's flagship. Long-horizon coding, up to 1M context. Default for autonomous runs. Reasoning is always on for K3. No API tokens billed.", requiresReasoning: true },
   { canonical: "kimi-for-coding", label: "Kimi For Coding (Kimi OAuth)", hint: "Kimi K2.7 Code via device-code OAuth. No API tokens billed." },
   { canonical: "minimax-m3", label: "MiniMax M3", hint: "Latest MiniMax fallback for agentic workflows." },
   { canonical: "gpt-5.6-sol", label: "GPT-5.6 Sol (ChatGPT OAuth)", hint: "Frontier heavyweight. Heaviest reasoning for complex work. Reasoning controlled per request." },
   { canonical: "gpt-5.6-terra", label: "GPT-5.6 Terra (ChatGPT OAuth)", hint: "Balanced daily driver. Reasoning controlled per request." },
   { canonical: "gpt-5.6-luna", label: "GPT-5.6 Luna (ChatGPT OAuth)", hint: "Fast and affordable. Reasoning controlled per request." },
-  { canonical: "grok-build", label: "Grok Build (SuperGrok OAuth)", hint: "xAI Grok coding model via your SuperGrok subscription. No API tokens billed." },
-  { canonical: "grok-composer-2.5-fast", label: "Grok Composer 2.5 Fast (SuperGrok OAuth)", hint: "Faster Grok model via SuperGrok subscription." },
+  { canonical: "grok-4.6", label: "Grok 4.6 (SuperGrok OAuth)", hint: "xAI Grok 4.6 via your SuperGrok subscription. No API tokens billed." },
+  { canonical: "grok-4.5", label: "Grok 4.5 (SuperGrok OAuth)", hint: "Previous Grok generation via SuperGrok subscription." },
 ];
 
 /**

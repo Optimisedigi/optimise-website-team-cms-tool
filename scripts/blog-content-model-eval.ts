@@ -5,16 +5,14 @@ import { CHAT_PICKER_MODELS, isCanonicalModel, type CanonicalModelName } from ".
 
 const DEFAULT_OUTPUT_DIR = ".gg/blog-evals";
 const DEFAULT_MODELS: CanonicalModelName[] = [
-  "claude-sonnet-4.6",
-  "claude-haiku-4.5",
-  "claude-opus-4-8",
+  "claude-sonnet-5",
+  "claude-opus-5",
   "kimi-for-coding",
   "minimax-m3",
-  "gpt-5.5-codex",
-  "gpt-5.4",
-  "gpt-5.4-mini",
-  "grok-build",
-  "grok-composer-2.5-fast",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+  "grok-4.6",
+  "grok-4.5",
 ];
 
 interface BlogBriefConfig {
