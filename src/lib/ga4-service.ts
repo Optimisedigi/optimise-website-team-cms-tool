@@ -163,7 +163,7 @@ export async function fetchGa4Report(
           { name: "bounceRate" },
           { name: "averageSessionDuration" },
           { name: "engagementRate" },
-          { name: "conversions" },
+          // conversions was renamed to keyEvents (Data API changelog 2024-05-06).
           { name: "keyEvents" },
         ],
       },
@@ -232,8 +232,8 @@ export async function fetchGa4Report(
     bounceRate: parseFloat(ov[4]?.value || "0"),
     avgSessionDuration: parseFloat(ov[5]?.value || "0"),
     engagementRate: parseFloat(ov[6]?.value || "0"),
+    keyEvents: parseInt(ov[7]?.value || "0", 10),
     conversions: parseInt(ov[7]?.value || "0", 10),
-    keyEvents: parseInt(ov[8]?.value || "0", 10),
   };
 
   // Parse channels

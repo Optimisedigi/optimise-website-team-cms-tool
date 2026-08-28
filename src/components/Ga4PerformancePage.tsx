@@ -71,6 +71,7 @@ export default function Ga4PerformancePage() {
   const [selectedClient, setSelectedClient] = useState<string>("")
   const [period, setPeriod] = useState<PeriodValue>("30d")
   const [data, setData] = useState<Ga4Report | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
 
@@ -91,10 +92,23 @@ export default function Ga4PerformancePage() {
   useEffect(() => {
     if (!selectedClient) return
     setLoading(true)
+    setError(null)
     fetch(`/api/ga4/query?clientId=${selectedClient}&period=${period}`, { cache: "no-store" })
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then(async (r) => {
+        const body = await r.json().catch(() => null)
+        if (!r.ok) {
+          const detail = typeof body?.details === "string" ? body.details : null
+          const message = typeof body?.error === "string" ? body.error : `Request failed (${r.status})`
+          throw new Error(detail ? `${message}: ${detail}` : message)
+        }
+        return body
+      })
+      .then((d) => { setData(d); setLoading(false) })
+      .catch((err) => {
+        setData(null)
+        setError(err instanceof Error ? err.message : "Couldn't load Google Analytics")
+        setLoading(false)
+      })
   }, [selectedClient, period, refreshNonce])
 
   const formatDuration = (s: number) => {
@@ -202,9 +216,19 @@ export default function Ga4PerformancePage() {
         </div>
       )}
 
-      {clientsLoaded && loading && !data && <RocketSplash />}
+      {clientsLoaded && loading && !data && !error && <RocketSplash />}
 
-      {data && !data.ga4Connected && (
+      {error && !loading && (
+        <div className="od-box od-box--muted">
+          <div className="od-box__body" style={{ padding: "40px 20px", textAlign: "center" }}>
+            <p style={{ color: "var(--theme-elevation-400)", fontSize: 14, margin: 0 }}>
+              Couldn't load Google Analytics. {error}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {data && !data.ga4Connected && !error && (
         <div className="od-box od-box--muted">
           <div className="od-box__body" style={{ padding: "40px 20px", textAlign: "center" }}>
             <p style={{ color: "var(--theme-elevation-400)", fontSize: 14, margin: 0 }}>
