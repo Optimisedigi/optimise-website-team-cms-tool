@@ -11,6 +11,7 @@ import GmailReplyChat from './GmailReplyChat'
 import TaskMateChat from './TaskMateChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
+import RocketSplash from './RocketSplash'
 
 type AgentKey = 'google-ads' | 'invoices' | 'taskmate'
 
@@ -572,7 +573,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 </button>
 
                 <div className="om-accounts">
-                  {auditsLoading && <p className="om-accounts-msg">Loading accounts…</p>}
+                  {auditsLoading && (
+                    <div className="om-accounts-loading">
+                      <RocketSplash compact onLight />
+                    </div>
+                  )}
                   {auditsError && <p className="om-accounts-msg is-error">{auditsError}</p>}
                   {!auditsLoading && !auditsError && filteredAudits.length === 0 && (
                     <p className="om-accounts-msg">No accounts with a Customer ID found.</p>

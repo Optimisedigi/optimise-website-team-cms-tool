@@ -114,6 +114,29 @@ body:has(.login.template-minimal) {
   letter-spacing: 0.5px;
 }
 
+.od-splash--compact {
+  min-height: 160px;
+  height: 100%;
+  width: 100%;
+  padding: 12px;
+  gap: 10px;
+  overflow: hidden;
+
+  .od-splash__scene {
+    width: 64px;
+    height: 110px;
+  }
+
+  .od-splash__rocket img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .od-splash__text {
+    font-size: 12px;
+  }
+}
+
 // Looping launch: starts invisible at bottom, fades in, launches up, fades out, resets.
 // Flame plume is offset +3px on X so it lines up under the rotated rocket nozzle.
 @keyframes od-rocket-loop {

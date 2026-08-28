@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import OptiMateMultiChat, { type OptiMateChatTarget } from '@/components/OptiMateMultiChat'
 import InvoiceAssistantChat from '@/components/InvoiceAssistantChat'
 import GmailReplyChat from '@/components/GmailReplyChat'
+import RocketSplash from '@/components/RocketSplash'
 
 type Props =
   | { agent?: 'google-ads'; targets: OptiMateChatTarget[] }
@@ -361,7 +362,11 @@ function AccountPickerOverlay({
             }}
           />
 
-          {loading && <p style={{ fontSize: 12, color: '#6b7280' }}>Loading accounts…</p>}
+          {loading && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180 }}>
+              <RocketSplash compact onLight />
+            </div>
+          )}
           {error && <p style={{ fontSize: 12, color: '#dc2626' }}>{error}</p>}
           {!loading && !error && filtered.length === 0 && (
             <p style={{ fontSize: 12, color: '#6b7280' }}>No accounts with a Customer ID found.</p>

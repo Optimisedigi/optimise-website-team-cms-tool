@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import RocketSplash from './RocketSplash'
 import {
   CHAT_PICKER_MODELS,
   DEFAULT_CHAT_MODEL,
@@ -587,8 +588,8 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
 
   if (connected === null) {
     return (
-      <div style={{ ...fillColumn, alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: 13 }}>
-        Checking Gmail connection…
+      <div style={{ ...fillColumn, alignItems: 'center', justifyContent: 'center' }}>
+        <RocketSplash compact onLight />
       </div>
     )
   }
@@ -768,6 +769,12 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
 
             {searchError && <div style={errorBox}>{searchError}</div>}
 
+            {searching && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180 }}>
+                <RocketSplash compact onLight />
+              </div>
+            )}
+
             {!searching && searched && results.length === 0 && !searchError && (
               <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '16px 8px' }}>
                 No matching emails.
@@ -780,7 +787,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
               </div>
             )}
 
-            {results.map((r) => (
+            {!searching && results.map((r) => (
               <button
                 key={r.messageId}
                 type="button"
@@ -810,7 +817,9 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
         {phase === 'message' && (
           <div style={chatFirstPane}>
             {loadingMessage && (
-              <div style={{ fontSize: 12, color: '#6b7280', padding: '8px 0' }}>Loading email…</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180 }}>
+                <RocketSplash compact onLight />
+              </div>
             )}
             {replyError && <div style={errorBox}>{replyError}</div>}
 

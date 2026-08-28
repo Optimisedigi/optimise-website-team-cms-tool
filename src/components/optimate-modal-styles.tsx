@@ -336,6 +336,13 @@ export const OPTIMATE_MODAL_CSS = `
 }
 .om-accounts-msg { grid-column: 1 / -1; font-size: 12.5px; color: var(--om-mute); margin: 0; }
 .om-accounts-msg.is-error { color: #dc2626; }
+.om-accounts-loading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+}
 .om-acct {
   display: flex;
   align-items: center;

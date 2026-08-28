@@ -4,6 +4,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import GmailReplyChat from '@/components/GmailReplyChat'
 
+vi.mock('@/components/RocketSplash', () => ({
+  default: ({ compact }: { compact?: boolean }) => (
+    <div role="status" aria-label="Loading" data-compact={compact ? 'true' : 'false'}>
+      Loading
+    </div>
+  ),
+}))
+
 function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 500) {
   return {
     ok,
@@ -19,6 +27,12 @@ describe('GmailReplyChat usability smoke', () => {
     fetchMock.mockReset()
     window.sessionStorage.clear()
     vi.stubGlobal('fetch', fetchMock)
+  })
+
+  it('shows the rocket while checking Gmail connection', () => {
+    fetchMock.mockImplementation(() => new Promise(() => {}))
+    render(<GmailReplyChat initialPhase="search" />)
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
   })
 
   it('opens Reply Email on a blank focused search instead of the last recipient', async () => {

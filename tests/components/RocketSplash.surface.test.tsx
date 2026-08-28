@@ -38,6 +38,14 @@ describe("RocketSplash surface variant", () => {
     expect(splash.className).toBe("od-splash");
   });
 
+  it("marks the compact variant for in-panel loaders", () => {
+    const { container } = render(<RocketSplash compact onLight />);
+
+    const splash = splashOf(container);
+    expect(splash.classList.contains("od-splash--compact")).toBe(true);
+    expect(splash.classList.contains("od-splash--light")).toBe(true);
+  });
+
   it("renders the rocket image and its flames on both surfaces", () => {
     for (const onLight of [true, false]) {
       const { container } = render(<RocketSplash onLight={onLight} />);
