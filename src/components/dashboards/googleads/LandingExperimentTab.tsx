@@ -551,6 +551,12 @@ export function LandingExperimentTab({
     : conversions;
   const headlineConversionRate =
     headlineSessions > 0 ? headlineConversions / headlineSessions : 0;
+  /* The checklist PDF is the page's second outcome, so it is read beside the
+     conversions rather than only inside the campaign table. Same source as the
+     campaign table's column, so the two cannot disagree. */
+  const headlineChecklistSessions = headlinePages
+    ? headlinePages.reduce((sum, entry) => sum + (entry.paidChecklistSessions ?? 0), 0)
+    : (data.secondaryConversions?.find((goal) => goal.id === "readiness_checklist")?.sessions ?? 0);
   const headlineTimedSessions = headlinePages
     ? headlinePages.reduce((sum, entry) => sum + (entry.paidTimedSessions ?? 0), 0)
     : (data.sessionTime?.measuredSessions ?? 0);
@@ -808,13 +814,13 @@ export function LandingExperimentTab({
         </div>
       </div>
 
-      {/* Six across for as long as they fit, because they are read together as
-          one headline; stacked they stop being a summary and start being a list
+      {/* Seven across once they fit, because they are read together as one
+          headline; stacked they stop being a summary and start being a list
           you have to scroll. The dashboard renders at 85% zoom, so the sm/md
-          breakpoints land far wider than they read, and holding six to `xl`
+          breakpoints land far wider than they read, and holding seven to `xl`
           wrapped them two-up on a laptop that had room for the row. */}
       {hasHeadlineData && (
-        <div className="grid grid-cols-2 gap-3 min-[640px]:grid-cols-3 min-[760px]:grid-cols-6 min-[1120px]:gap-4">
+        <div className="grid grid-cols-2 gap-3 min-[640px]:grid-cols-3 min-[900px]:grid-cols-4 min-[1180px]:grid-cols-7 min-[1180px]:gap-4">
           <StatCard
             label="Google Ads clicks"
             value={googleAdsClicks.toLocaleString()}
@@ -831,6 +837,11 @@ export function LandingExperimentTab({
             note="Google Ads sessions engaged for at least three seconds"
           />
           <StatCard label="Conversions" value={headlineConversions.toLocaleString()} note={goalLabel} />
+          <StatCard
+            label="Checklist sign-ups"
+            value={headlineChecklistSessions.toLocaleString()}
+            note="Google Ads sessions that downloaded the readiness checklist"
+          />
           <StatCard
             label="Conversion rate"
             value={pct(headlineConversionRate)}

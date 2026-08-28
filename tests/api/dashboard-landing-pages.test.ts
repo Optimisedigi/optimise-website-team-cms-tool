@@ -436,6 +436,22 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
 
   });
 
+  it("counts bookings only as conversions, not form submits", async () => {
+    mockFind.mockResolvedValue({ docs: [{ id: 7 }] });
+    stubManifest(MANIFEST);
+
+    await GET(get(`?slug=${SLUG}`, "dashboard_token=valid-token"));
+
+    const sqlText = (statement: unknown): string => {
+      if (typeof statement === "string") return statement;
+      const chunks = (statement as { queryChunks?: { value?: unknown[] }[] } | undefined)?.queryChunks ?? [];
+      return chunks.flatMap((chunk) => (Array.isArray(chunk?.value) ? chunk.value : [])).filter((part): part is string => typeof part === "string").join("");
+    };
+    const engagementSql = mockRun.mock.calls.map((call) => sqlText(call[0])).find((sql) => sql.includes("AS converted"));
+    expect(engagementSql).toContain("event_type = 'booking_complete'");
+    expect(engagementSql).not.toContain("event_type IN ('booking_complete', 'form_submit')");
+  });
+
   it("reports no engagement rather than failing when the query errors", async () => {
     mockFind.mockResolvedValue({ docs: [{ id: 7 }] });
     stubManifest(MANIFEST);

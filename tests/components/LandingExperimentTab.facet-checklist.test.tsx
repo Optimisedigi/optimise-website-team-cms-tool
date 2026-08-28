@@ -168,6 +168,7 @@ describe("checklist sign-ups on the market and device tables", () => {
     expect(screen.getByText("2,400")).toBeTruthy();
     expect(screen.getByText("Google Ads sessions")).toBeTruthy();
     expect(screen.getByText("Engaged sessions")).toBeTruthy();
+    expect(screen.getByText("Checklist sign-ups")).toBeTruthy();
     expect(screen.queryByText("Biggest leak")).toBeNull();
     expect(screen.queryByText("Readiness checklist sign-ups", { selector: "dt" })).toBeNull();
   });

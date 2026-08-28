@@ -61,7 +61,7 @@ interface Engagement {
   engagedSessions: number;
   /** Engaged sessions that also carried a Google click ID. */
   paidEngagedSessions: number;
-  /** Sessions with a tracked form submission or completed booking. */
+  /** Sessions with a completed booking. Form submits (including the checklist) are not conversions. */
   conversionSessions: number;
   /** Sessions that signed up for the readiness checklist. */
   checklistSessions: number;
@@ -236,7 +236,7 @@ async function loadEngagement(
              page_id,
              MAX(CASE WHEN attribution LIKE '%gclid%' OR attribution LIKE '%gbraid%' OR attribution LIKE '%wbraid%' THEN 1 ELSE 0 END) AS paid,
              MAX(CASE WHEN event_type = 'section_engaged' THEN 1 ELSE 0 END) AS engaged,
-             MAX(CASE WHEN event_type IN ('booking_complete', 'form_submit') THEN 1 ELSE 0 END) AS converted,
+             MAX(CASE WHEN event_type = 'booking_complete' THEN 1 ELSE 0 END) AS converted,
              /* The checklist sign-up is a form_submit narrowed by form id, not
                 its own event type. The id is a module constant. */
              MAX(CASE WHEN event_type = 'form_submit'
