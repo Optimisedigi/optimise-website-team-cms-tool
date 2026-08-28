@@ -138,7 +138,8 @@ function assistantMessageText(data: EmailChatResponse, stagedBody?: string): str
 }
 
 export default function GmailReplyChat({ initialPhase = 'compose', initialSummariseMode = false }: GmailReplyChatProps): React.ReactElement {
-  const persistedState = readPersistedGmailReplyChatState(initialPhase)
+  // Reply / summarise should always open on a blank search, not last session.
+  const persistedState = initialPhase === 'search' ? null : readPersistedGmailReplyChatState(initialPhase)
   const [connected, setConnected] = useState<boolean | null>(null)
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null)
   const [statusError, setStatusError] = useState<string | null>(null)
@@ -175,6 +176,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
   const [summariseMode, setSummariseMode] = useState(Boolean(persistedState?.summariseMode ?? initialSummariseMode))
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -271,12 +273,18 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
+    const top = phase === 'search' ? 0 : el.scrollHeight
     if (typeof el.scrollTo === 'function') {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      el.scrollTo({ top, behavior: phase === 'search' ? 'auto' : 'smooth' })
     } else {
-      el.scrollTop = el.scrollHeight
+      el.scrollTop = top
     }
   }, [phase, chatMessages, draftingReply, replyText, savedUrl])
+
+  useEffect(() => {
+    if (phase !== 'search') return
+    searchInputRef.current?.focus()
+  }, [phase, connected])
 
   useEffect(() => {
     if (phase !== 'compose') return
@@ -318,6 +326,13 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     setContactSuggestions([])
     setContactsOpen(false)
     setSummariseMode(false)
+    setComposeTo('')
+    setComposeSubject('')
+    setInstructions('')
+    setQuery(DEFAULT_QUERY)
+    setResults([])
+    setSearched(false)
+    setSearchError(null)
   }, [])
 
   const switchToCompose = useCallback(() => {
@@ -728,6 +743,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', gap: 6 }}>
               <input
+                ref={searchInputRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}

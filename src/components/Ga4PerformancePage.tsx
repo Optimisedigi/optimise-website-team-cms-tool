@@ -65,6 +65,69 @@ const PERIODS = [
 
 type PeriodValue = typeof PERIODS[number]["value"]
 
+function parseGa4Date(value: string): Date | null {
+  if (/^\d{8}$/.test(value)) {
+    const date = new Date(Number(value.slice(0, 4)), Number(value.slice(4, 6)) - 1, Number(value.slice(6, 8)))
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatChartTick(date: Date, period: PeriodValue, ends: boolean): string {
+  if (period === "12m") {
+    return date.toLocaleDateString("en-AU", ends ? { month: "short", year: "2-digit" } : { month: "short" })
+  }
+  if (period === "7d") {
+    return date.toLocaleDateString("en-AU", { weekday: "short", day: "numeric" })
+  }
+  return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" })
+}
+
+function dailyChartTicks(dates: string[], period: PeriodValue): { index: number; label: string }[] {
+  if (dates.length === 0) return []
+  const last = dates.length - 1
+  const parsed = dates.map(parseGa4Date)
+  const chosen = new Set<number>()
+
+  if (period === "7d") {
+    chosen.add(0)
+    if (last > 1) chosen.add(Math.floor(last / 2))
+    chosen.add(last)
+  } else if (period === "12m") {
+    const firsts: number[] = []
+    parsed.forEach((date, i) => {
+      if (date?.getDate() === 1) firsts.push(i)
+    })
+    firsts.forEach((i) => chosen.add(i))
+    if (firsts.length === 0 || firsts[0] > 14) chosen.add(0)
+    chosen.add(last)
+  } else {
+    chosen.add(0)
+    parsed.forEach((date, i) => {
+      if (date?.getDay() === 1) chosen.add(i)
+    })
+    chosen.add(last)
+  }
+
+  const minGap = period === "12m" ? 14 : period === "7d" ? 2 : 10
+  const ordered: number[] = []
+  ;[...chosen].sort((a, b) => a - b).forEach((i) => {
+    if (ordered.length === 0 || i - ordered[ordered.length - 1] >= minGap) ordered.push(i)
+  })
+  if (ordered[ordered.length - 1] !== last) {
+    if (last - ordered[ordered.length - 1] >= minGap) ordered.push(last)
+    else if (period !== "12m") ordered[ordered.length - 1] = last
+    else ordered.push(last)
+  }
+
+  return ordered.flatMap((index) => {
+    const date = parsed[index]
+    if (!date) return []
+    return [{ index, label: formatChartTick(date, period, index === 0 || index === last) }]
+  })
+}
+
 export default function Ga4PerformancePage() {
   const [clients, setClients] = useState<ClientOption[]>([])
   const [clientsLoaded, setClientsLoaded] = useState(false)
@@ -118,6 +181,12 @@ export default function Ga4PerformancePage() {
   }
 
   const connectedClients = clients.filter((c) => c.ga4Connected)
+  const dailyTicks = data?.daily?.length
+    ? dailyChartTicks(data.daily.map((d) => d.date), period)
+    : []
+  const dailyMaxSessions = data?.daily?.length
+    ? Math.max(...data.daily.map((x) => x.sessions), 1)
+    : 1
   const refreshedAtLabel = data?.refreshedAt
     ? new Date(data.refreshedAt).toLocaleString("en-AU", {
         day: "numeric",
@@ -297,25 +366,49 @@ export default function Ga4PerformancePage() {
           {data.daily && data.daily.length > 0 && (
             <div className="od-box" style={{ marginBottom: 16, padding: "16px 20px" }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--theme-elevation-500)" }}>Daily Sessions</div>
-              <div style={{ height: 120, display: "flex", alignItems: "flex-end", gap: 1 }}>
-                {data.daily.map((d, i) => {
-                  const maxVal = Math.max(...data.daily!.map((x) => x.sessions), 1)
-                  return (
+              <div style={{ height: 120, display: "flex", alignItems: "flex-end", gap: 1 }} aria-hidden="true">
+                {data.daily.map((d, i) => (
                     <div
-                      key={i}
+                      key={`${d.date}-${i}`}
                       title={`${d.date}: ${d.sessions.toLocaleString()} sessions, ${d.users.toLocaleString()} users`}
                       style={{
                         width: `${100 / data.daily!.length}%`,
-                        height: `${Math.max((d.sessions / maxVal) * 100, 2)}%`,
+                        height: `${Math.max((d.sessions / dailyMaxSessions) * 100, 2)}%`,
                         background: "#468D8B",
                         borderRadius: "2px 2px 0 0",
                         minHeight: 2,
-                        transition: "height 300ms",
+                        transition: "height 300ms ease",
                       }}
                     />
+                ))}
+              </div>
+              <div style={{ position: "relative", height: 18, marginTop: 6 }} aria-hidden="true">
+                {dailyTicks.map((tick) => {
+                  const left = data.daily!.length === 1 ? 0 : (tick.index / (data.daily!.length - 1)) * 100
+                  const atStart = tick.index === 0
+                  const atEnd = tick.index === data.daily!.length - 1
+                  return (
+                    <span
+                      key={`tick-${tick.index}-${tick.label}`}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: `${left}%`,
+                        transform: atStart ? "none" : atEnd ? "translateX(-100%)" : "translateX(-50%)",
+                        fontSize: 11,
+                        lineHeight: 1.2,
+                        color: "var(--theme-elevation-400)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {tick.label}
+                    </span>
                   )
                 })}
               </div>
+              <p className="sr-only">
+                Daily sessions from {dailyTicks[0]?.label ?? data.daily[0].date} to {dailyTicks[dailyTicks.length - 1]?.label ?? data.daily[data.daily.length - 1].date}.
+              </p>
             </div>
           )}
 
