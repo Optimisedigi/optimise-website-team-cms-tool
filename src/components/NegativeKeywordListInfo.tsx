@@ -94,21 +94,36 @@ function main() {
         regexStr = '.*' + regexStr + '.*';
       }
       var pattern = new RegExp(regexStr, 'i');
-      var campaigns = AdsApp.campaigns()
-        .withCondition('Status = ENABLED')
-        .get();
+      // AdsApp.campaigns() only returns Search/Display campaigns. Shopping and
+      // video campaigns have their own selectors, so a regex like "shopping"
+      // matched 0 campaigns here while the CMS preview (Google Ads API, all
+      // campaign types) showed matches.
+      var selectorNames = ['campaigns', 'shoppingCampaigns', 'videoCampaigns'];
       var assigned = 0;
 
-      while (campaigns.hasNext()) {
-        var campaign = campaigns.next();
-        if (pattern.test(campaign.getName())) {
-          campaign.addNegativeKeywordList(negList);
-          assigned++;
+      selectorNames.forEach(function(selectorName) {
+        if (typeof AdsApp[selectorName] !== 'function') return;
+        var campaigns = AdsApp[selectorName]()
+          .withCondition('Status = ENABLED')
+          .get();
+
+        while (campaigns.hasNext()) {
+          var campaign = campaigns.next();
+          if (!pattern.test(campaign.getName())) continue;
+          try {
+            campaign.addNegativeKeywordList(negList);
+            assigned++;
+          } catch (err) {
+            Logger.log('WARN: Could not attach "' + list.name + '" to campaign "' +
+              campaign.getName() + '": ' + err);
+          }
         }
-      }
+      });
 
       if (assigned > 0) {
         Logger.log('Assigned list "' + list.name + '" to ' + assigned + ' campaign(s)');
+      } else {
+        Logger.log('WARN: No enabled campaigns matched "' + regexStr + '" for list "' + list.name + '"');
       }
     }
   });

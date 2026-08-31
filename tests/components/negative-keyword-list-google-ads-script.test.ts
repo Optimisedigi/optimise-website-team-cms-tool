@@ -71,4 +71,65 @@ describe('negative keyword Google Ads script', () => {
     expect(addNegativeKeywords).toHaveBeenCalledWith(['[later term]'])
     expect(logs).toContain('Synced 1 keywords to list: Later list (0 broad, 0 phrase, 1 exact)')
   })
+
+  it('attaches lists to matching shopping campaigns, not just search campaigns', () => {
+    const script = generatedGoogleAdsScript()
+    const logs: string[] = []
+    const attached: string[] = []
+    const negList = {
+      negativeKeywords: () => ({ get: () => ({ hasNext: () => false }) }),
+      addNegativeKeywords: vi.fn(),
+    }
+    const selectorOf = (names: string[]) => () => ({
+      withCondition: () => ({
+        get: () => {
+          let i = 0
+          return {
+            hasNext: () => i < names.length,
+            next: () => {
+              const name = names[i++]!
+              return {
+                getName: () => name,
+                addNegativeKeywordList: () => attached.push(name),
+              }
+            },
+          }
+        },
+      }),
+    })
+
+    const AdsApp = {
+      currentAccount: () => ({ getCustomerId: () => '342-535-3766' }),
+      negativeKeywordLists: () => ({
+        withCondition: () => ({ get: () => ({ hasNext: () => true, next: () => negList }) }),
+      }),
+      campaigns: selectorOf(['brand_search']),
+      shoppingCampaigns: selectorOf(['shopping_sydney_product', 'shopping_roselands_product']),
+    }
+    const UrlFetchApp = {
+      fetch: () => ({
+        getContentText: () =>
+          JSON.stringify({
+            ok: true,
+            lists: [
+              {
+                name: '[OD] Shopping Product',
+                campaignRegex: 'shopping',
+                keywords: [{ keyword: 'free', matchType: 'exact' }],
+              },
+            ],
+          }),
+      }),
+    }
+    const Logger = { log: (message: string) => logs.push(message) }
+
+    new Function('AdsApp', 'UrlFetchApp', 'Logger', `${script}\nreturn main;`)(
+      AdsApp,
+      UrlFetchApp,
+      Logger,
+    )()
+
+    expect(attached).toEqual(['shopping_sydney_product', 'shopping_roselands_product'])
+    expect(logs).toContain('Assigned list "[OD] Shopping Product" to 2 campaign(s)')
+  })
 })
