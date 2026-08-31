@@ -25,6 +25,11 @@ import { getOptiMateDefaultModels } from '@/lib/agents/_shared/optimate-default-
 
 const FALLBACK_MODELS = ['claude-sonnet-5', 'minimax-m3']
 
+// Each decision carries a reason sentence, so a full 60-row batch overflows the
+// output budget mid-array and the reply parses to nothing. Chunk it: one bad
+// chunk then costs only its own rows, and the rest still get decided.
+const CHUNK_SIZE = 12
+
 export const TRIAGE_BUCKETS = [
   'relevant_keyword',
   'competitor',
@@ -118,6 +123,22 @@ export async function classifyViolations(input: {
 }): Promise<TriageDecision[]> {
   const { client, rows } = input
   if (rows.length === 0) return []
+
+  if (rows.length > CHUNK_SIZE) {
+    const decisions: TriageDecision[] = []
+    let lastError: unknown = null
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+      try {
+        decisions.push(...(await classifyViolations({ client, rows: rows.slice(i, i + CHUNK_SIZE) })))
+      } catch (err) {
+        // Rows in a failed chunk are simply not returned, so the caller leaves
+        // them undecided and next week's run retries them.
+        lastError = err
+      }
+    }
+    if (decisions.length === 0) throw lastError ?? new Error('Triage returned no usable decisions')
+    return decisions
+  }
 
   const userMessage = [
     `Client: ${client.name}${client.websiteUrl ? ` (${client.websiteUrl})` : ''}`,

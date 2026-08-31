@@ -103,3 +103,53 @@ describe("classifyViolations", () => {
     expect(callLLM).not.toHaveBeenCalled();
   });
 });
+
+describe("chunking large batches", () => {
+  const many = Array.from({ length: 30 }, (_, i) => ({
+    id: i + 1,
+    searchTerm: `term ${i + 1}`,
+    summary: `Summary ${i + 1}.`,
+  }));
+
+  it("splits big batches so one oversized reply cannot lose everything", async () => {
+    callLLM.mockImplementation((opts: any) => {
+      const text = opts.messages[0].content[0].text as string;
+      const ids = many.map((r) => r.id).filter((id) => text.includes(`- id: "${id}"\n`));
+      return Promise.resolve(
+        reply(
+          JSON.stringify(
+            ids.map((id) => ({ id: String(id), decision: "irrelevant", reason: "x", confidence: 50 })),
+          ),
+        ),
+      );
+    });
+
+    const decisions = await classifyViolations({ client, rows: many });
+
+    expect(callLLM).toHaveBeenCalledTimes(3); // 12 + 12 + 6
+    expect(decisions).toHaveLength(30);
+  });
+
+  it("keeps decisions from chunks that parsed when another chunk fails", async () => {
+    let call = 0;
+    callLLM.mockImplementation(() => {
+      call++;
+      if (call === 1) {
+        return Promise.resolve(
+          reply('[{"id":"1","decision":"competitor","reason":"ok","confidence":80}]'),
+        );
+      }
+      return Promise.resolve(reply("sorry, no JSON here"));
+    });
+
+    const decisions = await classifyViolations({ client, rows: many });
+
+    // Undecided rows are absent, so the cron leaves them retryable.
+    expect(decisions).toEqual([{ id: 1, decision: "competitor", reason: "ok", confidence: 80 }]);
+  });
+
+  it("still throws when every chunk fails", async () => {
+    callLLM.mockResolvedValue(reply("no json at all"));
+    await expect(classifyViolations({ client, rows: many })).rejects.toThrow();
+  });
+});
