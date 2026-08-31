@@ -42,6 +42,10 @@ export interface ManifestPage {
   paidTrackedConversions?: number;
   checklistSessions?: number;
   paidChecklistSessions?: number;
+  chatSessions?: number;
+  paidChatSessions?: number;
+  chatLeadSessions?: number;
+  paidChatLeadSessions?: number;
   averageSeconds?: number | null;
   paidTimedSessions?: number;
   paidAverageSeconds?: number | null;
@@ -184,7 +188,14 @@ export function AdGroupPagesPanel({
               )
               .map((page) => {
                 const open = openSlug === page.slug;
-                const trackedConversions = page.paidTrackedConversions ?? 0;
+                /* Both doorways into the page, matching the headline card. The
+                   form figure alone is what let a chat lead sit in HubSpot with
+                   nothing here to account for it, and a per-page number that
+                   disagreed with the total above it would move the puzzle rather
+                   than solve it. */
+                const formConversions = page.paidTrackedConversions ?? 0;
+                const chatConversions = page.paidChatLeadSessions ?? 0;
+                const trackedConversions = formConversions + chatConversions;
                 const medianActiveTime = page.paidMedianSeconds;
                 const campaignNames = [...new Set(page.adGroups.map((group) => group.campaign).filter(Boolean))];
                 const adGroupNames = [...new Set(page.adGroups.map((group) => group.name).filter(Boolean))];
@@ -235,6 +246,8 @@ export function AdGroupPagesPanel({
                           value={medianActiveTime == null ? "n/a" : `${medianActiveTime}s`}
                         />
                         <Metric label="Conversions" value={String(trackedConversions)} />
+                        <Metric label="Form submits" value={String(formConversions)} />
+                        <Metric label="Chat sign-ups" value={String(chatConversions)} />
                         <Metric label="Conversion rate" value={conversionRate} />
                       </dl>
 

@@ -142,6 +142,70 @@ describe("AdGroupPagesPanel measurement labels", () => {
     );
   });
 
+  /*
+   * Per-page conversions count both doorways, exactly as the headline card and
+   * the campaign table do. A page-level figure counting only the form would
+   * disagree with the total above it, which is how a chat lead sitting in
+   * HubSpot came to look like a broken dashboard rather than an uncounted one.
+   */
+  it("totals form submits and chat sign-ups per page, and rates the total", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: async () => ({
+            adMetricsAvailable: true,
+            pages: [
+              {
+                pageId: "ag-chatty-au",
+                slug: "chatty-au",
+                market: "AU",
+                url: "https://hire.awaydigitalteams.com/lp/chatty-au",
+                title: "Chatty",
+                headline: "Chat and form together",
+                adGroupIds: ["1"],
+                noindex: true,
+                adGroups: [{ id: "1", name: "chatty", campaign: "Search Exact", clicks: 40, cost: 900 }],
+                clicks: 40,
+                cost: 900,
+                conversions: 0,
+                sessions: 40,
+                paidSessions: 40,
+                engagedSessions: 20,
+                paidEngagedSessions: 18,
+                trackedConversions: 5,
+                paidTrackedConversions: 3,
+                paidChatSessions: 9,
+                paidChatLeadSessions: 2,
+                averageSeconds: 30,
+                paidAverageSeconds: 28,
+                bounceRate: 50,
+                medianSeconds: 25,
+                paidMedianSeconds: 22,
+              },
+            ],
+          }),
+        }),
+      ),
+    );
+
+    render(<AdGroupPagesPanel slug="away-digital-teams" />);
+    await screen.findByText("Chat and form together");
+
+    /* Each figure through its own label: several of these numbers repeat across
+       the card, so a bare text lookup cannot say which one it found. */
+    const figure = (label: string) =>
+      screen.getByText(label).parentElement?.textContent?.replace(label, "");
+
+    // 3 form + 2 chat, from 40 paid sessions.
+    expect(figure("Conversions")).toBe("5");
+    expect(figure("Form submits")).toBe("3");
+    expect(figure("Chat sign-ups")).toBe("2");
+    // 5/40, not the 7.50% that rating the form half alone would give.
+    expect(figure("Conversion rate")).toBe("12.50%");
+  });
+
   it("does not render a second loading panel", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
     const { container } = render(<AdGroupPagesPanel slug="away-digital-teams" />);

@@ -14,6 +14,66 @@ const PAGE: CampaignAdGroupRow = {
   adGroups: [{ name: "Data Engineer", campaign: "Category – Developer/IT – US – Exact" }],
 };
 
+/**
+ * The Conversions column counts both doorways, exactly as the headline card
+ * does. A column that counted only the form would disagree with the total above
+ * it, and that disagreement is what made a chat lead sitting in HubSpot look
+ * like a broken dashboard rather than an uncounted one.
+ */
+describe("conversions column", () => {
+  const CHATTY: CampaignAdGroupRow = {
+    ...PAGE,
+    pageId: "ag-chatty",
+    paidSessions: 20,
+    paidTrackedConversions: 3,
+    paidChatSessions: 7,
+    paidChatLeadSessions: 2,
+    adGroups: [{ name: "Chatty", campaign: "Chat campaign" }],
+  };
+
+  it("totals form submits and chat sign-ups per ad group", () => {
+    render(<CampaignAdGroupTable pages={[CHATTY]} />);
+
+    const row = screen.getByText("Chatty").closest("tr")!;
+    const cells = within(row).getAllByRole("cell").map((cell) => cell.textContent);
+    // Conversions, form submits, chat sign-ups, chats started: 3 + 2 = 5.
+    expect(cells.slice(0, 4)).toEqual(["20", "5", "3", "2"]);
+    expect(cells[4]).toBe("7");
+  });
+
+  it("totals both doorways across a campaign, not just the form", () => {
+    render(
+      <CampaignAdGroupTable
+        pages={[
+          CHATTY,
+          {
+            ...CHATTY,
+            pageId: "ag-chatty-2",
+            paidSessions: 10,
+            paidTrackedConversions: 1,
+            paidChatLeadSessions: 4,
+            adGroups: [{ name: "Chatty two", campaign: "Chat campaign" }],
+          },
+        ]}
+      />,
+    );
+
+    const totals = screen.getByText("Chat campaign").closest("tr")!;
+    const cells = within(totals).getAllByRole("cell").map((cell) => cell.textContent);
+    // (3 + 2) + (1 + 4) = 10, from 4 form and 6 chat.
+    expect(cells.slice(0, 4)).toEqual(["30", "10", "4", "6"]);
+  });
+
+  it("still counts form leads when a row has no chat at all", () => {
+    render(<CampaignAdGroupTable pages={[PAGE]} />);
+
+    const row = screen.getByText("Data Engineer").closest("tr")!;
+    const cells = within(row).getAllByRole("cell").map((cell) => cell.textContent);
+    // Missing chat counts read as zero, never as a missing conversion.
+    expect(cells.slice(0, 4)).toEqual(["40", "4", "4", "0"]);
+  });
+});
+
 afterEach(cleanup);
 
 describe("CampaignAdGroupTable", () => {
@@ -26,11 +86,21 @@ describe("CampaignAdGroupTable", () => {
     // Grouped under the campaign minus its match type - that is a bidding
     // setting, not a separate campaign.
     const totals = screen.getByText("Category – Developer/IT – US").closest("tr")!;
-    expect(within(totals).getByText("50")).toBeTruthy();
-    expect(within(totals).getByText("5")).toBeTruthy();
-    // Session-weighted mean of 90s over 40 and 30s over 10.
-    expect(within(totals).getByText("1m 18s")).toBeTruthy();
-    expect(within(totals).getByText("3")).toBeTruthy();
+    /* By position, not by text: with no chat in this fixture the conversions
+       total and the form submits under it are both 5, so a bare text lookup
+       matches two cells and cannot say which column it found.
+
+       Sessions, conversions, form submits, chat sign-ups, chats started, then
+       the session-weighted mean of 90s over 40 and 30s over 10, then checklist. */
+    expect(within(totals).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+      "50",
+      "5",
+      "5",
+      "0",
+      "0",
+      "1m 18s",
+      "3",
+    ]);
 
     expect(screen.getByText("Data Engineer")).toBeTruthy();
     expect(screen.getByText("Cloud Engineer")).toBeTruthy();
@@ -59,15 +129,17 @@ describe("CampaignAdGroupTable", () => {
       { ...PAGE, pageId: "ag-b", adGroups: [{ name: "Big checklist", campaign: "C" }], paidSessions: 10, paidChecklistSessions: 9 },
     ]} />);
 
+    /* The total leads first, then the two doorways it is made of, then the rest.
+       Chat is the doorway the HubSpot widget opens, which this table stayed
+       blind to while those visitors were reaching the CRM. */
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Sessions↓",
       "Conversions↓",
+      "Form submits↓",
+      "Chat sign-ups↓",
+      "Chats started↓",
       "Avg time on page↓",
       "Checklist sign-ups↓",
-      // Chat is the doorway the HubSpot widget opens, which this table stayed
-      // blind to while those visitors were reaching the CRM.
-      "Chats started↓",
-      "Chat sign-ups↓",
     ]);
 
     const names = () => screen.getAllByRole("row").slice(2).map((row) => row.querySelector("th")?.textContent);

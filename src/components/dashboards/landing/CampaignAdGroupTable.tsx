@@ -83,16 +83,41 @@ const sum = (rows: CampaignAdGroupRow[], pick: (row: CampaignAdGroupRow) => numb
  * unmeasured row sorts as null rather than zero so "nobody was timed" never
  * outranks a page where people genuinely left fast.
  */
+/**
+ * A row's leads, whichever doorway they came through.
+ *
+ * Kept identical to the headline card: a Conversions column that counted only
+ * the form would disagree with the total above it, and the disagreement would
+ * read as a broken table rather than as two different definitions. The parts
+ * follow it as their own columns so the number can still be taken apart.
+ */
+const rowConversions = (row: CampaignAdGroupRow) =>
+  (row.paidTrackedConversions ?? 0) + (row.paidChatLeadSessions ?? 0);
+
 const METRICS = {
   sessions: { label: "Sessions", of: (row: CampaignAdGroupRow) => row.paidSessions, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidSessions) },
-  conversions: { label: "Conversions", of: (row: CampaignAdGroupRow) => row.paidTrackedConversions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidTrackedConversions) },
+  conversions: { label: "Conversions", of: rowConversions, total: (rows: CampaignAdGroupRow[]) => sum(rows, rowConversions) },
+  formSubmits: { label: "Form submits", of: (row: CampaignAdGroupRow) => row.paidTrackedConversions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidTrackedConversions) },
+  chatLeads: { label: "Chat sign-ups", of: (row: CampaignAdGroupRow) => row.paidChatLeadSessions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidChatLeadSessions) },
+  chat: { label: "Chats started", of: (row: CampaignAdGroupRow) => row.paidChatSessions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidChatSessions) },
   time: { label: "Avg time on page", of: (row: CampaignAdGroupRow) => ((row.paidTimedSessions ?? 0) > 0 ? row.paidAverageSeconds ?? null : null), total: averageSeconds },
   checklist: { label: "Checklist sign-ups", of: (row: CampaignAdGroupRow) => row.paidChecklistSessions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidChecklistSessions) },
-  chat: { label: "Chats started", of: (row: CampaignAdGroupRow) => row.paidChatSessions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidChatSessions) },
-  chatLeads: { label: "Chat sign-ups", of: (row: CampaignAdGroupRow) => row.paidChatLeadSessions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidChatLeadSessions) },
 } as const;
 
 type Metric = keyof typeof METRICS;
+
+/**
+ * The one column order, for the header and both kinds of body row.
+ *
+ * The header used to be generated from METRICS while the cells were written out
+ * by hand, so adding a metric produced a column with a heading and no data under
+ * it and pushed every later column out of line. Reading the same list everywhere
+ * is what stops the two drifting apart again.
+ */
+const METRIC_KEYS = Object.keys(METRICS) as Metric[];
+
+const cellClass = (base: string, index: number) =>
+  `${base} ${index === METRIC_KEYS.length - 1 ? "pr-0 " : ""}text-right`;
 
 /**
  * A campaign name with its match type dropped.
@@ -154,14 +179,14 @@ export function CampaignAdGroupTable({ pages }: { pages: CampaignAdGroupRow[] })
           <thead>
             <tr className={`text-left ${MICRO}`}>
               <th scope="col" className="border-b border-slate-200 pb-2 pr-4 font-normal">Campaign / ad group</th>
-              {(Object.keys(METRICS) as Metric[]).map((key, index) => {
+              {METRIC_KEYS.map((key, index) => {
                 const active = metric === key;
                 return (
                   <th
                     key={key}
                     scope="col"
                     aria-sort={active ? (direction === "desc" ? "descending" : "ascending") : "none"}
-                    className={`border-b border-slate-200 pb-2 text-right font-normal ${index === Object.keys(METRICS).length - 1 ? "" : "pr-4"}`}
+                    className={`border-b border-slate-200 pb-2 text-right font-normal ${index === METRIC_KEYS.length - 1 ? "" : "pr-4"}`}
                   >
                     <button
                       type="button"
@@ -206,32 +231,38 @@ function CampaignRows({
     <>
       <tr className="font-semibold text-slate-900">
         <th scope="rowgroup" className={`${CAMPAIGN_CELL} text-left font-semibold`}>{campaign}</th>
-        <td className={`${CAMPAIGN_CELL} text-right`}>{sum(rows, (r) => r.paidSessions).toLocaleString()}</td>
-        <td className={`${CAMPAIGN_CELL} text-right`}>{sum(rows, (r) => r.paidTrackedConversions).toLocaleString()}</td>
-        <td className={`${CAMPAIGN_CELL} text-right`}>
-          <TimeCell
-            seconds={averageSeconds(rows)}
-            timed={sum(rows, (r) => r.paidTimedSessions)}
-            sessions={sum(rows, (r) => r.paidSessions)}
-          />
-        </td>
-        <td className={`${CAMPAIGN_CELL} pr-0 text-right`}>{sum(rows, (r) => r.paidChecklistSessions).toLocaleString()}</td>
+        {METRIC_KEYS.map((key, index) => (
+          <td key={key} className={cellClass(CAMPAIGN_CELL, index)}>
+            {key === "time" ? (
+              <TimeCell
+                seconds={averageSeconds(rows)}
+                timed={sum(rows, (r) => r.paidTimedSessions)}
+                sessions={sum(rows, (r) => r.paidSessions)}
+              />
+            ) : (
+              (METRICS[key].total(rows) ?? 0).toLocaleString()
+            )}
+          </td>
+        ))}
       </tr>
       {ordered.map((page) => (
         <tr key={page.pageId}>
           <th scope="row" className={`${CELL} pl-4 text-left font-normal text-slate-700`}>
             {[...new Set(page.adGroups.map((group) => group.name).filter(Boolean))].join(", ") || "Ad group not named"}
           </th>
-          <td className={`${CELL} text-right`}>{page.paidSessions.toLocaleString()}</td>
-          <td className={`${CELL} text-right`}>{(page.paidTrackedConversions ?? 0).toLocaleString()}</td>
-          <td className={`${CELL} text-right`}>
-            <TimeCell
-              seconds={page.paidAverageSeconds ?? null}
-              timed={page.paidTimedSessions ?? 0}
-              sessions={page.paidSessions}
-            />
-          </td>
-          <td className={`${CELL} pr-0 text-right`}>{(page.paidChecklistSessions ?? 0).toLocaleString()}</td>
+          {METRIC_KEYS.map((key, index) => (
+            <td key={key} className={cellClass(CELL, index)}>
+              {key === "time" ? (
+                <TimeCell
+                  seconds={page.paidAverageSeconds ?? null}
+                  timed={page.paidTimedSessions ?? 0}
+                  sessions={page.paidSessions}
+                />
+              ) : (
+                (METRICS[key].of(page) ?? 0).toLocaleString()
+              )}
+            </td>
+          ))}
         </tr>
       ))}
     </>
