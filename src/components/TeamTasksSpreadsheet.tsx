@@ -82,6 +82,27 @@ function priorityRank(priority?: string): number {
   return 0
 }
 
+// Chrome/Safari never paint box-shadow or borders on <tr>, so the priority outline
+// lives on the row's own cells: left edge on the first, right on the last, top and
+// bottom on every one. The rowspan week cell is skipped so it keeps spanning cleanly.
+function priorityCellStyle(priority: string | undefined, edge: 'first' | 'last' | 'middle'): React.CSSProperties | undefined {
+  const rank = priorityRank(priority)
+  if (!rank) return undefined
+  const border = `${rank === 2 ? 3 : 2}px solid ${rank === 2 ? '#dc2626' : '#f59e0b'}`
+  return {
+    borderTop: border,
+    borderBottom: border,
+    ...(edge === 'first' ? { borderLeft: border } : undefined),
+    ...(edge === 'last' ? { borderRight: border } : undefined),
+  }
+}
+
+function priorityRowTint(priority?: string): React.CSSProperties | undefined {
+  const rank = priorityRank(priority)
+  if (!rank) return undefined
+  return { background: rank === 2 ? '#fef2f2' : '#fffbeb' }
+}
+
 function nextPriority(priority?: string): string {
   if (priority === 'high') return 'urgent'
   if (priority === 'urgent') return 'normal'
@@ -289,13 +310,14 @@ function WeekGroupCell({
   )
 }
 
-function TaskDateCell({ task, disabled, onChange }: {
+function TaskDateCell({ task, disabled, onChange, cellStyle }: {
   task: TeamTask
   disabled: boolean
   onChange: (date: string) => void
+  cellStyle?: React.CSSProperties
 }) {
   return (
-    <td style={{ ...tdStyle, width: 120, minWidth: 120 }}>
+    <td style={{ ...tdStyle, width: 120, minWidth: 120, ...cellStyle }}>
       <input
         type="date"
         aria-label={`Task date for ${task.title || 'task'}`}
@@ -586,7 +608,7 @@ export default function TeamTasksSpreadsheet() {
             ) : groupedTasks.map(([week, rows], groupIndex) => {
               const weekColor = weekColors[groupIndex % weekColors.length]
               return rows.map((task, index) => (
-              <tr key={`${week}-${task.id}`} style={{ background: weekColor.bg, height: 74, ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
+              <tr key={`${week}-${task.id}`} style={{ background: weekColor.bg, height: 74, ...priorityRowTint(task.priority), ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
                 {index === 0 && (
                   <WeekGroupCell
                     week={week}
@@ -600,19 +622,20 @@ export default function TeamTasksSpreadsheet() {
                   task={task}
                   disabled={!canEditTaskFields}
                   onChange={(dueDate) => void patch(task.id, { dueDate })}
+                  cellStyle={priorityCellStyle(task.priority, 'first')}
                 />
-                <td style={tdStyle}>
+                <td style={{ ...tdStyle, ...priorityCellStyle(task.priority, 'middle') }}>
                   <select value={relId(task.client)} onChange={(e) => patch(task.id, { client: e.target.value })} style={inputStyle} title={relName(task.client, clients)} disabled={!canEditTaskFields}>
                     <option value="">—</option>
                     {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
                   </select>
                 </td>
-                <td style={tdStyle}>
+                <td style={{ ...tdStyle, ...priorityCellStyle(task.priority, 'middle') }}>
                   <select value={task.taskType || 'other'} onChange={(e) => patch(task.id, { taskType: e.target.value })} style={inputStyle} disabled={!canEditTaskFields}>
                     {TEAM_TASK_TYPE_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </td>
-                <td style={tdStyle}>
+                <td style={{ ...tdStyle, ...priorityCellStyle(task.priority, 'middle') }}>
                   <textarea
                     defaultValue={task.title || ''}
                     rows={2}
@@ -625,7 +648,7 @@ export default function TeamTasksSpreadsheet() {
                     style={{ ...inputStyle, minWidth: 260, minHeight: 58, resize: 'vertical', lineHeight: 1.35, overflowWrap: 'anywhere' }}
                   />
                 </td>
-                <td style={tdStyle}>
+                <td style={{ ...tdStyle, ...priorityCellStyle(task.priority, 'middle') }}>
                   <select value={task.status || 'in_progress'} onChange={(e) => patch(task.id, { status: e.target.value })} style={{ ...inputStyle, width: 126, whiteSpace: 'nowrap', fontSize: 12, ...statusTone(task.status) }}>
                     {statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
@@ -639,13 +662,13 @@ export default function TeamTasksSpreadsheet() {
                     🕒
                   </button>
                 </td>
-                <td style={tdStyle}>
+                <td style={{ ...tdStyle, ...priorityCellStyle(task.priority, 'middle') }}>
                   <select value={relId(task.assignedTo)} onChange={(e) => patch(task.id, { assignedTo: e.target.value })} style={inputStyle} title={relName(task.assignedTo, users)} disabled={!canEditTaskFields}>
                     <option value="">Unassigned</option>
                     {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                   </select>
                 </td>
-                <td style={tdStyle}>
+                <td style={{ ...tdStyle, ...priorityCellStyle(task.priority, 'middle') }}>
                   <NotesEditor
                     value={task.instructions || ''}
                     onSave={(next) => {
@@ -653,7 +676,7 @@ export default function TeamTasksSpreadsheet() {
                     }}
                   />
                 </td>
-                <td style={{ ...tdStyle, width: 54, minWidth: 54, padding: 4 }}>
+                <td style={{ ...tdStyle, width: 54, minWidth: 54, padding: 4, ...priorityCellStyle(task.priority, 'last') }}>
                   <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
                     <button
                       type="button"
