@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
+import { applyLinkShortcut } from '@/lib/rich-text-links'
 
 type Option = { id: string | number; name: string; email?: string; role?: string }
 type Rel = Option | string | number | null | undefined
@@ -176,6 +177,7 @@ function RichBox({ value, onSave, placeholder }: { value: string; onSave: (value
           document.execCommand('bold')
           return
         }
+        if (applyLinkShortcut(e)) return
         if (e.key !== ' ') return
         const selection = window.getSelection()
         const text = selection?.anchorNode?.textContent || ''

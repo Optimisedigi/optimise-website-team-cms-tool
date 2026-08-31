@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import TeamTaskDetailPane from './TeamTaskDetailPane'
 import { TEAM_TASK_TYPE_OPTIONS } from '@/lib/team-task-options'
 import { isEmptyTeamTaskPlaceholder } from '@/lib/team-task-placeholder'
+import { applyLinkShortcut } from '@/lib/rich-text-links'
 
 type Option = { id: string | number; name: string; email?: string; slug?: string }
 type Rel = Option | string | number | null | undefined
@@ -203,6 +204,7 @@ function NotesEditor({ value, onSave, minWidth = 320 }: { value: string; onSave:
             document.execCommand('bold')
             return
           }
+          if (applyLinkShortcut(e)) return
           if (e.key !== ' ') return
           const selection = window.getSelection()
           const text = selection?.anchorNode?.textContent || ''
@@ -212,6 +214,12 @@ function NotesEditor({ value, onSave, minWidth = 320 }: { value: string; onSave:
             document.execCommand('delete')
             document.execCommand('insertUnorderedList')
           }
+        }}
+        onClick={(e) => {
+          const link = (e.target as HTMLElement).closest('a') as HTMLAnchorElement | null
+          if (!link?.href) return
+          e.preventDefault()
+          window.open(link.href, '_blank', 'noopener,noreferrer')
         }}
         onBlur={(e) => {
           const next = autolinkHtml(e.currentTarget.innerHTML)
