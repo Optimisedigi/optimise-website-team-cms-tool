@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  landingDateRangeCaption,
   landingDateRangeParams,
   resolveLandingDateRange,
 } from "@/lib/landing-date-range";
@@ -30,6 +31,20 @@ describe("landing date ranges", () => {
       googleAdsRange: "2026-08-17,2026-08-23",
       label: "This week",
     });
+  });
+
+  it("sends last week as the completed Monday-to-Sunday week", () => {
+    const params = landingDateRangeParams({ mode: "last_week" }, now);
+    const range = resolveLandingDateRange(params, now);
+
+    expect(Object.fromEntries(params)).toEqual({ start: "2026-08-10", end: "2026-08-16" });
+    expect(range).toMatchObject({ days: 7, googleAdsRange: "2026-08-10,2026-08-16" });
+  });
+
+  it("captions each range with the dates it covers", () => {
+    expect(landingDateRangeCaption({ mode: "last_week" }, now)).toBe("10 Aug 2026 \u2013 16 Aug 2026");
+    expect(landingDateRangeCaption({ mode: "today" }, now)).toBe("20 Aug 2026");
+    expect(landingDateRangeCaption({ mode: "30" }, now)).toBe("21 Jul 2026 \u2013 20 Aug 2026");
   });
 
   it("resolves today as one inclusive calendar day", () => {

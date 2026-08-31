@@ -6,6 +6,7 @@ import { resolveLandingPage, type LandingPageMeta } from "@/lib/landing-page-sec
 import { isAwayDigitalSlug } from "@/lib/away-digital";
 import {
   DEFAULT_LANDING_DATE_RANGE,
+  landingDateRangeCaption,
   landingDateRangeLabel,
   landingDateRangeParams,
   type LandingDateRange,
@@ -657,9 +658,12 @@ export function LandingExperimentTab({
         {/* Category, Market, Page and Range are one control - each narrows what
             the next one means - so they hold a single line. Page takes whatever
             width is left and truncates rather than pushing Range onto its own
-            row; the custom date inputs are free to wrap beneath. */}
+            row; the custom date inputs are free to wrap beneath.
+            Aligned from the top, not the bottom: the resolved-dates caption
+            under Range is a third line, and bottom alignment would lift the
+            Range dropdown clear of the other selects to make room for it. */}
         <div
-          className="relative flex flex-wrap items-end gap-3"
+          className="relative flex flex-wrap items-start gap-3"
           onMouseLeave={() => setRangeTooltipVisible(false)}
         >
           {/* Shown for a single page too. Selecting the one page is what gives
@@ -729,7 +733,7 @@ export function LandingExperimentTab({
           )}
 
           <div className="flex shrink-0 flex-col gap-1 text-xs text-slate-500">
-            <label htmlFor="landing-range-select" className="flex items-center gap-1">
+            <label htmlFor="landing-range-select" className="flex h-4 items-center gap-1">
               Range
               {data.baselineApplied && data.dataStartDate && (
                 <span className="inline-flex">
@@ -746,7 +750,7 @@ export function LandingExperimentTab({
                         event.currentTarget.blur();
                       }
                     }}
-                    className="flex size-5 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px] font-medium text-slate-400 hover:border-slate-300 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/30"
+                    className="flex size-4 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px] font-medium text-slate-400 hover:border-slate-300 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/30"
                   >
                     ?
                   </button>
@@ -768,12 +772,16 @@ export function LandingExperimentTab({
               className={SELECT}
             >
               <option value="this_week">This week (Mon–Sun)</option>
+              <option value="last_week">Last week (Mon–Sun)</option>
               <option value="today">Today</option>
               <option value="7">Last 7 days</option>
               <option value="30">Last 30 days</option>
               <option value="90">Last 90 days</option>
               <option value="custom">Custom dates</option>
             </select>
+            <span data-testid="landing-range-caption" className="text-xs text-slate-500">
+              {landingDateRangeCaption(range)}
+            </span>
           </div>
           {range.mode === "custom" && (
             <div className="flex items-end gap-2">

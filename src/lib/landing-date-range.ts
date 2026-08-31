@@ -1,4 +1,11 @@
-export type LandingDateRangeMode = "this_week" | "today" | "7" | "30" | "90" | "custom";
+export type LandingDateRangeMode =
+  | "this_week"
+  | "last_week"
+  | "today"
+  | "7"
+  | "30"
+  | "90"
+  | "custom";
 
 export interface LandingDateRange {
   mode: LandingDateRangeMode;
@@ -95,6 +102,16 @@ export function landingDateRangeParams(
     const today = now.toISOString().slice(0, 10);
     return new URLSearchParams({ start: monday.toISOString().slice(0, 10), end: today });
   }
+  if (range.mode === "last_week") {
+    // Monday–Sunday of the completed week, matching the Google Ads dashboard.
+    const monday = new Date(now);
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7) - 7);
+    const sunday = new Date(monday.valueOf() + 6 * DAY_MS);
+    return new URLSearchParams({
+      start: monday.toISOString().slice(0, 10),
+      end: sunday.toISOString().slice(0, 10),
+    });
+  }
   if (range.mode === "today") {
     const today = now.toISOString().slice(0, 10);
     return new URLSearchParams({ start: today, end: today });
@@ -105,8 +122,41 @@ export function landingDateRangeParams(
   return new URLSearchParams({ days: range.mode === "custom" ? "30" : range.mode });
 }
 
+/**
+ * "1 Aug 2026 – 30 Aug 2026" caption shown under the range dropdown, so the
+ * selected preset always spells out the dates it actually covers.
+ */
+export function landingDateRangeCaption(
+  range: LandingDateRange,
+  now = new Date(),
+): string {
+  const params = landingDateRangeParams(range, now);
+  const start = params.get("start");
+  const end = params.get("end");
+  if (!start || !end) {
+    const days = Number(params.get("days") || "30");
+    const since = new Date(now.valueOf() - days * DAY_MS);
+    return `${formatDay(since)} – ${formatDay(now)}`;
+  }
+  const from = formatDay(new Date(`${start}T00:00:00.000Z`));
+  const to = formatDay(new Date(`${end}T00:00:00.000Z`));
+  return from === to ? from : `${from} – ${to}`;
+}
+
+function formatDay(date: Date): string {
+  // en-GB, not en-AU: en-AU renders "short" July as "July", which breaks the
+  // three-letter rhythm of the caption.
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export function landingDateRangeLabel(range: LandingDateRange): string {
   if (range.mode === "this_week") return "This week";
+  if (range.mode === "last_week") return "Last week";
   if (range.mode === "today") return "Today";
   if (range.mode === "custom" && range.start && range.end) {
     return range.start === range.end ? range.start : `${range.start} – ${range.end}`;
