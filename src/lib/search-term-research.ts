@@ -159,11 +159,19 @@ async function summariseGroundedTerms(
   const summaries = new Map<string, string>()
   if (grounded.length === 0) return { summaries }
 
+  // Decide brand-vs-generic BEFORE leaning on the top result. Without this step
+  // the model just described whoever ranked #1: "oracle third party support
+  // providers" came back as a summary of Rimini Street, which reads as a brand
+  // term to a reviewer when it is actually generic intent.
   const systemPrompt = [
     'You explain unfamiliar Google Ads search terms to a paid-search analyst.',
     'For each search term you are given its top Google result and/or knowledge panel.',
-    'Return ONE plain sentence saying what the company, business, brand, or thing is —',
-    'e.g. "A UK accountancy firm based in Leeds" or "A generic phrase for outsourced bookkeeping, not a specific brand".',
+    'FIRST decide whether the search term itself is a brand/company name or a generic phrase.',
+    'Generic phrase: describe the service or intent, and say it is not a specific brand.',
+    'Never name the company that happens to rank first for a generic phrase — the top result is evidence about the term, not the answer.',
+    'Brand/company name: describe that company (what it does, where it is based).',
+    'Return ONE plain sentence — e.g. "A UK accountancy firm based in Leeds" or',
+    '"A generic phrase for third-party Oracle support, not a specific brand".',
     'If it is clearly a competitor or unrelated brand, say so. If the results are empty or ambiguous, say it is unclear.',
     'Do not add advice, prefixes, or quotes. Return ONLY a valid JSON array, no markdown fences.',
   ].join('\n')
