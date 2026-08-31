@@ -6,8 +6,9 @@ import MatchTypeViolationReview from './match-type-violations/MatchTypeViolation
 import DismissedKeywordReview from './match-type-violations/DismissedKeywordReview'
 import MatchTypeAllowListManager from './match-type-violations/MatchTypeAllowListManager'
 import MatchTypeSynonymRulesManager from './match-type-violations/MatchTypeSynonymRulesManager'
+import MatchTypeTriageDecisions from './match-type-violations/MatchTypeTriageDecisions'
 
-type TabKey = 'violations' | 'consolidations' | 'dismissed' | 'allowList' | 'synonyms'
+type TabKey = 'violations' | 'decisions' | 'consolidations' | 'dismissed' | 'allowList' | 'synonyms'
 
 type RelationshipValue = string | number | { id?: string | number; value?: string | number } | null | undefined
 
@@ -247,6 +248,9 @@ export default function GoogleAdsMatchTypeVariants() {
         <button onClick={() => setActiveTab('violations')} style={{ padding: '10px 14px', border: 'none', borderBottom: activeTab === 'violations' ? '2px solid #2563eb' : '2px solid transparent', background: 'transparent', color: activeTab === 'violations' ? '#2563eb' : '#4b5563', fontWeight: 600, cursor: 'pointer' }}>
           Match type violations
         </button>
+        <button onClick={() => setActiveTab('decisions')} style={{ padding: '10px 14px', border: 'none', borderBottom: activeTab === 'decisions' ? '2px solid #2563eb' : '2px solid transparent', background: 'transparent', color: activeTab === 'decisions' ? '#2563eb' : '#4b5563', fontWeight: 600, cursor: 'pointer' }}>
+          Auto decisions
+        </button>
         <button onClick={() => setActiveTab('consolidations')} style={{ padding: '10px 14px', border: 'none', borderBottom: activeTab === 'consolidations' ? '2px solid #2563eb' : '2px solid transparent', background: 'transparent', color: activeTab === 'consolidations' ? '#2563eb' : '#4b5563', fontWeight: 600, cursor: 'pointer' }}>
           Consolidation candidates
         </button>
@@ -263,6 +267,8 @@ export default function GoogleAdsMatchTypeVariants() {
 
       {activeTab === 'violations' ? (
         clientId ? <MatchTypeViolationReview initialClientId={clientId} /> : <div style={{ margin: '0 24px', padding: 24, border: '1px solid #fcd34d', borderRadius: 8, background: '#fef3c7', color: '#92400e' }}>Save or link this record to a client to view match type violations.</div>
+      ) : activeTab === 'decisions' ? (
+        <MatchTypeTriageDecisions clientId={clientId} />
       ) : activeTab === 'dismissed' ? (
         <DismissedKeywordReview clientId={clientId} />
       ) : activeTab === 'allowList' ? (

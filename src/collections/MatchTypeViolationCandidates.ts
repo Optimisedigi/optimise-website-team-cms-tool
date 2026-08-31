@@ -261,6 +261,61 @@ export const MatchTypeViolationCandidates: CollectionConfig = {
         description: "First time this term was flagged",
       },
     },
+    // ── Weekly AI triage (see src/lib/match-type-triage.ts) ──────────────────
+    // Written only by the triage cron. `aiDecidedAt` doubles as the idempotency
+    // marker: a row that has it set is never re-triaged.
+    {
+      name: "aiDecision",
+      type: "select",
+      label: "AI Decision",
+      index: true,
+      options: [
+        { label: "Relevant keyword", value: "relevant_keyword" },
+        { label: "Competitor", value: "competitor" },
+        { label: "Irrelevant", value: "irrelevant" },
+        { label: "Unclear", value: "unclear" },
+      ],
+      admin: {
+        description: "Bucket the weekly triage cron placed this term in. Never applied automatically.",
+      },
+    },
+    {
+      name: "aiReason",
+      type: "text",
+      label: "AI Reason",
+      admin: { description: "One sentence explaining the AI decision" },
+    },
+    {
+      name: "aiSummary",
+      type: "text",
+      label: "AI Research Summary",
+      admin: { description: "Researched description of the search term" },
+    },
+    {
+      name: "aiSourceTitle",
+      type: "text",
+      label: "AI Source Title",
+    },
+    {
+      name: "aiSourceLink",
+      type: "text",
+      label: "AI Source Link",
+    },
+    {
+      name: "aiConfidence",
+      type: "number",
+      label: "AI Confidence",
+      admin: { description: "0-100" },
+    },
+    {
+      name: "aiDecidedAt",
+      type: "date",
+      label: "AI Decided At",
+      admin: {
+        date: { pickerAppearance: "dayAndTime" },
+        description: "Set once triage has decided this row; prevents re-triage",
+      },
+    },
     {
       name: "runDate",
       type: "date",

@@ -5333,6 +5333,19 @@ export async function runMigrations(
     await run("mtvc.offending_words", "ALTER TABLE `match_type_violation_candidates` ADD `offending_words` text");
     await run("mtvc.nearest_keyword", "ALTER TABLE `match_type_violation_candidates` ADD `nearest_keyword` text");
 
+    // ── Weekly AI triage fields (2026-08-31) ──
+    await run("mtvc.ai_decision", "ALTER TABLE `match_type_violation_candidates` ADD `ai_decision` text");
+    await run("mtvc.ai_reason", "ALTER TABLE `match_type_violation_candidates` ADD `ai_reason` text");
+    await run("mtvc.ai_summary", "ALTER TABLE `match_type_violation_candidates` ADD `ai_summary` text");
+    await run("mtvc.ai_source_title", "ALTER TABLE `match_type_violation_candidates` ADD `ai_source_title` text");
+    await run("mtvc.ai_source_link", "ALTER TABLE `match_type_violation_candidates` ADD `ai_source_link` text");
+    await run("mtvc.ai_confidence", "ALTER TABLE `match_type_violation_candidates` ADD `ai_confidence` numeric");
+    await run("mtvc.ai_decided_at", "ALTER TABLE `match_type_violation_candidates` ADD `ai_decided_at` text");
+    await run(
+      "mtvc_ai_decision_idx",
+      "CREATE INDEX IF NOT EXISTS `match_type_violation_candidates_ai_decision_idx` ON `match_type_violation_candidates` (`client_id`, `ai_decision`)",
+    );
+
     // ── FIX (2026-06-11): assigned-list relationship column name mismatch ──
     // The original table-creation sweep named the `assignedListId` relationship
     // column `assigned_list_id`, but Payload's SQLite adapter expects

@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status");
   const matchType = searchParams.get("matchType");
   const violationType = searchParams.get("violationType");
+  const aiDecision = searchParams.get("aiDecision");
+  // ?aiDecided=true restricts to rows the weekly triage cron has actually
+  // decided, so the Auto decisions tab never pages through untriaged rows.
+  const aiDecided = searchParams.get("aiDecided") === "true";
   const limit = Math.min(100, parseInt(searchParams.get("limit") ?? "50", 10));
   const page = parseInt(searchParams.get("page") ?? "1", 10);
 
@@ -30,6 +34,8 @@ export async function GET(req: NextRequest) {
   if (status) whereClauses.push({ status: { equals: status } } as Where);
   if (matchType) whereClauses.push({ matchType: { equals: matchType } } as Where);
   if (violationType) whereClauses.push({ violationType: { equals: violationType } } as Where);
+  if (aiDecision) whereClauses.push({ aiDecision: { equals: aiDecision } } as Where);
+  if (aiDecided) whereClauses.push({ aiDecidedAt: { exists: true } } as Where);
 
   const result = await (payload.find as any)({
     collection: "match-type-violation-candidates",

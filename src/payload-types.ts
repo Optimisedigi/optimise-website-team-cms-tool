@@ -11012,6 +11012,28 @@ export interface MatchTypeViolationCandidate {
    */
   firstSeenAt: string;
   /**
+   * Bucket the weekly triage cron placed this term in. Never applied automatically.
+   */
+  aiDecision?: ('relevant_keyword' | 'competitor' | 'irrelevant' | 'unclear') | null;
+  /**
+   * One sentence explaining the AI decision
+   */
+  aiReason?: string | null;
+  /**
+   * Researched description of the search term
+   */
+  aiSummary?: string | null;
+  aiSourceTitle?: string | null;
+  aiSourceLink?: string | null;
+  /**
+   * 0-100
+   */
+  aiConfidence?: number | null;
+  /**
+   * Set once triage has decided this row; prevents re-triage
+   */
+  aiDecidedAt?: string | null;
+  /**
    * The cron run date this row belongs to
    */
   runDate: string;
@@ -14872,6 +14894,13 @@ export interface MatchTypeViolationCandidatesSelect<T extends boolean = true> {
   approvedBy?: T;
   lastSeenAt?: T;
   firstSeenAt?: T;
+  aiDecision?: T;
+  aiReason?: T;
+  aiSummary?: T;
+  aiSourceTitle?: T;
+  aiSourceLink?: T;
+  aiConfidence?: T;
+  aiDecidedAt?: T;
   runDate?: T;
   updatedAt?: T;
   createdAt?: T;
