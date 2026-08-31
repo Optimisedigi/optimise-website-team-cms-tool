@@ -307,6 +307,8 @@ export function LandingExperimentTab({
     paidTimedSessions?: number;
     paidAverageSeconds?: number | null;
     paidChecklistSessions?: number;
+    paidChatSessions?: number;
+    paidChatLeadSessions?: number;
     market?: string;
     adGroups: Array<{ name: string; campaign: string }>;
   }>;
@@ -558,6 +560,16 @@ export function LandingExperimentTab({
   const headlineChecklistSessions = headlinePages
     ? headlinePages.reduce((sum, entry) => sum + (entry.paidChecklistSessions ?? 0), 0)
     : (data.secondaryConversions?.find((goal) => goal.id === "readiness_checklist")?.sessions ?? 0);
+  /* Chat is the third doorway, and until now an invisible one: the HubSpot
+     widget creates its own contacts, so a visitor who answered the bot instead
+     of the form counted in HubSpot and nowhere here. Read beside the others so
+     the gap between this dashboard and the CRM is visible rather than puzzling. */
+  const headlineChatSessions = headlinePages
+    ? headlinePages.reduce((sum, entry) => sum + (entry.paidChatSessions ?? 0), 0)
+    : 0;
+  const headlineChatLeadSessions = headlinePages
+    ? headlinePages.reduce((sum, entry) => sum + (entry.paidChatLeadSessions ?? 0), 0)
+    : 0;
   const headlineTimedSessions = headlinePages
     ? headlinePages.reduce((sum, entry) => sum + (entry.paidTimedSessions ?? 0), 0)
     : (data.sessionTime?.measuredSessions ?? 0);
@@ -606,6 +618,15 @@ export function LandingExperimentTab({
   const goalLabel = data.experiment
     ? BEHAVIOUR_LABELS[data.experiment.primaryGoal] ?? data.experiment.primaryGoal
     : "Conversions";
+  /* The card counts leads - details handed over, with or without a time picked -
+     so it cannot borrow the goal's own label, which names the booking event and
+     read "Bookings completed" while the number underneath had stopped meaning
+     that. BEHAVIOUR_LABELS is left alone because it still describes the raw
+     event correctly everywhere else it appears. */
+  const conversionNote =
+    data.experiment?.primaryGoal === "booking_complete"
+      ? "Google Ads sessions that submitted details or booked a call"
+      : goalLabel;
   const running = data.experiment?.status?.toLowerCase() === "running";
   // Resolved against every page, not the filtered list: the selected page keeps
   // its sections and preview regardless of what the list is currently showing.
@@ -844,11 +865,21 @@ export function LandingExperimentTab({
             value={headlineEngagedSessions.toLocaleString()}
             note="Google Ads sessions engaged for at least three seconds"
           />
-          <StatCard label="Conversions" value={headlineConversions.toLocaleString()} note={goalLabel} />
+          <StatCard label="Conversions" value={headlineConversions.toLocaleString()} note={conversionNote} />
           <StatCard
             label="Checklist sign-ups"
             value={headlineChecklistSessions.toLocaleString()}
             note="Google Ads sessions that downloaded the readiness checklist"
+          />
+          <StatCard
+            label="Chats started"
+            value={headlineChatSessions.toLocaleString()}
+            note="Google Ads sessions that started a chat with the HubSpot bot"
+          />
+          <StatCard
+            label="Chat sign-ups"
+            value={headlineChatLeadSessions.toLocaleString()}
+            note="Chats that gave an email, so HubSpot created a contact"
           />
           <StatCard
             label="Conversion rate"

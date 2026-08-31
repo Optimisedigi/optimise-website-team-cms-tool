@@ -6,7 +6,12 @@ import { validateDashboardToken } from "../verify/route";
 import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
 import { resolveLandingDateRange } from "@/lib/landing-date-range";
 import { LANDING_PAGES } from "@/lib/landing-page-sections";
-import { LEAD_SQL_PREDICATE, READINESS_CHECKLIST_FORM_ID } from "@/lib/landing-experiment-report";
+import {
+  CHAT_LEAD_SQL_PREDICATE,
+  CHAT_STARTED_SQL_PREDICATE,
+  LEAD_SQL_PREDICATE,
+  READINESS_CHECKLIST_FORM_ID,
+} from "@/lib/landing-experiment-report";
 
 /**
  * The generated landing pages, read from the manifest the landing build emits.
@@ -67,6 +72,14 @@ interface Engagement {
   checklistSessions: number;
   /** Checklist sign-ups from sessions that carried a Google click ID. */
   paidChecklistSessions: number;
+  /** Sessions that started a HubSpot chat conversation. */
+  chatSessions: number;
+  /** Chat conversations from sessions that carried a Google click ID. */
+  paidChatSessions: number;
+  /** Sessions where the chat captured an email and HubSpot made a contact. */
+  chatLeadSessions: number;
+  /** Chat sign-ups from sessions that carried a Google click ID. */
+  paidChatLeadSessions: number;
   /** Converted sessions that also carried a Google click ID. */
   paidConversionSessions: number;
   /** Percent of sessions that left the first section without scrolling. */
@@ -230,7 +243,11 @@ async function loadEngagement(
            SUM(converted) AS converted,
            SUM(CASE WHEN paid = 1 AND converted = 1 THEN 1 ELSE 0 END) AS paid_converted,
            SUM(checklist) AS checklist,
-           SUM(CASE WHEN paid = 1 AND checklist = 1 THEN 1 ELSE 0 END) AS paid_checklist
+           SUM(CASE WHEN paid = 1 AND checklist = 1 THEN 1 ELSE 0 END) AS paid_checklist,
+           SUM(chat) AS chat,
+           SUM(CASE WHEN paid = 1 AND chat = 1 THEN 1 ELSE 0 END) AS paid_chat,
+           SUM(chat_lead) AS chat_lead,
+           SUM(CASE WHEN paid = 1 AND chat_lead = 1 THEN 1 ELSE 0 END) AS paid_chat_lead
     FROM (
       SELECT session_id,
              page_id,
@@ -244,6 +261,11 @@ async function loadEngagement(
              MAX(CASE WHEN event_type = 'form_submit'
                        AND json_extract(properties, '$.form_id') = '${READINESS_CHECKLIST_FORM_ID}'
                       THEN 1 ELSE 0 END) AS checklist,
+             /* Chat is counted separately from the conversion column: it is a
+                different doorway, and folding it in would resettle what every
+                earlier figure meant. Both predicates are module constants. */
+             MAX(CASE WHEN ${CHAT_STARTED_SQL_PREDICATE} THEN 1 ELSE 0 END) AS chat,
+             MAX(CASE WHEN ${CHAT_LEAD_SQL_PREDICATE} THEN 1 ELSE 0 END) AS chat_lead,
              CASE WHEN COUNT(DISTINCT CASE WHEN event_type = 'section_view'
                                            THEN json_extract(properties, '$.section_id') END) > 1
                     OR MAX(CASE WHEN event_type = 'scroll_depth' THEN 1 ELSE 0 END) = 1
@@ -315,6 +337,10 @@ async function loadEngagement(
         conversionSessions: Number(row.converted ?? 0),
         checklistSessions: Number(row.checklist ?? 0),
         paidChecklistSessions: Number(row.paid_checklist ?? 0),
+        chatSessions: Number(row.chat ?? 0),
+        paidChatSessions: Number(row.paid_chat ?? 0),
+        chatLeadSessions: Number(row.chat_lead ?? 0),
+        paidChatLeadSessions: Number(row.paid_chat_lead ?? 0),
         paidConversionSessions: Number(row.paid_converted ?? 0),
         bounceRate: Math.round((Number(row.bounced ?? 0) / sessions) * 1000) / 10,
         /* Averaged across measured sessions only, not all sessions. With the
@@ -453,6 +479,10 @@ export async function GET(req: NextRequest) {
         trackedConversions: stats?.conversionSessions ?? 0,
         checklistSessions: stats?.checklistSessions ?? 0,
         paidChecklistSessions: stats?.paidChecklistSessions ?? 0,
+        chatSessions: stats?.chatSessions ?? 0,
+        paidChatSessions: stats?.paidChatSessions ?? 0,
+        chatLeadSessions: stats?.chatLeadSessions ?? 0,
+        paidChatLeadSessions: stats?.paidChatLeadSessions ?? 0,
         paidTrackedConversions: stats?.paidConversionSessions ?? 0,
         bounceRate: stats?.bounceRate ?? null,
         averageSeconds: stats?.averageSeconds ?? null,

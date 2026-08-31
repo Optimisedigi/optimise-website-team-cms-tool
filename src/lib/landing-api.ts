@@ -37,6 +37,13 @@ export const LANDING_EVENT_TYPES = [
   // unloaded. Sessions recorded before this existed have none, which the report
   // must show as "not measured" rather than zero.
   "page_dwell",
+  /* HubSpot chat, reported by the widget's own event API because it renders in
+     a cross-origin iframe that page listeners cannot see into. `chat_start` is a
+     conversation actually begun, not the bubble being opened; `chat_identified`
+     is HubSpot associating the visitor with a CRM contact, which is what it does
+     once the chat has captured an email. */
+  "chat_start",
+  "chat_identified",
 ] as const;
 
 export type LandingEventType = (typeof LANDING_EVENT_TYPES)[number];

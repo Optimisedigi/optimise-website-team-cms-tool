@@ -9271,7 +9271,9 @@ export interface LandingEvent {
     | 'booking_complete'
     | 'scroll_depth'
     | 'section_dwell'
-    | 'page_dwell';
+    | 'page_dwell'
+    | 'chat_start'
+    | 'chat_identified';
   occurredAt: string;
   receivedAt: string;
   sessionId: string;

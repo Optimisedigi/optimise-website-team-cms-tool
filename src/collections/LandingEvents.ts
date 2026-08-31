@@ -60,6 +60,10 @@ export const LandingEvents: CollectionConfig = {
         "scroll_depth",
         "section_dwell",
         "page_dwell",
+        // HubSpot chat. The widget is a cross-origin iframe, so these come from
+        // its own event API rather than from listeners on this page.
+        "chat_start",
+        "chat_identified",
       ].map((value) => ({ label: value, value })),
     },
     { name: "occurredAt", type: "date", required: true, index: true },

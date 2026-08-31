@@ -23,6 +23,8 @@ export interface CampaignAdGroupRow {
   paidTimedSessions?: number;
   paidAverageSeconds?: number | null;
   paidChecklistSessions?: number;
+  paidChatSessions?: number;
+  paidChatLeadSessions?: number;
   adGroups: Array<{ name: string; campaign: string }>;
 }
 
@@ -86,6 +88,8 @@ const METRICS = {
   conversions: { label: "Conversions", of: (row: CampaignAdGroupRow) => row.paidTrackedConversions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidTrackedConversions) },
   time: { label: "Avg time on page", of: (row: CampaignAdGroupRow) => ((row.paidTimedSessions ?? 0) > 0 ? row.paidAverageSeconds ?? null : null), total: averageSeconds },
   checklist: { label: "Checklist sign-ups", of: (row: CampaignAdGroupRow) => row.paidChecklistSessions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidChecklistSessions) },
+  chat: { label: "Chats started", of: (row: CampaignAdGroupRow) => row.paidChatSessions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidChatSessions) },
+  chatLeads: { label: "Chat sign-ups", of: (row: CampaignAdGroupRow) => row.paidChatLeadSessions ?? 0, total: (rows: CampaignAdGroupRow[]) => sum(rows, (r) => r.paidChatLeadSessions) },
 } as const;
 
 type Metric = keyof typeof METRICS;

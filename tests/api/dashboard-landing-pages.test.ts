@@ -42,7 +42,12 @@ const mockFind = vi.fn();
 const mockRun = vi.fn();
 
 import { GET } from "@/app/(frontend)/api/dashboard/landing-pages/route";
-import { LEAD_SQL_PREDICATE, READINESS_CHECKLIST_FORM_ID } from "@/lib/landing-experiment-report";
+import {
+  CHAT_LEAD_SQL_PREDICATE,
+  CHAT_STARTED_SQL_PREDICATE,
+  LEAD_SQL_PREDICATE,
+  READINESS_CHECKLIST_FORM_ID,
+} from "@/lib/landing-experiment-report";
 
 const SLUG = "away-digital-teams";
 
@@ -476,6 +481,47 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
     // The checklist is a separate column, never folded into conversions.
     expect(converted).not.toContain(READINESS_CHECKLIST_FORM_ID);
     expect(engagementSql).toContain("AS checklist");
+
+    // Chat is its own doorway. Folding it into the conversion column would move
+    // the number again and make every past figure mean something new.
+    expect(converted).not.toContain("chat_");
+  });
+
+  /*
+   * The HubSpot chat widget creates contacts by itself, and none of it reached
+   * this pipeline: a visitor who answered the bot instead of the form counted in
+   * HubSpot as a paid sign-up while the dashboard reported zero. These two
+   * columns are what make that traffic visible.
+   */
+  it("counts chat conversations and chat sign-ups as their own columns", async () => {
+    mockFind.mockResolvedValue({ docs: [{ id: 7 }] });
+    stubManifest(MANIFEST);
+
+    await GET(get(`?slug=${SLUG}`, "dashboard_token=valid-token"));
+
+    const sqlText = (statement: unknown): string => {
+      if (typeof statement === "string") return statement;
+      const chunks = (statement as { queryChunks?: { value?: unknown[] }[] } | undefined)?.queryChunks ?? [];
+      return chunks.flatMap((chunk) => (Array.isArray(chunk?.value) ? chunk.value : [])).filter((part): part is string => typeof part === "string").join("");
+    };
+    const engagementSql = mockRun.mock.calls.map((call) => sqlText(call[0])).find((sql) => sql.includes("AS converted"));
+    const columnFor = (alias: string) =>
+      engagementSql?.match(
+        new RegExp(`MAX\\(CASE WHEN ((?:(?!MAX\\(CASE WHEN)[\\s\\S])*?) THEN 1 ELSE 0 END\\) AS ${alias}`),
+      )?.[1];
+
+    // A conversation begun, not the bubble being opened.
+    expect(columnFor("chat")).toBe(CHAT_STARTED_SQL_PREDICATE);
+    expect(columnFor("chat")).toBe("`event_type` = 'chat_start'");
+
+    // The email moment: HubSpot has a contact from here on.
+    expect(columnFor("chat_lead")).toBe(CHAT_LEAD_SQL_PREDICATE);
+    expect(columnFor("chat_lead")).toBe("`event_type` = 'chat_identified'");
+
+    // Split by paid the same way every other outcome is, or the stat cards -
+    // which read Google Ads sessions only - would silently report organic chats.
+    expect(engagementSql).toContain("AS paid_chat");
+    expect(engagementSql).toContain("AS paid_chat_lead");
   });
 
   it("reports no engagement rather than failing when the query errors", async () => {

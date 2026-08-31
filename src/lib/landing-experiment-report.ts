@@ -80,6 +80,29 @@ export const LEAD_SQL_PREDICATE =
   " AND json_extract(`properties`, '$.form_id') = '" + QUALIFICATION_FORM_ID + "'" +
   " AND json_extract(`properties`, '$.result') = '" + QUALIFICATION_ACCEPTED_RESULT + "'))";
 
+/**
+ * Chat, counted beside the form rather than inside it.
+ *
+ * The HubSpot chat widget creates contacts on its own, and nothing about it
+ * reached this pipeline: a visitor who answered the bot instead of the form
+ * arrived in HubSpot as a paid sign-up while the dashboard showed zero. These
+ * two events close that blind spot.
+ *
+ * Deliberately NOT part of LEAD_SQL_PREDICATE. That number means "came through
+ * the landing page's own form or booking", and quietly widening it would change
+ * what every historical figure meant - the same trap the bookings-only count
+ * fell into. `chat_identified` is the one to fold in later if these should count
+ * as leads outright, since it is the point HubSpot creates the contact.
+ */
+export const CHAT_STARTED_EVENT = "chat_start";
+export const CHAT_IDENTIFIED_EVENT = "chat_identified";
+
+/** A chat that got as far as an email, so HubSpot has a contact for it. */
+export const CHAT_LEAD_SQL_PREDICATE = "`event_type` = '" + CHAT_IDENTIFIED_EVENT + "'";
+
+/** Any conversation actually begun - opening the bubble alone does not count. */
+export const CHAT_STARTED_SQL_PREDICATE = "`event_type` = '" + CHAT_STARTED_EVENT + "'";
+
 /** Does this event satisfy `goal`, for goals that are event types and for those that are not. */
 export function matchesGoal(
   goal: string,

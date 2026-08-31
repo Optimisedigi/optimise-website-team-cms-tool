@@ -64,6 +64,10 @@ describe("CampaignAdGroupTable", () => {
       "Conversions↓",
       "Avg time on page↓",
       "Checklist sign-ups↓",
+      // Chat is the doorway the HubSpot widget opens, which this table stayed
+      // blind to while those visitors were reaching the CRM.
+      "Chats started↓",
+      "Chat sign-ups↓",
     ]);
 
     const names = () => screen.getAllByRole("row").slice(2).map((row) => row.querySelector("th")?.textContent);
