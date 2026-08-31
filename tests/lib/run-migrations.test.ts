@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { runMigrations } from "@/lib/run-migrations";
+import { EMAIL_COPY_SLOT_KEYS } from "@/lib/agents/optimate-google-ads/tools/_email-copy-slots";
 
 describe("runMigrations", () => {
   it("rebuilds contractor time entries when legacy unique week index remains", async () => {
@@ -47,6 +48,27 @@ describe("runMigrations", () => {
       "blog_image_generation_model",
     ];
     for (const column of expectedColumns) {
+      expect(results).toContainEqual({
+        label: `optimate_settings.${column}`,
+        status: "ok",
+      });
+      expect(execute).toHaveBeenCalledWith(
+        `ALTER TABLE \`optimate_settings\` ADD \`${column}\` text`,
+      );
+    }
+  });
+
+  it("adds every client email copy column so saving OptiMate Settings works", async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const payload = { db: { client: { execute, batch } } } as any;
+
+    const results = await runMigrations(payload);
+
+    // Derived from the slot registry: a new copy slot without a runner column
+    // breaks every read and save of the global in production.
+    for (const slot of EMAIL_COPY_SLOT_KEYS) {
+      const column = `client_email_copy_${slot.replace(/-/g, "_")}`;
       expect(results).toContainEqual({
         label: `optimate_settings.${column}`,
         status: "ok",

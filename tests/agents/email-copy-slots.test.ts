@@ -69,6 +69,16 @@ describe("client email copy slots", () => {
     }
   });
 
+  it("has a bundled-runner column for every slot", async () => {
+    // Deployed schema changes go through POST /api/migrate, which runs
+    // src/lib/run-migrations.ts - NOT the src/migrations files. A slot missing
+    // there means saving OptiMate Settings 500s with "no such column".
+    const runner = await readFile(`${process.cwd()}/src/lib/run-migrations.ts`, "utf8");
+    for (const slot of EMAIL_COPY_SLOT_KEYS) {
+      expect(runner).toContain(`"client_email_copy_${slot.replace(/-/g, "_")}"`);
+    }
+  });
+
   it("parses a settings textarea into trimmed, non-empty phrasings", () => {
     expect(parseCopyLines("  One line \n\n Two lines  \n")).toEqual(["One line", "Two lines"]);
     expect(parseCopyLines("   ")).toEqual([]);

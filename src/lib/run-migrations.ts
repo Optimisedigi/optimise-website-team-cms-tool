@@ -4689,6 +4689,37 @@ export async function runMigrations(
       "optimate_settings.chat_history_token_limit",
       "ALTER TABLE `optimate_settings` ADD `chat_history_token_limit` numeric DEFAULT 6000",
     );
+    // Client Email Copy tab (2026-08-24). One nullable text column per copy
+    // slot; Payload flattens the `clientEmailCopy` group into
+    // `client_email_copy_*`. Without these, saving OptiMate Settings 500s with
+    // "no such column". Mirrors
+    // src/migrations/20260824_120000_add_client_email_copy_settings.ts.
+    for (const column of [
+      "client_email_copy_greeting",
+      "client_email_copy_weekly_performance_up_efficient",
+      "client_email_copy_weekly_performance_up",
+      "client_email_copy_weekly_performance_down_efficient",
+      "client_email_copy_weekly_performance_down",
+      "client_email_copy_weekly_performance_flat_cpa_move",
+      "client_email_copy_weekly_intro_converting",
+      "client_email_copy_weekly_intro_spend",
+      "client_email_copy_weekly_intro_flat",
+      "client_email_copy_weekly_budget_under",
+      "client_email_copy_weekly_budget_over",
+      "client_email_copy_monthly_performance_up_efficient",
+      "client_email_copy_monthly_performance_up",
+      "client_email_copy_monthly_performance_down_efficient",
+      "client_email_copy_monthly_performance_down",
+      "client_email_copy_monthly_performance_flat_cpa_move",
+      "client_email_copy_monthly_performance_converting",
+      "client_email_copy_monthly_performance_spend",
+      "client_email_copy_monthly_performance_flat",
+    ]) {
+      await run(
+        `optimate_settings.${column}`,
+        `ALTER TABLE \`optimate_settings\` ADD \`${column}\` text`,
+      );
+    }
     // Starter question chip arrays (2026-07-13). Payload stores global array
     // fields in child tables named after the global table + field name.
     await run("optimate_settings_google_mate_starter_questions", `CREATE TABLE IF NOT EXISTS \`optimate_settings_google_mate_starter_questions\` (
