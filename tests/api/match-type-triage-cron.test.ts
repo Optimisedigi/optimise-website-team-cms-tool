@@ -19,6 +19,8 @@ const researchSearchTerms = vi.fn();
 const classifyViolations = vi.fn();
 vi.mock("@/lib/search-term-research", () => ({
   researchSearchTerms: (...a: unknown[]) => researchSearchTerms(...a),
+  NO_SUMMARY:
+    "No summary available \u2014 the AI summariser is unavailable or returned nothing for this term.",
 }));
 vi.mock("@/lib/match-type-triage", () => ({
   classifyViolations: (...a: unknown[]) => classifyViolations(...a),
@@ -159,5 +161,24 @@ describe("triage cron never touches Google Ads", () => {
     // fetch here would be a direct Google Ads / Growth Tools mutation.
     expect(fetchSpy).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
+  });
+});
+
+describe("rows without usable research", () => {
+  const NO_SUMMARY =
+    "No summary available — the AI summariser is unavailable or returned nothing for this term.";
+
+  it("leaves an unresearched row undecided instead of classifying it blind", async () => {
+    researchSearchTerms.mockResolvedValue({
+      grounded: true,
+      results: [{ term: "offshore developers", summary: NO_SUMMARY, grounded: false, source: null }],
+    });
+
+    const res = await GET(request());
+    const body = await res.json();
+
+    expect(classifyViolations).not.toHaveBeenCalled();
+    expect(mockPayload.update).not.toHaveBeenCalled();
+    expect(body.skipped[0].reason).toMatch(/no usable research/);
   });
 });

@@ -318,3 +318,56 @@ describe("researchSearchTerms", () => {
     expect(mockCallLLM).not.toHaveBeenCalled();
   });
 });
+
+describe("summarisation chunking", () => {
+  it("chunks >15 terms so one oversized reply cannot lose the whole batch", async () => {
+    const terms = Array.from({ length: 40 }, (_, i) => `term ${i}`);
+    routeFetch({ top: { results: [], configured: true } });
+    // Each call only ever answers the terms it was actually given.
+    mockCallLLM.mockImplementation((opts: any) => {
+      const text = opts.messages[0].content[0].text as string;
+      const asked = terms.filter((t) => text.includes(`- term: "${t}"`));
+      return Promise.resolve(
+        llmResponse(Object.fromEntries(asked.map((t) => [t, `Summary of ${t}.`]))),
+      );
+    });
+
+    const { researchSearchTerms } = await importModule();
+    const res: TermResearchResponse = await researchSearchTerms(terms);
+
+    expect(mockCallLLM).toHaveBeenCalledTimes(3); // 15 + 15 + 10
+    expect(res.summariserError).toBeUndefined();
+    expect(res.results).toHaveLength(40);
+    expect(res.results.every((r) => r.summary === `Summary of ${r.term}.`)).toBe(true);
+  });
+
+  it("keeps the terms that succeeded when one chunk fails", async () => {
+    const terms = Array.from({ length: 30 }, (_, i) => `term ${i}`);
+    routeFetch({ top: { results: [], configured: true } });
+    let call = 0;
+    mockCallLLM.mockImplementation((opts: any) => {
+      call++;
+      if (call === 1) return Promise.resolve(llmResponse({ "term 0": "First chunk worked." }));
+      return Promise.reject(new Error("truncated"));
+    });
+
+    const { researchSearchTerms } = await importModule();
+    const res: TermResearchResponse = await researchSearchTerms(terms);
+
+    // Partial success is not a total failure: the good rows survive.
+    expect(res.summariserError).toBeUndefined();
+    expect(res.results.find((r) => r.term === "term 0")?.summary).toBe("First chunk worked.");
+    expect(res.results.find((r) => r.term === "term 20")?.summary).toContain("No summary available");
+  });
+
+  it("reports an error only when every chunk fails", async () => {
+    const terms = Array.from({ length: 30 }, (_, i) => `term ${i}`);
+    routeFetch({ top: { results: [], configured: true } });
+    mockCallLLM.mockRejectedValue(new Error("No JSON array found in model reply"));
+
+    const { researchSearchTerms } = await importModule();
+    const res: TermResearchResponse = await researchSearchTerms(terms);
+
+    expect(res.summariserError).toContain("No JSON array found");
+  });
+});

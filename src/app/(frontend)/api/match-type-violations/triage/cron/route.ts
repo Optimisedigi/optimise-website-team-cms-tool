@@ -16,7 +16,7 @@ import crypto from "crypto";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
-import { researchSearchTerms } from "@/lib/search-term-research";
+import { NO_SUMMARY, researchSearchTerms } from "@/lib/search-term-research";
 import { classifyViolations, type TriageRow } from "@/lib/match-type-triage";
 
 export const maxDuration = 300;
@@ -44,6 +44,8 @@ interface ClientResult {
   clientId: number;
   clientName: string;
   decided: number;
+  /** Rows left undecided because research returned no usable summary. */
+  unresearched?: number;
   skippedReason?: string;
 }
 
@@ -81,7 +83,7 @@ async function triageClient(
   }
   const byTerm = new Map(research.results.map((r) => [r.term.toLowerCase(), r]));
 
-  const rows: TriageRow[] = docs.map((d) => {
+  const allRows: TriageRow[] = docs.map((d) => {
     const term = String(d.searchTerm ?? "");
     const researched = byTerm.get(term.toLowerCase());
     return {
@@ -96,6 +98,19 @@ async function triageClient(
       sourceLink: researched?.source?.link ?? null,
     };
   });
+
+  // A row with no real summary would be classified blind. Leave it undecided so
+  // next week's run retries it with working research.
+  const rows = allRows.filter((r) => r.summary && r.summary !== NO_SUMMARY);
+  const unresearched = allRows.length - rows.length;
+  if (rows.length === 0) {
+    return {
+      clientId,
+      clientName,
+      decided: 0,
+      skippedReason: `no usable research for ${allRows.length} term(s)`,
+    };
+  }
 
   let decisions;
   try {
@@ -149,7 +164,7 @@ async function triageClient(
     });
   }
 
-  return { clientId, clientName, decided };
+  return { clientId, clientName, decided, ...(unresearched > 0 ? { unresearched } : {}) };
 }
 
 export async function GET(req: NextRequest) {

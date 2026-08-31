@@ -29,6 +29,16 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
 // when that one provider is rate-limited or out of credit.
 const FALLBACK_MODELS = ['claude-sonnet-5', 'minimax-m3']
 
+// Summarise in small chunks. One 60-term request overflows the 4k output budget
+// mid-array, so the reply has no closing bracket and the whole batch is lost to
+// "No JSON array found in model reply" — 60 terms researched, zero returned.
+// Both callers allow 60 terms, so the cap has to live here, not per caller.
+const SUMMARY_CHUNK_SIZE = 15
+
+/** Shown when a term has no usable summary. Callers treat this as "not researched". */
+export const NO_SUMMARY =
+  'No summary available — the AI summariser is unavailable or returned nothing for this term.'
+
 export interface TermResearchSource {
   title: string
   link: string
@@ -159,6 +169,19 @@ async function summariseGroundedTerms(
   const summaries = new Map<string, string>()
   if (grounded.length === 0) return { summaries }
 
+  // Chunk so no single reply can overflow the output budget. One bad chunk only
+  // costs its own terms: the rest still come back summarised.
+  if (grounded.length > SUMMARY_CHUNK_SIZE) {
+    const errors: string[] = []
+    for (let i = 0; i < grounded.length; i += SUMMARY_CHUNK_SIZE) {
+      const chunk = await summariseGroundedTerms(grounded.slice(i, i + SUMMARY_CHUNK_SIZE))
+      for (const [term, summary] of chunk.summaries) summaries.set(term, summary)
+      if (chunk.error) errors.push(chunk.error)
+    }
+    // Only a total wipeout is an error; a partial batch still has usable rows.
+    return summaries.size > 0 ? { summaries } : { summaries, error: errors[0] ?? 'No summaries returned' }
+  }
+
   // Decide brand-vs-generic BEFORE leaning on the top result. Without this step
   // the model just described whoever ranked #1: "oracle third party support
   // providers" came back as a summary of Rimini Street, which reads as a brand
@@ -239,7 +262,7 @@ export async function researchSearchTerms(rawTerms: string[]): Promise<TermResea
     const summary = summaries.get(g.term.toLowerCase())
     return {
       term: g.term,
-      summary: summary || 'No summary available — the AI summariser is unavailable or returned nothing for this term.',
+      summary: summary || NO_SUMMARY,
       grounded: Boolean(g.source || g.knowledgeGraph),
       source: g.source,
     }
