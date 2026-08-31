@@ -248,11 +248,14 @@ function StatCard({
   value,
   note,
   accent,
+  breakdown,
 }: {
   label: string;
   value: string;
-  note: string;
+  note?: string;
   accent?: boolean;
+  /** Named parts that sum to `value`, shown instead of a note. */
+  breakdown?: { label: string; value: string }[];
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm min-[1120px]:p-5">
@@ -264,9 +267,24 @@ function StatCard({
       >
         {value}
       </div>
-      <div className="mt-1.5 text-[11px] leading-snug text-slate-500 min-[1120px]:text-xs">
-        {note}
-      </div>
+      {breakdown ? (
+        /* A total is not self-explanatory when it spans two different doorways,
+           and the unlabelled figure here is what let a chat lead sit in HubSpot
+           with nothing on the dashboard to account for it. Each part is named
+           beside its own number so the total can always be taken apart. */
+        <dl className="mt-1.5 space-y-0.5 text-[11px] leading-snug text-slate-500 min-[1120px]:text-xs">
+          {breakdown.map((part) => (
+            <div key={part.label} className="flex items-baseline justify-between gap-2">
+              <dt>{part.label}</dt>
+              <dd className="font-semibold tabular-nums text-slate-700">{part.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <div className="mt-1.5 text-[11px] leading-snug text-slate-500 min-[1120px]:text-xs">
+          {note}
+        </div>
+      )}
     </div>
   );
 }
@@ -549,11 +567,11 @@ export function LandingExperimentTab({
   const headlineEngagedSessions = headlinePages
     ? headlinePages.reduce((sum, entry) => sum + entry.paidEngagedSessions, 0)
     : (data.engagedSessions ?? 0);
-  const headlineConversions = headlinePages
+  /* Leads that came through the page itself: details submitted, or a call booked
+     straight from the ad without the details step. */
+  const headlineFormConversions = headlinePages
     ? headlinePages.reduce((sum, entry) => sum + (entry.paidTrackedConversions ?? 0), 0)
     : conversions;
-  const headlineConversionRate =
-    headlineSessions > 0 ? headlineConversions / headlineSessions : 0;
   /* The checklist PDF is the page's second outcome, so it is read beside the
      conversions rather than only inside the campaign table. Same source as the
      campaign table's column, so the two cannot disagree. */
@@ -570,6 +588,20 @@ export function LandingExperimentTab({
   const headlineChatLeadSessions = headlinePages
     ? headlinePages.reduce((sum, entry) => sum + (entry.paidChatLeadSessions ?? 0), 0)
     : 0;
+  /* Every lead the page produced, whichever doorway it came through. Chat is
+     added here rather than inside the form figure so the breakdown underneath
+     can still take the total apart - and so the older form-only number keeps
+     meaning exactly what it always did.
+
+     A visitor who does both is counted once per doorway, because the two are
+     measured in different places: the form leaves events in this pipeline, the
+     chat is reported by HubSpot's widget. Deduplicating would mean deciding
+     which one "really" converted them, and the honest answer is both. Rare
+     enough not to distort the total; "chats started" beside it shows the shape
+     of chat traffic either way. */
+  const headlineConversions = headlineFormConversions + headlineChatLeadSessions;
+  const headlineConversionRate =
+    headlineSessions > 0 ? headlineConversions / headlineSessions : 0;
   const headlineTimedSessions = headlinePages
     ? headlinePages.reduce((sum, entry) => sum + (entry.paidTimedSessions ?? 0), 0)
     : (data.sessionTime?.measuredSessions ?? 0);
@@ -618,15 +650,6 @@ export function LandingExperimentTab({
   const goalLabel = data.experiment
     ? BEHAVIOUR_LABELS[data.experiment.primaryGoal] ?? data.experiment.primaryGoal
     : "Conversions";
-  /* The card counts leads - details handed over, with or without a time picked -
-     so it cannot borrow the goal's own label, which names the booking event and
-     read "Bookings completed" while the number underneath had stopped meaning
-     that. BEHAVIOUR_LABELS is left alone because it still describes the raw
-     event correctly everywhere else it appears. */
-  const conversionNote =
-    data.experiment?.primaryGoal === "booking_complete"
-      ? "Google Ads sessions that submitted details or booked a call"
-      : goalLabel;
   const running = data.experiment?.status?.toLowerCase() === "running";
   // Resolved against every page, not the filtered list: the selected page keeps
   // its sections and preview regardless of what the list is currently showing.
@@ -865,30 +888,39 @@ export function LandingExperimentTab({
             value={headlineEngagedSessions.toLocaleString()}
             note="Google Ads sessions engaged for at least three seconds"
           />
-          <StatCard label="Conversions" value={headlineConversions.toLocaleString()} note={conversionNote} />
+          <StatCard
+            label="Conversions"
+            value={headlineConversions.toLocaleString()}
+            breakdown={[
+              { label: "Form submits", value: headlineFormConversions.toLocaleString() },
+              { label: "Chat sign-ups", value: headlineChatLeadSessions.toLocaleString() },
+            ]}
+          />
           <StatCard
             label="Checklist sign-ups"
             value={headlineChecklistSessions.toLocaleString()}
             note="Google Ads sessions that downloaded the readiness checklist"
           />
+          {/* Conversations begun that never reached an email. Not a lead, so it
+              stays outside the conversions card - it reads as chat drop-off
+              against the sign-ups counted inside it. */}
           <StatCard
             label="Chats started"
             value={headlineChatSessions.toLocaleString()}
             note="Google Ads sessions that started a chat with the HubSpot bot"
           />
-          <StatCard
-            label="Chat sign-ups"
-            value={headlineChatLeadSessions.toLocaleString()}
-            note="Chats that gave an email, so HubSpot created a contact"
-          />
+          {/* Rate of the total above, so it moves with chat sign-ups too. The
+              per-market split beside it is the experiment's own goal measure,
+              which counts the raw goal event and knows nothing about chat, so it
+              is labelled rather than left to look like a contradiction. */}
           <StatCard
             label="Conversion rate"
             value={pct(headlineConversionRate)}
             accent
             note={
               realMarkets.length > 1
-                ? realMarkets.map((m) => `${m.key} ${pct(m.conversionRate)}`).join(" · ")
-                : "Google Ads sessions that reached the primary goal"
+                ? `Form goal by market: ${realMarkets.map((m) => `${m.key} ${pct(m.conversionRate)}`).join(" · ")}`
+                : "Google Ads sessions that submitted the form or signed up in chat"
             }
           />
           {/* Active time, not wall-clock: a tab left open in the background is
