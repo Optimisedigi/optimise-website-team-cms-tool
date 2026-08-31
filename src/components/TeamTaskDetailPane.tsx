@@ -165,6 +165,7 @@ function RichBox({ value, onSave, placeholder }: { value: string; onSave: (value
     <div
       key={initialHtml}
       ref={editorRef}
+      className="od-rich-text"
       contentEditable
       suppressContentEditableWarning
       dangerouslySetInnerHTML={{ __html: initialHtml }}
@@ -668,7 +669,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
                         <strong>{relName(row.author, users)}</strong>
                         {row.createdAt && <span style={{ color: 'var(--theme-elevation-500)', fontSize: 12 }}>{new Date(row.createdAt).toLocaleString('en-AU')}</span>}
                       </div>
-                      <div dangerouslySetInnerHTML={{ __html: htmlFromPlainText(row.body) }} style={{ padding: 12, borderRadius: 10, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-100)', lineHeight: 1.45 }} />
+                      <div className="od-rich-text" dangerouslySetInnerHTML={{ __html: htmlFromPlainText(row.body) }} style={{ padding: 12, borderRadius: 10, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-100)', lineHeight: 1.45 }} />
                     </div>
                   </article>
                 ))}

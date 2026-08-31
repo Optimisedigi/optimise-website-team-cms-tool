@@ -8679,3 +8679,27 @@ body.od-client-record {
     }
   }
 }
+
+/* Payload's base reset strips list markers, so bulleted/numbered notes in team
+   task editors, comments and previews rendered as bare indented text. */
+.od-rich-text {
+  ul,
+  ol {
+    margin: 6px 0;
+    padding-left: 22px;
+  }
+
+  ul {
+    list-style: disc outside;
+  }
+
+  ol {
+    list-style: decimal outside;
+  }
+
+  li {
+    display: list-item;
+    margin: 2px 0;
+    list-style: inherit;
+  }
+}

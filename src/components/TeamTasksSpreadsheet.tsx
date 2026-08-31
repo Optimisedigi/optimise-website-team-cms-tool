@@ -75,6 +75,19 @@ function openDatePicker(input: HTMLInputElement) {
   else pickerInput.focus()
 }
 
+// Star cycle: none → ★ (high) → ★★ (urgent) → none.
+function priorityRank(priority?: string): number {
+  if (priority === 'urgent') return 2
+  if (priority === 'high') return 1
+  return 0
+}
+
+function nextPriority(priority?: string): string {
+  if (priority === 'high') return 'urgent'
+  if (priority === 'urgent') return 'normal'
+  return 'high'
+}
+
 function statusTone(status: string): React.CSSProperties {
   if (status === 'completed') return { background: '#dcfce7', color: '#166534' }
   if (status === 'ready_for_review') return { background: '#fef3c7', color: '#92400e' }
@@ -159,6 +172,7 @@ function NotesEditor({ value, onSave, minWidth = 320 }: { value: string; onSave:
     <div style={{ minWidth, width: '100%' }}>
       <div
         ref={editorRef}
+        className="od-rich-text"
         contentEditable
         suppressContentEditableWarning
         dangerouslySetInnerHTML={{ __html: initialHtml }}
@@ -359,6 +373,10 @@ export default function TeamTasksSpreadsheet() {
       const week = taskWeek(task.dueDate) || weekStart
       if (!groups.has(week)) groups.set(week, [])
       groups.get(week)!.push(task)
+    }
+    // Prioritised tasks float to the top of their own week, double star first.
+    for (const rows of groups.values()) {
+      rows.sort((a, b) => priorityRank(b.priority) - priorityRank(a.priority))
     }
     return Array.from(groups.entries())
   }, [tasks, weekStart])
@@ -639,6 +657,16 @@ export default function TeamTasksSpreadsheet() {
                   <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
                     <button
                       type="button"
+                      onClick={() => void patch(task.id, { priority: nextPriority(task.priority) })}
+                      disabled={!canEditTaskFields || savingId === task.id}
+                      aria-label={`Change priority for ${task.title || 'task'}`}
+                      title={priorityRank(task.priority) === 2 ? 'Top priority — click to clear' : priorityRank(task.priority) === 1 ? 'Priority — click for top priority' : 'Set priority'}
+                      style={{ ...inputStyle, width: 36, height: 36, padding: 0, cursor: canEditTaskFields ? 'pointer' : 'default', color: priorityRank(task.priority) ? '#b45309' : 'var(--theme-elevation-400)', fontSize: 12, letterSpacing: -1, fontWeight: 900 }}
+                    >
+                      {priorityRank(task.priority) === 2 ? '★★' : '★'}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => openTask(task.id)}
                       aria-label={`Open details for ${task.title || 'task'}`}
                       title="Open task details"
@@ -668,16 +696,16 @@ export default function TeamTasksSpreadsheet() {
                   <td colSpan={8} style={{ padding: '8px 10px 12px', borderBottom: '1px solid var(--theme-elevation-100)' }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <button type="button" onClick={() => void addRow()} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#14b8a6', borderColor: '#0f766e', color: '#fff' }}>
-                        {savingId === 'new' ? 'Adding row…' : '+ Add row'}
-                      </button>
-                      <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#7c3aed', borderColor: '#5b21b6', color: '#fff' }}>
-                        {savingId === 'new' ? 'Adding week…' : '+ Add week'}
+                        {savingId === 'new' ? 'Adding task…' : 'Add task this week'}
                       </button>
                       {isAdmin && (
                         <button type="button" onClick={() => window.dispatchEvent(new Event('optimate:open-taskmate'))} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#111827', borderColor: '#111827', color: '#fff' }}>
                           Open TaskMate
                         </button>
                       )}
+                      <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, marginLeft: 'auto', cursor: 'pointer', fontWeight: 900, background: '#7c3aed', borderColor: '#5b21b6', color: '#fff' }}>
+                        {savingId === 'new' ? 'Adding week…' : '+ Add week'}
+                      </button>
                     </div>
                   </td>
                 </tr>
