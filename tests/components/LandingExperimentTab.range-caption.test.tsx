@@ -71,8 +71,10 @@ describe("landing dashboard range control", () => {
     render(<LandingExperimentTab slug="away-digital-teams" />);
     await screen.findByLabelText(/Range/);
 
-    // Default: this week, Monday through today.
-    expect(caption()).toBe("17 Aug 2026 – 20 Aug 2026");
+    // Default: this week, Monday through today. The clock above is 2am on the
+    // 21st in Sydney, the zone the dashboard cuts its days in, so "today" is
+    // the 21st even though it is still the 20th in UTC.
+    expect(caption()).toBe("17 Aug 2026 – 21 Aug 2026");
 
     fireEvent.change(await screen.findByLabelText(/Range/), { target: { value: "last_week" } });
 

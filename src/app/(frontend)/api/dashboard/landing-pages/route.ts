@@ -6,7 +6,7 @@ import { validateDashboardToken } from "../verify/route";
 import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
 import { resolveLandingDateRange } from "@/lib/landing-date-range";
 import { LANDING_PAGES } from "@/lib/landing-page-sections";
-import { READINESS_CHECKLIST_FORM_ID } from "@/lib/landing-experiment-report";
+import { LEAD_SQL_PREDICATE, READINESS_CHECKLIST_FORM_ID } from "@/lib/landing-experiment-report";
 
 /**
  * The generated landing pages, read from the manifest the landing build emits.
@@ -61,7 +61,7 @@ interface Engagement {
   engagedSessions: number;
   /** Engaged sessions that also carried a Google click ID. */
   paidEngagedSessions: number;
-  /** Sessions with a completed booking. Form submits (including the checklist) are not conversions. */
+  /** Sessions that became a lead: an accepted qualification submit, or a booking. */
   conversionSessions: number;
   /** Sessions that signed up for the readiness checklist. */
   checklistSessions: number;
@@ -236,7 +236,9 @@ async function loadEngagement(
              page_id,
              MAX(CASE WHEN attribution LIKE '%gclid%' OR attribution LIKE '%gbraid%' OR attribution LIKE '%wbraid%' THEN 1 ELSE 0 END) AS paid,
              MAX(CASE WHEN event_type = 'section_engaged' THEN 1 ELSE 0 END) AS engaged,
-             MAX(CASE WHEN event_type = 'booking_complete' THEN 1 ELSE 0 END) AS converted,
+             /* A lead, matching what HubSpot records: details handed over, with
+                or without a time picked. The predicate is a module constant. */
+             MAX(CASE WHEN ${LEAD_SQL_PREDICATE} THEN 1 ELSE 0 END) AS converted,
              /* The checklist sign-up is a form_submit narrowed by form id, not
                 its own event type. The id is a module constant. */
              MAX(CASE WHEN event_type = 'form_submit'

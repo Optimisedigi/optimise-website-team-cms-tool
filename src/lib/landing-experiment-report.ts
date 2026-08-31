@@ -53,6 +53,33 @@ export interface ComparisonSummary {
 export const READINESS_CHECKLIST_GOAL = "readiness_checklist";
 export const READINESS_CHECKLIST_FORM_ID = "readiness-checklist";
 
+/**
+ * The qualification form, whose submit is what creates the HubSpot contact.
+ *
+ * `result` reads `accepted` only once HubSpot has taken the submission. A
+ * `deferred` submit means the CRM write did not land, and the booking step
+ * retries the lead before it books, so counting deferred submits would report
+ * leads that never reached HubSpot.
+ */
+export const QUALIFICATION_FORM_ID = "qualification";
+export const QUALIFICATION_ACCEPTED_RESULT = "accepted";
+
+/**
+ * A lead, as the client counts one: the visitor handed over their details.
+ *
+ * The dashboard used to count only `booking_complete`, so someone who submitted
+ * the qualification form and never picked a time showed up in HubSpot as a paid
+ * sign-up while the dashboard reported zero. Bookings stay included because the
+ * shortcut path books without passing through the details step at all.
+ *
+ * Applied per session, so a visitor who submits and then books is one lead.
+ * Both halves are module constants, never caller input.
+ */
+export const LEAD_SQL_PREDICATE =
+  "(`event_type` = 'booking_complete' OR (`event_type` = 'form_submit'" +
+  " AND json_extract(`properties`, '$.form_id') = '" + QUALIFICATION_FORM_ID + "'" +
+  " AND json_extract(`properties`, '$.result') = '" + QUALIFICATION_ACCEPTED_RESULT + "'))";
+
 /** Does this event satisfy `goal`, for goals that are event types and for those that are not. */
 export function matchesGoal(
   goal: string,

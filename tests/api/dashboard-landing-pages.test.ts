@@ -42,6 +42,7 @@ const mockFind = vi.fn();
 const mockRun = vi.fn();
 
 import { GET } from "@/app/(frontend)/api/dashboard/landing-pages/route";
+import { LEAD_SQL_PREDICATE, READINESS_CHECKLIST_FORM_ID } from "@/lib/landing-experiment-report";
 
 const SLUG = "away-digital-teams";
 
@@ -436,7 +437,13 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
 
   });
 
-  it("counts bookings only as conversions, not form submits", async () => {
+  /*
+   * Conversions count leads, not bookings. HubSpot records the contact when the
+   * qualification form is accepted, so counting bookings alone reported zero
+   * against a HubSpot sign-up whenever the visitor gave their details and never
+   * picked a time. Deferred submits stay out: HubSpot rejected those.
+   */
+  it("counts accepted qualification submits and bookings as conversions", async () => {
     mockFind.mockResolvedValue({ docs: [{ id: 7 }] });
     stubManifest(MANIFEST);
 
@@ -448,8 +455,27 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
       return chunks.flatMap((chunk) => (Array.isArray(chunk?.value) ? chunk.value : [])).filter((part): part is string => typeof part === "string").join("");
     };
     const engagementSql = mockRun.mock.calls.map((call) => sqlText(call[0])).find((sql) => sql.includes("AS converted"));
-    expect(engagementSql).toContain("event_type = 'booking_complete'");
-    expect(engagementSql).not.toContain("event_type IN ('booking_complete', 'form_submit')");
+
+    // The whole predicate, verbatim, rather than substrings: a partial match
+    // would pass against an OR that had lost a branch or dropped the `result`
+    // filter, which are exactly the ways this can silently go wrong again.
+    // The inner group may not itself span another MAX(CASE WHEN, or the match
+    // starts at an earlier column and swallows the ones between.
+    const converted = engagementSql?.match(
+      /MAX\(CASE WHEN ((?:(?!MAX\(CASE WHEN)[\s\S])*?) THEN 1 ELSE 0 END\) AS converted/,
+    )?.[1];
+    expect(converted).toBe(LEAD_SQL_PREDICATE);
+    expect(converted).toBe(
+      "(`event_type` = 'booking_complete' OR (`event_type` = 'form_submit'" +
+      " AND json_extract(`properties`, '$.form_id') = 'qualification'" +
+      " AND json_extract(`properties`, '$.result') = 'accepted'))",
+    );
+
+    // A deferred submit never reached HubSpot, so it is not a lead.
+    expect(converted).not.toContain("'deferred'");
+    // The checklist is a separate column, never folded into conversions.
+    expect(converted).not.toContain(READINESS_CHECKLIST_FORM_ID);
+    expect(engagementSql).toContain("AS checklist");
   });
 
   it("reports no engagement rather than failing when the query errors", async () => {

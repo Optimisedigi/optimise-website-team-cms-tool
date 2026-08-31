@@ -544,9 +544,11 @@ describe("landing experiment dashboard route", () => {
     const body = await res.json();
 
     expect(body.rangeDays).toBe(3);
+    // Both ends are Sydney midnights, the zone the dashboard reports its days
+    // in, so the scan covers the same days HubSpot and Google Ads do.
     expect(payloadMock.find.mock.calls[3][0].where.occurredAt).toEqual({
-      greater_than_equal: "2026-08-18T00:00:00.000Z",
-      less_than: "2026-08-21T00:00:00.000Z",
+      greater_than_equal: "2026-08-17T14:00:00.000Z",
+      less_than: "2026-08-20T14:00:00.000Z",
     });
   });
 
