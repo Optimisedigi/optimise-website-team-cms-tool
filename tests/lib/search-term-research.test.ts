@@ -196,7 +196,7 @@ describe("researchSearchTerms", () => {
     expect(opts.fallbackModels).toEqual(["claude-sonnet-5", "minimax-m3"]);
   });
 
-  it("uses the configured Research Terms model without the autonomous fallback chain", async () => {
+  it("uses the configured Research Terms model but keeps the fallback chain", async () => {
     mockGetOptiMateDefaultModels.mockResolvedValue({
       defaultAutonomousModel: "minimax-m3",
       searchTermResearchModel: "claude-haiku-4.5",
@@ -207,7 +207,7 @@ describe("researchSearchTerms", () => {
     await researchSearchTerms(["acme"]);
 
     expect(mockCallLLM.mock.calls[0][0]).toMatchObject({ model: "claude-haiku-4.5" });
-    expect(mockCallLLM.mock.calls[0][0].fallbackModels).toBeUndefined();
+    expect(mockCallLLM.mock.calls[0][0].fallbackModels).toEqual(["claude-sonnet-5", "minimax-m3"]);
   });
 
   it("(5) duplicate / whitespace / empty input terms are deduped before grounding", async () => {
@@ -275,6 +275,9 @@ describe("researchSearchTerms", () => {
     expect(res.grounded).toBe(true); // GT still grounded this term
     expect(res.results[0].grounded).toBe(true);
     expect(res.results[0].summary).toMatch(/No summary available/);
+    // The modal shows this reason, so a rate-limited model is distinguishable
+    // from a genuinely unknown term.
+    expect(res.summariserError).toBe("all providers failed");
     expect(mockCallLLM).toHaveBeenCalledTimes(1); // attempted, then fell back gracefully
   });
 

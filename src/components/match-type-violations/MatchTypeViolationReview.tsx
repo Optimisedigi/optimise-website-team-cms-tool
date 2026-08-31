@@ -647,6 +647,7 @@ function TermResearchModal({
   error,
   results,
   grounded,
+  summariserError,
   termCandidates,
   busy,
   negativeFor,
@@ -661,6 +662,8 @@ function TermResearchModal({
   error: string | null
   results: TermResearchResult[] | null
   grounded: boolean
+  /** Reason the AI summariser produced nothing, when it failed outright. */
+  summariserError: string | null
   /** Lowercased search term → still-pending candidate it maps to. */
   termCandidates: Map<string, Candidate>
   busy: boolean
@@ -757,6 +760,11 @@ function TermResearchModal({
             {!grounded && (
               <span style={{ display: 'block', marginTop: 6, color: '#9a3412' }}>
                 Live Google grounding is unavailable (Growth Tools SERP lookup not reachable/configured), so summaries fall back to the model’s own knowledge.
+              </span>
+            )}
+            {summariserError && (
+              <span style={{ display: 'block', marginTop: 6, color: '#b91c1c' }}>
+                AI summaries failed — {summariserError}. Check the Research Terms model in OptiMate Settings.
               </span>
             )}
           </p>
@@ -958,6 +966,8 @@ export default function MatchTypeViolationReview({
   const [researchError, setResearchError] = useState<string | null>(null)
   const [researchResults, setResearchResults] = useState<TermResearchResult[] | null>(null)
   const [researchGrounded, setResearchGrounded] = useState(true)
+  // Why the AI summariser returned nothing (e.g. the selected model is rate-limited).
+  const [researchSummariserError, setResearchSummariserError] = useState<string | null>(null)
 
   // Collapsible help, inline negative edits, and column visibility
   const [helpOpen, setHelpOpen] = useState(false)
@@ -1534,6 +1544,7 @@ export default function MatchTypeViolationReview({
     setResearchResults(null)
     setResearchError(null)
     setResearchGrounded(true)
+    setResearchSummariserError(null)
     setResearchLoading(true)
     // Load the client's negative keyword lists so the modal's NKL selector can
     // offer an existing list instead of only auto-routing.
@@ -1548,6 +1559,7 @@ export default function MatchTypeViolationReview({
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setResearchResults(Array.isArray(data?.results) ? data.results : [])
       setResearchGrounded(data?.grounded !== false)
+      setResearchSummariserError(typeof data?.summariserError === 'string' ? data.summariserError : null)
     } catch (e: any) {
       setResearchError(e?.message || 'Failed to research search terms')
     } finally {
@@ -2137,6 +2149,7 @@ export default function MatchTypeViolationReview({
           error={researchError}
           results={researchResults}
           grounded={researchGrounded}
+          summariserError={researchSummariserError}
           termCandidates={researchTermCandidates}
           busy={bulkLoading}
           negativeFor={negativeFor}

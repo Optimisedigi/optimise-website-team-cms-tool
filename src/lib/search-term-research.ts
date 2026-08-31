@@ -24,9 +24,10 @@ import { getOptiMateDefaultModels } from '@/lib/agents/_shared/optimate-default-
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
 
-// Retain the established resilient fallback chain only when the configured
-// autonomous default is selected for this task.
-const AUTONOMOUS_FALLBACK_MODELS = ['claude-sonnet-5', 'minimax-m3']
+// Resilient fallback chain. Applied whichever model is selected: a task-specific
+// pick expresses a preference, not a reason to return "no summary available"
+// when that one provider is rate-limited or out of credit.
+const FALLBACK_MODELS = ['claude-sonnet-5', 'minimax-m3']
 
 export interface TermResearchSource {
   title: string
@@ -45,6 +46,12 @@ export interface TermResearchResponse {
   /** True when live Google grounding was available (Growth Tools' Serper key is set). */
   grounded: boolean
   results: TermResearchResult[]
+  /**
+   * Why summarisation produced nothing, when it failed. Surfaced in the review
+   * modal: a silent "No summary available" per row gave reviewers no way to tell
+   * a rate-limited provider from a genuinely unknown term.
+   */
+  summariserError?: string
 }
 
 interface GroundedTerm {
@@ -146,9 +153,11 @@ function extractJsonArray(text: string): unknown {
 }
 
 /** Ask the LLM to compress grounded context into one sentence per term. */
-async function summariseGroundedTerms(grounded: GroundedTerm[]): Promise<Map<string, string>> {
+async function summariseGroundedTerms(
+  grounded: GroundedTerm[],
+): Promise<{ summaries: Map<string, string>; error?: string }> {
   const summaries = new Map<string, string>()
-  if (grounded.length === 0) return summaries
+  if (grounded.length === 0) return { summaries }
 
   const systemPrompt = [
     'You explain unfamiliar Google Ads search terms to a paid-search analyst.',
@@ -170,11 +179,10 @@ async function summariseGroundedTerms(grounded: GroundedTerm[]): Promise<Map<str
     // pass before emitting the visible JSON array.
     const defaults = await getOptiMateDefaultModels()
     const model = defaults.searchTermResearchModel ?? defaults.defaultAutonomousModel
+    // callLLM dedupes the chain, so the primary model may safely repeat here.
     const response = await callLLM({
       model,
-      ...(!defaults.searchTermResearchModel
-        ? { fallbackModels: AUTONOMOUS_FALLBACK_MODELS }
-        : {}),
+      fallbackModels: FALLBACK_MODELS,
       maxTokens: 4000,
       temperature: 0.2,
       system: systemPrompt,
@@ -194,8 +202,9 @@ async function summariseGroundedTerms(grounded: GroundedTerm[]): Promise<Map<str
     }
   } catch (err) {
     console.error('[search-term-research] summarisation failed:', err)
+    return { summaries, error: err instanceof Error ? err.message : String(err) }
   }
-  return summaries
+  return { summaries }
 }
 
 /**
@@ -216,7 +225,7 @@ export async function researchSearchTerms(rawTerms: string[]): Promise<TermResea
   if (terms.length === 0) return { grounded: false, results: [] }
 
   const { grounded, configured } = await fetchTopResults(terms)
-  const summaries = await summariseGroundedTerms(grounded)
+  const { summaries, error: summariserError } = await summariseGroundedTerms(grounded)
 
   const results = grounded.map((g) => {
     const summary = summaries.get(g.term.toLowerCase())
@@ -228,5 +237,5 @@ export async function researchSearchTerms(rawTerms: string[]): Promise<TermResea
     }
   })
 
-  return { grounded: configured, results }
+  return { grounded: configured, results, ...(summariserError ? { summariserError } : {}) }
 }

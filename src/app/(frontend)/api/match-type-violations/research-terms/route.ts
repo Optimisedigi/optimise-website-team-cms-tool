@@ -46,8 +46,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { results, grounded } = await researchSearchTerms(cleaned);
-    return NextResponse.json({ results, grounded });
+    const { results, grounded, summariserError } =
+      await researchSearchTerms(cleaned);
+    return NextResponse.json({ results, grounded, summariserError });
   } catch (err: any) {
     console.error("[match-type-violations/research-terms] failed:", err);
     return NextResponse.json(
