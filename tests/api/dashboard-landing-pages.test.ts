@@ -518,10 +518,18 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
     expect(columnFor("chat_lead")).toBe(CHAT_LEAD_SQL_PREDICATE);
     expect(columnFor("chat_lead")).toBe("`event_type` = 'chat_identified'");
 
-    // Split by paid the same way every other outcome is, or the stat cards -
-    // which read Google Ads sessions only - would silently report organic chats.
-    expect(engagementSql).toContain("AS paid_chat");
-    expect(engagementSql).toContain("AS paid_chat_lead");
+    /* Split by paid the same way every other outcome is, or the stat cards -
+       which read Google Ads sessions only - would silently report organic chats.
+
+       The whole aggregate, not the alias: "AS paid_chat" is a substring of
+       "AS paid_chat_lead", so a contains-check on the shorter name passes even
+       when that column has been deleted outright. */
+    expect(engagementSql).toContain(
+      "SUM(CASE WHEN paid = 1 AND chat = 1 THEN 1 ELSE 0 END) AS paid_chat,",
+    );
+    expect(engagementSql).toContain(
+      "SUM(CASE WHEN paid = 1 AND chat_lead = 1 THEN 1 ELSE 0 END) AS paid_chat_lead",
+    );
   });
 
   it("reports no engagement rather than failing when the query errors", async () => {
