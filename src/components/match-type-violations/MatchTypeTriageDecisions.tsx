@@ -387,8 +387,8 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                               borderRadius: 4,
                             }}
                           >
-                            <strong>Better ad group:</strong> {row.aiSuggestedAdGroup} — approving here adds it
-                            to <em>{row.adGroupName}</em>, so move it manually if you agree.
+                            <strong>Will be added to:</strong> {row.aiSuggestedAdGroup} (exact) — and blocked
+                            in <em>{row.adGroupName}</em> as an exact negative, so only one group can serve it.
                           </span>
                         )}
                         {/* Labelled so a reviewer can tell the AI's judgement from the

@@ -177,15 +177,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   type KeywordTarget = { adGroupId: string; adGroupName: string; campaignName?: string };
 
+  /** Country token (US/AU/UK/NZ/CA) in a campaign name, so a reroute stays in-market. */
+  function campaignGeo(name: string): string | null {
+    return name.match(/\b(US|AU|UK|NZ|CA)\b/i)?.[1]?.toUpperCase() ?? null;
+  }
+
   function chooseExactTarget(candidate: any): KeywordTarget | null {
-    const adGroupName = String(candidate.adGroupName ?? "").trim();
+    // The weekly triage may name a better-fitting ad group than the one that
+    // triggered the violation. Honour it: the keyword is added there, and the
+    // source ad group still gets an exact negative (see shouldNegateSource), so
+    // the two groups cannot both serve this term.
+    const suggested = String(candidate.aiSuggestedAdGroup ?? "").trim();
+    const sourceAdGroup = String(candidate.adGroupName ?? "").trim();
+    const adGroupName = suggested || sourceAdGroup;
     const campaignName = String(candidate.campaignName ?? "").trim();
     if (!adGroupName) return null;
     const nameMatches = adGroups.filter(
       (g) => g.adGroupId && String(g.adGroupName ?? "").toLowerCase() === adGroupName.toLowerCase(),
     );
     const enabledMatches = nameMatches.filter((g) => String(g.status ?? "ENABLED").toUpperCase() !== "REMOVED");
-    const matches = enabledMatches.length > 0 ? enabledMatches : nameMatches;
+    let matches = enabledMatches.length > 0 ? enabledMatches : nameMatches;
+    // A rerouted group normally exists in both the US and AU campaigns; sending
+    // an AU term into the US campaign would be a silent geo mistake.
+    const sourceGeo = campaignGeo(campaignName);
+    if (suggested && sourceGeo) {
+      const sameGeo = matches.filter((g) => campaignGeo(String(g.campaignName ?? "")) === sourceGeo);
+      if (sameGeo.length > 0) matches = sameGeo;
+    }
     const exactEquivalent = exactCampaignEquivalent(campaignName).toLowerCase();
     const target =
       matches.find((g) => String(g.campaignName ?? "").toLowerCase() === exactEquivalent) ??
