@@ -103,8 +103,8 @@ describe("add-exact-bulk ad group routing", () => {
     const res = await POST(request([7]));
     expect(res.status).toBe(200);
 
-    // Ad group 2 = Vietnam developer/IT in the AU campaign.
-    expect(addCalls.map((c) => c.adGroupId)).toEqual(["2"]);
+    // AU source also mirrors to the US copy of the same ad group.
+    expect(addCalls.map((c) => c.adGroupId)).toEqual(["2", "3"]);
   });
 
   it("still negates the term in the original ad group so both cannot serve it", async () => {
@@ -129,8 +129,8 @@ describe("add-exact-bulk ad group routing", () => {
 
     await POST(request([7]));
 
-    // Ad group 3 = the US copy, not the AU one.
-    expect(addCalls.map((c) => c.adGroupId)).toEqual(["3"]);
+    // US source also mirrors to the AU copy of the same ad group.
+    expect(addCalls.map((c) => c.adGroupId)).toEqual(["3", "2"]);
   });
 
   it("falls back to the triggering ad group when there is no suggestion", async () => {
@@ -156,9 +156,8 @@ describe("add-exact-bulk ad group routing", () => {
 
     await POST(request([7]));
 
-    // Ad group 6 = the AU Admin group. Ad group 5 (US) would be a geo mistake,
-    // and it is listed first, so picking it is the natural failure mode.
-    expect(addCalls.map((c) => c.adGroupId)).toEqual(["6"]);
+    // AU Admin plus the US Admin copy.
+    expect(addCalls.map((c) => c.adGroupId)).toEqual(["6", "5"]);
   });
 
   it("ignores a suggested ad group that does not exist in the account", async () => {
@@ -168,5 +167,34 @@ describe("add-exact-bulk ad group routing", () => {
 
     expect(addCalls).toEqual([]);
     expect(negateExactInOwnList).not.toHaveBeenCalled();
+  });
+
+  it("returns a per-term receipt of where keywords and negatives landed", async () => {
+    mockPayload.findByID.mockResolvedValue(candidate({ aiSuggestedAdGroup: "Vietnam developer/IT" }));
+    negateExactInOwnList.mockResolvedValue({
+      alreadyPresent: false,
+      listName: "[OD] Generic Vietnam outsourcing NKL",
+      listId: 99,
+      createdList: true,
+    });
+
+    const res = await POST(request([7]));
+    const body = await res.json();
+
+    expect(body.terms).toEqual([
+      expect.objectContaining({
+        term: "custom software development vietnam",
+        outcome: "added",
+        addedTo: expect.arrayContaining([
+          expect.objectContaining({ adGroupName: "Vietnam developer/IT" }),
+        ]),
+        negatedIn: [
+          {
+            listName: "[OD] Generic Vietnam outsourcing NKL",
+            adGroupName: "Generic Vietnam outsourcing",
+          },
+        ],
+      }),
+    ]);
   });
 });

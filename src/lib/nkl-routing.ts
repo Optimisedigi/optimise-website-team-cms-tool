@@ -80,12 +80,8 @@ export function pickAdGroupList<T extends RoutableNkl>(
     if (regexAdGroup) return regexAdGroup;
   }
 
-  if (campaignName) {
-    const regexCampaign = active.find(
-      (l) => !!l.campaignRegex && matchesPattern(campaignName, l.campaignRegex),
-    );
-    if (regexCampaign) return regexCampaign;
-  }
-
+  // Campaign/account lists must not steal source-ad-group negatives: a Vietnam
+  // campaign regex would otherwise land an exact negative on a shared campaign
+  // list and block the term more widely than the leftover generic group.
   return null;
 }

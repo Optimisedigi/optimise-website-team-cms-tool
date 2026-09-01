@@ -32,7 +32,7 @@ const decided = [
 
 let violationUrls: string[] = [];
 
-function mockFetch(docs: unknown[]) {
+function mockFetch(docs: unknown[], extras: { addExact?: unknown } = {}) {
   return vi.fn((url: string, init?: RequestInit) => {
     if (String(url).startsWith("/api/negative-keyword-lists")) {
       return Promise.resolve({
@@ -45,6 +45,12 @@ function mockFetch(docs: unknown[]) {
       return Promise.resolve({
         ok: true,
         json: async () => ({ docs, totalDocs: docs.length, totalPages: 1 }),
+      } as unknown as Response);
+    }
+    if (String(url).includes("add-exact-bulk") && extras.addExact) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => extras.addExact,
       } as unknown as Response);
     }
     return Promise.resolve({ ok: true, json: async () => ({ ok: true }), text: async () => "" } as unknown as Response);
@@ -240,5 +246,39 @@ describe("choosing a negative keyword list per bucket", () => {
         assignedListId: "55",
       });
     });
+  });
+});
+
+describe("action receipt", () => {
+  it("shows where each exact keyword and source negative landed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(decided, {
+        addExact: {
+          ok: true,
+          added: 1,
+          negated: 1,
+          terms: [
+            {
+              term: "offshore developers",
+              outcome: "added",
+              addedTo: [
+                { adGroupName: "Vietnam developer/IT", campaignName: "Search - Generic - Vietnam - AU - Exact" },
+                { adGroupName: "Vietnam developer/IT", campaignName: "Search - Generic - Vietnam - US - Exact" },
+              ],
+              negatedIn: [{ listName: "[OD] Generic Vietnam outsourcing NKL", adGroupName: "Generic Vietnam outsourcing" }],
+            },
+          ],
+        },
+      }),
+    );
+    render(<MatchTypeTriageDecisions clientId="6" />);
+    await screen.findByText("Add as exact keyword (1)");
+    fireEvent.click(screen.getAllByText("Select all")[0]);
+    fireEvent.click(screen.getByText("Add as exact keywords (1)"));
+    expect(await screen.findByText("Added 1 term(s) and 1 source negative(s).")).toBeTruthy();
+    fireEvent.click(screen.getByText("See details"));
+    expect(screen.getAllByText(/Added as exact in Vietnam developer\/IT/).length).toBe(2);
+    expect(screen.getByText(/Exact negative in Generic Vietnam outsourcing/)).toBeTruthy();
   });
 });

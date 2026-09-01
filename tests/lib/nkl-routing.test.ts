@@ -53,12 +53,14 @@ describe("pickAdGroupList", () => {
     expect(matchesPattern("premium_services_group", "premium")).toBe(true);
   });
 
-  it("falls back to a campaign regex match (shared multi-region list)", () => {
+  it("does not fall through to a campaign-scoped list", () => {
+    // Campaign/account regex matching over-blocked source negatives onto shared
+    // lists. Auto routing now only returns an ad-group list, or nothing.
     const picked = pickAdGroupList(lists, {
       adGroupName: "no_match_here",
       campaignName: "search_google-ads-services_qld",
     });
-    expect(picked?.id).toBe(3);
+    expect(picked).toBeNull();
   });
 
   it("returns null when nothing matches", () => {

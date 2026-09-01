@@ -124,6 +124,15 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
   const [busyBucket, setBusyBucket] = useState<Bucket | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [receipt, setReceipt] = useState<{
+    summary: string
+    terms: Array<{
+      term: string
+      outcome: string
+      addedTo: Array<{ adGroupName: string; campaignName: string }>
+      negatedIn: Array<{ listName: string; adGroupName: string }>
+    }>
+  } | null>(null)
 
   const fetchDocs = useCallback(async () => {
     if (!clientId) return
@@ -217,6 +226,7 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
     setBusyBucket(bucket)
     setError(null)
     setNotice(null)
+    setReceipt(null)
     try {
       const res = await fetch(`/api/match-type-violations/${path}`, {
         method: 'POST',
@@ -226,7 +236,16 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error ?? (await res.text().catch(() => `HTTP ${res.status}`)))
-      setNotice(`${verb} ${(body.candidateIds as string[]).length} term(s).`)
+      const terms = Array.isArray(data.terms) ? data.terms : []
+      const requested = Array.isArray(body.candidateIds) ? body.candidateIds.length : 0
+      const addedCount = Number(data.added ?? requested)
+      const negatedCount = Number(data.negated ?? 0)
+      setNotice(
+        terms.length > 0
+          ? `${verb} ${addedCount} term(s)${negatedCount > 0 ? ` and ${negatedCount} source negative(s)` : ''}.`
+          : `${verb} ${requested} term(s).`,
+      )
+      if (terms.length > 0) setReceipt({ summary: `${verb} ${addedCount} term(s)${negatedCount > 0 ? ` and ${negatedCount} source negative(s)` : ''}.`, terms })
       await fetchDocs()
     } catch (e) {
       setError(e instanceof Error ? e.message : `Failed to ${verb.toLowerCase()}`)
@@ -290,7 +309,35 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
       </div>
 
       {error && <div style={{ padding: 12, border: '1px solid #fecaca', borderRadius: 6, background: '#fef2f2', color: '#dc2626', marginBottom: 16, fontSize: 13 }}>{error}</div>}
-      {notice && <div style={{ padding: 12, border: '1px solid #bbf7d0', borderRadius: 6, background: '#f0fdf4', color: '#166534', marginBottom: 16, fontSize: 13 }}>{notice}</div>}
+      {(notice || receipt) && (
+        <div style={{ padding: 12, border: '1px solid #bbf7d0', borderRadius: 6, background: '#f0fdf4', color: '#166534', marginBottom: 16, fontSize: 13 }}>
+          <div>{receipt?.summary ?? notice}</div>
+          {receipt && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>See details</summary>
+              <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                {receipt.terms.map((term) => (
+                  <div key={term.term} style={{ padding: 8, background: 'white', borderRadius: 6, color: '#111827' }}>
+                    <strong>{term.term}</strong>
+                    {term.addedTo.map((dest) => (
+                      <div key={`${dest.campaignName}-${dest.adGroupName}`} style={{ fontSize: 12, color: '#374151' }}>
+                        Added as exact in {dest.adGroupName}
+                        {dest.campaignName ? ` · ${dest.campaignName}` : ''}
+                      </div>
+                    ))}
+                    {term.negatedIn.map((neg) => (
+                      <div key={`${neg.listName}-${neg.adGroupName}`} style={{ fontSize: 12, color: '#92400e' }}>
+                        Exact negative in {neg.adGroupName || neg.listName}
+                        {neg.listName && neg.adGroupName ? ` (${neg.listName})` : ''}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading…</div>

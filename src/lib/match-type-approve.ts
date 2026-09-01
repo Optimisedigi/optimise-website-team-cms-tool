@@ -82,7 +82,10 @@ export async function resolveTargetList(
     adGroupName: candidate.adGroupName,
     campaignName: candidate.campaignName,
   });
-  if (picked) return { listId: picked.id, created: false };
+  // Only an ad-group list is a valid auto destination. A campaign/account list
+  // matching via regex would over-block the term (what happened on the first
+  // Away Digital Teams exact-keyword apply).
+  if (picked?.scope === "ad_group") return { listId: picked.id, created: false };
 
   const adGroupName =
     String(candidate.adGroupName ?? "").trim() ||

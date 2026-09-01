@@ -182,7 +182,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return name.match(/\b(US|AU|UK|NZ|CA)\b/i)?.[1]?.toUpperCase() ?? null;
   }
 
-  function chooseExactTarget(candidate: any): KeywordTarget | null {
+  function chooseExactTarget(candidate: any): KeywordTarget[] {
     // The weekly triage may name a better-fitting ad group than the one that
     // triggered the violation. Honour it: the keyword is added there, and the
     // source ad group still gets an exact negative (see shouldNegateSource), so
@@ -191,39 +191,50 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const sourceAdGroup = String(candidate.adGroupName ?? "").trim();
     const adGroupName = suggested || sourceAdGroup;
     const campaignName = String(candidate.campaignName ?? "").trim();
-    if (!adGroupName) return null;
+    if (!adGroupName) return [];
     const nameMatches = adGroups.filter(
       (g) => g.adGroupId && String(g.adGroupName ?? "").toLowerCase() === adGroupName.toLowerCase(),
     );
     const enabledMatches = nameMatches.filter((g) => String(g.status ?? "ENABLED").toUpperCase() !== "REMOVED");
-    let matches = enabledMatches.length > 0 ? enabledMatches : nameMatches;
+    const matches = enabledMatches.length > 0 ? enabledMatches : nameMatches;
     // A rerouted group normally exists in both the US and AU campaigns; sending
     // an AU term into the US campaign would be a silent geo mistake.
     const sourceGeo = campaignGeo(campaignName);
-    if (suggested && sourceGeo) {
-      const sameGeo = matches.filter((g) => campaignGeo(String(g.campaignName ?? "")) === sourceGeo);
-      if (sameGeo.length > 0) matches = sameGeo;
-    }
-    const exactEquivalent = exactCampaignEquivalent(campaignName).toLowerCase();
-    const target =
-      matches.find((g) => String(g.campaignName ?? "").toLowerCase() === exactEquivalent) ??
-      matches.find((g) => campaignLooksExact(String(g.campaignName ?? "")) && !campaignLooksPhrase(String(g.campaignName ?? ""))) ??
-      matches.find((g) => String(g.campaignName ?? "").toLowerCase() === campaignName.toLowerCase()) ??
-      matches[0];
-    return target?.adGroupId
-      ? {
-          adGroupId: String(target.adGroupId),
-          adGroupName: String(target.adGroupName ?? adGroupName),
-          campaignName: String(target.campaignName ?? ""),
-        }
-      : null;
+    const pickOne = (pool: AdGroupRow[]): KeywordTarget | null => {
+      const exactEquivalent = exactCampaignEquivalent(campaignName).toLowerCase();
+      const target =
+        pool.find((g) => String(g.campaignName ?? "").toLowerCase() === exactEquivalent) ??
+        pool.find((g) => campaignLooksExact(String(g.campaignName ?? "")) && !campaignLooksPhrase(String(g.campaignName ?? ""))) ??
+        pool.find((g) => String(g.campaignName ?? "").toLowerCase() === campaignName.toLowerCase()) ??
+        pool[0];
+      return target?.adGroupId
+        ? {
+            adGroupId: String(target.adGroupId),
+            adGroupName: String(target.adGroupName ?? adGroupName),
+            campaignName: String(target.campaignName ?? ""),
+          }
+        : null;
+    };
+
+    const primaryPool = sourceGeo
+      ? matches.filter((g) => campaignGeo(String(g.campaignName ?? "")) === sourceGeo)
+      : matches;
+    const primary = pickOne(primaryPool.length > 0 ? primaryPool : matches);
+    if (!primary) return [];
+
+    // AU and US are treated as one account for this action: also add the same
+    // exact keyword to the matching group in the other country, when it exists.
+    const pairedGeo = sourceGeo === "AU" ? "US" : sourceGeo === "US" ? "AU" : null;
+    if (!pairedGeo) return [primary];
+    const paired = pickOne(matches.filter((g) => campaignGeo(String(g.campaignName ?? "")) === pairedGeo));
+    return paired && paired.adGroupId !== primary.adGroupId ? [primary, paired] : [primary];
   }
 
   const candidateTargets = new Map<string, KeywordTarget[]>();
   if (autoExactFromCandidates) {
     for (const candidate of candidates) {
-      const target = chooseExactTarget(candidate);
-      if (target) candidateTargets.set(String(candidate.id), [target]);
+      const targets = chooseExactTarget(candidate);
+      if (targets.length > 0) candidateTargets.set(String(candidate.id), targets);
     }
   } else {
     let targets: KeywordTarget[];
@@ -333,7 +344,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   }
 
+  type TermReceipt = {
+    id: string | number;
+    term: string;
+    outcome: string;
+    addedTo: Array<{ adGroupName: string; campaignName: string }>;
+    negatedIn: Array<{ listName: string; adGroupName: string }>;
+  };
   const results: Array<{ id: string | number; outcome: string }> = [];
+  const terms: TermReceipt[] = [];
   for (const c of candidates) {
     const text = keywordOf(c);
     const key = text.toLowerCase();
@@ -350,11 +369,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       continue;
     }
 
+    const addedTo = targets
+      .filter(
+        (target) =>
+          addedByTextTarget.has(`${key}\u0000${target.adGroupId}`) ||
+          duplicateByTextTarget.has(`${key}\u0000${target.adGroupId}`),
+      )
+      .map((target) => ({ adGroupName: target.adGroupName, campaignName: String(target.campaignName ?? "") }));
+    const negatedIn: Array<{ listName: string; adGroupName: string }> = [];
+
     if (negateSource && text) {
       if (shouldNegateSource(c, targets)) {
         try {
           const neg = await negateExactInOwnList(payload, c, text);
           if (!neg.alreadyPresent) negated++;
+          negatedIn.push({
+            listName: neg.listName || String(c.adGroupName ?? ""),
+            adGroupName: String(c.adGroupName ?? ""),
+          });
         } catch (err) {
           negateErrors.push(`"${text}": ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -379,6 +411,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       overrideAccess: true,
     });
     results.push({ id: c.id, outcome });
+    terms.push({ id: c.id, term: text, outcome, addedTo, negatedIn });
   }
 
   const actioned = results.filter((r) => r.outcome !== "error").length;
@@ -393,6 +426,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         negated,
         skippedSourceNegatives,
         results,
+        terms,
         targetSummaries,
         groupErrors,
         negateErrors,
@@ -424,6 +458,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     negated,
     skippedSourceNegatives,
     results,
+    terms,
     targetSummaries,
     groupErrors,
     negateErrors,
