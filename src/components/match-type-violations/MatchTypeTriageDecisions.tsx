@@ -333,25 +333,35 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                         </span>
                         <span style={{ display: 'block', color: '#6b7280', fontSize: 12, marginTop: 2 }}>
                           {row.clicks ?? 0} clicks · {row.impressions ?? 0} impr
-                          {row.adGroupName ? ` · ${row.adGroupName}` : ''}
-                          {typeof row.aiConfidence === 'number' ? ` · ${row.aiConfidence}% confident` : ''}
+                          {row.adGroupName ? ` · ad group: ${row.adGroupName}` : ''}
+                          {typeof row.aiConfidence === 'number' ? ` · AI self-rated ${row.aiConfidence}%` : ''}
                         </span>
+                        {/* Labelled so a reviewer can tell the AI's judgement from the
+                            researched fact from the third-party page it read. */}
                         {row.aiReason && (
-                          <span style={{ display: 'block', color: '#374151', fontSize: 12, marginTop: 4 }}>{row.aiReason}</span>
+                          <span style={{ display: 'block', color: '#374151', fontSize: 12, marginTop: 4 }}>
+                            <strong style={{ color: '#111827' }}>Why this bucket:</strong> {row.aiReason}
+                          </span>
                         )}
                         {row.aiSummary && (
-                          <span style={{ display: 'block', color: '#6b7280', fontSize: 12, marginTop: 2 }}>{row.aiSummary}</span>
+                          <span style={{ display: 'block', color: '#6b7280', fontSize: 12, marginTop: 2 }}>
+                            <strong style={{ color: '#374151' }}>What the term means:</strong> {row.aiSummary}
+                          </span>
                         )}
                         {row.aiSourceLink && (
-                          <a
-                            href={row.aiSourceLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            style={{ display: 'inline-block', color: '#2563eb', fontSize: 12, marginTop: 2 }}
-                          >
-                            {row.aiSourceTitle || row.aiSourceLink}
-                          </a>
+                          <span style={{ display: 'block', color: '#6b7280', fontSize: 12, marginTop: 2 }}>
+                            <strong style={{ color: '#374151' }}>Researched from:</strong>{' '}
+                            <a
+                              href={row.aiSourceLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ color: '#2563eb' }}
+                            >
+                              {row.aiSourceTitle || row.aiSourceLink}
+                            </a>{' '}
+                            <span style={{ color: '#9ca3af' }}>(top Google result — not your ad)</span>
+                          </span>
                         )}
                       </span>
                     </label>
