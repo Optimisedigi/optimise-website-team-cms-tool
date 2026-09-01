@@ -99,7 +99,8 @@ describe("MatchTypeTriageDecisions", () => {
     render(<MatchTypeTriageDecisions clientId="6" />);
     await screen.findByText("Competitor negatives (1)");
     fireEvent.click(screen.getAllByText("Select all")[1]);
-    fireEvent.click(screen.getByText("Add to competitor list (1)"));
+    // The competitor bucket defaults its destination to the competitor list.
+    fireEvent.click(screen.getAllByText("Add as negatives (1)")[0]);
 
     await waitFor(() => {
       const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
@@ -141,8 +142,9 @@ describe("acting on Unclear rows", () => {
     await screen.findByText("Unclear — manual review (1)");
 
     expect(screen.getByText("Add as exact keywords (0)")).toBeTruthy();
-    expect(screen.getByText("Add to competitor list (0)")).toBeTruthy();
-    expect(screen.getByText("Add as ad-group negatives (0)")).toBeTruthy();
+    expect(screen.getByText("Add as negatives (0)")).toBeTruthy();
+    // The destination picker is what makes the negatives action flexible.
+    expect(screen.getByText("Each term’s own ad group")).toBeTruthy();
   });
 
   it("negates a selected unclear row through the shared approve endpoint", async () => {
@@ -150,7 +152,7 @@ describe("acting on Unclear rows", () => {
     render(<MatchTypeTriageDecisions clientId="6" />);
     await screen.findByText("Unclear — manual review (1)");
     fireEvent.click(screen.getByText("Select all"));
-    fireEvent.click(screen.getByText("Add as ad-group negatives (1)"));
+    fireEvent.click(screen.getByText("Add as negatives (1)"));
 
     await waitFor(() => {
       const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
@@ -168,8 +170,9 @@ describe("acting on Unclear rows", () => {
     render(<MatchTypeTriageDecisions clientId="6" />);
     await screen.findByText("Add as exact keyword (1)");
     fireEvent.click(screen.getAllByText("Select all")[0]);
-    // The exact-keyword bucket still exposes the competitor action.
-    fireEvent.click(screen.getAllByText("Add to competitor list (1)")[0]);
+    // Point the exact-keyword bucket's negatives at the competitor list instead.
+    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "55" } });
+    fireEvent.click(screen.getAllByText("Add as negatives (1)")[0]);
 
     await waitFor(() => {
       const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
@@ -177,6 +180,63 @@ describe("acting on Unclear rows", () => {
       );
       expect(JSON.parse((call![1] as RequestInit).body as string)).toMatchObject({
         candidateIds: ["1"],
+        assignedListId: "55",
+      });
+    });
+  });
+});
+
+describe("choosing a negative keyword list per bucket", () => {
+  it("defaults to ad-group negatives and sends routing:auto", async () => {
+    render(<MatchTypeTriageDecisions clientId="6" />);
+    await screen.findByText("Add as exact keyword (1)");
+    fireEvent.click(screen.getAllByText("Select all")[0]);
+    fireEvent.click(screen.getAllByText("Add as negatives (1)")[0]);
+
+    await waitFor(() => {
+      const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+        String(url).includes("bulk-approve"),
+      );
+      const body = JSON.parse((call![1] as RequestInit).body as string);
+      expect(body.routing).toEqual({ mode: "auto" });
+      expect(body.assignedListId).toBeUndefined();
+    });
+  });
+
+  it("sends the chosen list instead of ad-group routing", async () => {
+    render(<MatchTypeTriageDecisions clientId="6" />);
+    await screen.findByText("Add as exact keyword (1)");
+    fireEvent.click(screen.getAllByText("Select all")[0]);
+    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "55" } });
+    fireEvent.click(screen.getAllByText("Add as negatives (1)")[0]);
+
+    await waitFor(() => {
+      const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+        String(url).includes("bulk-approve"),
+      );
+      const body = JSON.parse((call![1] as RequestInit).body as string);
+      expect(body.assignedListId).toBe("55");
+      expect(body.routing).toBeUndefined();
+    });
+  });
+
+  it("keeps each bucket's destination independent", async () => {
+    render(<MatchTypeTriageDecisions clientId="6" />);
+    await screen.findByText("Competitor negatives (1)");
+    // Change the first bucket only; the competitor bucket must keep its default.
+    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "55" } });
+
+    fireEvent.click(screen.getAllByText("Select all")[1]);
+    // Only the competitor bucket has a selection, so exactly one button reads (1).
+    fireEvent.click(screen.getByText("Add as negatives (1)"));
+
+    await waitFor(() => {
+      const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+        String(url).includes("bulk-approve"),
+      );
+      // Its own default list, unaffected by the change to the first bucket.
+      expect(JSON.parse((call![1] as RequestInit).body as string)).toMatchObject({
+        candidateIds: ["2"],
         assignedListId: "55",
       });
     });

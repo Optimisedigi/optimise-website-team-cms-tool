@@ -53,13 +53,15 @@ interface Nkl {
  * all three: the AI's pick is only a recommendation, so a reviewer must be able
  * to overrule it — and rows in "unclear" would otherwise be a dead end.
  */
-type ActionKey = 'exact' | 'competitor' | 'negative'
+type ActionKey = 'exact' | 'negative'
 
 const ACTIONS: Array<{ key: ActionKey; label: string }> = [
   { key: 'exact', label: 'Add as exact keywords' },
-  { key: 'competitor', label: 'Add to competitor list' },
-  { key: 'negative', label: 'Add as ad-group negatives' },
+  { key: 'negative', label: 'Add as negatives' },
 ]
+
+/** Destination value meaning "let the approve route pick each term's own ad group". */
+const AUTO_AD_GROUP = 'auto'
 
 const BUCKETS: Array<{
   key: Bucket
@@ -78,7 +80,7 @@ const BUCKETS: Array<{
     key: 'competitor',
     title: 'Competitor negatives',
     blurb: 'Other companies in the same trade as this client.',
-    action: 'competitor',
+    action: 'negative',
   },
   {
     key: 'irrelevant',
@@ -114,7 +116,10 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
   const [docs, setDocs] = useState<TriagedCandidate[]>([])
   const [nklLists, setNklLists] = useState<Nkl[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [competitorListId, setCompetitorListId] = useState<string>('')
+  // Destination per bucket: a negative keyword list id, or AUTO_AD_GROUP to add
+  // each term to its own ad group's negatives. Chosen by the reviewer, so any
+  // bucket can be routed to any list.
+  const [destinations, setDestinations] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [busyBucket, setBusyBucket] = useState<Bucket | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -166,7 +171,9 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
         const lists: Nkl[] = Array.isArray(data?.docs) ? data.docs : []
         setNklLists(lists)
         const competitor = lists.find((l) => l.relevancyExclusion === 'competitor')
-        if (competitor) setCompetitorListId(String(competitor.id))
+        // Only a sensible default for the competitor bucket; every other bucket
+        // starts on ad-group negatives and can be pointed at a list.
+        if (competitor) setDestinations((prev) => ({ competitor: String(competitor.id), ...prev }))
       })
       .catch(() => setNklLists([]))
   }, [clientId])
@@ -242,15 +249,19 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
       await post(bucket, 'add-exact-bulk', { candidateIds, autoExactFromCandidates: true, negateSource: true }, 'Added')
       return
     }
-    if (action === 'competitor') {
-      if (!competitorListId) return
-      if (!confirm(`Add ${candidateIds.length} term(s) to the competitor negative list?`)) return
-      await post(bucket, 'bulk-approve', { candidateIds, assignedListId: competitorListId }, 'Negated')
-      return
-    }
-    if (!confirm(`Add ${candidateIds.length} term(s) as ad-group negatives?`)) return
-    // parseRouting expects an object; a bare string is rejected as no routing.
-    await post(bucket, 'bulk-approve', { candidateIds, routing: { mode: 'auto' } }, 'Negated')
+    const destination = destinations[bucket] ?? AUTO_AD_GROUP
+    const listName = nklLists.find((l) => String(l.id) === destination)?.name
+    const where = destination === AUTO_AD_GROUP ? "each term's own ad group" : `the “${listName}” list`
+    if (!confirm(`Add ${candidateIds.length} term(s) as negatives to ${where}?`)) return
+    await post(
+      bucket,
+      'bulk-approve',
+      destination === AUTO_AD_GROUP
+        ? // parseRouting expects an object; a bare string is rejected as no routing.
+          { candidateIds, routing: { mode: 'auto' } }
+        : { candidateIds, assignedListId: destination },
+      'Negated',
+    )
   }
 
   const dismissBucket = async (bucket: Bucket) => {
@@ -294,9 +305,7 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
             if (rows.length === 0) return null
             const chosen = selectedIn(bucket.key)
             const busy = busyBucket === bucket.key
-            // Any bucket can now send rows to the competitor list, so the picker
-            // and its gating are no longer specific to the competitor bucket.
-            const needsCompetitorList = !competitorListId
+            const destination = destinations[bucket.key] ?? AUTO_AD_GROUP
             return (
               <details key={bucket.key} open style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: 'white', padding: 16 }}>
                 <summary style={{ cursor: 'pointer', fontSize: 15, fontWeight: 600, color: '#111827' }}>
@@ -308,13 +317,16 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                   <button onClick={() => toggleAll(bucket.key)} style={buttonStyle('ghost')}>
                     {rows.every((r) => selected.has(String(r.id))) ? 'Clear selection' : 'Select all'}
                   </button>
-                  {(
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4b5563' }}>
+                    Negatives go to:
                     <select
-                      value={competitorListId}
-                      onChange={(e) => setCompetitorListId(e.target.value)}
+                      value={destination}
+                      onChange={(e) =>
+                        setDestinations((prev) => ({ ...prev, [bucket.key]: e.target.value }))
+                      }
                       style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12 }}
                     >
-                      <option value="">Select a negative keyword list…</option>
+                      <option value={AUTO_AD_GROUP}>Each term’s own ad group</option>
                       {nklLists.map((l) => (
                         <option key={String(l.id)} value={String(l.id)}>
                           {l.name ?? `List ${l.id}`}
@@ -322,10 +334,9 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                         </option>
                       ))}
                     </select>
-                  )}
+                  </label>
                   {ACTIONS.map((action) => {
-                    // Competitor is the only action needing a destination list.
-                    const blocked = busy || chosen.length === 0 || (action.key === 'competitor' && needsCompetitorList)
+                    const blocked = busy || chosen.length === 0
                     const recommended = bucket.action === action.key
                     return (
                       <button
@@ -346,11 +357,6 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                   >
                     Dismiss ({chosen.length})
                   </button>
-                  {needsCompetitorList && (
-                    <span style={{ color: '#92400e', fontSize: 12 }}>
-                      Pick a negative keyword list above to enable “Add to competitor list”.
-                    </span>
-                  )}
                 </div>
 
                 <div style={{ display: 'grid', gap: 8 }}>
