@@ -119,3 +119,66 @@ describe("MatchTypeTriageDecisions", () => {
     expect(await screen.findByText(/No auto decisions yet/)).toBeTruthy();
   });
 });
+
+describe("acting on Unclear rows", () => {
+  const unclear = [
+    {
+      id: 9,
+      searchTerm: "tech agency",
+      adGroupName: "Outsourced Team",
+      clicks: 1,
+      impressions: 3,
+      aiDecision: "unclear",
+      aiReason: "Ambiguous, could be many trades.",
+      aiConfidence: 35,
+      aiDecidedAt: "2026-09-01T00:00:00.000Z",
+    },
+  ];
+
+  it("offers all three actions on an unclear row so it is not a dead end", async () => {
+    vi.stubGlobal("fetch", mockFetch(unclear));
+    render(<MatchTypeTriageDecisions clientId="6" />);
+    await screen.findByText("Unclear — manual review (1)");
+
+    expect(screen.getByText("Add as exact keywords (0)")).toBeTruthy();
+    expect(screen.getByText("Add to competitor list (0)")).toBeTruthy();
+    expect(screen.getByText("Add as ad-group negatives (0)")).toBeTruthy();
+  });
+
+  it("negates a selected unclear row through the shared approve endpoint", async () => {
+    vi.stubGlobal("fetch", mockFetch(unclear));
+    render(<MatchTypeTriageDecisions clientId="6" />);
+    await screen.findByText("Unclear — manual review (1)");
+    fireEvent.click(screen.getByText("Select all"));
+    fireEvent.click(screen.getByText("Add as ad-group negatives (1)"));
+
+    await waitFor(() => {
+      const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+        String(url).includes("bulk-approve"),
+      );
+      expect(call).toBeTruthy();
+      expect(JSON.parse((call![1] as RequestInit).body as string)).toMatchObject({
+        candidateIds: ["9"],
+        routing: { mode: "auto" },
+      });
+    });
+  });
+
+  it("lets a reviewer overrule the AI and treat a 'relevant' row as a competitor", async () => {
+    render(<MatchTypeTriageDecisions clientId="6" />);
+    await screen.findByText("Add as exact keyword (1)");
+    fireEvent.click(screen.getAllByText("Select all")[0]);
+    // The exact-keyword bucket still exposes the competitor action.
+    fireEvent.click(screen.getAllByText("Add to competitor list (1)")[0]);
+
+    await waitFor(() => {
+      const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+        String(url).includes("bulk-approve"),
+      );
+      expect(JSON.parse((call![1] as RequestInit).body as string)).toMatchObject({
+        candidateIds: ["1"],
+        assignedListId: "55",
+      });
+    });
+  });
+});

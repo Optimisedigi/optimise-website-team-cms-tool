@@ -48,30 +48,50 @@ interface Nkl {
   relevancyExclusion?: string
 }
 
-const BUCKETS: Array<{ key: Bucket; title: string; blurb: string; action: string }> = [
+/**
+ * The three things a reviewer can actually do with a term. Every bucket offers
+ * all three: the AI's pick is only a recommendation, so a reviewer must be able
+ * to overrule it — and rows in "unclear" would otherwise be a dead end.
+ */
+type ActionKey = 'exact' | 'competitor' | 'negative'
+
+const ACTIONS: Array<{ key: ActionKey; label: string }> = [
+  { key: 'exact', label: 'Add as exact keywords' },
+  { key: 'competitor', label: 'Add to competitor list' },
+  { key: 'negative', label: 'Add as ad-group negatives' },
+]
+
+const BUCKETS: Array<{
+  key: Bucket
+  title: string
+  blurb: string
+  /** The action pre-highlighted for this bucket; null means "no recommendation". */
+  action: ActionKey | null
+}> = [
   {
     key: 'relevant_keyword',
     title: 'Add as exact keyword',
     blurb: 'Generic phrases judged relevant to the ad group.',
-    action: 'Add as exact keywords',
+    action: 'exact',
   },
   {
     key: 'competitor',
     title: 'Competitor negatives',
     blurb: 'Other companies in the same trade as this client.',
-    action: 'Add to competitor list',
+    action: 'competitor',
   },
   {
     key: 'irrelevant',
     title: 'Irrelevant negatives',
     blurb: 'Not relevant to the ad group, and not a competitor.',
-    action: 'Add as ad-group negatives',
+    action: 'negative',
   },
   {
     key: 'unclear',
     title: 'Unclear — manual review',
-    blurb: 'Research was inconclusive. No suggestion; decide these yourself.',
-    action: '',
+    blurb:
+      'The AI would only have been guessing. No recommendation — read each one, then pick an action below.',
+    action: null,
   },
 ]
 
@@ -208,26 +228,29 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
     }
   }
 
-  const applyBucket = async (bucket: Bucket) => {
+  /**
+   * Apply an action to the rows selected in a bucket. The action is chosen by
+   * the reviewer, not fixed by the bucket, so an "unclear" row — or a row the
+   * AI bucketed wrongly — can still be actioned without leaving this tab.
+   */
+  const applyAction = async (bucket: Bucket, action: ActionKey) => {
     const candidateIds = selectedIn(bucket)
     if (candidateIds.length === 0) return
-    if (bucket === 'relevant_keyword') {
+    if (action === 'exact') {
       if (!confirm(`Add ${candidateIds.length} term(s) to Google Ads as exact keywords?`)) return
       // Bare candidateIds 400s: the route needs a targeting mode.
       await post(bucket, 'add-exact-bulk', { candidateIds, autoExactFromCandidates: true, negateSource: true }, 'Added')
       return
     }
-    if (bucket === 'competitor') {
+    if (action === 'competitor') {
       if (!competitorListId) return
       if (!confirm(`Add ${candidateIds.length} term(s) to the competitor negative list?`)) return
       await post(bucket, 'bulk-approve', { candidateIds, assignedListId: competitorListId }, 'Negated')
       return
     }
-    if (bucket === 'irrelevant') {
-      if (!confirm(`Add ${candidateIds.length} term(s) as ad-group negatives?`)) return
-      // parseRouting expects an object; a bare string is rejected as no routing.
-      await post(bucket, 'bulk-approve', { candidateIds, routing: { mode: 'auto' } }, 'Negated')
-    }
+    if (!confirm(`Add ${candidateIds.length} term(s) as ad-group negatives?`)) return
+    // parseRouting expects an object; a bare string is rejected as no routing.
+    await post(bucket, 'bulk-approve', { candidateIds, routing: { mode: 'auto' } }, 'Negated')
   }
 
   const dismissBucket = async (bucket: Bucket) => {
@@ -271,7 +294,9 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
             if (rows.length === 0) return null
             const chosen = selectedIn(bucket.key)
             const busy = busyBucket === bucket.key
-            const needsCompetitorList = bucket.key === 'competitor' && !competitorListId
+            // Any bucket can now send rows to the competitor list, so the picker
+            // and its gating are no longer specific to the competitor bucket.
+            const needsCompetitorList = !competitorListId
             return (
               <details key={bucket.key} open style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: 'white', padding: 16 }}>
                 <summary style={{ cursor: 'pointer', fontSize: 15, fontWeight: 600, color: '#111827' }}>
@@ -283,7 +308,7 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                   <button onClick={() => toggleAll(bucket.key)} style={buttonStyle('ghost')}>
                     {rows.every((r) => selected.has(String(r.id))) ? 'Clear selection' : 'Select all'}
                   </button>
-                  {bucket.key === 'competitor' && (
+                  {(
                     <select
                       value={competitorListId}
                       onChange={(e) => setCompetitorListId(e.target.value)}
@@ -298,15 +323,22 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                       ))}
                     </select>
                   )}
-                  {bucket.action && (
-                    <button
-                      disabled={busy || chosen.length === 0 || needsCompetitorList}
-                      onClick={() => void applyBucket(bucket.key)}
-                      style={buttonStyle('primary', busy || chosen.length === 0 || needsCompetitorList)}
-                    >
-                      {busy ? 'Working…' : `${bucket.action} (${chosen.length})`}
-                    </button>
-                  )}
+                  {ACTIONS.map((action) => {
+                    // Competitor is the only action needing a destination list.
+                    const blocked = busy || chosen.length === 0 || (action.key === 'competitor' && needsCompetitorList)
+                    const recommended = bucket.action === action.key
+                    return (
+                      <button
+                        key={action.key}
+                        disabled={blocked}
+                        onClick={() => void applyAction(bucket.key, action.key)}
+                        style={buttonStyle(recommended ? 'primary' : 'ghost', blocked)}
+                        title={recommended ? 'Recommended for this group' : 'Overrides the AI suggestion'}
+                      >
+                        {busy ? 'Working…' : `${action.label} (${chosen.length})`}
+                      </button>
+                    )
+                  })}
                   <button
                     disabled={busy || chosen.length === 0}
                     onClick={() => void dismissBucket(bucket.key)}
@@ -316,7 +348,7 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                   </button>
                   {needsCompetitorList && (
                     <span style={{ color: '#92400e', fontSize: 12 }}>
-                      Create a competitor negative keyword list first, or pick a list above.
+                      Pick a negative keyword list above to enable “Add to competitor list”.
                     </span>
                   )}
                 </div>
