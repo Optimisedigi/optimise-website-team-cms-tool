@@ -10,7 +10,7 @@ Internal Optimise Digital agency platform: a private Payload CMS/Next.js app for
 - Package manager is npm: `package-lock.json` is present, pnpm/yarn locks are absent, and CI uses `npm ci`.
 - Vercel Blob storage is enabled for the `media` collection only when `BLOB_READ_WRITE_TOKEN` is set.
 - Rich text uses Payload Lexical plus `src/lib/markdown-paste-feature.ts`.
-- Tests use Vitest 4 + jsdom with setup in `tests/setup.ts`; CI uses Node 22.
+- Tests use Vitest 4 + jsdom with setup in `tests/setup.ts`; CI uses Node 24.20.0.
 
 ## Main structure
 
