@@ -148,17 +148,14 @@ describe("LandingExperimentTab with a single landing page", () => {
     expect(urls.some((url) => url.includes("page="))).toBe(false);
   });
 
-  it("offers today and an exact custom date range", async () => {
+  it("applies an exact custom date range from the Google Ads-style dropdown", async () => {
     const fetchMock = stubFetch();
     render(<LandingExperimentTab slug="away-digital" />);
 
-    const range = await screen.findByLabelText("Range");
-    expect(Array.from(range.querySelectorAll("option")).map((option) => option.textContent)).toContain(
-      "Today",
-    );
-    fireEvent.change(range, { target: { value: "custom" } });
-    fireEvent.change(await screen.findByLabelText("From"), { target: { value: "2026-08-19" } });
-    fireEvent.change(await screen.findByLabelText("To"), { target: { value: "2026-08-20" } });
+    fireEvent.click(await screen.findByLabelText("Range"));
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-08-19" } });
+    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2026-08-20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply custom range" }));
 
     await waitFor(() => {
       const urls = fetchMock.mock.calls.map(([url]) => String(url));

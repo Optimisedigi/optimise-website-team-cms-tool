@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import RocketSplash from "@/components/RocketSplash";
 import { resolveLandingPage, type LandingPageMeta } from "@/lib/landing-page-sections";
 import { isAwayDigitalSlug } from "@/lib/away-digital";
 import {
   DEFAULT_LANDING_DATE_RANGE,
+  LANDING_RANGE_OPTIONS,
   landingDateRangeCaption,
   landingDateRangeLabel,
   landingDateRangeParams,
   type LandingDateRange,
-  type LandingDateRangeMode,
+  zonedDay,
 } from "@/lib/landing-date-range";
 import { CampaignAdGroupTable } from "../landing/CampaignAdGroupTable";
 import {
@@ -351,6 +352,10 @@ export function LandingExperimentTab({
   const [postClickNote, setPostClickNote] = useState<string | null>(null);
   const [internalRange, setInternalRange] = useState<LandingDateRange>(DEFAULT_LANDING_DATE_RANGE);
   const [rangeTooltipVisible, setRangeTooltipVisible] = useState(false);
+  const [rangeDropdownOpen, setRangeDropdownOpen] = useState(false);
+  const rangeDropdownRef = useRef<HTMLDivElement>(null);
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const range = controlledRange ?? internalRange;
   const updateRange = (next: LandingDateRange) => {
     setInternalRange(next);
@@ -516,6 +521,23 @@ export function LandingExperimentTab({
       cancelled = true;
     };
   }, [slug, customerId, clientName]);
+
+  useEffect(() => {
+    function handlePointer(event: MouseEvent) {
+      if (rangeDropdownRef.current && !rangeDropdownRef.current.contains(event.target as Node)) {
+        setRangeDropdownOpen(false);
+      }
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setRangeDropdownOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, []);
 
   // The same rocket the Google Ads dashboard shows, so moving between the two
   // reports does not look like moving between two different products.
@@ -702,8 +724,7 @@ export function LandingExperimentTab({
         {/* Category, Market, Page and Range are one control - each narrows what
             the next one means - so they hold a single line. Page takes whatever
             width is left and truncates rather than pushing Range onto its own
-            row; the custom date inputs are free to wrap beneath.
-            Aligned from the top, not the bottom: the resolved-dates caption
+            row. Aligned from the top, not the bottom: the resolved-dates caption
             under Range is a third line, and bottom alignment would lift the
             Range dropdown clear of the other selects to make room for it. */}
         <div
@@ -777,7 +798,7 @@ export function LandingExperimentTab({
           )}
 
           <div className="flex shrink-0 flex-col gap-1 text-xs text-slate-500">
-            <label htmlFor="landing-range-select" className="flex h-4 items-center gap-1">
+            <span id="landing-range-label" className="flex h-4 items-center gap-1">
               Range
               {data.baselineApplied && data.dataStartDate && (
                 <span className="inline-flex">
@@ -800,58 +821,97 @@ export function LandingExperimentTab({
                   </button>
                 </span>
               )}
-            </label>
-            <select
-              id="landing-range-select"
-              value={range.mode}
-              onChange={(event) => {
-                const mode = event.target.value as LandingDateRangeMode;
-                if (mode === "custom") {
-                  const today = new Date().toISOString().slice(0, 10);
-                  updateRange({ mode, start: range.start ?? today, end: range.end ?? today });
-                } else {
-                  updateRange({ mode });
-                }
-              }}
-              className={SELECT}
-            >
-              <option value="this_week">This week (Mon–Sun)</option>
-              <option value="last_week">Last week (Mon–Sun)</option>
-              <option value="today">Today</option>
-              <option value="7">Last 7 days</option>
-              <option value="30">Last 30 days</option>
-              <option value="90">Last 90 days</option>
-              <option value="custom">Custom dates</option>
-            </select>
+            </span>
+            <div className="relative" ref={rangeDropdownRef}>
+              <button
+                type="button"
+                id="landing-range-select"
+                aria-labelledby="landing-range-label landing-range-select"
+                aria-haspopup="listbox"
+                aria-expanded={rangeDropdownOpen}
+                onClick={() => {
+                  setRangeDropdownOpen((open) => {
+                    if (!open) {
+                      setCustomStartDate(range.mode === "custom" ? range.start ?? "" : "");
+                      setCustomEndDate(range.mode === "custom" ? range.end ?? "" : "");
+                    }
+                    return !open;
+                  });
+                }}
+                className="flex min-w-[140px] items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <span>{range.mode === "custom" ? "Custom range" : landingDateRangeLabel(range)}</span>
+                <svg className={`h-3.5 w-3.5 text-slate-400 transition-transform ${rangeDropdownOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {rangeDropdownOpen && (
+                <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                  <div role="listbox" aria-labelledby="landing-range-label" className="max-h-72 overflow-y-auto">
+                    {LANDING_RANGE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="option"
+                        aria-selected={range.mode === opt.value}
+                        onClick={() => {
+                          setRangeDropdownOpen(false);
+                          updateRange({ mode: opt.value });
+                        }}
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 ${
+                          range.mode === opt.value ? "bg-blue-50 font-medium text-blue-600" : "text-slate-700"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border-t border-slate-100 px-3 py-2">
+                    <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                      Custom range
+                    </div>
+                    <div className="mb-2 grid grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        aria-label="Start date"
+                        value={customStartDate}
+                        max={customEndDate || zonedDay(new Date())}
+                        onChange={(event) => setCustomStartDate(event.target.value)}
+                        className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <input
+                        type="date"
+                        aria-label="End date"
+                        value={customEndDate}
+                        min={customStartDate}
+                        max={zonedDay(new Date())}
+                        onChange={(event) => setCustomEndDate(event.target.value)}
+                        className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={
+                        !customStartDate ||
+                        !customEndDate ||
+                        customEndDate < customStartDate
+                      }
+                      onClick={() => {
+                        setRangeDropdownOpen(false);
+                        updateRange({ mode: "custom", start: customStartDate, end: customEndDate });
+                      }}
+                      className="w-full rounded bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                    >
+                      Apply custom range
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <span data-testid="landing-range-caption" className="text-xs text-slate-500">
               {landingDateRangeCaption(range)}
             </span>
           </div>
-          {range.mode === "custom" && (
-            <div className="flex items-end gap-2">
-              <label className="flex flex-col gap-1 text-xs text-slate-500">
-                From
-                <input
-                  type="date"
-                  value={range.start ?? ""}
-                  max={range.end ?? new Date().toISOString().slice(0, 10)}
-                  onChange={(event) => updateRange({ ...range, start: event.target.value })}
-                  className={SELECT}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs text-slate-500">
-                To
-                <input
-                  type="date"
-                  value={range.end ?? ""}
-                  min={range.start}
-                  max={new Date().toISOString().slice(0, 10)}
-                  onChange={(event) => updateRange({ ...range, end: event.target.value })}
-                  className={SELECT}
-                />
-              </label>
-            </div>
-          )}
           {data.baselineApplied && data.dataStartDate && (
             <span
               id="landing-range-tooltip"

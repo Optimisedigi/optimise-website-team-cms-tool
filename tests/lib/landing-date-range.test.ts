@@ -47,6 +47,22 @@ describe("landing date ranges", () => {
     expect(range).toMatchObject({ days: 7, googleAdsRange: "2026-08-10,2026-08-16" });
   });
 
+  it("sends this month as the first of the month through today", () => {
+    const params = landingDateRangeParams({ mode: "this_month" }, now);
+    const range = resolveLandingDateRange(params, now);
+
+    expect(Object.fromEntries(params)).toEqual({ start: "2026-08-01", end: "2026-08-21" });
+    expect(range).toMatchObject({ days: 21, googleAdsRange: "2026-08-01,2026-08-21" });
+  });
+
+  it("sends last month as the completed calendar month", () => {
+    const params = landingDateRangeParams({ mode: "last_month" }, now);
+    const range = resolveLandingDateRange(params, now);
+
+    expect(Object.fromEntries(params)).toEqual({ start: "2026-07-01", end: "2026-07-31" });
+    expect(range).toMatchObject({ days: 31, googleAdsRange: "2026-07-01,2026-07-31" });
+  });
+
   it("captions each range with the dates it covers", () => {
     expect(landingDateRangeCaption({ mode: "last_week" }, now)).toBe("10 Aug 2026 \u2013 16 Aug 2026");
     expect(landingDateRangeCaption({ mode: "today" }, now)).toBe("21 Aug 2026");

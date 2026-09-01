@@ -5,9 +5,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { LandingExperimentTab } from "@/components/dashboards/googleads/LandingExperimentTab";
 
 /**
- * The range control mirrors the Google Ads dashboard: a Mon–Sun "Last week"
- * preset, and the dates it resolves to spelled out beneath the dropdown so the
- * preset is never ambiguous.
+ * The range control mirrors the Google Ads dashboard: the same preset list,
+ * custom range at the bottom of the menu, and the dates it resolves to spelled
+ * out beneath the dropdown so the preset is never ambiguous.
  */
 
 const REPORT = {
@@ -52,19 +52,25 @@ afterEach(() => {
 const caption = () => screen.getByTestId("landing-range-caption").textContent;
 
 describe("landing dashboard range control", () => {
-  it("offers last week and custom dates alongside the other presets", async () => {
+  it("mirrors the Google Ads range dropdown, including this month, last month, and custom range", async () => {
     render(<LandingExperimentTab slug="away-digital-teams" />);
-    const select = await screen.findByLabelText(/Range/);
+    fireEvent.click(await screen.findByLabelText(/Range/));
 
-    expect(Array.from(select.querySelectorAll("option")).map((o) => o.textContent)).toEqual([
-      "This week (Mon–Sun)",
-      "Last week (Mon–Sun)",
-      "Today",
-      "Last 7 days",
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "This month",
+      "This week",
+      "Last week",
+      "Last month",
       "Last 30 days",
-      "Last 90 days",
-      "Custom dates",
+      "Last 60 days",
+      "Last 3 months",
+      "Last 6 months",
+      "This year",
+      "Last year",
+      "All time",
     ]);
+    expect(screen.getByText("Custom range")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Apply custom range" })).toBeTruthy();
   });
 
   it("captions the selected range with the dates it covers", async () => {
@@ -76,10 +82,19 @@ describe("landing dashboard range control", () => {
     // the 21st even though it is still the 20th in UTC.
     expect(caption()).toBe("17 Aug 2026 – 21 Aug 2026");
 
-    fireEvent.change(await screen.findByLabelText(/Range/), { target: { value: "last_week" } });
+    fireEvent.click(await screen.findByLabelText(/Range/));
+    fireEvent.click(screen.getByRole("option", { name: "Last week" }));
 
     // The completed Mon–Sun week, matching the Google Ads dashboard.
     await waitFor(() => expect(caption()).toBe("10 Aug 2026 – 16 Aug 2026"));
+
+    fireEvent.click(await screen.findByLabelText(/Range/));
+    fireEvent.click(screen.getByRole("option", { name: "This month" }));
+    await waitFor(() => expect(caption()).toBe("1 Aug 2026 – 21 Aug 2026"));
+
+    fireEvent.click(await screen.findByLabelText(/Range/));
+    fireEvent.click(screen.getByRole("option", { name: "Last month" }));
+    await waitFor(() => expect(caption()).toBe("1 Jul 2026 – 31 Jul 2026"));
   });
 
   it("keeps the caption on its own line under the dropdown", async () => {
@@ -92,10 +107,9 @@ describe("landing dashboard range control", () => {
     expect(row.className).toContain("items-start");
     expect(row.className).not.toContain("items-end");
 
-    // The caption sits after the select inside the same column, so it renders
+    // The caption sits after the dropdown inside the same column, so it renders
     // directly beneath it rather than beside it.
-    const column = select.parentElement!;
-    expect(column.className).toContain("flex-col");
+    const column = select.closest("div.flex-col")!;
     expect(column.lastElementChild).toBe(screen.getByTestId("landing-range-caption"));
   });
 });

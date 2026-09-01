@@ -1,11 +1,35 @@
 export type LandingDateRangeMode =
+  | "this_month"
   | "this_week"
   | "last_week"
+  | "last_month"
+  | "last_30_days"
+  | "last_60_days"
+  | "last_3_months"
+  | "last_6_months"
+  | "this_year"
+  | "last_year"
+  | "all_time"
   | "today"
   | "7"
   | "30"
   | "90"
   | "custom";
+
+/** Same presets and labels as the Google Ads dashboard range dropdown. */
+export const LANDING_RANGE_OPTIONS = [
+  { value: "this_month", label: "This month" },
+  { value: "this_week", label: "This week" },
+  { value: "last_week", label: "Last week" },
+  { value: "last_month", label: "Last month" },
+  { value: "last_30_days", label: "Last 30 days" },
+  { value: "last_60_days", label: "Last 60 days" },
+  { value: "last_3_months", label: "Last 3 months" },
+  { value: "last_6_months", label: "Last 6 months" },
+  { value: "this_year", label: "This year" },
+  { value: "last_year", label: "Last year" },
+  { value: "all_time", label: "All time" },
+] as const;
 
 export interface LandingDateRange {
   mode: LandingDateRangeMode;
@@ -83,9 +107,65 @@ function addDays(date: string, delta: number): string {
   return new Date(Date.parse(`${date}T00:00:00.000Z`) + delta * DAY_MS).toISOString().slice(0, 10);
 }
 
+function addMonths(date: string, delta: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1 + delta, 1));
+  const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+  return `${next.toISOString().slice(0, 7)}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
+}
+
+function monthStart(date: string): string {
+  return `${date.slice(0, 7)}-01`;
+}
+
+function yearStart(date: string): string {
+  return `${date.slice(0, 4)}-01-01`;
+}
+
+function yearEnd(year: string): string {
+  return `${year}-12-31`;
+}
+
+/** Inclusive calendar days between two YYYY-MM-DD dates. */
+function inclusiveDays(start: string, end: string): number {
+  return Math.round((Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) / DAY_MS) + 1;
+}
+
 /** Days since Monday, 0-6, for a calendar date. */
 function daysSinceMonday(date: string): number {
   return (new Date(`${date}T00:00:00.000Z`).getUTCDay() + 6) % 7;
+}
+
+/** How far back a named preset reaches from `today` in the reporting zone. */
+export function landingPresetSpan(
+  mode: Exclude<LandingDateRangeMode, "custom" | "today" | "7" | "30" | "90">,
+  today: string,
+): { start: string; end: string } {
+  if (mode === "this_month") return { start: monthStart(today), end: today };
+  if (mode === "this_week") return { start: addDays(today, -daysSinceMonday(today)), end: today };
+  if (mode === "last_week") {
+    const monday = addDays(today, -daysSinceMonday(today) - 7);
+    return { start: monday, end: addDays(monday, 6) };
+  }
+  if (mode === "last_month") {
+    const end = addDays(monthStart(today), -1);
+    return { start: monthStart(end), end };
+  }
+  if (mode === "last_30_days") return { start: addDays(today, -29), end: today };
+  if (mode === "last_60_days") return { start: addDays(today, -59), end: today };
+  if (mode === "last_3_months") return { start: addMonths(today, -3), end: today };
+  if (mode === "last_6_months") return { start: addMonths(today, -6), end: today };
+  if (mode === "this_year") {
+    const start = yearStart(today);
+    return { start: inclusiveDays(start, today) > 365 ? addDays(today, -364) : start, end: today };
+  }
+  if (mode === "last_year") {
+    const year = String(Number(today.slice(0, 4)) - 1);
+    const start = yearStart(year);
+    const end = yearEnd(year);
+    return { start: inclusiveDays(start, end) > 365 ? addDays(end, -364) : start, end };
+  }
+  return { start: addDays(today, -364), end: today };
 }
 
 export function resolveLandingDateRange(
@@ -156,24 +236,19 @@ export function landingDateRangeParams(
   range: LandingDateRange,
   now = new Date(),
 ): URLSearchParams {
-  if (range.mode === "this_week") {
-    const today = zonedDay(now);
-    return new URLSearchParams({ start: addDays(today, -daysSinceMonday(today)), end: today });
-  }
-  if (range.mode === "last_week") {
-    // Monday–Sunday of the completed week, matching the Google Ads dashboard.
-    const today = zonedDay(now);
-    const monday = addDays(today, -daysSinceMonday(today) - 7);
-    return new URLSearchParams({ start: monday, end: addDays(monday, 6) });
-  }
   if (range.mode === "today") {
     const today = zonedDay(now);
     return new URLSearchParams({ start: today, end: today });
   }
-  if (range.mode === "custom" && range.start && range.end) {
-    return new URLSearchParams({ start: range.start, end: range.end });
+  if (range.mode === "custom") {
+    if (range.start && range.end) return new URLSearchParams({ start: range.start, end: range.end });
+    return new URLSearchParams({ days: "30" });
   }
-  return new URLSearchParams({ days: range.mode === "custom" ? "30" : range.mode });
+  if (range.mode === "7" || range.mode === "30" || range.mode === "90") {
+    return new URLSearchParams({ days: range.mode });
+  }
+  const { start, end } = landingPresetSpan(range.mode, zonedDay(now));
+  return new URLSearchParams({ start, end });
 }
 
 /**
@@ -210,11 +285,15 @@ function formatDay(date: string): string {
 }
 
 export function landingDateRangeLabel(range: LandingDateRange): string {
-  if (range.mode === "this_week") return "This week";
-  if (range.mode === "last_week") return "Last week";
   if (range.mode === "today") return "Today";
-  if (range.mode === "custom" && range.start && range.end) {
-    return range.start === range.end ? range.start : `${range.start} – ${range.end}`;
+  if (range.mode === "7") return "Last 7 days";
+  if (range.mode === "30") return "Last 30 days";
+  if (range.mode === "90") return "Last 90 days";
+  if (range.mode === "custom") {
+    if (range.start && range.end) {
+      return range.start === range.end ? range.start : `${range.start} – ${range.end}`;
+    }
+    return "Custom range";
   }
-  return `Last ${range.mode === "custom" ? 30 : range.mode} days`;
+  return LANDING_RANGE_OPTIONS.find((option) => option.value === range.mode)?.label ?? "This week";
 }

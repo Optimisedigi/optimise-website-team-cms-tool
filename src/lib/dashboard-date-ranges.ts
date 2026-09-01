@@ -1,40 +1,22 @@
+import { landingPresetSpan, zonedDay } from "@/lib/landing-date-range";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export function formatDateOnly(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return zonedDay(date);
 }
 
-function getMonday(date: Date): Date {
-  const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const daysSinceMonday = (localDate.getDay() + 6) % 7;
-  localDate.setDate(localDate.getDate() - daysSinceMonday);
-  return localDate;
+function addDays(date: string, delta: number): string {
+  return new Date(Date.parse(`${date}T00:00:00.000Z`) + delta * DAY_MS).toISOString().slice(0, 10);
 }
 
 export function getThisWeekRange(today = new Date()): { start: string; end: string } {
-  const monday = getMonday(today);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-
-  return {
-    start: formatDateOnly(monday),
-    end: formatDateOnly(sunday),
-  };
+  const { start } = landingPresetSpan("this_week", zonedDay(today));
+  return { start, end: addDays(start, 6) };
 }
 
 export function getLastWeekRange(today = new Date()): { start: string; end: string } {
-  const thisMonday = getMonday(today);
-  const lastMonday = new Date(thisMonday);
-  lastMonday.setDate(thisMonday.getDate() - 7);
-
-  const lastSunday = new Date(lastMonday);
-  lastSunday.setDate(lastMonday.getDate() + 6);
-
-  return {
-    start: formatDateOnly(lastMonday),
-    end: formatDateOnly(lastSunday),
-  };
+  return landingPresetSpan("last_week", zonedDay(today));
 }
 
 export function normalizeDashboardRange(range: string, today = new Date()): string {
@@ -42,8 +24,8 @@ export function normalizeDashboardRange(range: string, today = new Date()): stri
     const { start, end } = getThisWeekRange(today);
     return `custom:${start},${end}`;
   }
-  if (range === "last_week") {
-    const { start, end } = getLastWeekRange(today);
+  if (range === "last_week" || range === "this_month" || range === "last_month") {
+    const { start, end } = landingPresetSpan(range, zonedDay(today));
     return `custom:${start},${end}`;
   }
   return range;
