@@ -5346,6 +5346,14 @@ export async function runMigrations(
       "CREATE INDEX IF NOT EXISTS `match_type_violation_candidates_ai_decision_idx` ON `match_type_violation_candidates` (`client_id`, `ai_decision`)",
     );
 
+    // ── Triage client context + ad-group routing (2026-09-01) ──
+    await run(
+      "mtvc.ai_suggested_ad_group",
+      "ALTER TABLE `match_type_violation_candidates` ADD `ai_suggested_ad_group` text",
+    );
+    await run("clients.triage_ideal_customer", "ALTER TABLE `clients` ADD `gads_auto_triage_ideal_customer` text");
+    await run("clients.triage_exclusions", "ALTER TABLE `clients` ADD `gads_auto_triage_exclusions` text");
+
     // ── FIX (2026-06-11): assigned-list relationship column name mismatch ──
     // The original table-creation sweep named the `assignedListId` relationship
     // column `assigned_list_id`, but Payload's SQLite adapter expects

@@ -302,6 +302,15 @@ export const MatchTypeViolationCandidates: CollectionConfig = {
       label: "AI Source Link",
     },
     {
+      name: "aiSuggestedAdGroup",
+      type: "text",
+      label: "AI Suggested Ad Group",
+      admin: {
+        description:
+          "Better-fitting ad group picked from the live account structure, when the triggering group is not the best home for this term.",
+      },
+    },
+    {
       name: "aiConfidence",
       type: "number",
       label: "AI Confidence",

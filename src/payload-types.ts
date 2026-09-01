@@ -1087,6 +1087,14 @@ export interface Client {
      */
     matchTypeMonitorEnabled?: boolean | null;
     /**
+     * Plain English: the customers and engagements this client wants. Example: 'Businesses hiring full-time dedicated offshore staff in Vietnam.' Used to judge whether a search term is genuinely relevant.
+     */
+    triageIdealCustomer?: string | null;
+    /**
+     * One per line. Any search term matching these is bucketed Irrelevant even if it looks on-topic. Example: 'Temporary or contract roles' / 'Job seekers looking for work'.
+     */
+    triageExclusions?: string | null;
+    /**
      * Police EXACT keywords (account-coverage rule).
      */
     matchTypeMonitorExact?: boolean | null;
@@ -11026,6 +11034,10 @@ export interface MatchTypeViolationCandidate {
   aiSourceTitle?: string | null;
   aiSourceLink?: string | null;
   /**
+   * Better-fitting ad group picked from the live account structure, when the triggering group is not the best home for this term.
+   */
+  aiSuggestedAdGroup?: string | null;
+  /**
    * 0-100
    */
   aiConfidence?: number | null;
@@ -11905,6 +11917,8 @@ export interface ClientsSelect<T extends boolean = true> {
         negativeSweepExcludeTerms?: T;
         negativeSweepSheetUrl?: T;
         matchTypeMonitorEnabled?: T;
+        triageIdealCustomer?: T;
+        triageExclusions?: T;
         matchTypeMonitorExact?: T;
         matchTypeMonitorPhrase?: T;
         matchTypeMonitorAllowList?:
@@ -14899,6 +14913,7 @@ export interface MatchTypeViolationCandidatesSelect<T extends boolean = true> {
   aiSummary?: T;
   aiSourceTitle?: T;
   aiSourceLink?: T;
+  aiSuggestedAdGroup?: T;
   aiConfidence?: T;
   aiDecidedAt?: T;
   runDate?: T;

@@ -31,6 +31,7 @@ interface TriagedCandidate {
   aiSummary?: string | null
   aiSourceTitle?: string | null
   aiSourceLink?: string | null
+  aiSuggestedAdGroup?: string | null
   aiConfidence?: number | null
   aiDecidedAt?: string | null
 }
@@ -336,6 +337,22 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                           {row.adGroupName ? ` · ad group: ${row.adGroupName}` : ''}
                           {typeof row.aiConfidence === 'number' ? ` · AI self-rated ${row.aiConfidence}%` : ''}
                         </span>
+                        {row.aiSuggestedAdGroup && (
+                          <span
+                            style={{
+                              display: 'block',
+                              color: '#92400e',
+                              background: '#fef3c7',
+                              fontSize: 12,
+                              marginTop: 4,
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                            }}
+                          >
+                            <strong>Better ad group:</strong> {row.aiSuggestedAdGroup} — approving here adds it
+                            to <em>{row.adGroupName}</em>, so move it manually if you agree.
+                          </span>
+                        )}
                         {/* Labelled so a reviewer can tell the AI's judgement from the
                             researched fact from the third-party page it read. */}
                         {row.aiReason && (

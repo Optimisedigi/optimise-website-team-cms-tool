@@ -2716,6 +2716,30 @@ export const Clients: CollectionConfig = {
                     },
                   },
                 },
+                // ── Weekly AI triage context ──────────────────────────────────
+                // Without these the classifier only knows the client's name and
+                // URL, so it cannot tell that e.g. a temp/contract staffing term
+                // is off-brand. Fed verbatim into the triage prompt.
+                {
+                  name: "triageIdealCustomer",
+                  type: "textarea",
+                  label: "Who this client serves (AI triage context)",
+                  admin: {
+                    description:
+                      "Plain English: the customers and engagements this client wants. Example: 'Businesses hiring full-time dedicated offshore staff in Vietnam.' Used to judge whether a search term is genuinely relevant.",
+                    condition: (data: any) => data?.gadsAuto?.matchTypeMonitorEnabled,
+                  },
+                },
+                {
+                  name: "triageExclusions",
+                  type: "textarea",
+                  label: "Work this client does NOT do (AI triage context)",
+                  admin: {
+                    description:
+                      "One per line. Any search term matching these is bucketed Irrelevant even if it looks on-topic. Example: 'Temporary or contract roles' / 'Job seekers looking for work'.",
+                    condition: (data: any) => data?.gadsAuto?.matchTypeMonitorEnabled,
+                  },
+                },
                 {
                   name: "matchTypeMonitorExact",
                   type: "checkbox",

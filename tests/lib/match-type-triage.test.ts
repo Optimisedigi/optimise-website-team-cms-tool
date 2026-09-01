@@ -63,7 +63,13 @@ describe("classifyViolations", () => {
     const decisions = await classifyViolations({ client, rows: [rows[2]] });
 
     expect(decisions).toEqual([
-      { id: 3, decision: "irrelevant", reason: "Dentist, unrelated trade.", confidence: 95 },
+      {
+        id: 3,
+        decision: "irrelevant",
+        reason: "Dentist, unrelated trade.",
+        confidence: 95,
+        suggestedAdGroup: null,
+      },
     ]);
     const prompt = callLLM.mock.calls[0][0].messages[0].content[0].text as string;
     expect(prompt).toContain("Away Digital Teams");
@@ -72,7 +78,9 @@ describe("classifyViolations", () => {
 
   it("tolerates fenced JSON wrapped in prose", async () => {
     callLLM.mockResolvedValue(
-      reply('Here you go:\n```json\n[{"id":"1","decision":"relevant_keyword","reason":"x","confidence":70}]\n```'),
+      // Confidence is incidental here; kept above MIN_CONFIDENCE so this stays a
+      // test of fence tolerance rather than of the confidence floor.
+      reply('Here you go:\n```json\n[{"id":"1","decision":"relevant_keyword","reason":"x","confidence":90}]\n```'),
     );
     const decisions = await classifyViolations({ client, rows: [rows[0]] });
     expect(decisions[0].decision).toBe("relevant_keyword");
@@ -91,11 +99,13 @@ describe("classifyViolations", () => {
   it("drops unknown buckets but keeps valid siblings", async () => {
     callLLM.mockResolvedValue(
       reply(
-        '[{"id":"1","decision":"maybe","reason":"x","confidence":50},{"id":"2","decision":"competitor","reason":"y","confidence":60}]',
+        '[{"id":"1","decision":"maybe","reason":"x","confidence":90},{"id":"2","decision":"competitor","reason":"y","confidence":85}]',
       ),
     );
     const decisions = await classifyViolations({ client, rows });
-    expect(decisions).toEqual([{ id: 2, decision: "competitor", reason: "y", confidence: 60 }]);
+    expect(decisions).toEqual([
+      { id: 2, decision: "competitor", reason: "y", confidence: 85, suggestedAdGroup: null },
+    ]);
   });
 
   it("returns nothing without calling the model for an empty batch", async () => {
@@ -145,11 +155,111 @@ describe("chunking large batches", () => {
     const decisions = await classifyViolations({ client, rows: many });
 
     // Undecided rows are absent, so the cron leaves them retryable.
-    expect(decisions).toEqual([{ id: 1, decision: "competitor", reason: "ok", confidence: 80 }]);
+    expect(decisions).toEqual([
+      { id: 1, decision: "competitor", reason: "ok", confidence: 80, suggestedAdGroup: null },
+    ]);
   });
 
   it("still throws when every chunk fails", async () => {
     callLLM.mockResolvedValue(reply("no json at all"));
     await expect(classifyViolations({ client, rows: many })).rejects.toThrow();
+  });
+});
+
+describe("client context and ad group routing", () => {
+  const context = {
+    ...client,
+    idealCustomer: "Businesses hiring full-time dedicated offshore staff in Vietnam.",
+    exclusions: "Temporary or contract roles\nJob seekers looking for work",
+  };
+  const adGroups = [
+    { adGroupName: "Generic Vietnam outsourcing", campaignName: "Search - Vietnam - US" },
+    { adGroupName: "Vietnam developer/IT", campaignName: "Search - Vietnam - US" },
+  ];
+
+  it("passes the client's excluded work and real ad groups into the prompt", async () => {
+    callLLM.mockResolvedValue(
+      reply('[{"id":"1","decision":"irrelevant","reason":"Contract roles.","confidence":90}]'),
+    );
+
+    await classifyViolations({ client: context, rows: [rows[0]], adGroups });
+
+    const prompt = callLLM.mock.calls[0][0].messages[0].content[0].text as string;
+    expect(prompt).toContain("Temporary or contract roles");
+    expect(prompt).toContain("Job seekers looking for work");
+    expect(prompt).toContain("full-time dedicated offshore staff");
+    expect(prompt).toContain("Vietnam developer/IT");
+  });
+
+  it("keeps a suggested ad group that exists in the account", async () => {
+    callLLM.mockResolvedValue(
+      reply(
+        '[{"id":"1","decision":"relevant_keyword","reason":"Software term.","confidence":90,"suggestedAdGroup":"Vietnam developer/IT"}]',
+      ),
+    );
+    const rowInGeneric = { ...rows[0], adGroupName: "Generic Vietnam outsourcing" };
+
+    const [decision] = await classifyViolations({ client: context, rows: [rowInGeneric], adGroups });
+
+    expect(decision.suggestedAdGroup).toBe("Vietnam developer/IT");
+  });
+
+  it("discards a hallucinated ad group that is not in the account", async () => {
+    callLLM.mockResolvedValue(
+      reply(
+        '[{"id":"1","decision":"relevant_keyword","reason":"x","confidence":90,"suggestedAdGroup":"Made Up Group"}]',
+      ),
+    );
+    const [decision] = await classifyViolations({ client: context, rows: [rows[0]], adGroups });
+    expect(decision.suggestedAdGroup).toBeNull();
+  });
+
+  it("does not suggest the ad group the term already sits in", async () => {
+    callLLM.mockResolvedValue(
+      reply(
+        '[{"id":"1","decision":"relevant_keyword","reason":"x","confidence":90,"suggestedAdGroup":"Generic Vietnam outsourcing"}]',
+      ),
+    );
+    const rowInGeneric = { ...rows[0], adGroupName: "Generic Vietnam outsourcing" };
+    const [decision] = await classifyViolations({ client: context, rows: [rowInGeneric], adGroups });
+    expect(decision.suggestedAdGroup).toBeNull();
+  });
+});
+
+describe("confidence floor", () => {
+  it("forces a below-75% call to unclear instead of recommending it", async () => {
+    callLLM.mockResolvedValue(
+      reply(
+        '[{"id":"1","decision":"relevant_keyword","reason":"Tech staffing agency.","confidence":70}]',
+      ),
+    );
+    const [decision] = await classifyViolations({ client, rows: [rows[0]] });
+
+    expect(decision.decision).toBe("unclear");
+    expect(decision.confidence).toBe(70);
+    expect(decision.reason).toMatch(/Too uncertain to recommend \(70%\)/);
+  });
+
+  it("keeps a call at exactly the 75% floor", async () => {
+    callLLM.mockResolvedValue(
+      reply('[{"id":"1","decision":"relevant_keyword","reason":"ok","confidence":75}]'),
+    );
+    const [decision] = await classifyViolations({ client, rows: [rows[0]] });
+    expect(decision.decision).toBe("relevant_keyword");
+  });
+
+  it("drops a routing suggestion when the call is too uncertain to act on", async () => {
+    callLLM.mockResolvedValue(
+      reply(
+        '[{"id":"1","decision":"relevant_keyword","reason":"x","confidence":60,"suggestedAdGroup":"Vietnam developer/IT"}]',
+      ),
+    );
+    const [decision] = await classifyViolations({
+      client,
+      rows: [rows[0]],
+      adGroups: [{ adGroupName: "Vietnam developer/IT", campaignName: "c" }],
+    });
+    expect(decision.decision).toBe("unclear");
+    expect(decision.suggestedAdGroup).toBeUndefined();
   });
 });

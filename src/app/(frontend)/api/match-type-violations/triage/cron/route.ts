@@ -17,7 +17,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
 import { NO_SUMMARY, researchSearchTerms } from "@/lib/search-term-research";
-import { classifyViolations, type TriageRow } from "@/lib/match-type-triage";
+import { classifyViolations, type TriageAdGroup, type TriageRow } from "@/lib/match-type-triage";
 
 export const maxDuration = 300;
 
@@ -49,9 +49,54 @@ interface ClientResult {
   skippedReason?: string;
 }
 
+/**
+ * Real ad groups from the newest account-structure snapshot, so routing can only
+ * ever name a group that exists. Best-effort: no snapshot just means no routing
+ * suggestions, never a failed run.
+ */
+async function loadAdGroups(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  clientId: number,
+): Promise<TriageAdGroup[]> {
+  try {
+    const snap = await (payload.find as any)({
+      collection: "google-ads-account-structure-snapshots",
+      where: { client: { equals: clientId } },
+      sort: "-capturedAt",
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    });
+    const raw = snap?.docs?.[0]?.payload;
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    const out = new Map<string, TriageAdGroup>();
+    for (const campaign of parsed?.campaigns ?? []) {
+      if (String(campaign?.status ?? "").toUpperCase() !== "ENABLED") continue;
+      const campaignName = String(campaign?.name ?? "");
+      for (const group of campaign?.adGroups ?? []) {
+        const adGroupName = String(group?.name ?? "").trim();
+        if (!adGroupName) continue;
+        if (String(group?.status ?? "ENABLED").toUpperCase() !== "ENABLED") continue;
+        // Same group name recurs across AU/US campaigns; one entry is enough for
+        // naming, and the existing exact-campaign matcher picks the right copy.
+        if (!out.has(adGroupName.toLowerCase())) out.set(adGroupName.toLowerCase(), { adGroupName, campaignName });
+      }
+    }
+    return [...out.values()];
+  } catch (err) {
+    console.error(`[match-type-triage] Could not load ad groups for client ${clientId}:`, err);
+    return [];
+  }
+}
+
 async function triageClient(
   payload: Awaited<ReturnType<typeof getPayload>>,
-  clientDoc: { id: number | string; name?: string; websiteUrl?: string | null },
+  clientDoc: {
+    id: number | string;
+    name?: string;
+    websiteUrl?: string | null;
+    gadsAuto?: { triageIdealCustomer?: string | null; triageExclusions?: string | null } | null;
+  },
 ): Promise<ClientResult> {
   const clientId = Number(typeof clientDoc.id === "object" ? (clientDoc.id as any).id : clientDoc.id);
   const clientName = String(clientDoc.name ?? `Client ${clientId}`);
@@ -115,7 +160,13 @@ async function triageClient(
   let decisions;
   try {
     decisions = await classifyViolations({
-      client: { name: clientName, websiteUrl: clientDoc.websiteUrl ?? null },
+      client: {
+        name: clientName,
+        websiteUrl: clientDoc.websiteUrl ?? null,
+        idealCustomer: clientDoc.gadsAuto?.triageIdealCustomer ?? null,
+        exclusions: clientDoc.gadsAuto?.triageExclusions ?? null,
+      },
+      adGroups: await loadAdGroups(payload, clientId),
       rows,
     });
   } catch (err) {
@@ -144,6 +195,7 @@ async function triageClient(
           aiSummary: row.summary ?? null,
           aiSourceTitle: row.sourceTitle ?? null,
           aiSourceLink: row.sourceLink ?? null,
+          aiSuggestedAdGroup: decision.suggestedAdGroup ?? null,
           aiConfidence: decision.confidence,
           aiDecidedAt: now,
         },
