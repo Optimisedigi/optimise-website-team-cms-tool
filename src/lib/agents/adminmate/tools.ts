@@ -30,6 +30,7 @@ export interface StagedClient {
   contactPhone?: string;
   clientType?: ClientType;
   monthlyRetainer?: number;
+  setupFee?: number;
   isActive: boolean;
   notes?: string;
 }
@@ -64,6 +65,15 @@ function boundedText(value: unknown, name: string, max: number, required = true)
   }
   if (text.length > max) throw new Error(`${name} must be 1-${max} characters`);
   return text;
+}
+
+function parseMoney(value: unknown, name: string): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const amount = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(amount) || amount < 0 || amount > 10_000_000) {
+    throw new Error(`${name} must be a number between 0 and 10,000,000`);
+  }
+  return Math.round(amount * 100) / 100;
 }
 
 /** Accept "acme.com" or a full URL; reject anything that isn't http(s). */
@@ -142,14 +152,8 @@ export function validateStagedClient(raw: unknown): StagedClient {
   const clientType = boundedText(input.clientType, "clientType", 30, false);
   if (clientType && !clientTypes.has(clientType)) throw new Error("clientType is invalid");
 
-  let monthlyRetainer: number | undefined;
-  if (input.monthlyRetainer !== undefined && input.monthlyRetainer !== null && input.monthlyRetainer !== "") {
-    const amount = typeof input.monthlyRetainer === "number" ? input.monthlyRetainer : Number(input.monthlyRetainer);
-    if (!Number.isFinite(amount) || amount < 0 || amount > 10_000_000) {
-      throw new Error("monthlyRetainer must be a number between 0 and 10,000,000");
-    }
-    monthlyRetainer = Math.round(amount * 100) / 100;
-  }
+  const monthlyRetainer = parseMoney(input.monthlyRetainer, "monthlyRetainer");
+  const setupFee = parseMoney(input.setupFee, "setupFee");
 
   if (input.isActive !== undefined && input.isActive !== null && typeof input.isActive !== "boolean") {
     throw new Error("isActive must be a boolean");
@@ -166,6 +170,7 @@ export function validateStagedClient(raw: unknown): StagedClient {
     contactPhone: boundedText(input.contactPhone, "contactPhone", 50, false),
     clientType: clientType as ClientType | undefined,
     monthlyRetainer,
+    setupFee,
     isActive: input.isActive === undefined || input.isActive === null ? true : (input.isActive as boolean),
     notes: boundedText(input.notes, "notes", 4000, false),
   };
@@ -208,7 +213,8 @@ export function createAdminMateTools(existing: AdminMateClient[]): CanonicalTool
         contactEmail: { type: "string", maxLength: 200 },
         contactPhone: { type: "string", maxLength: 50 },
         clientType: { type: "string", enum: [...clientTypes], description: "Billing type. Defaults to recurring in the CMS when omitted." },
-        monthlyRetainer: { type: "number", minimum: 0, description: "Net monthly revenue in dollars." },
+        monthlyRetainer: { type: "number", minimum: 0, description: "Recurring net monthly retainer in dollars. Never put a one-off setup fee here." },
+        setupFee: { type: "number", minimum: 0, description: "One-time setup / onboarding / build fee in dollars. Not a retainer." },
         isActive: { type: "boolean", description: "Defaults to true." },
         notes: { type: "string", maxLength: 4000, description: "Internal leadership notes shown in Client Pulse details." },
       },

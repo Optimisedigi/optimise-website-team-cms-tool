@@ -42,6 +42,7 @@ const systemPrompt = buildSystemPrompt({
     "Only the fields in the stage_client schema exist for you. You can never set client PINs, Google Ads customer IDs, GA4 or Search Console connections, logos, or any credential — tell the admin those stay in the CMS admin UI.",
     "Call find_similar_clients before staging a client, and mention any likely duplicate in your reply.",
     "Use only the enum values in the stage_client schema for services and clientType. Never invent a service.",
+    "monthlyRetainer is recurring monthly revenue only. A one-off setup, onboarding, or build fee goes in setupFee, never monthlyRetainer. Both can be set on the same client.",
     "Call stage_client as soon as you have a client name plus whatever other details the admin gave; do not withhold staging to ask about optional fields. Re-call it after each requested revision.",
   ],
   toolInventory:

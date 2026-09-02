@@ -49,6 +49,7 @@ describe('AdminMateChat', () => {
 
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'acme-corp-au' } })
     fireEvent.change(screen.getByLabelText('Internal notes'), { target: { value: 'VIP — invoice via accounts@' } })
+    fireEvent.change(screen.getByLabelText('Setup fee ($)'), { target: { value: '1500' } })
     fireEvent.click(screen.getByLabelText('SEO'))
     const createButton = screen.getByRole('button', { name: 'Create Acme Corp' })
     fireEvent.click(createButton)
@@ -56,7 +57,7 @@ describe('AdminMateChat', () => {
 
     const createCalls = fetchMock.mock.calls.filter(([url]) => url === '/api/optimate/adminmate/create-client')
     expect(createCalls).toHaveLength(1)
-    expect(JSON.parse(createCalls[0][1].body as string)).toMatchObject({ slug: 'acme-corp-au', services: ['google_ads', 'seo'], notes: 'VIP — invoice via accounts@' })
+    expect(JSON.parse(createCalls[0][1].body as string)).toMatchObject({ slug: 'acme-corp-au', services: ['google_ads', 'seo'], notes: 'VIP — invoice via accounts@', setupFee: 1500 })
 
     resolveCreate?.(response({ id: 11, name: 'Acme Corp', slug: 'acme-corp-au' }))
     expect(await screen.findByText(/Created Acme Corp/)).toBeInTheDocument()

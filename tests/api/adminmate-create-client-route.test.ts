@@ -15,6 +15,7 @@ const staged = {
   contactName: "Jane Doe",
   contactEmail: "jane@acme.com",
   monthlyRetainer: 2000,
+  setupFee: 1500,
   isActive: true,
   notes: "VIP — invoice via accounts@",
 };
@@ -62,7 +63,7 @@ describe("AdminMate create-client route", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ id: 11, slug: "acme-corp" });
     const data = payload.create.mock.calls[0][0].data as Record<string, unknown>;
-    expect(data).toMatchObject({ name: "Acme Corp", slug: "acme-corp", monthlyRetainer: 2000, isActive: true, clientPulse: { notes: "VIP — invoice via accounts@" } });
+    expect(data).toMatchObject({ name: "Acme Corp", slug: "acme-corp", monthlyRetainer: 2000, setupFee: 1500, isActive: true, clientPulse: { notes: "VIP — invoice via accounts@" } });
     expect(data.clientPin).toBeUndefined();
     expect(data.ga4RefreshToken).toBeUndefined();
     expect(data.isAgency).toBeUndefined();

@@ -17,6 +17,7 @@ describe("validateStagedClient", () => {
       contactPhone: "0400 000 000",
       clientType: "recurring",
       monthlyRetainer: "2000",
+      setupFee: "1500",
       notes: "  VIP — invoice via accounts@  ",
     })).toEqual({
       name: "Acme Corp",
@@ -29,6 +30,7 @@ describe("validateStagedClient", () => {
       contactPhone: "0400 000 000",
       clientType: "recurring",
       monthlyRetainer: 2000,
+      setupFee: 1500,
       isActive: true,
       notes: "VIP — invoice via accounts@",
     });
@@ -60,7 +62,20 @@ describe("validateStagedClient", () => {
     expect(() => validateStagedClient({ name: "Acme", clientType: "free" })).toThrow(/clientType/);
     expect(() => validateStagedClient({ name: "Acme", contactEmail: "nope" })).toThrow(/email/);
     expect(() => validateStagedClient({ name: "Acme", monthlyRetainer: -5 })).toThrow(/monthlyRetainer/);
+    expect(() => validateStagedClient({ name: "Acme", setupFee: -5 })).toThrow(/setupFee/);
     expect(() => validateStagedClient({ name: "Acme", websiteUrl: "javascript:alert(1)" })).toThrow(/websiteUrl/);
+  });
+
+  it("keeps a one-off setup fee off the retainer", () => {
+    expect(validateStagedClient({ name: "Acme", setupFee: 2500 })).toMatchObject({
+      name: "Acme",
+      setupFee: 2500,
+    });
+    expect(validateStagedClient({ name: "Acme", setupFee: 2500 }).monthlyRetainer).toBeUndefined();
+    expect(validateStagedClient({ name: "Acme", monthlyRetainer: 2000, setupFee: 1500 })).toMatchObject({
+      monthlyRetainer: 2000,
+      setupFee: 1500,
+    });
   });
 });
 

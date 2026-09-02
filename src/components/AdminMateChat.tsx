@@ -146,6 +146,17 @@ export default function AdminMateChat() {
                 style={inputStyle}
               />
             </label>
+            <label style={labelStyle}>
+              Setup fee ($)
+              <input
+                aria-label="Setup fee ($)"
+                type="number"
+                min={0}
+                value={staged.setupFee ?? ''}
+                onChange={(event) => patch({ setupFee: event.target.value === '' ? undefined : Number(event.target.value) })}
+                style={inputStyle}
+              />
+            </label>
             <fieldset style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 7, padding: 8, display: 'grid', gap: 4 }}>
               <legend style={{ fontSize: 12, fontWeight: 700 }}>Services</legend>
               {CLIENT_SERVICE_OPTIONS.map((option) => (

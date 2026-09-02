@@ -53,6 +53,7 @@ export async function POST(request: Request) {
         contactPhone: staged.contactPhone ?? null,
         ...(staged.clientType ? { clientType: staged.clientType } : {}),
         ...(staged.monthlyRetainer === undefined ? {} : { monthlyRetainer: staged.monthlyRetainer }),
+        ...(staged.setupFee === undefined ? {} : { setupFee: staged.setupFee }),
         isActive: staged.isActive,
         ...(staged.notes ? { clientPulse: { notes: staged.notes } } : {}),
       },
