@@ -78,4 +78,15 @@ describe('AdminMateChat', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('already used by Acme Corp')
     expect(screen.getByRole('button', { name: 'Create Acme Corp' })).toBeInTheDocument()
   })
+
+  it('starts a new chat instead of restoring a previous thread', () => {
+    sessionStorage.setItem('optimate:adminmate', JSON.stringify({
+      messages: [{ role: 'user', content: 'create client leftover' }],
+      draft: 'leftover draft',
+    }))
+    render(<AdminMateChat />)
+    expect(screen.queryByText('create client leftover')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Message AdminMate')).toHaveValue('')
+    expect(sessionStorage.getItem('optimate:adminmate')).toBeNull()
+  })
 })

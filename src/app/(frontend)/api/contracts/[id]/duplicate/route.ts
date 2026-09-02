@@ -49,7 +49,8 @@ export async function POST(
         // Required DB columns — pass empty values for the new draft
         clientName: "",
         clientEmail: "placeholder@example.com",
-        proposal: typeof source.proposal === "object" ? source.proposal?.id : source.proposal,
+        // A template clone is a blank draft — do not inherit the source
+        // proposal or client, or the new contract opens as someone else's.
         // Template content fields
         scopeOfWork: source.scopeOfWork || undefined,
         pricingNotes: source.pricingNotes || undefined,

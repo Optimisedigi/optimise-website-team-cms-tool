@@ -1,4 +1,4 @@
-import type { Payload } from "payload";
+import type { Payload, PayloadRequest } from "payload";
 
 /**
  * Contract Reminder scheduling.
@@ -50,6 +50,13 @@ interface ScheduleOptions {
    * the next cron tick — usually undesirable, hence opt-in).
    */
   skipPast?: boolean;
+  /**
+   * Parent request. Pass this from collection hooks so reminder writes join
+   * the same SQLite transaction as the contract create. A nested create on a
+   * fresh connection cannot see an uncommitted contract id and the FK fails,
+   * which rolls the whole draft back (admin then loads a missing ID).
+   */
+  req?: PayloadRequest;
 }
 
 export interface ContractInput {
@@ -147,6 +154,7 @@ export async function scheduleContractReminders(
     limit: 100,
     overrideAccess: true,
     depth: 0,
+    ...(opts.req ? { req: opts.req } : {}),
   });
 
   for (const row of existing.docs) {
@@ -154,6 +162,7 @@ export async function scheduleContractReminders(
       collection: "contract-reminders" as never,
       id: (row as { id: number | string }).id,
       overrideAccess: true,
+      ...(opts.req ? { req: opts.req } : {}),
     });
   }
 
@@ -192,6 +201,7 @@ export async function scheduleContractReminders(
     await payload.create({
       collection: "contract-reminders" as never,
       overrideAccess: true,
+      ...(opts.req ? { req: opts.req } : {}),
       data: {
         contract: contract.id,
         kind: item.kind,

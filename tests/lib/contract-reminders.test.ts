@@ -69,7 +69,7 @@ function makeMockPayload(initial: Array<Record<string, unknown>> = []) {
   }));
 
   const payload = {
-    find: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+    find: vi.fn(async ({ where }: { where: Record<string, unknown>; req?: unknown }) => {
       const conditions = (where.and ?? []) as Array<Record<string, unknown>>;
       const docs = rows.filter((row) =>
         conditions.every((cond) => {
@@ -82,13 +82,13 @@ function makeMockPayload(initial: Array<Record<string, unknown>> = []) {
       );
       return { docs, totalDocs: docs.length };
     }),
-    create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+    create: vi.fn(async ({ data }: { data: Record<string, unknown>; req?: unknown }) => {
       const id = nextId++;
       const row = { id, ...data };
       rows.push(row);
       return row;
     }),
-    delete: vi.fn(async ({ id }: { id: number | string }) => {
+    delete: vi.fn(async ({ id }: { id: number | string; req?: unknown }) => {
       const idx = rows.findIndex((r) => r.id === id);
       if (idx >= 0) rows.splice(idx, 1);
     }),
@@ -275,5 +275,20 @@ describe("scheduleContractReminders", () => {
     for (const row of rows) {
       expect(row.recipients).toEqual([1, 2]);
     }
+  });
+
+  it("passes the parent req into reminder writes so they join the contract transaction", async () => {
+    const { payload } = makeMockPayload();
+    const req = { id: "parent-tx" };
+
+    await scheduleContractReminders(payload as never, {
+      id: 100,
+      contractDate: "2026-05-15",
+      annualReviewReminderEnabled: true,
+      annualReviewReminderRecipients: [1],
+    }, { now, req: req as never });
+
+    expect(payload.find.mock.calls[0][0].req).toBe(req);
+    expect(payload.create.mock.calls.every((call) => call[0].req === req)).toBe(true);
   });
 });

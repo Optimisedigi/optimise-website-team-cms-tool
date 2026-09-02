@@ -299,6 +299,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               )}
               {(step === 'invoice-chat' ||
                 step === 'taskmate' ||
+                step === 'adminmate' ||
                 step === 'gmail' ||
                 step === 'email-reply' ||
                 step === 'email-summarise') && (

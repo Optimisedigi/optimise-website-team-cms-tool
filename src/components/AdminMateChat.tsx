@@ -6,7 +6,6 @@ import { CLIENT_SERVICE_OPTIONS, CLIENT_TYPE_OPTIONS } from '@/lib/client-field-
 import type { AdminMateClient, StagedClient } from '@/lib/agents/adminmate/tools'
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
-type StoredState = { messages?: ChatMessage[]; draft?: string; staged?: StagedClient }
 const STORAGE_KEY = 'optimate:adminmate'
 
 const TEXT_FIELDS: Array<{ key: keyof StagedClient; label: string }> = [
@@ -28,23 +27,15 @@ export default function AdminMateChat() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const hydrated = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    try {
-      const stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '{}') as StoredState
-      if (Array.isArray(stored.messages)) setMessages(stored.messages)
-      if (typeof stored.draft === 'string') setDraft(stored.draft)
-      if (stored.staged) setStaged(stored.staged)
-    } catch { sessionStorage.removeItem(STORAGE_KEY) }
-    hydrated.current = true
+    sessionStorage.removeItem(STORAGE_KEY)
   }, [])
 
   useEffect(() => {
-    if (hydrated.current) sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, draft, staged }))
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
-  }, [messages, draft, staged])
+  }, [messages, staged])
 
   const patch = (changes: Partial<StagedClient>) => setStaged((current) => current && { ...current, ...changes })
 

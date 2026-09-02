@@ -176,7 +176,7 @@ export const Contracts: CollectionConfig = {
             contractDate: doc.contractDate,
             annualReviewReminderEnabled: doc.annualReviewReminderEnabled,
             annualReviewReminderRecipients: doc.annualReviewReminderRecipients,
-          });
+          }, { req });
         } catch (err) {
           req.payload.logger?.error?.({
             msg: "scheduleContractReminders failed",
