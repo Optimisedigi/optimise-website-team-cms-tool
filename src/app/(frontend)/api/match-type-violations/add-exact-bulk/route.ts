@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
-import { negateExactInOwnList } from "@/lib/match-type-exact-negate";
+import { negateExactInSourceAdGroup, resolveSourceAdGroup } from "@/lib/match-type-exact-negate";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -69,9 +69,8 @@ async function postGrowthTools(
  * target ad group; server-side duplicates are skipped.
  *
  * When `negateSource` (default true), each term is also added as an EXACT
- * negative to its candidate's own ad-group negative keyword list — so the
- * original phrase/exact match stops serving the term and traffic funnels to
- * the new exact keyword.
+ * negative on the candidate's own ad group in Google Ads — never a shared
+ * NKL — so the original phrase/exact match stops serving the term.
  *
  * Body: {
  *   candidateIds: (string|number)[],
@@ -381,12 +380,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (negateSource && text) {
       if (shouldNegateSource(c, targets)) {
         try {
-          const neg = await negateExactInOwnList(payload, c, text);
+          const source = resolveSourceAdGroup(adGroups, c);
+          if (!source) throw new Error(`Source ad group "${c.adGroupName ?? ""}" not found`);
+          const neg = await negateExactInSourceAdGroup({ customerId, source, keywordText: text });
           if (!neg.alreadyPresent) negated++;
-          negatedIn.push({
-            listName: neg.listName || String(c.adGroupName ?? ""),
-            adGroupName: String(c.adGroupName ?? ""),
-          });
+          negatedIn.push({ listName: "", adGroupName: neg.adGroupName });
         } catch (err) {
           negateErrors.push(`"${text}": ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -442,7 +440,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       description:
         `Targets: ${autoExactFromCandidates ? "matching exact campaign/ad group per candidate" : body.allAdGroups ? `all ${targetBatches.size} enabled ad groups` : `${targetBatches.size} selected ad group${targetBatches.size === 1 ? "" : "s"}`}. ` +
         `${addedTexts.size} added (EXACT, paused, matched URLs/CPC/labels), ${duplicateTexts.size} already existed.` +
-        (negateSource ? ` ${negated} exact negatives added to source ad-group lists.` : "") +
+        (negateSource ? ` ${negated} exact negatives added to source ad groups.` : "") +
         (groupErrors.length ? ` ${groupErrors.length} ad-group error(s).` : "") +
         (negateErrors.length ? ` ${negateErrors.length} negate error(s).` : ""),
       user: userId,

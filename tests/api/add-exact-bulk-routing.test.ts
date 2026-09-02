@@ -27,10 +27,7 @@ vi.mock("payload", () => ({ getPayload: vi.fn(() => Promise.resolve(mockPayload)
 vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
 vi.mock("@/lib/activity-log", () => ({ logActivity: vi.fn().mockResolvedValue(undefined) }));
 
-const negateExactInOwnList = vi.fn();
-vi.mock("@/lib/match-type-exact-negate", () => ({
-  negateExactInOwnList: (...a: unknown[]) => negateExactInOwnList(...a),
-}));
+
 
 import { POST } from "@/app/(frontend)/api/match-type-violations/add-exact-bulk/route";
 
@@ -61,12 +58,21 @@ function candidate(overrides: Record<string, unknown> = {}) {
 }
 
 let addCalls: Array<{ adGroupId: string; body: any }> = [];
+let negateCalls: Array<{ adGroupId: string; body: any }> = [];
 
 function mockFetch() {
   return vi.fn((url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body));
     if (String(url).includes("/ad-groups/list")) {
       return Promise.resolve({ ok: true, json: async () => ({ adGroups: AD_GROUPS }) } as Response);
+    }
+    const negMatch = String(url).match(/ad-groups\/([^/]+)\/negative-keywords\/add/);
+    if (negMatch) {
+      negateCalls.push({ adGroupId: decodeURIComponent(negMatch[1]), body });
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ added: 1, skippedDuplicates: 0, duplicates: [], errors: [] }),
+      } as Response);
     }
     const match = String(url).match(/ad-groups\/([^/]+)\/keywords\/add/);
     if (match) {
@@ -89,10 +95,10 @@ function request(candidateIds: Array<string | number>) {
 
 beforeEach(() => {
   addCalls = [];
+  negateCalls = [];
   mockPayload.auth.mockReset().mockResolvedValue({ user: { id: 1 } });
   mockPayload.update.mockReset().mockResolvedValue({});
   mockPayload.find.mockReset().mockResolvedValue({ docs: [] });
-  negateExactInOwnList.mockReset().mockResolvedValue({ alreadyPresent: false });
   vi.stubGlobal("fetch", mockFetch());
 });
 
@@ -112,11 +118,11 @@ describe("add-exact-bulk ad group routing", () => {
 
     await POST(request([7]));
 
-    expect(negateExactInOwnList).toHaveBeenCalledTimes(1);
-    const [, negatedCandidate, keywordText] = negateExactInOwnList.mock.calls[0];
-    // Negated against the SOURCE candidate, i.e. its own ad group's list.
-    expect(negatedCandidate.adGroupName).toBe("Generic Vietnam outsourcing");
-    expect(keywordText).toBe("custom software development vietnam");
+    expect(negateCalls).toHaveLength(1);
+    expect(negateCalls[0].adGroupId).toBe("1");
+    expect(negateCalls[0].body.keywords).toEqual([
+      { text: "custom software development vietnam", matchType: "EXACT" },
+    ]);
   });
 
   it("keeps a rerouted keyword in the source campaign's country", async () => {
@@ -141,7 +147,8 @@ describe("add-exact-bulk ad group routing", () => {
     expect(addCalls.map((c) => c.adGroupId)).toEqual(["1"]);
     // Same ad group name, but the keyword lands in the Exact campaign while the
     // candidate came from the Phrase one, so the phrase side is still negated.
-    expect(negateExactInOwnList).toHaveBeenCalledTimes(1);
+    expect(negateCalls).toHaveLength(1);
+    expect(negateCalls[0].adGroupId).toBe("1");
   });
 
   it("keeps a cross-campaign reroute in the source country", async () => {
@@ -166,17 +173,11 @@ describe("add-exact-bulk ad group routing", () => {
     await POST(request([7]));
 
     expect(addCalls).toEqual([]);
-    expect(negateExactInOwnList).not.toHaveBeenCalled();
+    expect(negateCalls).toEqual([]);
   });
 
   it("returns a per-term receipt of where keywords and negatives landed", async () => {
     mockPayload.findByID.mockResolvedValue(candidate({ aiSuggestedAdGroup: "Vietnam developer/IT" }));
-    negateExactInOwnList.mockResolvedValue({
-      alreadyPresent: false,
-      listName: "[OD] Generic Vietnam outsourcing NKL",
-      listId: 99,
-      createdList: true,
-    });
 
     const res = await POST(request([7]));
     const body = await res.json();
@@ -190,7 +191,7 @@ describe("add-exact-bulk ad group routing", () => {
         ]),
         negatedIn: [
           {
-            listName: "[OD] Generic Vietnam outsourcing NKL",
+            listName: "",
             adGroupName: "Generic Vietnam outsourcing",
           },
         ],

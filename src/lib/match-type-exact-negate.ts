@@ -1,66 +1,121 @@
 /**
- * After a dismissed search term is promoted to an EXACT keyword in target ad
- * groups, the term should stop serving via the original phrase/exact keyword
- * that triggered it. This adds the term as an EXACT negative to the source
- * candidate's own ad-group negative keyword list (auto-matched or created via
- * the same routing the approve flow uses), so traffic funnels to the new
- * exact keyword instead of the old match.
+ * After a search term is promoted to an EXACT keyword in target ad groups, the
+ * term should stop serving via the original phrase/exact keyword that triggered
+ * it. That is an ad-group-level EXACT negative on the source ad group — never a
+ * shared negative keyword list (those attach at campaign level and can block
+ * the new exacts).
  */
-import { randomUUID } from "node:crypto";
-import type { getPayload } from "payload";
-import { resolveTargetList, type RoutingCandidate } from "@/lib/match-type-approve";
+const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
-type Payload = Awaited<ReturnType<typeof getPayload>>;
+export interface SourceAdGroup {
+  adGroupId: string;
+  adGroupName: string;
+  campaignName: string;
+}
+
+export interface AdGroupRow {
+  adGroupId?: string;
+  adGroupName?: string;
+  campaignName?: string;
+  status?: string;
+}
 
 export interface NegateResult {
-  listId: string | number;
-  listName: string;
-  createdList: boolean;
+  adGroupId: string;
+  adGroupName: string;
+  campaignName: string;
   alreadyPresent: boolean;
 }
 
-export async function negateExactInOwnList(
-  payload: Payload,
-  candidate: RoutingCandidate,
-  keywordText: string,
-): Promise<NegateResult> {
-  const resolved = await resolveTargetList(payload, {
-    candidate,
-    routing: { mode: "auto" },
-  });
+export function resolveSourceAdGroup(
+  adGroups: AdGroupRow[],
+  candidate: { adGroupName?: string | null; campaignName?: string | null },
+): SourceAdGroup | null {
+  const adGroupName = String(candidate.adGroupName ?? "").trim();
+  const campaignName = String(candidate.campaignName ?? "").trim();
+  if (!adGroupName || !campaignName) return null;
 
-  type NklKeyword = { id?: string | null; keyword?: string; matchType?: "exact" | "phrase" | "broad"; flaggedForRemoval?: boolean | null; negatedAt?: string | null };
-  const nkl = (await payload.findByID({
-    collection: "negative-keyword-lists",
-    id: resolved.listId,
-    depth: 0,
-    overrideAccess: true,
-  })) as { name?: string; keywords?: NklKeyword[] };
-
-  const existing: NklKeyword[] = Array.isArray(nkl.keywords) ? nkl.keywords : [];
-  const alreadyPresent = existing.some(
-    (k) =>
-      (k.keyword ?? "").toLowerCase() === keywordText.toLowerCase() &&
-      (k.matchType ?? "").toLowerCase() === "exact",
+  const nameMatches = adGroups.filter(
+    (g) => g.adGroupId && String(g.adGroupName ?? "").toLowerCase() === adGroupName.toLowerCase(),
   );
+  const campaignMatches = nameMatches.filter(
+    (g) => String(g.campaignName ?? "").toLowerCase() === campaignName.toLowerCase(),
+  );
+  const pool = campaignMatches.length > 0 ? campaignMatches : nameMatches;
+  const enabled = pool.filter((g) => String(g.status ?? "ENABLED").toUpperCase() !== "REMOVED");
+  const pick = (enabled.length > 0 ? enabled : pool)[0];
+  if (!pick?.adGroupId) return null;
+  return {
+    adGroupId: String(pick.adGroupId),
+    adGroupName: String(pick.adGroupName ?? adGroupName),
+    campaignName: String(pick.campaignName ?? campaignName),
+  };
+}
 
-  if (!alreadyPresent) {
-    const updated: NklKeyword[] = [
-      ...existing,
-      { id: randomUUID(), keyword: keywordText, matchType: "exact" as const, flaggedForRemoval: false, negatedAt: new Date().toISOString() },
-    ].sort((a, b) => (a.keyword ?? "").localeCompare(b.keyword ?? ""));
-    await payload.update({
-      collection: "negative-keyword-lists",
-      id: resolved.listId,
-      data: { keywords: updated },
-      overrideAccess: true,
-    });
+export async function negateExactInSourceAdGroup(args: {
+  customerId: string;
+  source: SourceAdGroup;
+  keywordText: string;
+}): Promise<NegateResult> {
+  const { customerId, source, keywordText } = args;
+  if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) {
+    throw new Error("GROWTH_TOOLS_URL or INTERNAL_API_KEY is not configured");
+  }
+  const text = keywordText.trim();
+  if (!text) throw new Error("No keyword text");
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `${GROWTH_TOOLS_URL}/api/google-ads/ad-groups/${encodeURIComponent(source.adGroupId)}/negative-keywords/add`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-key": INTERNAL_API_KEY,
+        },
+        body: JSON.stringify({
+          customerId,
+          keywords: [{ text, matchType: "EXACT" }],
+        }),
+        signal: AbortSignal.timeout(60_000),
+      },
+    );
+  } catch (err) {
+    throw new Error(`Network error adding ad-group negative: ${(err as Error).message}`);
+  }
+
+  let parsed: unknown = null;
+  try {
+    parsed = await res.json();
+  } catch {
+    /* non-JSON */
+  }
+  if (!res.ok) {
+    const errMsg =
+      parsed && typeof parsed === "object" && (parsed as { error?: unknown }).error
+        ? String((parsed as { error?: unknown }).error)
+        : `Growth Tools HTTP ${res.status}`;
+    throw new Error(errMsg);
+  }
+
+  const result = (parsed ?? {}) as {
+    added?: number;
+    skippedDuplicates?: number;
+    errors?: Array<{ error?: string }>;
+  };
+  const added = Number(result.added ?? 0);
+  const skipped = Number(result.skippedDuplicates ?? 0);
+  if (added === 0 && skipped === 0) {
+    const first = Array.isArray(result.errors) ? result.errors[0]?.error : null;
+    throw new Error(first || "Growth Tools reported nothing added and no duplicates");
   }
 
   return {
-    listId: resolved.listId,
-    listName: String(nkl.name ?? ""),
-    createdList: resolved.created,
-    alreadyPresent,
+    adGroupId: source.adGroupId,
+    adGroupName: source.adGroupName,
+    campaignName: source.campaignName,
+    alreadyPresent: added === 0 && skipped > 0,
   };
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
-import { negateExactInOwnList } from "@/lib/match-type-exact-negate";
+import { negateExactInSourceAdGroup, resolveSourceAdGroup } from "@/lib/match-type-exact-negate";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -75,8 +75,7 @@ async function postGrowthTools(
  *   - `adGroupIds?: string[]` — push to these ad groups; when omitted the
  *     candidate's own ad group is resolved by name
  *   - `negateSource?: boolean` (default true) — also add the term as an EXACT
- *     negative to the candidate's own ad-group NKL so the original
- *     phrase/exact match stops serving it
+ *     negative on the candidate's own ad group (not a shared NKL)
  *   - `skip?: true` — reviewed, not wanted as a keyword
  *
  * Outcome stamped on the candidate so it stops appearing in the tab:
@@ -281,15 +280,20 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const outcome = added > 0 ? "added" : "already_exists";
 
-  // ── Negate the term in the candidate's own ad-group list ─────────────────
+  // ── Negate the term on the candidate's own ad group (not a shared list) ──
   // The original phrase/exact keyword stops serving the term; traffic funnels
   // to the new exact keyword instead. Best-effort — reported, never blocking.
   let negatedInList: string | null = null;
   let negateError: string | null = null;
   if (body.negateSource !== false) {
     try {
-      const neg = await negateExactInOwnList(payload, candidate as any, keywordText);
-      negatedInList = neg.alreadyPresent ? null : neg.listName || String(neg.listId);
+      const source = resolveSourceAdGroup(adGroups, {
+        adGroupName,
+        campaignName,
+      });
+      if (!source) throw new Error(`Source ad group "${adGroupName}" not found`);
+      const neg = await negateExactInSourceAdGroup({ customerId, source, keywordText });
+      negatedInList = neg.alreadyPresent ? null : neg.adGroupName;
     } catch (err) {
       negateError = err instanceof Error ? err.message : String(err);
     }
@@ -314,7 +318,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         : `Dismissed term already an exact keyword: "${keywordText}"`,
     description:
       `Pushed ENABLED with matched URLs/CPC/labels to ${targets.length} ad group${targets.length === 1 ? "" : "s"}: ${targetSummary}.` +
-      (negatedInList ? ` Exact negative added to "${negatedInList}".` : "") +
+      (negatedInList ? ` Exact negative added to ad group "${negatedInList}".` : "") +
       (negateError ? ` Negate failed: ${negateError}.` : ""),
     user: userId,
     client: clientId,

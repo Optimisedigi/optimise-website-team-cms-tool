@@ -328,7 +328,6 @@ export default function MatchTypeTriageDecisions({ clientId }: { clientId: strin
                     {term.negatedIn.map((neg) => (
                       <div key={`${neg.listName}-${neg.adGroupName}`} style={{ fontSize: 12, color: '#92400e' }}>
                         Exact negative in {neg.adGroupName || neg.listName}
-                        {neg.listName && neg.adGroupName ? ` (${neg.listName})` : ''}
                       </div>
                     ))}
                   </div>

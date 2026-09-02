@@ -266,7 +266,7 @@ describe("action receipt", () => {
                 { adGroupName: "Vietnam developer/IT", campaignName: "Search - Generic - Vietnam - AU - Exact" },
                 { adGroupName: "Vietnam developer/IT", campaignName: "Search - Generic - Vietnam - US - Exact" },
               ],
-              negatedIn: [{ listName: "[OD] Generic Vietnam outsourcing NKL", adGroupName: "Generic Vietnam outsourcing" }],
+              negatedIn: [{ listName: "", adGroupName: "Generic Vietnam outsourcing" }],
             },
           ],
         },
