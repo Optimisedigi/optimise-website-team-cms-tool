@@ -21,6 +21,7 @@ import {
   sensitiveFieldAccess,
 } from "../lib/access";
 import { hasValidApiKey } from "./api-key-access";
+import { CLIENT_SERVICE_OPTIONS, CLIENT_TYPE_OPTIONS } from "../lib/client-field-options";
 import {
   deferPostCommit,
   ensureGoogleAdsAudit,
@@ -582,13 +583,7 @@ export const Clients: CollectionConfig = {
                 description:
                   "Which services Optimise delivers for this client. Shown as pills in the client header.",
               },
-              options: [
-                { label: "Google Ads", value: "google_ads" },
-                { label: "SEO", value: "seo" },
-                { label: "Paid Social", value: "paid_social" },
-                { label: "Website Build", value: "website_build" },
-                { label: "Automations", value: "automations" },
-              ],
+              options: [...CLIENT_SERVICE_OPTIONS],
             },
             // ── Site identity row (3-col) ─────────────────────────────
             // Matches the mockup's second Business Identity row:
@@ -1361,11 +1356,7 @@ export const Clients: CollectionConfig = {
                       (data: any) => !data?.isAgency,
                     ),
                   },
-                  options: [
-                    { label: "Recurring", value: "recurring" },
-                    { label: "One-off", value: "one_off" },
-                    { label: "Paused", value: "paused" },
-                  ],
+                  options: [...CLIENT_TYPE_OPTIONS],
                 },
                 {
                   name: "clientStartDate",

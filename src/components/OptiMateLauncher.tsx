@@ -9,11 +9,12 @@ import OptiMateMultiChat, {
 import InvoiceAssistantChat from './InvoiceAssistantChat'
 import GmailReplyChat from './GmailReplyChat'
 import TaskMateChat from './TaskMateChat'
+import AdminMateChat from './AdminMateChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
 import RocketSplash from './RocketSplash'
 
-type AgentKey = 'google-ads' | 'invoices' | 'taskmate'
+type AgentKey = 'google-ads' | 'invoices' | 'taskmate' | 'adminmate'
 
 interface AgentDef {
   key: AgentKey
@@ -29,6 +30,7 @@ const AGENTS: AgentDef[] = [
   { key: 'google-ads', label: 'GoogleMate', icon: '/optimate-orb.png', enabled: true },
   { key: 'invoices', label: 'InvoiceMate', icon: '/invoicemate-orb.png', iconSize: 28, enabled: true },
   { key: 'taskmate', label: 'TaskMate', icon: '/taskmate-orb.png', iconSize: 28, enabled: true },
+  { key: 'adminmate', label: 'AdminMate', icon: '/adminmate-orb.png', iconSize: 28, enabled: true },
 ]
 
 /** Gmail shortcuts on the agent step. Tints match the Gmail palette. */
@@ -50,7 +52,7 @@ interface AuditOption {
   customerId: string
 }
 
-type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'taskmate' | 'gmail' | 'email-reply' | 'email-summarise' | 'pomodoro'
+type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'taskmate' | 'adminmate' | 'gmail' | 'email-reply' | 'email-summarise' | 'pomodoro'
 
 const PILL_RIGHT = 24 // pixels — pomodoro pill is gone, sit bottom-right alone
 const PILL_BOTTOM = 24
@@ -157,6 +159,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       setStep('taskmate')
       return
     }
+    if (key === 'adminmate') {
+      setStep('adminmate')
+      return
+    }
     setStep('audit')
   }
 
@@ -194,9 +200,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
         ? 'InvoiceMate'
         : step === 'taskmate'
           ? 'TaskMate'
-          : step === 'pomodoro'
-            ? 'Pomodoro'
-            : 'OptiMate'
+          : step === 'adminmate'
+            ? 'AdminMate'
+            : step === 'pomodoro'
+              ? 'Pomodoro'
+              : 'OptiMate'
   const headerSub =
     step === 'chat'
       ? accountLabel
@@ -481,7 +489,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   <span className="om-label">Choose an agent</span>
                   <div className="om-agents">
                     {AGENTS.filter(
-                      (a) => a.key !== 'taskmate' || (user as { role?: string }).role === 'admin',
+                      (a) =>
+                        (a.key !== 'taskmate' && a.key !== 'adminmate') ||
+                        (user as { role?: string }).role === 'admin',
                     ).map((a) => (
                       <button
                         key={a.key}
@@ -673,6 +683,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             {step === 'invoice-chat' && <InvoiceAssistantChat />}
 
             {step === 'taskmate' && <TaskMateChat />}
+
+            {step === 'adminmate' && <AdminMateChat />}
 
             {step === 'gmail' && <GmailReplyChat initialPhase="compose" />}
 
