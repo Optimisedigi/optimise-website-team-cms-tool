@@ -136,4 +136,26 @@ describe("runMigrations", () => {
       status: "ok",
     });
   });
+
+  it("adds monthly-negative NKL/tag columns even when production is fully marked and short-circuits", async () => {
+    // Production state: current marker present, landing schema complete. The
+    // runner returns early here, so any ALTER placed after the short-circuit
+    // never runs — that is how extra_applied_nkl_ids went missing and Apply 500'd.
+    const execute = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("sqlite_master") && sql.includes("landing_")) return { rows: [{ name: "landing_events" }] };
+      if (sql.includes("PRAGMA table_info(`landing_events`)")) return { rows: [{ name: "market" }] };
+      return { rows: [] };
+    });
+    const payload = { db: { client: { execute } } } as any;
+
+    const results = await runMigrations(payload);
+
+    expect(results.length).toBeLessThan(100);
+    const alters = execute.mock.calls.map(([sql]) => String(sql));
+    expect(alters).toContain("ALTER TABLE `monthly_keyword_selection_rows` ADD `extra_applied_nkl_ids` text");
+    expect(alters).toContain("ALTER TABLE `monthly_keyword_selections_selections` ADD `extra_applied_nkl_ids` text");
+    expect(alters).toContain("ALTER TABLE `monthly_keyword_selection_rows` ADD `outcome_comment_tagged_user_ids` text");
+    expect(alters).toContain("ALTER TABLE `monthly_keyword_selection_rows` ADD `removed_comment_tagged_user_ids` text");
+  });
 });

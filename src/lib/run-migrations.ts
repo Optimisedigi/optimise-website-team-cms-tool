@@ -545,11 +545,22 @@ export async function runMigrations(
     );
   }
 
+  // Monthly-negatives @-tags and up-to-3 NKL targets (2026-09-03). Must run
+  // before the marker short-circuit below, or production never sees them
+  // (Apply then 500s with Payload "Not Found" on the missing column).
+  async function addMonthlyKeywordSelectionColumns(): Promise<void> {
+    await run("selection_rows.outcome_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `outcome_comment_tagged_user_ids` text");
+    await run("selection_rows.removed_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `removed_comment_tagged_user_ids` text");
+    await run("selection_rows.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `extra_applied_nkl_ids` text");
+    await run("monthly_keyword_selections_selections.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `extra_applied_nkl_ids` text");
+  }
+
   try {
     // Must precede the marker short-circuit: production carries the marker and
     // would otherwise return before any repair ran.
     await repairClientsServicesSelectId();
     await setClientsListPerPage();
+    await addMonthlyKeywordSelectionColumns();
 
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the
@@ -5357,12 +5368,6 @@ export async function runMigrations(
     );
     await run("clients.triage_ideal_customer", "ALTER TABLE `clients` ADD `gads_auto_triage_ideal_customer` text");
     await run("clients.triage_exclusions", "ALTER TABLE `clients` ADD `gads_auto_triage_exclusions` text");
-
-    // Persist @-tags on Review-outcomes and removed-negative comments (2026-09-03).
-    await run("selection_rows.outcome_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `outcome_comment_tagged_user_ids` text");
-    await run("selection_rows.removed_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `removed_comment_tagged_user_ids` text");
-    await run("selection_rows.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `extra_applied_nkl_ids` text");
-    await run("monthly_keyword_selections_selections.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `extra_applied_nkl_ids` text");
 
     // ── FIX (2026-06-11): assigned-list relationship column name mismatch ──
     // The original table-creation sweep named the `assignedListId` relationship
