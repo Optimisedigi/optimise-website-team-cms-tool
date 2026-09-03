@@ -28,6 +28,11 @@ vi.mock("@/lib/access", () => ({
   userHasFeature: vi.fn(() => true),
 }));
 
+const appendNklKeywords = vi.fn(async (_payload: unknown, _id: number, _client: number, keywords: unknown[]) => keywords.length);
+vi.mock("@/lib/nkl-append-keywords", () => ({
+  appendNklKeywords: (...args: unknown[]) => appendNklKeywords(...(args as [unknown, number, number, unknown[]])),
+}));
+
 import { POST } from "@/app/(frontend)/api/negative-keyword-lists/[id]/keywords/route";
 
 function request(body: unknown): NextRequest {
@@ -64,6 +69,7 @@ describe("negative keyword list keyword mutations", () => {
       updatedAt: "2026-07-13T05:00:00.000Z",
     }));
     mockPayload.create.mockResolvedValue({ id: 1 });
+    appendNklKeywords.mockClear();
   });
 
   it("rejects a stale browser snapshot without writing", async () => {
@@ -119,6 +125,26 @@ describe("negative keyword list keyword mutations", () => {
       },
     }));
   });
+  it("adds only the new rows without rewriting the existing keyword array", async () => {
+    const response = await POST(request({
+      operation: "add",
+      keywords: [
+        { keyword: "free", matchType: "exact" },
+        { keyword: "jobs", matchType: "phrase" },
+        { keyword: "brand new", matchType: "exact" },
+        { keyword: "brand new", matchType: "exact" },
+      ],
+    }), { params: Promise.resolve({ id: "13" }) });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ success: true, applied: 1, skipped: 3, keywordCount: 4 });
+    expect(appendNklKeywords).toHaveBeenCalledWith(mockPayload, 13, 6, [
+      { keyword: "brand new", matchType: "exact" },
+    ]);
+    expect(mockPayload.update).not.toHaveBeenCalled();
+  });
+
   it("enables SQLite transactions required for safe keyword mutations", () => {
     const payloadConfig = readFileSync(resolve(process.cwd(), "src/payload.config.ts"), "utf8");
     expect(payloadConfig).toMatch(/sqliteAdapter\(\{[\s\S]*?transactionOptions:\s*\{\}/);

@@ -42,30 +42,22 @@ export default function NegativeKeywordBulkAdd() {
         return
       }
 
-      const mergedKeywords = [
-        ...existingKeywords.map((kw: any) => ({
-          keyword: kw.keyword,
-          matchType: kw.matchType,
-          flaggedForRemoval: kw.flaggedForRemoval || false,
-        })),
-        ...newKeywords.map((kw) => ({
-          keyword: kw.keyword,
-          matchType: kw.matchType,
-          flaggedForRemoval: false,
-        })),
-      ]
-
-      const skipped = parsed.length - newKeywords.length
-
-      const res = await fetch(`/api/negative-keyword-lists/${data.id}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/negative-keyword-lists/${data.id}/keywords`, {
+        method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keywords: mergedKeywords }),
+        body: JSON.stringify({
+          operation: 'add',
+          keywords: newKeywords.map((kw) => ({ keyword: kw.keyword, matchType: kw.matchType })),
+        }),
       })
 
       if (res.ok) {
+        const body = await res.json().catch(() => null) as { applied?: number; skipped?: number } | null
+        const applied = typeof body?.applied === 'number' ? body.applied : newKeywords.length
+        const skipped = typeof body?.skipped === 'number' ? body.skipped : parsed.length - applied
         setResult(
-          `Added ${newKeywords.length} keyword${newKeywords.length !== 1 ? 's' : ''}` +
+          `Added ${applied} keyword${applied !== 1 ? 's' : ''}` +
           (skipped > 0 ? ` (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped)` : '') +
           '. Refresh the page to see them below.'
         )

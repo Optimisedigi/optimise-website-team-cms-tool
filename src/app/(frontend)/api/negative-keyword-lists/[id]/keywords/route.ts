@@ -3,6 +3,7 @@ import { createLocalReq, getPayload } from "payload";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
 import { logActivity } from "@/lib/activity-log";
+import { appendNklKeywords } from "@/lib/nkl-append-keywords";
 
 type Keyword = {
   id?: string | null;
@@ -28,8 +29,64 @@ export async function POST(
   const { id } = await params;
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   const operation = body?.operation;
-  if (operation !== "delete" && operation !== "update") {
-    return NextResponse.json({ error: "operation must be delete or update" }, { status: 400 });
+  if (operation !== "delete" && operation !== "update" && operation !== "add") {
+    return NextResponse.json({ error: "operation must be add, delete, or update" }, { status: 400 });
+  }
+
+  if (operation === "add") {
+    const list = await payload.findByID({
+      collection: "negative-keyword-lists",
+      id,
+      depth: 0,
+      overrideAccess: true,
+    }) as {
+      id: string | number;
+      client?: string | number | { id?: string | number } | null;
+      name?: string | null;
+      keywords?: Keyword[] | null;
+    };
+    const currentKeywords = Array.isArray(list.keywords) ? list.keywords : [];
+    const existingSet = new Set(
+      currentKeywords.map((kw) => `${String(kw.keyword || "").toLowerCase()}|${String(kw.matchType || "").toLowerCase()}`),
+    );
+    const incoming = Array.isArray(body?.keywords) ? body.keywords : [];
+    const deduped = new Map<string, { keyword: string; matchType: string }>();
+    let skipped = 0;
+    for (const raw of incoming) {
+      if (!raw || typeof raw !== "object") continue;
+      const keyword = typeof (raw as { keyword?: unknown }).keyword === "string"
+        ? (raw as { keyword: string }).keyword.trim()
+        : "";
+      const matchType = String((raw as { matchType?: unknown }).matchType || "exact").toLowerCase();
+      if (!keyword || !MATCH_TYPES.has(matchType)) continue;
+      const key = `${keyword.toLowerCase()}|${matchType}`;
+      if (existingSet.has(key) || deduped.has(key)) {
+        skipped += 1;
+        continue;
+      }
+      deduped.set(key, { keyword, matchType });
+    }
+    const newKeywords = Array.from(deduped.values());
+    const clientId = typeof list.client === "object" ? Number(list.client?.id) : Number(list.client);
+    const nklId = typeof list.id === "string" ? parseInt(list.id, 10) : Number(list.id);
+    await appendNklKeywords(payload, nklId, clientId, newKeywords);
+    try {
+      await logActivity(payload, {
+        type: "negative_keyword_list_updated",
+        title: `Added ${newKeywords.length} negative keyword${newKeywords.length === 1 ? "" : "s"}`,
+        description: `List: ${list.name || id}. Count: ${currentKeywords.length} → ${currentKeywords.length + newKeywords.length}.`,
+        user: typeof user.id === "object" ? (user.id as { id: string | number }).id : user.id,
+        ...(clientId ? { client: clientId } : {}),
+      });
+    } catch (error) {
+      payload.logger?.warn?.(`[negative-keyword-lists/keywords] activity log failed: ${error}`);
+    }
+    return NextResponse.json({
+      success: true,
+      applied: newKeywords.length,
+      skipped,
+      keywordCount: currentKeywords.length + newKeywords.length,
+    });
   }
 
   const transactionID = await payload.db.beginTransaction();
