@@ -66,6 +66,36 @@ interface InspectionMeta {
 
 // ─── Helpers ────────────────────────────────────────────
 
+interface IssueDelta {
+  type?: string
+  url?: string
+  severity?: string
+  message?: string
+}
+
+/** One side of the crawl-to-crawl delta: capped list of new or fixed issues. */
+function IssueDeltaList({ title, color, items }: { title: string; color: string; items: IssueDelta[] }) {
+  return (
+    <div style={{ flex: '1 1 320px', minWidth: 280 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 8 }}>{title}</div>
+      {items.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#6b7280' }}>None</div>
+      ) : (
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
+          {items.slice(0, 25).map((item, index) => (
+            <li key={`${item.type}-${item.url}-${index}`}>
+              <strong>{item.type || 'issue'}</strong>
+              {item.severity ? ` (${item.severity})` : ''}
+              {item.url ? <> — <span style={{ wordBreak: 'break-all' }}>{item.url}</span></> : null}
+            </li>
+          ))}
+          {items.length > 25 && <li style={{ color: '#6b7280' }}>+{items.length - 25} more</li>}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 const severityColor = (s: string) => {
   if (s === 'critical') return { bg: '#fef2f2', border: '#fca5a5', text: '#dc2626' }
   if (s === 'warning') return { bg: '#fffbeb', border: '#fcd34d', text: '#d97706' }
@@ -215,6 +245,11 @@ const SiteHealthReportView = () => {
     fixedIssues: fields?.['comparison.fixedIssues']?.value as number | undefined,
   }
 
+  // Which issues changed since the previous crawl, not just how many.
+  const newIssuesList = (parseJson(fields?.['comparison.newIssuesList']?.value) as IssueDelta[] | null) || []
+  const fixedIssuesList = (parseJson(fields?.['comparison.fixedIssuesList']?.value) as IssueDelta[] | null) || []
+  const hasDelta = newIssuesList.length > 0 || fixedIssuesList.length > 0
+
   const issuesByCategory = parseJson(fields?.issuesByCategory?.value) as Record<string, CategoryCounts> | null
   const issues = parseJson(fields?.issues?.value) as Issue[] | null
   const pages = parseJson(fields?.pages?.value) as PageSummary[] | null
@@ -282,6 +317,20 @@ const SiteHealthReportView = () => {
           </div>
         </div>
       </div>
+
+      {/* ── Changes since last crawl ── */}
+      {hasDelta && (
+        <div style={{
+          background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+          padding: 20, marginBottom: 20,
+        }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700 }}>Changes since last crawl</h3>
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+            <IssueDeltaList title={`New issues (${newIssuesList.length})`} color="#dc2626" items={newIssuesList} />
+            <IssueDeltaList title={`Fixed issues (${fixedIssuesList.length})`} color="#16a34a" items={fixedIssuesList} />
+          </div>
+        </div>
+      )}
 
       {/* ── Summary cards ── */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>

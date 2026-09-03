@@ -94,6 +94,18 @@ export const Notifications: CollectionConfig = {
           value: "google-ads-keyword-cost-finder-usage",
         },
         {
+          label: "Google automation changed an account",
+          value: "google-automation-detected",
+        },
+        {
+          label: "Site health regression",
+          value: "site-health-regression",
+        },
+        {
+          label: "Google Search algorithm update",
+          value: "google-search-update",
+        },
+        {
           label: "Meeting attendee accepted",
           value: "meeting-response-accepted",
         },

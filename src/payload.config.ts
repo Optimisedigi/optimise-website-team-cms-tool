@@ -46,6 +46,8 @@ import { GoalRunSnapshots } from "./collections/GoalRunSnapshots";
 import { GoogleAdsSnapshots } from "./collections/GoogleAdsSnapshots";
 import { GoogleAdsAccountStructureSnapshots } from "./collections/GoogleAdsAccountStructureSnapshots";
 import { GoogleAdsChangeTrackers } from "./collections/GoogleAdsChangeTrackers";
+import { GoogleAdsAutomationEvents } from "./collections/GoogleAdsAutomationEvents";
+import { GoogleSearchStatusIncidents } from "./collections/GoogleSearchStatusIncidents";
 import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { SeoMigrationChecks } from "./collections/SeoMigrationChecks";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
@@ -169,7 +171,7 @@ export default buildConfig({
     // Optimate agents
     AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, RealtimeVoiceUsage, OptimateChatTurns,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsAuditSnapshotChunks, GoogleAdsAccountStructureSnapshots, GoogleAdsChangeTrackers, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, MonthlyKeywordSelectionRows, MonthlyKeywordTermsCache, ClientPulseHistory, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSynonymRules, MatchTypeAllowListTerms, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
+    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsAuditSnapshotChunks, GoogleAdsAccountStructureSnapshots, GoogleAdsChangeTrackers, GoogleAdsAutomationEvents, GoogleSearchStatusIncidents, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, MonthlyKeywordSelectionRows, MonthlyKeywordTermsCache, ClientPulseHistory, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSynonymRules, MatchTypeAllowListTerms, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
   ].map((c) => {
     const collection = c as CollectionConfig
     return {

@@ -169,6 +169,16 @@ export const SiteHealthReports: CollectionConfig = {
                   ],
                 },
                 { name: "previousDate", type: "text" },
+                {
+                  name: "newIssuesList",
+                  type: "json",
+                  admin: { description: "Issues present in this crawl but not the previous one: { type, url, severity, message }." },
+                },
+                {
+                  name: "fixedIssuesList",
+                  type: "json",
+                  admin: { description: "Issues present in the previous crawl but gone from this one." },
+                },
               ],
             },
           ],

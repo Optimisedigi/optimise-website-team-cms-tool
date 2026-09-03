@@ -174,6 +174,19 @@ const SidebarNavExtras = () => {
         )
       }
 
+      // Watchtower sits directly under the Google Ads hub link. Injected
+      // before the hub itself because both prepend to index 0.
+      if (canGoogleAds) {
+        injectLink(
+          '#nav-group-Growth\\ Tools .nav-group__content',
+          'google-ads-automation',
+          '/admin/google-ads-automation',
+          ICONS.googleAds,
+          'Ads Watchtower',
+          'prepend',
+        )
+      }
+
       // Growth Tools hub links sit at the top of the group, ordered:
       //   Google Ads → SEO → (auto collection links below).
       // Both prepend to index 0, so inject SEO FIRST, then Google Ads, so

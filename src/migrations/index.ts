@@ -21,6 +21,9 @@ import * as migration_20260831_120000_add_match_type_violation_ai_triage from '.
 import * as migration_20260901_120000_add_triage_context_and_suggested_ad_group from './20260901_120000_add_triage_context_and_suggested_ad_group'
 import * as migration_20260903_120000_add_monthly_keyword_comment_tags from './20260903_120000_add_monthly_keyword_comment_tags'
 import * as migration_20260903_130000_add_monthly_keyword_extra_nkls from './20260903_130000_add_monthly_keyword_extra_nkls'
+import * as migration_20260903_140000_add_google_ads_automation_events from './20260903_140000_add_google_ads_automation_events'
+import * as migration_20260903_150000_add_site_health_issue_deltas from './20260903_150000_add_site_health_issue_deltas'
+import * as migration_20260903_160000_add_google_search_status_incidents from './20260903_160000_add_google_search_status_incidents'
 import * as migration_20260801_130000_add_proposal_meta_ads_job_state from './20260801_130000_add_proposal_meta_ads_job_state'
 import * as migration_20260304_120000_add_gsc_indexing_audits from './20260304_120000_add_gsc_indexing_audits'
 import * as migration_20260306_120000_add_contracts from './20260306_120000_add_contracts'
@@ -1019,5 +1022,20 @@ export const migrations = [
     up: migration_20260903_130000_add_monthly_keyword_extra_nkls.up,
     down: migration_20260903_130000_add_monthly_keyword_extra_nkls.down,
     name: '20260903_130000_add_monthly_keyword_extra_nkls',
+  },
+  {
+    up: migration_20260903_140000_add_google_ads_automation_events.up,
+    down: migration_20260903_140000_add_google_ads_automation_events.down,
+    name: '20260903_140000_add_google_ads_automation_events',
+  },
+  {
+    up: migration_20260903_150000_add_site_health_issue_deltas.up,
+    down: migration_20260903_150000_add_site_health_issue_deltas.down,
+    name: '20260903_150000_add_site_health_issue_deltas',
+  },
+  {
+    up: migration_20260903_160000_add_google_search_status_incidents.up,
+    down: migration_20260903_160000_add_google_search_status_incidents.down,
+    name: '20260903_160000_add_google_search_status_incidents',
   },
 ]

@@ -166,8 +166,8 @@ import { default as default_67cd75f7dc15172a4e21290c38ac2619 } from '../../../co
 import { default as default_5cc9c48eac9f9681086cee91da012e9f } from '../../../components/NegativeKeywordTable'
 import { default as default_c99210795b28d20ce793bfa990d64a2d } from '../../../components/NegativeKeywordListInfo'
 import { default as default_c2361a6ac1b8d72c6922ada30832f3c5 } from '../../../components/NegativeKeywordListsClientFilter'
+import { default as default_e2806fe1cd0f7c114440380a8ae66627 } from '../../../components/NegativeKeywordListDeleteConfirm'
 import { default as default_479872b4be427a584ece8ad6c018a6db } from '../../../components/NegativeKeywordListBreadcrumb'
-import { default as default_nklDeleteConfirm } from '../../../components/NegativeKeywordListDeleteConfirm'
 import { default as default_c6dc19d9268bf85af3aeeca1819ed97d } from '../../../components/ApplyToNKLButton'
 import { default as default_20396e04db8c07a5e3383d2e16b34dc4 } from '../../../components/RunSiteHealthButton'
 import { default as default_b058368eb7c5859811170004e5dd59a8 } from '../../../components/SiteHealthReportView'
@@ -384,8 +384,8 @@ export const importMap = {
   "./components/NegativeKeywordTable#default": default_5cc9c48eac9f9681086cee91da012e9f,
   "./components/NegativeKeywordListInfo#default": default_c99210795b28d20ce793bfa990d64a2d,
   "./components/NegativeKeywordListsClientFilter#default": default_c2361a6ac1b8d72c6922ada30832f3c5,
+  "./components/NegativeKeywordListDeleteConfirm#default": default_e2806fe1cd0f7c114440380a8ae66627,
   "./components/NegativeKeywordListBreadcrumb#default": default_479872b4be427a584ece8ad6c018a6db,
-  "./components/NegativeKeywordListDeleteConfirm#default": default_nklDeleteConfirm,
   "./components/ApplyToNKLButton#default": default_c6dc19d9268bf85af3aeeca1819ed97d,
   "./components/RunSiteHealthButton#default": default_20396e04db8c07a5e3383d2e16b34dc4,
   "./components/SiteHealthReportView#default": default_b058368eb7c5859811170004e5dd59a8,

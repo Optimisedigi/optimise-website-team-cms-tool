@@ -144,6 +144,8 @@ export interface Config {
     'google-ads-audit-snapshot-chunks': GoogleAdsAuditSnapshotChunk;
     'google-ads-account-structure-snapshots': GoogleAdsAccountStructureSnapshot;
     'google-ads-change-trackers': GoogleAdsChangeTracker;
+    'google-ads-automation-events': GoogleAdsAutomationEvent;
+    'google-search-status-incidents': GoogleSearchStatusIncident;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
     'google-ads-ad-extensions': GoogleAdsAdExtension;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
@@ -259,6 +261,8 @@ export interface Config {
     'google-ads-audit-snapshot-chunks': GoogleAdsAuditSnapshotChunksSelect<false> | GoogleAdsAuditSnapshotChunksSelect<true>;
     'google-ads-account-structure-snapshots': GoogleAdsAccountStructureSnapshotsSelect<false> | GoogleAdsAccountStructureSnapshotsSelect<true>;
     'google-ads-change-trackers': GoogleAdsChangeTrackersSelect<false> | GoogleAdsChangeTrackersSelect<true>;
+    'google-ads-automation-events': GoogleAdsAutomationEventsSelect<false> | GoogleAdsAutomationEventsSelect<true>;
+    'google-search-status-incidents': GoogleSearchStatusIncidentsSelect<false> | GoogleSearchStatusIncidentsSelect<true>;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
     'google-ads-ad-extensions': GoogleAdsAdExtensionsSelect<false> | GoogleAdsAdExtensionsSelect<true>;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
@@ -6865,6 +6869,30 @@ export interface SiteHealthReport {
     newIssues?: number | null;
     fixedIssues?: number | null;
     previousDate?: string | null;
+    /**
+     * Issues present in this crawl but not the previous one: { type, url, severity, message }.
+     */
+    newIssuesList?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Issues present in the previous crawl but gone from this one.
+     */
+    fixedIssuesList?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
   };
   /**
    * Full list of SiteHealthIssue objects (severity, category, type, message, url, details)
@@ -10251,6 +10279,121 @@ export interface GoogleAdsChangeTracker {
   createdAt: string;
 }
 /**
+ * Changes Google made to managed Ads accounts, polled daily from change_event.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-automation-events".
+ */
+export interface GoogleAdsAutomationEvent {
+  id: number;
+  client?: (number | null) | Client;
+  customerId?: string | null;
+  /**
+   * Google-reported change timestamp, account time zone.
+   */
+  changeDateTime?: string | null;
+  /**
+   * change_event.resource_name — the dedupe key across runs.
+   */
+  resourceName: string;
+  changeResourceType?: string | null;
+  resourceChangeOperation?: string | null;
+  /**
+   * change_event.client_type, e.g. GOOGLE_ADS_RECOMMENDATIONS_SUBSCRIPTION.
+   */
+  clientType?: string | null;
+  userEmail?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
+  changedFields?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  oldValues?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  newValues?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * True when client_type is one of Google's own automation sources.
+   */
+  isGoogleAutomated?: boolean | null;
+  /**
+   * One human sentence describing the change.
+   */
+  summary?: string | null;
+  /**
+   * Campaign spend/conversions 7 days before vs after, from google-ads-snapshots.
+   */
+  impact?: {
+    spendBefore?: number | null;
+    spendAfter?: number | null;
+    convBefore?: number | null;
+    convAfter?: number | null;
+    computedAt?: string | null;
+  };
+  reviewStatus?: ('unreviewed' | 'flagged' | 'accepted' | 'reverted') | null;
+  relatedApproval?: (number | null) | AgentApprovalQueue;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Confirmed Google Search algorithm updates and serving incidents.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-status-incidents".
+ */
+export interface GoogleSearchStatusIncident {
+  id: number;
+  /**
+   * Google's incident id — the dedupe key across cron runs.
+   */
+  incidentId: string;
+  title: string;
+  kind: 'core' | 'spam' | 'discover' | 'serving' | 'other';
+  begin?: string | null;
+  end?: string | null;
+  modified?: string | null;
+  statusImpact?: string | null;
+  severity?: string | null;
+  serviceName?: string | null;
+  latestUpdate?: string | null;
+  sourceUri?: string | null;
+  /**
+   * Set once admins have been bell-notified about this incident.
+   */
+  notifiedAt?: string | null;
+  raw?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Campaign budget allocation. Set monthly budget total and percentages, CMS calculates daily budget.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -10794,6 +10937,9 @@ export interface Notification {
     | 'goal-run-escalation'
     | 'google-ads-budget-review'
     | 'google-ads-keyword-cost-finder-usage'
+    | 'google-automation-detected'
+    | 'site-health-regression'
+    | 'google-search-update'
     | 'meeting-response-accepted'
     | 'meeting-response-declined'
     | 'meeting-confirmed'
@@ -11566,6 +11712,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'google-ads-change-trackers';
         value: number | GoogleAdsChangeTracker;
+      } | null)
+    | ({
+        relationTo: 'google-ads-automation-events';
+        value: number | GoogleAdsAutomationEvent;
+      } | null)
+    | ({
+        relationTo: 'google-search-status-incidents';
+        value: number | GoogleSearchStatusIncident;
       } | null)
     | ({
         relationTo: 'google-ads-campaign-budgets';
@@ -13809,6 +13963,8 @@ export interface SiteHealthReportsSelect<T extends boolean = true> {
         newIssues?: T;
         fixedIssues?: T;
         previousDate?: T;
+        newIssuesList?: T;
+        fixedIssuesList?: T;
       };
   issues?: T;
   pages?: T;
@@ -14630,6 +14786,61 @@ export interface GoogleAdsChangeTrackersSelect<T extends boolean = true> {
   workspaceKey?: T;
   view?: T;
   graphs?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-automation-events_select".
+ */
+export interface GoogleAdsAutomationEventsSelect<T extends boolean = true> {
+  client?: T;
+  customerId?: T;
+  changeDateTime?: T;
+  resourceName?: T;
+  changeResourceType?: T;
+  resourceChangeOperation?: T;
+  clientType?: T;
+  userEmail?: T;
+  campaignId?: T;
+  campaignName?: T;
+  changedFields?: T;
+  oldValues?: T;
+  newValues?: T;
+  isGoogleAutomated?: T;
+  summary?: T;
+  impact?:
+    | T
+    | {
+        spendBefore?: T;
+        spendAfter?: T;
+        convBefore?: T;
+        convAfter?: T;
+        computedAt?: T;
+      };
+  reviewStatus?: T;
+  relatedApproval?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-status-incidents_select".
+ */
+export interface GoogleSearchStatusIncidentsSelect<T extends boolean = true> {
+  incidentId?: T;
+  title?: T;
+  kind?: T;
+  begin?: T;
+  end?: T;
+  modified?: T;
+  statusImpact?: T;
+  severity?: T;
+  serviceName?: T;
+  latestUpdate?: T;
+  sourceUri?: T;
+  notifiedAt?: T;
+  raw?: T;
   updatedAt?: T;
   createdAt?: T;
 }

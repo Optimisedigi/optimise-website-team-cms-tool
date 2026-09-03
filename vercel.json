@@ -64,6 +64,18 @@
     {
       "path": "/api/hosting-subscriptions/sweep",
       "schedule": "15 * * * *"
+    },
+    {
+      "path": "/api/google-ads-automation/cron",
+      "schedule": "30 5 * * *"
+    },
+    {
+      "path": "/api/site-health/cron",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/google-search-updates/cron",
+      "schedule": "0 6 * * *"
     }
   ],
   "functions": {
@@ -156,6 +168,15 @@
     },
     "src/app/(frontend)/api/google-ads-budgets/monthly-recommendations/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/(frontend)/api/google-ads-automation/cron/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/(frontend)/api/site-health/cron/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/(frontend)/api/google-search-updates/cron/route.ts": {
+      "maxDuration": 60
     }
   }
 }

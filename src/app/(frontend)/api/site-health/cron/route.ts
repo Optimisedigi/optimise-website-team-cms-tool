@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { notifyOnRegression } from "@/lib/site-health/notify-regression";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -113,6 +114,17 @@ export async function GET(req: NextRequest) {
             maxGscInspections: c.seoAuto?.maxGscInspections || 200,
             checkExternalLinks: c.seoAuto?.checkExternalLinks || false,
             clientId: String(c.id),
+            // This scheduled run owns the client's monthly email. The manual
+            // Run button omits sendEmail, so it never mails the client.
+            // notificationEmails is an array of { email } rows on the client
+            // doc; unwrap to plain strings. An empty list is passed through on
+            // purpose — Growth Tools falls back to the team address.
+            sendEmail: true,
+            clientName,
+            notificationEmails:
+              c.seoAuto?.notificationEmails
+                ?.map((e: any) => e?.email)
+                .filter(Boolean) ?? [],
           }),
         }
       );
@@ -145,6 +157,13 @@ export async function GET(req: NextRequest) {
           auditError: null,
         } as any,
         overrideAccess: true,
+      });
+
+      await notifyOnRegression(payload, {
+        clientId: c.id,
+        clientName,
+        reportId: report.id,
+        comparison: result.comparison,
       });
 
       results.push({
