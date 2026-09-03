@@ -21,6 +21,11 @@ vi.mock("@/payload.config", () => ({
   default: Promise.resolve({}),
 }));
 
+// The route appends only the new keywords via a raw-SQL helper (a full-array
+// payload.update blew SQLite's 32,766-variable cap on large lists).
+const appendNklKeywords = vi.fn(async (_p: unknown, _id: number, _client: number, kws: unknown[]) => kws.length);
+vi.mock("@/lib/nkl-append-keywords", () => ({ appendNklKeywords: (...args: any[]) => appendNklKeywords(...(args as [unknown, number, number, unknown[]])) }));
+
 import { POST as applyToNkl } from "@/app/(frontend)/api/keyword-deep-dive-sessions/[id]/apply-to-nkl/route";
 
 // ─── Helpers ───────────────────────────────────────────────────
@@ -114,16 +119,15 @@ describe("POST /api/keyword-deep-dive-sessions/[id]/apply-to-nkl", () => {
     expect(body.applied).toBe(1); // only "new kw 1" added
     expect(body.skipped).toBe(1); // "existing kw" skipped
 
-    // First update: NKL keywords merged
-    expect(updateCalls[0].collection).toBe("negative-keyword-lists");
-    expect(updateCalls[0].id).toBe("42");
-    const mergedKeywords = updateCalls[0].data.keywords;
-    expect(mergedKeywords).toHaveLength(2); // existing + 1 new (1 duplicate filtered)
-    expect(mergedKeywords.find((k: any) => k.keyword === "new kw 1")).toBeDefined();
+    // Only the non-duplicate keyword is appended to the NKL
+    expect(appendNklKeywords).toHaveBeenCalledTimes(1);
+    const [, nklId, , appended] = appendNklKeywords.mock.calls[0];
+    expect(nklId).toBe(42);
+    expect(appended).toEqual([{ keyword: "new kw 1", matchType: "exact" }]);
 
-    // Second update: session marked as applied
-    expect(updateCalls[1].collection).toBe("keyword-deep-dive-sessions");
-    expect(updateCalls[1].data.status).toBe("applied");
+    // Session marked as applied
+    expect(updateCalls[0].collection).toBe("keyword-deep-dive-sessions");
+    expect(updateCalls[0].data.status).toBe("applied");
   });
 
   it("updates session status to applied with NKL reference", async () => {
@@ -144,7 +148,7 @@ describe("POST /api/keyword-deep-dive-sessions/[id]/apply-to-nkl", () => {
     const res = await applyToNkl(req, { params: Promise.resolve({ id: "7" }) });
     expect(res.status).toBe(200);
 
-    const sessionUpdate = updateCalls[1];
+    const sessionUpdate = updateCalls[0];
     expect(sessionUpdate.data.status).toBe("applied");
     expect(sessionUpdate.data.appliedToNKL).toBe(42);
   });

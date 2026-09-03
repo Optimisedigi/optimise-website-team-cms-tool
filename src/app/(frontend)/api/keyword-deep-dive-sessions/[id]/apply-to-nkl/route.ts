@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { appendNklKeywords } from "@/lib/nkl-append-keywords";
 
 interface ApplyPayload {
   nklId: string;
@@ -72,33 +73,13 @@ export async function POST(
     .filter(
       (kw) => !existingSet.has(`${kw.keyword.toLowerCase()}|${kw.matchType}`)
     )
-    .map((kw) => ({
-      keyword: kw.keyword,
-      matchType: kw.matchType,
-      flaggedForRemoval: false,
-    }));
+    .map((kw) => ({ keyword: kw.keyword, matchType: kw.matchType }));
 
-  const currentKeywords: Array<{
-    keyword: string;
-    matchType: "exact" | "broad" | "phrase";
-    flaggedForRemoval: boolean;
-  }> = (nklData.keywords as Array<{
-    keyword: string;
-    matchType: "exact" | "broad" | "phrase";
-    flaggedForRemoval: boolean;
-  }>) ?? [];
-
-  await payload.update({
-    collection: "negative-keyword-lists",
-    id: nklId,
-    data: {
-      keywords: [...currentKeywords, ...newKeywords],
-    },
-    overrideAccess: true,
-  });
+  const nklIdNum = typeof nkl.id === "string" ? parseInt(nkl.id, 10) : nkl.id;
+  const nklClientId = typeof nkl.client === "object" ? Number(nkl.client?.id) : Number(nkl.client);
+  await appendNklKeywords(payload, nklIdNum, nklClientId, newKeywords);
 
   // Mark session as applied — appliedToNKL expects a number (DB id)
-  const nklIdNum = typeof nkl.id === "string" ? parseInt(nkl.id, 10) : nkl.id;
   await payload.update({
     collection: "keyword-deep-dive-sessions",
     id: sessionId,
