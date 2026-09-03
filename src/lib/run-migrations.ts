@@ -555,12 +555,45 @@ export async function runMigrations(
     await run("monthly_keyword_selections_selections.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `extra_applied_nkl_ids` text");
   }
 
+  async function addWatchtowerAndSiteHealthSchema(): Promise<void> {
+    await run("google_ads_automation_events", "CREATE TABLE IF NOT EXISTS `google_ads_automation_events` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `client_id` integer, `customer_id` text, `change_date_time` text, `resource_name` text NOT NULL, `change_resource_type` text, `resource_change_operation` text, `client_type` text, `user_email` text, `campaign_id` text, `campaign_name` text, `changed_fields` text, `old_values` text, `new_values` text, `is_google_automated` integer DEFAULT false, `summary` text, `impact_spend_before` numeric, `impact_spend_after` numeric, `impact_conv_before` numeric, `impact_conv_after` numeric, `impact_computed_at` text, `review_status` text DEFAULT 'unreviewed', `related_approval_id` integer, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL)");
+    await run("google_ads_automation_events_resource_name_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_automation_events_resource_name_idx` ON `google_ads_automation_events` (`resource_name`)");
+    await run("google_ads_automation_events_client_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_client_idx` ON `google_ads_automation_events` (`client_id`)");
+    await run("google_ads_automation_events_customer_id_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_customer_id_idx` ON `google_ads_automation_events` (`customer_id`)");
+    await run("google_ads_automation_events_change_date_time_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_change_date_time_idx` ON `google_ads_automation_events` (`change_date_time`)");
+    await run("google_ads_automation_events_change_resource_type_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_change_resource_type_idx` ON `google_ads_automation_events` (`change_resource_type`)");
+    await run("google_ads_automation_events_client_type_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_client_type_idx` ON `google_ads_automation_events` (`client_type`)");
+    await run("google_ads_automation_events_campaign_id_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_campaign_id_idx` ON `google_ads_automation_events` (`campaign_id`)");
+    await run("google_ads_automation_events_is_google_automated_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_is_google_automated_idx` ON `google_ads_automation_events` (`is_google_automated`)");
+    await run("google_ads_automation_events_review_status_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_review_status_idx` ON `google_ads_automation_events` (`review_status`)");
+    await run("google_ads_automation_events_updated_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_updated_at_idx` ON `google_ads_automation_events` (`updated_at`)");
+    await run("google_ads_automation_events_created_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_automation_events_created_at_idx` ON `google_ads_automation_events` (`created_at`)");
+    await run("locked_docs_rels.google_ads_automation_events_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_automation_events_id` integer REFERENCES `google_ads_automation_events`(`id`) ON DELETE cascade");
+    await run("payload_locked_documents_rels_google_ads_automation_events_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_google_ads_automation_events_id_idx` ON `payload_locked_documents_rels` (`google_ads_automation_events_id`)");
+    await run("mark_migration:20260903_140000_add_google_ads_automation_events", "INSERT OR IGNORE INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) VALUES ('20260903_140000_add_google_ads_automation_events', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+
+    await run("google_search_status_incidents", "CREATE TABLE IF NOT EXISTS `google_search_status_incidents` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `incident_id` text NOT NULL, `title` text NOT NULL, `kind` text DEFAULT 'other' NOT NULL, `begin` text, `end` text, `modified` text, `status_impact` text, `severity` text, `service_name` text, `latest_update` text, `source_uri` text, `notified_at` text, `raw` text, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL)");
+    await run("google_search_status_incidents_incident_id_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_search_status_incidents_incident_id_idx` ON `google_search_status_incidents` (`incident_id`)");
+    await run("google_search_status_incidents_kind_idx", "CREATE INDEX IF NOT EXISTS `google_search_status_incidents_kind_idx` ON `google_search_status_incidents` (`kind`)");
+    await run("google_search_status_incidents_begin_idx", "CREATE INDEX IF NOT EXISTS `google_search_status_incidents_begin_idx` ON `google_search_status_incidents` (`begin`)");
+    await run("google_search_status_incidents_updated_at_idx", "CREATE INDEX IF NOT EXISTS `google_search_status_incidents_updated_at_idx` ON `google_search_status_incidents` (`updated_at`)");
+    await run("google_search_status_incidents_created_at_idx", "CREATE INDEX IF NOT EXISTS `google_search_status_incidents_created_at_idx` ON `google_search_status_incidents` (`created_at`)");
+    await run("locked_docs_rels.google_search_status_incidents_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_search_status_incidents_id` integer REFERENCES `google_search_status_incidents`(`id`) ON DELETE cascade");
+    await run("payload_locked_documents_rels_google_search_status_incidents_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_google_search_status_incidents_id_idx` ON `payload_locked_documents_rels` (`google_search_status_incidents_id`)");
+    await run("mark_migration:20260903_160000_add_google_search_status_incidents", "INSERT OR IGNORE INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) VALUES ('20260903_160000_add_google_search_status_incidents', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+
+    await run("site_health_reports.comparison_new_issues_list", "ALTER TABLE `site_health_reports` ADD `comparison_new_issues_list` text");
+    await run("site_health_reports.comparison_fixed_issues_list", "ALTER TABLE `site_health_reports` ADD `comparison_fixed_issues_list` text");
+    await run("mark_migration:20260903_150000_add_site_health_issue_deltas", "INSERT OR IGNORE INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) VALUES ('20260903_150000_add_site_health_issue_deltas', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+  }
+
   try {
     // Must precede the marker short-circuit: production carries the marker and
     // would otherwise return before any repair ran.
     await repairClientsServicesSelectId();
     await setClientsListPerPage();
     await addMonthlyKeywordSelectionColumns();
+    await addWatchtowerAndSiteHealthSchema();
 
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the
