@@ -84,13 +84,20 @@ export const NegativeKeywordLists: CollectionConfig = {
     useAsTitle: "name",
     defaultColumns: ["client", "name", "scope", "keywordCount", "campaignCount", "isActive"],
     components: {
-      beforeListTable: ["./components/NegativeKeywordListsClientFilter"],
+      beforeListTable: [
+        "./components/NegativeKeywordListsClientFilter",
+        "./components/NegativeKeywordListDeleteConfirm",
+      ],
       edit: {
-        beforeDocumentControls: ["./components/NegativeKeywordListBreadcrumb"],
+        beforeDocumentControls: [
+          "./components/NegativeKeywordListBreadcrumb",
+          "./components/NegativeKeywordListDeleteConfirm",
+        ],
       },
     },
   },
   defaultSort: "client",
+  disableBulkDelete: true,
   access: {
     read: serviceKeyOrFeature("negative-keyword-lists"),
     create: serviceKeyOrFeature("negative-keyword-lists"),
@@ -98,6 +105,32 @@ export const NegativeKeywordLists: CollectionConfig = {
     delete: adminOnlyDelete,
   },
   hooks: {
+    beforeDelete: [
+      async ({ id, req }) => {
+        const list = await req.payload.findByID({
+          collection: "negative-keyword-lists",
+          id,
+          depth: 0,
+          overrideAccess: true,
+          req,
+        }) as { name?: string | null; keywords?: unknown[] | null; keywordCount?: number | null } | null;
+        if (!list) {
+          throw new Error(`Cannot delete negative keyword list ${id}: list was not found.`);
+        }
+
+        const keywords = Array.isArray(list.keywords) ? list.keywords : [];
+        const storedCount = Number(list.keywordCount);
+        const remaining = Math.max(
+          keywords.length,
+          Number.isFinite(storedCount) && storedCount > 0 ? storedCount : 0,
+        );
+        if (remaining > 0) {
+          throw new Error(
+            `Cannot delete "${list.name || id}" while it still has ${remaining} keyword${remaining === 1 ? "" : "s"}. Remove all keywords first.`,
+          );
+        }
+      },
+    ],
     afterRead: [
       ({ doc }) => {
         const count = Number(doc?.campaignCount);
