@@ -19,6 +19,8 @@ import * as migration_20260819_130000_fix_clients_services_id_integer from './20
 import * as migration_20260824_120000_add_client_email_copy_settings from './20260824_120000_add_client_email_copy_settings'
 import * as migration_20260831_120000_add_match_type_violation_ai_triage from './20260831_120000_add_match_type_violation_ai_triage'
 import * as migration_20260901_120000_add_triage_context_and_suggested_ad_group from './20260901_120000_add_triage_context_and_suggested_ad_group'
+import * as migration_20260903_120000_add_monthly_keyword_comment_tags from './20260903_120000_add_monthly_keyword_comment_tags'
+import * as migration_20260903_130000_add_monthly_keyword_extra_nkls from './20260903_130000_add_monthly_keyword_extra_nkls'
 import * as migration_20260801_130000_add_proposal_meta_ads_job_state from './20260801_130000_add_proposal_meta_ads_job_state'
 import * as migration_20260304_120000_add_gsc_indexing_audits from './20260304_120000_add_gsc_indexing_audits'
 import * as migration_20260306_120000_add_contracts from './20260306_120000_add_contracts'
@@ -1007,5 +1009,15 @@ export const migrations = [
     up: migration_20260901_120000_add_triage_context_and_suggested_ad_group.up,
     down: migration_20260901_120000_add_triage_context_and_suggested_ad_group.down,
     name: '20260901_120000_add_triage_context_and_suggested_ad_group',
+  },
+  {
+    up: migration_20260903_120000_add_monthly_keyword_comment_tags.up,
+    down: migration_20260903_120000_add_monthly_keyword_comment_tags.down,
+    name: '20260903_120000_add_monthly_keyword_comment_tags',
+  },
+  {
+    up: migration_20260903_130000_add_monthly_keyword_extra_nkls.up,
+    down: migration_20260903_130000_add_monthly_keyword_extra_nkls.down,
+    name: '20260903_130000_add_monthly_keyword_extra_nkls',
   },
 ]

@@ -137,6 +137,11 @@ export const MonthlyKeywordSelections: CollectionConfig = {
           relationTo: 'negative-keyword-lists',
         },
         {
+          name: 'extraAppliedNklIds',
+          type: 'text',
+          admin: { description: 'Comma-separated extra NKL ids (up to 2) so one term can target 3 lists.' },
+        },
+        {
           name: 'appliedAt',
           type: 'date',
         },
@@ -154,6 +159,11 @@ export const MonthlyKeywordSelections: CollectionConfig = {
           name: 'removedComment',
           type: 'textarea',
           admin: { description: 'Explanation a teammate gave when removing this already-applied negative from its NKL.' },
+        },
+        {
+          name: 'removedCommentTaggedUserIds',
+          type: 'text',
+          admin: { description: 'Comma-separated user IDs tagged in the removal explanation.' },
         },
         {
           name: 'removedBy',
@@ -224,6 +234,11 @@ export const MonthlyKeywordSelections: CollectionConfig = {
           name: 'outcomeComment',
           type: 'textarea',
           admin: { description: 'Optional teaching note left by the actor when they added/updated/moved this term.' },
+        },
+        {
+          name: 'outcomeCommentTaggedUserIds',
+          type: 'text',
+          admin: { description: 'Comma-separated user IDs tagged in the outcome comment.' },
         },
         {
           name: 'outcomeBy',

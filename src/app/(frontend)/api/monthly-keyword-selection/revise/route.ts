@@ -3,14 +3,9 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import { findSelectionRow, patchSelectionRow } from '@/lib/monthly-keyword-selection-rows'
+import { monthLabel, notifyTaggedUsers, resolveMentionableUserIds } from '@/lib/monthly-keyword-mentions'
 
 const NOTIFICATIONS = 'notifications' as never
-
-function monthLabel(yearMonth: string): string {
-  const [year, month] = yearMonth.split('-').map(Number)
-  if (!year || !month) return yearMonth
-  return new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, 1)))
-}
 
 type MatchType = 'exact' | 'broad' | 'phrase'
 type NklKeyword = { keyword?: string; matchType?: MatchType; flaggedForRemoval?: boolean | null; negatedAt?: string | null; id?: string | null }
@@ -96,6 +91,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const newNklId = nklIdOf(body?.newNklId)
   const rowIndex = Number.isInteger(body?.rowIndex) ? Number(body.rowIndex) : null
   const comment = typeof body?.comment === 'string' ? body.comment.trim() : ''
+  const taggedUserIds = await resolveMentionableUserIds(payload, body?.taggedUserIds, String(user.id))
 
   if (!Number.isInteger(clientId) || !/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm || !action) {
     return NextResponse.json({ error: 'clientId, yearMonth, searchTerm and a valid action are required' }, { status: 400 })
@@ -153,6 +149,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       appliedToNKL: null,
       appliedAt: null,
       removedComment: comment || target.removedComment || null,
+      removedCommentTaggedUserIds: taggedUserIds.join(','),
       removedBy: removerName,
       removedByUserId: String(user.id),
       removedAt: now,
@@ -186,7 +183,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     }
 
-    return NextResponse.json({ success: true, action, removed: currentKeywords.length - nextKeywords.length, notified })
+    const taggedNotified = comment
+      ? await notifyTaggedUsers(payload, {
+          recipientIds: taggedUserIds,
+          actorId: actorUserId,
+          authorName: actorName,
+          clientId,
+          yearMonth,
+          searchTerm,
+          comment,
+        })
+      : 0
+
+    return NextResponse.json({ success: true, action, removed: currentKeywords.length - nextKeywords.length, notified: notified || taggedNotified > 0 })
   }
 
   // action === 'update' with a different target NKL — move the negative between
@@ -249,6 +258,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       outcomeType: 'moved',
       outcomeDetail: moveDetail,
       outcomeComment: comment || null,
+      outcomeCommentTaggedUserIds: taggedUserIds.join(','),
       outcomeBy: actorName,
       outcomeByUserId: actorUserId,
       outcomeAt: now,
@@ -267,7 +277,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       })
     }
 
-    return NextResponse.json({ success: true, action, moved: true, deduped: alreadyPresent, notified })
+    const taggedNotified = comment
+      ? await notifyTaggedUsers(payload, {
+          recipientIds: taggedUserIds,
+          actorId: actorUserId,
+          authorName: actorName,
+          clientId,
+          yearMonth,
+          searchTerm,
+          comment,
+        })
+      : 0
+
+    return NextResponse.json({ success: true, action, moved: true, deduped: alreadyPresent, notified: notified || taggedNotified > 0 })
   }
 
   // action === 'update' — replace keyword/matchType in place inside the NKL.
@@ -312,6 +334,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     outcomeType: 'updated',
     outcomeDetail: updateDetail,
     outcomeComment: comment || null,
+    outcomeCommentTaggedUserIds: taggedUserIds.join(','),
     outcomeBy: actorName,
     outcomeByUserId: actorUserId,
     outcomeAt: now,
@@ -330,7 +353,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     })
   }
 
-  return NextResponse.json({ success: true, action, deduped: duplicate, notified })
+  const taggedNotified = comment
+    ? await notifyTaggedUsers(payload, {
+        recipientIds: taggedUserIds,
+        actorId: actorUserId,
+        authorName: actorName,
+        clientId,
+        yearMonth,
+        searchTerm,
+        comment,
+      })
+    : 0
+
+  return NextResponse.json({ success: true, action, deduped: duplicate, notified: notified || taggedNotified > 0 })
   } catch (err) {
     // Surface the real failure instead of a bare 500 (which the client shows as
     // a generic "Revision failed"). Logged for server-side diagnosis.

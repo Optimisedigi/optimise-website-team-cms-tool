@@ -1134,6 +1134,8 @@ export async function GET(request: NextRequest) {
   await run("monthly_keyword_selections_selections.outcome_type", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_type` text");
   await run("monthly_keyword_selections_selections.outcome_detail", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_detail` text");
   await run("monthly_keyword_selections_selections.outcome_comment", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_comment` text");
+  await run("monthly_keyword_selections_selections.outcome_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_comment_tagged_user_ids` text");
+  await run("monthly_keyword_selections_selections.removed_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_comment_tagged_user_ids` text");
   await run("monthly_keyword_selections_selections.outcome_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_by` text");
   await run("monthly_keyword_selections_selections.outcome_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_by_user_id` text");
   await run("monthly_keyword_selections_selections.outcome_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_at` text");
@@ -1211,6 +1213,8 @@ export async function GET(request: NextRequest) {
     \`outcome_type\` text,
     \`outcome_detail\` text,
     \`outcome_comment\` text,
+    \`outcome_comment_tagged_user_ids\` text,
+    \`removed_comment_tagged_user_ids\` text,
     \`outcome_by\` text,
     \`outcome_by_user_id\` text,
     \`outcome_at\` text,
@@ -1238,6 +1242,10 @@ export async function GET(request: NextRequest) {
   await run("monthly_keyword_selection_rows_client_keyword_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selection_rows_client_keyword_idx` ON `monthly_keyword_selection_rows` (`client_id`, `keyword_key`)");
   await run("selection_row_outcome_followups_parent_idx", "CREATE INDEX IF NOT EXISTS `selection_row_outcome_followups_parent_idx` ON `selection_row_outcome_followups` (`_parent_id`)");
   await run("selection_row_outcome_followups_order_idx", "CREATE INDEX IF NOT EXISTS `selection_row_outcome_followups_order_idx` ON `selection_row_outcome_followups` (`_order`)");
+  await run("selection_rows.outcome_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `outcome_comment_tagged_user_ids` text");
+  await run("selection_rows.removed_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `removed_comment_tagged_user_ids` text");
+  await run("selection_rows.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `extra_applied_nkl_ids` text");
+  await run("monthly_keyword_selections_selections.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `extra_applied_nkl_ids` text");
   await run("locked_docs_rels.monthly_keyword_selection_rows_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_selection_rows_id` integer REFERENCES `monthly_keyword_selection_rows`(`id`) ON DELETE cascade");
   await run("monthly_keyword_selection_rows_backfill", `INSERT OR REPLACE INTO \`monthly_keyword_selection_rows\` (
     \`client_id\`, \`year_month\`, \`search_term\`, \`search_term_key\`, \`row_index\`, \`row_key\`, \`keyword_key\`,

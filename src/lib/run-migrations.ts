@@ -5197,6 +5197,8 @@ export async function runMigrations(
     await run("monthly_keyword_selections_selections.outcome_type", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_type` text");
     await run("monthly_keyword_selections_selections.outcome_detail", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_detail` text");
     await run("monthly_keyword_selections_selections.outcome_comment", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_comment` text");
+    await run("monthly_keyword_selections_selections.outcome_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_comment_tagged_user_ids` text");
+    await run("monthly_keyword_selections_selections.removed_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_comment_tagged_user_ids` text");
     await run("monthly_keyword_selections_selections.outcome_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_by` text");
     await run("monthly_keyword_selections_selections.outcome_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_by_user_id` text");
     await run("monthly_keyword_selections_selections.outcome_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_at` text");
@@ -5273,6 +5275,8 @@ export async function runMigrations(
       \`outcome_type\` text,
       \`outcome_detail\` text,
       \`outcome_comment\` text,
+      \`outcome_comment_tagged_user_ids\` text,
+      \`removed_comment_tagged_user_ids\` text,
       \`outcome_by\` text,
       \`outcome_by_user_id\` text,
       \`outcome_at\` text,
@@ -5353,6 +5357,12 @@ export async function runMigrations(
     );
     await run("clients.triage_ideal_customer", "ALTER TABLE `clients` ADD `gads_auto_triage_ideal_customer` text");
     await run("clients.triage_exclusions", "ALTER TABLE `clients` ADD `gads_auto_triage_exclusions` text");
+
+    // Persist @-tags on Review-outcomes and removed-negative comments (2026-09-03).
+    await run("selection_rows.outcome_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `outcome_comment_tagged_user_ids` text");
+    await run("selection_rows.removed_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `removed_comment_tagged_user_ids` text");
+    await run("selection_rows.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selection_rows` ADD `extra_applied_nkl_ids` text");
+    await run("monthly_keyword_selections_selections.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `extra_applied_nkl_ids` text");
 
     // ── FIX (2026-06-11): assigned-list relationship column name mismatch ──
     // The original table-creation sweep named the `assignedListId` relationship

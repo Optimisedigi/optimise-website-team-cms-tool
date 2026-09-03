@@ -8804,6 +8804,10 @@ export interface MonthlyKeywordSelection {
          */
         watchUntil?: string | null;
         appliedToNKL?: (number | null) | NegativeKeywordList;
+        /**
+         * Comma-separated extra NKL ids (up to 2) so one term can target 3 lists.
+         */
+        extraAppliedNklIds?: string | null;
         appliedAt?: string | null;
         /**
          * Display name of the user who first applied this negative to an NKL.
@@ -8817,6 +8821,10 @@ export interface MonthlyKeywordSelection {
          * Explanation a teammate gave when removing this already-applied negative from its NKL.
          */
         removedComment?: string | null;
+        /**
+         * Comma-separated user IDs tagged in the removal explanation.
+         */
+        removedCommentTaggedUserIds?: string | null;
         /**
          * Display name of the user who removed this already-applied negative.
          */
@@ -8873,6 +8881,10 @@ export interface MonthlyKeywordSelection {
          * Optional teaching note left by the actor when they added/updated/moved this term.
          */
         outcomeComment?: string | null;
+        /**
+         * Comma-separated user IDs tagged in the outcome comment.
+         */
+        outcomeCommentTaggedUserIds?: string | null;
         /**
          * Display name of the user who performed the latest outcome.
          */
@@ -10598,12 +10610,14 @@ export interface MonthlyKeywordSelectionRow {
   matchType: 'broad' | 'phrase' | 'exact';
   decision: 'pending' | 'approved' | 'skipped' | 'watch' | 'needs_review';
   appliedToNKL?: (number | null) | NegativeKeywordList;
+  extraAppliedNklIds?: string | null;
   appliedAt?: string | null;
   watchHorizonMonths?: number | null;
   watchUntil?: string | null;
   appliedBy?: string | null;
   appliedByUserId?: string | null;
   removedComment?: string | null;
+  removedCommentTaggedUserIds?: string | null;
   removedBy?: string | null;
   removedByUserId?: string | null;
   removedAt?: string | null;
@@ -10618,6 +10632,7 @@ export interface MonthlyKeywordSelectionRow {
   outcomeType?: string | null;
   outcomeDetail?: string | null;
   outcomeComment?: string | null;
+  outcomeCommentTaggedUserIds?: string | null;
   outcomeBy?: string | null;
   outcomeByUserId?: string | null;
   outcomeAt?: string | null;
@@ -13719,10 +13734,12 @@ export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
         watchHorizonMonths?: T;
         watchUntil?: T;
         appliedToNKL?: T;
+        extraAppliedNklIds?: T;
         appliedAt?: T;
         appliedBy?: T;
         appliedByUserId?: T;
         removedComment?: T;
+        removedCommentTaggedUserIds?: T;
         removedBy?: T;
         removedByUserId?: T;
         removedAt?: T;
@@ -13737,6 +13754,7 @@ export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
         outcomeType?: T;
         outcomeDetail?: T;
         outcomeComment?: T;
+        outcomeCommentTaggedUserIds?: T;
         outcomeBy?: T;
         outcomeByUserId?: T;
         outcomeAt?: T;
@@ -14749,12 +14767,14 @@ export interface MonthlyKeywordSelectionRowsSelect<T extends boolean = true> {
   matchType?: T;
   decision?: T;
   appliedToNKL?: T;
+  extraAppliedNklIds?: T;
   appliedAt?: T;
   watchHorizonMonths?: T;
   watchUntil?: T;
   appliedBy?: T;
   appliedByUserId?: T;
   removedComment?: T;
+  removedCommentTaggedUserIds?: T;
   removedBy?: T;
   removedByUserId?: T;
   removedAt?: T;
@@ -14769,6 +14789,7 @@ export interface MonthlyKeywordSelectionRowsSelect<T extends boolean = true> {
   outcomeType?: T;
   outcomeDetail?: T;
   outcomeComment?: T;
+  outcomeCommentTaggedUserIds?: T;
   outcomeBy?: T;
   outcomeByUserId?: T;
   outcomeAt?: T;

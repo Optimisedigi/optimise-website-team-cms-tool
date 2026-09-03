@@ -3,6 +3,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parseNegativeKeywordInput } from '../lib/parse-negative-keywords'
 import { buildSuppressionIndex, buildSuppressionNegatives, isQualifyingListName, partitionTermsByNegation, type SuppressionNegative } from '../lib/negative-keyword-suppression'
+import { parseTaggedUserIds } from '@/lib/monthly-keyword-mention-text'
+import { MentionCommentField } from '@/components/MentionCommentField'
+import { MAX_NKL_TARGETS, parseAppliedNklIds, toggleAppliedNklId } from '@/lib/monthly-keyword-nkl-targets'
 
 type MatchType = 'exact' | 'phrase' | 'broad'
 type Decision = 'pending' | 'approved' | 'skipped' | 'watch' | 'needs_review'
@@ -13,7 +16,7 @@ const DEFAULT_WATCH_HORIZON: WatchHorizon = 3
 
 type Term = { term: string; impressions: number; clicks: number; cost: number; conversions: number; status?: string }
 type Month = { month: string; terms: Term[]; reviewComplete: boolean; reviewCompletedAt?: string | null; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } }
-type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; removedComment?: string | null; removedBy?: string | null; removedByUserId?: string | null; removedAt?: string | null; decidedBy?: string | null; decidedByUserId?: string | null; reviewDismissedAt?: string | null; reviewDismissedBy?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null; outcomeType?: string | null; outcomeDetail?: string | null; outcomeComment?: string | null; outcomeBy?: string | null; outcomeByUserId?: string | null; outcomeAt?: string | null; outcomeFollowUpComments?: FollowUpComment[] | null }
+type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; extraAppliedNklIds?: string | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; removedComment?: string | null; removedCommentTaggedUserIds?: string | null; removedBy?: string | null; removedByUserId?: string | null; removedAt?: string | null; decidedBy?: string | null; decidedByUserId?: string | null; reviewDismissedAt?: string | null; reviewDismissedBy?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null; outcomeType?: string | null; outcomeDetail?: string | null; outcomeComment?: string | null; outcomeCommentTaggedUserIds?: string | null; outcomeBy?: string | null; outcomeByUserId?: string | null; outcomeAt?: string | null; outcomeFollowUpComments?: FollowUpComment[] | null }
 type FollowUpComment = { id?: string; comment: string; by?: string | null; byUserId?: string | null; at?: string | null; taggedUserIds?: string | null }
 type Nkl = { id: number | string; name: string; isActive?: boolean; keywords?: Array<{ keyword: string; matchType: MatchType; negatedAt?: string | null }> }
 type Teammate = { id: string; label: string }
@@ -74,6 +77,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [activeTab, setActiveTab] = useState<'months' | 'review' | 'submitted' | 'removed'>('months')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Keys changed locally but not yet confirmed by the server. Non-empty blocks
+  // Apply and warns on page leave so a stalled DB can never silently drop ticks.
+  const [unsavedKeys, setUnsavedKeys] = useState<Set<string>>(() => new Set())
   const [applying, setApplying] = useState(false)
   const [appliedJustNow, setAppliedJustNow] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -158,6 +164,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   useEffect(() => () => {
     window.dispatchEvent(new CustomEvent('cms:external-save-state', { detail: { saving: false } }))
   }, [])
+
+  useEffect(() => {
+    if (unsavedKeys.size === 0) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault() }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [unsavedKeys.size])
 
   useEffect(() => {
     if (suppressionNklIdsConfigured || nkls.length === 0) return
@@ -332,23 +345,29 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       // Only the latest save may change the status banner. Older requests can
       // finish late during rapid Skip/Watch clicks; their stale failures should
       // not put "Auto-save failed" back after a newer request has saved.
+      // A key edited again while this request was in flight is still pending
+      // and stays unsaved until its own request lands.
+      setUnsavedKeys((current) => {
+        const next = new Set(current)
+        for (const key of keys) if (!pendingKeysRef.current.has(key)) next.delete(key)
+        return next
+      })
       if (saveRequestId.current === requestId) {
-        setMessage((current) => (current === 'Auto-save failed' ? null : current))
+        setMessage((current) => (current?.startsWith('Auto-save') ? null : current))
       }
-    } catch (error) {
-      // Re-queue the changed keys so the decision is not lost, then retry once
-      // automatically after a short backoff. If it still fails the keys stay
-      // pending and the next interaction (or flush) will carry them again.
+    } catch {
+      // Re-queue the changed keys and keep retrying with capped backoff until
+      // the server confirms. Giving up after a fixed count is what lost a
+      // month of ticks when a long Apply stalled the DB for ~90s.
       for (const key of keys) pendingKeysRef.current.add(key)
-      if (attempt < 2) {
-        window.setTimeout(() => {
-          const retryRows = keys.map((key) => selectionsRef.current[key]).filter(Boolean) as Selection[]
-          for (const key of keys) pendingKeysRef.current.delete(key)
-          void saveSelections(retryRows, { deletions, keys, attempt: attempt + 1 })
-        }, 1500 * (attempt + 1))
-      } else if (saveRequestId.current === requestId) {
-        setMessage(error instanceof Error ? error.message : 'Auto-save failed')
+      if (saveRequestId.current === requestId) {
+        setMessage(`Auto-save retrying… ${keys.length} change${keys.length === 1 ? '' : 's'} not yet saved. Keep this tab open.`)
       }
+      window.setTimeout(() => {
+        const retryRows = keys.map((key) => selectionsRef.current[key]).filter(Boolean) as Selection[]
+        for (const key of keys) pendingKeysRef.current.delete(key)
+        void saveSelections(retryRows, { deletions, keys, attempt: attempt + 1 })
+      }, Math.min(1500 * 2 ** attempt, 15000))
     } finally {
       if (saveRequestId.current === requestId) setSaving(false)
     }
@@ -358,6 +377,11 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   // rows (read from the latest selections) in a single request.
   const queueSave = useCallback((changedKeys: string[]) => {
     for (const key of changedKeys) pendingKeysRef.current.add(key)
+    setUnsavedKeys((current) => {
+      const next = new Set(current)
+      for (const key of changedKeys) next.add(key)
+      return next
+    })
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       const keys = Array.from(pendingKeysRef.current)
@@ -391,17 +415,27 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         rowIndex,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
-        decision: nextAppliedToNKL ? 'approved' as Decision : 'pending' as Decision,
+        decision: nextAppliedToNKL || existing?.extraAppliedNklIds ? 'approved' as Decision : 'pending' as Decision,
         appliedToNKL: nextAppliedToNKL || null,
+        extraAppliedNklIds: appliedToNKL === undefined ? existing?.extraAppliedNklIds || null : existing?.extraAppliedNklIds || null,
       },
     }
     setSelections(next)
     queueSave([key])
   }
 
-  // The NKL target is a single choice shared across every sub-row of a search
-  // term, so setting it fans the same NKL (or null) out to all rows.
-  const setTargetListForTerm = (month: string, term: string, nklId: number | string | null) => {
+  // NKL targets are shared across every sub-row of a search term. Tick up to 3
+  // lists; Apply then writes the same negative onto each selected NKL.
+  const setTargetListForTerm = (month: string, term: string, nklId: number | string, checked: boolean) => {
+    const primary = selections[selectionKey(month, term, 0)]
+    const current = parseAppliedNklIds(primary?.extraAppliedNklIds, primary?.appliedToNKL)
+    const nextIds = toggleAppliedNklId(current, nklId, checked)
+    if (checked && nextIds.length === current.length) {
+      setMessage(`You can add a negative to at most ${MAX_NKL_TARGETS} lists.`)
+      return
+    }
+    const primaryNkl = nextIds[0] || null
+    const extra = nextIds.slice(1).join(',') || null
     const next = { ...selections }
     const changedKeys: string[] = []
     for (const rowIndex of rowIndexesForTerm(month, term)) {
@@ -416,8 +450,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         rowIndex,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
-        decision: nklId ? 'approved' as Decision : 'pending' as Decision,
-        appliedToNKL: nklId || null,
+        decision: primaryNkl ? 'approved' as Decision : 'pending' as Decision,
+        appliedToNKL: primaryNkl,
+        extraAppliedNklIds: extra,
       }
     }
     setSelections(next)
@@ -442,6 +477,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         matchType: 'exact' as MatchType,
         decision: inheritedNkl ? 'approved' as Decision : 'pending' as Decision,
         appliedToNKL: inheritedNkl,
+        extraAppliedNklIds: primary?.extraAppliedNklIds || null,
       },
     }
     setSelections(next)
@@ -482,6 +518,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         watchHorizonMonths: null,
         watchUntil: null,
         appliedToNKL: null,
+        extraAppliedNklIds: null,
       },
     }
     setSelections(next)
@@ -510,6 +547,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         watchHorizonMonths: clearing ? null : horizon,
         watchUntil: clearing ? null : addMonthsIso(new Date(), horizon),
         appliedToNKL: null,
+        extraAppliedNklIds: null,
       },
     }
     setSelections(next)
@@ -716,7 +754,11 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         pills: [] as OutcomeKind[],
         listDetail: '',
         changeDetail: '',
-        taggedLabels: [] as string[],
+        taggedLabels: parseTaggedUserIds(
+          newest.source === 'outcome' ? selection.outcomeCommentTaggedUserIds
+            : newest.source === 'removed' ? selection.removedCommentTaggedUserIds
+              : selection.reviewCommentTaggedUserIds,
+        ).map((id) => teammates.find((t) => t.id === id)?.label || `User ${id}`),
         keywordChanged: false,
         moved: false,
       }
@@ -767,7 +809,6 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           originalAction: 'submitted',
         }
       } else {
-        const taggedIds = (selection.reviewCommentTaggedUserIds || '').split(',').map((id) => id.trim()).filter(Boolean)
         entry = {
           ...base,
           type: 'Dismissed',
@@ -777,7 +818,6 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           by: selection.reviewDismissedBy || 'someone',
           originalHandler: selection.decidedBy || '',
           originalAction: 'flagged',
-          taggedLabels: taggedIds.map((id) => teammates.find((t) => t.id === id)?.label || `User ${id}`),
         }
       }
       const list = groups.get(selection.yearMonth) || []
@@ -804,7 +844,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const reviseSubmitted = useCallback(async (
     item: Selection,
     action: 'remove' | 'update',
-    extra?: { newKeyword?: string; newMatchType?: MatchType; newNklId?: number | string; comment?: string },
+    extra?: { newKeyword?: string; newMatchType?: MatchType; newNklId?: number | string; comment?: string; taggedUserIds?: string[] },
     movedHint?: boolean,
   ) => {
     const res = await fetch('/api/monthly-keyword-selection/revise', {
@@ -965,12 +1005,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setMessage(data?.error || 'Failed to save comment'); return false }
     const field = entry.source === 'outcome' ? 'outcomeComment' : entry.source === 'removed' ? 'removedComment' : 'reviewComment'
+    const tagField = entry.source === 'outcome' ? 'outcomeCommentTaggedUserIds' : entry.source === 'removed' ? 'removedCommentTaggedUserIds' : 'reviewCommentTaggedUserIds'
     const key = selectionKey(entry.yearMonth, entry.searchTerm, entry.rowIndex)
     setSelections((current) => ({
       ...current,
       [key]: mode === 'append'
         ? { ...current[key], outcomeFollowUpComments: Array.isArray(data.followUps) ? data.followUps : current[key]?.outcomeFollowUpComments }
-        : { ...current[key], [field]: comment },
+        : { ...current[key], [field]: comment, [tagField]: (taggedUserIds || []).join(',') },
     }))
     setMessage(mode === 'append'
       ? (data.notified > 0 ? `Reply added · ${data.notified} teammate${data.notified === 1 ? '' : 's'} notified.` : 'Reply added.')
@@ -1002,23 +1043,15 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   // immediately (writes it to the NKL + stamps appliedAt) so it lands in the
   // Submitted negatives tab right away — rather than only staging it for the
   // separate top "Apply" button, which made the term appear to vanish.
-  const applyNeedsReviewTarget = useCallback(async (item: Selection, nklId: string) => {
+  const applyNeedsReviewTarget = useCallback(async (item: Selection, nklId: string, comment = '', taggedUserIds: string[] = []) => {
     const nklName = nklNameById.get(String(nklId)) || 'the list'
-    // Optional teaching note. With or without it the flagger is notified; a note
-    // gives them the “why”, which surfaces in the read-only Review outcomes tab.
-    const note = window.prompt(
-      `Optionally add a note for whoever flagged “${item.searchTerm}” explaining why it's being added to ${nklName}. They'll be notified either way.`,
-      '',
-    )
-    if (note === null) return
-    const comment = note.trim()
     const res = await fetch('/api/monthly-keyword-selection/apply', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
         clientId: Number(clientId),
-        ...(comment ? { comment } : {}),
+        ...(comment ? { comment, taggedUserIds } : {}),
         selections: [{
           yearMonth: item.yearMonth,
           searchTerm: item.searchTerm,
@@ -1079,8 +1112,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) minmax(360px, 0.9fr)', gap: 12, alignItems: 'start', marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', minHeight: 66, padding: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 8 }}>
-          <button type="button" onClick={applyApproved} disabled={approvedCount === 0 || applying} style={{ padding: '8px 12px' }}>{applying ? 'Saving…' : appliedJustNow ? 'Saved ✓' : `Apply ${approvedCount} added negative${approvedCount === 1 ? '' : 's'}`}</button>
-          <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>{saving ? 'Saving…' : 'Auto-saved'} · Open a month, then tick the NKL column for each search term you want to add.</span>
+          <button type="button" onClick={applyApproved} disabled={approvedCount === 0 || applying || unsavedKeys.size > 0} title={unsavedKeys.size > 0 ? 'Waiting for auto-save to finish before applying' : undefined} style={{ padding: '8px 12px' }}>{applying ? 'Saving…' : appliedJustNow ? 'Saved ✓' : `Apply ${approvedCount} added negative${approvedCount === 1 ? '' : 's'}`}</button>
+          <span style={{ fontSize: 12, color: unsavedKeys.size > 0 ? 'var(--theme-warning-600, #b45309)' : 'var(--theme-elevation-500)' }}>{unsavedKeys.size > 0 ? `${saving ? 'Saving' : 'Waiting to save'} ${unsavedKeys.size} change${unsavedKeys.size === 1 ? '' : 's'}…` : 'Auto-saved'} · Open a month, then tick up to 3 NKL columns for each search term you want to add.</span>
           {hiddenNkls.length > 0 && (
             <button type="button" onClick={() => setHiddenNklIds(new Set())} style={{ padding: '6px 10px', fontSize: 12 }}>Show {hiddenNkls.length} hidden NKL{hiddenNkls.length === 1 ? '' : 's'}</button>
           )}
@@ -1212,7 +1245,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 item={item}
                 nkls={visibleNkls}
                 teammates={teammates}
-                onSetTarget={(nklId) => applyNeedsReviewTarget(item, nklId)}
+                onSetTarget={(nklId, comment, taggedUserIds) => { void applyNeedsReviewTarget(item, nklId, comment, taggedUserIds) }}
                 onWatch={(horizon) => setWatch(item.yearMonth, item.searchTerm, horizon)}
                 onDismiss={(comment, taggedUserIds) => dismissReview(item, comment, taggedUserIds)}
                 onSaveComment={(comment, taggedUserIds) => saveComment(item, comment, taggedUserIds)}
@@ -1255,8 +1288,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     nklId={typeof item.appliedToNKL === 'object' ? item.appliedToNKL?.id ?? null : item.appliedToNKL ?? null}
                     nklName={nklNameById.get(String(typeof item.appliedToNKL === 'object' ? item.appliedToNKL?.id : item.appliedToNKL)) || 'Unknown list'}
                     nkls={visibleNkls}
-                    onRemove={(comment) => reviseSubmitted(item, 'remove', comment ? { comment } : undefined)}
-                    onUpdate={(newKeyword, newMatchType, newNklId, comment) => reviseSubmitted(item, 'update', { newKeyword, newMatchType, ...(newNklId != null ? { newNklId } : {}), ...(comment ? { comment } : {}) }, newNklId != null)}
+                    teammates={teammates}
+                    onRemove={(comment, taggedUserIds) => reviseSubmitted(item, 'remove', comment ? { comment, taggedUserIds } : undefined)}
+                    onUpdate={(newKeyword, newMatchType, newNklId, comment, taggedUserIds) => reviseSubmitted(item, 'update', { newKeyword, newMatchType, ...(newNklId != null ? { newNklId } : {}), ...(comment ? { comment, taggedUserIds } : {}) }, newNklId != null)}
                     onDirtyChange={registerRowEdit}
                     markedForRemoval={pendingRemovals.has(selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0)))}
                     onToggleRemove={toggleRowRemoval}
@@ -1337,9 +1371,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                       <OutcomeCommentEditor
                         comment={item.comment}
+                        taggedUserIds={item.source === 'outcome' ? parseTaggedUserIds(selections[selectionKey(item.yearMonth, item.searchTerm, item.rowIndex)]?.outcomeCommentTaggedUserIds) : item.source === 'removed' ? parseTaggedUserIds(selections[selectionKey(item.yearMonth, item.searchTerm, item.rowIndex)]?.removedCommentTaggedUserIds) : parseTaggedUserIds(selections[selectionKey(item.yearMonth, item.searchTerm, item.rowIndex)]?.reviewCommentTaggedUserIds)}
                         followUps={item.followUps}
                         teammates={teammates}
-                        onSave={(comment) => saveOutcomeComment({ yearMonth: item.yearMonth, searchTerm: item.searchTerm, rowIndex: item.rowIndex, source: item.source }, comment)}
+                        onSave={(comment, taggedUserIds) => saveOutcomeComment({ yearMonth: item.yearMonth, searchTerm: item.searchTerm, rowIndex: item.rowIndex, source: item.source }, comment, taggedUserIds)}
                         onReply={(comment, taggedUserIds) => saveOutcomeComment({ yearMonth: item.yearMonth, searchTerm: item.searchTerm, rowIndex: item.rowIndex, source: item.source }, comment, taggedUserIds, 'append')}
                       />
                       <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap', flex: '0 0 auto', textAlign: 'right' }}>{attribution}</span>
@@ -1453,7 +1488,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               {month.terms.map((term) => {
                 const primaryKey = selectionKey(month.month, term.term, 0)
                 const primary = selections[primaryKey]
-                const selectedNklId = primary?.appliedToNKL && typeof primary.appliedToNKL === 'object' ? primary.appliedToNKL.id : primary?.appliedToNKL
+                const selectedNklIds = parseAppliedNklIds(primary?.extraAppliedNklIds, primary?.appliedToNKL)
                 const subRowIndexes = rowIndexesForTerm(month.month, term.term)
                 return (
                   <div key={primaryKey} style={{ display: 'grid', gap: 4 }}>
@@ -1564,7 +1599,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                                   type="button"
                                   disabled={month.reviewComplete}
                                   onClick={() => addSubRow(month.month, term.term)}
-                                  title="Add another negative keyword for this search term (shares the same negative keyword list)"
+                                  title="Add another negative keyword for this search term (shares the same selected lists)"
                                   style={{ padding: '4px 8px', fontSize: 12, lineHeight: 1.2, fontWeight: 700, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
                                 >+</button>
                               )}
@@ -1576,16 +1611,17 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                             <span style={{ fontSize: 10, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
                           </div>
                           {isFocused && isPrimary && visibleNkls.map((nkl) => {
-                            const isChecked = String(selectedNklId || '') === String(nkl.id)
+                            const isChecked = selectedNklIds.includes(String(nkl.id))
+                            const atCap = !isChecked && selectedNklIds.length >= MAX_NKL_TARGETS
                             return (
                               <label key={nkl.id} style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center', minHeight: 28, padding: '3px 5px', borderRadius: 5, border: isChecked ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)', background: isChecked ? '#ccfbf1' : 'transparent', fontSize: 10, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}>
-                                <input type="checkbox" checked={isChecked} disabled={month.reviewComplete} onChange={() => setTargetListForTerm(month.month, term.term, isChecked ? null : nkl.id)} />
+                                <input type="checkbox" checked={isChecked} disabled={month.reviewComplete || atCap} onChange={() => setTargetListForTerm(month.month, term.term, nkl.id, !isChecked)} />
                                 Add negative
                               </label>
                             )
                           })}
                           {isFocused && !isPrimary && visibleNkls.map((nkl) => (
-                            <span key={nkl.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 28, fontSize: 9, color: 'var(--theme-elevation-400)' }}>{String(selectedNklId || '') === String(nkl.id) ? '↳ same list' : ''}</span>
+                            <span key={nkl.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 28, fontSize: 9, color: 'var(--theme-elevation-400)' }}>{selectedNklIds.includes(String(nkl.id)) ? '↳ same lists' : ''}</span>
                           ))}
                           {isFocused && isPrimary && visibleNkls.length === 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>No active NKLs shown</span>}
                         </div>
@@ -1607,59 +1643,21 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onWatch, onDismiss
   item: Selection
   nkls: Nkl[]
   teammates: Teammate[]
-  onSetTarget: (nklId: string) => void
+  onSetTarget: (nklId: string, comment?: string, taggedUserIds?: string[]) => void
   onWatch: (horizon: WatchHorizon | null) => void
   onDismiss: (comment: string, taggedUserIds: string[]) => Promise<void>
   onSaveComment: (comment: string, taggedUserIds: string[]) => Promise<void>
 }) {
-  const initialTags = (item.reviewCommentTaggedUserIds || '').split(',').map((id) => id.trim()).filter(Boolean)
+  const initialTags = parseTaggedUserIds(item.reviewCommentTaggedUserIds)
   const [comment, setComment] = useState(item.reviewComment || '')
   const [tags, setTags] = useState<string[]>(initialTags)
   const [savingComment, setSavingComment] = useState(false)
   const [dismissing, setDismissing] = useState(false)
   const [watchHorizon, setWatchHorizon] = useState<WatchHorizon>(DEFAULT_WATCH_HORIZON)
-  // @-mention autocomplete: track the partial token being typed after an '@'
-  // and where it starts in the textarea, so a picked teammate replaces it.
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
-  const [mentionStart, setMentionStart] = useState<number | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const [pendingNklId, setPendingNklId] = useState('')
+  const [applyNote, setApplyNote] = useState('')
+  const [applyTags, setApplyTags] = useState<string[]>([])
   const dirty = comment !== (item.reviewComment || '') || tags.join(',') !== initialTags.join(',')
-
-  const refreshMentionState = (value: string, caret: number): void => {
-    const upToCaret = value.slice(0, caret)
-    const match = upToCaret.match(/@([\p{L}\p{N}_.-]*)$/u)
-    if (match) {
-      setMentionStart(caret - match[0].length)
-      setMentionQuery(match[1] ?? '')
-    } else {
-      setMentionStart(null)
-      setMentionQuery(null)
-    }
-  }
-
-  const mentionSuggestions = mentionQuery === null
-    ? []
-    : teammates
-        .filter((mate) => mate.label.toLowerCase().startsWith(mentionQuery.toLowerCase()))
-        .slice(0, 6)
-
-  const insertMention = (mate: Teammate): void => {
-    const caret = textareaRef.current?.selectionStart ?? comment.length
-    const start = mentionStart ?? caret
-    const before = comment.slice(0, start)
-    const after = comment.slice(caret)
-    const insert = `@${mate.label} `
-    const next = `${before}${insert}${after}`
-    setComment(next)
-    setTags((current) => current.includes(mate.id) ? current : [...current, mate.id])
-    setMentionStart(null)
-    setMentionQuery(null)
-    requestAnimationFrame(() => {
-      const pos = (before + insert).length
-      const node = textareaRef.current
-      if (node) { node.focus(); node.setSelectionRange(pos, pos) }
-    })
-  }
 
   const handleSave = async (): Promise<void> => {
     setSavingComment(true)
@@ -1670,8 +1668,6 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onWatch, onDismiss
     try { await onDismiss(comment, tags) } finally { setDismissing(false) }
   }
 
-  const taggedLabels = tags.map((id) => teammates.find((mate) => mate.id === id)?.label).filter(Boolean) as string[]
-
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)', alignItems: 'center' }}>
       <span style={{ fontSize: 11, color: 'var(--theme-elevation-600)', flex: '0 0 auto', minWidth: 56 }}>{monthLabel(item.yearMonth)}</span>
@@ -1681,7 +1677,7 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onWatch, onDismiss
       </div>
       <select
         defaultValue=""
-        onChange={(event) => { if (event.target.value) onSetTarget(event.target.value) }}
+        onChange={(event) => { if (event.target.value) { setPendingNklId(event.target.value); setApplyNote(''); setApplyTags([]) } }}
         title="Add this term as a negative keyword in the chosen list"
         style={{ fontSize: 11, padding: '4px 6px', flex: '0 1 150px', minWidth: 120 }}
       >
@@ -1714,33 +1710,31 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onWatch, onDismiss
           style={{ padding: '4px 12px', fontSize: 11, whiteSpace: 'nowrap', color: '#92400e', borderColor: '#fcd34d', background: '#fef3c7' }}
         >{dismissing ? 'Dismissing…' : 'Dismiss'}</button>
       </div>
-      <div style={{ flex: '1 1 100%', position: 'relative' }}>
-        <textarea
-          ref={textareaRef}
-          value={comment}
-          placeholder="Comment for the team — type @ to tag someone…"
-          rows={2}
-          onChange={(event) => { setComment(event.target.value); refreshMentionState(event.target.value, event.target.selectionStart ?? event.target.value.length) }}
-          onKeyUp={(event) => refreshMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
-          onClick={(event) => refreshMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
-          onBlur={() => { window.setTimeout(() => { setMentionStart(null); setMentionQuery(null) }, 150) }}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, resize: 'vertical', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}
-        />
-        {mentionSuggestions.length > 0 && (
-          <div style={{ position: 'absolute', zIndex: 10, top: '100%', left: 0, minWidth: 200, maxWidth: 320, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-200)', borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,0.14)', overflow: 'hidden' }}>
-            {mentionSuggestions.map((mate) => (
-              <button
-                key={mate.id}
-                type="button"
-                onMouseDown={(event) => { event.preventDefault(); insertMention(mate) }}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--theme-text)' }}
-              >@{mate.label}</button>
-            ))}
+      <MentionCommentField
+        value={comment}
+        onChange={setComment}
+        teammates={teammates}
+        taggedIds={tags}
+        onTaggedIdsChange={setTags}
+        placeholder="Comment for the team — type @ to tag someone…"
+      />
+      {pendingNklId && (
+        <div style={{ flex: '1 1 100%', display: 'grid', gap: 6, padding: 8, borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)' }}>
+          <MentionCommentField
+            value={applyNote}
+            onChange={setApplyNote}
+            teammates={teammates}
+            taggedIds={applyTags}
+            onTaggedIdsChange={setApplyTags}
+            placeholder="Optional note for the flagger — type @ to tag…"
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" onClick={() => { onSetTarget(pendingNklId, applyNote.trim(), applyTags); setPendingNklId('') }} style={{ padding: '4px 12px', fontSize: 11 }}>Add to list</button>
+            <button type="button" onClick={() => { onSetTarget(pendingNklId); setPendingNklId('') }} style={{ padding: '4px 12px', fontSize: 11 }}>Skip note</button>
+            <button type="button" onClick={() => setPendingNklId('')} style={{ padding: '4px 12px', fontSize: 11 }}>Cancel</button>
           </div>
-        )}
-      </div>
-      {taggedLabels.length > 0 && (
-        <span style={{ fontSize: 11, color: '#0f766e', flex: '1 1 100%' }}>Tagging {taggedLabels.map((label) => `@${label}`).join(', ')}</span>
+        </div>
       )}
       {item.reviewCommentBy && item.reviewCommentAt && (
         <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)', flex: '1 1 100%' }}>Last by {item.reviewCommentBy} · {new Date(item.reviewCommentAt).toLocaleString('en-AU')}</span>
@@ -1749,13 +1743,14 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onWatch, onDismiss
   )
 }
 
-function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyChange, markedForRemoval, onToggleRemove }: {
+function SubmittedRow({ item, nklId, nklName, nkls, teammates, onRemove, onUpdate, onDirtyChange, markedForRemoval, onToggleRemove }: {
   item: Selection
   nklId: number | string | null
   nklName: string
   nkls: Nkl[]
-  onRemove: (comment?: string) => Promise<void>
-  onUpdate: (newKeyword: string, newMatchType: MatchType, newNklId: number | string | null, comment?: string) => Promise<void>
+  teammates: Teammate[]
+  onRemove: (comment?: string, taggedUserIds?: string[]) => Promise<void>
+  onUpdate: (newKeyword: string, newMatchType: MatchType, newNklId: number | string | null, comment?: string, taggedUserIds?: string[]) => Promise<void>
   onDirtyChange: (key: string, edit: { newKeyword: string; newMatchType: MatchType; newNklId: number | string | null } | null) => void
   markedForRemoval: boolean
   onToggleRemove: (key: string, marked: boolean) => void
@@ -1769,6 +1764,9 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
   const matchType = parsed.matchType
   const [targetNklId, setTargetNklId] = useState<string>(nklId != null ? String(nklId) : '')
   const [busy, setBusy] = useState(false)
+  const [noteOpen, setNoteOpen] = useState<'update' | 'remove' | null>(null)
+  const [note, setNote] = useState('')
+  const [noteTags, setNoteTags] = useState<string[]>([])
   const listChanged = targetNklId !== '' && targetNklId !== (nklId != null ? String(nklId) : '')
   const dirty = keyword.trim() !== item.negativeKeyword || matchType !== item.matchType || listChanged
 
@@ -1786,30 +1784,30 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
     return () => onDirtyChange(rowKey, null)
   }, [rowKey, markedForRemoval, dirty, keyword, matchType, listChanged, targetNklId, onDirtyChange])
 
-  const handleUpdate = async (): Promise<void> => {
-    if (!keyword.trim()) return
-    // Optional teaching note. The original submitter is notified either way; a
-    // note explains the change and surfaces in the read-only Review outcomes tab.
-    const note = window.prompt(
-      `Optionally add a note for whoever submitted “${item.negativeKeyword}” explaining this ${listChanged ? 'move' : 'change'}. ${item.appliedBy ? `${item.appliedBy} will be notified.` : 'They will be notified.'}`.trim(),
-      '',
-    )
-    if (note === null) return
+  const submitNote = async (): Promise<void> => {
     const comment = note.trim() || undefined
     setBusy(true)
-    try { await onUpdate(keyword.trim(), matchType as MatchType, listChanged ? targetNklId : null, comment) } finally { setBusy(false) }
+    try {
+      if (noteOpen === 'remove') await onRemove(comment, noteTags)
+      else await onUpdate(keyword.trim(), matchType as MatchType, listChanged ? targetNklId : null, comment, noteTags)
+      setNoteOpen(null)
+      setNote('')
+      setNoteTags([])
+    } finally {
+      setBusy(false)
+    }
   }
-  const handleRemove = async (): Promise<void> => {
+  const handleUpdate = (): void => {
+    if (!keyword.trim()) return
+    setNote('')
+    setNoteTags([])
+    setNoteOpen('update')
+  }
+  const handleRemove = (): void => {
     if (!window.confirm(`Remove “${item.negativeKeyword}” (${matchTypeLabel(item.matchType)}) from ${nklName}? It will be marked skipped so it stays hidden in future months.`)) return
-    // Optional explanation. When given, it surfaces in the "Removed negatives
-    // explained" tab and notifies the teammate who originally submitted it.
-    const explanation = window.prompt(
-      `Optionally explain why you're removing “${item.negativeKeyword}”. ${item.appliedBy ? `${item.appliedBy} (who submitted it) will be notified.` : ''}`.trim(),
-      '',
-    )
-    if (explanation === null) return
-    setBusy(true)
-    try { await onRemove(explanation.trim() || undefined) } finally { setBusy(false) }
+    setNote('')
+    setNoteTags([])
+    setNoteOpen('remove')
   }
 
   // A single 10px-tall caption sits under the keyword input (the match type).
@@ -1862,6 +1860,32 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
         </div>
         {captionSpacer}
       </div>
+      {noteOpen && (
+        <div style={{ gridColumn: '1 / -1', display: 'grid', gap: 6, padding: 8, borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)' }}>
+          <MentionCommentField
+            value={note}
+            onChange={setNote}
+            teammates={teammates}
+            taggedIds={noteTags}
+            onTaggedIdsChange={setNoteTags}
+            placeholder={noteOpen === 'remove' ? 'Optional note explaining this removal — type @ to tag…' : 'Optional note for the submitter — type @ to tag…'}
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" onClick={submitNote} disabled={busy} style={{ padding: '4px 12px', fontSize: 11 }}>{busy ? 'Saving…' : noteOpen === 'remove' ? 'Remove' : 'Save'}</button>
+            <button type="button" onClick={async () => {
+              setBusy(true)
+              try {
+                if (noteOpen === 'remove') await onRemove(undefined, [])
+                else await onUpdate(keyword.trim(), matchType as MatchType, listChanged ? targetNklId : null, undefined, [])
+                setNoteOpen(null)
+                setNote('')
+                setNoteTags([])
+              } finally { setBusy(false) }
+            }} disabled={busy} style={{ padding: '4px 12px', fontSize: 11 }}>Skip note</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1870,26 +1894,28 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
 // Edit affordance, or an "Add comment" button when empty; editing reveals a
 // textarea with Save/Cancel. Persists via the parent's onSave (returns true on
 // success) which writes back to the row's canonical comment field.
-function OutcomeCommentEditor({ comment, followUps, teammates, onSave, onReply }: {
+function OutcomeCommentEditor({ comment, taggedUserIds: initialTaggedUserIds, followUps, teammates, onSave, onReply }: {
   comment: string
+  taggedUserIds: string[]
   followUps: FollowUpComment[]
   teammates: Teammate[]
-  onSave: (comment: string) => Promise<boolean>
+  onSave: (comment: string, taggedUserIds: string[]) => Promise<boolean>
   onReply: (comment: string, taggedUserIds: string[]) => Promise<boolean>
 }) {
   const [editing, setEditing] = useState(false)
   const [replying, setReplying] = useState(false)
   const [draft, setDraft] = useState(comment)
+  const [draftTags, setDraftTags] = useState<string[]>(initialTaggedUserIds)
   const [replyDraft, setReplyDraft] = useState('')
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
-  const startEdit = (): void => { setDraft(comment); setEditing(true) }
-  const cancel = (): void => { setDraft(comment); setEditing(false) }
+  const startEdit = (): void => { setDraft(comment); setDraftTags(initialTaggedUserIds); setEditing(true) }
+  const cancel = (): void => { setDraft(comment); setDraftTags(initialTaggedUserIds); setEditing(false) }
   const save = async (): Promise<void> => {
     setSaving(true)
     try {
-      const ok = await onSave(draft.trim())
+      const ok = await onSave(draft.trim(), draftTags)
       if (ok) setEditing(false)
     } finally {
       setSaving(false)
@@ -1905,20 +1931,17 @@ function OutcomeCommentEditor({ comment, followUps, teammates, onSave, onReply }
       setSaving(false)
     }
   }
-  const toggleTag = (id: string, checked: boolean): void => {
-    setTaggedUserIds((current) => checked ? Array.from(new Set([...current, id])) : current.filter((value) => value !== id))
-  }
-
   if (editing) {
     return (
       <div style={{ flex: '1 1 320px', display: 'grid', gap: 6 }}>
-        <textarea
+        <MentionCommentField
           value={draft}
-          rows={2}
+          onChange={setDraft}
+          teammates={teammates}
+          taggedIds={draftTags}
+          onTaggedIdsChange={setDraftTags}
+          placeholder="Add a comment for the team — type @ to tag…"
           autoFocus
-          placeholder="Add a comment for the team…"
-          onChange={(event) => setDraft(event.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, resize: 'vertical', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}
         />
         <div style={{ display: 'flex', gap: 6 }}>
           <button type="button" onClick={save} disabled={saving || draft.trim() === comment.trim()} style={{ padding: '4px 12px', fontSize: 11 }}>{saving ? 'Saving…' : 'Save'}</button>
@@ -1960,18 +1983,15 @@ function OutcomeCommentEditor({ comment, followUps, teammates, onSave, onReply }
       )}
       {replying ? (
         <div style={{ display: 'grid', gap: 6, padding: 8, borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)' }}>
-          <textarea value={replyDraft} rows={2} autoFocus placeholder="Add a follow-up reply…" onChange={(event) => setReplyDraft(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, resize: 'vertical', lineHeight: 1.4 }} />
-          {teammates.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11 }}>
-              <span style={{ color: 'var(--theme-elevation-500)' }}>Retag:</span>
-              {teammates.map((teammate) => (
-                <label key={teammate.id} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <input type="checkbox" checked={taggedUserIds.includes(teammate.id)} onChange={(event) => toggleTag(teammate.id, event.target.checked)} />
-                  @{teammate.label}
-                </label>
-              ))}
-            </div>
-          )}
+          <MentionCommentField
+            value={replyDraft}
+            onChange={setReplyDraft}
+            teammates={teammates}
+            taggedIds={taggedUserIds}
+            onTaggedIdsChange={setTaggedUserIds}
+            placeholder="Add a follow-up reply — type @ to tag…"
+            autoFocus
+          />
           <div style={{ display: 'flex', gap: 6 }}>
             <button type="button" onClick={saveReply} disabled={saving || !replyDraft.trim()} style={{ padding: '4px 12px', fontSize: 11 }}>{saving ? 'Saving…' : 'Save reply'}</button>
             <button type="button" onClick={() => { setReplying(false); setReplyDraft(''); setTaggedUserIds([]) }} disabled={saving} style={{ padding: '4px 12px', fontSize: 11 }}>Cancel</button>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
+import { listMentionableTeammates } from '@/lib/monthly-keyword-mentions'
 
 /**
  * Return the list of users a reviewer can @-tag on a monthly negative-keyword
@@ -15,17 +16,5 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!userHasFeature(user, 'negative-keyword-lists')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const usersResult = await payload.find({
-    collection: 'users',
-    limit: 500,
-    depth: 0,
-    overrideAccess: true,
-    sort: 'name',
-  })
-  const teammates = (usersResult.docs as Array<{ id: number | string; name?: string; email?: string }>).map((u) => ({
-    id: String(u.id),
-    label: u.name || u.email || `User ${u.id}`,
-  }))
-
-  return NextResponse.json({ teammates })
+  return NextResponse.json({ teammates: await listMentionableTeammates(payload) })
 }

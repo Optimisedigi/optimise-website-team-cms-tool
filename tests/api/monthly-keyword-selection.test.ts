@@ -25,6 +25,8 @@ import { POST as clearPOST } from '@/app/(frontend)/api/monthly-keyword-selectio
 import { POST as revisePOST } from '@/app/(frontend)/api/monthly-keyword-selection/revise/route'
 import { POST as dismissReviewPOST } from '@/app/(frontend)/api/monthly-keyword-selection/dismiss-review/route'
 import { GET as teammatesGET } from '@/app/(frontend)/api/monthly-keyword-selection/teammates/route'
+import { POST as commentPOST } from '@/app/(frontend)/api/monthly-keyword-selection/comment/route'
+import { POST as outcomeCommentPOST } from '@/app/(frontend)/api/monthly-keyword-selection/outcome-comment/route'
 
 function getRequest(path: string): NextRequest {
   return new NextRequest(`http://localhost${path}`, { method: 'GET' })
@@ -213,6 +215,39 @@ describe('monthly keyword selection API routes', () => {
     expect(rowUpdates[0][0]).toMatchObject({
       where: { id: { in: [70, 71] } },
       data: expect.objectContaining({ appliedToNKL: 3, appliedAt: expect.any(String) }),
+    })
+  })
+
+  it('apply fans one term onto the primary NKL plus extraAppliedNklIds', async () => {
+    mockPayload.findByID.mockImplementation(({ collection, id }: { collection: string; id: number }) => {
+      if (collection === 'clients') return Promise.resolve({ id: 7, name: 'Acme' })
+      return Promise.resolve({ id, client: 7, name: `List ${id}`, keywords: [] })
+    })
+    mockPayload.find
+      .mockResolvedValueOnce({ docs: [{ id: 22 }] })
+      .mockResolvedValueOnce({ docs: [
+        { id: 70, rowKey: '7|2026-05|cheap widgets|0', yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'approved' },
+      ] })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+
+    const res = await applyPOST(request('/api/monthly-keyword-selection/apply', {
+      clientId: 7,
+      selections: [
+        { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', appliedToNKL: 3, extraAppliedNklIds: '4,5' },
+      ],
+    }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json).toMatchObject({ success: true, applied: 3 })
+    const nklUpdates = mockPayload.update.mock.calls
+      .filter((c: any[]) => c[0].collection === 'negative-keyword-lists')
+      .map((c: any[]) => c[0].id)
+      .sort()
+    expect(nklUpdates).toEqual([3, 4, 5])
+    const rowUpdate = mockPayload.update.mock.calls.find((c: any[]) => c[0].collection === 'monthly-keyword-selection-rows')
+    expect(rowUpdate[0]).toMatchObject({
+      data: expect.objectContaining({ appliedToNKL: 3, extraAppliedNklIds: '4,5' }),
     })
   })
 
@@ -583,9 +618,10 @@ describe('monthly keyword selection API routes', () => {
 
   it('teammates returns the gated user list mapped to id + label', async () => {
     mockPayload.find.mockResolvedValue({ docs: [
-      { id: 1, name: 'Alice' },
-      { id: 2, email: 'bob@example.com' },
-      { id: 3 },
+      { id: 1, name: 'Alice', role: 'admin' },
+      { id: 2, email: 'bob@example.com', role: 'admin' },
+      { id: 3, role: 'admin' },
+      { id: 4, name: 'No Access Ned', role: 'specialist', featureAccess: [] },
     ] })
 
     const res = await teammatesGET(getRequest('/api/monthly-keyword-selection/teammates'))
@@ -603,6 +639,66 @@ describe('monthly keyword selection API routes', () => {
     mockPayload.auth.mockResolvedValue({ user: null })
     const res = await teammatesGET(getRequest('/api/monthly-keyword-selection/teammates'))
     expect(res.status).toBe(401)
+  })
+
+  const mentionableUsers = [
+    { id: 9, name: 'Reviewer Rita', role: 'admin' },
+    { id: 11, name: 'Taggable Tom', role: 'admin' },
+    { id: 12, name: 'No Access Ned', role: 'specialist', featureAccess: [] },
+  ]
+
+  it('comment notifies an allowlisted tagged teammate and persists their id', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 9, role: 'admin', name: 'Reviewer Rita' } })
+    mockPayload.find.mockImplementation(({ collection }: { collection: string }) => {
+      if (collection === 'users') return Promise.resolve({ docs: mentionableUsers })
+      return Promise.resolve({ docs: [{ id: 77, rowKey: '7|2026-05|cheap widgets|0', yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'needs_review' }] })
+    })
+    mockPayload.findByID.mockResolvedValue({ name: 'Acme' })
+    mockPayload.update.mockResolvedValue({ id: 77 })
+    mockPayload.create.mockResolvedValue({ id: 1 })
+
+    const res = await commentPOST(request('/api/monthly-keyword-selection/comment', {
+      clientId: 7, yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0,
+      comment: 'Please check @Taggable Tom',
+      taggedUserIds: ['11', '9', '12', '999'],
+    }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.notified).toBe(1)
+    const rowUpdate = mockPayload.update.mock.calls.filter((c: any[]) => c[0].collection === 'monthly-keyword-selection-rows').at(-1)
+    expect(rowUpdate[0].data.reviewCommentTaggedUserIds).toBe('11')
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'notifications',
+      data: expect.objectContaining({ recipient: '11', kind: 'negative-keywords-needs-review' }),
+    }))
+  })
+
+  it('outcome-comment notifies tagged teammates on the canonical comment', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 9, role: 'admin', name: 'Reviewer Rita' } })
+    mockPayload.find.mockImplementation(({ collection }: { collection: string }) => {
+      if (collection === 'users') return Promise.resolve({ docs: mentionableUsers })
+      return Promise.resolve({ docs: [{ id: 77, rowKey: '7|2026-05|cheap widgets|0', yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'approved', outcomeComment: 'added' }] })
+    })
+    mockPayload.findByID.mockResolvedValue({ name: 'Acme' })
+    mockPayload.update.mockResolvedValue({ id: 77 })
+    mockPayload.create.mockResolvedValue({ id: 1 })
+
+    const res = await outcomeCommentPOST(request('/api/monthly-keyword-selection/outcome-comment', {
+      clientId: 7, yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0,
+      source: 'outcome', comment: '@Taggable Tom please recheck',
+      taggedUserIds: ['11'],
+    }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.notified).toBe(1)
+    const rowUpdate = mockPayload.update.mock.calls.filter((c: any[]) => c[0].collection === 'monthly-keyword-selection-rows').at(-1)
+    expect(rowUpdate[0].data).toMatchObject({ outcomeComment: '@Taggable Tom please recheck', outcomeCommentTaggedUserIds: '11' })
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'notifications',
+      data: expect.objectContaining({ recipient: '11' }),
+    }))
   })
 
   it('clear is admin-only and wipes the client terms cache when Monthly negative KWs is enabled', async () => {

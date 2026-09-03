@@ -36,6 +36,7 @@ export type MonthlyKeywordSelectionRow = {
   watchHorizonMonths?: number | null
   watchUntil?: string | null
   appliedToNKL?: number | string | { id?: number | string } | null
+  extraAppliedNklIds?: string | null
   appliedAt?: string | null
   appliedBy?: string | null
   appliedByUserId?: string | null
@@ -47,6 +48,10 @@ export type MonthlyKeywordSelectionRow = {
   reviewCommentBy?: string | null
   reviewCommentAt?: string | null
   reviewCommentTaggedUserIds?: string | null
+  outcomeComment?: string | null
+  outcomeCommentTaggedUserIds?: string | null
+  removedComment?: string | null
+  removedCommentTaggedUserIds?: string | null
 }
 
 export type WarmMonthlyKeywordTermsResult = {

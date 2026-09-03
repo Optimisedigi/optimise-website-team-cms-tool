@@ -4,6 +4,8 @@ import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import { logActivity } from '@/lib/activity-log'
 import { findSelectionRows, findSelectionRowsByKeys, keywordKey as selectionKeywordKey, selectionRowKey, upsertSelectionRows } from '@/lib/monthly-keyword-selection-rows'
+import { monthLabel, notifyTaggedUsers, resolveMentionableUserIds } from '@/lib/monthly-keyword-mentions'
+import { nklIdString, parseAppliedNklIds } from '@/lib/monthly-keyword-nkl-targets'
 
 type MatchType = 'exact' | 'broad' | 'phrase'
 
@@ -14,6 +16,7 @@ type KeywordSelection = {
   keyword: string
   matchType: MatchType
   appliedToNKL?: number | string | null
+  extraAppliedNklIds?: string[]
 }
 
 const VALID_MATCH_TYPES = new Set(['exact', 'broad', 'phrase'])
@@ -33,12 +36,6 @@ function keywordMatchKey(keyword: string, matchType: string): string {
   return `${keyword.trim().toLowerCase()}|${matchType.trim().toLowerCase()}`
 }
 
-function monthLabel(yearMonth: string): string {
-  const [year, month] = yearMonth.split('-').map(Number)
-  if (!year || !month) return yearMonth
-  return new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, 1)))
-}
-
 function normaliseKeyword(value: any, fallbackNklId?: number | string | null): KeywordSelection | null {
   const keyword = typeof value?.negativeKeyword === 'string'
     ? value.negativeKeyword.trim()
@@ -50,6 +47,7 @@ function normaliseKeyword(value: any, fallbackNklId?: number | string | null): K
     : 'exact'
   const rawAppliedToNKL = typeof value?.appliedToNKL === 'object' && value.appliedToNKL !== null ? value.appliedToNKL.id : value?.appliedToNKL
   const appliedToNKL = typeof rawAppliedToNKL === 'string' || typeof rawAppliedToNKL === 'number' ? rawAppliedToNKL : fallbackNklId || null
+  const extraIds = parseAppliedNklIds(value?.extraAppliedNklIds, appliedToNKL).filter((id) => id !== nklIdString(appliedToNKL))
   if (!keyword || !appliedToNKL) return null
   return {
     yearMonth: typeof value?.yearMonth === 'string' ? value.yearMonth : undefined,
@@ -58,6 +56,7 @@ function normaliseKeyword(value: any, fallbackNklId?: number | string | null): K
     keyword,
     matchType,
     appliedToNKL,
+    extraAppliedNklIds: extraIds,
   }
 }
 
@@ -71,6 +70,7 @@ export async function POST(req: NextRequest) {
   const clientId = Number(body?.clientId)
   const fallbackNklId = body?.nklId
   const comment = typeof body?.comment === 'string' ? body.comment.trim() : ''
+  const taggedUserIds = await resolveMentionableUserIds(payload, body?.taggedUserIds, String(user.id))
   const keywords = Array.isArray(body?.selections)
     ? body.selections.map((selection: unknown) => normaliseKeyword(selection, fallbackNklId)).filter(Boolean) as KeywordSelection[]
     : []
@@ -81,11 +81,12 @@ export async function POST(req: NextRequest) {
 
   const byNkl = new Map<string, { id: number | string; keywords: KeywordSelection[] }>()
   for (const keyword of keywords) {
-    const nklId = keyword.appliedToNKL as number | string
-    const nklKey = String(nklId)
-    const group = byNkl.get(nklKey) || { id: nklId, keywords: [] }
-    group.keywords.push(keyword)
-    byNkl.set(nklKey, group)
+    const nklIds = parseAppliedNklIds(keyword.extraAppliedNklIds, keyword.appliedToNKL)
+    for (const nklId of nklIds) {
+      const group = byNkl.get(nklId) || { id: /^\d+$/.test(nklId) ? Number(nklId) : nklId, keywords: [] }
+      group.keywords.push({ ...keyword, appliedToNKL: group.id })
+      byNkl.set(nklId, group)
+    }
   }
 
   const now = new Date().toISOString()
@@ -201,7 +202,9 @@ export async function POST(req: NextRequest) {
       return exactRowKey === row.rowKey || selectionKeywordKey(keyword.keyword, keyword.matchType) === row.keywordKey
     })
     if (!matchingKeyword) continue
+    const appliedIds = parseAppliedNklIds(matchingKeyword.extraAppliedNklIds, matchingKeyword.appliedToNKL)
     const appliedToNKL = matchingKeyword.appliedToNKL
+    const extraAppliedNklIds = appliedIds.filter((id) => id !== nklIdString(appliedToNKL)).join(',')
     const appliedBy = row.appliedByUserId ? row.appliedBy : applierName
     const appliedByUserId = row.appliedByUserId ? row.appliedByUserId : applierUserId
     const reviewer = typeof row.decidedBy === 'string' && row.decidedBy ? row.decidedBy : 'Unknown reviewer'
@@ -210,6 +213,7 @@ export async function POST(req: NextRequest) {
     const next: Record<string, unknown> = {
       decision: 'approved',
       appliedToNKL: asNklId(appliedToNKL),
+      extraAppliedNklIds,
       appliedAt: now,
       appliedBy,
       appliedByUserId,
@@ -220,6 +224,7 @@ export async function POST(req: NextRequest) {
       next.outcomeType = 'added'
       next.outcomeDetail = detail
       next.outcomeComment = comment || null
+      next.outcomeCommentTaggedUserIds = taggedUserIds.join(',')
       next.outcomeBy = applierName
       next.outcomeByUserId = applierUserId
       next.outcomeAt = now
@@ -300,9 +305,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+  const taggedNotified = comment && taggedUserIds.length > 0
+    ? await notifyTaggedUsers(payload, {
+        recipientIds: taggedUserIds,
+        actorId: applierUserId,
+        authorName: applierName,
+        clientId,
+        yearMonth: keywords[0]?.yearMonth || '',
+        searchTerm: keywords[0]?.searchTerm || keywords[0]?.keyword || '',
+        comment,
+      })
+    : 0
+
   return NextResponse.json({
     success: true,
     applied,
     skipped,
+    notified: taggedNotified,
   })
 }

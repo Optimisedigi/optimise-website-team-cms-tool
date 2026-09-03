@@ -4,6 +4,7 @@ import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import type { MonthlyKeywordSelectionRow } from '@/lib/monthly-keyword-terms-warmer'
 import { countSelectionRows, deleteSelectionRows, upsertSelectionRows } from '@/lib/monthly-keyword-selection-rows'
+import { nklIdString, serializeAppliedNklIds, parseAppliedNklIds } from '@/lib/monthly-keyword-nkl-targets'
 
 const VALID_MATCH_TYPES = new Set(['broad', 'phrase', 'exact'])
 const VALID_DECISIONS = new Set(['pending', 'approved', 'skipped', 'watch', 'needs_review'])
@@ -19,11 +20,12 @@ function normaliseSelection(value: any): MonthlyKeywordSelectionRow | null {
   const decision = typeof value?.decision === 'string' && VALID_DECISIONS.has(value.decision) ? value.decision : 'pending'
   const rawAppliedToNKL = typeof value?.appliedToNKL === 'object' && value.appliedToNKL !== null ? value.appliedToNKL.id : value?.appliedToNKL
   const appliedToNKL = typeof rawAppliedToNKL === 'string' || typeof rawAppliedToNKL === 'number' ? rawAppliedToNKL : null
+  const extraAppliedNklIds = serializeAppliedNklIds(parseAppliedNklIds(value?.extraAppliedNklIds, appliedToNKL).filter((id) => id !== nklIdString(appliedToNKL)))
   const rawHorizon = Number(value?.watchHorizonMonths)
   const watchHorizonMonths = VALID_WATCH_HORIZONS.has(rawHorizon) ? rawHorizon : DEFAULT_WATCH_HORIZON
 
   if (!/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm || !negativeKeyword) return null
-  const base: MonthlyKeywordSelectionRow = { yearMonth, searchTerm, rowIndex, negativeKeyword, matchType, decision, appliedToNKL, watchHorizonMonths } as MonthlyKeywordSelectionRow
+  const base: MonthlyKeywordSelectionRow = { yearMonth, searchTerm, rowIndex, negativeKeyword, matchType, decision, appliedToNKL, extraAppliedNklIds, watchHorizonMonths } as MonthlyKeywordSelectionRow
   // Comment fields are authored via the dedicated /comment route. Only forward
   // them when the client actually sent strings so a routine autosave can never
   // wipe a comment that another reviewer saved after this client last loaded.

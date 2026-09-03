@@ -3,21 +3,20 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import { findSelectionRow, patchSelectionRow } from '@/lib/monthly-keyword-selection-rows'
+import { notifyTaggedUsers, resolveMentionableUserIds } from '@/lib/monthly-keyword-mentions'
 
 const SOURCE_FIELD = {
   outcome: 'outcomeComment',
   removed: 'removedComment',
   dismissed: 'reviewComment',
 } as const
-const NOTIFICATIONS = 'notifications' as never
+const SOURCE_TAG_FIELD = {
+  outcome: 'outcomeCommentTaggedUserIds',
+  removed: 'removedCommentTaggedUserIds',
+  dismissed: 'reviewCommentTaggedUserIds',
+} as const
 
 type OutcomeSource = keyof typeof SOURCE_FIELD
-
-function monthLabel(yearMonth: string): string {
-  const [year, month] = yearMonth.split('-').map(Number)
-  if (!year || !month) return yearMonth
-  return new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, 1)))
-}
 
 /**
  * Edit the single canonical comment on one Review-outcomes row. The field
@@ -39,9 +38,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const source = body?.source as OutcomeSource
   const comment = typeof body?.comment === 'string' ? body.comment : ''
   const mode = body?.mode === 'append' ? 'append' : 'replace'
-  const taggedUserIds = Array.isArray(body?.taggedUserIds)
-    ? body.taggedUserIds.map((id: unknown) => String(id)).filter((id: string) => id && id !== 'undefined')
-    : []
 
   if (!Number.isInteger(clientId) || !/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm) {
     return NextResponse.json({ error: 'clientId, yearMonth and searchTerm are required' }, { status: 400 })
@@ -51,8 +47,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const field = SOURCE_FIELD[source]
+  const tagField = SOURCE_TAG_FIELD[source]
   const authorName = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || 'A reviewer'
   const now = new Date().toISOString()
+  const taggedUserIds = await resolveMentionableUserIds(payload, body?.taggedUserIds, String(user.id))
   let followUps: Array<Record<string, unknown>> = []
   const existingRow = await findSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex)
   if (!existingRow) return NextResponse.json({ error: 'Matching outcome not found' }, { status: 404 })
@@ -66,38 +64,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const patched = await patchSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex, mode === 'append'
     ? { outcomeFollowUpComments: followUps }
-    : { [field]: comment })
+    : { [field]: comment, [tagField]: taggedUserIds.join(',') })
 
   if (!patched) return NextResponse.json({ error: 'Matching outcome not found' }, { status: 404 })
 
-  let notified = 0
-  if (mode === 'append' && taggedUserIds.length > 0 && comment.trim()) {
-    const client = await payload
-      .findByID({ collection: 'clients', id: clientId, depth: 0, overrideAccess: true })
-      .catch(() => null) as { name?: string } | null
-    const clientName = client?.name || `Client ${clientId}`
-    const url = `/admin/monthly-keyword-selection?clientId=${clientId}`
-    for (const recipientId of taggedUserIds) {
-      if (String(recipientId) === String(user.id)) continue
-      try {
-        await payload.create({
-          collection: NOTIFICATIONS,
-          data: {
-            recipient: recipientId,
-            kind: 'negative-keywords-needs-review',
-            title: `${authorName} retagged you on a negative keyword — ${clientName}`,
-            body: `${monthLabel(yearMonth)} · "${searchTerm}": ${comment.slice(0, 140)}`,
-            url,
-            relatedClient: clientId,
-          } as never,
-          overrideAccess: true,
-        })
-        notified += 1
-      } catch (err) {
-        payload.logger?.warn?.(`[monthly-keyword-outcome-comment] notify failed for ${recipientId}: ${err}`)
-      }
-    }
-  }
+  const notified = comment.trim()
+    ? await notifyTaggedUsers(payload, {
+        recipientIds: taggedUserIds,
+        actorId: String(user.id),
+        authorName,
+        clientId,
+        yearMonth,
+        searchTerm,
+        comment,
+        title: mode === 'append'
+          ? (clientName) => `${authorName} retagged you on a negative keyword — ${clientName}`
+          : undefined,
+      })
+    : 0
 
   return NextResponse.json({ success: true, followUps, notified })
 }

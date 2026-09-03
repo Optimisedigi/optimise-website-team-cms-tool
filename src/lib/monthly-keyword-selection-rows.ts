@@ -64,12 +64,14 @@ export function rowDocToSelection(row: MonthlyKeywordSelectionRowDoc): MonthlyKe
     matchType: row.matchType,
     decision: row.decision,
     appliedToNKL: asNklId(row.appliedToNKL),
+    extraAppliedNklIds: row.extraAppliedNklIds ?? null,
     appliedAt: row.appliedAt ?? null,
     watchHorizonMonths: row.watchHorizonMonths ?? null,
     watchUntil: row.watchUntil ?? null,
     appliedBy: row.appliedBy ?? null,
     appliedByUserId: row.appliedByUserId ?? null,
     removedComment: row.removedComment ?? null,
+    removedCommentTaggedUserIds: row.removedCommentTaggedUserIds ?? null,
     removedBy: row.removedBy ?? null,
     removedByUserId: row.removedByUserId ?? null,
     removedAt: row.removedAt ?? null,
@@ -84,6 +86,7 @@ export function rowDocToSelection(row: MonthlyKeywordSelectionRowDoc): MonthlyKe
     outcomeType: row.outcomeType ?? null,
     outcomeDetail: row.outcomeDetail ?? null,
     outcomeComment: row.outcomeComment ?? null,
+    outcomeCommentTaggedUserIds: row.outcomeCommentTaggedUserIds ?? null,
     outcomeBy: row.outcomeBy ?? null,
     outcomeByUserId: row.outcomeByUserId ?? null,
     outcomeAt: row.outcomeAt ?? null,
@@ -198,12 +201,12 @@ function stripServerManagedFields<T extends MonthlyKeywordSelectionRowDoc>(row: 
 // round-trip to Turso per row — the write amplification behind save timeouts.
 const COMPARED_FIELDS: Array<keyof MonthlyKeywordSelectionRowDoc> = [
   'yearMonth', 'searchTerm', 'searchTermKey', 'rowIndex', 'rowKey', 'keywordKey',
-  'negativeKeyword', 'matchType', 'decision', 'appliedToNKL', 'appliedAt',
+  'negativeKeyword', 'matchType', 'decision', 'appliedToNKL', 'extraAppliedNklIds', 'appliedAt',
   'watchHorizonMonths', 'watchUntil', 'appliedBy', 'appliedByUserId',
-  'removedComment', 'removedBy', 'removedByUserId', 'removedAt',
+  'removedComment', 'removedCommentTaggedUserIds', 'removedBy', 'removedByUserId', 'removedAt',
   'decidedBy', 'decidedByUserId', 'reviewDismissedAt', 'reviewDismissedBy',
   'reviewComment', 'reviewCommentBy', 'reviewCommentAt', 'reviewCommentTaggedUserIds',
-  'outcomeType', 'outcomeDetail', 'outcomeComment', 'outcomeBy', 'outcomeByUserId', 'outcomeAt',
+  'outcomeType', 'outcomeDetail', 'outcomeComment', 'outcomeCommentTaggedUserIds', 'outcomeBy', 'outcomeByUserId', 'outcomeAt',
 ]
 
 function rowUnchanged(prev: MonthlyKeywordSelectionRowDoc, merged: MonthlyKeywordSelectionRowDoc): boolean {
