@@ -6,6 +6,7 @@ import { logActivity } from '@/lib/activity-log'
 import { findSelectionRows, findSelectionRowsByKeys, keywordKey as selectionKeywordKey, selectionRowKey, upsertSelectionRows } from '@/lib/monthly-keyword-selection-rows'
 import { monthLabel, notifyTaggedUsers, resolveMentionableUserIds } from '@/lib/monthly-keyword-mentions'
 import { nklIdString, parseAppliedNklIds } from '@/lib/monthly-keyword-nkl-targets'
+import { appendNklKeywords } from '@/lib/nkl-append-keywords'
 
 type MatchType = 'exact' | 'broad' | 'phrase'
 
@@ -120,21 +121,11 @@ export async function POST(req: NextRequest) {
 
     const newKeywords = Array.from(dedupIncoming.values())
       .filter((kw) => !existingSet.has(keywordMatchKey(kw.keyword, kw.matchType)))
-      .map((kw) => ({
-        keyword: kw.keyword,
-        matchType: kw.matchType,
-        flaggedForRemoval: false,
-        negatedAt: now,
-      }))
+      .map((kw) => ({ keyword: kw.keyword, matchType: kw.matchType, negatedAt: now }))
 
-    if (newKeywords.length > 0) {
-      await payload.update({
-        collection: 'negative-keyword-lists',
-        id: nklId,
-        data: { keywords: [...currentKeywords, ...newKeywords] },
-        overrideAccess: true,
-      })
-    }
+    // Delta-only insert: rewriting all ~4.7k rows exceeded SQLite's 32,766
+    // bound-variable cap ("too many SQL variables") and stalled the DB.
+    await appendNklKeywords(payload, Number(nklId), clientId, newKeywords)
 
     applied += newKeywords.length
     skipped += nklKeywords.length - newKeywords.length

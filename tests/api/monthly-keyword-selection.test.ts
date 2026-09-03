@@ -18,6 +18,13 @@ vi.mock('@/payload.config', () => ({
   default: Promise.resolve({}),
 }))
 
+// Apply must append only the new keywords via raw SQL; a full-array
+// payload.update on a ~4.7k-keyword list exceeds SQLite's 32,766 variable cap.
+const appendNklKeywords = vi.fn(async (_p: unknown, _nklId: number, _clientId: number, kws: unknown[]) => kws.length)
+vi.mock('@/lib/nkl-append-keywords', () => ({
+  appendNklKeywords: (...args: [unknown, number, number, unknown[]]) => appendNklKeywords(...args),
+}))
+
 import { POST as savePOST } from '@/app/(frontend)/api/monthly-keyword-selection/save/route'
 import { POST as applyPOST } from '@/app/(frontend)/api/monthly-keyword-selection/apply/route'
 import { POST as completePOST } from '@/app/(frontend)/api/monthly-keyword-selection/complete/route'
@@ -240,11 +247,8 @@ describe('monthly keyword selection API routes', () => {
 
     expect(res.status).toBe(200)
     expect(json).toMatchObject({ success: true, applied: 3 })
-    const nklUpdates = mockPayload.update.mock.calls
-      .filter((c: any[]) => c[0].collection === 'negative-keyword-lists')
-      .map((c: any[]) => c[0].id)
-      .sort()
-    expect(nklUpdates).toEqual([3, 4, 5])
+    const nklAppends = appendNklKeywords.mock.calls.map((c) => c[1]).sort()
+    expect(nklAppends).toEqual([3, 4, 5])
     const rowUpdate = mockPayload.update.mock.calls.find((c: any[]) => c[0].collection === 'monthly-keyword-selection-rows')
     expect(rowUpdate[0]).toMatchObject({
       data: expect.objectContaining({ appliedToNKL: 3, extraAppliedNklIds: '4,5' }),
@@ -272,11 +276,13 @@ describe('monthly keyword selection API routes', () => {
 
     expect(res.status).toBe(200)
     expect(json).toMatchObject({ success: true, applied: 1, skipped: 1 })
-    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
-      collection: 'negative-keyword-lists',
-      id: 3,
-      data: { keywords: expect.arrayContaining([expect.objectContaining({ keyword: 'cheap', matchType: 'phrase' })]) },
-    }))
+    expect(appendNklKeywords).toHaveBeenCalledTimes(1)
+    const [, nklId, clientId, appended] = appendNklKeywords.mock.calls[0]
+    expect(nklId).toBe(3)
+    expect(clientId).toBe(7)
+    expect(appended).toEqual([expect.objectContaining({ keyword: 'cheap', matchType: 'phrase' })])
+    // Regression guard: never rewrite the whole keywords array through Payload.
+    expect(mockPayload.update).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'negative-keyword-lists' }))
     expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'monthly-keyword-selection-rows',
       data: expect.objectContaining({ appliedToNKL: 3, decision: 'approved' }),
@@ -306,6 +312,7 @@ describe('monthly keyword selection API routes', () => {
     expect(mockPayload.update).not.toHaveBeenCalledWith(expect.objectContaining({
       collection: 'negative-keyword-lists',
     }))
+    expect(appendNklKeywords).toHaveBeenCalledWith(expect.anything(), 3, 7, [])
     expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'monthly-keyword-selection-rows',
       data: expect.objectContaining({ appliedToNKL: 3, decision: 'approved', appliedAt: expect.any(String) }),
