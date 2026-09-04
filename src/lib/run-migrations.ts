@@ -404,6 +404,72 @@ export async function runMigrations(
   }
 
   /**
+   * Rebuild a hasMany-select side table whose `id` was wrongly converted to
+   * `text PRIMARY KEY`. Payload omits `id` on insert and SQLite only auto-fills
+   * it when the column is an integer rowid alias.
+   */
+  async function repairHasManySelectIntegerId(args: {
+    label: string;
+    table: string;
+    parentTable: string;
+    indexes: { name: string; column: string }[];
+  }): Promise<void> {
+    const { label, table, parentTable, indexes } = args;
+    const scratch = `${table}__idfix`;
+    try {
+      if (!(await tableExists(table))) {
+        const r: MigrationResult = { label, status: "skip", message: "table not present" };
+        opts?.onProgress?.(r);
+        results.push(r);
+        return;
+      }
+
+      const info = await client!.execute(`PRAGMA table_info(\`${table}\`)`);
+      const rows = (info as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+      const idCol = rows.find((row) => row.name === "id");
+      if (!idCol || String(idCol.type).toLowerCase() === "integer") {
+        const r: MigrationResult = { label, status: "skip", message: "already integer" };
+        opts?.onProgress?.(r);
+        results.push(r);
+        return;
+      }
+
+      const statements = [
+        `DROP TABLE IF EXISTS \`${scratch}\``,
+        `CREATE TABLE \`${scratch}\` (` +
+          "`order` integer NOT NULL, `parent_id` integer NOT NULL, `value` text, " +
+          "`id` integer PRIMARY KEY NOT NULL, " +
+          `FOREIGN KEY (\`parent_id\`) REFERENCES \`${parentTable}\`(\`id\`) ON UPDATE no action ON DELETE cascade)`,
+        `INSERT INTO \`${scratch}\` (\`order\`, \`parent_id\`, \`value\`) ` +
+          `SELECT \`order\`, \`parent_id\`, \`value\` FROM \`${table}\``,
+        `DROP TABLE \`${table}\``,
+        `ALTER TABLE \`${scratch}\` RENAME TO \`${table}\``,
+        ...indexes.map(
+          (idx) =>
+            `CREATE INDEX IF NOT EXISTS \`${idx.name}\` ON \`${table}\` (\`${idx.column}\`)`,
+        ),
+      ];
+      const batch = (client as unknown as { batch?: (s: string[], mode: string) => Promise<unknown> }).batch;
+      if (typeof batch === "function") {
+        await batch.call(client, statements, "write");
+      } else {
+        for (const statement of statements) await client!.execute(statement);
+      }
+      const r: MigrationResult = { label, status: "ok" };
+      opts?.onProgress?.(r);
+      results.push(r);
+    } catch (e: unknown) {
+      const r: MigrationResult = {
+        label,
+        status: "error",
+        message: e instanceof Error ? e.message : String(e),
+      };
+      opts?.onProgress?.(r);
+      results.push(r);
+    }
+  }
+
+  /**
    * Repair `clients_services.id` back to `integer PRIMARY KEY`.
    *
    * `services` is a hasMany **select** field. The Drizzle adapter builds those
@@ -424,68 +490,27 @@ export async function runMigrations(
    * live column type, so it is a single PRAGMA no-op once healed.
    */
   async function repairClientsServicesSelectId(): Promise<void> {
-    const label = "clients_services.id_integer_repair";
-    try {
-      if (!(await tableExists("clients_services"))) {
-        // Fresh database: the sweep below creates the table in the correct
-        // shape, so there is nothing to repair.
-        const r: MigrationResult = { label, status: "skip", message: "table not present" };
-        opts?.onProgress?.(r);
-        results.push(r);
-        return;
-      }
+    await repairHasManySelectIntegerId({
+      label: "clients_services.id_integer_repair",
+      table: "clients_services",
+      parentTable: "clients",
+      indexes: [
+        { name: "clients_services_order_idx", column: "order" },
+        { name: "clients_services_parent_id_idx", column: "parent_id" },
+      ],
+    });
+  }
 
-      const info = await client!.execute("PRAGMA table_info(`clients_services`)");
-      const rows = (info as { rows?: Array<Record<string, unknown>> }).rows ?? [];
-      const idCol = rows.find((row) => row.name === "id");
-      if (!idCol || String(idCol.type).toLowerCase() === "integer") {
-        const r: MigrationResult = { label, status: "skip", message: "already integer" };
-        opts?.onProgress?.(r);
-        results.push(r);
-        return;
-      }
-
-      // `id` is a synthetic surrogate for a select row — only `order`,
-      // `parent_id` and `value` carry meaning. Omitting `id` from the copy lets
-      // the integer rowid alias renumber the rows, which also sidesteps the
-      // fact that existing text IDs would all cast to 0 and collide.
-      // No PRAGMA foreign_keys toggling: it is a documented no-op inside a
-      // transaction (which batch opens), and none is needed — no table
-      // references `clients_services`, so dropping it breaks no inbound key.
-      const statements = [
-        // Retry safety: a scratch table stranded by a half-finished earlier
-        // run would fail this CREATE forever, permanently blocking the fix.
-        "DROP TABLE IF EXISTS `clients_services__idfix`",
-        "CREATE TABLE `clients_services__idfix` (" +
-          "`order` integer NOT NULL, `parent_id` integer NOT NULL, `value` text, " +
-          "`id` integer PRIMARY KEY NOT NULL, " +
-          "FOREIGN KEY (`parent_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE cascade)",
-        "INSERT INTO `clients_services__idfix` (`order`, `parent_id`, `value`) " +
-          "SELECT `order`, `parent_id`, `value` FROM `clients_services`",
-        "DROP TABLE `clients_services`",
-        "ALTER TABLE `clients_services__idfix` RENAME TO `clients_services`",
-        "CREATE INDEX IF NOT EXISTS `clients_services_order_idx` ON `clients_services` (`order`)",
-        "CREATE INDEX IF NOT EXISTS `clients_services_parent_id_idx` ON `clients_services` (`parent_id`)",
-      ];
-      const batch = (client as unknown as { batch?: (s: string[], mode: string) => Promise<unknown> }).batch;
-      if (typeof batch === "function") {
-        // Atomic: a partial rebuild would leave the table dropped.
-        await batch.call(client, statements, "write");
-      } else {
-        for (const statement of statements) await client!.execute(statement);
-      }
-      const r: MigrationResult = { label, status: "ok" };
-      opts?.onProgress?.(r);
-      results.push(r);
-    } catch (e: unknown) {
-      const r: MigrationResult = {
-        label,
-        status: "error",
-        message: e instanceof Error ? e.message : String(e),
-      };
-      opts?.onProgress?.(r);
-      results.push(r);
-    }
+  async function repairSalesLeadsServicesSelectId(): Promise<void> {
+    await repairHasManySelectIntegerId({
+      label: "sales_leads_services.id_integer_repair",
+      table: "sales_leads_services",
+      parentTable: "sales_leads",
+      indexes: [
+        { name: "sales_leads_services_parent_idx", column: "parent_id" },
+        { name: "sales_leads_services_order_idx", column: "order" },
+      ],
+    });
   }
 
   /**
@@ -591,6 +616,7 @@ export async function runMigrations(
     // Must precede the marker short-circuit: production carries the marker and
     // would otherwise return before any repair ran.
     await repairClientsServicesSelectId();
+    await repairSalesLeadsServicesSelectId();
     await setClientsListPerPage();
     await addMonthlyKeywordSelectionColumns();
     await addWatchtowerAndSiteHealthSchema();
@@ -1954,9 +1980,11 @@ export async function runMigrations(
     await run("sales_leads_services_parent_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_services_parent_idx` ON `sales_leads_services` (`parent_id`)");
     await run("sales_leads_services_order_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_services_order_idx` ON `sales_leads_services` (`order`)");
   
-    // Fix sales_leads_stage_history.id and sales_leads_services.id from integer to text
+    // Fix sales_leads_stage_history.id from integer to text
     // (Payload v3 generates 24-char hex IDs for array sub-rows → SQLITE_MISMATCH on save).
     // Rebuild pattern matches the meeting_schedulers_attendees fix below.
+    // sales_leads_services is a hasMany SELECT table, not an array — do not convert
+    // its id to text (same bug as clients_services). See repairSalesLeadsServicesSelectId.
     await run("sl_stage_history_drop_new", "DROP TABLE IF EXISTS `sales_leads_stage_history_new`");
     await run("sl_stage_history_new", `CREATE TABLE \`sales_leads_stage_history_new\` (
       \`_order\` integer NOT NULL,
@@ -1972,20 +2000,6 @@ export async function runMigrations(
     await run("sl_stage_history_rename", "ALTER TABLE `sales_leads_stage_history_new` RENAME TO `sales_leads_stage_history`");
     await run("sl_stage_history_parent_idx2", "CREATE INDEX IF NOT EXISTS `sales_leads_stage_history_parent_idx` ON `sales_leads_stage_history` (`_parent_id`)");
     await run("sl_stage_history_order_idx2", "CREATE INDEX IF NOT EXISTS `sales_leads_stage_history_order_idx` ON `sales_leads_stage_history` (`_order`)");
-
-    await run("sl_services_drop_new", "DROP TABLE IF EXISTS `sales_leads_services_new`");
-    await run("sl_services_new", `CREATE TABLE \`sales_leads_services_new\` (
-      \`order\` integer NOT NULL,
-      \`parent_id\` integer NOT NULL,
-      \`id\` text PRIMARY KEY NOT NULL,
-      \`value\` text,
-      FOREIGN KEY (\`parent_id\`) REFERENCES \`sales_leads\`(\`id\`) ON UPDATE no action ON DELETE cascade
-    )`);
-    await run("sl_services_copy", `INSERT INTO \`sales_leads_services_new\` (\`order\`, \`parent_id\`, \`id\`, \`value\`) SELECT \`order\`, \`parent_id\`, CAST(\`id\` AS text), \`value\` FROM \`sales_leads_services\``);
-    await run("sl_services_drop_old", "DROP TABLE IF EXISTS `sales_leads_services`");
-    await run("sl_services_rename", "ALTER TABLE `sales_leads_services_new` RENAME TO `sales_leads_services`");
-    await run("sl_services_parent_idx2", "CREATE INDEX IF NOT EXISTS `sales_leads_services_parent_idx` ON `sales_leads_services` (`parent_id`)");
-    await run("sl_services_order_idx2", "CREATE INDEX IF NOT EXISTS `sales_leads_services_order_idx` ON `sales_leads_services` (`order`)");
 
     // locked_docs_rels for sales_leads
     await run("locked_docs_rels.sales_leads_id", "ALTER TABLE `payload_locked_documents_rels` ADD `sales_leads_id` integer");

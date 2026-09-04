@@ -24,6 +24,7 @@ import * as migration_20260903_130000_add_monthly_keyword_extra_nkls from './202
 import * as migration_20260903_140000_add_google_ads_automation_events from './20260903_140000_add_google_ads_automation_events'
 import * as migration_20260903_150000_add_site_health_issue_deltas from './20260903_150000_add_site_health_issue_deltas'
 import * as migration_20260903_160000_add_google_search_status_incidents from './20260903_160000_add_google_search_status_incidents'
+import * as migration_20260904_140000_fix_sales_leads_services_id_integer from './20260904_140000_fix_sales_leads_services_id_integer'
 import * as migration_20260801_130000_add_proposal_meta_ads_job_state from './20260801_130000_add_proposal_meta_ads_job_state'
 import * as migration_20260304_120000_add_gsc_indexing_audits from './20260304_120000_add_gsc_indexing_audits'
 import * as migration_20260306_120000_add_contracts from './20260306_120000_add_contracts'
@@ -1037,5 +1038,10 @@ export const migrations = [
     up: migration_20260903_160000_add_google_search_status_incidents.up,
     down: migration_20260903_160000_add_google_search_status_incidents.down,
     name: '20260903_160000_add_google_search_status_incidents',
+  },
+  {
+    up: migration_20260904_140000_fix_sales_leads_services_id_integer.up,
+    down: migration_20260904_140000_fix_sales_leads_services_id_integer.down,
+    name: '20260904_140000_fix_sales_leads_services_id_integer',
   },
 ]
