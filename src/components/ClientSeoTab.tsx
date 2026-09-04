@@ -108,11 +108,20 @@ const ClientSeoTab = () => {
   }
 
   const enabled = Boolean(fields?.['seoAuto.monthlyHealthEnabled']?.value)
-  const siteUrl = String(fields?.['seoAuto.siteUrl']?.value || '')
+  const websiteUrl = String(fields?.websiteUrl?.value || '')
+  const contactEmail = String(fields?.contactEmail?.value || '')
+  const siteUrlOverride = String(fields?.['seoAuto.siteUrl']?.value || '')
+  const siteUrl = siteUrlOverride || websiteUrl
   const reportDay = Number(fields?.['seoAuto.healthReportDayOfMonth']?.value || 1)
   const emails = Array.isArray(fields?.['seoAuto.notificationEmails']?.rows)
     ? fields['seoAuto.notificationEmails'].rows.map((row) => String(row.id ?? row))
     : []
+  const emailValues =
+    emails.length > 0
+      ? emails.map((_, index) => String(fields?.[`seoAuto.notificationEmails.${index}.email`]?.value || ''))
+      : contactEmail
+        ? [contactEmail]
+        : []
 
   const setHealth = useCallback(
     (path: string, value: unknown) => {
@@ -243,7 +252,16 @@ const ClientSeoTab = () => {
           <input
             type="checkbox"
             checked={enabled}
-            onChange={(e) => setHealth('seoAuto.monthlyHealthEnabled', e.target.checked)}
+            onChange={(e) => {
+              const next = e.target.checked
+              setHealth('seoAuto.monthlyHealthEnabled', next)
+              if (!next) return
+              if (!siteUrlOverride && websiteUrl) setHealth('seoAuto.siteUrl', websiteUrl)
+              if (emails.length === 0 && contactEmail) {
+                addEmail()
+                window.setTimeout(() => setHealth('seoAuto.notificationEmails.0.email', contactEmail), 0)
+              }
+            }}
           />
           Enable monthly site health monitoring
         </label>
@@ -254,10 +272,11 @@ const ClientSeoTab = () => {
               <input
                 type="url"
                 value={siteUrl}
-                placeholder="https://www.example.com"
+                placeholder={websiteUrl || 'https://www.example.com'}
                 onChange={(e) => setHealth('seoAuto.siteUrl', e.target.value)}
                 style={inputStyle}
               />
+              <span>Uses the client's website URL unless you change it.</span>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#475569', maxWidth: 160 }}>
               Report day of month (1–28)
@@ -272,17 +291,26 @@ const ClientSeoTab = () => {
             </label>
             <div>
               <div style={{ fontSize: 12, color: '#475569', marginBottom: 6 }}>Client notification emails</div>
-              {emails.map((rowId, index) => (
-                <div key={rowId} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              {emailValues.map((value, index) => (
+                <div key={emails[index] || `fallback-${index}`} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                   <input
                     type="email"
-                    value={String(fields?.[`seoAuto.notificationEmails.${index}.email`]?.value || '')}
-                    onChange={(e) => setHealth(`seoAuto.notificationEmails.${index}.email`, e.target.value)}
+                    value={value}
+                    onChange={(e) => {
+                      if (emails.length === 0) {
+                        addEmail()
+                        window.setTimeout(() => setHealth('seoAuto.notificationEmails.0.email', e.target.value), 0)
+                        return
+                      }
+                      setHealth(`seoAuto.notificationEmails.${index}.email`, e.target.value)
+                    }}
                     style={{ ...inputStyle, flex: 1 }}
                   />
-                  <button type="button" onClick={() => removeEmail(index)} style={{ fontSize: 12, color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    Remove
-                  </button>
+                  {emails.length > 0 && (
+                    <button type="button" onClick={() => removeEmail(index)} style={{ fontSize: 12, color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      Remove
+                    </button>
+                  )}
                 </div>
               ))}
               <button type="button" onClick={addEmail} style={{ fontSize: 13, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>

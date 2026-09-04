@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { notifyOnRegression } from "@/lib/site-health/notify-regression";
+import { resolveSiteHealthCrawlUrl, resolveSiteHealthEmails } from "@/lib/site-health/targets";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -55,7 +56,6 @@ export async function GET(req: NextRequest) {
       and: [
         { "seoAuto.monthlyHealthEnabled": { equals: true } },
         { "seoAuto.healthReportDayOfMonth": { equals: dayOfMonth } },
-        { "seoAuto.siteUrl": { exists: true } },
       ],
     },
     limit: 100,
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
   for (const client of clients) {
     const c = client as any;
     const clientName = c.name || `Client ${c.id}`;
-    const siteUrl = c.seoAuto?.siteUrl;
+    const siteUrl = resolveSiteHealthCrawlUrl(c);
 
     if (!siteUrl?.trim()) {
       results.push({
@@ -121,10 +121,7 @@ export async function GET(req: NextRequest) {
             // purpose — Growth Tools falls back to the team address.
             sendEmail: true,
             clientName,
-            notificationEmails:
-              c.seoAuto?.notificationEmails
-                ?.map((e: any) => e?.email)
-                .filter(Boolean) ?? [],
+            notificationEmails: resolveSiteHealthEmails(c),
           }),
         }
       );

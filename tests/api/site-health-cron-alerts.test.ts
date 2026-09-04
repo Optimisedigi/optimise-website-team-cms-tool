@@ -157,6 +157,30 @@ describe("manual site health run", () => {
     );
   });
 
+  it("falls back to the client's website and contact email when monitor fields are empty", async () => {
+    mockPayload.find.mockImplementation(async ({ collection }: any) => {
+      if (collection === "clients") {
+        return {
+          docs: [{
+            id: 8,
+            name: "Beta",
+            websiteUrl: "www.beta.example",
+            contactEmail: "hello@beta.example",
+            seoAuto: { monthlyHealthEnabled: true },
+          }],
+        };
+      }
+      if (collection === "users") return { docs: [] };
+      return { docs: [] };
+    });
+
+    await siteHealthCron(cronRequest());
+    const call = (globalThis.fetch as any).mock.calls.find((c: any[]) => String(c[0]).includes("/api/site-health/run"));
+    const body = JSON.parse(call[1].body);
+    expect(body.siteUrl).toBe("https://www.beta.example");
+    expect(body.notificationEmails).toEqual(["hello@beta.example"]);
+  });
+
   it("never asks Growth Tools to email the client", async () => {
     const { POST } = await import("@/app/(frontend)/api/site-health-reports/[id]/run/route");
     afterCallbacks.length = 0;
