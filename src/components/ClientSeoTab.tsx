@@ -1,7 +1,7 @@
 'use client'
 
-import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
-import { useEffect, useState } from 'react'
+import { useDocumentInfo, useAllFormFields, useForm } from '@payloadcms/ui'
+import { useCallback, useEffect, useState } from 'react'
 import SeoMigrationCheckView, { type MigrationResult } from './SeoMigrationCheckView'
 
 /**
@@ -24,7 +24,8 @@ interface PastReview {
 
 const ClientSeoTab = () => {
   const { id } = useDocumentInfo()
-  const [fields] = useAllFormFields()
+  const [fields, dispatchFields] = useAllFormFields()
+  const { addFieldRow, removeFieldRow } = useForm()
 
   const gscConnected = !!fields?.gscConnected?.value
 
@@ -104,6 +105,32 @@ const ClientSeoTab = () => {
     } finally {
       setRunning(false)
     }
+  }
+
+  const enabled = Boolean(fields?.['seoAuto.monthlyHealthEnabled']?.value)
+  const siteUrl = String(fields?.['seoAuto.siteUrl']?.value || '')
+  const reportDay = Number(fields?.['seoAuto.healthReportDayOfMonth']?.value || 1)
+  const emails = Array.isArray(fields?.['seoAuto.notificationEmails']?.rows)
+    ? fields['seoAuto.notificationEmails'].rows.map((row) => String(row.id ?? row))
+    : []
+
+  const setHealth = useCallback(
+    (path: string, value: unknown) => {
+      dispatchFields({ type: 'UPDATE', path, value })
+    },
+    [dispatchFields],
+  )
+
+  const addEmail = () => {
+    addFieldRow({
+      path: 'seoAuto.notificationEmails',
+      schemaPath: 'seoAuto.notificationEmails',
+      rowIndex: emails.length,
+    })
+  }
+
+  const removeEmail = (index: number) => {
+    removeFieldRow({ path: 'seoAuto.notificationEmails', rowIndex: index })
   }
 
   const quickLinks: Array<{ label: string; href: string }> = [
@@ -206,6 +233,66 @@ const ClientSeoTab = () => {
           <SeoMigrationCheckView result={result} />
         </div>
       )}
+
+      <div className="od-box">
+        <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 4 }}>Monthly SEO Health Monitor</div>
+        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
+          Turn this on to crawl this client's site once a month. New critical issues ping the team; the client gets the monthly email.
+        </div>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: '#0f172a', marginBottom: enabled ? 12 : 0 }}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setHealth('seoAuto.monthlyHealthEnabled', e.target.checked)}
+          />
+          Enable monthly site health monitoring
+        </label>
+        {enabled && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#475569' }}>
+              Site URL to crawl
+              <input
+                type="url"
+                value={siteUrl}
+                placeholder="https://www.example.com"
+                onChange={(e) => setHealth('seoAuto.siteUrl', e.target.value)}
+                style={inputStyle}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#475569', maxWidth: 160 }}>
+              Report day of month (1–28)
+              <input
+                type="number"
+                min={1}
+                max={28}
+                value={Number.isFinite(reportDay) ? reportDay : 1}
+                onChange={(e) => setHealth('seoAuto.healthReportDayOfMonth', Number(e.target.value) || 1)}
+                style={inputStyle}
+              />
+            </label>
+            <div>
+              <div style={{ fontSize: 12, color: '#475569', marginBottom: 6 }}>Client notification emails</div>
+              {emails.map((rowId, index) => (
+                <div key={rowId} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                  <input
+                    type="email"
+                    value={String(fields?.[`seoAuto.notificationEmails.${index}.email`]?.value || '')}
+                    onChange={(e) => setHealth(`seoAuto.notificationEmails.${index}.email`, e.target.value)}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button type="button" onClick={() => removeEmail(index)} style={{ fontSize: 12, color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={addEmail} style={{ fontSize: 13, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                Add email
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>Save the client after changing this. Manual Run on a report still does not email the client.</div>
+          </div>
+        )}
+      </div>
 
       {/* Quick links to this client's SEO records */}
       <div className="od-box">
