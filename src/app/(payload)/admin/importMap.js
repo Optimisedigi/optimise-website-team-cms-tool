@@ -95,6 +95,7 @@ import { default as default_ee85e12563a2c76fb90347c827ce2e2c } from '../../../co
 import { default as default_0f5835a1721ce9d158589c56d0c0fb9d } from '../../../components/CreateContractButton'
 import { default as default_370a80b2909b592994cb28c05355bc3c } from '../../../components/ClientProposalPresentationLink'
 import { default as default_33e9e93052cb7fdced4d4ea759ce075e } from '../../../components/list-cells/StatusPillCell'
+import { default as default_a1b2c3d4e5f60718293a4b5c6d7e8f90 } from '../../../components/list-cells/SalesLeadStageCell'
 import { default as default_738341866dd8b4c979498c49c4000ba9 } from '../../../components/ProposalsShowConvertedToggle'
 import { default as default_94eaeab32c437efb583ff77d2696f2b2 } from '../../../components/TierTableGridEditor'
 import { default as default_dc498ed93a93c18e4342ff8a50ddd9ec } from '../../../components/AgencySignButton'
@@ -313,6 +314,7 @@ export const importMap = {
   "./components/CreateContractButton#default": default_0f5835a1721ce9d158589c56d0c0fb9d,
   "/components/ClientProposalPresentationLink#default": default_370a80b2909b592994cb28c05355bc3c,
   "./components/list-cells/StatusPillCell#default": default_33e9e93052cb7fdced4d4ea759ce075e,
+  "./components/list-cells/SalesLeadStageCell#default": default_a1b2c3d4e5f60718293a4b5c6d7e8f90,
   "./components/ProposalsShowConvertedToggle#default": default_738341866dd8b4c979498c49c4000ba9,
   "./components/TierTableGridEditor#default": default_94eaeab32c437efb583ff77d2696f2b2,
   "./components/AgencySignButton#default": default_dc498ed93a93c18e4342ff8a50ddd9ec,

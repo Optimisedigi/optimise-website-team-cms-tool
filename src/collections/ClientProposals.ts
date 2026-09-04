@@ -362,9 +362,7 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
       }
 
       // Map the sales-lead acquisition fields onto the client. The two
-      // enums have identical values today (organic_search, paid_search,
-      // paid_social, organic_social, website_other, referral,
-      // referral_partner, bni_referral, cold_outreach) so we can copy
+      // enums share the same values (including ai_chat) so we can copy
       // verbatim. For any referral-flavoured channel we also seed
       // `referredBy` from `channelDetail`, since that's where the team
       // captures the referrer name on the lead side.

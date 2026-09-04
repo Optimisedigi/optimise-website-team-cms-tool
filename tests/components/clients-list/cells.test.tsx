@@ -3,8 +3,8 @@
  * partial `DefaultCellComponentProps` (cellData + rowData) — the only fields the
  * components read — so we cast a minimal object rather than build the full type.
  */
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { DefaultCellComponentProps } from "payload";
 
 import NameAvatarCell from "@/components/clients-list/NameAvatarCell";
@@ -15,9 +15,14 @@ import AccountManagerCell from "@/components/clients-list/AccountManagerCell";
 import MonthsActiveCell from "@/components/clients-list/MonthsActiveCell";
 import TitleAvatarCell from "@/components/list-cells/TitleAvatarCell";
 import StatusPillCell from "@/components/list-cells/StatusPillCell";
+import SalesLeadStageCell from "@/components/list-cells/SalesLeadStageCell";
 
-function props(cellData: unknown, rowData: Record<string, unknown> = {}): DefaultCellComponentProps {
-  return { cellData, rowData } as unknown as DefaultCellComponentProps;
+function props(
+  cellData: unknown,
+  rowData: Record<string, unknown> = {},
+  extra: Record<string, unknown> = {},
+): DefaultCellComponentProps {
+  return { cellData, rowData, ...extra } as unknown as DefaultCellComponentProps;
 }
 
 describe("NameAvatarCell", () => {
@@ -132,6 +137,37 @@ describe("StatusPillCell", () => {
     render(<StatusPillCell {...props(status)} />);
     const pill = screen.getByText(label);
     expect(pill.className).toContain(className);
+  });
+});
+
+describe("SalesLeadStageCell", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens a dropdown and PATCHes the chosen stage", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <SalesLeadStageCell
+        {...props("new_lead", { id: 20 }, { collectionSlug: "sales-leads" })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Change stage from New Lead" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Lead stage" }), {
+      target: { value: "meeting_booked" },
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sales-leads/20",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ stage: "meeting_booked" }),
+      }),
+    );
   });
 });
 

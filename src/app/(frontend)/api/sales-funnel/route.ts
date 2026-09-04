@@ -5,12 +5,11 @@ import { headers as nextHeaders } from "next/headers";
 
 // Channel metadata for display
 const CHANNELS = [
-  // Online (auto-attributed)
   { value: "organic_search", label: "Organic Search", color: "#22c55e" },
   { value: "paid_search", label: "Paid Search", color: "#ef4444" },
   { value: "paid_social", label: "Paid Social", color: "#f97316" },
+  { value: "ai_chat", label: "AI Chat", color: "#a855f7" },
   { value: "website_other", label: "Website (Other)", color: "#3b82f6" },
-  // Offline (manual)
   { value: "referral", label: "Referral", color: "#6366f1" },
   { value: "referral_partner", label: "Referral Partner", color: "#8b5cf6" },
   { value: "bni_referral", label: "BNI Referral", color: "#f59e0b" },

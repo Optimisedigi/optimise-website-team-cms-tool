@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { attributeChannel, type Attribution } from "@/lib/lead-channel";
 
 const INBOUND_LEAD_KEY = process.env.INBOUND_LEAD_KEY;
 
@@ -13,144 +14,6 @@ const INBOUND_LEAD_KEY = process.env.INBOUND_LEAD_KEY;
  *
  * Auth: x-lead-key header must match INBOUND_LEAD_KEY env var.
  */
-
-// ── Channel attribution logic ──────────────────────────────
-
-type Channel =
-  | "organic_search"
-  | "paid_search"
-  | "paid_social"
-  | "organic_social"
-  | "website_other"
-  | "referral"
-  | "referral_partner"
-  | "bni_referral"
-  | "cold_outreach";
-
-interface Attribution {
-  utmSource?: string;
-  utmMedium?: string;
-  utmCampaign?: string;
-  utmTerm?: string;
-  gclid?: string;
-  fbclid?: string;
-  referrerUrl?: string;
-  landingPage?: string;
-}
-
-const ORGANIC_SEARCH_DOMAINS = [
-  "google.",
-  "bing.",
-  "yahoo.",
-  "duckduckgo.",
-  "baidu.",
-  "yandex.",
-  "ecosia.",
-];
-
-const SOCIAL_DOMAINS = [
-  "facebook.com",
-  "instagram.com",
-  "linkedin.com",
-  "twitter.com",
-  "x.com",
-  "youtube.com",
-  "tiktok.com",
-  "reddit.com",
-  "threads.net",
-  "pinterest.com",
-];
-
-const SOCIAL_SOURCES = [
-  "facebook",
-  "instagram",
-  "linkedin",
-  "twitter",
-  "youtube",
-  "tiktok",
-  "reddit",
-  "threads",
-  "pinterest",
-  "meta",
-  "fb",
-];
-
-function attributeChannel(attrs: Attribution): {
-  channel: Channel;
-  channelDetail: string;
-} {
-  const source = (attrs.utmSource || "").toLowerCase();
-  const medium = (attrs.utmMedium || "").toLowerCase();
-  const campaign = attrs.utmCampaign || "";
-  const referrer = (attrs.referrerUrl || "").toLowerCase();
-
-  // 1. Google Ads: gclid present OR google + cpc/paid
-  if (
-    attrs.gclid ||
-    (source === "google" && (medium === "cpc" || medium === "paid"))
-  ) {
-    return {
-      channel: "paid_search",
-      channelDetail: campaign || `Google Ads${attrs.gclid ? ` (gclid: ${attrs.gclid.slice(0, 20)}...)` : ""}`,
-    };
-  }
-
-  // 2. Meta Ads: fbclid present OR facebook/meta/instagram + cpc/paid/paidsocial
-  if (
-    attrs.fbclid ||
-    ((source === "facebook" || source === "meta" || source === "instagram" || source === "fb") &&
-      (medium === "cpc" || medium === "paid" || medium === "paidsocial" || medium === "paid_social"))
-  ) {
-    return {
-      channel: "paid_social",
-      channelDetail: campaign || `Meta Ads${attrs.fbclid ? ` (fbclid)` : ""}`,
-    };
-  }
-
-  // 3. Organic search: utm_medium=organic OR referrer is a search engine
-  if (medium === "organic") {
-    return {
-      channel: "organic_search",
-      channelDetail: source || "organic",
-    };
-  }
-
-  if (referrer && ORGANIC_SEARCH_DOMAINS.some((d) => referrer.includes(d))) {
-    // No UTMs but referrer is a search engine = organic
-    return {
-      channel: "organic_search",
-      channelDetail: referrer,
-    };
-  }
-
-  // 4. Organic social: utm_medium=social/organic_social OR referrer is a social platform (no paid signals)
-  if (medium === "social" || medium === "organic_social") {
-    return {
-      channel: "organic_social",
-      channelDetail: source || "social",
-    };
-  }
-
-  if (SOCIAL_SOURCES.includes(source)) {
-    return {
-      channel: "organic_social",
-      channelDetail: source,
-    };
-  }
-
-  if (referrer && SOCIAL_DOMAINS.some((d) => referrer.includes(d))) {
-    return {
-      channel: "organic_social",
-      channelDetail: referrer,
-    };
-  }
-
-  // 5. Everything else from the website = website_other
-  return {
-    channel: "website_other",
-    channelDetail: [source, medium, campaign].filter(Boolean).join(" / ") || "direct / unknown",
-  };
-}
 
 // ── Service slug mapping (website form → CMS values) ─────
 
@@ -209,7 +72,7 @@ export async function POST(request: Request) {
     }
 
     // Attribution
-    const attrs = body.attribution || {};
+    const attrs = { ...(body.attribution || {}), heardAbout: body.heardAbout };
     const { channel, channelDetail } = attributeChannel(attrs);
 
     // Map website service slugs to CMS values

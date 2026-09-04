@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 import { logActivity } from "../lib/activity-log";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { LEAD_CHANNEL_OPTIONS } from "../lib/lead-channel";
 
 /**
  * SalesLeads Collection
@@ -204,19 +205,7 @@ export const SalesLeads: CollectionConfig = {
                   admin: {
                     description: "How this lead was acquired",
                   },
-                  options: [
-                    // Online channels (auto-attributed from website forms)
-                    { label: "Organic Search", value: "organic_search" },
-                    { label: "Paid Search (Google Ads)", value: "paid_search" },
-                    { label: "Paid Social (Meta Ads)", value: "paid_social" },
-                    { label: "Organic Social", value: "organic_social" },
-                    { label: "Website (Other)", value: "website_other" },
-                    // Offline / manual channels
-                    { label: "Referral", value: "referral" },
-                    { label: "Referral Partner", value: "referral_partner" },
-                    { label: "BNI Referral", value: "bni_referral" },
-                    { label: "Cold Outreach", value: "cold_outreach" },
-                  ],
+                  options: [...LEAD_CHANNEL_OPTIONS],
                 },
                 {
                   name: "channelDetail",
@@ -500,7 +489,7 @@ export const SalesLeads: CollectionConfig = {
       admin: {
         description: "Current funnel stage",
         components: {
-          Cell: "./components/list-cells/StatusPillCell",
+          Cell: "./components/list-cells/SalesLeadStageCell",
         },
       },
       options: [

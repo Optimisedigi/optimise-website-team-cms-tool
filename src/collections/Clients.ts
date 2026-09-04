@@ -22,6 +22,7 @@ import {
 } from "../lib/access";
 import { hasValidApiKey } from "./api-key-access";
 import { CLIENT_SERVICE_OPTIONS, CLIENT_TYPE_OPTIONS } from "../lib/client-field-options";
+import { LEAD_CHANNEL_OPTIONS } from "../lib/lead-channel";
 import {
   deferPostCommit,
   ensureGoogleAdsAudit,
@@ -1265,19 +1266,7 @@ export const Clients: CollectionConfig = {
                       (data: any) => !data?.isAgency,
                     ),
                   },
-                  options: [
-                    // Online channels
-                    { label: "Organic Search", value: "organic_search" },
-                    { label: "Paid Search (Google Ads)", value: "paid_search" },
-                    { label: "Paid Social (Meta Ads)", value: "paid_social" },
-                    { label: "Organic Social", value: "organic_social" },
-                    { label: "Website (Other)", value: "website_other" },
-                    // Offline / manual
-                    { label: "Referral", value: "referral" },
-                    { label: "Referral Partner", value: "referral_partner" },
-                    { label: "BNI Referral", value: "bni_referral" },
-                    { label: "Cold Outreach", value: "cold_outreach" },
-                  ],
+                  options: [...LEAD_CHANNEL_OPTIONS],
                 },
                 {
                   name: "acquisitionDetail",

@@ -8218,6 +8218,21 @@ body.od-client-record {
   color: #5b6573;
 }
 
+.od-stage-pill {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.od-stage-select {
+  appearance: auto;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  max-width: 160px;
+}
+
 .od-table {
   width: 100%;
   border-collapse: collapse;
