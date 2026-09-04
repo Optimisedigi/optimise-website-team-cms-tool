@@ -69,6 +69,16 @@ function resourceLabel(changeResourceType: string | undefined | null): string {
   return RESOURCE_LABELS[key] || (key ? key.toLowerCase().replace(/_/g, " ") : "resource");
 }
 
+/** "an asset" on create, "the asset" on update/remove. */
+function nounPhrase(changeResourceType: string | undefined | null, op: string | undefined | null): string {
+  const noun = resourceLabel(changeResourceType);
+  if (noun === "campaign targeting") return noun;
+  if ((op || "").toUpperCase() === "CREATE") {
+    return /^[aeiou]/i.test(noun) ? `an ${noun}` : `a ${noun}`;
+  }
+  return `the ${noun}`;
+}
+
 function operationVerb(op: string | undefined | null): string {
   switch ((op || "").toUpperCase()) {
     case "CREATE":
@@ -116,10 +126,74 @@ function readPath(source: unknown, path: string): unknown {
   return stripped ? descend((source as Record<string, unknown>)[keys[0]], stripped) : undefined;
 }
 
-function formatValue(value: unknown): string {
+const OPAQUE_LEAVES = new Set([
+  "id",
+  "resourceName",
+  "resource_name",
+  "resourceId",
+  "resource_id",
+]);
+
+function leaf(field: string): string {
+  return field.split(".").pop() || field;
+}
+
+function isOpaqueField(field: string): boolean {
+  return OPAQUE_LEAVES.has(leaf(field));
+}
+
+function isMicrosField(field: string): boolean {
+  return /micros$/i.test(leaf(field).replace(/_/g, ""));
+}
+
+function moneyFromMicros(value: unknown): string | null {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(n)) return null;
+  const dollars = n / 1_000_000;
+  return `$${dollars.toLocaleString(undefined, { maximumFractionDigits: dollars % 1 === 0 ? 0 : 2 })}`;
+}
+
+function formatHumanValue(field: string, value: unknown): string {
   if (value === null || value === undefined || value === "") return "unset";
-  if (typeof value === "object") return JSON.stringify(value).slice(0, 120);
-  return String(value);
+  if (isMicrosField(field)) {
+    const money = moneyFromMicros(value);
+    if (money) return money;
+  }
+  if (typeof value === "string") {
+    if (/^customers\/\d+\//.test(value)) return "";
+    if (/^[A-Z][A-Z0-9_]+$/.test(value)) return value.toLowerCase().replace(/_/g, " ");
+    return value;
+  }
+  if (typeof value === "number") {
+    if (value > 1e10) return "";
+    return String(value);
+  }
+  return "";
+}
+
+interface FieldChange {
+  field: string;
+  before?: string;
+  after?: string;
+  namedOnly?: boolean;
+}
+
+function describeFields(input: SummariseInput): FieldChange[] {
+  const fields = (input.changedFields || []).filter((f) => typeof f === "string" && f.length > 0 && !isOpaqueField(f));
+  const out: FieldChange[] = [];
+  for (const field of fields) {
+    const before = readPath(input.oldValues, field);
+    const after = readPath(input.newValues, field);
+    if (before === undefined && after === undefined) {
+      out.push({ field, namedOnly: true });
+      continue;
+    }
+    const beforeText = formatHumanValue(field, before);
+    const afterText = formatHumanValue(field, after);
+    if (!beforeText && !afterText) continue;
+    out.push({ field, before: beforeText || "unset", after: afterText || "unset" });
+  }
+  return out;
 }
 
 export interface SummariseInput {
@@ -134,28 +208,35 @@ export interface SummariseInput {
 
 /**
  * One sentence describing a change, e.g.
- * "Google auto-applied recommendation updated campaign budget on Search — Brand
- *  (amount_micros: 50000000 → 80000000)."
+ * "Google auto-applied recommendation updated the campaign budget on Search — Brand from $50 to $80."
  */
 export function summariseChangeEvent(input: SummariseInput): string {
   const who = sourceLabel(input.clientType);
-  const what = resourceLabel(input.changeResourceType);
+  const noun = nounPhrase(input.changeResourceType, input.resourceChangeOperation);
   const verb = operationVerb(input.resourceChangeOperation);
   const where = input.campaignName ? ` on ${input.campaignName}` : "";
+  const changes = describeFields(input);
 
-  const fields = (input.changedFields || []).filter((f) => typeof f === "string" && f.length > 0);
-  const parts: string[] = [];
-  for (const field of fields.slice(0, 3)) {
-    const before = readPath(input.oldValues, field);
-    const after = readPath(input.newValues, field);
-    if (before === undefined && after === undefined) {
-      parts.push(field.split(".").pop() || field);
-      continue;
-    }
-    parts.push(`${field.split(".").pop() || field}: ${formatValue(before)} → ${formatValue(after)}`);
+  if (verb === "created") {
+    const named = changes.find((c) => leaf(c.field) === "name" && c.after && c.after !== "unset");
+    if (named) return `${who} created ${noun}${where} called ${named.after}.`;
+    return `${who} created ${noun}${where}.`;
   }
-  const extra = fields.length > 3 ? `, +${fields.length - 3} more` : "";
-  const detail = parts.length > 0 ? ` (${parts.join(", ")}${extra})` : "";
 
-  return `${who} ${verb} ${what}${where}${detail}.`;
+  const valued = changes.filter((c) => !c.namedOnly);
+  if (valued.length === 1) {
+    const only = valued[0];
+    const name = leaf(only.field).toLowerCase();
+    if (name === "name") return `${who} renamed ${noun}${where} from ${only.before} to ${only.after}.`;
+    return `${who} ${verb} ${noun}${where} from ${only.before} to ${only.after}.`;
+  }
+
+  if (changes.length === 0) return `${who} ${verb} ${noun}${where}.`;
+
+  const shown = changes.slice(0, 3).map((c) => {
+    if (c.namedOnly) return leaf(c.field);
+    return `${leaf(c.field)} from ${c.before} to ${c.after}`;
+  });
+  const extra = changes.length > 3 ? `, +${changes.length - 3} more` : "";
+  return `${who} ${verb} ${noun}${where} (${shown.join(", ")}${extra}).`;
 }

@@ -32,7 +32,7 @@ describe("isGoogleAutomated", () => {
 });
 
 describe("summariseChangeEvent", () => {
-  it("describes a budget change with old → new values", () => {
+  it("describes a budget change in dollars, not micros", () => {
     const sentence = summariseChangeEvent({
       changeResourceType: "CAMPAIGN_BUDGET",
       resourceChangeOperation: "UPDATE",
@@ -43,19 +43,38 @@ describe("summariseChangeEvent", () => {
       newValues: { campaignBudget: { amountMicros: 80000000 } },
     });
     expect(sentence).toBe(
-      "Google auto-applied recommendation updated campaign budget on Search — Brand (amount_micros: 50000000 → 80000000).",
+      "Google auto-applied recommendation updated the campaign budget on Search — Brand from $50 to $80.",
     );
+  });
+
+  it("drops opaque ids when Google creates an asset", () => {
+    expect(
+      summariseChangeEvent({
+        changeResourceType: "ASSET",
+        resourceChangeOperation: "CREATE",
+        clientType: "INTERNAL_TOOL",
+        changedFields: ["id", "resourceName"],
+        oldValues: { asset: { id: null, resourceName: null } },
+        newValues: {
+          asset: {
+            id: 416443308636,
+            resourceName: "customers/4894896666/assets/416443308636",
+          },
+        },
+      }),
+    ).toBe("Google internal tool created an asset.");
   });
 
   it("handles each resource type with a readable noun", () => {
     const cases: Array<[string, string]> = [
-      ["CAMPAIGN", "campaign"],
-      ["AD_GROUP", "ad group"],
-      ["AD_GROUP_CRITERION", "keyword"],
-      ["AD_GROUP_AD", "ad"],
+      ["CAMPAIGN", "a campaign"],
+      ["AD_GROUP", "an ad group"],
+      ["AD_GROUP_CRITERION", "a keyword"],
+      ["AD_GROUP_AD", "an ad"],
       ["CAMPAIGN_CRITERION", "campaign targeting"],
-      ["BIDDING_STRATEGY", "bid strategy"],
-      ["FEED_ITEM_TARGET", "feed item target"],
+      ["BIDDING_STRATEGY", "a bid strategy"],
+      ["FEED_ITEM_TARGET", "a feed item target"],
+      ["ASSET", "an asset"],
     ];
     for (const [type, noun] of cases) {
       const sentence = summariseChangeEvent({
@@ -276,7 +295,7 @@ describe("summariseChangeEvent field resolution", () => {
         oldValues: { adGroup: { status: "ENABLED" } },
         newValues: { adGroup: { status: "PAUSED" } },
       }),
-    ).toBe("A person in the Ads UI updated ad group (status: ENABLED → PAUSED).");
+    ).toBe("A person in the Ads UI updated the ad group from enabled to paused.");
   });
 
   it("still resolves a fully-qualified mask", () => {
@@ -289,6 +308,6 @@ describe("summariseChangeEvent field resolution", () => {
         oldValues: { campaign: { name: "Old" } },
         newValues: { campaign: { name: "New" } },
       }),
-    ).toBe("Google Ads script updated campaign (name: Old → New).");
+    ).toBe("Google Ads script renamed the campaign from Old to New.");
   });
 });

@@ -4,6 +4,7 @@ import { getPayload, type Where } from "payload";
 
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
+import { summariseChangeEvent } from "@/lib/google-ads-automation/summarise";
 
 const MAX_LIMIT = 200;
 
@@ -55,8 +56,32 @@ export async function GET(req: NextRequest) {
       user,
     });
 
+    const events = result.docs.map((doc) => {
+      const row = doc as {
+        changeResourceType?: string | null;
+        resourceChangeOperation?: string | null;
+        clientType?: string | null;
+        campaignName?: string | null;
+        changedFields?: unknown;
+        oldValues?: unknown;
+        newValues?: unknown;
+      };
+      return {
+        ...doc,
+        summary: summariseChangeEvent({
+          changeResourceType: row.changeResourceType,
+          resourceChangeOperation: row.resourceChangeOperation,
+          clientType: row.clientType,
+          campaignName: row.campaignName,
+          changedFields: Array.isArray(row.changedFields) ? row.changedFields : null,
+          oldValues: row.oldValues,
+          newValues: row.newValues,
+        }),
+      };
+    });
+
     const response = NextResponse.json({
-      events: result.docs,
+      events,
       totalDocs: result.totalDocs,
       page: result.page,
       totalPages: result.totalPages,
