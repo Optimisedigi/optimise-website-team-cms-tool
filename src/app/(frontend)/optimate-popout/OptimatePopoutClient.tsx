@@ -81,7 +81,7 @@ export default function OptimatePopoutClient(props: Props) {
         }}
       >
         <img
-          src="/optimate-orb.webp"
+          src="/optimate-icon.png"
           alt=""
           width={24}
           height={24}
