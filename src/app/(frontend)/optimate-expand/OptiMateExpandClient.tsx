@@ -20,7 +20,7 @@ interface AgentDef {
 }
 
 const AGENTS: AgentDef[] = [
-  { key: 'google-ads', label: 'GoogleMate', icon: '/optimate-orb.png', enabled: true },
+  { key: 'google-ads', label: 'GoogleMate', icon: '/optimate-orb.webp', enabled: true },
   { key: 'invoices', label: 'InvoiceMate', icon: '/invoicemate-orb.png', iconSize: 28, enabled: true },
   { key: 'taskmate', label: 'TaskMate', icon: '/taskmate-orb.png', iconSize: 28, enabled: true },
   { key: 'adminmate', label: 'AdminMate', icon: '/adminmate-orb.png', iconSize: 28, enabled: true },
@@ -116,7 +116,7 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
       {/* Header */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--theme-border-color, #e5e7eb)', background: '#111', color: '#fff' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-          <img src="/optimate-orb.png" alt="" width={24} height={24} style={{ borderRadius: '50%', display: 'block' }} />
+          <img src="/optimate-orb.webp" alt="" width={24} height={24} style={{ borderRadius: '50%', display: 'block' }} />
         </span>
         <div style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
           {headerTitle}
@@ -185,8 +185,8 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
                         style={a.iconSize ? { width: a.iconSize, height: a.iconSize } : undefined}
                         onError={(e) => {
                           const t = e.currentTarget
-                          if (t.src.endsWith('/optimate-orb.png')) return
-                          t.src = '/optimate-orb.png'
+                          if (t.src.endsWith('/optimate-orb.webp')) return
+                          t.src = '/optimate-orb.webp'
                         }}
                       />
                     </span>

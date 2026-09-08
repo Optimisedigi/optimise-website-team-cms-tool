@@ -27,7 +27,7 @@ interface AgentDef {
 }
 
 const AGENTS: AgentDef[] = [
-  { key: 'google-ads', label: 'GoogleMate', icon: '/optimate-orb.png', enabled: true },
+  { key: 'google-ads', label: 'GoogleMate', icon: '/optimate-orb.webp', enabled: true },
   { key: 'invoices', label: 'InvoiceMate', icon: '/invoicemate-orb.png', iconSize: 28, enabled: true },
   { key: 'taskmate', label: 'TaskMate', icon: '/taskmate-orb.png', iconSize: 28, enabled: true },
   { key: 'adminmate', label: 'AdminMate', icon: '/adminmate-orb.png', iconSize: 28, enabled: true },
@@ -253,7 +253,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
           </span>
           <span className="om-orb">
             <span className="om-ring" />
-            <img src="/optimate-orb.png" alt="" />
+            <img src="/optimate-orb.webp" alt="" />
           </span>
         </button>
       )}
@@ -277,7 +277,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
           {/* Panel header */}
           <div className="om-head">
             <span className="om-avatar">
-              <img src="/optimate-orb.png" alt="" />
+              <img src="/optimate-orb.webp" alt="" />
             </span>
             <div className="om-head-titles">
               <span className="om-brand">{headerTitle}</span>
@@ -544,8 +544,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                             style={a.iconSize ? { width: a.iconSize, height: a.iconSize } : undefined}
                             onError={(e) => {
                               const t = e.currentTarget
-                              if (t.src.endsWith('/optimate-orb.png')) return
-                              t.src = '/optimate-orb.png'
+                              if (t.src.endsWith('/optimate-orb.webp')) return
+                              t.src = '/optimate-orb.webp'
                             }}
                           />
                         </span>
