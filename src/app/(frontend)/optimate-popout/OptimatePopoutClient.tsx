@@ -4,12 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import OptiMateMultiChat, { type OptiMateChatTarget } from '@/components/OptiMateMultiChat'
 import InvoiceAssistantChat from '@/components/InvoiceAssistantChat'
 import GmailReplyChat from '@/components/GmailReplyChat'
+import TaskMateChat from '@/components/TaskMateChat'
+import AdminMateChat from '@/components/AdminMateChat'
 import RocketSplash from '@/components/RocketSplash'
 
 type Props =
   | { agent?: 'google-ads'; targets: OptiMateChatTarget[] }
   | { agent: 'invoices'; targets?: undefined }
   | { agent: 'gmail'; phase?: 'compose' | 'reply' | 'summarise'; targets?: undefined }
+  | { agent: 'taskmate'; targets?: undefined }
+  | { agent: 'adminmate'; targets?: undefined }
 
 interface AccountOption {
   id: string | number
@@ -34,16 +38,19 @@ interface AccountOption {
 export default function OptimatePopoutClient(props: Props) {
   const isInvoices = props.agent === 'invoices'
   const isGmail = props.agent === 'gmail'
-  const targets = isInvoices || isGmail ? [] : props.targets
-  const isPortfolio = !isInvoices && !isGmail && targets.some((t) => t.mode === 'portfolio')
+  const isTaskmate = props.agent === 'taskmate'
+  const isAdminmate = props.agent === 'adminmate'
+  const isStandaloneAgent = isInvoices || isGmail || isTaskmate || isAdminmate
+  const targets = isStandaloneAgent ? [] : props.targets
+  const isPortfolio = !isStandaloneAgent && targets.some((t) => t.mode === 'portfolio')
 
   // Audit ids currently open in this window, used to pre-check the picker.
   const currentAuditIds = useMemo(
     () =>
-      isInvoices || isGmail
+      isStandaloneAgent
         ? []
         : targets.filter((t) => t.mode !== 'portfolio').map((t) => String(t.id)),
-    [isInvoices, isGmail, targets],
+    [isStandaloneAgent, targets],
   )
 
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -93,10 +100,10 @@ export default function OptimatePopoutClient(props: Props) {
               fontSize: 11,
             }}
           >
-            {isInvoices ? '· Invoices' : isGmail ? '· Gmail' : '· Google Ads'}
+            {isInvoices ? '· Invoices' : isGmail ? '· Gmail' : isTaskmate ? '· TaskMate' : isAdminmate ? '· AdminMate' : '· Google Ads'}
           </span>
         </div>
-        {!isInvoices && !isGmail && (
+        {!isStandaloneAgent && (
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
@@ -148,12 +155,16 @@ export default function OptimatePopoutClient(props: Props) {
           <InvoiceAssistantChat />
         ) : isGmail ? (
           <GmailReplyChat initialPhase={props.phase === 'reply' ? 'search' : props.phase === 'summarise' ? 'search' : 'compose'} initialSummariseMode={props.phase === 'summarise'} />
+        ) : isTaskmate ? (
+          <TaskMateChat />
+        ) : isAdminmate ? (
+          <AdminMateChat />
         ) : (
           <OptiMateMultiChat targets={targets} fluid />
         )}
       </div>
 
-      {!isInvoices && !isGmail && pickerOpen && (
+      {!isStandaloneAgent && pickerOpen && (
         <AccountPickerOverlay
           currentAuditIds={currentAuditIds}
           portfolioActive={isPortfolio}

@@ -12,6 +12,7 @@ interface PageProps {
     portfolio?: string
     agent?: string
     phase?: string
+    page?: string
   }>
 }
 
@@ -54,6 +55,14 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
 
   if (agent === 'gmail') {
     return <OptimatePopoutClient agent="gmail" phase={phase === 'reply' ? 'reply' : phase === 'summarise' ? 'summarise' : 'compose'} />
+  }
+
+  if (agent === 'taskmate') {
+    return <OptimatePopoutClient agent="taskmate" />
+  }
+
+  if (agent === 'adminmate') {
+    return <OptimatePopoutClient agent="adminmate" />
   }
 
   const portfolioMode = mode === 'portfolio' || portfolio === '1'

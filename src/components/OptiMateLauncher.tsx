@@ -134,7 +134,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   // Don't render the floating launcher on the standalone popout window
   // (otherwise we'd get a recursive pill-in-window UI). The popout page
   // renders the chat directly, no launcher needed.
-  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/optimate-popout')) {
+  if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/optimate-popout') || window.location.pathname.startsWith('/optimate-expand'))) {
     return <>{children}</>
   }
 
@@ -315,6 +315,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 </button>
               )}
               {(step === 'invoice-chat' ||
+                step === 'taskmate' ||
+                step === 'adminmate' ||
                 step === 'gmail' ||
                 step === 'email-reply' ||
                 step === 'email-summarise') && (
@@ -337,9 +339,42 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     const url =
                       step === 'invoice-chat'
                         ? '/optimate-popout?agent=invoices'
-                        : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
-                    const name = step === 'invoice-chat' ? 'invoices' : `gmail-${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
+                        : step === 'taskmate'
+                          ? '/optimate-popout?agent=taskmate'
+                          : step === 'adminmate'
+                            ? '/optimate-popout?agent=adminmate'
+                            : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
+                    const name = step === 'invoice-chat' ? 'invoices' : step === 'taskmate' ? 'taskmate' : step === 'adminmate' ? 'adminmate' : `gmail-${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
                     window.open(url, `optimate-popout-${name}`, features)
+                    setOpen(false)
+                  }}
+                  title="Pop out to a separate window"
+                  aria-label="Pop out to a separate window"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                  </svg>
+                </button>
+              )}
+              {step === 'agent' && (
+                <button
+                  type="button"
+                  className="om-iconbtn lg"
+                  onClick={() => {
+                    window.open(
+                      '/optimate-expand',
+                      'optimate-expand',
+                      ['popup=yes', 'width=680', 'height=720', 'menubar=no', 'toolbar=no', 'location=no', 'status=no'].join(','),
+                    )
                     setOpen(false)
                   }}
                   title="Pop out to a separate window"
@@ -471,11 +506,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               // wrapper's padding.
               padding: step === 'pomodoro' || step === 'agent' || step === 'audit' ? 0 : 14,
               overflowY:
-                step === 'audit' || step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
+                step === 'audit' || step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'adminmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
                   ? 'hidden'
                   : 'auto',
               display:
-                step === 'audit' || step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
+                step === 'audit' || step === 'chat' || step === 'invoice-chat' || step === 'taskmate' || step === 'adminmate' || step === 'gmail' || step === 'email-reply' || step === 'email-summarise'
                   ? 'flex'
                   : 'block',
               flexDirection: 'column',
