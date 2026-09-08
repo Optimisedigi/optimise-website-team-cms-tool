@@ -13,7 +13,7 @@
  * against locally.
  */
 export const OPTIMATE_MODAL_CSS = `
-.om-panel, .om-chatui {
+.om-panel, .om-chatui, .om-page {
   --om-font: 'Manrope', Helvetica, Arial, sans-serif;
   --om-ink: #11141a;
   --om-ink-2: #3d434b;

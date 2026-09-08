@@ -110,7 +110,7 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
               : 'OptiMate'
 
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: 'var(--theme-input-bg, #fff)', color: 'var(--theme-text, #1f2937)', fontFamily: "'Manrope', Helvetica, Arial, sans-serif" }}>
+    <div className="om-page" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: 'var(--theme-input-bg, #fff)', color: 'var(--theme-text, #1f2937)', fontFamily: "'Manrope', Helvetica, Arial, sans-serif" }}>
       <style dangerouslySetInnerHTML={{ __html: OPTIMATE_MODAL_CSS }} />
 
       {/* Header */}
