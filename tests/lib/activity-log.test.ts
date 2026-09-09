@@ -111,6 +111,22 @@ describe("logActivity", () => {
     expect(result).toBeUndefined();
   });
 
+  it("rejects invalid or future activity times before writing", async () => {
+    const mockPayload = createMockPayload();
+
+    await expect(logActivity(mockPayload as any, {
+      type: "blog_published",
+      title: "Invalid time",
+      occurredAt: new Date("invalid"),
+    })).rejects.toThrow("valid date");
+    await expect(logActivity(mockPayload as any, {
+      type: "blog_published",
+      title: "Future time",
+      occurredAt: new Date("2999-01-01"),
+    })).rejects.toThrow("not in the future");
+    expect(mockPayload.create).not.toHaveBeenCalled();
+  });
+
   it("propagates errors from payload.create", async () => {
     const mockPayload = {
       create: vi.fn().mockRejectedValue(new Error("DB error")),

@@ -7998,6 +7998,7 @@ export interface ActivityLog {
     | 'serp_displacement_snapshot_created'
     | 'serp_displacement_alert_created'
     | 'google_ads_budget_pushed'
+    | 'google_ads_keyword_cost_finder_used'
     | 'google_ads_anomaly_detected'
     | 'agent_approval_approved'
     | 'agent_approval_rejected'

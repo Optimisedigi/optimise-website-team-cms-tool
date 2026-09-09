@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { getPayload } from "payload";
+import { createLocalReq, getPayload } from "payload";
 import config from "@/payload.config";
+import { logActivity } from "@/lib/activity-log";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,12 @@ function sanitizeText(value: unknown, fallback = "Unknown") {
   return cleaned || fallback;
 }
 
+function eventTime(value: unknown, now = new Date()) {
+  if (typeof value !== "string") return now;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed <= now ? parsed : now;
+}
+
 export async function GET() {
   return NextResponse.json({ ok: true, endpoint: "google-ads-estimate-usage" });
 }
@@ -74,29 +81,50 @@ export async function POST(request: NextRequest) {
   });
 
   const recipient = admins.docs[0] as unknown as AdminUser | undefined;
-  if (!recipient) {
-    return NextResponse.json({ ok: true, stored: false, reason: "no_admin_user" });
-  }
-
   const keyword = sanitizeText(body.keyword, "No keyword");
   const targetArea = sanitizeText(body.targetArea ?? body.city, "Unknown area");
   const status = sanitizeText(body.status, "unknown");
   const source = sanitizeText(body.source, "unknown");
-  const usedAt = body.usedAt && !Number.isNaN(Date.parse(body.usedAt))
-    ? new Date(body.usedAt)
-    : new Date();
+  const usedAt = eventTime(body.usedAt);
+  const activity = {
+    type: "google_ads_keyword_cost_finder_used" as const,
+    title: "Google Ads keyword cost finder used",
+    description: `${keyword} in ${targetArea} — ${status}/${source}`,
+    targetUrl: "/admin/collections/notifications?where[kind][equals]=google-ads-keyword-cost-finder-usage",
+    occurredAt: usedAt,
+  };
 
-  await payload.create({
-    collection: "notifications" as never,
-    overrideAccess: true,
-    data: {
-      recipient: recipient.id,
-      kind: NOTIFICATION_KIND,
-      title: "Google Ads keyword cost finder used",
-      body: `${keyword} in ${targetArea} — ${status}/${source} at ${usedAt.toLocaleString("en-AU", { timeZone: "Australia/Perth" })}`,
-      url: "/admin/collections/notifications?where[kind][equals]=google-ads-keyword-cost-finder-usage",
-    } as never,
-  });
+  if (!recipient) {
+    await logActivity(payload, activity);
+    return NextResponse.json({ ok: true, stored: false, activityStored: true, reason: "no_admin_user" });
+  }
+
+  const transactionID = await payload.db.beginTransaction();
+  if (transactionID === null) {
+    return NextResponse.json({ error: "Could not safely record usage" }, { status: 503 });
+  }
+  try {
+    const payloadReq = await createLocalReq({}, payload);
+    payloadReq.transactionID = transactionID;
+    await payload.create({
+      collection: "notifications" as never,
+      overrideAccess: true,
+      req: payloadReq,
+      data: {
+        recipient: recipient.id,
+        kind: NOTIFICATION_KIND,
+        title: "Google Ads keyword cost finder used",
+        body: `${keyword} in ${targetArea} — ${status}/${source} at ${usedAt.toLocaleString("en-AU", { timeZone: "Australia/Perth" })}`,
+        url: "/admin/collections/notifications?where[kind][equals]=google-ads-keyword-cost-finder-usage",
+        createdAt: usedAt.toISOString(),
+      } as never,
+    });
+    await logActivity(payload, activity, payloadReq);
+    await payload.db.commitTransaction(transactionID);
+  } catch (error) {
+    await payload.db.rollbackTransaction(transactionID).catch(() => undefined);
+    throw error;
+  }
 
   const total = await payload.count({
     collection: "notifications" as never,

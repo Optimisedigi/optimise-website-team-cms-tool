@@ -72,6 +72,7 @@ export const ActivityLog: CollectionConfig = {
         { label: "SERP Displacement Snapshot Created", value: "serp_displacement_snapshot_created" },
         { label: "SERP Displacement Alert Created", value: "serp_displacement_alert_created" },
         { label: "Google Ads Budget Pushed", value: "google_ads_budget_pushed" },
+        { label: "Google Ads Keyword Cost Finder Used", value: "google_ads_keyword_cost_finder_used" },
         { label: "Google Ads Anomaly Detected", value: "google_ads_anomaly_detected" },
         { label: "Agent Approval — Approved", value: "agent_approval_approved" },
         { label: "Agent Approval — Rejected", value: "agent_approval_rejected" },

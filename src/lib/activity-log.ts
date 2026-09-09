@@ -1,4 +1,4 @@
-import type { Payload } from "payload";
+import type { Payload, PayloadRequest } from "payload";
 
 type ActivityType =
   | "blog_published"
@@ -48,6 +48,7 @@ type ActivityType =
   | "invoice_statement_cooldown_override"
   | "google_ads_budget_pushed"
   | "google_ads_budget_recommendations"
+  | "google_ads_keyword_cost_finder_used"
   | "agent_approval_approved"
   | "agent_approval_rejected"
   | "match_type_violation_sync"
@@ -75,15 +76,23 @@ interface ActivityEntry {
   client?: string | number;
   /** Internal destination opened from the dashboard activity feed. */
   targetUrl?: string;
+  /** When the activity happened, when different from receipt time. */
+  occurredAt?: Date;
 }
 
 export async function logActivity(
   payload: Payload,
   entry: ActivityEntry,
+  req?: PayloadRequest,
 ): Promise<void> {
+  const { occurredAt, ...data } = entry;
+  if (occurredAt && (Number.isNaN(occurredAt.getTime()) || occurredAt > new Date())) {
+    throw new Error("Activity time must be a valid date that is not in the future");
+  }
   await payload.create({
     collection: "activity-log" as any,
-    data: entry as any,
+    data: { ...data, ...(occurredAt ? { createdAt: occurredAt.toISOString() } : {}) } as any,
     overrideAccess: true,
+    ...(req ? { req } : {}),
   });
 }
