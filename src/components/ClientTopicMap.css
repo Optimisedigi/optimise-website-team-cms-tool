@@ -1,0 +1,50 @@
+.topicGraph { color: var(--theme-text); font-size: 13px; container-type: inline-size; }
+.topicGraph__intro { color: var(--theme-elevation-700); margin: 0 0 16px; max-width: 78ch; }
+.topicGraph__summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-block: 1px solid var(--theme-elevation-150); margin-block: 0 16px; }
+.topicGraph__metric { padding: 12px; border-inline-end: 1px solid var(--theme-elevation-150); }
+.topicGraph__metric:last-child { border-inline-end: 0; }
+.topicGraph__metric strong { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+.topicGraph__metric span { color: var(--theme-elevation-600); }
+.topicGraph__controls { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)) auto; gap: 10px; align-items: end; margin-block-end: 16px; }
+.topicGraph__field { display: grid; gap: 5px; font-weight: 600; }
+.topicGraph__field select { min-height: 40px; inline-size: 100%; padding: 7px 32px 7px 10px; color: var(--theme-text); background: var(--theme-input-bg); border: 1px solid var(--theme-elevation-250); border-radius: 4px; }
+.topicGraph__check { display: flex; align-items: center; gap: 7px; min-height: 40px; }
+.topicGraph__button { min-height: 40px; padding: 7px 12px; border: 1px solid var(--theme-elevation-300); border-radius: 4px; background: var(--theme-elevation-50); color: var(--theme-text); cursor: pointer; }
+.topicGraph__button:hover { background: var(--theme-elevation-100); }
+.topicGraph__button:focus-visible, .topicGraph__field select:focus-visible, .topicGraph__node:focus-visible { outline: 3px solid var(--theme-success-500); outline-offset: 2px; }
+.topicGraph__workspace { display: grid; grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); gap: 16px; align-items: start; }
+.topicGraph__canvas { min-inline-size: 0; border: 1px solid var(--theme-elevation-200); border-radius: 6px; background: var(--theme-elevation-0); overflow: hidden; }
+.topicGraph__canvasHeader { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; border-block-end: 1px solid var(--theme-elevation-150); }
+.topicGraph__zoom { display: flex; gap: 6px; }
+.topicGraph__zoom .topicGraph__button { min-inline-size: 40px; padding: 4px 10px; }
+.topicGraph__svg { display: block; inline-size: 100%; block-size: auto; min-block-size: 420px; }
+.topicGraph__edge { stroke: var(--theme-elevation-300); stroke-width: 1.5; fill: none; }
+.topicGraph__edge--published_link { stroke: var(--theme-elevation-650); stroke-width: 2; }
+.topicGraph__edge--suggested_link { stroke: var(--theme-warning-600); stroke-dasharray: 7 5; }
+.topicGraph__node { cursor: pointer; outline: none; }
+.topicGraph__node circle, .topicGraph__node rect { fill: var(--theme-elevation-50); stroke: var(--theme-elevation-500); stroke-width: 1.5; transition: fill 120ms ease, stroke 120ms ease; }
+.topicGraph__node:hover circle, .topicGraph__node:hover rect { fill: var(--theme-elevation-100); stroke: var(--theme-elevation-800); }
+.topicGraph__node--category circle { fill: var(--theme-elevation-800); stroke: var(--theme-elevation-800); }
+.topicGraph__node--category text { fill: var(--theme-elevation-0); font-weight: 700; }
+.topicGraph__node--topic rect { stroke-dasharray: 3 2; }
+.topicGraph__node--page circle { fill: var(--theme-elevation-150); }
+.topicGraph__node--selected circle, .topicGraph__node--selected rect { stroke: var(--theme-success-600); stroke-width: 4; }
+.topicGraph__node text { fill: var(--theme-text); font-size: 11px; pointer-events: none; paint-order: stroke; stroke: var(--theme-elevation-0); stroke-width: 3px; stroke-linejoin: round; }
+.topicGraph__detail { border: 1px solid var(--theme-elevation-200); border-radius: 6px; padding: 16px; }
+.topicGraph__detail h4 { margin: 0 0 6px; font-size: 17px; }
+.topicGraph__detail dl { display: grid; grid-template-columns: 1fr auto; gap: 7px 12px; margin-block: 14px; }
+.topicGraph__detail dt { color: var(--theme-elevation-650); }
+.topicGraph__detail dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.topicGraph__legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 10px 12px; border-block-start: 1px solid var(--theme-elevation-150); color: var(--theme-elevation-650); }
+.topicGraph__line { display: inline-block; inline-size: 28px; margin-inline-end: 6px; border-block-start: 2px solid currentColor; vertical-align: middle; }
+.topicGraph__line--dash { border-block-start-style: dashed; }
+.topicGraph__tableWrap { margin-block-start: 20px; overflow-x: auto; }
+.topicGraph__table { inline-size: 100%; border-collapse: collapse; text-align: start; }
+.topicGraph__table th, .topicGraph__table td { padding: 9px; border-block-end: 1px solid var(--theme-elevation-150); text-align: start; }
+.topicGraph__table th { color: var(--theme-elevation-650); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.topicGraph__state { min-block-size: 180px; display: grid; place-content: center; gap: 12px; color: var(--theme-elevation-650); text-align: center; }
+.topicGraph__warning { border-inline-start: 3px solid var(--theme-warning-600); padding-inline-start: 10px; }
+@container (max-width: 760px) { .topicGraph__summary { grid-template-columns: repeat(2, 1fr); } .topicGraph__controls { grid-template-columns: 1fr 1fr; } .topicGraph__workspace { grid-template-columns: 1fr; } }
+@container (max-width: 430px) { .topicGraph__summary, .topicGraph__controls { grid-template-columns: 1fr; } .topicGraph__metric { border-inline-end: 0; border-block-end: 1px solid var(--theme-elevation-150); } .topicGraph__canvas { overflow-x: auto; } .topicGraph__canvasHeader, .topicGraph__legend { position: sticky; inset-inline-start: 0; inline-size: calc(100cqi - 2px); box-sizing: border-box; } .topicGraph__svg { min-inline-size: 650px; min-block-size: 405px; } }
+@media (prefers-reduced-motion: reduce) { .topicGraph__node circle, .topicGraph__node rect { transition: none; } }
+@media (forced-colors: active) { .topicGraph__edge, .topicGraph__node circle, .topicGraph__node rect { forced-color-adjust: auto; stroke: CanvasText; } .topicGraph__node--selected circle, .topicGraph__node--selected rect { stroke-width: 5; } }

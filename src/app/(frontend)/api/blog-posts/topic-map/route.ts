@@ -1,51 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
-import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import config from "@/payload.config";
+import {
+  buildTopicAuthorityGraph,
+  normalizeInternalUrl,
+  type GraphPostInput,
+  type GraphSuggestionInput,
+} from "@/lib/topic-authority-graph";
 
-/**
- * GET /api/blog-posts/topic-map?clientId=123
- *
- * Returns the client's blog posts grouped by tag (the topic/authority cluster),
- * plus the internal links each post points to (parsed from markdownContent and
- * matched against the client's configured service pages). Powers the Topic Map
- * view on the Client record — a visual of which articles build authority on a
- * topic and how they interlink to internal/service pages.
- */
+const POST_LIMIT = 500;
+const SUGGESTION_LIMIT = 1000;
 
-interface TopicPost {
-  id: string | number;
-  title: string;
-  slug: string;
-  status: string;
-  category: string;
-  internalLinks: string[];
-}
-
-interface TopicGroup {
-  topic: string;
-  posts: TopicPost[];
-  /** Distinct internal-link targets across all posts in this topic. */
-  linkedPages: string[];
-}
-
-/** Extract internal markdown links: [text](/path) — relative paths only. */
-function extractInternalLinks(markdown: string | null | undefined): string[] {
-  if (!markdown) return [];
-  const found = new Set<string>();
-  const re = /\[[^\]]*\]\((\/[^)\s]*)\)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(markdown)) !== null) {
-    found.add(m[1]);
-  }
-  return [...found].sort();
-}
-
-function parseTags(raw: unknown): string[] {
-  if (Array.isArray(raw)) {
-    return raw.filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim());
-  }
-  return [];
+function validClientId(value: string | null): value is string {
+  return Boolean(value && value.length <= 128 && /^[A-Za-z0-9_-]+$/.test(value));
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -53,69 +21,79 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const payload = await getPayload({ config });
     const headersList = await nextHeaders();
     const { user } = await payload.auth({ headers: headersList });
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const clientId = new URL(request.url).searchParams.get("clientId");
-    if (!clientId) {
-      return NextResponse.json({ error: "clientId is required" }, { status: 400 });
+    if (!clientId) return NextResponse.json({ error: "clientId is required" }, { status: 400 });
+    if (!validClientId(clientId)) return NextResponse.json({ error: "clientId is invalid" }, { status: 400 });
+
+    let client: Record<string, unknown>;
+    try {
+      client = await payload.findByID({
+        collection: "clients",
+        id: clientId,
+        depth: 0,
+        overrideAccess: false,
+        user,
+        select: { blogCategories: true, blogTags: true, websiteUrl: true },
+      }) as unknown as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    const result = await payload.find({
+    const postsResult = await payload.find({
       collection: "blog-posts",
       where: { client: { equals: clientId } },
       sort: "-publishedDate",
-      limit: 500,
+      limit: POST_LIMIT,
       depth: 0,
-      overrideAccess: true,
+      overrideAccess: false,
+      user,
+      select: { title: true, slug: true, status: true, category: true, tags: true, markdownContent: true, client: true },
     });
 
-    // Group posts by each of their tags. A post with no tags falls into "Untagged".
-    const groups = new Map<string, TopicPost[]>();
-    for (const doc of result.docs) {
-      const d = doc as unknown as {
-        id: string | number;
-        title?: string;
-        slug?: string;
-        status?: string;
-        category?: string;
-        tags?: unknown;
-        markdownContent?: string;
-      };
-      const post: TopicPost = {
-        id: d.id,
-        title: d.title || "Untitled",
-        slug: d.slug || "",
-        status: d.status || "draft",
-        category: d.category || "",
-        internalLinks: extractInternalLinks(d.markdownContent),
-      };
-      const tags = parseTags(d.tags);
-      const topics = tags.length > 0 ? tags : ["Untagged"];
-      for (const topic of topics) {
-        const existing = groups.get(topic);
-        if (existing) existing.push(post);
-        else groups.set(topic, [post]);
-      }
-    }
+    const websiteUrl = typeof client.websiteUrl === "string" ? client.websiteUrl : undefined;
+    const origins = websiteUrl ? [websiteUrl] : [];
+    const clientPaths = new Set(
+      postsResult.docs.flatMap((post) => {
+        const slug = typeof post.slug === "string" ? post.slug : "";
+        const path = normalizeInternalUrl(`/blog/${slug}`, origins);
+        return path ? [path] : [];
+      }),
+    );
 
-    const topics: TopicGroup[] = [...groups.entries()]
-      .map(([topic, posts]) => {
-        const linkedPages = new Set<string>();
-        for (const p of posts) for (const l of p.internalLinks) linkedPages.add(l);
-        return { topic, posts, linkedPages: [...linkedPages].sort() };
-      })
-      // Most-developed topics first; Untagged always last.
-      .sort((a, b) => {
-        if (a.topic === "Untagged") return 1;
-        if (b.topic === "Untagged") return -1;
-        return b.posts.length - a.posts.length || a.topic.localeCompare(b.topic);
-      });
+    const suggestionsResult = clientPaths.size
+      ? await payload.find({
+          collection: "internal-link-suggestions",
+          limit: SUGGESTION_LIMIT,
+          depth: 0,
+          overrideAccess: false,
+          user,
+          where: { status: { in: ["pending", "approved"] } },
+          select: { sourceUrl: true, targetUrl: true, confidenceScore: true, status: true, clusterRelation: true, clusterName: true },
+        })
+      : { docs: [], hasNextPage: false };
 
-    return NextResponse.json({ ok: true, totalPosts: result.docs.length, topics });
-  } catch (err) {
-    console.error("[blog-posts/topic-map] error:", err);
+    // Suggestions have no client field, so only sources matching this client's loaded posts may enter the graph.
+    const suggestions = suggestionsResult.docs.filter((suggestion) => {
+      const source = typeof suggestion.sourceUrl === "string" ? normalizeInternalUrl(suggestion.sourceUrl, origins) : null;
+      return Boolean(source && clientPaths.has(source));
+    }) as unknown as GraphSuggestionInput[];
+
+    const graph = buildTopicAuthorityGraph({
+      configuredCategories: typeof client.blogCategories === "string" ? client.blogCategories : null,
+      configuredTags: typeof client.blogTags === "string" ? client.blogTags : null,
+      posts: postsResult.docs as unknown as GraphPostInput[],
+      suggestions,
+      siteOrigins: origins,
+      maxNodes: 700,
+      maxEdges: 1500,
+    });
+    graph.summary.truncated ||= postsResult.hasNextPage || Boolean(suggestionsResult.hasNextPage);
+
+    return NextResponse.json({ ok: true, graph });
+  } catch (error) {
+    console.error("[blog-posts/topic-map] failed", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json({ error: "Failed to build topic map" }, { status: 500 });
   }
 }
