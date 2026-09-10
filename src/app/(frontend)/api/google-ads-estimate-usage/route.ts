@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     type: "google_ads_keyword_cost_finder_used" as const,
     title: "Google Ads keyword cost finder used",
     description: `${keyword} in ${targetArea} — ${status}/${source}`,
-    targetUrl: "/admin/collections/notifications?where[kind][equals]=google-ads-keyword-cost-finder-usage",
+    targetUrl: "/admin/collections/activity-log?where[type][equals]=google_ads_keyword_cost_finder_used",
     occurredAt: usedAt,
   };
 
@@ -106,6 +106,18 @@ export async function POST(request: NextRequest) {
   try {
     const payloadReq = await createLocalReq({}, payload);
     payloadReq.transactionID = transactionID;
+    const activityDoc = await payload.create({
+      collection: "activity-log" as never,
+      overrideAccess: true,
+      req: payloadReq,
+      data: {
+        type: activity.type,
+        title: activity.title,
+        description: activity.description,
+        targetUrl: activity.targetUrl,
+        createdAt: usedAt.toISOString(),
+      } as never,
+    }) as unknown as { id: string | number };
     await payload.create({
       collection: "notifications" as never,
       overrideAccess: true,
@@ -115,11 +127,10 @@ export async function POST(request: NextRequest) {
         kind: NOTIFICATION_KIND,
         title: "Google Ads keyword cost finder used",
         body: `${keyword} in ${targetArea} — ${status}/${source} at ${usedAt.toLocaleString("en-AU", { timeZone: "Australia/Perth" })}`,
-        url: "/admin/collections/notifications?where[kind][equals]=google-ads-keyword-cost-finder-usage",
+        url: `/admin/collections/activity-log/${activityDoc.id}`,
         createdAt: usedAt.toISOString(),
       } as never,
     });
-    await logActivity(payload, activity, payloadReq);
     await payload.db.commitTransaction(transactionID);
   } catch (error) {
     await payload.db.rollbackTransaction(transactionID).catch(() => undefined);

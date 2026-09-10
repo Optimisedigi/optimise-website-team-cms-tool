@@ -45,14 +45,17 @@ describe("POST /api/google-ads-estimate-usage", () => {
 
     expect(response.status).toBe(200);
     expect(payload.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      collection: "notifications",
-      data: expect.objectContaining({ createdAt: usedAt }),
-    }));
-    expect(payload.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
       collection: "activity-log",
       data: expect.objectContaining({
         type: "google_ads_keyword_cost_finder_used",
         createdAt: usedAt,
+      }),
+    }));
+    expect(payload.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      collection: "notifications",
+      data: expect.objectContaining({
+        createdAt: usedAt,
+        url: "/admin/collections/activity-log/1",
       }),
     }));
     expect(payload.db.commitTransaction).toHaveBeenCalledWith("tx-1");
@@ -74,8 +77,8 @@ describe("POST /api/google-ads-estimate-usage", () => {
     expect(payload.create).toHaveBeenCalledWith(expect.objectContaining({ collection: "activity-log" }));
   });
 
-  it("rolls back both records when either write fails", async () => {
-    payload.create.mockResolvedValueOnce({ id: 1 }).mockRejectedValueOnce(new Error("activity failed"));
+  it("rolls back when the activity write fails", async () => {
+    payload.create.mockRejectedValueOnce(new Error("activity failed"));
     const request = new Request("http://localhost/api/google-ads-estimate-usage", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": "internal-key" },
@@ -83,6 +86,19 @@ describe("POST /api/google-ads-estimate-usage", () => {
     });
 
     await expect(POST(request as never)).rejects.toThrow("activity failed");
+    expect(payload.db.rollbackTransaction).toHaveBeenCalledWith("tx-1");
+    expect(payload.db.commitTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rolls back when the notification write fails", async () => {
+    payload.create.mockResolvedValueOnce({ id: 1 }).mockRejectedValueOnce(new Error("notification failed"));
+    const request = new Request("http://localhost/api/google-ads-estimate-usage", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": "internal-key" },
+      body: JSON.stringify({ keyword: "plumber" }),
+    });
+
+    await expect(POST(request as never)).rejects.toThrow("notification failed");
     expect(payload.db.rollbackTransaction).toHaveBeenCalledWith("tx-1");
     expect(payload.db.commitTransaction).not.toHaveBeenCalled();
   });
