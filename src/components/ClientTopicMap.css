@@ -14,8 +14,12 @@
 .topicGraph__button:focus-visible, .topicGraph__field select:focus-visible, .topicGraph__node:focus-visible { outline: 3px solid var(--theme-success-500); outline-offset: 2px; }
 .topicGraph__workspace { display: grid; grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); gap: 16px; align-items: start; }
 .topicGraph__canvas { min-inline-size: 0; border: 1px solid var(--theme-elevation-200); border-radius: 6px; background: var(--theme-elevation-0); overflow: hidden; }
-.topicGraph__canvasHeader { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; border-block-end: 1px solid var(--theme-elevation-150); }
-.topicGraph__zoom { display: flex; gap: 6px; }
+.topicGraph__canvasHeader { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; border-block-end: 1px solid var(--theme-elevation-150); }
+.topicGraph__zoom, .topicGraph__viewSwitch { display: flex; gap: 6px; }
+.topicGraph__viewSwitch .topicGraph__button { min-inline-size: 44px; padding: 4px 10px; }
+.topicGraph__viewSwitch .topicGraph__button[aria-pressed='true'] { background: var(--theme-elevation-800); border-color: var(--theme-elevation-800); color: var(--theme-elevation-0); }
+.topicGraph__scene { inline-size: 100%; background: var(--theme-elevation-0); }
+.topicGraph__scene canvas { display: block; }
 .topicGraph__zoom .topicGraph__button { min-inline-size: 40px; padding: 4px 10px; }
 .topicGraph__svg { display: block; inline-size: 100%; block-size: auto; min-block-size: 420px; }
 .topicGraph__edge { stroke: var(--theme-elevation-300); stroke-width: 1.5; fill: none; }

@@ -3,9 +3,11 @@
 import { useDocumentInfo } from '@payloadcms/ui'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CategorySummary, TopicAuthorityGraph, TopicGraphEdge, TopicGraphNode } from '@/lib/topic-authority-graph'
+import ClientTopicMap3D from './ClientTopicMap3D'
 import './ClientTopicMap.css'
 
 type LoadState = 'loading' | 'ready' | 'error'
+type GraphView = '2d' | '3d'
 type Position = { x: number; y: number }
 
 const WIDTH = 900
@@ -84,6 +86,7 @@ const ClientTopicMap = () => {
   const [showIsolated, setShowIsolated] = useState(true)
   const [selectedId, setSelectedId] = useState<string>()
   const [zoom, setZoom] = useState(1)
+  const [view, setView] = useState<GraphView>('2d')
 
   useEffect(() => {
     if (!id) return
@@ -148,16 +151,25 @@ const ClientTopicMap = () => {
       </div>
       {!hasVisibleEvidence ? <div className="topicGraph__state" role="status">No graph evidence matches these filters.</div> : <div className="topicGraph__workspace">
         <div className="topicGraph__canvas">
-          <div className="topicGraph__canvasHeader"><strong>{visible.nodes.length} visible nodes</strong><div className="topicGraph__zoom" aria-label="Graph zoom"><button className="topicGraph__button" onClick={() => setZoom((value) => Math.max(.7, value - .1))} aria-label="Zoom out">−</button><button className="topicGraph__button" onClick={() => setZoom(1)} aria-label="Reset zoom">{Math.round(zoom * 100)}%</button><button className="topicGraph__button" onClick={() => setZoom((value) => Math.min(1.5, value + .1))} aria-label="Zoom in">+</button></div></div>
-          <svg className="topicGraph__svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-labelledby="topic-graph-title topic-graph-description">
+          <div className="topicGraph__canvasHeader">
+            <strong>{visible.nodes.length} visible nodes</strong>
+            <div className="topicGraph__viewSwitch" role="group" aria-label="Graph view">
+              <button className="topicGraph__button" aria-pressed={view === '2d'} onClick={() => setView('2d')}>2D</button>
+              <button className="topicGraph__button" aria-pressed={view === '3d'} onClick={() => setView('3d')}>3D</button>
+            </div>
+            {view === '2d' && <div className="topicGraph__zoom" aria-label="Graph zoom"><button className="topicGraph__button" onClick={() => setZoom((value) => Math.max(.7, value - .1))} aria-label="Zoom out">−</button><button className="topicGraph__button" onClick={() => setZoom(1)} aria-label="Reset zoom">{Math.round(zoom * 100)}%</button><button className="topicGraph__button" onClick={() => setZoom((value) => Math.min(1.5, value + .1))} aria-label="Zoom in">+</button></div>}
+          </div>
+          {view === '3d' && <ClientTopicMap3D nodes={visible.nodes} edges={visible.edges} selectedId={selectedId} onSelect={selectNode} />}
+          {view === '3d' && <p className="sr-only">The 3D view is decorative. Every relationship it shows is listed in the visible relationships table below.</p>}
+          {view === '2d' && <svg className="topicGraph__svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-labelledby="topic-graph-title topic-graph-description">
             <title id="topic-graph-title">Client category, topic, article, and internal page relationships</title><desc id="topic-graph-description">Select any labelled node for details. The complete relationships follow in a table.</desc>
             <defs><marker id="topic-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" /></marker></defs>
             <g transform={`translate(${WIDTH * (1 - zoom) / 2} ${HEIGHT * (1 - zoom) / 2}) scale(${zoom})`}>
               {visible.edges.map((edge) => { const source = positions.get(edge.source); const target = positions.get(edge.target); return source && target ? <line key={edge.id} className={`topicGraph__edge topicGraph__edge--${edge.type}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} markerEnd={(edge.type === 'published_link' || edge.type === 'suggested_link') ? 'url(#topic-arrow)' : undefined}><title>{edge.type.replaceAll('_', ' ')} from {graph.nodes.find((node) => node.id === edge.source)?.label} to {graph.nodes.find((node) => node.id === edge.target)?.label}</title></line> : null })}
               {visible.nodes.map((node) => { const point = positions.get(node.id); if (!point) return null; const size = Math.min(25, 10 + node.degree * 1.5); return <g key={node.id} className={`topicGraph__node topicGraph__node--${node.type}${selectedId === node.id ? ' topicGraph__node--selected' : ''}`} role="button" tabIndex={0} aria-pressed={selectedId === node.id} aria-label={nodeDescription(node)} transform={`translate(${point.x} ${point.y})`} onClick={() => selectNode(node.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectNode(node.id) } }}>{node.type === 'topic' ? <rect x={-size} y={-size * .65} width={size * 2} height={size * 1.3} rx="3" /> : <circle r={size} />}<text textAnchor="middle" y={size + 15}>{node.label.length > 24 ? `${node.label.slice(0, 22)}…` : node.label}</text></g> })}
             </g>
-          </svg>
-          <div className="topicGraph__legend"><span><i className="topicGraph__line" />Published link</span><span><i className="topicGraph__line topicGraph__line--dash" />Suggested link</span><span>Circles: categories, articles, pages</span><span>Rectangles: topics</span></div>
+          </svg>}
+          <div className="topicGraph__legend"><span><i className="topicGraph__line" />Published link</span><span><i className="topicGraph__line topicGraph__line--dash" />Suggested link</span>{view === '2d' ? <><span>Circles: categories, articles, pages</span><span>Rectangles: topics</span></> : <><span>Larger spheres carry more relationships</span><span>Drag to orbit, scroll to zoom</span></>}</div>
         </div>
         <Detail node={selected} category={selectedCategory} graph={graph} />
       </div>}
