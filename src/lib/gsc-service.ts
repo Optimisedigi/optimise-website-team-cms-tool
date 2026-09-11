@@ -866,21 +866,42 @@ export async function discoverAllUrls(
 }
 
 /**
+ * Options for {@link inspectUrlBatch}.
+ *
+ * Defaults preserve the original behaviour: fully sequential, no time limit.
+ */
+export interface InspectUrlBatchOptions {
+  /**
+   * Stop once this much wall-clock time has elapsed and return the URLs
+   * inspected so far. Lets a caller stay inside a serverless time limit.
+   */
+  budgetMs?: number;
+  /** How many inspections to run in parallel. */
+  concurrency?: number;
+}
+
+/**
  * Inspect a batch of URLs via the URL Inspection API.
- * Sequential processing with 200ms delay. Stops on 429 rate limit.
+ *
+ * Results are always a prefix of `urls`: if the batch stops early (rate limit
+ * or exhausted time budget) the caller can resume from `results.length`.
  */
 export async function inspectUrlBatch(
   accessToken: string,
   siteUrl: string,
-  urls: string[]
+  urls: string[],
+  options: InspectUrlBatchOptions = {},
 ): Promise<InspectionResult[]> {
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({ access_token: accessToken });
   const searchconsole = google.searchconsole({ version: "v1", auth: oauth2Client });
 
+  const concurrency = Math.max(1, options.concurrency ?? 1);
+  const deadline = options.budgetMs ? Date.now() + options.budgetMs : null;
   const results: InspectionResult[] = [];
 
-  for (const url of urls) {
+  /** Inspect one URL. `null` signals a rate limit, which must stop the batch. */
+  const inspectOne = async (url: string): Promise<InspectionResult | null> => {
     try {
       const res = await searchconsole.urlInspection.index.inspect({
         requestBody: { inspectionUrl: url, siteUrl },
@@ -888,7 +909,7 @@ export async function inspectUrlBatch(
 
       const idx = res.data.inspectionResult?.indexStatusResult;
 
-      results.push({
+      return {
         url,
         coverageState: idx?.coverageState || "Unknown",
         crawledAs: idx?.crawledAs || "Unknown",
@@ -900,16 +921,12 @@ export async function inspectUrlBatch(
         referringUrls: (idx?.referringUrls || []) as string[],
         sitemap: (idx?.sitemap || []) as string[],
         inspectedAt: new Date().toISOString(),
-      });
+      };
     } catch (err: any) {
-      // On 429 (rate limit): stop batch, return results so far
-      if (err?.code === 429 || err?.status === 429) {
-        console.log(`[gsc-service] Rate limited after ${results.length} inspections, stopping batch`);
-        break;
-      }
+      if (err?.code === 429 || err?.status === 429) return null;
 
-      // Other errors: mark as failed, continue
-      results.push({
+      // Other errors: record the failure and keep going.
+      return {
         url,
         coverageState: "inspection_failed",
         crawledAs: "",
@@ -922,11 +939,31 @@ export async function inspectUrlBatch(
         sitemap: [],
         inspectedAt: new Date().toISOString(),
         error: err instanceof Error ? err.message : "Inspection failed",
-      });
+      };
+    }
+  };
+
+  for (let start = 0; start < urls.length; start += concurrency) {
+    if (deadline && Date.now() >= deadline) {
+      console.log(`[gsc-service] Time budget reached after ${results.length} inspections`);
+      break;
     }
 
-    // 200ms delay between requests
-    if (urls.indexOf(url) < urls.length - 1) {
+    const wave = urls.slice(start, start + concurrency);
+    const settled = await Promise.all(wave.map(inspectOne));
+
+    // Keep the prefix that succeeded, then stop if Google rate-limited us.
+    const rateLimitedAt = settled.indexOf(null);
+    const usable = rateLimitedAt === -1 ? settled : settled.slice(0, rateLimitedAt);
+    results.push(...(usable as InspectionResult[]));
+
+    if (rateLimitedAt !== -1) {
+      console.log(`[gsc-service] Rate limited after ${results.length} inspections, stopping batch`);
+      break;
+    }
+
+    // Brief pause between waves to stay well under the per-minute quota.
+    if (start + concurrency < urls.length) {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
   }

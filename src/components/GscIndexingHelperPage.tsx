@@ -63,6 +63,24 @@ interface ContentRefreshResult {
   } | null
 }
 
+/**
+ * Parse a response body as JSON, tolerating non-JSON error pages.
+ *
+ * A gateway timeout or crashed function returns HTML/plain text, which would
+ * otherwise surface as an unreadable "Unexpected token" parse error.
+ */
+async function readJson(res: Response): Promise<any> {
+  const text = await res.text()
+  try {
+    return JSON.parse(text)
+  } catch {
+    if (res.status === 504) {
+      return { error: 'The request timed out. The audit may still be running — try again in a moment.' }
+    }
+    return { error: `Server error (${res.status}). Please try again.` }
+  }
+}
+
 const PRIORITY_COLORS: Record<string, { bg: string; color: string }> = {
   high: { bg: '#fee2e2', color: '#991b1b' },
   medium: { bg: '#fef3c7', color: '#92400e' },
@@ -142,7 +160,7 @@ export default function GscIndexingHelperPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ siteUrl: selectedSiteUrl, clientId: selectedClientId }),
       })
-      const data = await res.json()
+      const data = await readJson(res)
       if (!res.ok) throw new Error(data.error || data.message || 'Failed to start indexing helper')
       if (data.ok && data.auditId) {
         setAuditId(data.auditId)
@@ -213,7 +231,7 @@ export default function GscIndexingHelperPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, siteUrl: selectedSiteUrl, clientId: selectedClientId }),
       })
-      const data = await res.json()
+      const data = await readJson(res)
       if (!res.ok) throw new Error(data.error || data.message || 'Content refresh failed')
       setRefreshResult(data)
     } catch (err) {

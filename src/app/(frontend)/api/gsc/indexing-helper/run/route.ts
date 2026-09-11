@@ -11,6 +11,38 @@ import {
 
 export const maxDuration = 120;
 
+/** Never inspect more than this many URLs in a single audit. */
+const URL_CAP = 500;
+/**
+ * Wall-clock time one invocation may use before it must return. Google's URL
+ * Inspection API takes seconds per URL, so a full site cannot fit in one
+ * invocation — each poll inspects the next chunk and the audit resumes where
+ * it left off. Kept well under `maxDuration` (120s) to leave room for
+ * discovery, the summary write and the sitemap ping.
+ */
+const INVOCATION_BUDGET_MS = 75_000;
+/** Minimum time worth starting a chunk with. */
+const MIN_CHUNK_MS = 5_000;
+/** How many inspections to run in parallel within a chunk. */
+const INSPECTION_CONCURRENCY = 4;
+/**
+ * How long an in-flight chunk is assumed to still be running. Polls arriving
+ * inside this window report progress instead of starting a duplicate chunk.
+ * Only covers invocations killed mid-chunk — a chunk that finishes normally
+ * releases the lease itself.
+ */
+const LEASE_MS = 110_000;
+/**
+ * Overall wall-clock cap for one audit. Guards against an audit that can never
+ * finish (e.g. sustained Google rate limiting) polling forever.
+ */
+const MAX_AUDIT_MS = 30 * 60_000;
+
+/** Time this invocation has left for inspecting, given what it already spent. */
+function remainingBudget(invocationStart: number): number {
+  return INVOCATION_BUDGET_MS - (Date.now() - invocationStart);
+}
+
 /**
  * Build action items from non-indexed inspection results.
  */
@@ -107,19 +139,69 @@ async function ensureFreshToken(
 }
 
 /**
- * Run the inspection phase: inspect URLs, build summary, update audit to completed.
+ * Inspect the next chunk of URLs for an audit, appending to whatever has
+ * already been inspected.
+ *
+ * A single serverless invocation cannot inspect a whole site, so this runs
+ * within a time budget and leaves the audit in `inspecting` when more URLs
+ * remain — the next poll continues from the same offset.
  */
-async function runInspectionPhase(
+async function runInspectionChunk(
   payload: any,
   auditId: string,
   accessToken: string,
   siteUrl: string,
   urls: string[],
+  existingResults: InspectionResult[] = [],
+  startedAt?: string | null,
+  budgetMs: number = INVOCATION_BUDGET_MS,
 ): Promise<void> {
   try {
-    // Inspect URLs (cap at 500)
-    const toInspect = urls.slice(0, 500);
-    const results = await inspectUrlBatch(accessToken, siteUrl, toInspect);
+    const toInspect = urls.slice(0, URL_CAP);
+    const remaining = toInspect.slice(existingResults.length);
+
+    if (remaining.length > 0 && startedAt) {
+      const elapsed = Date.now() - new Date(startedAt).getTime();
+      if (elapsed > MAX_AUDIT_MS) {
+        throw new Error(
+          `Timed out after inspecting ${existingResults.length} of ${toInspect.length} URLs. Google may be rate limiting this property — try again later.`,
+        );
+      }
+    }
+
+    // Claim the lease up front so concurrent polls don't start a second chunk.
+    await payload.update({
+      collection: "gsc-indexing-audits",
+      id: auditId,
+      overrideAccess: true,
+      data: { status: "inspecting", lastBatchDate: new Date().toISOString() },
+    });
+
+    const fresh = remaining.length
+      ? await inspectUrlBatch(accessToken, siteUrl, remaining, {
+          budgetMs,
+          concurrency: INSPECTION_CONCURRENCY,
+        })
+      : [];
+    const results = [...existingResults, ...fresh];
+    const isComplete = results.length >= toInspect.length;
+
+    if (!isComplete) {
+      // More URLs to go: persist progress and release the lease so the very
+      // next poll continues immediately.
+      await payload.update({
+        collection: "gsc-indexing-audits",
+        id: auditId,
+        overrideAccess: true,
+        data: {
+          status: "inspecting",
+          inspectedCount: results.length,
+          inspectionResults: results,
+          lastBatchDate: null,
+        },
+      });
+      return;
+    }
 
     // Build summary
     let indexed = 0;
@@ -192,10 +274,12 @@ async function runInspectionPhase(
 
 /**
  * POST: Start the indexing helper.
- * Performs URL discovery synchronously (so it always completes),
- * then schedules inspection as background work via after().
+ * Discovers URLs, then inspects the first chunk within a time budget. Any
+ * remaining URLs are inspected by subsequent GET polls, so the request always
+ * returns JSON instead of hitting the serverless time limit.
  */
 export async function POST(req: NextRequest) {
+  const invocationStart = Date.now();
   try {
     const payload = await getPayload({ config: await config });
     const { user } = await payload.auth({ headers: req.headers });
@@ -295,8 +379,21 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // --- INSPECTION: run synchronously (after() is unreliable on Vercel) ---
-    await runInspectionPhase(payload, auditId, accessToken, siteUrl, urls);
+    // --- INSPECTION: first chunk with whatever time discovery left over,
+    // the rest continues on GET polls ---
+    const budgetMs = remainingBudget(invocationStart);
+    if (budgetMs >= MIN_CHUNK_MS) {
+      await runInspectionChunk(
+        payload,
+        auditId,
+        accessToken,
+        siteUrl,
+        urls,
+        [],
+        audit.startedAt as string,
+        budgetMs,
+      );
+    }
 
     return NextResponse.json({ ok: true, auditId });
   } catch (err) {
@@ -309,10 +406,11 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET: Poll for indexing helper results.
- * Returns only the fields the frontend needs.
- * If the audit is stuck at "inspecting" (after() failed), re-triggers the inspection.
+ * Returns only the fields the frontend needs. While the audit is still
+ * inspecting and no chunk is in flight, this poll inspects the next chunk.
  */
 export async function GET(req: NextRequest) {
+  const invocationStart = Date.now();
   try {
     const payload = await getPayload({ config: await config });
     const { user } = await payload.auth({ headers: req.headers });
@@ -331,15 +429,13 @@ export async function GET(req: NextRequest) {
       overrideAccess: true,
     });
 
-    // Fallback: if audit is stuck at "inspecting" with 0 inspected for >30s, re-trigger
-    if (
-      audit.status === "inspecting" &&
-      (audit.inspectedCount === 0 || audit.inspectedCount === null) &&
-      audit.updatedAt
-    ) {
-      const updatedAt = new Date(audit.updatedAt as string).getTime();
-      const stuckFor = Date.now() - updatedAt;
-      if (stuckFor > 30000) {
+    // Continue inspecting unless another invocation still holds the lease.
+    // A null lease means no chunk is running; a stale one means it was killed.
+    if (audit.status === "inspecting") {
+      const leaseAt = (audit as any).lastBatchDate;
+      const leaseAge = leaseAt ? Date.now() - new Date(leaseAt as string).getTime() : Infinity;
+
+      if (leaseAge > LEASE_MS) {
         const clientId = typeof audit.client === "object" ? (audit.client as any).id : audit.client;
         const client = await payload.findByID({
           collection: "clients",
@@ -348,14 +444,37 @@ export async function GET(req: NextRequest) {
         });
 
         const siteUrl = (audit as any).siteUrl || client.gscPropertyUrl;
-        if (siteUrl && client.gscRefreshToken) {
-          const accessToken = await ensureFreshToken(payload, client);
-          const urls: string[] = (audit as any).discoveredUrls || [];
+        const urls: string[] = (audit as any).discoveredUrls || [];
+        const budgetMs = remainingBudget(invocationStart);
 
-          if (urls.length > 0) {
-            // Re-trigger inspection synchronously
-            await runInspectionPhase(payload, auditId, accessToken, siteUrl, urls);
-          }
+        if (siteUrl && client.gscRefreshToken && urls.length > 0 && budgetMs >= MIN_CHUNK_MS) {
+          const accessToken = await ensureFreshToken(payload, client);
+          const done: InspectionResult[] = (audit as any).inspectionResults || [];
+          await runInspectionChunk(
+            payload,
+            auditId,
+            accessToken,
+            siteUrl,
+            urls,
+            done,
+            (audit as any).startedAt,
+            budgetMs,
+          );
+
+          // Re-read so this poll reports the chunk it just finished.
+          const refreshed = await payload.findByID({
+            collection: "gsc-indexing-audits",
+            id: auditId,
+            overrideAccess: true,
+          });
+          return NextResponse.json({
+            id: refreshed.id,
+            status: refreshed.status,
+            totalUrls: refreshed.totalUrls,
+            inspectedCount: refreshed.inspectedCount,
+            summaryStats: refreshed.summaryStats,
+            error: refreshed.error,
+          });
         }
       }
     }
