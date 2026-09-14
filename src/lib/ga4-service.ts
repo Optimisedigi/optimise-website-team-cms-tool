@@ -101,6 +101,7 @@ interface Ga4OverviewData {
 }
 
 interface Ga4ChannelData {
+  /** GA4 primary channel group, e.g. "Organic Search" or "Unassigned". */
   channel: string;
   users: number;
   newUsers: number;
@@ -135,6 +136,11 @@ export interface Ga4ReportData {
 
 /**
  * Fetch a complete GA4 report for a property.
+ *
+ * The channel breakdown uses `sessionPrimaryChannelGroup` so every GA4 surface
+ * (this report, the monthly stacked chart, and the PIN-gated client dashboard)
+ * groups traffic the same way GA4's own standard reports do, and follows any
+ * custom group promoted to Primary in GA4 Admin → Channel groups.
  */
 export async function fetchGa4Report(
   accessToken: string,
@@ -174,7 +180,7 @@ export async function fetchGa4Report(
       property,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: "sessionDefaultChannelGroup" }],
+        dimensions: [{ name: "sessionPrimaryChannelGroup" }],
         metrics: [
           { name: "activeUsers" },
           { name: "newUsers" },
@@ -291,10 +297,9 @@ export interface Ga4MonthlyChannelPoint {
 /**
  * Fetch sessions broken out by calendar month and channel group.
  *
- * Uses `sessionPrimaryChannelGroup` — the grouping GA4's own standard reports
- * use — rather than `sessionDefaultChannelGroup`, which is Google's fixed
- * built-in grouping and ignores channel-group edits. Promote a custom channel
- * group to Primary in GA4 Admin → Channel groups and this chart follows it.
+ * Uses `sessionPrimaryChannelGroup`, matching `fetchGa4Report` so every GA4
+ * surface groups traffic identically. Promote a custom channel group to
+ * Primary in GA4 Admin → Channel groups and this chart follows it.
  *
  * Kept separate from `fetchGa4Report` so the dashboard's monthly stacked
  * column chart can use a fixed 12-month window without re-running the four

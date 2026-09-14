@@ -8,7 +8,7 @@ import { fetchGa4Report, ensureValidToken } from "@/lib/ga4-service";
  * GET /api/dashboard/ga4-channels?slug=X&period=30d|90d|12m
  *
  * Public, PIN-gated. Returns the GA4 channel breakdown (one row per
- * sessionDefaultChannelGroup) with conversion counts for the requested
+ * sessionPrimaryChannelGroup) with conversion counts for the requested
  * period. Backs the Simple stakeholder dashboard's "Conversions by
  * Channel" card.
  *
