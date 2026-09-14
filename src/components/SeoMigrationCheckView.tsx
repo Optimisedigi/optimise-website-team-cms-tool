@@ -138,8 +138,12 @@ function TrackingReport({ result }: { result: MigrationResult }) {
   const labelStep = Math.max(1, Math.ceil(points.length / 14))
   const clicksLine = points.map((p, i) => `${x(i)},${yClicks(p.clicks)}`).join(' ')
   const impressionsLine = points.map((p, i) => `${x(i)},${yImpressions(p.impressions)}`).join(' ')
-  const migrationIndex = Math.max(0, points.findIndex((p) => p.daysSinceCutover === 1))
-  const migrationX = x(migrationIndex)
+  // Search Console data lags ~3 days, so a just-completed migration has only
+  // pre-cutover days. Without this guard the marker defaults to index 0 and
+  // shades the whole chart as "after the migration", which is wrong.
+  const migrationIndex = points.findIndex((p) => p.daysSinceCutover >= 1)
+  const hasPostMigrationPoints = migrationIndex >= 0
+  const migrationX = x(Math.max(0, migrationIndex))
   const totalBrand = points.filter((p) => p.daysSinceCutover >= 1).reduce((s, p) => s + (p.brandClicks ?? 0), 0)
   const totalGeneric = points.filter((p) => p.daysSinceCutover >= 1).reduce((s, p) => s + (p.genericClicks ?? 0), 0)
   const splitTotal = Math.max(1, totalBrand + totalGeneric)
@@ -202,9 +206,11 @@ function TrackingReport({ result }: { result: MigrationResult }) {
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 300, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }} role="img" aria-label="Post-migration clicks and impressions chart">
         {[0, .25, .5, .75, 1].map((t) => <line key={t} x1={pad} x2={w - pad} y1={pad + t * plotH} y2={pad + t * plotH} stroke="#e2e8f0" />)}
-        <rect x={migrationX} y={18} width={w - pad - migrationX} height={pad + plotH - 18} fill="#fee2e2" opacity="0.16" />
-        <line x1={migrationX} x2={migrationX} y1={18} y2={pad + plotH} stroke="#991b1b" strokeDasharray="6 5" strokeWidth={3} />
-        <text x={migrationX + 8} y={24} fontSize={12} fill="#991b1b" fontWeight={700}>Migration date</text>
+        {hasPostMigrationPoints && <>
+          <rect x={migrationX} y={18} width={w - pad - migrationX} height={pad + plotH - 18} fill="#fee2e2" opacity="0.16" />
+          <line x1={migrationX} x2={migrationX} y1={18} y2={pad + plotH} stroke="#991b1b" strokeDasharray="6 5" strokeWidth={3} />
+          <text x={migrationX + 8} y={24} fontSize={12} fill="#991b1b" fontWeight={700}>Migration date</text>
+        </>}
         <polyline points={clicksLine} fill="none" stroke="#2563eb" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
         <polyline points={impressionsLine} fill="none" stroke="#8b5cf6" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
         {points.map((p, i) => (i % labelStep === 0 || i === points.length - 1)
@@ -215,6 +221,7 @@ function TrackingReport({ result }: { result: MigrationResult }) {
         <span><span style={{ ...dot, background: '#2563eb' }} /> Total clicks</span>
         <span><span style={{ ...dot, background: '#8b5cf6' }} /> Impressions</span>
         <span>{hasSplitClickData ? 'Total clicks are calculated from our brand-term classification, so they equal brand + generic clicks.' : 'Blue line shows total daily GSC clicks.'}</span>
+        {!hasPostMigrationPoints && <span style={{ color: '#b45309' }}>Only pre-migration days are available so far — Search Console finalises data a few days late, so the migration marker appears once the first post-migration day lands.</span>}
       </div>
       <div style={{ marginTop: 14 }}>
         <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 6 }}>Brand vs generic clicks</div>
@@ -334,8 +341,15 @@ const SeoMigrationCheckView = ({ result }: { result: MigrationResult | null }) =
         </div>
       </div>
 
-      {result.trackingSnapshots && result.trackingSnapshots.length > 0 && (
+      {result.trackingSnapshots && result.trackingSnapshots.length > 0 ? (
         <TrackingReport result={result} />
+      ) : (
+        <div className="od-box" style={{ marginBottom: 16, fontSize: 13, color: '#b45309' }}>
+          No before/after traffic chart yet — Search Console returned no daily data for this cutover date.
+          Check the client is connected to Search Console, and that the migration date is in the past
+          (Search Console data lags a few days) and within the last 90 days. Then reopen the review record
+          and use “Refresh tracking now”.
+        </div>
       )}
 
       {/* Prioritised actions */}

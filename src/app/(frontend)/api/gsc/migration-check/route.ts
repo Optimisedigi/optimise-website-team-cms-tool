@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { refreshAccessToken } from "@/lib/gsc-service";
 import { runMigrationCheck } from "@/lib/seo-migration-check";
+import { processSeoMigrationTracking } from "@/lib/seo-migration-tracking";
 import { parseBrandTerms } from "@/lib/brand-terms";
 
 // Redirect tracing + GSC calls can take a while; allow more headroom.
@@ -186,7 +187,37 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         overrideAccess: true,
       });
 
-      return NextResponse.json({ ok: true, id: saved.id, result });
+      // Populate the daily GSC tracking points straight away so the
+      // before/after cutover chart renders on the first run instead of only
+      // after someone opens the record and hits "Refresh tracking now".
+      step = "initial-tracking";
+      let tracking: Record<string, unknown> = {};
+      try {
+        await processSeoMigrationTracking({ reviewId: created.id, sendEmails: false });
+        const tracked = await payload.findByID({
+          collection: "seo-migration-checks",
+          id: created.id,
+          depth: 0,
+          overrideAccess: true,
+        });
+        tracking = {
+          trackingSnapshots: tracked.trackingSnapshots,
+          trackingFlags: tracked.trackingFlags,
+          trackingIssueReport: tracked.trackingIssueReport,
+          trackingStatus: tracked.trackingStatus,
+          lastTrackingRunAt: tracked.lastTrackingRunAt,
+          nextEmailMilestoneDay: tracked.nextEmailMilestoneDay,
+        };
+      } catch (trackErr) {
+        // The review itself succeeded — never fail the request because the
+        // chart data could not be fetched.
+        console.error(
+          "[gsc/migration-check] initial tracking failed:",
+          trackErr instanceof Error ? trackErr.message : trackErr,
+        );
+      }
+
+      return NextResponse.json({ ok: true, id: saved.id, result: { ...result, ...tracking } });
     } catch (runErr) {
       const message = runErr instanceof Error ? runErr.message : "Review failed";
       await payload

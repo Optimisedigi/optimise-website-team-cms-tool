@@ -278,7 +278,10 @@ export async function processSeoMigrationTracking(options: { reviewId?: string |
   const activeTrackingCutoff = addDays(new Date(), -(POST_MIGRATION_TRACKING_DAYS - 1));
   const where: any = options.reviewId
     ? { id: { equals: options.reviewId } }
-    : { and: [{ status: { equals: "completed" } }, { trackingEnabled: { not_equals: false } }, { trackingStatus: { not_equals: "paused" } }, { trackingStatus: { not_equals: "failed" } }, { cutoverDate: { greater_than_equal: activeTrackingCutoff } }] };
+    // `failed` is deliberately NOT excluded: a failure is usually transient
+    // (expired token, GSC hiccup) and a permanently skipped review would never
+    // rebuild its chart. Only an explicit `paused` opts out.
+    : { and: [{ status: { equals: "completed" } }, { trackingEnabled: { not_equals: false } }, { trackingStatus: { not_equals: "paused" } }, { cutoverDate: { greater_than_equal: activeTrackingCutoff } }] };
   const reviews = await payload.find({ collection: "seo-migration-checks", where, limit: options.limit ?? 10, depth: 1, overrideAccess: true });
   const results = [];
 
@@ -321,7 +324,8 @@ export async function processSeoMigrationTracking(options: { reviewId?: string |
       };
       if (daysSinceCutover(cutoverDate) > POST_MIGRATION_TRACKING_DAYS) {
         updateData.trackingStatus = 'complete';
-      } else if (!['paused', 'failed'].includes(review.trackingStatus)) {
+      } else if (review.trackingStatus !== 'paused') {
+        // Recover from an earlier `failed` run now that this one succeeded.
         updateData.trackingStatus = 'active';
       }
 

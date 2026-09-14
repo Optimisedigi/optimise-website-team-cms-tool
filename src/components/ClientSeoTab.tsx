@@ -87,6 +87,7 @@ const ClientSeoTab = () => {
       if (res.ok) {
         const doc = await res.json()
         setResult({
+          id: doc.id,
           siteUrl: doc.siteUrl,
           cutoverDate: doc.cutoverDate,
           isDomainMove: doc.isDomainMove,
@@ -95,6 +96,14 @@ const ClientSeoTab = () => {
           checklist: doc.checklist,
           actions: doc.actions,
           performance: doc.performance,
+          trackingSnapshots: doc.trackingSnapshots,
+          trackingFlags: doc.trackingFlags,
+          trackingIssueReport: doc.trackingIssueReport,
+          trackingStatus: doc.trackingStatus,
+          lastTrackingRunAt: doc.lastTrackingRunAt,
+          lastEmailSentAt: doc.lastEmailSentAt,
+          lastEmailMilestoneDay: doc.lastEmailMilestoneDay,
+          nextEmailMilestoneDay: doc.nextEmailMilestoneDay,
           runAt: doc.runAt,
         })
       } else {
