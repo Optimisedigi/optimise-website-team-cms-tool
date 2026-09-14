@@ -283,7 +283,7 @@ export async function fetchGa4Report(
 export interface Ga4MonthlyChannelPoint {
   /** Calendar month as "YYYY-MM". */
   month: string;
-  /** GA4 default channel group, e.g. "Organic Search". */
+  /** GA4 primary channel group, e.g. "Organic Search" or "Unassigned". */
   channel: string;
   sessions: number;
 }
