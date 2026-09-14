@@ -814,8 +814,7 @@ function ChannelBarList({ channels }: { channels: Ga4Channel[] }) {
 
 /* ── Channel colour mapping.
  * GA4's default channel grouping has stable names — paint them
- * consistently so stakeholders learn the colours. Unknown channels
- * fall back to slate. */
+ * consistently so stakeholders learn the colours. */
 const CHANNEL_COLORS: Record<string, string> = {
   "Paid Search": "#3b82f6",
   "Organic Search": "#10b981",
@@ -830,8 +829,30 @@ const CHANNEL_COLORS: Record<string, string> = {
   Unassigned: "#94a3b8",
 };
 
+/* Fallback palette for names outside GA4's defaults — a property using a
+ * custom primary channel group (e.g. "OD Channel Group") invents its own
+ * channel names, and painting them all one grey made separate rows look
+ * identical. Hashing the name keeps each channel's colour stable across
+ * loads and periods without a hard-coded registry. */
+const CHANNEL_FALLBACK_COLORS = [
+  "#0891b2",
+  "#c026d3",
+  "#65a30d",
+  "#e11d48",
+  "#7c3aed",
+  "#ea580c",
+  "#0d9488",
+  "#4f46e5",
+];
+
 function channelColor(name: string): string {
-  return CHANNEL_COLORS[name] || "#94a3b8";
+  const known = CHANNEL_COLORS[name];
+  if (known) return known;
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return CHANNEL_FALLBACK_COLORS[hash % CHANNEL_FALLBACK_COLORS.length];
 }
 
 function formatDollars(n: number): string {
