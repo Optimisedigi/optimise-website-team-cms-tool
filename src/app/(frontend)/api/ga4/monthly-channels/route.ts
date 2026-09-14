@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
-import { fetchGa4MonthlySessionsByChannel, ensureValidToken } from "@/lib/ga4-service";
+import {
+  fetchGa4MonthlySessionsByChannel,
+  fetchGa4UnassignedSources,
+  ensureValidToken,
+  GA4_UNASSIGNED_CHANNEL,
+} from "@/lib/ga4-service";
 
 const MONTHS = 12;
 
@@ -50,7 +55,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (!client.ga4Connected || !client.ga4PropertyId || !client.ga4RefreshToken) {
-      return NextResponse.json({ ga4Connected: false, months: [], channels: [] }, { status: 200 });
+      return NextResponse.json(
+        { ga4Connected: false, months: [], channels: [], unassignedSources: [] },
+        { status: 200 },
+      );
     }
 
     const tokenResult = await ensureValidToken(
@@ -109,6 +117,23 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([channel, sessions]) => ({ channel, sessions }));
 
+    // Only worth a second report when the property actually has Unassigned
+    // traffic to explain.
+    let unassignedSources: Awaited<ReturnType<typeof fetchGa4UnassignedSources>> = [];
+    if ((channelTotals.get(GA4_UNASSIGNED_CHANNEL) || 0) > 0) {
+      try {
+        unassignedSources = await fetchGa4UnassignedSources(
+          tokenResult.accessToken,
+          client.ga4PropertyId,
+          startDate,
+          endDate,
+        );
+      } catch (err) {
+        // The breakdown is diagnostic extra — never fail the whole chart for it.
+        console.error("[ga4/monthly-channels] unassigned breakdown failed:", err);
+      }
+    }
+
     return NextResponse.json({
       ga4Connected: true,
       clientId: client.id,
@@ -117,6 +142,7 @@ export async function GET(req: NextRequest) {
       periodEnd: endDate,
       channels,
       months,
+      unassignedSources,
     });
   } catch (err) {
     console.error("[ga4/monthly-channels] error:", err);

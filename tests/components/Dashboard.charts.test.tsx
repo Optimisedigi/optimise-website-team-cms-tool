@@ -55,13 +55,25 @@ const monthlyChannels = {
     total: 90,
     sessions: { 'Organic Search': 50, 'Paid Search': 25, Direct: 15 },
   })),
+  unassignedSources: [] as {
+    source: string
+    medium: string
+    campaign: string
+    sessions: number
+  }[],
 }
+
+let monthlyChannelsResponse: typeof monthlyChannels = monthlyChannels
+
+afterEach(() => {
+  monthlyChannelsResponse = monthlyChannels
+})
 
 function responseFor(url: string) {
   if (url === '/api/dashboard') return dashboardData
   if (url === '/api/invoice-statements/pending-summary') return { pendingCount: 0, totalOutstanding: 0 }
   if (url === '/api/xero/scheduled-sends') return []
-  if (url === '/api/ga4/monthly-channels') return monthlyChannels
+  if (url === '/api/ga4/monthly-channels') return monthlyChannelsResponse
   if (url.startsWith('/api/ga4/query')) return { ga4Connected: false }
   return null
 }
@@ -102,5 +114,43 @@ describe('Dashboard traffic charts', () => {
     expect(screen.getByText('Organic Search')).toBeInTheDocument()
     expect(screen.getByText('Paid Search')).toBeInTheDocument()
     expect(screen.getByText('Direct')).toBeInTheDocument()
+  })
+
+  it('breaks Unassigned sessions down by source, medium and campaign', async () => {
+    monthlyChannelsResponse = {
+      ...monthlyChannels,
+      channels: [...monthlyChannels.channels, { channel: 'Unassigned', sessions: 250 }],
+      unassignedSources: [
+        { source: 'newsletter', medium: 'paid', campaign: 'spring-promo', sessions: 140 },
+        { source: 'bing', medium: '(not set)', campaign: '(not set)', sessions: 60 },
+      ],
+    }
+    renderDashboard()
+
+    await screen.findByText('GA4 Sessions by Channel')
+
+    const summary = await screen.findByText(/What.s in .Unassigned/)
+    expect(summary).toHaveTextContent('250')
+
+    const rows = document.querySelectorAll('.od-unassigned__table tbody tr')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('newsletter')
+    expect(rows[0]).toHaveTextContent('paid')
+    expect(rows[0]).toHaveTextContent('spring-promo')
+    expect(rows[0]).toHaveTextContent('140')
+
+    // 250 total vs 200 listed — the remainder must be called out, not silently lost.
+    expect(screen.getByText(/50 further Unassigned sessions/)).toBeInTheDocument()
+  })
+
+  it('hides the Unassigned breakdown when the property has none', async () => {
+    renderDashboard()
+
+    await screen.findByText('GA4 Sessions by Channel')
+    await waitFor(() => {
+      expect(document.querySelectorAll('.od-chart__bar-group')).toHaveLength(12)
+    })
+
+    expect(document.querySelector('.od-unassigned')).toBeNull()
   })
 })

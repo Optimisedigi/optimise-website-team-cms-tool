@@ -8143,6 +8143,58 @@ body.od-client-record {
   row-gap: 6px;
 }
 
+// Collapsed by default so the Unassigned diagnostics never crowd the chart —
+// they only matter while someone is chasing a tagging problem.
+.od-unassigned {
+  margin-top: 12px;
+  border-top: 1px solid var(--theme-elevation-100);
+  padding-top: 10px;
+}
+
+.od-unassigned__summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-elevation-600);
+}
+
+.od-unassigned__note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--theme-elevation-400);
+
+  code {
+    font-size: 11px;
+  }
+}
+
+.od-unassigned__table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 11px;
+
+  th,
+  td {
+    padding: 4px 6px;
+    text-align: left;
+    border-bottom: 1px solid var(--theme-elevation-100);
+    // Long UTM values shouldn't force the card to scroll sideways.
+    word-break: break-word;
+  }
+
+  th {
+    color: var(--theme-elevation-500);
+    font-weight: 600;
+  }
+}
+
+.od-unassigned__num {
+  text-align: right;
+  white-space: nowrap;
+}
+
 // Twelve month columns leave ~20px per label on a phone, which clips
 // "Sep 26". Drop the year and tighten the type so the month still reads.
 // The label row's gap must stay in step with .od-gsc-bars or labels drift out

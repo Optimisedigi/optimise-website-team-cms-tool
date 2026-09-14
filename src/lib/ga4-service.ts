@@ -334,6 +334,69 @@ export async function fetchGa4MonthlySessionsByChannel(
   });
 }
 
+export interface Ga4UnassignedSourcePoint {
+  /** GA4 session source, e.g. "google" or "(direct)". */
+  source: string;
+  /** GA4 session medium, e.g. "cpc" or "(none)". */
+  medium: string;
+  /** Campaign name where one was tagged, otherwise "(not set)". */
+  campaign: string;
+  sessions: number;
+}
+
+/** GA4's bucket for sessions that match no channel rule. */
+export const GA4_UNASSIGNED_CHANNEL = "Unassigned";
+
+/**
+ * Fetch the source/medium/campaign combinations sitting behind GA4's
+ * "Unassigned" channel bucket.
+ *
+ * Unassigned means the session matched no rule in the primary channel group —
+ * almost always mis-tagged UTMs (`utm_medium=paid` instead of `cpc`, say) or a
+ * custom channel group with no catch-all rule. Listing the raw source/medium
+ * pairs is what makes that diagnosable without leaving the dashboard.
+ */
+export async function fetchGa4UnassignedSources(
+  accessToken: string,
+  propertyId: string,
+  startDate: string,
+  endDate: string,
+  limit = 10,
+): Promise<Ga4UnassignedSourcePoint[]> {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+
+  const analyticsData = google.analyticsdata({ version: "v1beta", auth: oauth2Client });
+
+  const res = await analyticsData.properties.runReport({
+    property: `properties/${propertyId}`,
+    requestBody: {
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [
+        { name: "sessionSource" },
+        { name: "sessionMedium" },
+        { name: "sessionCampaignName" },
+      ],
+      metrics: [{ name: "sessions" }],
+      dimensionFilter: {
+        filter: {
+          fieldName: "sessionPrimaryChannelGroup",
+          stringFilter: { matchType: "EXACT", value: GA4_UNASSIGNED_CHANNEL },
+        },
+      },
+      orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+      limit: String(limit),
+    },
+  });
+
+  return (res.data.rows || []).map((row) => ({
+    source: row.dimensionValues?.[0]?.value || "(not set)",
+    medium: row.dimensionValues?.[1]?.value || "(not set)",
+    campaign: row.dimensionValues?.[2]?.value || "(not set)",
+    sessions: parseInt(row.metricValues?.[0]?.value || "0", 10),
+  }));
+}
+
 /**
  * Ensure the access token is valid, refreshing if necessary.
  * Returns the (potentially refreshed) access token.

@@ -1018,11 +1018,22 @@ interface Ga4MonthBucket {
   sessions: Record<string, number>
 }
 
+interface Ga4UnassignedSource {
+  source: string
+  medium: string
+  campaign: string
+  sessions: number
+}
+
 interface Ga4MonthlyChannelsData {
   ga4Connected: boolean
   channels?: { channel: string; sessions: number }[]
   months?: Ga4MonthBucket[]
+  unassignedSources?: Ga4UnassignedSource[]
 }
+
+/** GA4's bucket for sessions matching no channel rule. */
+const GA4_UNASSIGNED_CHANNEL = 'Unassigned'
 
 // Stack colours, applied in the channel order returned by the API (largest
 // channel first). Wraps if a property somehow reports more channels.
@@ -1086,6 +1097,9 @@ function Ga4MonthlyChannelsCard() {
   const channels = data.channels ?? []
   const hasData = months.some((m) => m.total > 0)
   const colorFor = (index: number) => GA4_CHANNEL_COLORS[index % GA4_CHANNEL_COLORS.length]
+  const unassignedSources = data.unassignedSources ?? []
+  const unassignedSessions =
+    channels.find((c) => c.channel === GA4_UNASSIGNED_CHANNEL)?.sessions ?? 0
 
   return (
     <div className="od-box">
@@ -1098,7 +1112,12 @@ function Ga4MonthlyChannelsCard() {
       </div>
       <div className="od-box__body od-card-pad">
         {hasData ? (
-          <Ga4MonthlyChannelsChart months={months} channels={channels} colorFor={colorFor} />
+          <>
+            <Ga4MonthlyChannelsChart months={months} channels={channels} colorFor={colorFor} />
+            {unassignedSources.length > 0 ? (
+              <Ga4UnassignedBreakdown sources={unassignedSources} total={unassignedSessions} />
+            ) : null}
+          </>
         ) : (
           <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0, textAlign: 'center' }}>
             No GA4 sessions recorded in the last 12 months.
@@ -1163,6 +1182,59 @@ function Ga4MonthlyChannelsChart({
         ))}
       </div>
     </div>
+  )
+}
+
+// "Unassigned" is GA4's own bucket for sessions matching no channel rule —
+// usually mis-tagged UTMs. Listing the raw source/medium pairs behind it turns
+// an unexplained block in the chart into a fixable tagging list.
+function Ga4UnassignedBreakdown({
+  sources,
+  total,
+}: {
+  sources: Ga4UnassignedSource[]
+  total: number
+}) {
+  const listed = sources.reduce((sum, s) => sum + s.sessions, 0)
+
+  return (
+    <details className="od-unassigned">
+      <summary className="od-unassigned__summary">
+        What&rsquo;s in &ldquo;Unassigned&rdquo;?
+        {total > 0 ? ` (${total.toLocaleString()} sessions)` : null}
+      </summary>
+      <p className="od-unassigned__note">
+        GA4 puts a session here when it matches no rule in the primary channel group — usually a
+        mis-tagged UTM such as <code>utm_medium=paid</code> instead of <code>cpc</code>. Fix the
+        tagging, or add a rule in GA4 Admin → Channel groups.
+      </p>
+      <table className="od-unassigned__table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Medium</th>
+            <th>Campaign</th>
+            <th className="od-unassigned__num">Sessions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sources.map((s) => (
+            <tr key={`${s.source}-${s.medium}-${s.campaign}`}>
+              <td>{s.source}</td>
+              <td>{s.medium}</td>
+              <td>{s.campaign}</td>
+              <td className="od-unassigned__num">{s.sessions.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {total > listed ? (
+        <p className="od-unassigned__note">
+          Top {sources.length} shown; {(total - listed).toLocaleString()} further Unassigned sessions
+          sit across smaller sources.
+        </p>
+      ) : null}
+    </details>
   )
 }
 
