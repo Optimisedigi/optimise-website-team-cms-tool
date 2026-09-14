@@ -280,6 +280,60 @@ export async function fetchGa4Report(
   };
 }
 
+export interface Ga4MonthlyChannelPoint {
+  /** Calendar month as "YYYY-MM". */
+  month: string;
+  /** GA4 default channel group, e.g. "Organic Search". */
+  channel: string;
+  sessions: number;
+}
+
+/**
+ * Fetch sessions broken out by calendar month and channel group.
+ *
+ * Uses `sessionPrimaryChannelGroup` — the grouping GA4's own standard reports
+ * use — rather than `sessionDefaultChannelGroup`, which is Google's fixed
+ * built-in grouping and ignores channel-group edits. Promote a custom channel
+ * group to Primary in GA4 Admin → Channel groups and this chart follows it.
+ *
+ * Kept separate from `fetchGa4Report` so the dashboard's monthly stacked
+ * column chart can use a fixed 12-month window without re-running the four
+ * reports that back the main GA4 card (and its own period toggle).
+ */
+export async function fetchGa4MonthlySessionsByChannel(
+  accessToken: string,
+  propertyId: string,
+  startDate: string,
+  endDate: string,
+): Promise<Ga4MonthlyChannelPoint[]> {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+
+  const analyticsData = google.analyticsdata({ version: "v1beta", auth: oauth2Client });
+
+  const res = await analyticsData.properties.runReport({
+    property: `properties/${propertyId}`,
+    requestBody: {
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: "yearMonth" }, { name: "sessionPrimaryChannelGroup" }],
+      metrics: [{ name: "sessions" }],
+      orderBys: [{ dimension: { dimensionName: "yearMonth" } }],
+      limit: "1000",
+    },
+  });
+
+  return (res.data.rows || []).map((row) => {
+    // GA4 returns yearMonth as "YYYYMM".
+    const raw = row.dimensionValues?.[0]?.value || "";
+    const month = raw.length === 6 ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}` : raw;
+    return {
+      month,
+      channel: row.dimensionValues?.[1]?.value || "Unknown",
+      sessions: parseInt(row.metricValues?.[0]?.value || "0", 10),
+    };
+  });
+}
+
 /**
  * Ensure the access token is valid, refreshing if necessary.
  * Returns the (potentially refreshed) access token.

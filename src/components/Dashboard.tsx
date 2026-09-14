@@ -874,6 +874,9 @@ const Dashboard = () => {
         {/* ── Left Column ── */}
         <div className="od-dash__main">
 
+          {/* GA4 sessions by channel (monthly, stacked) */}
+          <Ga4MonthlyChannelsCard />
+
           {/* Search Console */}
           <GscCard gsc={data.gsc} gscMonthly={data.gscMonthly} refreshing={gscRefreshing} onRefresh={handleGscRefresh} onSeed={handleGscSeed} seeding={gscSeeding} />
 
@@ -992,6 +995,177 @@ const Dashboard = () => {
   )
 }
 
+// ─── GA4 Monthly Sessions by Channel (stacked columns) ────
+
+// Month axis label such as "Sep 26". Twelve columns leave each label ~20px on
+// a phone, which clips "Sep 26", so the year is split out and hidden at
+// narrow widths (see .od-axis__year) — the month alone still fits.
+function MonthAxisLabel({ label }: { label: string }) {
+  const [month, ...rest] = label.split(' ')
+  const year = rest.join(' ')
+  return (
+    <>
+      {month}
+      {year ? <span className="od-axis__year">{` ${year}`}</span> : null}
+    </>
+  )
+}
+
+interface Ga4MonthBucket {
+  month: string
+  label: string
+  total: number
+  sessions: Record<string, number>
+}
+
+interface Ga4MonthlyChannelsData {
+  ga4Connected: boolean
+  channels?: { channel: string; sessions: number }[]
+  months?: Ga4MonthBucket[]
+}
+
+// Stack colours, applied in the channel order returned by the API (largest
+// channel first). Wraps if a property somehow reports more channels.
+const GA4_CHANNEL_COLORS = [
+  '#213843',
+  '#468D8B',
+  '#74B3A8',
+  '#E67E22',
+  '#6366F1',
+  '#8B5CF6',
+  '#EC4899',
+  '#F59E0B',
+  '#10B981',
+  '#0EA5E9',
+  '#A16207',
+  '#94A3B8',
+]
+
+function Ga4MonthlyChannelsCard() {
+  const [data, setData] = useState<Ga4MonthlyChannelsData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/ga4/monthly-channels')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return
+        if (d) setData(d)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="od-box od-box--muted">
+        <div className="od-box__head">
+          <div>
+            <span className="od-box__eyebrow">Analytics</span>
+            <span className="od-box__title">GA4 Sessions by Channel</span>
+          </div>
+        </div>
+        <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>Loading GA4 sessions...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Not connected is already surfaced by the full GA4 card lower down the
+  // dashboard — don't repeat the prompt here.
+  if (!data?.ga4Connected) return null
+
+  const months = data.months ?? []
+  const channels = data.channels ?? []
+  const hasData = months.some((m) => m.total > 0)
+  const colorFor = (index: number) => GA4_CHANNEL_COLORS[index % GA4_CHANNEL_COLORS.length]
+
+  return (
+    <div className="od-box">
+      <div className="od-box__head">
+        <div>
+          <span className="od-box__eyebrow">Analytics</span>
+          <span className="od-box__title">GA4 Sessions by Channel</span>
+        </div>
+        <span className="od-box__period">Last 12 months</span>
+      </div>
+      <div className="od-box__body od-card-pad">
+        {hasData ? (
+          <Ga4MonthlyChannelsChart months={months} channels={channels} colorFor={colorFor} />
+        ) : (
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0, textAlign: 'center' }}>
+            No GA4 sessions recorded in the last 12 months.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Ga4MonthlyChannelsChart({
+  months,
+  channels,
+  colorFor,
+}: {
+  months: Ga4MonthBucket[]
+  channels: { channel: string; sessions: number }[]
+  colorFor: (index: number) => string
+}) {
+  const chartHeight = 160
+  const maxTotal = Math.max(...months.map((m) => m.total), 1)
+  const groupWidth = 100 / Math.max(months.length, 1)
+  // Children render top-to-bottom, so stack the smallest channel first and
+  // leave the biggest sitting on the baseline.
+  const stackOrder = channels.map((c, i) => ({ ...c, color: colorFor(i) })).reverse()
+
+  return (
+    <div className="od-gsc-chart od-gsc-chart--mockup">
+      <div className="od-chart__area" style={{ height: chartHeight }}>
+        {months.map((bucket) => (
+          <div key={bucket.month} className="od-chart__bar-group" style={{ width: `${groupWidth}%` }}>
+            <div
+              className="od-chart__bar"
+              style={{ height: chartHeight }}
+              title={`${bucket.label}: ${bucket.total.toLocaleString()} sessions`}
+            >
+              {stackOrder.map((entry) => {
+                const sessions = bucket.sessions[entry.channel] || 0
+                if (sessions <= 0) return null
+                return (
+                  <div
+                    key={entry.channel}
+                    className="od-chart__segment"
+                    style={{ height: (sessions / maxTotal) * chartHeight, background: entry.color }}
+                    title={`${bucket.label} · ${entry.channel}: ${sessions.toLocaleString()} sessions`}
+                  />
+                )
+              })}
+            </div>
+            <div className="od-chart__label">
+              <MonthAxisLabel label={bucket.label} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="od-chart__legend od-chart__legend--wrap">
+        {channels.map((entry, i) => (
+          <span key={entry.channel} className="od-chart__legend-item">
+            <span className="od-chart__legend-dot" style={{ background: colorFor(i) }} />
+            {entry.channel}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── GSC Card ─────────────────────────────────────────────
 
 function GscCard({
@@ -1009,7 +1183,7 @@ function GscCard({
   onSeed: () => void
   seeding: boolean
 }) {
-  const [chartPeriod, setChartPeriod] = useState<'30d' | '90d' | '12m'>('90d')
+  const [chartPeriod, setChartPeriod] = useState<'30d' | '90d' | '12m'>('12m')
 
   if (!gsc || (!gsc.totalClicks && !gsc.gscConnected)) {
     return (
@@ -1146,6 +1320,13 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
             style={{ height: `${Math.max(8, (entry.clicks / maxClicks) * 92)}%` }}
             title={`${entry.month}: ${entry.clicks.toLocaleString()} clicks · ${entry.impressions.toLocaleString()} impressions`}
           />
+        ))}
+      </div>
+      <div className="od-gsc-bars__labels">
+        {data.map((entry, index) => (
+          <span className="od-gsc-bars__label" key={`${entry.month}-${index}-label`}>
+            <MonthAxisLabel label={entry.month} />
+          </span>
         ))}
       </div>
       <div className="od-chart__legend">

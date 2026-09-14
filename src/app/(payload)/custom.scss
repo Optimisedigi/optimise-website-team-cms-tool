@@ -8117,6 +8117,47 @@ body.od-client-record {
   background: #468d8b;
 }
 
+// X-axis month labels live in their own row that mirrors the bar row's flex
+// layout (same gap, same flex: 1), so each label stays centred under its bar.
+.od-gsc-bars__labels {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.od-gsc-bars__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.2;
+  color: #6b7280;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+// Channel legends can run to a dozen entries — let them wrap instead of
+// overflowing the card.
+.od-chart__legend--wrap {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+// Twelve month columns leave ~20px per label on a phone, which clips
+// "Sep 26". Drop the year and tighten the type so the month still reads.
+// The label row's gap must stay in step with .od-gsc-bars or labels drift out
+// of line with their bars, so only the type size changes here.
+@media (max-width: 768px) {
+  .od-gsc-bars__label,
+  .od-chart__label {
+    font-size: 9px;
+  }
+
+  .od-axis__year {
+    display: none;
+  }
+}
+
 .od-feed {
   padding: 6px 18px;
 }
