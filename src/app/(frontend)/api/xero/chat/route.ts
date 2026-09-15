@@ -19,6 +19,7 @@ import { remember } from "@/lib/agents/optimate-google-ads/tools/remember";
 import { soulSet } from "@/lib/agents/optimate-google-ads/tools/soul-set";
 import { CONTRACTOR_COST_TOOL_NAMES, contractorCostTools, executeContractorCostTool } from "@/lib/agents/optimate-invoice/contractor-cost-tools";
 import { OVERDUE_EMAIL_TOOL_NAMES, overdueEmailTools, executeOverdueEmailTool } from "@/lib/agents/optimate-invoice/overdue-email-tools";
+import { CLIENT_BILLING_TOOL_NAMES, clientBillingTools, executeClientBillingTool } from "@/lib/agents/optimate-invoice/client-billing-tools";
 
 /** Resolve a client-requested model to a usable canonical name, or undefined
  *  when the value is missing/unknown/not offered in the chat picker. Mirrors
@@ -303,6 +304,7 @@ export const tools: ToolDef[] = [
       required: [],
     },
   },
+  ...clientBillingTools,
   ...contractorCostTools,
   ...overdueEmailTools,
 ];
@@ -563,16 +565,18 @@ export async function POST(req: NextRequest) {
         for (const toolUse of toolUses) {
           const result = MEMORY_TOOL_NAMES.has(toolUse.name)
             ? await executeMemoryTool(toolUse.name, toolUse.input, user.id)
-            : CONTRACTOR_COST_TOOL_NAMES.has(toolUse.name)
-              ? await executeContractorCostTool(toolUse.name, toolUse.input, user)
-              : OVERDUE_EMAIL_TOOL_NAMES.has(toolUse.name)
-                ? await executeOverdueEmailTool(toolUse.name, toolUse.input, user)
-                : await executeTool(
-                  toolUse.name,
-                  toolUse.input,
-                  GROWTH_TOOLS_URL,
-                  INTERNAL_API_KEY
-                );
+            : CLIENT_BILLING_TOOL_NAMES.has(toolUse.name)
+              ? await executeClientBillingTool(toolUse.name, toolUse.input, user)
+              : CONTRACTOR_COST_TOOL_NAMES.has(toolUse.name)
+                ? await executeContractorCostTool(toolUse.name, toolUse.input, user)
+                : OVERDUE_EMAIL_TOOL_NAMES.has(toolUse.name)
+                  ? await executeOverdueEmailTool(toolUse.name, toolUse.input, user)
+                  : await executeTool(
+                    toolUse.name,
+                    toolUse.input,
+                    GROWTH_TOOLS_URL,
+                    INTERNAL_API_KEY
+                  );
 
           actions.push({ tool: toolUse.name, result });
 
