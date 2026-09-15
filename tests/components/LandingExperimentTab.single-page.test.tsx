@@ -96,10 +96,10 @@ describe("LandingExperimentTab with a single landing page", () => {
       />,
     );
 
-    expect(await screen.findByRole("link", { name: "HubSpot flow chart" })).toHaveAttribute(
-      "href",
-      "/landing-dashboard/away-digital-teams/chatbot-flow",
-    );
+    const flowLink = await screen.findByRole("link", { name: "HubSpot flow chart" });
+    expect(flowLink).toHaveAttribute("href", "/landing-dashboard/away-digital-teams/chatbot-flow");
+    expect(flowLink).toHaveAttribute("target", "_blank");
+    expect(flowLink).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.queryByText("Google Ads sessions")).not.toBeInTheDocument();
   });
 

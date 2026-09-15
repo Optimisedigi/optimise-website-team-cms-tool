@@ -704,6 +704,8 @@ export function LandingExperimentTab({
                 {isAwayDigitalSlug(slug) && (
                   <a
                     href={`/landing-dashboard/${AWAY_DIGITAL_SLUG}/chatbot-flow`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-sm font-semibold text-blue-600 underline decoration-blue-300 underline-offset-4 hover:text-blue-800 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                   >
                     HubSpot flow chart
