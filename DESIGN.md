@@ -87,7 +87,7 @@ The internal Client Billing field, public `/hosting-pay/[token]` review page and
 ## Scope and design read
 
 - **Surface:** client-facing, read-only process map for reviewing a proposed chatbot before implementation.
-- **Audience and job:** Away stakeholders compare six complete paths, identify omissions, and resolve explicitly marked ownership decisions.
+- **Audience and job:** Away stakeholders compare five focused paths, read proposed wording, and resolve explicitly marked ownership decisions.
 - **Risk:** wrong routing, implied scoring certainty, hidden consent, or a dead end could enter the implementation unnoticed.
 - **Platform:** PIN-gated Next.js dashboard at the canonical Away slug, supporting desktop, 320px, pointer, touch, and keyboard.
 
@@ -97,16 +97,16 @@ The screen is a conversation blueprint rather than a live chatbot. One compact h
 
 ## Components, behavior, and evidence
 
-- Six native tabs use roving focus and Arrow, Home, and End behavior. The selected path remains named and described.
+- Five native tabs use roving focus and Arrow, Home, and End behavior. The job-seeker path is intentionally excluded.
 - The canvas supports drag, wheel pan, Ctrl/Command-wheel zoom, keyboard pan, zoom buttons, fit, reset, touch drag, pointer cancellation, and visible focus.
-- Desktop fits the full graph. Narrow screens open at a readable scale and use the bounded canvas for panning; Fit all remains available.
-- Proposal caveats remain explicit: readiness scoring is guidance, and international and careers destinations require implementation decisions.
+- The canvas expands to the browser width and most viewport height. Branches open at a readable scale with horizontal panning; Fit all remains available.
+- Every question displays its proposed answer choices. Readiness scoring remains guidance, and international ownership remains an implementation decision.
 - The server rejects every non-canonical slug before database or token work, verifies the canonical client record, then reuses the existing dashboard token and PIN gate.
 
 ## Render critique and release record
 
-The first Chromium renders at 1440×1000 and 320×800 scored responsive behavior lowest because Fit all made mobile node copy too small. The revision opens compact viewports at 72% with touch instructions while preserving Fit all as an overview. The unnecessary idea removed was responsive auto-fit as a default; it optimized decoration over reading.
+The first Chromium renders at 1440×1000 and 320×800 scored responsive behavior lowest because Fit all made node copy too small. The revised canvas expands with the browser, occupies most viewport height, and opens long branches at 72% with pan controls. A 1600×1050 Chromium pass confirmed full-width expansion, no covered answer content across all five paths, exclusive overview branch selection, and 320px page reflow.
 
-Final rubric: **21/24**. Brief specificity 2, hierarchy 2, composition 2, consistency 2, typography 2, material logic 2, states 1, responsive behavior 2, accessibility evidence 1, motion 2, authentic content 2, visual distinctiveness 1. Data tests verify that all nodes are reachable from each path entry. Component tests verify six-path navigation, semantic route relationships, and transform changes for keyboard pan, zoom, and reset. Route tests verify canonical slug rejection, fail-closed missing-client handling, PIN redirect, and authorized output. Type-check passes.
+Final rubric: **22/24**. Brief specificity 2, hierarchy 2, composition 2, consistency 2, typography 2, material logic 2, states 2, responsive behavior 2, accessibility evidence 1, motion 2, authentic content 2, visual distinctiveness 1. Data tests verify five connected paths, removal of job-seeker content, and readable question-and-answer coverage. Component tests verify exclusive decision branching, semantic route relationships, and keyboard pan, zoom, and reset. Route tests verify canonical slug rejection, fail-closed missing-client handling, PIN redirect, and authorized output.
 
 Changed-scope evidence: native semantics and names **pass by component tests**; keyboard pan, zoom, and reset transforms **pass by component tests**; pointer cancellation, 44px controls, reduced-motion, and forced-colors rules **pass by source review**; 320px page reflow **passes a Chromium check comparing page scroll width with viewport width plus screenshot review**; canonical authorization **passes route tests**. Representative screen-reader output, manual 200% text zoom, measured contrast tooling, browser matrix, RTL stress, and field performance remain **unverified**; no ADA or WCAG conformance claim is made.

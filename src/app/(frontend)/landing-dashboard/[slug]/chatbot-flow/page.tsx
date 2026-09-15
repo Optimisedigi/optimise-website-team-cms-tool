@@ -48,7 +48,7 @@ export default async function ChatbotFlowPage({ params }: Props) {
 
   return (
     <main className={`od-dashboard-root min-h-screen bg-slate-50 text-slate-900 ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
-      <div className="mx-auto max-w-7xl px-4 pb-8 pt-5 sm:px-6 lg:px-8">
+      <div className="w-full px-4 pb-8 pt-5 sm:px-6 lg:px-8">
         <header className="mb-4 flex flex-col gap-2 border-b border-slate-300 pb-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="mb-1 font-mono text-xs font-medium uppercase tracking-[0.14em] text-slate-600">Review proposal</p>

@@ -4,15 +4,39 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CHATBOT_FLOW_PATHS, type ChatbotFlowNode, type ChatbotFlowTab } from "./chatbot-flow-data";
 import styles from "./ChatbotFlowView.module.css";
 
-const NODE_HEIGHT = 108;
+const DEFAULT_NODE_HEIGHT = 108;
+const NODE_CONTENT_ROOM = 64;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 1.8;
 const PAD = 48;
 const STATE_COLOURS: Record<ChatbotFlowNode["state"], string> = {
   entry: "#1d4ed8", question: "#7c3aed", decision: "#a16207", action: "#0369a1", outcome: "#047857", recovery: "#b91c1c",
 };
+const OVERVIEW_BRANCHES: Partial<Record<string, ChatbotFlowTab["id"]>> = {
+  ready: "ready",
+  assess: "readiness",
+  research: "research",
+};
 
 type View = { x: number; y: number; scale: number };
+
+const nodeHeight = (item: ChatbotFlowNode) => (item.height ?? DEFAULT_NODE_HEIGHT) + NODE_CONTENT_ROOM;
+
+function FlowNodeContent({ item }: { item: ChatbotFlowNode }) {
+  return (
+    <>
+      <span className={styles.nodeState}>{item.state}</span>
+      <h3 className={styles.nodeTitle}>{item.title}</h3>
+      {item.question && <p className={styles.nodeQuestion}>{item.question}</p>}
+      <p className={styles.nodeBody}>{item.body}</p>
+      {item.answers && (
+        <ul className={styles.answers} aria-label={`Answer choices for ${item.title}`}>
+          {item.answers.map((answer) => <li key={answer}>{answer}</li>)}
+        </ul>
+      )}
+    </>
+  );
+}
 
 export function ChatbotFlowView() {
   const [selected, setSelected] = useState<ChatbotFlowTab["id"]>("overview");
@@ -25,7 +49,7 @@ export function ChatbotFlowView() {
 
   const bounds = useMemo(() => {
     const maxX = Math.max(...path.nodes.map((item) => item.x + (item.width ?? 250)));
-    const maxY = Math.max(...path.nodes.map((item) => item.y + NODE_HEIGHT));
+    const maxY = Math.max(...path.nodes.map((item) => item.y + nodeHeight(item)));
     return { width: maxX + PAD, height: maxY + PAD };
   }, [path]);
 
@@ -39,9 +63,14 @@ export function ChatbotFlowView() {
   const framePath = useCallback(() => {
     const el = viewportRef.current;
     if (!el) return;
-    if (el.clientWidth >= 640) { fit(); return; }
-    const scale = 0.72;
-    setView({ x: 16, y: (el.clientHeight - bounds.height * scale) / 2, scale });
+    const readableScale = 0.72;
+    if (el.clientWidth >= 640) {
+      const fitScale = Math.min((el.clientWidth - PAD * 2) / bounds.width, (el.clientHeight - PAD * 2) / bounds.height);
+      if (fitScale >= readableScale) { fit(); return; }
+      setView({ x: PAD, y: Math.max(PAD, (el.clientHeight - bounds.height * readableScale) / 2), scale: readableScale });
+      return;
+    }
+    setView({ x: 16, y: (el.clientHeight - bounds.height * readableScale) / 2, scale: readableScale });
   }, [bounds, fit]);
 
   useEffect(() => { framePath(); }, [framePath]);
@@ -95,7 +124,7 @@ export function ChatbotFlowView() {
       </div>
       <div ref={viewportRef} id="flow-panel" role="tabpanel" aria-labelledby={`flow-tab-${selected}`} aria-describedby="flow-description flow-instructions"
         className={styles.viewport} data-dragging={dragging} tabIndex={0}
-        onPointerDown={(event) => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, viewX: view.x, viewY: view.y }; setDragging(true); }}
+        onPointerDown={(event) => { if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return; event.currentTarget.setPointerCapture(event.pointerId); dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, viewX: view.x, viewY: view.y }; setDragging(true); }}
         onPointerMove={(event) => { const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return; setView((current) => ({ ...current, x: drag.viewX + event.clientX - drag.x, y: drag.viewY + event.clientY - drag.y })); }}
         onPointerUp={(event) => { if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null; setDragging(false); }}
         onPointerCancel={() => { dragRef.current = null; setDragging(false); }}
@@ -119,7 +148,7 @@ export function ChatbotFlowView() {
             {path.edges.map((item) => {
               const from = path.nodes.find((candidate) => candidate.id === item.from)!;
               const to = path.nodes.find((candidate) => candidate.id === item.to)!;
-              const x1 = from.x + (from.width ?? 250), y1 = from.y + NODE_HEIGHT / 2, x2 = to.x, y2 = to.y + NODE_HEIGHT / 2;
+              const x1 = from.x + (from.width ?? 250), y1 = from.y + nodeHeight(from) / 2, x2 = to.x, y2 = to.y + nodeHeight(to) / 2;
               const curve = Math.max(55, Math.abs(x2 - x1) * .45);
               return <path key={`${item.from}-${item.to}-${item.label ?? ""}`} className={styles.edge} markerEnd="url(#flow-arrow)" d={`M ${x1} ${y1} C ${x1 + curve} ${y1}, ${x2 - curve} ${y2}, ${x2} ${y2}`} />;
             })}
@@ -127,11 +156,21 @@ export function ChatbotFlowView() {
           {path.edges.filter((item) => item.label).map((item) => {
             const from = path.nodes.find((candidate) => candidate.id === item.from)!;
             const to = path.nodes.find((candidate) => candidate.id === item.to)!;
-            return <span key={`label-${item.from}-${item.to}`} aria-hidden="true" className={styles.edgeLabel} style={{ left: (from.x + (from.width ?? 250) + to.x) / 2, top: (from.y + to.y + NODE_HEIGHT) / 2 }}>{item.label}</span>;
+            return <span key={`label-${item.from}-${item.to}`} aria-hidden="true" className={styles.edgeLabel} style={{ left: (from.x + (from.width ?? 250) + to.x) / 2, top: (from.y + nodeHeight(from) / 2 + to.y + nodeHeight(to) / 2) / 2 }}>{item.label}</span>;
           })}
-          {path.nodes.map((item) => <article key={item.id} className={styles.node} style={{ left: item.x, top: item.y, width: item.width ?? 250, "--state": STATE_COLOURS[item.state] } as React.CSSProperties}>
-            <span className={styles.nodeState}>{item.state}</span><h3 className={styles.nodeTitle}>{item.title}</h3><p className={styles.nodeBody}>{item.body}</p>
-          </article>)}
+          {path.nodes.map((item) => {
+            const branch = selected === "overview" ? OVERVIEW_BRANCHES[item.id] : undefined;
+            const nodeStyle = { left: item.x, top: item.y, width: item.width ?? 250, height: nodeHeight(item), "--state": STATE_COLOURS[item.state] } as React.CSSProperties;
+            return branch ? (
+              <button key={item.id} type="button" className={`${styles.node} ${styles.nodeButton}`} style={nodeStyle} onClick={() => selectTab(branch)} aria-label={`Open ${item.title} full branch`}>
+                <FlowNodeContent item={item} />
+              </button>
+            ) : (
+              <article key={item.id} className={styles.node} style={nodeStyle}>
+                <FlowNodeContent item={item} />
+              </article>
+            );
+          })}
         </div>
         <p id="flow-instructions" className={styles.instructions}>Drag or use arrow keys to move. Use the controls, +/−, 0 to fit, or Home to reset. Ctrl/Command + wheel zooms. On touch screens, drag and use the zoom buttons.</p>
       </div>

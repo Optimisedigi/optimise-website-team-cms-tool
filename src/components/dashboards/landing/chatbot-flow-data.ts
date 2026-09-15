@@ -1,5 +1,5 @@
 export type ChatbotFlowTab = {
-  id: "overview" | "ready" | "readiness" | "research" | "job-seeker" | "recovery";
+  id: "overview" | "ready" | "readiness" | "research" | "recovery";
   label: string;
   description: string;
 };
@@ -8,120 +8,198 @@ export type ChatbotFlowNode = {
   id: string;
   title: string;
   body: string;
+  question?: string;
+  answers?: string[];
   state: "entry" | "question" | "action" | "outcome" | "recovery" | "decision";
   x: number;
   y: number;
   width?: number;
+  height?: number;
 };
 
-export type ChatbotFlowEdge = {
-  from: string;
-  to: string;
-  label?: string;
-};
-
-export type ChatbotFlowPath = {
-  tab: ChatbotFlowTab;
-  nodes: ChatbotFlowNode[];
-  edges: ChatbotFlowEdge[];
-};
+export type ChatbotFlowEdge = { from: string; to: string; label?: string };
+export type ChatbotFlowPath = { tab: ChatbotFlowTab; nodes: ChatbotFlowNode[]; edges: ChatbotFlowEdge[] };
 
 const tab = (id: ChatbotFlowTab["id"], label: string, description: string): ChatbotFlowTab => ({ id, label, description });
-const node = (id: string, title: string, body: string, state: ChatbotFlowNode["state"], x: number, y: number, width = 250): ChatbotFlowNode => ({ id, title, body, state, x, y, width });
+const node = (
+  id: string,
+  title: string,
+  body: string,
+  state: ChatbotFlowNode["state"],
+  x: number,
+  y: number,
+  options: Pick<ChatbotFlowNode, "question" | "answers" | "width" | "height"> = {},
+): ChatbotFlowNode => ({ id, title, body, state, x, y, ...options });
 const edge = (from: string, to: string, label?: string): ChatbotFlowEdge => ({ from, to, label });
+
+const readinessAnswers = ["0 · Not in place yet", "1 · Partly in place", "2 · Consistently in place"];
 
 export const CHATBOT_FLOW_PATHS: ChatbotFlowPath[] = [
   {
-    tab: tab("overview", "Overview", "Entry routes and persistent ways to change direction."),
+    tab: tab("overview", "Overview", "Choose one starting answer to open its complete conversation branch."),
     nodes: [
-      node("welcome", "Welcome", "Greet the visitor and explain how Away can help.", "entry", 40, 250),
-      node("ready", "Ready to hire", "Qualify a current hiring need.", "decision", 390, 20),
-      node("assess", "Assess readiness", "Complete the 10-step readiness check.", "decision", 390, 180),
-      node("research", "Researching", "Explore practical guidance before deciding.", "decision", 390, 340),
-      node("jobs", "Looking for work", "Route candidates to careers, never sales.", "decision", 390, 500),
-      node("secondary", "Persistent secondary actions", "Book a call · Ask another question · Return to menu · Finish", "action", 760, 250, 290),
+      node("welcome", "Opening message", "Hi, I’m Away’s team assistant. I can help you plan a hire, check whether your business is ready, or answer questions about offshore teams.", "entry", 60, 250, {
+        question: "What would you like help with today?",
+        answers: ["I’m ready to hire", "Assess our readiness", "I’m researching offshore teams"],
+        width: 390,
+        height: 230,
+      }),
+      node("ready", "Ready to hire", "Opens the qualification, market and booking branch.", "decision", 650, 40, { question: "I’m ready to hire", width: 330, height: 145 }),
+      node("assess", "Assess readiness", "Opens the five-question readiness score and recommendations.", "decision", 650, 255, { question: "Assess our readiness", width: 330, height: 145 }),
+      node("research", "Researching", "Opens guidance, checklist delivery and optional follow-up.", "decision", 650, 470, { question: "I’m researching offshore teams", width: 330, height: 145 }),
+      node("secondary", "Available throughout", "Visitors can always change direction without losing their place.", "action", 1190, 250, {
+        question: "What would you like to do next?",
+        answers: ["Book a call", "Ask another question", "Return to the main menu", "Finish"],
+        width: 380,
+        height: 230,
+      }),
     ],
-    edges: [edge("welcome", "ready", "I’m ready to hire"), edge("welcome", "assess", "Assess our readiness"), edge("welcome", "research", "I’m researching"), edge("welcome", "jobs", "I’m looking for work"), edge("ready", "secondary"), edge("assess", "secondary"), edge("research", "secondary"), edge("jobs", "secondary")],
+    edges: [edge("welcome", "ready", "I’m ready to hire"), edge("welcome", "assess", "Assess our readiness"), edge("welcome", "research", "I’m researching"), edge("ready", "secondary"), edge("assess", "secondary"), edge("research", "secondary")],
   },
   {
-    tab: tab("ready", "Ready to hire", "Qualification, market routing, booking, and calendar recovery."),
+    tab: tab("ready", "Ready to hire", "The exact qualification questions, choices, booking route and recovery."),
     nodes: [
-      node("role", "Role needed", "Choose a role or enter optional role text.", "question", 20, 180),
-      node("size", "Team size", "Confirm the expected team size.", "question", 340, 180),
-      node("timing", "Hiring timing", "Now · 1–3 months · Later · Not sure", "question", 660, 180),
-      node("market", "Market", "Ask only when the visitor’s market is unknown.", "decision", 980, 180),
-      node("au", "Australia destination", "Route to the approved Australia owner.", "outcome", 1300, 20),
-      node("uk", "United Kingdom destination", "Route to the approved UK owner.", "outcome", 1300, 180),
-      node("intl", "International destination", "Implementation decision: confirm the international owner.", "recovery", 1300, 340),
-      node("book", "Embedded booking", "Keep the visitor in the conversation while selecting a time.", "action", 1650, 180),
-      node("checklist", "Post-booking checklist", "Offer the readiness checklist after booking.", "outcome", 1980, 100),
-      node("calendar", "Calendar unavailable", "Offer a retry, human follow-up, or checklist. Never dead-end.", "recovery", 1980, 300),
+      node("role", "Question 1 · Role", "Use optional free text when none of the choices fit.", "question", 40, 220, {
+        question: "What kind of role are you looking to hire?",
+        answers: ["Virtual assistant / administration", "Sales or customer support", "Marketing", "Finance or operations", "Something else"],
+        width: 360,
+        height: 260,
+      }),
+      node("size", "Question 2 · Team size", "This helps Away recommend the right hiring approach.", "question", 560, 220, {
+        question: "How many people are you looking to hire?",
+        answers: ["1 person", "2–3 people", "4 or more", "I’m not sure yet"],
+        width: 340,
+        height: 235,
+      }),
+      node("timing", "Question 3 · Timing", "Every answer continues; uncertainty never creates a dead end.", "question", 1060, 220, {
+        question: "When would you like your new team member to start?",
+        answers: ["As soon as possible", "Within 1–3 months", "Later than 3 months", "I’m not sure yet"],
+        width: 350,
+        height: 235,
+      }),
+      node("market", "Question 4 · Market", "Skip this question when the visitor’s market is already known.", "decision", 1570, 220, {
+        question: "Which market is your business hiring for?",
+        answers: ["Australia", "United Kingdom", "Another market"],
+        width: 340,
+        height: 220,
+      }),
+      node("destination", "Booking owner", "Australia and UK use their approved owners. Another market must use the confirmed international owner.", "decision", 2070, 80, {
+        question: "Would you like to speak with the relevant hiring specialist?",
+        answers: ["Yes, show available times", "Not yet, send me the checklist", "Return to the main menu"],
+        width: 380,
+        height: 235,
+      }),
+      node("book", "Embedded booking", "Show the calendar inside the conversation and keep the visitor’s answers.", "action", 2590, 80, {
+        question: "Choose a time that works for you.",
+        answers: ["Available calendar times", "None of these times work", "I’ll book later"],
+        width: 370,
+        height: 220,
+      }),
+      node("checklist", "After booking", "Confirm the booking, then offer practical preparation material.", "outcome", 3110, 20, {
+        question: "Would you also like our offshore hiring readiness checklist?",
+        answers: ["Yes, send the checklist", "No thanks", "Ask another question"],
+        width: 380,
+        height: 220,
+      }),
+      node("calendar", "Calendar unavailable", "Never dead-end when scheduling is unavailable.", "recovery", 3110, 350, {
+        question: "The calendar isn’t available right now. What would you prefer?",
+        answers: ["Try the calendar again", "Ask the Away team to contact me", "Get the checklist instead", "Return to the main menu"],
+        width: 390,
+        height: 250,
+      }),
     ],
-    edges: [edge("role", "size"), edge("size", "timing"), edge("timing", "market", "Market unknown"), edge("timing", "au", "Known: Australia"), edge("timing", "uk", "Known: UK"), edge("timing", "intl", "Known: other"), edge("market", "au", "Australia"), edge("market", "uk", "United Kingdom"), edge("market", "intl", "Other market"), edge("au", "book"), edge("uk", "book"), edge("intl", "book"), edge("book", "checklist", "Booked"), edge("book", "calendar", "Calendar fails")],
+    edges: [edge("role", "size"), edge("size", "timing"), edge("timing", "market", "Market unknown"), edge("timing", "destination", "Market already known"), edge("market", "destination", "Australia, UK or another market"), edge("destination", "book", "Show available times"), edge("destination", "checklist", "Send checklist"), edge("book", "checklist", "Booking confirmed"), edge("book", "calendar", "Calendar fails")],
   },
   {
-    tab: tab("readiness", "Readiness check", "Five paired questions cover PDF steps 1–10 and route by score."),
+    tab: tab("readiness", "Readiness check", "Five exact questions cover the ten readiness areas and route by score."),
     nodes: [
-      node("intro", "Readiness check", "Answer five paired questions using the common 0–2 answer scale.", "entry", 20, 230),
-      node("q1", "Question 1 · PDF 1 + 6", "0 Not in place · 1 Partly in place · 2 Consistently in place", "question", 340, 20, 280),
-      node("q2", "Question 2 · PDF 2 + 3", "0 Not in place · 1 Partly in place · 2 Consistently in place", "question", 340, 150, 280),
-      node("q3", "Question 3 · PDF 4 + 8", "0 Not in place · 1 Partly in place · 2 Consistently in place", "question", 340, 280, 280),
-      node("q4", "Question 4 · PDF 5 + 9", "0 Not in place · 1 Partly in place · 2 Consistently in place", "question", 340, 410, 280),
-      node("q5", "Question 5 · PDF 7 + 10", "0 Not in place · 1 Partly in place · 2 Consistently in place", "question", 340, 540, 280),
-      node("score", "Calculate score", "Proposal routing guidance only. Final implementation must validate scoring and advice.", "decision", 720, 230, 300),
-      node("high", "8–10 · Ready", "Recommend booking; also offer the checklist.", "outcome", 1110, 40),
-      node("mid", "4–7 · Build foundations", "Offer the checklist and an optional booking.", "outcome", 1110, 230),
-      node("low", "0–3 · Start with essentials", "Offer the checklist and a supportive booking route.", "outcome", 1110, 420),
-      node("book", "Book a call", "Open the embedded booking route.", "action", 1470, 160),
-      node("checklist", "Get the checklist", "Continue to checklist delivery.", "action", 1470, 360),
+      node("intro", "Readiness check introduction", "Each answer scores 0, 1 or 2. The result is guidance, not a final assessment.", "entry", 30, 260, {
+        question: "Would you like to check how ready your business is to hire offshore?",
+        answers: ["Yes, start the five questions", "Tell me how scoring works", "Return to the main menu"], width: 390, height: 230,
+      }),
+      node("q1", "Question 1 · Role and onboarding", "Covers PDF readiness areas 1 + 6.", "question", 570, 20, { question: "Do you have a clearly defined role and a repeatable onboarding plan?", answers: readinessAnswers, width: 390, height: 220 }),
+      node("q2", "Question 2 · Tasks and processes", "Covers PDF readiness areas 2 + 3.", "question", 570, 330, { question: "Have you documented the tasks, tools and processes this person will use?", answers: readinessAnswers, width: 390, height: 220 }),
+      node("q3", "Question 3 · Management and feedback", "Covers PDF readiness areas 4 + 8.", "question", 570, 640, { question: "Does someone own day-to-day management, quality checks and feedback?", answers: readinessAnswers, width: 390, height: 220 }),
+      node("q4", "Question 4 · Communication and success", "Covers PDF readiness areas 5 + 9.", "question", 1110, 150, { question: "Are working hours, communication rhythms and success measures agreed?", answers: readinessAnswers, width: 390, height: 220 }),
+      node("q5", "Question 5 · Access and development", "Covers PDF readiness areas 7 + 10.", "question", 1110, 470, { question: "Are system access, security and the first 90 days of development planned?", answers: readinessAnswers, width: 390, height: 220 }),
+      node("score", "Calculate readiness score", "Add the five answers. Proposal routing guidance only; validate final scoring and advice before launch.", "decision", 1650, 290, { width: 380, height: 180 }),
+      node("high", "8–10 · Ready to proceed", "Your foundations look strong enough to discuss the role and hiring plan.", "outcome", 2190, 20, { question: "What would you like to do next?", answers: ["Book a hiring call", "Get the checklist", "Ask another question"], width: 380, height: 220 }),
+      node("mid", "4–7 · Build the foundations", "A few practical gaps should be tightened before hiring.", "outcome", 2190, 330, { question: "What would help most?", answers: ["Get the checklist", "Book a planning call", "Review my answers"], width: 380, height: 220 }),
+      node("low", "0–3 · Start with essentials", "Build the role, process and management basics before committing to a hire.", "outcome", 2190, 640, { question: "What would help most?", answers: ["Get the checklist", "Book a supportive planning call", "Review my answers"], width: 380, height: 220 }),
     ],
-    edges: [edge("intro", "q1"), edge("intro", "q2"), edge("intro", "q3"), edge("intro", "q4"), edge("intro", "q5"), edge("q1", "score"), edge("q2", "score"), edge("q3", "score"), edge("q4", "score"), edge("q5", "score"), edge("score", "high", "8–10"), edge("score", "mid", "4–7"), edge("score", "low", "0–3"), edge("high", "book"), edge("high", "checklist"), edge("mid", "book"), edge("mid", "checklist"), edge("low", "book"), edge("low", "checklist")],
+    edges: [edge("intro", "q1", "Start"), edge("q1", "q2"), edge("q2", "q3"), edge("q3", "q4"), edge("q4", "q5"), edge("q5", "score"), edge("score", "high", "8–10"), edge("score", "mid", "4–7"), edge("score", "low", "0–3")],
   },
   {
-    tab: tab("research", "Research", "Guidance, checklist delivery, separate consent, and next actions."),
+    tab: tab("research", "Research", "Exact research choices, guidance, checklist delivery and separate consent."),
     nodes: [
-      node("topic", "Choose a research topic", "Costs · Hiring process · Team structure · Remote collaboration · Other", "question", 20, 220, 280),
-      node("answer", "Answer the topic", "Give concise proposal-approved guidance, then offer useful next steps.", "action", 370, 220, 280),
-      node("offer", "Checklist", "Email the checklist or skip delivery.", "decision", 720, 220),
-      node("email", "Email address", "Validate the address before attempting delivery.", "question", 1040, 80),
-      node("invalid", "Invalid email", "Explain the format and keep the entered value for correction.", "recovery", 1040, 300),
-      node("access", "Immediate checklist access", "Show access even if email delivery fails.", "outcome", 1380, 80),
-      node("failure", "Delivery failure", "Keep immediate access and offer retry or human help.", "recovery", 1380, 300),
-      node("consent", "Separate follow-up consent", "Ask after delivery. No preselection and no effect on checklist access.", "decision", 1720, 80, 280),
-      node("next", "Choose next step", "Book · Readiness check · Ask another question · Finish", "outcome", 2070, 180, 280),
+      node("topic", "Question 1 · Topic", "Answer the selected topic concisely before offering the next step.", "question", 30, 220, {
+        question: "What would you like to understand about building an offshore team?",
+        answers: ["Typical costs", "How the hiring process works", "Choosing the right team structure", "Managing a remote team", "Something else"],
+        width: 400,
+        height: 265,
+      }),
+      node("answer", "Helpful answer", "Give proposal-approved guidance for the chosen topic. Do not force qualification.", "action", 590, 220, {
+        question: "Was that helpful, or would you like to go deeper?",
+        answers: ["Show me the readiness checklist", "I have another question", "I’m ready to discuss hiring", "That’s all for now"],
+        width: 390,
+        height: 250,
+      }),
+      node("offer", "Checklist offer", "Checklist access never depends on marketing consent.", "decision", 1140, 220, {
+        question: "Would you like the offshore hiring readiness checklist?",
+        answers: ["Yes, email it to me", "Open it without email", "No thanks"],
+        width: 370,
+        height: 220,
+      }),
+      node("email", "Email address", "Validate the address and retain the entered value when correction is needed.", "question", 1670, 50, {
+        question: "What email address should we send the checklist to?",
+        answers: ["Enter email address", "Open the checklist without email", "Return to the main menu"],
+        width: 390,
+        height: 220,
+      }),
+      node("invalid", "Invalid email", "Explain the expected format without clearing the visitor’s answer.", "recovery", 1670, 350, {
+        question: "That email address doesn’t look complete. Would you like to correct it?",
+        answers: ["Correct my email", "Open the checklist without email", "Ask for help"],
+        width: 390,
+        height: 220,
+      }),
+      node("access", "Checklist access", "Show immediate access even if email delivery fails.", "outcome", 2220, 100, {
+        question: "Your checklist is ready. What would you like to do next?",
+        answers: ["Open the checklist", "Book a call", "Take the readiness check", "Ask another question"],
+        width: 390,
+        height: 245,
+      }),
+      node("consent", "Separate follow-up consent", "Ask after delivery, never preselect it, and do not change checklist access.", "decision", 2770, 100, {
+        question: "Can Away Digital Teams follow up with useful hiring advice?",
+        answers: ["Yes, I’d like relevant follow-up", "No thanks"],
+        width: 390,
+        height: 210,
+      }),
+      node("failure", "Delivery unavailable", "Keep immediate checklist access and offer a useful recovery.", "recovery", 2220, 420, {
+        question: "Email delivery didn’t work. What would you prefer?",
+        answers: ["Try sending again", "Open the checklist now", "Ask the Away team to contact me"],
+        width: 390,
+        height: 220,
+      }),
     ],
-    edges: [edge("topic", "answer"), edge("answer", "offer"), edge("offer", "email", "Email it"), edge("offer", "next", "Skip"), edge("email", "invalid", "Invalid"), edge("invalid", "email", "Correct"), edge("email", "access", "Valid"), edge("email", "failure", "Delivery fails"), edge("failure", "access", "Continue now"), edge("access", "consent"), edge("consent", "next", "Yes or no")],
+    edges: [edge("topic", "answer"), edge("answer", "offer", "Checklist"), edge("offer", "email", "Email it"), edge("offer", "access", "Open now"), edge("email", "invalid", "Invalid address"), edge("invalid", "email", "Correct email"), edge("email", "access", "Sent"), edge("email", "failure", "Delivery fails"), edge("failure", "access", "Continue now"), edge("access", "consent", "Checklist delivered")],
   },
   {
-    tab: tab("job-seeker", "Job seeker", "A clear careers route with no sales-lead qualification."),
+    tab: tab("recovery", "Recovery", "Exact recovery prompts keep every supported interruption useful."),
     nodes: [
-      node("identify", "Looking for work", "Acknowledge that this path is for candidates.", "entry", 30, 150),
-      node("rule", "No sales qualification", "Do not ask hiring budget, company size, timing, or market questions.", "decision", 380, 150, 290),
-      node("careers", "Careers destination", "Implementation decision: confirm the approved careers destination.", "recovery", 760, 60, 290),
-      node("return", "Return to main menu", "Let visitors change direction without restarting.", "action", 760, 250, 290),
+      node("input", "Conversation interruption", "Route from the point of failure while preserving known answers.", "entry", 30, 280, {
+        question: "What happened?",
+        answers: ["I entered something unexpected", "I want a person", "The calendar failed", "The email failed", "I came back later"],
+        width: 390,
+        height: 250,
+      }),
+      node("unknown", "Unexpected answer", "Ask once more with clear choices, then offer human help.", "recovery", 580, 20, { question: "I didn’t understand that. Which option is closest?", answers: ["Show the choices again", "Ask another question", "Speak to a person", "Main menu"], width: 390, height: 235 }),
+      node("human", "Human requested", "Preserve the conversation context when handing off.", "recovery", 580, 350, { question: "How would you like the Away team to help?", answers: ["Book a call", "Ask the team to contact me", "Keep using the assistant"], width: 390, height: 220 }),
+      node("technical", "Calendar or email failure", "Explain the failure plainly; never imply success.", "recovery", 580, 680, { question: "That action didn’t complete. What would you like to do?", answers: ["Try again", "Continue without it", "Ask the Away team to contact me", "Main menu"], width: 390, height: 235 }),
+      node("returning", "Returning visitor", "Restore known context, but let the visitor restart.", "recovery", 1130, 150, { question: "Welcome back. Would you like to continue where you left off?", answers: ["Continue", "Start again", "Main menu"], width: 390, height: 220 }),
+      node("destinations", "Safe destinations", "Every recovery offers a useful next step and never dead-ends.", "outcome", 1690, 280, { question: "What would you like to do next?", answers: ["Continue this path", "Book a call", "Ask another question", "Return to the main menu", "Finish"], width: 400, height: 250 }),
     ],
-    edges: [edge("identify", "rule"), edge("rule", "careers", "View opportunities"), edge("rule", "return", "Not what I need")],
-  },
-  {
-    tab: tab("recovery", "Recovery", "Known requests, failures, return visits, and every no-dead-end route."),
-    nodes: [
-      node("input", "Unexpected input", "Classify the request without inventing an answer.", "entry", 20, 260),
-      node("known", "Known free text", "Map a clear request to the matching authored route.", "action", 350, 20),
-      node("unknown", "Unsupported or unknown", "Say what is understood, do not guess, and show supported choices.", "recovery", 350, 150),
-      node("human", "Human requested", "Capture the minimum contact details and explain the handoff.", "recovery", 350, 280),
-      node("market", "Unknown market", "Ask the market, then use an approved owner. International owner remains a decision.", "recovery", 350, 410),
-      node("calendar", "Calendar failure", "Retry · Human follow-up · Checklist", "recovery", 750, 20),
-      node("email", "Email failure", "Immediate access · Retry · Human help", "recovery", 750, 150),
-      node("returning", "Returning known contact", "Welcome back without exposing stored personal details; allow correction.", "decision", 750, 280),
-      node("abandon", "Abandonment nudge", "One quiet reminder, then leave the visitor in control.", "decision", 750, 410),
-      node("destinations", "Useful destination", "Book · Checklist · Readiness · Main menu · Human help · Finish", "outcome", 1150, 220, 300),
-    ],
-    edges: [edge("input", "known", "Recognised"), edge("input", "unknown", "Not recognised"), edge("input", "human", "Human help"), edge("input", "market", "Market needed"), edge("input", "calendar", "Calendar fails"), edge("input", "email", "Email fails"), edge("input", "returning", "Known contact returns"), edge("input", "abandon", "Conversation pauses"), edge("known", "destinations"), edge("unknown", "destinations"), edge("human", "destinations"), edge("market", "destinations"), edge("calendar", "destinations"), edge("email", "destinations"), edge("returning", "destinations"), edge("abandon", "destinations")],
+    edges: [edge("input", "unknown", "Unexpected input"), edge("input", "human", "Human requested"), edge("input", "technical", "Calendar or email fails"), edge("input", "returning", "Returning visitor"), edge("unknown", "destinations"), edge("human", "destinations"), edge("technical", "destinations"), edge("returning", "destinations")],
   },
 ];
 
 export const CHATBOT_FLOW_TABS = CHATBOT_FLOW_PATHS.map((path) => path.tab);
-
-export function getChatbotFlowPath(id: ChatbotFlowTab["id"]): ChatbotFlowPath {
-  return CHATBOT_FLOW_PATHS.find((path) => path.tab.id === id) ?? CHATBOT_FLOW_PATHS[0];
-}

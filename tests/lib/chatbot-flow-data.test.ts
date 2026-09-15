@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { CHATBOT_FLOW_PATHS, CHATBOT_FLOW_TABS } from "@/components/dashboards/landing/chatbot-flow-data";
 
 describe("Away chatbot flow proposal data", () => {
-  it("defines six unique, internally connected paths", () => {
+  it("defines five unique, internally connected paths without a job-seeker branch", () => {
     expect(CHATBOT_FLOW_TABS.map((tab) => tab.id)).toEqual([
-      "overview", "ready", "readiness", "research", "job-seeker", "recovery",
+      "overview", "ready", "readiness", "research", "recovery",
     ]);
 
     for (const path of CHATBOT_FLOW_PATHS) {
@@ -28,35 +28,50 @@ describe("Away chatbot flow proposal data", () => {
       }
       expect([...reachable].sort(), `${path.tab.id}: every route must connect from its entry`).toEqual([...ids].sort());
     }
+
+    const allCopy = JSON.stringify(CHATBOT_FLOW_PATHS).toLowerCase();
+    expect(allCopy).not.toContain("looking for work");
+    expect(allCopy).not.toContain("job seeker");
+    expect(allCopy).not.toContain("careers");
+  });
+
+  it("provides readable question and answer copy for every user-facing question", () => {
+    for (const path of CHATBOT_FLOW_PATHS) {
+      for (const item of path.nodes.filter((node) => node.answers)) {
+        expect(item.question?.trim().length, `${path.tab.id}/${item.id} needs visible question copy`).toBeGreaterThan(0);
+        expect(item.answers?.length, `${path.tab.id}/${item.id} needs visible answers`).toBeGreaterThanOrEqual(2);
+      }
+    }
+
+    const copy = JSON.stringify(CHATBOT_FLOW_PATHS);
+    for (const question of [
+      "What kind of role are you looking to hire?",
+      "How many people are you looking to hire?",
+      "When would you like your new team member to start?",
+      "Which market is your business hiring for?",
+      "What would you like to understand about building an offshore team?",
+    ]) expect(copy).toContain(question);
   });
 
   it("retains every readiness pairing, score outcome, and routing caveat", () => {
     const readiness = CHATBOT_FLOW_PATHS.find((path) => path.tab.id === "readiness")!;
-    const copy = readiness.nodes.map(({ title, body }) => `${title} ${body}`).join(" ");
-    for (const pairing of ["1 + 6", "2 + 3", "4 + 8", "5 + 9", "7 + 10"]) {
-      expect(copy).toContain(pairing);
-    }
-    for (let step = 1; step <= 10; step += 1) expect(copy).toMatch(new RegExp(`(?:PDF |\\+ )${step}(?:\\D|$)`));
+    const copy = readiness.nodes.map(({ title, body, question, answers }) => `${title} ${body} ${question} ${answers?.join(" ")}`).join(" ");
+    for (const pairing of ["1 + 6", "2 + 3", "4 + 8", "5 + 9", "7 + 10"]) expect(copy).toContain(pairing);
     for (const band of ["8–10", "4–7", "0–3"]) expect(copy).toContain(band);
     expect(copy).toContain("Proposal routing guidance only");
     for (const band of ["high", "mid", "low"]) {
-      expect(readiness.edges).toEqual(expect.arrayContaining([
-        expect.objectContaining({ from: band, to: "book" }),
-        expect.objectContaining({ from: band, to: "checklist" }),
-      ]));
+      const outcome = readiness.nodes.find((node) => node.id === band)!;
+      expect(outcome.answers?.join(" ")).toMatch(/Book|planning call/);
+      expect(outcome.answers?.join(" ")).toContain("checklist");
     }
   });
 
-  it("keeps required routes, fallbacks, consent, and unresolved decisions explicit", () => {
-    const allCopy = CHATBOT_FLOW_PATHS.map((path) => [
-      ...path.nodes.map(({ title, body }) => `${title} ${body}`),
-      ...path.edges.map(({ label }) => label ?? ""),
-    ].join(" ")).join(" ");
+  it("keeps required fallbacks, consent, and unresolved ownership explicit", () => {
+    const copy = JSON.stringify(CHATBOT_FLOW_PATHS);
     for (const marker of [
-      "Persistent secondary actions", "optional role text", "Market unknown", "International destination",
-      "Calendar unavailable", "Invalid email", "Immediate checklist access", "Separate follow-up consent",
-      "No sales qualification", "Careers destination", "Known free text", "Unsupported or unknown",
-      "Human requested", "Returning known contact", "Abandonment nudge", "Never dead-end",
-    ]) expect(allCopy).toContain(marker);
+      "optional free text", "Market unknown", "international owner", "Calendar unavailable",
+      "Invalid email", "Checklist access", "Separate follow-up consent", "Human requested",
+      "Returning visitor", "never dead-end",
+    ]) expect(copy).toContain(marker);
   });
 });
