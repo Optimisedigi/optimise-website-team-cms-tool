@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import RocketSplash from "@/components/RocketSplash";
 import { resolveLandingPage, type LandingPageMeta } from "@/lib/landing-page-sections";
-import { isAwayDigitalSlug } from "@/lib/away-digital";
+import { AWAY_DIGITAL_SLUG, isAwayDigitalSlug } from "@/lib/away-digital";
 import {
   DEFAULT_LANDING_DATE_RANGE,
   LANDING_RANGE_OPTIONS,
@@ -701,6 +701,14 @@ export function LandingExperimentTab({
                   {clientName}
                 </h1>
                 <span className="text-lg font-normal text-slate-400">Landing Page Performance</span>
+                {isAwayDigitalSlug(slug) && (
+                  <a
+                    href={`/landing-dashboard/${AWAY_DIGITAL_SLUG}/chatbot-flow`}
+                    className="text-sm font-semibold text-blue-600 underline decoration-blue-300 underline-offset-4 hover:text-blue-800 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                  >
+                    HubSpot flow chart
+                  </a>
+                )}
               </div>
             )}
             {data.experiment && (
@@ -937,11 +945,6 @@ export function LandingExperimentTab({
             label="Google Ads clicks"
             value={googleAdsClicks.toLocaleString()}
             note="Mapped ad-group clicks from Google Ads"
-          />
-          <StatCard
-            label="Google Ads sessions"
-            value={headlineSessions.toLocaleString()}
-            note={`${landingDateRangeLabel(range)}${page ? ` · ${pageLabel(page)}` : ""}`}
           />
           <StatCard
             label="Engaged sessions"

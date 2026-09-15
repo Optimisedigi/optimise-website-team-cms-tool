@@ -156,7 +156,7 @@ describe("checklist sign-ups on the market and device tables", () => {
     expect(screen.queryByRole("heading", { name: "Other conversions" })).toBeNull();
   });
 
-  it("shows the Google Ads funnel in the headline cards", async () => {
+  it("shows the Google Ads funnel without the duplicate sessions card", async () => {
     renderTab({
       variants: [
         { variantId: "a", sessions: 2079, conversions: 110, conversionRate: 0.053, interval: [0, 0], eventCounts: {} },
@@ -166,7 +166,7 @@ describe("checklist sign-ups on the market and device tables", () => {
     await screen.findByRole("heading", { name: "Markets" });
     expect(screen.getByText("Google Ads clicks")).toBeTruthy();
     expect(screen.getByText("2,400")).toBeTruthy();
-    expect(screen.getByText("Google Ads sessions")).toBeTruthy();
+    expect(screen.queryByText("Google Ads sessions")).toBeNull();
     expect(screen.getByText("Engaged sessions")).toBeTruthy();
     expect(screen.getByText("Checklist sign-ups")).toBeTruthy();
     expect(screen.queryByText("Biggest leak")).toBeNull();

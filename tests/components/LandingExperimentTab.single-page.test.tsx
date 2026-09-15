@@ -86,6 +86,23 @@ function stubFetch() {
 afterEach(() => vi.restoreAllMocks());
 
 describe("LandingExperimentTab with a single landing page", () => {
+  it("links Away stakeholders to the flow chart without the duplicate sessions card", async () => {
+    stubFetch();
+    render(
+      <LandingExperimentTab
+        slug="away-digital-teams"
+        clientName="Away Digital Teams"
+        standaloneHeader
+      />,
+    );
+
+    expect(await screen.findByRole("link", { name: "HubSpot flow chart" })).toHaveAttribute(
+      "href",
+      "/landing-dashboard/away-digital-teams/chatbot-flow",
+    );
+    expect(screen.queryByText("Google Ads sessions")).not.toBeInTheDocument();
+  });
+
   it("shows the page preview once that page is selected", async () => {
     stubFetch();
     render(<LandingExperimentTab slug="away-digital" />);
