@@ -81,3 +81,32 @@ The internal Client Billing field, public `/hosting-pay/[token]` review page and
 - Device filters are `aria-pressed` buttons; page/range selects have visible labels; loading is `role="status"` and the error card `role="alert"`.
 - Muted text is held at slate-500 or darker rather than the mockup's lighter grey, which fails AA at small sizes. Amber and teal are used with text weight, never as the sole signal.
 - Verified in Chromium at 1440px and 390px against a full fixture during implementation. Screen-reader, 200% zoom, forced-colors and reduced-motion checks remain release checks.
+
+# Away chatbot flow review
+
+## Scope and design read
+
+- **Surface:** client-facing, read-only process map for reviewing a proposed chatbot before implementation.
+- **Audience and job:** Away stakeholders compare six complete paths, identify omissions, and resolve explicitly marked ownership decisions.
+- **Risk:** wrong routing, implied scoring certainty, hidden consent, or a dead end could enter the implementation unnoticed.
+- **Platform:** PIN-gated Next.js dashboard at the canonical Away slug, supporting desktop, 320px, pointer, touch, and keyboard.
+
+## Thesis and system
+
+The screen is a conversation blueprint rather than a live chatbot. One compact header establishes review status; tabbed paths keep the canvas bounded; neutral white nodes use a labelled, high-contrast left rule to distinguish entry, question, decision, action, outcome, and recovery. Curved connectors and authored branch labels express routing. Space Grotesk and JetBrains Mono reuse the landing dashboard’s type roles. The canvas is the memorable device; no decorative icons, gradients, hover lifts, or invented metrics compete with it.
+
+## Components, behavior, and evidence
+
+- Six native tabs use roving focus and Arrow, Home, and End behavior. The selected path remains named and described.
+- The canvas supports drag, wheel pan, Ctrl/Command-wheel zoom, keyboard pan, zoom buttons, fit, reset, touch drag, pointer cancellation, and visible focus.
+- Desktop fits the full graph. Narrow screens open at a readable scale and use the bounded canvas for panning; Fit all remains available.
+- Proposal caveats remain explicit: readiness scoring is guidance, and international and careers destinations require implementation decisions.
+- The server rejects every non-canonical slug before database or token work, verifies the canonical client record, then reuses the existing dashboard token and PIN gate.
+
+## Render critique and release record
+
+The first Chromium renders at 1440×1000 and 320×800 scored responsive behavior lowest because Fit all made mobile node copy too small. The revision opens compact viewports at 72% with touch instructions while preserving Fit all as an overview. The unnecessary idea removed was responsive auto-fit as a default; it optimized decoration over reading.
+
+Final rubric: **21/24**. Brief specificity 2, hierarchy 2, composition 2, consistency 2, typography 2, material logic 2, states 1, responsive behavior 2, accessibility evidence 1, motion 2, authentic content 2, visual distinctiveness 1. Data tests verify that all nodes are reachable from each path entry. Component tests verify six-path navigation, semantic route relationships, and transform changes for keyboard pan, zoom, and reset. Route tests verify canonical slug rejection, fail-closed missing-client handling, PIN redirect, and authorized output. Type-check passes.
+
+Changed-scope evidence: native semantics and names **pass by component tests**; keyboard pan, zoom, and reset transforms **pass by component tests**; pointer cancellation, 44px controls, reduced-motion, and forced-colors rules **pass by source review**; 320px page reflow **passes a Chromium check comparing page scroll width with viewport width plus screenshot review**; canonical authorization **passes route tests**. Representative screen-reader output, manual 200% text zoom, measured contrast tooling, browser matrix, RTL stress, and field performance remain **unverified**; no ADA or WCAG conformance claim is made.
