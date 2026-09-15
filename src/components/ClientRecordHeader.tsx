@@ -12,6 +12,7 @@ import {
   oneOffsYTD,
   retainerRevenueYTD,
   revenueShareFactor,
+  setupFeeYTD,
   type HistoricalRevenueYear,
   type ReferralCommission,
   type RetainerHistoryEntry,
@@ -63,6 +64,7 @@ type SavedData = {
   services: ServiceValue[]
   clientOverview: unknown
   // Billing inputs for the revenue strip.
+  clientType: string
   monthlyRetainer: number
   setupFee: number
   revenueSharePercent: number
@@ -128,9 +130,11 @@ function computeRevenue(d: SavedData): RevenueStrip {
         : s,
     0,
   )
+  const setupFeeRevenue = setupFeeYTD(d, now)
   const retainerRevenue =
     (retainerRevenueYTD(
       {
+        clientType: d.clientType,
         monthlyRetainer: d.monthlyRetainer,
         setupFee: d.setupFee,
         clientStartDate: d.clientStartDate,
@@ -143,7 +147,8 @@ function computeRevenue(d: SavedData): RevenueStrip {
     ) +
       priorPeriodThisYear) *
     share
-  const oneOffTotal = oneOffsYTD(d.oneOffProjects, now, false) * share
+  const oneOffTotal =
+    (oneOffsYTD(d.oneOffProjects, now, false) + setupFeeRevenue) * share
   const historicalFull = historicalRevenueTotal(d.historicalRevenueByYear)
   const priorYearsHistorical = (historicalFull - priorPeriodThisYear) * share
   const total = retainerRevenue + oneOffTotal + priorYearsHistorical
@@ -171,7 +176,7 @@ function relationshipId(value: RelationshipValue): string | null {
 }
 
 const CLIENT_HEADER_SELECT =
-  '?depth=0&select[name]=true&select[websiteUrl]=true&select[slug]=true&select[isActive]=true&select[isAgency]=true&select[logoThumbUrl]=true&select[clientPin]=true&select[services]=true&select[clientOverview]=true&select[monthlyRetainer]=true&select[setupFee]=true&select[revenueSharePercent]=true&select[clientStartDate]=true&select[retainerStartDate]=true&select[oneOffProjects]=true&select[retainerHistory]=true&select[referralCommissions]=true&select[historicalRevenueByYear]=true'
+  '?depth=0&select[name]=true&select[websiteUrl]=true&select[slug]=true&select[isActive]=true&select[isAgency]=true&select[logoThumbUrl]=true&select[clientPin]=true&select[services]=true&select[clientOverview]=true&select[clientType]=true&select[monthlyRetainer]=true&select[setupFee]=true&select[revenueSharePercent]=true&select[clientStartDate]=true&select[retainerStartDate]=true&select[oneOffProjects]=true&select[retainerHistory]=true&select[referralCommissions]=true&select[historicalRevenueByYear]=true'
 
 const CLIENT_HEADER_SELECT_LEGACY = CLIENT_HEADER_SELECT.replace('&select[clientOverview]=true', '')
 
@@ -313,6 +318,7 @@ function normalizeClient(doc: any): SavedData {
         )
       : [],
     clientOverview: doc.clientOverview ?? null,
+    clientType: typeof doc.clientType === 'string' ? doc.clientType : 'recurring',
     monthlyRetainer: Number(doc.monthlyRetainer ?? 0),
     setupFee: Number(doc.setupFee ?? 0),
     revenueSharePercent: Number(doc.revenueSharePercent ?? 100),

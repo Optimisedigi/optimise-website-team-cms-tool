@@ -369,12 +369,17 @@ export const Clients: CollectionConfig = {
         const retainerHistory = Array.isArray(doc?.retainerHistory) ? doc.retainerHistory : [];
 
         const now = new Date();
-        const oneOffTotal = oneOffProjects.reduce(
-          (sum: number, p: any) => sum + (Number(p?.amount) || 0),
-          0,
-        );
+        const oneOffTotal =
+          oneOffProjects.reduce(
+            (sum: number, p: any) => sum + (Number(p?.amount) || 0),
+            0,
+          ) +
+          (doc?.clientType === "one_off"
+            ? Math.max(0, Number(doc?.setupFee) || 0)
+            : 0);
         const retainerRevenue = retainerRevenueYTD(
           {
+            clientType: doc?.clientType as string | null,
             monthlyRetainer: Number(doc?.monthlyRetainer) || 0,
             setupFee: Number(doc?.setupFee) || 0,
             clientStartDate: doc?.clientStartDate as string | null,
@@ -1403,7 +1408,7 @@ export const Clients: CollectionConfig = {
                   min: 0,
                   access: sensitiveFieldAccess("clients"),
                   admin: {
-                    description: "One-time, counts toward retainer YTD",
+                    description: "Setup fee; one-off clients appear under One-Off Projects YTD",
                     step: 1,
                     width: "33%",
                     condition: conditionRequiresFeature(

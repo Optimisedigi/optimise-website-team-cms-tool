@@ -630,7 +630,7 @@ export interface Client {
    */
   monthlyRetainer?: number | null;
   /**
-   * One-time, counts toward retainer YTD
+   * Setup fee; one-off clients appear under One-Off Projects YTD
    */
   setupFee?: number | null;
   /**

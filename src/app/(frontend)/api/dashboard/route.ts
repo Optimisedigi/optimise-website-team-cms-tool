@@ -9,6 +9,7 @@ import {
   oneOffsYTD,
   retainerRevenueYTD,
   revenueShareFactor,
+  setupFeeYTD,
 } from "@/lib/client-revenue";
 import { convertUsdToAud } from "@/lib/realtime/voice-costs";
 
@@ -222,6 +223,7 @@ export async function GET() {
     gscBundle,
     clientCount,
     clientsForRetainer,
+    clientsForOneOffs,
     activityResult,
     seoCount,
     croCount,
@@ -390,6 +392,7 @@ export async function GET() {
       limit: 500,
       select: {
         name: true,
+        clientType: true,
         monthlyRetainer: true,
         setupFee: true,
         revenueSharePercent: true,
@@ -399,6 +402,27 @@ export async function GET() {
         retainerStartDate: true,
         retainerHistory: true,
         historicalRevenueByYear: true,
+      } as any,
+    }).catch(() => ({ docs: [] })),
+
+    // One-off revenue remains reportable after a project client is deactivated.
+    payload.find({
+      collection: "clients",
+      where: {
+        or: [
+          { isAgency: { not_equals: true } },
+          { isAgency: { exists: false } },
+        ],
+      },
+      limit: 500,
+      select: {
+        name: true,
+        clientType: true,
+        setupFee: true,
+        revenueSharePercent: true,
+        oneOffProjects: true,
+        clientStartDate: true,
+        retainerStartDate: true,
       } as any,
     }).catch(() => ({ docs: [] })),
 
@@ -678,23 +702,36 @@ export async function GET() {
     ),
   );
 
-  // Sum one-off projects from the current month (retainer-tagged rows are
-  // excluded — they belong to Retainer YTD, not One-Off totals). Multiplied
-  // by per-client revenue share.
+  const setupFeeThisMonth = (c: any): number => {
+    if (c?.clientType !== "one_off") return 0;
+    const amount = Math.max(0, Number(c?.setupFee) || 0);
+    if (amount <= 0) return 0;
+    const dateValue = c?.retainerStartDate ?? c?.clientStartDate ?? null;
+    if (!dateValue) return amount;
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime()) || date > now) return 0;
+    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()
+      ? amount
+      : 0;
+  };
+
+  // Include setup fees for one-off clients, including completed/inactive clients.
   const oneOffTotal = round(
-    clientsForRetainer.docs.reduce(
+    clientsForOneOffs.docs.reduce(
       (sum: number, c: any) =>
-        sum + oneOffsThisMonth(c.oneOffProjects, now, false) * shareOf(c),
+        sum +
+        (oneOffsThisMonth(c.oneOffProjects, now, false) + setupFeeThisMonth(c)) *
+          shareOf(c),
       0,
     ),
   );
 
-  // One-off YTD (sum across clients, retainer-tagged rows excluded, scaled
-  // by per-client revenue share).
   const oneOffYTD = round(
-    clientsForRetainer.docs.reduce(
+    clientsForOneOffs.docs.reduce(
       (sum: number, c: any) =>
-        sum + oneOffsYTD(c.oneOffProjects, now, false) * shareOf(c),
+        sum +
+        (oneOffsYTD(c.oneOffProjects, now, false) + setupFeeYTD(c, now)) *
+          shareOf(c),
       0,
     ),
   );
@@ -715,15 +752,15 @@ export async function GET() {
     return total;
   }
 
-  // Retainer revenue YTD (net of commissions, walks retainer history per client,
-  // includes setupFee + retainer-tagged one-offs + current-year historical
-  // rows). Scaled per client by revenue share.
+  // Retainer YTD includes retainers, recurring-client setup fees, tagged extras,
+  // and historical rows. One-off-client setup fees remain in One-Off Projects YTD.
   const retainerYTD = round(
     clientsForRetainer.docs.reduce(
       (sum: number, c: any) =>
         sum +
         (retainerRevenueYTD(
           {
+            clientType: c.clientType ?? "recurring",
             monthlyRetainer: Number(c.monthlyRetainer) || 0,
             setupFee: Number(c.setupFee) || 0,
             clientStartDate: c.clientStartDate ?? null,
@@ -771,9 +808,19 @@ export async function GET() {
     amount: number;
     date: string;
   }> = [];
-  for (const c of clientsForRetainer.docs as any[]) {
+  for (const c of clientsForOneOffs.docs as any[]) {
     const rows = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
     const share = shareOf(c);
+    const setupFee = setupFeeYTD(c, now);
+    if (setupFee > 0) {
+      const setupDate = c.retainerStartDate ?? c.clientStartDate ?? now.toISOString();
+      oneOffYTDBreakdown.push({
+        clientName: String(c.name ?? `#${c.id}`),
+        projectName: "Setup fee",
+        amount: round(setupFee * share),
+        date: typeof setupDate === "string" ? setupDate : new Date(setupDate).toISOString(),
+      });
+    }
     for (const p of rows) {
       if (p?.countTowardsRetainer) continue;
       if (!p?.date || p?.amount == null) continue;
@@ -796,6 +843,7 @@ export async function GET() {
       const sharePct = Number(c.revenueSharePercent);
       const monthlyOnly = retainerRevenueYTD(
         {
+          clientType: c.clientType ?? "recurring",
           monthlyRetainer: Number(c.monthlyRetainer) || 0,
           clientStartDate: c.clientStartDate ?? null,
           retainerStartDate: c.retainerStartDate ?? null,
@@ -806,12 +854,16 @@ export async function GET() {
         },
         now,
       );
-      const anchorIso = c.retainerStartDate ?? c.clientStartDate ?? null;
-      const startDate = anchorIso ? new Date(anchorIso) : null;
-      const setupFee =
-        startDate && !isNaN(startDate.getTime()) && startDate.getFullYear() === now.getFullYear()
-          ? Number(c.setupFee) || 0
-          : 0;
+      const setupFee = retainerRevenueYTD(
+        {
+          clientType: c.clientType ?? "recurring",
+          monthlyRetainer: 0,
+          setupFee: Number(c.setupFee) || 0,
+          clientStartDate: c.clientStartDate ?? null,
+          retainerStartDate: c.retainerStartDate ?? null,
+        },
+        now,
+      );
       const retainerOneOffs: Array<{ projectName: string; amount: number }> = [];
       const rows = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
       for (const p of rows) {

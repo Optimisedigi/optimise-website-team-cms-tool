@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock next/headers before importing the route
 vi.mock('next/headers', () => ({
@@ -52,6 +52,10 @@ describe('GET /api/dashboard', () => {
       }
       return Promise.resolve({ docs: [] })
     })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('returns 401 when user is not authenticated', async () => {
@@ -292,4 +296,93 @@ describe('GET /api/dashboard', () => {
     const json = await res.json()
     expect(json.breakdowns.monthlyRetainer[0].revenueSharePercent).toBeNull()
   })
+  it('includes inactive clients and undated setup fees in one-off projects YTD', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'))
+    const projectDate = '2026-03-10T00:00:00.000Z'
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (
+        args?.collection === 'clients' &&
+        args?.select?.oneOffProjects &&
+        !args?.select?.monthlyRetainer
+      ) {
+        return Promise.resolve({
+          docs: [
+            {
+              id: 9,
+              name: 'Finished Project Co',
+              isActive: false,
+              clientType: 'one_off',
+              setupFee: 500,
+              clientStartDate: null,
+              revenueSharePercent: 100,
+              oneOffProjects: [
+                {
+                  projectName: 'Website build',
+                  amount: 1000,
+                  date: projectDate,
+                  countTowardsRetainer: false,
+                },
+              ],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const res = await GET()
+    const json = await res.json()
+
+    expect(json.oneOffYTD).toBe(1500)
+    expect(json.retainerYTD).toBe(0)
+    expect(json.breakdowns.oneOffYTD).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ clientName: 'Finished Project Co', projectName: 'Setup fee', amount: 500 }),
+        expect.objectContaining({ clientName: 'Finished Project Co', projectName: 'Website build', amount: 1000 }),
+      ]),
+    )
+    const oneOffRequest = mockPayload.find.mock.calls
+      .map(([args]) => args)
+      .find((args) => args?.collection === 'clients' && args?.select?.oneOffProjects && !args?.select?.monthlyRetainer)
+    expect(oneOffRequest.where).not.toHaveProperty('isActive')
+  })
+
+  it('keeps recurring-client setup fees in the retainer box', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'))
+    const client = {
+      id: 10,
+      name: 'Retainer Co',
+      clientType: 'recurring',
+      monthlyRetainer: 0,
+      setupFee: 500,
+      clientStartDate: null,
+      retainerStartDate: null,
+      revenueSharePercent: 100,
+      oneOffProjects: [],
+      retainerHistory: [],
+      referralCommissions: [],
+      historicalRevenueByYear: [],
+    }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args?.collection === 'clients' && args?.select?.oneOffProjects) {
+        return Promise.resolve({ docs: [client] })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const res = await GET()
+    const json = await res.json()
+
+    expect(json.oneOffYTD).toBe(0)
+    expect(json.retainerYTD).toBe(500)
+    expect(json.breakdowns.oneOffYTD).toEqual([])
+    expect(json.breakdowns.retainerYTD).toEqual([
+      expect.objectContaining({ clientName: 'Retainer Co', setupFee: 500, total: 500 }),
+    ])
+  })
+
 })

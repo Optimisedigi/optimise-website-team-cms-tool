@@ -80,6 +80,7 @@ export function historicalRevenueTotal(
 }
 
 export interface ClientRevenueInput {
+  clientType?: string | null;
   monthlyRetainer?: number | null;
   setupFee?: number | null;
   clientStartDate?: string | null;
@@ -182,6 +183,29 @@ function toDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const d = new Date(value);
   return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Setup-fee revenue for the current calendar year.
+ *
+ * The retainer start date controls timing when present, falling back to the
+ * client start date. Existing undated fees are treated as current YTD so a
+ * populated fee never disappears solely because both optional dates are empty.
+ */
+function setupFeeAmountYTD(client: ClientRevenueInput, now: Date): number {
+  const amount = Math.max(0, Number(client.setupFee) || 0);
+  if (amount <= 0) return 0;
+
+  const dateValue = client.retainerStartDate ?? client.clientStartDate ?? null;
+  if (!dateValue) return amount;
+
+  const date = toDate(dateValue);
+  if (!date || date.getFullYear() !== now.getFullYear() || date > now) return 0;
+  return amount;
+}
+
+export function setupFeeYTD(client: ClientRevenueInput, now: Date): number {
+  return client.clientType === "one_off" ? setupFeeAmountYTD(client, now) : 0;
 }
 
 /**
@@ -313,6 +337,7 @@ export function retainerRevenueYTD(
   now: Date,
 ): number {
   const monthlyRetainer = Math.max(0, Number(client.monthlyRetainer) || 0);
+  const setupFee = client.clientType === "one_off" ? 0 : setupFeeAmountYTD(client, now);
   const commissions = Array.isArray(client.referralCommissions)
     ? client.referralCommissions
     : [];
@@ -326,15 +351,15 @@ export function retainerRevenueYTD(
     toDate(client.retainerStartDate ?? null) ??
     toDate(client.clientStartDate ?? null);
   if (!anchor) {
-    // No start date: count current month only
-    return netMonthlyRetainer(monthlyRetainer, commissions, now);
+    // No start date: count current month only, plus any undated recurring setup fee.
+    return netMonthlyRetainer(monthlyRetainer, commissions, now) + setupFee;
   }
 
   const yearStart = new Date(now.getFullYear(), 0, 1);
   const firstMonth = monthStart(anchor > yearStart ? anchor : yearStart);
   const lastMonth = monthStart(now);
 
-  if (firstMonth > lastMonth) return 0;
+  if (firstMonth > lastMonth) return setupFee;
 
   let total = 0;
   for (
@@ -349,16 +374,6 @@ export function retainerRevenueYTD(
     total += netForMonth;
   }
 
-  // Setup fee: counted in the calendar year of the retainer anchor, only once
-  // the anchor month has begun (so it doesn't appear in a future YTD). The
-  // fee is recognised in full — only its timing follows the retainer anchor.
-  const setupFee = Math.max(0, Number(client.setupFee) || 0);
-  if (setupFee > 0 && anchor.getFullYear() === now.getFullYear()) {
-    const startMonth = monthStart(anchor);
-    if (startMonth <= lastMonth) {
-      total += setupFee;
-    }
-  }
 
   // Retainer-tagged one-offs: any row dated within the YTD window where
   // countTowardsRetainer is on.
@@ -379,7 +394,7 @@ export function retainerRevenueYTD(
     }
   }
 
-  return total;
+  return total + setupFee;
 }
 
 /**

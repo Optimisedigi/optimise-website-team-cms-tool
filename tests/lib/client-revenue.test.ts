@@ -2,6 +2,7 @@ import {
   monthlyCommissionForDate,
   netMonthlyRetainer,
   retainerRevenueYTD,
+  setupFeeYTD,
   oneOffsYTD,
   oneOffsThisMonth,
   monthsBetween,
@@ -414,7 +415,7 @@ describe("splitOneOffs", () => {
   });
 });
 
-describe("retainerRevenueYTD with pro-ration, setupFee, and tagged one-offs", () => {
+describe("retainerRevenueYTD with pro-ration and tagged one-offs", () => {
   const now = new Date(2026, 4, 18); // 18 May 2026
 
   it("pro-rates the first month based on clientStartDate (Berendsen case)", () => {
@@ -447,21 +448,43 @@ describe("retainerRevenueYTD with pro-ration, setupFee, and tagged one-offs", ()
     ).toBeCloseTo(expected, 6);
   });
 
-  it("adds setupFee to YTD when clientStartDate is in current year", () => {
-    // No retainer, just a setup fee in YTD
+  it("keeps recurring-client setup fees in retainer revenue", () => {
     expect(
       retainerRevenueYTD(
-        { monthlyRetainer: 0, setupFee: 1000, clientStartDate: "2026-03-13" },
+        {
+          clientType: "recurring",
+          monthlyRetainer: 0,
+          setupFee: 1000,
+          clientStartDate: "2026-03-13",
+        },
         now,
       ),
     ).toBe(1000);
   });
 
-  it("excludes setupFee when clientStartDate is in a prior year", () => {
-    // Started in 2025 — setup fee belongs to 2025 YTD, not 2026
+  it("excludes recurring setup fees dated before this year", () => {
     expect(
       retainerRevenueYTD(
-        { monthlyRetainer: 0, setupFee: 1000, clientStartDate: "2025-06-01" },
+        {
+          clientType: "recurring",
+          monthlyRetainer: 0,
+          setupFee: 1000,
+          clientStartDate: "2025-06-01",
+        },
+        now,
+      ),
+    ).toBe(0);
+  });
+
+  it("excludes future recurring setup fees", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          clientType: "recurring",
+          monthlyRetainer: 0,
+          setupFee: 1000,
+          retainerStartDate: "2026-07-01",
+        },
         now,
       ),
     ).toBe(0);
@@ -548,28 +571,15 @@ describe("retainerRevenueYTD with retainerStartDate anchor", () => {
     expect(explicit).toBeCloseTo(withFallback, 6);
   });
 
-  it("anchors setup-fee timing to retainerStartDate's calendar year", () => {
+  it("excludes one-off-client setup fees from retainer revenue", () => {
     expect(
       retainerRevenueYTD(
         {
+          clientType: "one_off",
           monthlyRetainer: 0,
           setupFee: 1000,
           clientStartDate: "2025-06-01",
           retainerStartDate: "2026-03-13",
-        },
-        now,
-      ),
-    ).toBe(1000);
-  });
-
-  it("excludes setup fee when retainerStartDate is in a future month", () => {
-    expect(
-      retainerRevenueYTD(
-        {
-          monthlyRetainer: 0,
-          setupFee: 1000,
-          clientStartDate: "2026-01-01",
-          retainerStartDate: "2026-07-01",
         },
         now,
       ),
@@ -586,6 +596,38 @@ describe("retainerRevenueYTD with retainerStartDate anchor", () => {
         },
         now,
       ),
+    ).toBe(0);
+  });
+});
+
+describe("setupFeeYTD", () => {
+  const now = new Date(2026, 4, 18);
+
+  it("counts an undated one-off-client setup fee in the current YTD", () => {
+    expect(setupFeeYTD({ clientType: "one_off", setupFee: 1000 }, now)).toBe(1000);
+  });
+
+  it("counts a dated one-off-client setup fee in the current YTD", () => {
+    expect(
+      setupFeeYTD(
+        {
+          clientType: "one_off",
+          setupFee: 1000,
+          clientStartDate: "2025-06-01",
+          retainerStartDate: "2026-03-13",
+        },
+        now,
+      ),
+    ).toBe(1000);
+  });
+
+  it("excludes recurring, prior-year, and future setup fees", () => {
+    expect(setupFeeYTD({ clientType: "recurring", setupFee: 1000 }, now)).toBe(0);
+    expect(
+      setupFeeYTD({ clientType: "one_off", setupFee: 1000, clientStartDate: "2025-06-01" }, now),
+    ).toBe(0);
+    expect(
+      setupFeeYTD({ clientType: "one_off", setupFee: 1000, retainerStartDate: "2026-07-01" }, now),
     ).toBe(0);
   });
 });

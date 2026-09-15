@@ -10,6 +10,7 @@ import {
   oneOffsYTD,
   retainerRevenueYTD,
   revenueShareFactor,
+  setupFeeYTD,
   type HistoricalRevenueYear,
   type ReferralCommission,
   type RetainerHistoryEntry,
@@ -17,6 +18,7 @@ import {
 } from '@/lib/client-revenue'
 
 type ClientBillingData = {
+  clientType: string
   monthlyRetainer: number
   setupFee: number
   revenueSharePercent: number
@@ -44,6 +46,7 @@ function ClientBillingSummary() {
       .then((res) => res.json())
       .then((doc) => {
         setData({
+          clientType: typeof doc.clientType === 'string' ? doc.clientType : 'recurring',
           monthlyRetainer: doc.monthlyRetainer ?? 0,
           setupFee: doc.setupFee ?? 0,
           revenueSharePercent: Number(doc.revenueSharePercent ?? 100),
@@ -66,6 +69,7 @@ function ClientBillingSummary() {
   if (!id || !data || data.isAgency) return null
 
   const {
+    clientType,
     monthlyRetainer,
     setupFee,
     revenueSharePercent,
@@ -106,11 +110,15 @@ function ClientBillingSummary() {
         0,
       )
     : 0
-  // Retainer Revenue YTD now folds in setupFee + retainer-tagged one-offs
-  // + current-year historical rows.
+  const setupFeeRevenue = setupFeeYTD(
+    { clientType, setupFee, clientStartDate, retainerStartDate },
+    now,
+  )
+  // Setup fees follow client type: one-off clients report them as one-off revenue.
   const retainerRevenue =
     (retainerRevenueYTD(
       {
+        clientType,
         monthlyRetainer,
         setupFee,
         clientStartDate,
@@ -123,8 +131,8 @@ function ClientBillingSummary() {
     ) +
       priorPeriodThisYear) *
     share
-  // Pure one-offs only (rows without countTowardsRetainer).
-  const oneOffTotal = oneOffsYTD(oneOffProjects, now, false) * share
+  const oneOffTotal =
+    (oneOffsYTD(oneOffProjects, now, false) + setupFeeRevenue) * share
   // Lifetime historical (all years) for the totalRevenue stat.
   const historicalRevenueFull = historicalRevenueTotal(historicalRevenueByYear)
   // Lifetime total = retainer-this-year (already incl. current-year historical)
@@ -132,12 +140,6 @@ function ClientBillingSummary() {
   //                + historical from prior years (also share-adjusted)
   const priorYearsHistorical = (historicalRevenueFull - priorPeriodThisYear) * share
   const totalRevenue = retainerRevenue + oneOffTotal + priorYearsHistorical
-
-  // Setup fee counts toward Retainer YTD in the year of clientStartDate—
-  // surface it as its own stat when applicable.
-  const startDate = clientStartDate ? new Date(clientStartDate) : null
-  const setupFeeApplies =
-    !!startDate && !isNaN(startDate.getTime()) && startDate.getFullYear() === now.getFullYear() && setupFee > 0
 
   if (totalRevenue === 0 && monthlyRetainer === 0 && setupFee === 0) return null
 
@@ -176,10 +178,10 @@ function ClientBillingSummary() {
           value={`− ${formatCurrency(activeMonthlyCommission)}/mo`}
         />
       )}
-      {setupFeeApplies && (
+      {setupFeeRevenue > 0 && (
         <StatBox
-          label="Setup Fee (in Retainer YTD)"
-          value={formatCurrency(setupFee * share)}
+          label="Setup Fee (in One-Off YTD)"
+          value={formatCurrency(setupFeeRevenue * share)}
         />
       )}
       <StatBox label="One-Off Billings (YTD)" value={formatCurrency(oneOffTotal)} />
