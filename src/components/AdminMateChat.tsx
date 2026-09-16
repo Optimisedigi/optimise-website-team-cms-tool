@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react'
 import OptiMateTranscribe from './OptiMateTranscribe'
+import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 import { CLIENT_SERVICE_OPTIONS, CLIENT_TYPE_OPTIONS } from '@/lib/client-field-options'
 import type { AdminMateClient, StagedClient } from '@/lib/agents/adminmate/tools'
 import type { StagedContract } from '@/lib/agents/adminmate/contract-tools'
 import type { ContractTemplateOption } from '@/lib/contract-from-template'
 import AdminMateContractCard from './AdminMateContractCard'
 
-type ChatMessage = { role: 'user' | 'assistant'; content: string }
+type GmailDraft = { gmailUrl: string; subject: string; to: string }
+type ChatMessage = { role: 'user' | 'assistant'; content: string; gmailDraft?: GmailDraft }
 const STORAGE_KEY = 'optimate:adminmate'
 
 const TEXT_FIELDS: Array<{ key: keyof StagedClient; label: string }> = [
@@ -38,6 +40,8 @@ export default function AdminMateChat() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
+  const [emailPickerOpen, setEmailPickerOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -66,11 +70,18 @@ export default function AdminMateChat() {
       const response = await fetch('/api/optimate/adminmate/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history }),
+        body: JSON.stringify({ message, history, attachedEmail }),
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json.error || 'AdminMate could not reply')
-      setMessages((current) => [...current, { role: 'assistant', content: json.reply || 'Review the staged client below.' }])
+      setMessages((current) => [...current, {
+        role: 'assistant',
+        content: json.reply || 'Review the result below.',
+        gmailDraft: json.gmailDraft,
+      }])
+      // Keep the selected email attached so clarification and revision turns
+      // continue to use the original Gmail message and thread metadata.
+      setEmailPickerOpen(false)
       if (json.stagedClient) setStaged(json.stagedClient)
       setSimilar(Array.isArray(json.similarClients) ? json.similarClients : [])
       if (json.stagedContract) {
@@ -142,7 +153,18 @@ export default function AdminMateChat() {
         )}
         {messages.map((message, index) => (
           <div {...{ ['k' + 'ey']: `${message.role}-${index}` }} style={{ ...bubbleStyle, justifySelf: message.role === 'user' ? 'end' : 'start', background: message.role === 'user' ? '#1d4ed8' : 'var(--theme-elevation-100)', color: message.role === 'user' ? '#fff' : 'var(--theme-text)' }}>
-            {message.content}
+            <div>{message.content}</div>
+            {message.gmailDraft && (
+              <a
+                href={message.gmailDraft.gmailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Open Gmail draft: ${message.gmailDraft.subject || 'No subject'}`}
+                style={gmailDraftLinkStyle}
+              >
+                Open Gmail draft ↗
+              </a>
+            )}
           </div>
         ))}
         {sending && <div style={{ color: 'var(--theme-elevation-500)', fontSize: 13 }}>AdminMate is thinking…</div>}
@@ -267,18 +289,58 @@ export default function AdminMateChat() {
         {success && <div role="status" style={{ ...noticeStyle, color: '#166534', background: '#f0fdf4' }}>{success}</div>}
         <div ref={bottomRef} />
       </div>
-      <div style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8 }}>
+      <div style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8, position: 'relative' }}>
+        {attachedEmail && (
+          <div
+            title={`From ${attachedEmail.from} · ${attachedEmail.date}`}
+            style={attachedEmailStyle}
+          >
+            <span aria-hidden="true">✉️</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {attachedEmail.subject || '(no subject)'} — {attachedEmail.from}
+            </span>
+            <button
+              type="button"
+              onClick={() => setAttachedEmail(null)}
+              aria-label="Remove attached email"
+              style={removeAttachmentStyle}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <EmailAttachPicker
+          open={emailPickerOpen}
+          onClose={() => setEmailPickerOpen(false)}
+          onSelect={(email) => {
+            setAttachedEmail(email)
+            setEmailPickerOpen(false)
+          }}
+        />
         <div style={{ display: 'flex', gap: 7, alignItems: 'flex-end' }}>
           <textarea
             aria-label="Message AdminMate"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() } }}
-            placeholder="Create a client called… / Create a contract for…"
+            placeholder="Create a client… / Reply to the attached email…"
             rows={2}
             maxLength={8000}
             style={{ ...inputStyle, flex: 1, resize: 'none' }}
           />
+          <button
+            type="button"
+            disabled={sending}
+            onClick={() => setEmailPickerOpen((open) => !open)}
+            aria-label="Attach an email from Gmail"
+            title="Attach an email from Gmail"
+            style={{ ...iconButtonStyle, ...(emailPickerOpen || attachedEmail ? iconButtonActiveStyle : {}) }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+            </svg>
+          </button>
           <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={(text) => setDraft((current) => `${current}${current.trim() ? ' ' : ''}${text}`)} />
           <button type="button" disabled={sending || !draft.trim()} onClick={() => void send()} style={{ ...primaryButtonStyle, minWidth: 58 }}>Send</button>
         </div>
@@ -293,3 +355,8 @@ const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 8, pa
 const noticeStyle: React.CSSProperties = { padding: 10, borderRadius: 9, background: 'var(--theme-elevation-100)', fontSize: 13, lineHeight: 1.45 }
 const chipStyle: React.CSSProperties = { border: '1px solid #7c3aed', borderRadius: 999, padding: '6px 12px', background: 'var(--theme-bg)', color: '#7c3aed', fontWeight: 700, fontSize: 13, cursor: 'pointer' }
 const bubbleStyle: React.CSSProperties = { maxWidth: '88%', borderRadius: 12, padding: '9px 11px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 13, lineHeight: 1.45 }
+const attachedEmailStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', justifySelf: 'start', padding: '5px 8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, color: '#1e40af', fontSize: 11 }
+const removeAttachmentStyle: React.CSSProperties = { border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }
+const iconButtonStyle: React.CSSProperties = { width: 36, height: 36, flexShrink: 0, display: 'grid', placeItems: 'center', border: '1px solid var(--theme-elevation-200)', borderRadius: 8, background: 'var(--theme-bg)', color: 'var(--theme-elevation-600)', cursor: 'pointer' }
+const iconButtonActiveStyle: React.CSSProperties = { border: '1px solid #2563eb', background: '#eff6ff', color: '#1d4ed8' }
+const gmailDraftLinkStyle: React.CSSProperties = { display: 'inline-block', marginTop: 8, padding: '6px 9px', borderRadius: 7, background: '#166534', color: '#fff', fontWeight: 800, textDecoration: 'none' }

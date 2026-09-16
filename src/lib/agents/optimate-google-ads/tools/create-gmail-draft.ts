@@ -90,10 +90,21 @@ export const createGmailDraftTool: CanonicalTool<CreateGmailDraftArgs> = {
     }
 
     try {
+      // AdminMate can pin trusted reply metadata in the tool context. Keeping
+      // these fields out of the model-controlled schema prevents an attached
+      // email from redirecting the reply or moving it to another thread.
+      const replyTo = typeof ctx.context.gmailReplyTo === "string" ? ctx.context.gmailReplyTo : "";
+      const replySubject = typeof ctx.context.gmailReplySubject === "string" ? ctx.context.gmailReplySubject : "";
+      const replyThreadId = typeof ctx.context.gmailReplyThreadId === "string" ? ctx.context.gmailReplyThreadId : "";
+      const replyInReplyTo = typeof ctx.context.gmailReplyInReplyTo === "string" ? ctx.context.gmailReplyInReplyTo : "";
+      const to = replyTo || args.to || "";
+      const subject = replySubject || args.subject;
       const result = await createGmailDraft(tokenResult.accessToken, {
-        to: args.to ?? "",
-        subject: args.subject,
+        to,
+        subject,
         htmlBody: args.htmlBody,
+        ...(replyThreadId ? { threadId: replyThreadId } : {}),
+        ...(replyInReplyTo ? { inReplyTo: replyInReplyTo } : {}),
       });
       const gmailUrl = `https://mail.google.com/mail/u/0/#drafts/${result.messageId}`;
       return {
@@ -102,8 +113,8 @@ export const createGmailDraftTool: CanonicalTool<CreateGmailDraftArgs> = {
           draftId: result.draftId,
           messageId: result.messageId,
           gmailUrl,
-          to: args.to ?? "",
-          subject: args.subject,
+          to,
+          subject,
         },
       };
     } catch (err) {

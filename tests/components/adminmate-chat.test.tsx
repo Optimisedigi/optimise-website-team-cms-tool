@@ -7,6 +7,18 @@ vi.mock('@/components/OptiMateTranscribe', () => ({
   default: ({ onTranscript }: { onTranscript: (text: string) => void }) => <button type="button" onClick={() => onTranscript('dictated client')}>Dictate</button>,
 }))
 
+vi.mock('@/components/EmailAttachPicker', () => ({
+  default: ({ open, onSelect }: { open: boolean; onSelect: (email: Record<string, string>) => void }) => open ? (
+    <button type="button" onClick={() => onSelect({
+      messageId: 'gmail-message-1',
+      subject: 'Campaign question',
+      from: 'Jane Client <jane@example.com>',
+      date: '2026-09-16T10:00:00.000Z',
+      snippet: 'Can you send an update?',
+    })}>Choose Campaign question</button>
+  ) : null,
+}))
+
 const staged = {
   name: 'Acme Corp',
   slug: 'acme-corp',
@@ -79,6 +91,53 @@ describe('AdminMateChat', () => {
     expect(screen.getByRole('button', { name: 'Create Acme Corp' })).toBeInTheDocument()
   })
 
+  it('keeps an attached Gmail message across reply revision turns and links each draft', async () => {
+    const requestBodies: Array<Record<string, unknown>> = []
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url !== '/api/optimate/adminmate/chat') throw new Error(`Unexpected fetch ${url}`)
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+      requestBodies.push(body)
+      const revision = requestBodies.length === 2
+      return Promise.resolve(response({
+        reply: revision ? 'I revised the reply in Gmail Drafts.' : 'I created the reply in Gmail Drafts.',
+        gmailDraft: {
+          gmailUrl: `https://mail.google.com/mail/u/0/#drafts/${revision ? 'draft-message-2' : 'draft-message-1'}`,
+          subject: 'Re: Campaign question',
+          to: 'jane@example.com',
+        },
+      }))
+    })
+
+    render(<AdminMateChat />)
+    fireEvent.click(screen.getByRole('button', { name: 'Attach an email from Gmail' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Campaign question' }))
+    expect(screen.getByText(/Campaign question/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Message AdminMate'), {
+      target: { value: 'Reply with a friendly progress update.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    const firstLink = await screen.findByRole('link', { name: 'Open Gmail draft: Re: Campaign question' })
+    expect(firstLink).toHaveAttribute('href', 'https://mail.google.com/mail/u/0/#drafts/draft-message-1')
+    expect(screen.getByText(/Campaign question — Jane Client/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Message AdminMate'), {
+      target: { value: 'Make that warmer and mention Friday.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText('I revised the reply in Gmail Drafts.')
+
+    expect(requestBodies).toHaveLength(2)
+    expect(requestBodies[0]).toMatchObject({
+      message: 'Reply with a friendly progress update.',
+      attachedEmail: { messageId: 'gmail-message-1', subject: 'Campaign question' },
+    })
+    expect(requestBodies[1]).toMatchObject({
+      message: 'Make that warmer and mention Friday.',
+      attachedEmail: { messageId: 'gmail-message-1', subject: 'Campaign question' },
+    })
+  })
   it('starts a new chat instead of restoring a previous thread', () => {
     sessionStorage.setItem('optimate:adminmate', JSON.stringify({
       messages: [{ role: 'user', content: 'create client leftover' }],

@@ -146,6 +146,35 @@ describe("create_gmail_draft — execute", () => {
     expect(data.to).toBe("owner@acme.com");
   });
 
+  it("pins trusted reply metadata from context and creates the draft in the Gmail thread", async () => {
+    mockGetToken.mockResolvedValueOnce({ ok: true, accessToken: "tok" });
+    mockCreateDraft.mockResolvedValueOnce({ draftId: "d", messageId: "m" });
+    const args = createGmailDraftTool.validate!({
+      subject: "Model supplied subject",
+      htmlBody: "<p>Reply body</p>",
+      to: "model-supplied@example.com",
+    });
+    const ctx = baseCtx(7);
+    ctx.context.gmailReplyTo = "Jane Client <jane@example.com>";
+    ctx.context.gmailReplySubject = "Re: Campaign question";
+    ctx.context.gmailReplyThreadId = "thread-1";
+    ctx.context.gmailReplyInReplyTo = "<message@example.com>";
+
+    const result = await createGmailDraftTool.execute(args, ctx);
+
+    expect(mockCreateDraft).toHaveBeenCalledWith("tok", {
+      to: "Jane Client <jane@example.com>",
+      subject: "Re: Campaign question",
+      htmlBody: "<p>Reply body</p>",
+      threadId: "thread-1",
+      inReplyTo: "<message@example.com>",
+    });
+    expect(result.data).toMatchObject({
+      to: "Jane Client <jane@example.com>",
+      subject: "Re: Campaign question",
+    });
+  });
+
   it("defaults `to` to empty when omitted (Gmail forces user to pick a recipient)", async () => {
     mockGetToken.mockResolvedValueOnce({ ok: true, accessToken: "tok" });
     mockCreateDraft.mockResolvedValueOnce({ draftId: "d", messageId: "m" });
