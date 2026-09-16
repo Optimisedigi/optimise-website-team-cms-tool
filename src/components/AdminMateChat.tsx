@@ -31,6 +31,9 @@ export default function AdminMateChat() {
   const [templates, setTemplates] = useState<ContractTemplateOption[]>([])
   const [templateChoices, setTemplateChoices] = useState<ContractTemplateOption[]>([])
   const [clientChoices, setClientChoices] = useState<AdminMateClient[]>([])
+  // Every client AdminMate has surfaced this session, so the contract card can
+  // still name the chosen client after the chips are cleared.
+  const [knownClients, setKnownClients] = useState<AdminMateClient[]>([])
   const [sending, setSending] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -74,11 +77,12 @@ export default function AdminMateChat() {
         setStagedContract(json.stagedContract)
         setMissingDetails(Array.isArray(json.missingContractDetails) ? json.missingContractDetails : [])
       }
-      if (Array.isArray(json.templateChoices)) {
-        setTemplateChoices(json.templateChoices)
-        setTemplates((current) => (current.length ? current : json.templateChoices))
+      if (Array.isArray(json.contractTemplates)) setTemplates(json.contractTemplates)
+      if (Array.isArray(json.templateChoices)) setTemplateChoices(json.templateChoices)
+      if (Array.isArray(json.clientChoices)) {
+        setClientChoices(json.clientChoices)
+        setKnownClients((current) => [...current.filter((known) => !json.clientChoices.some((c: AdminMateClient) => c.id === known.id)), ...json.clientChoices])
       }
-      if (Array.isArray(json.clientChoices)) setClientChoices(json.clientChoices)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'AdminMate could not reply')
       setDraft(message)
@@ -252,7 +256,7 @@ export default function AdminMateChat() {
           <AdminMateContractCard
             staged={stagedContract}
             templates={templates}
-            clients={clientChoices}
+            clients={knownClients}
             missing={missingDetails}
             creating={creating}
             onChange={patchContract}

@@ -56,7 +56,6 @@ const ClientSignedContractButton = () => {
     let cancelled = false
     const contractsQuery = new URLSearchParams({
       'where[client][equals]': String(clientId),
-      'where[isTemplate][not_equals]': 'true',
       limit: '50',
       sort: '-contractDate',
       depth: '0',
@@ -67,7 +66,11 @@ const ClientSignedContractButton = () => {
     ])
       .then(([contractData, templateData]) => {
         if (cancelled) return
-        const rows: ContractRow[] = (contractData.docs ?? []).filter((doc: { deletedAt?: string | null }) => !doc.deletedAt)
+        // Templates never carry a client, but filter defensively; trashed
+        // contracts stay hidden until restored.
+        const rows: ContractRow[] = (contractData.docs ?? []).filter(
+          (doc: { deletedAt?: string | null; isTemplate?: boolean | null }) => !doc.deletedAt && !doc.isTemplate,
+        )
         setContracts(rows)
         const docs: Template[] = templateData.docs ?? []
         docs.sort((a, b) => templateLabel(a).localeCompare(templateLabel(b)))

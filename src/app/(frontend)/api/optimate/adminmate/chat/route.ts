@@ -58,6 +58,7 @@ export async function POST(request: Request) {
       missingContractDetails: result.missingContractDetails,
       templateChoices: result.templateChoices,
       clientChoices: result.clientChoices,
+      contractTemplates,
       runId: result.runId,
       modelRequested: result.modelRequested,
       modelUsed: result.modelUsed,
