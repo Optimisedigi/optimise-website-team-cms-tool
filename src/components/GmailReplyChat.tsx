@@ -1286,33 +1286,34 @@ const chatPanel: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
-  padding: 8,
-  borderRadius: 8,
-  background: 'var(--theme-elevation-50, #f9fafb)',
-  border: '1px solid var(--theme-border-color, #e5e7eb)',
+  padding: 0,
+  borderRadius: 0,
+  background: 'transparent',
+  border: 'none',
 }
 
 const chatBubble: React.CSSProperties = {
   maxWidth: '92%',
-  borderRadius: 10,
-  padding: '8px 10px',
-  fontSize: 12,
-  lineHeight: 1.45,
+  borderRadius: 16,
+  padding: '10px 14px',
+  fontSize: 13,
+  lineHeight: 1.5,
+  wordBreak: 'break-word',
 }
 
 const userBubble: React.CSSProperties = {
   alignSelf: 'flex-end',
   background: '#2563eb',
   color: '#fff',
-  borderBottomRightRadius: 3,
+  borderBottomRightRadius: 4,
 }
 
 const assistantBubble: React.CSSProperties = {
   alignSelf: 'flex-start',
-  background: 'var(--theme-elevation-100, #242426)',
-  color: 'var(--theme-text, #f5f5f7)',
-  border: '1px solid var(--theme-border-color, #e5e7eb)',
-  borderBottomLeftRadius: 3,
+  background: '#2a2a2d',
+  color: '#fff',
+  border: 'none',
+  borderBottomLeftRadius: 4,
 }
 
 const errorBubble: React.CSSProperties = {
@@ -1366,7 +1367,7 @@ const gmailComposerWrapStyle: React.CSSProperties = {
 
 const composerInputRowStyle: React.CSSProperties = {
   display: 'flex',
-  alignItems: 'stretch',
+  alignItems: 'flex-end',
   gap: 10,
   padding: '18px 16px 0',
 }
@@ -1432,16 +1433,14 @@ const googleMateTextareaStyle: React.CSSProperties = {
 }
 
 const sendIconButtonStyle: React.CSSProperties = {
-  alignSelf: 'flex-end',
-  marginBottom: 12,
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: 29,
-  height: 29,
+  width: 38,
+  height: 38,
   color: '#fff',
   border: 'none',
-  borderRadius: 8,
+  borderRadius: '50%',
   transition: 'background 0.15s',
 }
 

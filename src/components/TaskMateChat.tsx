@@ -105,7 +105,7 @@ export default function TaskMateChat() {
           </div>
         )}
         {messages.map((message, index) => (
-          <div {...{ ['k' + 'ey']: `${message.role}-${index}` }} style={{ ...bubbleStyle, justifySelf: message.role === 'user' ? 'end' : 'start', background: message.role === 'user' ? '#0f766e' : 'var(--theme-elevation-100)', color: message.role === 'user' ? '#fff' : 'var(--theme-text)' }}>
+          <div {...{ ['k' + 'ey']: `${message.role}-${index}` }} style={{ ...bubbleStyle, justifySelf: message.role === 'user' ? 'end' : 'start', background: message.role === 'user' ? '#0f766e' : '#2a2a2d', color: '#fff' }}>
             {message.content}
           </div>
         ))}

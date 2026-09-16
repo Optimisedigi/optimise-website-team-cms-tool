@@ -83,6 +83,14 @@ describe('GmailReplyChat usability smoke', () => {
     expect(await screen.findByText('Gmail · user@example.com')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reply to an email' })).toBeInTheDocument()
 
+    const sendButton = screen.getByRole('button', { name: 'Send' })
+    expect(sendButton).toHaveStyle({ width: '38px', height: '38px', borderRadius: '50%' })
+    expect(sendButton.closest('.metal-fx-root, .metal-fx-fallback')).toHaveStyle({
+      width: '38px',
+      height: '38px',
+      borderRadius: '50%',
+    })
+
     fireEvent.change(screen.getByPlaceholderText('To (optional)…'), {
       target: { value: 'client@example.com' },
     })
@@ -97,6 +105,10 @@ describe('GmailReplyChat usability smoke', () => {
 
     expect(await screen.findByText(/Draft preview:/)).toBeInTheDocument()
     expect(screen.getByText(/Hi there,[\s\S]*Thanks for reaching out\./)).toBeInTheDocument()
+    expect(screen.getByText('GmailMate').parentElement).toHaveStyle({
+      background: '#2a2a2d',
+      color: '#fff',
+    })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Create Gmail draft' }))
 

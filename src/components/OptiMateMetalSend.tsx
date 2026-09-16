@@ -16,7 +16,15 @@ export default function OptiMateMetalSend({ children }: OptiMateMetalSendProps) 
       strength={1}
       theme="dark"
       innerShadow
-      style={{ order: 2, flexShrink: 0 }}
+      borderRadius={19}
+      style={{
+        order: 2,
+        width: 38,
+        height: 38,
+        flex: '0 0 38px',
+        borderRadius: '50%',
+        boxSizing: 'border-box',
+      }}
     >
       {children}
     </MetalFx>

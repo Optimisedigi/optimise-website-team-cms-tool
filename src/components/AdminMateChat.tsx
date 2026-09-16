@@ -164,7 +164,7 @@ export default function AdminMateChat() {
           </div>
         )}
         {messages.map((message, index) => (
-          <div {...{ ['k' + 'ey']: `${message.role}-${index}` }} style={{ ...bubbleStyle, justifySelf: message.role === 'user' ? 'end' : 'start', background: message.role === 'user' ? '#1d4ed8' : 'var(--theme-elevation-100)', color: message.role === 'user' ? '#fff' : 'var(--theme-text)' }}>
+          <div {...{ ['k' + 'ey']: `${message.role}-${index}` }} style={{ ...bubbleStyle, justifySelf: message.role === 'user' ? 'end' : 'start', background: message.role === 'user' ? '#1d4ed8' : '#2a2a2d', color: '#fff' }}>
             <div>{message.content}</div>
             {message.gmailDraft && (
               <a
