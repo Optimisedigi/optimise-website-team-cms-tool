@@ -8,20 +8,22 @@ vi.mock("@/components/VoiceField", () => ({
     value,
     onChange,
     placeholder,
+    ariaLabel,
   }: {
     value: string;
     onChange: (v: string) => void;
     placeholder?: string;
+    ariaLabel?: string;
   }) => (
     <textarea
-      aria-label={placeholder ?? "field"}
+      aria-label={ariaLabel ?? placeholder ?? "field"}
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />
   ),
 }));
 
-const IDEA_LABEL = "e.g. Why page speed matters for local SEO";
+const IDEA_LABEL = "Blog idea";
 
 let fetchMock: Mock;
 
@@ -73,17 +75,17 @@ describe("BlogPrompterPage AI Suggest status", () => {
 
     await renderWithIdea();
     await act(async () => {
-      fireEvent.click(screen.getByText("✨ AI Suggest"));
+      fireEvent.click(screen.getByRole("button", { name: "AI suggest" }));
       await Promise.resolve();
     });
 
     // Immediately in-flight: counter starts at 0s.
-    expect(screen.getByText("Thinking… 0s")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Thinking... 0s" })).toBeTruthy();
 
     await act(async () => {
       vi.advanceTimersByTime(3000);
     });
-    expect(screen.getByText("Thinking… 3s")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Thinking... 3s" })).toBeTruthy();
 
     await act(async () => {
       release({
@@ -96,8 +98,8 @@ describe("BlogPrompterPage AI Suggest status", () => {
     });
 
     // Counter is replaced by the idle label once the request settles.
-    expect(screen.getByText("✨ AI Suggest")).toBeTruthy();
-    expect(screen.queryByText(/Thinking…/)).toBeNull();
+    expect(screen.getByRole("button", { name: "AI suggest" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Thinking/ })).toBeNull();
 
     // Flush the success auto-clear timer inside act so no stray update leaks.
     await act(async () => {
@@ -120,7 +122,7 @@ describe("BlogPrompterPage AI Suggest status", () => {
 
     await renderWithIdea();
     await act(async () => {
-      fireEvent.click(screen.getByText("✨ AI Suggest"));
+      fireEvent.click(screen.getByRole("button", { name: "AI suggest" }));
       await Promise.resolve();
     });
 
@@ -128,7 +130,7 @@ describe("BlogPrompterPage AI Suggest status", () => {
     expect(msg.textContent).toContain("HTTP 504");
     expect(msg.textContent).toMatch(/timed out after \d+s/);
     // Rendered in the error colour, not the success green.
-    expect((msg as HTMLElement).style.color).toBe("rgb(239, 68, 68)");
+    expect((msg as HTMLElement).style.color).toBe("rgb(180, 35, 24)");
   });
 
   it("keeps the error message on screen instead of auto-clearing it", async () => {
@@ -146,7 +148,7 @@ describe("BlogPrompterPage AI Suggest status", () => {
 
     await renderWithIdea();
     await act(async () => {
-      fireEvent.click(screen.getByText("✨ AI Suggest"));
+      fireEvent.click(screen.getByRole("button", { name: "AI suggest" }));
       await Promise.resolve();
     });
     expect(screen.getByText(/AI suggestion timed out/)).toBeTruthy();
@@ -174,7 +176,7 @@ describe("BlogPrompterPage AI Suggest status", () => {
 
     await renderWithIdea();
     await act(async () => {
-      fireEvent.click(screen.getByText("✨ AI Suggest"));
+      fireEvent.click(screen.getByRole("button", { name: "AI suggest" }));
       await Promise.resolve();
     });
     expect(screen.getByText(/Recommendations added to empty fields/)).toBeTruthy();

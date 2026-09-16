@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { buildBlogPrompt, findCategoryTone, parsePromptLines } from '@/lib/blog-prompter'
 import VoiceField from './VoiceField'
+import './BlogPrompterPage.css'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -57,15 +58,15 @@ function stripBlogPrefix(text: string): string {
   return text.replace(/^[A-Za-z][A-Za-z\s]{0,20}:\s*/, '')
 }
 
-function briefStatus(brief: SavedBrief): { label: string; color: string; background: string } {
-  if (brief.workflowStatus === 'published') return { label: 'Published', color: '#166534', background: '#dcfce7' }
-  if (brief.workflowStatus === 'in_progress') return { label: 'In progress', color: '#92400e', background: '#fef3c7' }
-  return { label: 'Idea phase', color: '#3730a3', background: '#e0e7ff' }
+function briefStatus(brief: SavedBrief): string {
+  if (brief.workflowStatus === 'published') return 'Published'
+  if (brief.workflowStatus === 'in_progress') return 'In progress'
+  return 'Idea phase'
 }
 
 // ─── Compact prompt output box ────────────────────────────
 
-function OutputBox({ label, value, height = 100, footer }: { label: string; value: string; height?: number; footer?: string }) {
+function OutputBox({ label, value, footer, draftUrl }: { label: string; value: string; footer?: string; draftUrl?: string }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -75,56 +76,32 @@ function OutputBox({ label, value, height = 100, footer }: { label: string; valu
   }
 
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-400)' }}>{label}</span>
-        <button type="button" onClick={handleCopy} style={smallBtnStyle}>
-          {copied ? 'Copied!' : 'Copy'}
+    <div className="blog-prompter__prompt">
+      <div className="blog-prompter__prompt-top">
+        <span className="blog-prompter__prompt-label">{label}</span>
+        <button className="blog-prompter__copy" type="button" onClick={handleCopy}>
+          {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <textarea
-        readOnly
-        value={value}
-        style={{
-          width: '100%',
-          height,
-          overflowY: 'auto',
-          resize: 'vertical',
-          background: 'var(--theme-elevation-50)',
-          border: '1px solid var(--theme-elevation-200)',
-          borderRadius: 4,
-          padding: '8px 10px',
-          fontSize: 12,
-          fontFamily: 'monospace',
-          color: 'inherit',
-          lineHeight: 1.5,
-          boxSizing: 'border-box',
-        }}
-      />
-      {footer && <div style={{ fontSize: 12, color: 'var(--theme-elevation-400)', marginTop: 6 }}>{footer}</div>}
+      <pre tabIndex={0} aria-label={label}>{value}</pre>
+      {footer && <div className="blog-prompter__prompt-footer">{footer}</div>}
+      {draftUrl && <a className="blog-prompter__prompt-link" href={draftUrl}>Open draft Blog Post</a>}
     </div>
   )
 }
 
 function PromptBox({ prompt }: { prompt: string }) {
-  return <OutputBox label="Generated Prompt" value={prompt} />
+  return <OutputBox label="Generated prompt" value={prompt} />
 }
 
 function MarkdownOutputBox({ markdown, draftUrl }: { markdown: string; draftUrl?: string }) {
   return (
-    <>
-      <OutputBox
-        label="Generated Blog Markdown"
-        value={markdown}
-        height={320}
-        footer="This markdown has been added to the Blog Post draft import box for the selected client."
-      />
-      {draftUrl && (
-        <a href={draftUrl} style={{ display: 'inline-block', marginTop: 8, fontSize: 13, color: '#2563eb', fontWeight: 600 }}>
-          Open draft Blog Post →
-        </a>
-      )}
-    </>
+    <OutputBox
+      label="Generated blog markdown"
+      value={markdown}
+      footer="This markdown has been added to the Blog Post draft import box for the selected client."
+      draftUrl={draftUrl}
+    />
   )
 }
 
@@ -478,444 +455,399 @@ const BlogPrompterPage = () => {
   }
 
   return (
-    <div style={{ padding: '20px 0' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 20px' }}>Blog Post Prompter</h1>
+    <main className="blog-prompter">
+      <div className="blog-prompter__wrap">
+        <h1 className="blog-prompter__sr-only">Blog post prompter</h1>
 
-      {/* ── Top: Client-scoped saved briefs ── */}
-      <div style={{ background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>
-        <div style={{ padding: 16, borderBottom: '1px solid var(--theme-elevation-100)' }}>
-          <Field label="Client">
-            <select value={selectedClientId} onChange={(e) => handleClientChange(e.target.value)} style={selectStyle}>
-              <option value="">— Select a client —</option>
-              {clients.map((c) => (
-                <option key={String(c.id)} value={String(c.id)}>{c.name}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--theme-elevation-100)' }}>
-          <button
-            type="button"
-            onClick={() => { setShowProposed(false); setSelectedBrief(null) }}
-            style={{
-              flex: 1, padding: '12px 16px', fontSize: 13, fontWeight: showProposed ? 400 : 700,
-              background: showProposed ? 'transparent' : 'var(--theme-elevation-50)',
-              border: 'none', borderBottom: showProposed ? 'none' : '2px solid var(--theme-elevation-500)',
-              cursor: 'pointer', color: 'inherit',
-            }}
-          >
-            Manual blog ideas {activeBriefs.length > 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({activeBriefs.length})</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => { setShowProposed(true); setShowPublishedProposed(false); setProposedTagFilter(''); setSelectedBrief(null) }}
-            style={{
-              flex: 1, padding: '12px 16px', fontSize: 13, fontWeight: showProposed ? 700 : 400,
-              background: showProposed ? 'var(--theme-elevation-50)' : 'transparent',
-              border: 'none', borderBottom: showProposed ? '2px solid var(--theme-elevation-500)' : 'none',
-              cursor: 'pointer', color: 'inherit',
-            }}
-          >
-            Proposed blog ideas {blogIdeaProposedBriefs.length > 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({blogIdeaProposedBriefs.length})</span>}
-          </button>
-        </div>
-        {showProposed && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: '1px solid var(--theme-elevation-100)', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>Show</span>
-            <select
-              value={showPublishedProposed ? 'published' : 'ideas'}
-              onChange={(e) => { setShowPublishedProposed(e.target.value === 'published'); setProposedTagFilter(''); setSelectedBrief(null) }}
-              style={{ ...selectStyle, width: 170, padding: '6px 8px', fontSize: 12 }}
-            >
-              <option value="ideas">Blog ideas</option>
-              <option value="published">Published</option>
-            </select>
-            <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>Tag</span>
-            <select
-              value={proposedTagFilter}
-              onChange={(e) => { setProposedTagFilter(e.target.value); setSelectedBrief(null) }}
-              style={{ ...selectStyle, width: 220, padding: '6px 8px', fontSize: 12 }}
-            >
-              <option value="">All tags</option>
-              {proposedTagOptions.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
-            </select>
-            {publishedProposedBriefs.length > 0 && (
-              <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>({publishedProposedBriefs.length} published)</span>
-            )}
+        <section className="blog-prompter__card" aria-labelledby="idea-backlog-heading">
+          <div className="blog-prompter__card-head">
+            <div className="blog-prompter__card-head-group">
+              <h2 id="idea-backlog-heading">Idea backlog</h2>
+              <span className="blog-prompter__meta">{showProposed ? proposedBriefs.length : activeBriefs.length} queued</span>
+            </div>
+            <div className="blog-prompter__client-form">
+              <label htmlFor="blog-prompter-client">Client</label>
+              <select
+                id="blog-prompter-client"
+                value={selectedClientId}
+                onChange={(e) => handleClientChange(e.target.value)}
+              >
+                <option value="">Select a client</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={String(client.id)}>{client.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        )}
-        <div style={{ maxHeight: 260, overflowY: 'auto' }}>
-          {(() => {
-            const displayBriefs = showProposed ? proposedBriefs : activeBriefs
 
-            if (!selectedClient) {
-              return <div style={{ padding: '18px 16px', fontSize: 13, color: 'var(--theme-elevation-400)' }}>Select a client to see their saved blog prompts.</div>
-            }
-            if (loadingBriefs) {
-              return <div style={{ padding: '18px 16px', fontSize: 13, color: 'var(--theme-elevation-400)' }}>Loading prompts for {selectedClient.name}...</div>
-            }
-            if (displayBriefs.length === 0) {
-              const emptyMessage = showProposed
-                ? showPublishedProposed
-                  ? `No published proposed blogs saved for ${selectedClient.name}.`
-                  : `No blog ideas saved for ${selectedClient.name}.`
-                : `No active blog prompts saved for ${selectedClient.name}.`
-              return <div style={{ padding: '18px 16px', fontSize: 13, color: 'var(--theme-elevation-400)' }}>{emptyMessage}</div>
-            }
-            return displayBriefs.map((brief) => {
-              const status = briefStatus(brief)
-              return (
-                <div
-                  key={String(brief.id)}
-                  style={{
-                    display: 'grid', gridTemplateColumns: showProposed ? 'minmax(0, 1fr) minmax(120px, 180px) auto' : 'minmax(0, 1fr) auto auto auto', alignItems: 'center', gap: 10,
-                    borderBottom: '1px solid var(--theme-elevation-50)',
-                    background: selectedBrief?.id === brief.id ? 'var(--theme-elevation-100)' : 'transparent',
-                    paddingRight: 12,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleSelectBrief(brief)}
-                    style={{
-                      padding: '11px 16px', textAlign: 'left',
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                      fontSize: 13, fontWeight: selectedBrief?.id === brief.id ? 700 : 500,
-                      color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}
-                    title={stripBlogPrefix(brief.blogIdea)}
+          <div className="blog-prompter__tabs" role="group" aria-label="Blog idea source">
+            <button
+              className="blog-prompter__tab"
+              type="button"
+              aria-pressed={!showProposed}
+              onClick={() => { setShowProposed(false); setSelectedBrief(null) }}
+            >
+              Manual blog ideas ({activeBriefs.length})
+            </button>
+            <button
+              className="blog-prompter__tab"
+              type="button"
+              aria-pressed={showProposed}
+              onClick={() => { setShowProposed(true); setShowPublishedProposed(false); setProposedTagFilter(''); setSelectedBrief(null) }}
+            >
+              Proposed blog ideas ({blogIdeaProposedBriefs.length})
+            </button>
+          </div>
+
+          {showProposed && (
+            <div className="blog-prompter__filters">
+              <span>Show</span>
+              <select
+                className="blog-prompter__filter-select"
+                aria-label="Proposed blog status"
+                value={showPublishedProposed ? 'published' : 'ideas'}
+                onChange={(e) => { setShowPublishedProposed(e.target.value === 'published'); setProposedTagFilter(''); setSelectedBrief(null) }}
+              >
+                <option value="ideas">Blog ideas</option>
+                <option value="published">Published</option>
+              </select>
+              <span>Tag</span>
+              <select
+                className="blog-prompter__filter-select blog-prompter__filter-select--tag"
+                aria-label="Proposed blog tag"
+                value={proposedTagFilter}
+                onChange={(e) => { setProposedTagFilter(e.target.value); setSelectedBrief(null) }}
+              >
+                <option value="">All tags</option>
+                {proposedTagOptions.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="blog-prompter__backlog">
+            {(() => {
+              const displayBriefs = showProposed ? proposedBriefs : activeBriefs
+              if (!selectedClient) {
+                return <div className="blog-prompter__empty">Select a client to see their saved blog prompts.</div>
+              }
+              if (loadingBriefs) {
+                return <div className="blog-prompter__empty">Loading prompts for {selectedClient.name}...</div>
+              }
+              if (displayBriefs.length === 0) {
+                const emptyMessage = showProposed
+                  ? showPublishedProposed
+                    ? `No published proposed blogs saved for ${selectedClient.name}.`
+                    : `No proposed blog ideas saved for ${selectedClient.name}.`
+                  : `No active blog prompts saved for ${selectedClient.name}.`
+                return <div className="blog-prompter__empty">{emptyMessage}</div>
+              }
+              return displayBriefs.map((brief, index) => {
+                const status = briefStatus(brief)
+                const statusClass = status.toLowerCase().replaceAll(' ', '-')
+                return (
+                  <div
+                    className={`blog-prompter__row${selectedBrief?.id === brief.id ? ' blog-prompter__row--active' : ''}`}
+                    key={brief.id}
                   >
-                    {stripBlogPrefix(brief.blogIdea)}
-                  </button>
-                  {showProposed && (
-                    <span
-                      title={brief.tag || 'No tag'}
-                      style={{ fontSize: 12, color: 'var(--theme-elevation-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                    >
-                      {brief.tag?.trim() || 'No tag'}
-                    </span>
-                  )}
-                  {!showProposed && (
-                    <span style={{ fontSize: 11, fontWeight: 700, color: status.color, background: status.background, borderRadius: 999, padding: '4px 9px', whiteSpace: 'nowrap' }}>
-                      {status.label}
-                    </span>
-                  )}
-                  {!showProposed && (
+                    <span className="blog-prompter__rank">{index + 1}</span>
                     <button
+                      className="blog-prompter__row-title"
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); handleMarkBriefPublished(brief.id) }}
-                      disabled={publishingId === brief.id}
-                      style={{
-                        background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', borderRadius: 6,
-                        cursor: 'pointer', fontSize: 11, padding: '4px 8px', color: 'inherit', whiteSpace: 'nowrap',
-                        opacity: publishingId === brief.id ? 0.5 : 1,
-                      }}
+                      title={stripBlogPrefix(brief.blogIdea)}
+                      onClick={() => handleSelectBrief(brief)}
                     >
-                      {publishingId === brief.id ? 'Saving...' : 'Mark published'}
+                      {stripBlogPrefix(brief.blogIdea)}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    title="Delete prompt"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteBrief(brief.id) }}
-                    disabled={deletingId === brief.id}
-                    style={{
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                      fontSize: 13, padding: '4px 6px', color: 'var(--theme-elevation-400)',
-                      flexShrink: 0, opacity: deletingId === brief.id ? 0.4 : 1,
-                    }}
-                  >
-                    {deletingId === brief.id ? '...' : '\u2715'}
-                  </button>
-                </div>
-              )
-            })
-          })()}
-        </div>
-      </div>
+                    <div className="blog-prompter__row-meta">
+                      <span>{brief.category?.trim() || 'Uncategorised'}</span>
+                      <span className="blog-prompter__row-sep">/</span>
+                      <span>{brief.tag?.trim() || 'No tag'}</span>
+                    </div>
+                    <span className={`blog-prompter__pill blog-prompter__pill--${statusClass}`}>{status}</span>
+                    <div className="blog-prompter__row-actions">
+                      <button
+                        className="blog-prompter__use"
+                        type="button"
+                        onClick={() => handleLoadBrief(brief)}
+                      >
+                        Use
+                      </button>
+                      {!showProposed && brief.workflowStatus !== 'published' && (
+                        <button
+                          className="blog-prompter__icon"
+                          type="button"
+                          aria-label={`Mark ${stripBlogPrefix(brief.blogIdea)} as published`}
+                          title="Mark published"
+                          disabled={publishingId === brief.id}
+                          onClick={() => handleMarkBriefPublished(brief.id)}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path d="m4 10 3.4 3.4L16 5.8" />
+                          </svg>
+                        </button>
+                      )}
+                      <button
+                        className="blog-prompter__icon blog-prompter__icon--danger"
+                        type="button"
+                        aria-label={`Delete ${stripBlogPrefix(brief.blogIdea)}`}
+                        title="Delete prompt"
+                        disabled={deletingId === brief.id}
+                        onClick={() => handleDeleteBrief(brief.id)}
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7">
+                          <path d="M4 5.5h12M8 3.5h4M6.5 5.5l.6 11h5.8l.6-11M8.5 8.5v5M11.5 8.5v5" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            })()}
+          </div>
+        </section>
 
-      {/* ── Brief form ── */}
-      <div style={{ background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 20 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 16px' }}>Brief Details</h2>
+        <section className="blog-prompter__card blog-prompter__card-pad" aria-labelledby="brief-details-heading">
+          <div className="blog-prompter__form-head">
+            <h2 id="brief-details-heading">Brief details</h2>
+            <span className="blog-prompter__meta">{selectedClient ? selectedClient.name : 'Select a client before saving'}</span>
+          </div>
 
-          {/* Blog Idea — full width, auto-growing, with AI Suggest button */}
-          <div style={{ marginBottom: 16 }}>
-            <Field label="Blog Idea *" hint="Required">
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                <div style={{ flex: 1 }}>
+          <div className="blog-prompter__form-body">
+            <Field label="Blog idea" required>
+              <div className="blog-prompter__idea-row">
+                <div className="blog-prompter__idea-field">
                   <VoiceField
                     value={fields.blogIdea}
-                    onChange={(v) => setFields((prev) => ({ ...prev, blogIdea: v }))}
+                    ariaLabel="Blog idea"
+                    required
+                    onChange={(value) => setFields((previous) => ({ ...previous, blogIdea: value }))}
                     placeholder="e.g. Why page speed matters for local SEO"
                     autoGrow
                   />
                 </div>
                 <button
+                  className="blog-prompter__button blog-prompter__button--purple"
                   type="button"
                   onClick={handleSuggest}
                   disabled={suggesting}
                   title="Let AI recommend the rest of the brief from your blog idea"
-                  style={{
-                    ...btnStyle,
-                    background: '#7c3aed',
-                    color: '#fff',
-                    borderColor: '#7c3aed',
-                    whiteSpace: 'nowrap',
-                    opacity: suggesting ? 0.7 : 1,
-                    cursor: suggesting ? 'wait' : 'pointer',
-                  }}
                 >
-                  {suggesting ? `Thinking… ${suggestElapsed}s` : '\u2728 AI Suggest'}
+                  {suggesting ? `Thinking... ${suggestElapsed}s` : 'AI suggest'}
                 </button>
               </div>
-            </Field>
-            {suggestMsg && (
-              <span style={{ fontSize: 12, marginTop: 6, display: 'inline-block', color: /fail|first|timed out|error/i.test(suggestMsg) ? '#ef4444' : '#22c55e', fontWeight: 500 }}>
-                {suggestMsg}
-              </span>
-            )}
-          </div>
-
-          {/* 2-column grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
-            <Field label="Title Idea">
-              <VoiceField
-                value={fields.titleIdea}
-                onChange={(v) => setFields((prev) => ({ ...prev, titleIdea: v }))}
-                placeholder="Optional working title"
-              />
-            </Field>
-
-            <Field label="Category">
-              {clientCategories.length > 0 ? (
-                <select value={fields.category} onChange={set('category')} style={selectStyle}>
-                  <option value="">— Select category —</option>
-                  {clientCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              ) : (
-                <VoiceField
-                  value={fields.category}
-                  onChange={(v) => setFields((prev) => ({ ...prev, category: v }))}
-                  placeholder="e.g. SEO"
-                />
+              {suggestMsg && (
+                <span
+                  className="blog-prompter__message"
+                  role="status"
+                  style={{ color: /fail|first|timed out|error/i.test(suggestMsg) ? '#b42318' : '#327766' }}
+                >
+                  {suggestMsg}
+                </span>
               )}
             </Field>
 
-            <Field label="Tag">
-              {clientTags.length > 0 ? (
-                <select value={fields.tag} onChange={set('tag')} style={selectStyle}>
-                  <option value="">— Select tag —</option>
-                  {clientTags.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              ) : (
+            <div className="blog-prompter__grid-2">
+              <Field label="Title idea">
                 <VoiceField
-                  value={fields.tag}
-                  onChange={(v) => setFields((prev) => ({ ...prev, tag: v }))}
-                  placeholder="e.g. Technical SEO"
+                  value={fields.titleIdea}
+                  ariaLabel="Title idea"
+                  onChange={(value) => setFields((previous) => ({ ...previous, titleIdea: value }))}
+                  placeholder="Optional working title"
                 />
-              )}
-            </Field>
+              </Field>
+              <Field label="Category">
+                {clientCategories.length > 0 ? (
+                  <select className="blog-prompter__native-select" aria-label="Category" value={fields.category} onChange={set('category')}>
+                    <option value="">Select category</option>
+                    {clientCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                ) : (
+                  <VoiceField
+                    value={fields.category}
+                    ariaLabel="Category"
+                    onChange={(value) => setFields((previous) => ({ ...previous, category: value }))}
+                    placeholder="e.g. SEO"
+                  />
+                )}
+              </Field>
+              <Field label="Tag">
+                {clientTags.length > 0 ? (
+                  <select className="blog-prompter__native-select" aria-label="Tag" value={fields.tag} onChange={set('tag')}>
+                    <option value="">Select tag</option>
+                    {clientTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+                  </select>
+                ) : (
+                  <VoiceField
+                    value={fields.tag}
+                    ariaLabel="Tag"
+                    onChange={(value) => setFields((previous) => ({ ...previous, tag: value }))}
+                    placeholder="e.g. Technical SEO"
+                  />
+                )}
+              </Field>
+              <Field label="Target audience">
+                <VoiceField
+                  value={fields.targetAudience}
+                  ariaLabel="Target audience"
+                  onChange={(value) => setFields((previous) => ({ ...previous, targetAudience: value }))}
+                  placeholder="e.g. Small business owners"
+                />
+              </Field>
+            </div>
 
-            <Field label="Primary Keywords" hint="one per line">
-              <VoiceField
-                value={fields.primaryKeywords}
-                onChange={(v) => setFields((prev) => ({ ...prev, primaryKeywords: v }))}
-                placeholder={"page speed SEO\ncore web vitals\nLCP optimisation"}
-                multiline
-              />
-            </Field>
-            <Field label="Secondary Keywords" hint="one per line">
-              <VoiceField
-                value={fields.secondaryKeywords}
-                onChange={(v) => setFields((prev) => ({ ...prev, secondaryKeywords: v }))}
-                placeholder={"LCP\nFID\nCLS"}
-                multiline
-              />
-            </Field>
-
-            <Field label="Target Audience">
-              <VoiceField
-                value={fields.targetAudience}
-                onChange={(v) => setFields((prev) => ({ ...prev, targetAudience: v }))}
-                placeholder="e.g. Small business owners"
-              />
-            </Field>
-          </div>
-
-          {/* Full-width textareas */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-            <Field label="Main Point of the Content">
+            <Field label="Main point of the content">
               <VoiceField
                 value={fields.mainPoint}
-                onChange={(v) => setFields((prev) => ({ ...prev, mainPoint: v }))}
+                ariaLabel="Main point of the content"
+                onChange={(value) => setFields((previous) => ({ ...previous, mainPoint: value }))}
                 placeholder="The single most important takeaway the reader should get"
                 multiline
               />
             </Field>
-            <Field label="Key Points That Must Be Included">
+            <Field label="Key points that must be included">
               <VoiceField
                 value={fields.keyPoints}
-                onChange={(v) => setFields((prev) => ({ ...prev, keyPoints: v }))}
+                ariaLabel="Key points that must be included"
+                onChange={(value) => setFields((previous) => ({ ...previous, keyPoints: value }))}
                 placeholder="Enter each key point on a new line"
                 multiline
               />
             </Field>
-            <Field label="Points to Avoid">
+
+            <div className="blog-prompter__grid-2">
+              <Field label="Primary keywords" hint="one per line">
+                <VoiceField
+                  value={fields.primaryKeywords}
+                  ariaLabel="Primary keywords, one per line"
+                  onChange={(value) => setFields((previous) => ({ ...previous, primaryKeywords: value }))}
+                  placeholder={'page speed SEO\ncore web vitals\nLCP optimisation'}
+                  multiline
+                />
+              </Field>
+              <Field label="Secondary keywords" hint="one per line">
+                <VoiceField
+                  value={fields.secondaryKeywords}
+                  ariaLabel="Secondary keywords, one per line"
+                  onChange={(value) => setFields((previous) => ({ ...previous, secondaryKeywords: value }))}
+                  placeholder={'LCP\nFID\nCLS'}
+                  multiline
+                />
+              </Field>
+            </div>
+
+            <Field label="Points to avoid">
               <VoiceField
                 value={fields.pointsToAvoid}
-                onChange={(v) => setFields((prev) => ({ ...prev, pointsToAvoid: v }))}
+                ariaLabel="Points to avoid"
+                onChange={(value) => setFields((previous) => ({ ...previous, pointsToAvoid: value }))}
                 placeholder="Topics, angles, or claims to exclude"
                 multiline
               />
             </Field>
-            <Field label="Content to Support">
+            <Field label="Content to support">
               <VoiceField
                 value={fields.supportingContent}
-                onChange={(v) => setFields((prev) => ({ ...prev, supportingContent: v }))}
+                ariaLabel="Content to support"
+                onChange={(value) => setFields((previous) => ({ ...previous, supportingContent: value }))}
                 placeholder="Links, data, case studies, or existing content to reference"
                 multiline
               />
             </Field>
-          </div>
 
-          {/* Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
-            <button type="button" onClick={handleGenerate} style={{ ...btnStyle, background: '#213843', color: '#fff', borderColor: '#213843' }}>
-              Generate Prompt
-            </button>
-            <button type="button" onClick={handleSave} disabled={saving} style={btnStyle}>
-              {saving ? 'Saving...' : 'Save Brief'}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleGenerateBlog()}
-              disabled={generatingBlog || !selectedClient}
-              title={selectedClient ? 'Generate the blog and create a draft for review' : 'Select a client before generating a blog draft'}
-              style={{ ...btnStyle, background: '#0f766e', color: '#fff', borderColor: '#0f766e', opacity: generatingBlog || !selectedClient ? 0.65 : 1, cursor: generatingBlog || !selectedClient ? 'not-allowed' : 'pointer' }}
-            >
-              {generatingBlog ? 'Generating Blog…' : 'Generate Blog Draft'}
-            </button>
-            <button type="button" onClick={() => { setFields(emptyFields); setPrompt(''); setGeneratedBlogMarkdown(''); setGeneratedDraftUrl(''); setSelectedClientId('') }} style={{ ...btnStyle, color: 'var(--theme-elevation-400)' }}>
-              Clear
-            </button>
-            {saveMsg && (
-              <span style={{ fontSize: 13, color: saveMsg.startsWith('Error') || saveMsg.startsWith('Blog') ? '#ef4444' : '#22c55e', fontWeight: 500 }}>
-                {saveMsg}
-              </span>
-            )}
-            {generateBlogMsg && (
-              <span style={{ fontSize: 13, color: generateBlogMsg.toLowerCase().includes('fail') ? '#ef4444' : '#22c55e', fontWeight: 500 }}>
-                {generateBlogMsg}
-              </span>
-            )}
-          </div>
-
-          {prompt && <PromptBox prompt={prompt} />}
-          {generatedBlogMarkdown && <MarkdownOutputBox markdown={generatedBlogMarkdown} draftUrl={generatedDraftUrl} />}
-        </div>
-
-      {/* ── Selected Brief Detail ── */}
-      {selectedBrief && (
-        <div ref={selectedBriefRef} style={{ marginTop: 24, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>{stripBlogPrefix(selectedBrief.blogIdea)}</div>
-              {selectedBrief.titleIdea && (
-                <div style={{ fontSize: 12, color: 'var(--theme-elevation-400)', marginTop: 2 }}>{selectedBrief.titleIdea}</div>
-              )}
+            <div className="blog-prompter__actions">
+              <button className="blog-prompter__button blog-prompter__button--dark" type="button" onClick={handleGenerate}>
+                Generate prompt
+              </button>
+              <button className="blog-prompter__button blog-prompter__button--teal" type="button" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving...' : 'Save brief'}
+              </button>
+              <button
+                className="blog-prompter__button blog-prompter__button--outline"
+                type="button"
+                onClick={() => handleGenerateBlog()}
+                disabled={generatingBlog || !selectedClient}
+                title={selectedClient ? 'Generate the blog and create a draft for review' : 'Select a client before generating a blog draft'}
+              >
+                {generatingBlog ? 'Generating blog...' : 'Generate blog draft'}
+              </button>
+              <button
+                className="blog-prompter__button blog-prompter__button--ghost"
+                type="button"
+                onClick={() => { setFields(emptyFields); setPrompt(''); setGeneratedBlogMarkdown(''); setGeneratedDraftUrl('') }}
+              >
+                Clear
+              </button>
+              <div className="blog-prompter__action-status" aria-live="polite">
+                {saveMsg && (
+                  <span style={{ color: saveMsg.startsWith('Error') || saveMsg.startsWith('Blog') || saveMsg.startsWith('Select') ? '#b42318' : '#327766' }}>{saveMsg}</span>
+                )}
+                {generateBlogMsg && (
+                  <span style={{ color: generateBlogMsg.toLowerCase().includes('fail') ? '#b42318' : '#327766' }}>{generateBlogMsg}</span>
+                )}
+              </div>
             </div>
-            <button type="button" onClick={() => setSelectedBrief(null)} style={{ ...smallBtnStyle, flexShrink: 0 }}>✕ Close</button>
-          </div>
 
-          <PromptBox prompt={selectedBrief.generatedPrompt || buildCurrentPrompt(selectedBrief)} />
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="button" onClick={() => handleLoadBrief(selectedBrief)} style={smallBtnStyle}>
-              Load into form
-            </button>
-            <button
-              type="button"
-              onClick={() => handleGenerateBlog(selectedBrief)}
-              disabled={generatingBlog || !selectedClient}
-              title={selectedClient ? 'Generate the blog and create a client draft' : 'Select the client this saved brief belongs to first'}
-              style={{ ...smallBtnStyle, background: '#0f766e', color: '#fff', borderColor: '#0f766e', opacity: generatingBlog || !selectedClient ? 0.65 : 1 }}
-            >
-              {generatingBlog ? 'Generating…' : 'Generate Blog'}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDeleteBrief(selectedBrief.id)}
-              disabled={deletingId === selectedBrief.id}
-              style={{ ...smallBtnStyle, color: '#ef4444', borderColor: '#fca5a5' }}
-            >
-              {deletingId === selectedBrief.id ? 'Deleting...' : 'Delete'}
-            </button>
+            {prompt && <PromptBox prompt={prompt} />}
+            {generatedBlogMarkdown && <MarkdownOutputBox markdown={generatedBlogMarkdown} draftUrl={generatedDraftUrl} />}
           </div>
-        </div>
-      )}
-    </div>
+        </section>
+
+        {selectedBrief && (
+          <section ref={selectedBriefRef} className="blog-prompter__card blog-prompter__detail" aria-labelledby="selected-brief-heading">
+            <div className="blog-prompter__detail-head">
+              <div>
+                <h2 id="selected-brief-heading">{stripBlogPrefix(selectedBrief.blogIdea)}</h2>
+                {selectedBrief.titleIdea && <p>{selectedBrief.titleIdea}</p>}
+              </div>
+              <button className="blog-prompter__button blog-prompter__button--ghost" type="button" onClick={() => setSelectedBrief(null)}>Close</button>
+            </div>
+            <PromptBox prompt={selectedBrief.generatedPrompt || buildCurrentPrompt(selectedBrief)} />
+            <div className="blog-prompter__detail-actions">
+              <button className="blog-prompter__button blog-prompter__button--dark" type="button" onClick={() => handleLoadBrief(selectedBrief)}>Load into form</button>
+              <button
+                className="blog-prompter__button blog-prompter__button--teal"
+                type="button"
+                onClick={() => handleGenerateBlog(selectedBrief)}
+                disabled={generatingBlog || !selectedClient}
+              >
+                {generatingBlog ? 'Generating...' : 'Generate blog'}
+              </button>
+              <button
+                className="blog-prompter__button blog-prompter__button--danger"
+                type="button"
+                onClick={() => handleDeleteBrief(selectedBrief.id)}
+                disabled={deletingId === selectedBrief.id}
+              >
+                {deletingId === selectedBrief.id ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </section>
+        )}
+      </div>
+    </main>
   )
 }
 
-// ─── Field wrapper ────────────────────────────────────────
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  required = false,
+  children,
+}: {
+  label: string
+  hint?: string
+  required?: boolean
+  children: React.ReactNode
+}) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-500)' }}>
-        {label}
-        {hint && <span style={{ fontWeight: 400, color: 'var(--theme-elevation-400)', marginLeft: 4 }}>({hint})</span>}
-      </label>
+    <div className="blog-prompter__field">
+      <span className="blog-prompter__field-label">
+        {label} {required && <span className="blog-prompter__required" aria-hidden="true">*</span>}
+        {hint && <span className="blog-prompter__hint"> ({hint})</span>}
+      </span>
       {children}
     </div>
   )
-}
-
-// ─── Styles ───────────────────────────────────────────────
-
-const inputStyle: React.CSSProperties = {
-  background: 'var(--theme-input-bg, var(--theme-elevation-0))',
-  border: '1px solid var(--theme-elevation-200)',
-  padding: '8px 10px',
-  borderRadius: 4,
-  fontSize: 13,
-  color: 'inherit',
-  width: '100%',
-  boxSizing: 'border-box',
-}
-
-const textareaStyle: React.CSSProperties = {
-  ...inputStyle,
-  resize: 'vertical',
-  fontFamily: 'inherit',
-  lineHeight: 1.5,
-}
-
-const selectStyle: React.CSSProperties = {
-  ...inputStyle,
-}
-
-const btnStyle: React.CSSProperties = {
-  background: 'var(--theme-elevation-100)',
-  border: '1px solid var(--theme-elevation-200)',
-  padding: '8px 16px',
-  borderRadius: 6,
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 500,
-  color: 'inherit',
-  flexShrink: 0,
-}
-
-const smallBtnStyle: React.CSSProperties = {
-  background: 'var(--theme-elevation-50)',
-  border: '1px solid var(--theme-elevation-200)',
-  padding: '5px 12px',
-  borderRadius: 4,
-  cursor: 'pointer',
-  fontSize: 12,
-  fontWeight: 500,
-  color: 'inherit',
 }
 
 export default BlogPrompterPage

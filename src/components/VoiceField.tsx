@@ -36,6 +36,8 @@ interface VoiceFieldProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  ariaLabel?: string
+  required?: boolean
   multiline?: boolean
   disabled?: boolean
   className?: string
@@ -54,6 +56,8 @@ export default function VoiceField({
   value,
   onChange,
   placeholder,
+  ariaLabel,
+  required = false,
   multiline = false,
   disabled = false,
   className = '',
@@ -269,6 +273,8 @@ export default function VoiceField({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
+            aria-label={ariaLabel}
+            aria-required={required || undefined}
             disabled={disabled}
             rows={1}
           />
@@ -278,6 +284,8 @@ export default function VoiceField({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
+            aria-label={ariaLabel}
+            aria-required={required || undefined}
             disabled={disabled}
             rows={4}
           />
@@ -288,6 +296,8 @@ export default function VoiceField({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
+            aria-label={ariaLabel}
+            aria-required={required || undefined}
             disabled={disabled}
           />
         )}
