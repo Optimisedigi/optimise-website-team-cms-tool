@@ -732,6 +732,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
               disabled={draftingReply}
               placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the email…'}
               selectedModel={selectedModel}
+              enhanceMode="draft"
               onModelChange={(model) => {
                 modelManuallyChangedRef.current = true
                 setSelectedModel(model)
@@ -892,6 +893,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
                   disabled={draftingReply}
                   placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the reply…'}
                   selectedModel={selectedModel}
+                  enhanceMode={summariseMode ? undefined : 'reply'}
                   onModelChange={(model) => {
                     modelManuallyChangedRef.current = true
                     setSelectedModel(model)
@@ -1003,6 +1005,7 @@ function GmailChatComposer({
   disabled,
   placeholder,
   selectedModel,
+  enhanceMode,
   onModelChange,
 }: {
   value: string
@@ -1011,17 +1014,84 @@ function GmailChatComposer({
   disabled: boolean
   placeholder: string
   selectedModel: string
+  enhanceMode?: 'draft' | 'reply'
   onModelChange: (model: string) => void
 }): React.ReactElement {
-  const canSend = !disabled && value.trim().length > 0
+  const [enhancing, setEnhancing] = useState(false)
+  const [enhanceError, setEnhanceError] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const enhanceVisible = value.trim().length > 0 || enhancing
+  const canEnhance = Boolean(enhanceMode) && !disabled && !enhancing && value.trim().length > 0
+  const canSend = !disabled && !enhancing && value.trim().length > 0
+
+  const enhancePrompt = useCallback(async () => {
+    const prompt = value.trim()
+    if (!enhanceMode || !prompt || disabled || enhancing) return
+
+    setEnhancing(true)
+    setEnhanceError(null)
+    try {
+      const response = await fetch('/api/optimate/email/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ prompt, mode: enhanceMode, model: selectedModel }),
+      })
+      const data = (await response.json()) as { enhancedPrompt?: unknown; error?: unknown }
+      if (!response.ok || typeof data.enhancedPrompt !== 'string' || !data.enhancedPrompt.trim()) {
+        throw new Error(typeof data.error === 'string' ? data.error : `Enhancement failed (${response.status})`)
+      }
+      const enhancedPrompt = data.enhancedPrompt.trim()
+      onChange(enhancedPrompt)
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus()
+        textareaRef.current?.setSelectionRange(enhancedPrompt.length, enhancedPrompt.length)
+      })
+    } catch (error) {
+      setEnhanceError(error instanceof Error ? error.message : 'Could not enhance the prompt. Your original text was kept.')
+    } finally {
+      setEnhancing(false)
+    }
+  }, [disabled, enhanceMode, enhancing, onChange, selectedModel, value])
+
   return (
     <div style={gmailComposerWrapStyle}>
       <div style={composerInputRowStyle}>
         <div style={googleMateComposerBoxStyle}>
+          {enhanceMode && (
+            <div
+              style={{
+                ...enhancePillHostStyle,
+                opacity: enhanceVisible ? 1 : 0,
+                pointerEvents: enhanceVisible ? 'auto' : 'none',
+                transform: `translate(-50%, ${enhanceVisible ? '0' : '-4px'}) scale(${enhanceVisible ? 1 : 0.96})`,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => void enhancePrompt()}
+                disabled={!canEnhance}
+                title="Enhance prompt — clearer wording without sending it"
+                aria-label="Enhance prompt without sending"
+                aria-hidden={!enhanceVisible}
+                style={{
+                  ...enhancePillStyle,
+                  opacity: enhancing ? 0.65 : 1,
+                  cursor: canEnhance ? 'pointer' : 'default',
+                }}
+              >
+                {enhancing ? 'Enhancing…' : 'Enhance?'}
+              </button>
+            </div>
+          )}
           <textarea
+            ref={textareaRef}
             rows={3}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              onChange(e.target.value)
+              if (enhanceError) setEnhanceError(null)
+            }}
             onKeyDown={(e) => {
               e.stopPropagation()
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -1030,7 +1100,7 @@ function GmailChatComposer({
               }
             }}
             placeholder={placeholder}
-            disabled={disabled}
+            disabled={disabled || enhancing}
             style={googleMateTextareaStyle}
           />
         </div>
@@ -1057,11 +1127,12 @@ function GmailChatComposer({
           </svg>
         </button>
       </div>
+      {enhanceError && <div role="alert" style={enhanceErrorStyle}>{enhanceError}</div>}
       <div style={modelSelectorRowStyle}>
         <select
           value={selectedModel}
           onChange={(e) => onModelChange(e.target.value)}
-          disabled={disabled}
+          disabled={disabled || enhancing}
           title="Model used for the next GmailMate turn"
           style={modelSelectGoogleMateStyle}
         >
@@ -1284,6 +1355,7 @@ const composerInputRowStyle: React.CSSProperties = {
 }
 
 const googleMateComposerBoxStyle: React.CSSProperties = {
+  position: 'relative',
   flex: 1,
   minWidth: 0,
   minHeight: 104,
@@ -1291,6 +1363,39 @@ const googleMateComposerBoxStyle: React.CSSProperties = {
   borderRadius: 14,
   background: 'var(--theme-input-bg, #fff)',
   padding: '12px 14px',
+}
+
+const enhancePillHostStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: -12,
+  left: '50%',
+  zIndex: 4,
+  display: 'inline-flex',
+  transition: 'opacity 150ms ease, transform 150ms ease',
+}
+
+const enhancePillStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: 25,
+  padding: '2px 12px 3px',
+  border: '2px solid #8d8d93',
+  borderRadius: 999,
+  background: 'linear-gradient(180deg, #34343a 0%, #25252a 100%)',
+  boxShadow: '0 0 12px rgba(255, 255, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
+  color: '#f7f7f8',
+  fontFamily: 'inherit',
+  fontSize: 12,
+  fontWeight: 600,
+  lineHeight: '16px',
+  whiteSpace: 'nowrap',
+}
+
+const enhanceErrorStyle: React.CSSProperties = {
+  marginTop: 6,
+  fontSize: 11,
+  color: '#b91c1c',
 }
 
 const googleMateTextareaStyle: React.CSSProperties = {

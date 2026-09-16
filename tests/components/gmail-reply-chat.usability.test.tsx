@@ -248,7 +248,7 @@ describe('GmailReplyChat usability smoke', () => {
   it('supports search → pick email → chat through reply → save threaded draft', async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === '/api/optimate/default-model') {
-        return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+        return jsonResponse({ emailAssistantModel: 'claude-sonnet-5' })
       }
       if (url === '/api/gmail/status') {
         return jsonResponse({ connected: true, email: 'user@example.com' })
@@ -279,13 +279,22 @@ describe('GmailReplyChat usability smoke', () => {
           body: 'Can you clarify the next steps?',
         })
       }
+      if (url === '/api/optimate/email/enhance') {
+        const request = JSON.parse(String(init?.body))
+        expect(request).toMatchObject({
+          prompt: 'Be warm and explain the next step.',
+          mode: 'reply',
+          model: 'claude-sonnet-5',
+        })
+        return jsonResponse({ enhancedPrompt: 'Draft a warm reply that clearly explains the next step.' })
+      }
       if (url === '/api/optimate/email/chat') {
         const request = JSON.parse(String(init?.body))
-        expect(request.message).toBe('Be warm and explain the next step.')
+        expect(request.message).toBe('Draft a warm reply that clearly explains the next step.')
         return jsonResponse({
           reply: 'I’ve staged the reply below.',
           stagedEmailReply: { body: 'Hi Client,\n\nThe next step is to review the proposal together.' },
-          modelUsed: 'claude-sonnet-4.6',
+          modelUsed: 'claude-sonnet-5',
         })
       }
       if (url === '/api/gmail/draft') {
@@ -304,14 +313,20 @@ describe('GmailReplyChat usability smoke', () => {
 
     fireEvent.click(await screen.findByText('Proposal question'))
     expect(await screen.findByRole('button', { name: 'Show original email' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Enhance prompt without sending' })).not.toBeInTheDocument()
     expect(screen.queryByText('Can you clarify the next steps?')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show original email' }))
     expect(await screen.findByText('Can you clarify the next steps?')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Collapse original email' }))
     expect(screen.queryByText('Can you clarify the next steps?')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText('Message GmailMate about the reply…'), {
+    const replyInput = screen.getByPlaceholderText('Message GmailMate about the reply…')
+    fireEvent.change(replyInput, {
       target: { value: 'Be warm and explain the next step.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Enhance prompt without sending' }))
+    await waitFor(() => {
+      expect(replyInput).toHaveValue('Draft a warm reply that clearly explains the next step.')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
 
@@ -328,5 +343,38 @@ describe('GmailReplyChat usability smoke', () => {
         body: 'Hi Client,\n\nThe next step is to review the proposal together.',
       })
     })
+  })
+
+  it('enhances a draft instruction in place without sending it to GmailMate', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-5' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url === '/api/optimate/email/enhance') {
+        const request = JSON.parse(String(init?.body))
+        expect(request).toMatchObject({
+          prompt: 'thank sarah for the report',
+          mode: 'draft',
+          model: 'claude-sonnet-5',
+        })
+        return jsonResponse({ enhancedPrompt: 'Draft a concise email thanking Sarah for the report.' })
+      }
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="compose" />)
+
+    const input = await screen.findByPlaceholderText('Message GmailMate about the email…')
+    expect(screen.queryByRole('button', { name: 'Enhance prompt without sending' })).not.toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: 'thank sarah for the report' } })
+    const enhance = screen.getByRole('button', { name: 'Enhance prompt without sending' })
+    expect(enhance).toBeEnabled()
+    fireEvent.click(enhance)
+
+    await waitFor(() => {
+      expect(input).toHaveValue('Draft a concise email thanking Sarah for the report.')
+    })
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/optimate/email/chat')).toBe(false)
+    expect(screen.queryByText('You')).not.toBeInTheDocument()
   })
 })
