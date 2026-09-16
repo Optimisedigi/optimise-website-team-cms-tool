@@ -73,7 +73,7 @@ The complete agent window remains a charcoal workspace, while `OptiMateBeamCompo
 - The composer uses the pinned `border-beam` dark, colourful `md` treatment at full strength; its reduced-motion media query removes travelling animation.
 - Placeholder and control colours are intentionally brighter than the supplied screenshot so instructions remain readable on charcoal.
 - Textareas, tool buttons, model selectors, and send controls preserve explicit accessible names and receive a visible cyan `:focus-visible` outline.
-- Disabled controls retain shape and location without relying on colour alone; send remains a circular up-arrow with an accessible name and pauses its metal animation while unavailable.
+- Disabled controls retain shape and location without relying on colour alone; send remains a circular up-arrow with an accessible name while its decorative metal halo continues moving.
 - Thinking orbs use the inline 20px tuning, stop offscreen, and freeze automatically for reduced-motion users.
 - Composer controls wrap when necessary and text areas keep scrollable overflow for long prompts.
 - Forced-colours mode replaces the decorative surface with system canvas colours and a two-pixel system border.

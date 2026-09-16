@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit",
     "test": "vitest run",
+    "test:metal-motion": "node --test tests/browser/metal-fx-motion.test.mjs",
     "format": "prettier --check package.json package-lock.json",
     "format:write": "prettier --write package.json package-lock.json",
     "test:watch": "vitest",

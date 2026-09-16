@@ -705,7 +705,7 @@ export default function InvoiceAssistantChat() {
             onAssistantMessage={pushVoiceAssistantMessage}
             onStatusChange={setVoiceStatus}
           />
-          <OptiMateMetalSend paused={sending || (!input.trim() && imageAttachments.length === 0)}>
+          <OptiMateMetalSend>
             <button
               type="button"
               onClick={(e) => {

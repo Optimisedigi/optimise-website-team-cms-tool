@@ -174,7 +174,7 @@ export default function TaskMateChat() {
             />
             <div data-optimate-control-row="" style={{ position: 'absolute', insetInline: 16, bottom: 12, justifyContent: 'flex-end' }}>
               <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={(text) => setDraft((current) => `${current}${current.trim() ? ' ' : ''}${text}`)} />
-              <OptiMateMetalSend paused={sending || !draft.trim()}>
+              <OptiMateMetalSend>
                 <button type="button" disabled={sending || !draft.trim()} onClick={() => void send()} aria-label="Send" title="Send" data-optimate-send="">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

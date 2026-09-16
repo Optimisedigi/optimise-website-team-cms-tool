@@ -2618,7 +2618,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   alignItems: 'center',
                 }}
               >
-                <OptiMateMetalSend paused={loading || (!input.trim() && imageAttachments.length === 0)}>
+                <OptiMateMetalSend>
                   <button
                     type="button"
                     onClick={(e) => {

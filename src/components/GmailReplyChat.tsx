@@ -1115,7 +1115,7 @@ function GmailChatComposer({
             style={googleMateTextareaStyle}
           />
         </div>
-        <OptiMateMetalSend paused={!canSend}>
+        <OptiMateMetalSend>
           <button
             type="button"
             onClick={onSend}
