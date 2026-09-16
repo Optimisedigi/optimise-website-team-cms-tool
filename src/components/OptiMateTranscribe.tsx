@@ -162,6 +162,7 @@ export default function OptiMateTranscribe({
         title={listening ? 'Stop dictation' : 'Dictate with voice'}
         aria-label={listening ? 'Stop dictation' : 'Dictate with voice'}
         aria-pressed={listening}
+        data-optimate-tool=""
         style={{
           display: 'inline-flex',
           alignItems: 'center',

@@ -549,7 +549,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                             }}
                           />
                         </span>
-                        <span><span style={{ color: '#1a3a6b' }}>{a.label.replace('Mate', '')}</span>Mate</span>
+                        <span><span style={{ color: '#bfdbfe' }}>{a.label.replace('Mate', '')}</span>Mate</span>
                       </button>
                     ))}
                   </div>

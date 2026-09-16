@@ -26,11 +26,15 @@ const GoogleAdsChat = () => {
   }
 
   return (
-    <OptiMateChatCore
-      auditId={id}
-      customerId={customerId}
-      businessName={businessName}
-    />
+    <div
+      style={{ display: 'flex', minHeight: 520, overflow: 'hidden', borderRadius: 20, background: '#1c1c1e', color: '#f5f5f7' }}
+    >
+      <OptiMateChatCore
+        auditId={id}
+        customerId={customerId}
+        businessName={businessName}
+      />
+    </div>
   )
 }
 

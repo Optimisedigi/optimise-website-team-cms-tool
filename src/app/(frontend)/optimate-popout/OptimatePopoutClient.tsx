@@ -7,6 +7,7 @@ import GmailReplyChat from '@/components/GmailReplyChat'
 import TaskMateChat from '@/components/TaskMateChat'
 import AdminMateChat from '@/components/AdminMateChat'
 import RocketSplash from '@/components/RocketSplash'
+import { OPTIMATE_MODAL_CSS } from '@/components/optimate-modal-styles'
 
 type Props =
   | { agent?: 'google-ads'; targets: OptiMateChatTarget[] }
@@ -23,7 +24,7 @@ interface AccountOption {
 
 /**
  * Client-side wrapper for the standalone Optimate window. Renders the
- * multi-chat full-window with light chrome (header strip + close button)
+ * multi-chat full-window with dark chrome (header strip + close button)
  * but no admin sidebar.
  *
  * Uses `position: fixed; inset: 0` to fill the entire window viewport,
@@ -57,16 +58,18 @@ export default function OptimatePopoutClient(props: Props) {
 
   return (
     <div
+      className="om-popout"
       style={{
         position: 'fixed',
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--theme-input-bg, #fff)',
-        color: 'var(--theme-text, #1f2937)',
+        background: '#1c1c1e',
+        color: '#f5f5f7',
         fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
     >
+      <style>{OPTIMATE_MODAL_CSS}</style>
       {/* Header strip */}
       <div
         style={{

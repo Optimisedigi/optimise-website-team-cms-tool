@@ -110,7 +110,7 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
               : 'OptiMate'
 
   return (
-    <div className="om-page" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: 'var(--theme-input-bg, #fff)', color: 'var(--theme-text, #1f2937)', fontFamily: "'Manrope', Helvetica, Arial, sans-serif" }}>
+    <div className="om-page" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#1c1c1e', color: '#f5f5f7', fontFamily: "'Manrope', Helvetica, Arial, sans-serif" }}>
       <style dangerouslySetInnerHTML={{ __html: OPTIMATE_MODAL_CSS }} />
 
       {/* Header */}
@@ -190,7 +190,7 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
                         }}
                       />
                     </span>
-                    <span><span style={{ color: '#1a3a6b' }}>{a.label.replace('Mate', '')}</span>Mate</span>
+                    <span><span style={{ color: '#bfdbfe' }}>{a.label.replace('Mate', '')}</span>Mate</span>
                   </button>
                 ))}
               </div>

@@ -10,6 +10,9 @@ import {
 import { DEFAULT_INVOICE_MATE_STARTER_QUESTIONS } from '@/lib/agents/_shared/optimate-starter-questions'
 import { parseContractorCostPayments } from '@/lib/agents/optimate-invoice/contractor-cost-parse'
 import { renderMarkdown } from './OptiMateChatCore'
+import OptiMateBeamComposer from './OptiMateBeamComposer'
+import OptiMateMetalSend from './OptiMateMetalSend'
+import { ThinkingOrb } from 'thinking-orbs'
 
 /**
  * Compact Invoice Assistant chat for the OptiMate launcher panel.
@@ -405,7 +408,7 @@ export default function InvoiceAssistantChat() {
           borderBottom: '1px solid var(--theme-border-color, #e5e7eb)',
         }}
       >
-        <span style={{ fontSize: 11, color: '#6b7280' }}>
+        <span style={{ fontSize: 11, color: 'var(--theme-elevation-600, #d4d4d8)' }}>
           Xero invoices · creates &amp; sends in real time{voiceStatus ? ` · ${voiceStatus}` : ''}
         </span>
         {messages.length > 0 && (
@@ -415,7 +418,7 @@ export default function InvoiceAssistantChat() {
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#6b7280',
+              color: 'var(--theme-elevation-600, #d4d4d8)',
               fontSize: 11,
               cursor: 'pointer',
               padding: 0,
@@ -443,7 +446,7 @@ export default function InvoiceAssistantChat() {
       >
         {messages.length === 0 && !sending && (
           <div style={{ textAlign: 'center', padding: '32px 8px' }}>
-            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
+            <p style={{ fontSize: 13, color: 'var(--theme-elevation-600, #d4d4d8)', marginBottom: 14 }}>
               Ask me to create, send, schedule, or look up invoices.
             </p>
             <div
@@ -466,18 +469,18 @@ export default function InvoiceAssistantChat() {
                   style={{
                     padding: '5px 10px',
                     fontSize: 11,
-                    background: '#f3f4f6',
-                    border: '1px solid #e5e7eb',
+                    background: '#29292c',
+                    border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 14,
                     cursor: 'pointer',
-                    color: '#374151',
+                    color: '#d4d4d8',
                     transition: 'background 0.15s',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#e5e7eb'
+                    e.currentTarget.style.background = '#343438'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#f3f4f6'
+                    e.currentTarget.style.background = '#29292c'
                   }}
                 >
                   {q}
@@ -507,13 +510,11 @@ export default function InvoiceAssistantChat() {
                     ? '#fee2e2'
                     : msg.role === 'user'
                       ? '#2563eb'
-                      : '#f3f4f6',
+                      : '#2a2a2d',
                 color:
                   msg.role === 'error'
                     ? '#b91c1c'
-                    : msg.role === 'user'
-                      ? '#fff'
-                      : '#1f2937',
+                    : '#fff',
                 border: msg.role === 'error' ? '1px solid #fecaca' : undefined,
                 fontSize: 13,
                 lineHeight: 1.5,
@@ -549,7 +550,7 @@ export default function InvoiceAssistantChat() {
               <div
                 style={{
                   fontSize: 10,
-                  color: '#6b7280',
+                  color: 'var(--theme-elevation-600, #d4d4d8)',
                   marginTop: 4,
                   paddingLeft: 4,
                 }}
@@ -568,13 +569,11 @@ export default function InvoiceAssistantChat() {
               padding: '10px 14px',
               alignItems: 'center',
               alignSelf: 'flex-start',
-              background: '#f3f4f6',
+              background: '#2a2a2d',
               borderRadius: '16px 16px 16px 4px',
             }}
           >
-            <span style={dotStyle} />
-            <span style={{ ...dotStyle, animationDelay: '0.25s' }} />
-            <span style={{ ...dotStyle, animationDelay: '0.5s' }} />
+            <ThinkingOrb state="searching" size={20} theme="dark" aria-label="InvoiceMate is thinking" />
           </div>
         )}
 
@@ -583,15 +582,12 @@ export default function InvoiceAssistantChat() {
 
       {/* Composer — bordered box with a borderless textarea and a round
         up-arrow send button, identical to the Google Ads chat. */}
+      <OptiMateBeamComposer>
       <div
         style={{
           position: 'relative',
-          marginTop: 8,
           minHeight: 104,
-          border: '1px solid var(--theme-border-color, #e5e7eb)',
-          borderRadius: 14,
-          background: 'var(--theme-input-bg, #fff)',
-          padding: '12px 14px 46px',
+          padding: '16px 16px 48px',
         }}
       >
         {imageAttachments.length > 0 && (
@@ -636,6 +632,7 @@ export default function InvoiceAssistantChat() {
           onKeyDown={handleKeyDown}
           placeholder="Feel free to ask"
           disabled={sending}
+          data-optimate-input=""
           style={{
             width: '100%',
             minHeight: 36,
@@ -681,6 +678,7 @@ export default function InvoiceAssistantChat() {
             disabled={sending || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS}
             title="Attach a screenshot"
             aria-label="Attach image screenshot"
+            data-optimate-tool=""
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -707,42 +705,65 @@ export default function InvoiceAssistantChat() {
             onAssistantMessage={pushVoiceAssistantMessage}
             onStatusChange={setVoiceStatus}
           />
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              handleSend()
-            }}
-            disabled={sending || (!input.trim() && imageAttachments.length === 0)}
-            title="Send"
-            aria-label="Send"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 29,
-              height: 29,
-              background: sending || (!input.trim() && imageAttachments.length === 0) ? '#9ca3af' : '#2563eb',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              cursor: sending || (!input.trim() && imageAttachments.length === 0) ? 'not-allowed' : 'pointer',
-              transition: 'background 0.15s',
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M12 19V5M5 12l7-7 7 7"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          <OptiMateMetalSend paused={sending || (!input.trim() && imageAttachments.length === 0)}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleSend()
+              }}
+              disabled={sending || (!input.trim() && imageAttachments.length === 0)}
+              title="Send"
+              aria-label="Send"
+              data-optimate-send=""
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 29,
+                height: 29,
+                background: sending || (!input.trim() && imageAttachments.length === 0) ? '#9ca3af' : '#2563eb',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                cursor: sending || (!input.trim() && imageAttachments.length === 0) ? 'not-allowed' : 'pointer',
+                transition: 'background 0.15s',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M12 19V5M5 12l7-7 7 7"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </OptiMateMetalSend>
         </div>
       </div>
+      <div data-optimate-select-row="" style={{ padding: '0 16px 14px' }}>
+        <select
+          value={selectedModel}
+          onChange={(e) => {
+            setSelectedModel(e.target.value)
+            savePersistedModel(e.target.value)
+          }}
+          disabled={sending}
+          title="Model used for the next message"
+          data-optimate-select=""
+          style={{ cursor: sending ? 'not-allowed' : 'pointer', width: 270, maxWidth: '100%' }}
+        >
+          {CHAT_PICKER_MODELS.map((m) => (
+            <option key={m.canonical} value={m.canonical}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      </OptiMateBeamComposer>
 
       {dragActive && (
         <div
@@ -775,51 +796,6 @@ export default function InvoiceAssistantChat() {
         </div>
       )}
 
-      {/* Model selector — sits below the composer, matching the Google Ads chat. */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          marginTop: 6,
-        }}
-      >
-        <select
-          value={selectedModel}
-          onChange={(e) => {
-            setSelectedModel(e.target.value)
-            savePersistedModel(e.target.value)
-          }}
-          disabled={sending}
-          title="Model used for the next message"
-          style={{
-            fontSize: 11,
-            padding: '4px 8px',
-            border: '1px solid var(--theme-border-color, #e5e7eb)',
-            borderRadius: 6,
-            background: 'var(--theme-input-bg, #fff)',
-            color: 'var(--theme-text, #1f2937)',
-            cursor: sending ? 'not-allowed' : 'pointer',
-            width: 270,
-            maxWidth: '100%',
-          }}
-        >
-          {CHAT_PICKER_MODELS.map((m) => (
-            <option key={m.canonical} value={m.canonical}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Keyframes for typing dots */}
-      <style>{`
-        @keyframes invoiceTypingPulse {
-          0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
-          40% { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
     </div>
   )
 }
@@ -864,11 +840,11 @@ function ContractorCostPaymentCard({
     <div
       style={{
         padding: '10px 12px',
-        border: '1px solid #e5e7eb',
+        border: '1px solid rgba(255,255,255,0.12)',
         borderRadius: 10,
-        background: '#fff',
+        background: '#242426',
         fontSize: 12,
-        color: '#1f2937',
+        color: '#f5f5f7',
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{payment.contractorName}</div>
@@ -895,11 +871,3 @@ function ContractorCostPaymentCard({
   )
 }
 
-const dotStyle: React.CSSProperties = {
-  width: 6,
-  height: 6,
-  borderRadius: '50%',
-  background: '#6b7280',
-  display: 'inline-block',
-  animation: 'invoiceTypingPulse 1.2s ease-in-out infinite',
-}

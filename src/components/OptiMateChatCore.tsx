@@ -8,6 +8,9 @@ import {
   modelRequiresReasoning,
 } from '@/lib/agents/_shared/llm/registry'
 import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
+import OptiMateBeamComposer from './OptiMateBeamComposer'
+import OptiMateMetalSend from './OptiMateMetalSend'
+import { ThinkingOrb } from 'thinking-orbs'
 
 type ReasoningMode = 'off' | 'low' | 'medium' | 'high'
 
@@ -172,29 +175,6 @@ export interface OptiMateChatCoreProps {
   initialSessionId?: string
 }
 
-function OptiMateTypingLoader(): React.ReactElement {
-  return (
-    <span
-      aria-label="OptiMate is typing"
-      role="status"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 20 }}
-    >
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 999,
-            background: '#6b7280',
-            animation: 'optimateTyping 1s infinite',
-            animationDelay: `${i * 250}ms`,
-          }}
-        />
-      ))}
-    </span>
-  )
-}
 
 interface ChatSession {
   sessionId: string
@@ -1661,12 +1641,6 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         {/* Panel styling is also injected here, not only by the launcher: the
             popout window and the admin audit page mount this chat on its own. */}
         <style>{OPTIMATE_MODAL_CSS}</style>
-        <style>{`
-          @keyframes optimateTyping {
-            0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
-            30% { opacity: 1; transform: translateY(-3px); }
-          }
-        `}</style>
         {/* Header */}
         <div
           style={{
@@ -1770,8 +1744,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   width: 280,
                   maxHeight: 320,
                   overflowY: 'auto',
-                  background: '#fff',
-                  border: '1px solid #e5e7eb',
+                  background: '#242426',
+                  border: '1px solid rgba(255,255,255,0.12)',
                   borderRadius: 8,
                   boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
                   zIndex: 50,
@@ -1801,10 +1775,10 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   + New chat
                 </button>
                 {sessionsLoading && (
-                  <div style={{ padding: '8px', fontSize: 11, color: '#6b7280' }}>Loading…</div>
+                  <div style={{ padding: '8px', fontSize: 11, color: '#a1a1aa' }}>Loading…</div>
                 )}
                 {!sessionsLoading && sessions.length === 0 && (
-                  <div style={{ padding: '8px', fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                  <div style={{ padding: '8px', fontSize: 11, color: '#a1a1aa', lineHeight: 1.4 }}>
                     <div>No previous chats.</div>
                     <div style={{ marginTop: 4, color: '#9ca3af' }}>
                       Past chats appear here once they’re saved.
@@ -1845,11 +1819,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                         fontSize: 11,
                         textAlign: 'left',
                         background:
-                          sessionIdRef.current === s.sessionId ? '#eff6ff' : 'transparent',
+                          sessionIdRef.current === s.sessionId ? '#283448' : 'transparent',
                         border: 'none',
                         borderRadius: 4,
                         cursor: 'pointer',
-                        color: '#1f2937',
+                        color: '#f5f5f7',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -1908,7 +1882,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               <span
                 style={{
                   fontSize: 10,
-                  color: '#6b7280',
+                  color: '#a1a1aa',
                   alignSelf: 'center',
                   flexShrink: 0,
                   marginRight: 4,
@@ -1984,8 +1958,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   width: fluid && msg.role === 'assistant' ? '100%' : undefined,
                   padding: '10px 14px',
                   borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  background: msg.role === 'user' ? '#2563eb' : '#f3f4f6',
-                  color: msg.role === 'user' ? '#fff' : '#1f2937',
+                  background: msg.role === 'user' ? '#2563eb' : '#2a2a2d',
+                  color: '#fff',
                   fontSize: 13,
                   lineHeight: 1.5,
                   wordBreak: 'break-word',
@@ -2019,7 +1993,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 <div
                   style={{
                     fontSize: 10,
-                    color: '#6b7280',
+                    color: '#a1a1aa',
                     marginTop: 4,
                     paddingLeft: 4,
                     display: 'flex',
@@ -2088,7 +2062,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     style={{
                       border: 'none',
                       background: 'transparent',
-                      color: copiedIdx === i ? '#10b981' : '#6b7280',
+                      color: copiedIdx === i ? '#34d399' : '#a1a1aa',
                       cursor: 'pointer',
                       padding: 0,
                       fontSize: 10,
@@ -2152,7 +2126,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                         style={{
                           border: 'none',
                           background: 'transparent',
-                          color: '#6b7280',
+                          color: '#a1a1aa',
                           cursor: ds?.status === 'saving' ? 'wait' : 'pointer',
                           padding: 0,
                           fontSize: 10,
@@ -2185,9 +2159,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 style={{
                   padding: '10px 12px 10px 14px',
                   borderRadius: '16px 16px 16px 4px',
-                  background: '#f3f4f6',
+                  background: '#2a2a2d',
                   fontSize: 13,
-                  color: '#6b7280',
+                  color: '#d4d4d8',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
@@ -2204,10 +2178,10 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 11 }}>
-                      <span style={{ color: '#374151', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: '#f5f5f7', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {progressAccountLabels[progressAccountIndex] ?? progressAccountLabels[0]}
                       </span>
-                      <span style={{ color: '#6b7280', flexShrink: 0 }}>
+                      <span style={{ color: '#a1a1aa', flexShrink: 0 }}>
                         {Math.min(progressAccountIndex + 1, progressAccountLabels.length)} of {progressAccountLabels.length}
                       </span>
                     </div>
@@ -2224,7 +2198,14 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     </div>
                   </div>
                 )}
-                <OptiMateTypingLoader />
+                <ThinkingOrb
+                  state="searching"
+                  size={20}
+                  theme="dark"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Agent is thinking"
+                />
                 <button
                   type="button"
                   onClick={(e) => {
@@ -2233,9 +2214,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     stopThinking()
                   }}
                   style={{
-                    border: '1px solid #d1d5db',
-                    background: '#fff',
-                    color: '#374151',
+                    border: '1px solid rgba(255,255,255,0.16)',
+                    background: '#343438',
+                    color: '#f5f5f7',
                     borderRadius: 999,
                     padding: '3px 8px',
                     fontSize: 11,
@@ -2430,12 +2411,12 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   gap: 6,
                   margin: '0 0 8px',
                   padding: '8px 10px',
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid rgba(255,255,255,0.12)',
                   borderRadius: 12,
-                  background: '#f9fafb',
+                  background: '#242426',
                 }}
               >
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginRight: 2 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#d4d4d8', marginRight: 2 }}>
                   Monthly email components
                 </span>
                 {MONTHLY_EMAIL_COMPONENT_CHIPS.map((chip) => {
@@ -2453,11 +2434,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                       style={{
                         padding: '5px 9px',
                         fontSize: 11,
-                        background: selected ? '#dbeafe' : '#fff',
-                        border: selected ? '1px solid #93c5fd' : '1px solid #e5e7eb',
+                        background: selected ? '#202d40' : '#29292c',
+                        border: selected ? '1px solid #60a5fa' : '1px solid rgba(255,255,255,0.12)',
                         borderRadius: 999,
                         cursor: loading ? 'not-allowed' : 'pointer',
-                        color: selected ? '#1d4ed8' : '#374151',
+                        color: selected ? '#bfdbfe' : '#d4d4d8',
                         fontWeight: selected ? 700 : 500,
                       }}
                     >
@@ -2490,7 +2471,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               </div>
             )}
 
-            <div className="om-inputwrap" style={{ position: 'relative', minHeight: 104, padding: '12px 14px 46px' }}>
+            <OptiMateBeamComposer>
+            <div className="om-inputwrap" style={{ position: 'relative', minHeight: 104, padding: '16px 16px 48px' }}>
               <input
                 ref={imageInputRef}
                 type="file"
@@ -2507,6 +2489,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 onKeyDown={handleKeyDown}
                 placeholder="Feel free to ask"
                 disabled={loading}
+                data-optimate-input=""
                 style={{
                   width: '100%',
                   minHeight: 36,
@@ -2542,7 +2525,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   disabled={loading}
                   title="Browse your Gmail inbox to attach an email"
                   className={`om-tool${pickerOpen ? ' is-on' : ''}`}
+                  data-optimate-tool=""
                   aria-label="Browse Gmail inbox"
+                  aria-pressed={pickerOpen}
                 >
                   <svg
                     width="14"
@@ -2575,6 +2560,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                       : 'Attach a screenshot — click, paste (⌘V), or drop an image'
                   }
                   className={`om-tool${imageAttachments.length > 0 ? ' is-attached' : ''}`}
+                  data-optimate-tool=""
                   style={{ position: 'relative' }}
                   aria-label={
                     imageAttachments.length > 0
@@ -2632,29 +2618,32 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   alignItems: 'center',
                 }}
               >
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    sendMessage(input)
-                  }}
-                  disabled={loading || (!input.trim() && imageAttachments.length === 0)}
-                  title="Send"
-                  aria-label="Send"
-                  className="om-send"
-                  style={{ marginLeft: 0, width: 29, height: 29, borderRadius: 9 }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path
-                      d="M12 19V5M5 12l7-7 7 7"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
+                <OptiMateMetalSend paused={loading || (!input.trim() && imageAttachments.length === 0)}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      sendMessage(input)
+                    }}
+                    disabled={loading || (!input.trim() && imageAttachments.length === 0)}
+                    title="Send"
+                    aria-label="Send"
+                    className="om-send"
+                    data-optimate-send=""
+                    style={{ marginLeft: 0 }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path
+                        d="M12 19V5M5 12l7-7 7 7"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </OptiMateMetalSend>
                 {isMobileViewport ? (
                   <OptiMateTranscribe
                     onTranscript={appendTranscript}
@@ -2728,6 +2717,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     : 'Reasoning mode for the next request. Off is fastest/cheapest.'
                 }
                 className="om-select"
+                data-optimate-select=""
                 style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
               >
                 <option value="off" disabled={modelRequiresReasoning(selectedModel)}>
@@ -2753,6 +2743,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 disabled={loading}
                 title="Model used for the next message"
                 className="om-select om-select--wide"
+                data-optimate-select=""
                 style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
               >
                 {CHAT_PICKER_MODELS.map((m) => (
@@ -2762,6 +2753,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 ))}
               </select>
             </div>
+            </OptiMateBeamComposer>
 
             {devParityEnabled && (
               <details

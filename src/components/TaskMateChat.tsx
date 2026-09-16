@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import OptiMateTranscribe from './OptiMateTranscribe'
+import OptiMateBeamComposer from './OptiMateBeamComposer'
+import OptiMateMetalSend from './OptiMateMetalSend'
+import { ThinkingOrb } from 'thinking-orbs'
 import type { StagedTaskList, TaskMateClient, TaskMateUser } from '@/lib/agents/taskmate'
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
@@ -106,7 +109,12 @@ export default function TaskMateChat() {
             {message.content}
           </div>
         ))}
-        {sending && <div style={{ color: 'var(--theme-elevation-500)', fontSize: 13 }}>TaskMate is thinking…</div>}
+        {sending && (
+          <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--theme-elevation-600)', fontSize: 13 }}>
+            <ThinkingOrb state="working" size={20} theme="dark" aria-label="TaskMate is thinking" />
+            <span>TaskMate is thinking…</span>
+          </div>
+        )}
         {staged && (
           <section aria-label="Task list review" style={{ border: '1px solid #5eead4', borderRadius: 12, padding: 12, background: 'rgba(20,184,166,.08)', display: 'grid', gap: 10 }}>
             <div><strong>Review week</strong> · {staged.weekStart}</div>
@@ -151,20 +159,31 @@ export default function TaskMateChat() {
       </div>
       <div style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8 }}>
         <button type="button" disabled={sending} onClick={() => void send('Generate task list for review now.')} style={{ ...primaryButtonStyle, background: '#7c3aed' }}>Generate task list</button>
-        <div style={{ display: 'flex', gap: 7, alignItems: 'flex-end' }}>
-          <textarea
-            aria-label="Message TaskMate"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => { if (['Enter'].includes(event.key) && !event.shiftKey) { event.preventDefault(); void send() } }}
-            placeholder="Discuss tasks, clients, dates, and priorities…"
-            rows={2}
-            maxLength={8000}
-            style={{ ...inputStyle, flex: 1, resize: 'none' }}
-          />
-          <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={(text) => setDraft((current) => `${current}${current.trim() ? ' ' : ''}${text}`)} />
-          <button type="button" disabled={sending || !draft.trim()} onClick={() => void send()} style={{ ...primaryButtonStyle, minWidth: 58 }}>Send</button>
-        </div>
+        <OptiMateBeamComposer>
+          <div style={{ position: 'relative', minHeight: 116, padding: '16px 16px 54px' }}>
+            <textarea
+              aria-label="Message TaskMate"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => { if (['Enter'].includes(event.key) && !event.shiftKey) { event.preventDefault(); void send() } }}
+              placeholder="Discuss tasks, clients, dates, and priorities…"
+              rows={3}
+              maxLength={8000}
+              data-optimate-input=""
+              style={{ ...inputStyle, minHeight: 48, resize: 'none', padding: 0 }}
+            />
+            <div data-optimate-control-row="" style={{ position: 'absolute', insetInline: 16, bottom: 12, justifyContent: 'flex-end' }}>
+              <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={(text) => setDraft((current) => `${current}${current.trim() ? ' ' : ''}${text}`)} />
+              <OptiMateMetalSend paused={sending || !draft.trim()}>
+                <button type="button" disabled={sending || !draft.trim()} onClick={() => void send()} aria-label="Send" title="Send" data-optimate-send="">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </OptiMateMetalSend>
+            </div>
+          </div>
+        </OptiMateBeamComposer>
       </div>
     </div>
   )

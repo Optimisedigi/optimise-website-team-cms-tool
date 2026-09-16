@@ -51,3 +51,30 @@ The supplied `blog-prompter.html` is the visual source of truth: a pale neutral 
 - Buttons have hover, disabled, press, keyboard focus, and reduced-motion behavior; destructive actions use text/icon shape as well as colour.
 - Loading, empty, selected, success, error, disabled, generated-prompt, generated-markdown, and selected-brief detail states are represented.
 - Controls have explicit accessible names and live messages announce async outcomes. Forced-colors and assistive-technology testing remain runtime checks.
+
+---
+
+# OptiMate animated composer
+
+## Design read
+
+- **Surface:** compact application chat UI used by the OptiMate launcher, expanded view, popout, and multi-account tabs.
+- **Audience:** internal agency staff using desktop, touch, and mobile dictation while working across specialist agents.
+- **Single job:** make the complete OptiMate window a dark workspace while clearly highlighting the composer as the primary action.
+- **Risk:** visual consolidation must not change send shortcuts, agent-specific tools, pending states, or the mobile/desktop voice split.
+- **Platform:** React 19 and Next.js, with narrow launcher panels as the limiting viewport.
+
+## Thesis and reuse map
+
+The complete agent window remains a charcoal workspace, while `OptiMateBeamComposer` owns one cyan/magenta animated border around the message field, mail and attachment tools, microphone, metal send control, reasoning selector, and model selector. The outer window has no competing Beam. `ThinkingOrb` replaces text or dot spinners during agent work, and `OptiMateMetalSend` provides the WebGL metal halo with the package's plain-button fallback. Agent-specific behavior remains in each owning component.
+
+## States and accessibility
+
+- The composer uses the pinned `border-beam` dark, colourful `md` treatment at full strength; its reduced-motion media query removes travelling animation.
+- Placeholder and control colours are intentionally brighter than the supplied screenshot so instructions remain readable on charcoal.
+- Textareas, tool buttons, model selectors, and send controls preserve explicit accessible names and receive a visible cyan `:focus-visible` outline.
+- Disabled controls retain shape and location without relying on colour alone; send remains a circular up-arrow with an accessible name and pauses its metal animation while unavailable.
+- Thinking orbs use the inline 20px tuning, stop offscreen, and freeze automatically for reduced-motion users.
+- Composer controls wrap when necessary and text areas keep scrollable overflow for long prompts.
+- Forced-colours mode replaces the decorative surface with system canvas colours and a two-pixel system border.
+- Visual checks cover desktop and narrow launcher layouts when an authenticated development session is available; keyboard and assistive-technology checks remain runtime checks.

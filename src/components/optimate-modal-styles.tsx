@@ -627,6 +627,52 @@ export const OPTIMATE_MODAL_CSS = `
 }
 .om-select--wide { flex: 1.4; }
 
+/* ---------- dark OptiMate window ---------- */
+.om-panel, .om-page, .om-popout, .om-chatui {
+  --om-ink: #f5f5f7;
+  --om-ink-2: #d4d4d8;
+  --om-ink-3: #a1a1aa;
+  --om-mute: #8f8f98;
+  --om-line: rgba(255, 255, 255, 0.12);
+  --om-line-soft: rgba(255, 255, 255, 0.08);
+  --om-blue: #60a5fa;
+  --om-blue-line: rgba(96, 165, 250, 0.56);
+  --om-blue-bg: #202d40;
+  --om-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --om-shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.32);
+  --theme-bg: #1c1c1e;
+  --theme-input-bg: #1c1c1e;
+  --theme-text: #f5f5f7;
+  --theme-border-color: rgba(255, 255, 255, 0.12);
+  color-scheme: dark;
+  background: #1c1c1e;
+  color: var(--om-ink);
+}
+.om-panel { box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(255, 255, 255, 0.07); }
+.om-card, .om-agent, .om-action, .om-acct, .om-foot, .om-btn, .om-pill, .om-inputwrap {
+  background: #242426;
+}
+.om-card:hover, .om-agent:hover:not(:disabled), .om-action:hover, .om-acct:hover, .om-btn:hover, .om-pill:hover {
+  background: #2c2c2f;
+}
+.om-portfolio {
+  background: linear-gradient(180deg, #202d40, #1d2735);
+}
+.om-search, .om-search:hover, .om-search:focus-within {
+  background: #242426;
+}
+.om-search input { color: var(--om-ink); }
+.om-acct-box { border-color: #52525b; background: #2c2c2f; }
+.om-acct.is-on { border-color: var(--om-blue); background: #202d40; }
+.om-chip { background: #29292c; color: var(--om-ink-2); }
+.om-chip-ini { background: #2b4058; color: #bfdbfe; }
+.om-pill.is-on, .om-pill--blue:hover { background: #202d40; }
+.om-tool:hover:not(:disabled) { background: #323235; color: var(--om-ink); }
+.om-tool.is-on { background: #283448; color: #93c5fd; }
+.om-tool.is-attached { background: #17392a; color: #86efac; }
+.om-select { background: #29292c; color: var(--om-ink-2); }
+.om-send:disabled { background: #3f3f46; color: #8f8f98; }
+
 @keyframes om-bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
 @media (prefers-reduced-motion: reduce) {
   .om-avatar img, .om-hero-orb img { animation: none }

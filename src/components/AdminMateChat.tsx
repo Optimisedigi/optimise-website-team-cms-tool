@@ -8,6 +8,9 @@ import type { AdminMateClient, StagedClient } from '@/lib/agents/adminmate/tools
 import type { StagedContract } from '@/lib/agents/adminmate/contract-tools'
 import type { ContractTemplateOption } from '@/lib/contract-from-template'
 import AdminMateContractCard from './AdminMateContractCard'
+import OptiMateBeamComposer from './OptiMateBeamComposer'
+import OptiMateMetalSend from './OptiMateMetalSend'
+import { ThinkingOrb } from 'thinking-orbs'
 
 type GmailDraft = { gmailUrl: string; subject: string; to: string }
 type ChatMessage = { role: 'user' | 'assistant'; content: string; gmailDraft?: GmailDraft }
@@ -176,7 +179,12 @@ export default function AdminMateChat() {
             )}
           </div>
         ))}
-        {sending && <div style={{ color: 'var(--theme-elevation-500)', fontSize: 13 }}>AdminMate is thinking…</div>}
+        {sending && (
+          <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--theme-elevation-600)', fontSize: 13 }}>
+            <ThinkingOrb state="working" size={20} theme="dark" aria-label="AdminMate is thinking" />
+            <span>AdminMate is thinking…</span>
+          </div>
+        )}
         {!sending && templateChoices.length > 0 && (
           <div role="group" aria-label="Choose a contract template" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {templateChoices.map((template) => (
@@ -326,34 +334,48 @@ export default function AdminMateChat() {
             setEmailPickerOpen(false)
           }}
         />
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto auto', gap: 7, alignItems: 'end', minWidth: 0 }}>
-          <textarea
-            ref={draftRef}
-            aria-label="Message AdminMate"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() } }}
-            placeholder="Create a client… / Reply to the attached email…"
-            rows={2}
-            maxLength={8000}
-            style={{ ...inputStyle, minWidth: 0, overflowY: 'hidden', resize: 'none' }}
-          />
-          <button
-            type="button"
-            disabled={sending}
-            onClick={() => setEmailPickerOpen((open) => !open)}
-            aria-label="Attach an email from Gmail"
-            title="Attach an email from Gmail"
-            style={{ ...iconButtonStyle, ...(emailPickerOpen || attachedEmail ? iconButtonActiveStyle : {}) }}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect x="2" y="4" width="20" height="16" rx="2" />
-              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-            </svg>
-          </button>
-          <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={(text) => setDraft((current) => `${current}${current.trim() ? ' ' : ''}${text}`)} />
-          <button type="button" disabled={sending || !draft.trim()} onClick={() => void send()} style={{ ...primaryButtonStyle, minWidth: 58 }}>Send</button>
-        </div>
+        <OptiMateBeamComposer>
+          <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto auto', minWidth: 0, minHeight: 116, padding: '16px 16px 54px' }}>
+            <textarea
+              ref={draftRef}
+              aria-label="Message AdminMate"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() } }}
+              placeholder="Create a client… / Reply to the attached email…"
+              rows={3}
+              maxLength={8000}
+              data-optimate-input=""
+              style={{ ...inputStyle, minWidth: 0, minHeight: 48, overflowY: 'hidden', resize: 'none', padding: 0 }}
+            />
+            <div data-optimate-control-row="" style={{ position: 'absolute', insetInline: 16, bottom: 12 }}>
+              <button
+                type="button"
+                disabled={sending}
+                onClick={() => setEmailPickerOpen((open) => !open)}
+                aria-label="Attach an email from Gmail"
+                title="Attach an email from Gmail"
+                aria-pressed={emailPickerOpen || Boolean(attachedEmail)}
+                data-optimate-tool=""
+                style={{ ...iconButtonStyle, ...(emailPickerOpen || attachedEmail ? iconButtonActiveStyle : {}) }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+              </button>
+              <span style={{ flex: 1 }} />
+              <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={(text) => setDraft((current) => `${current}${current.trim() ? ' ' : ''}${text}`)} />
+              <OptiMateMetalSend paused={sending || !draft.trim()}>
+                <button type="button" disabled={sending || !draft.trim()} onClick={() => void send()} aria-label="Send" title="Send" data-optimate-send="">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </OptiMateMetalSend>
+            </div>
+          </div>
+        </OptiMateBeamComposer>
       </div>
     </div>
   )

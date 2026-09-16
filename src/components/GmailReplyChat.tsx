@@ -2,6 +2,9 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import RocketSplash from './RocketSplash'
+import OptiMateBeamComposer from './OptiMateBeamComposer'
+import OptiMateMetalSend from './OptiMateMetalSend'
+import { ThinkingOrb } from 'thinking-orbs'
 import {
   CHAT_PICKER_MODELS,
   DEFAULT_CHAT_MODEL,
@@ -714,7 +717,10 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
               {draftingReply && (
                 <div style={{ ...chatBubble, ...assistantBubble }}>
                   <div style={bubbleLabel}>GmailMate</div>
-                  Thinking…
+                  <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <ThinkingOrb state="composing" size={20} theme="dark" aria-label="GmailMate is thinking" />
+                    <span>Thinking…</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -874,7 +880,10 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
                   {draftingReply && (
                     <div style={{ ...chatBubble, ...assistantBubble }}>
                       <div style={bubbleLabel}>GmailMate</div>
-                      Thinking…
+                      <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <ThinkingOrb state="composing" size={20} theme="dark" aria-label="GmailMate is thinking" />
+                        <span>Thinking…</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -989,7 +998,7 @@ function DraftActionRow({
 
 function SavedDraftLink({ savedUrl }: { savedUrl: string }): React.ReactElement {
   return (
-    <div style={{ fontSize: 12, color: '#166534' }}>
+    <div style={{ fontSize: 12, color: '#86efac' }}>
       Saved to Drafts.{' '}
       <a href={savedUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
         Open in Gmail →
@@ -1055,6 +1064,7 @@ function GmailChatComposer({
   }, [disabled, enhanceMode, enhancing, onChange, selectedModel, value])
 
   return (
+    <OptiMateBeamComposer>
     <div style={gmailComposerWrapStyle}>
       <div style={composerInputRowStyle}>
         <div style={googleMateComposerBoxStyle}>
@@ -1101,31 +1111,35 @@ function GmailChatComposer({
             }}
             placeholder={placeholder}
             disabled={disabled || enhancing}
+            data-optimate-input=""
             style={googleMateTextareaStyle}
           />
         </div>
-        <button
-          type="button"
-          onClick={onSend}
-          disabled={!canSend}
-          title="Send"
-          aria-label="Send"
-          style={{
-            ...sendIconButtonStyle,
-            background: canSend ? '#2563eb' : '#9ca3af',
-            cursor: canSend ? 'pointer' : 'not-allowed',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M12 19V5M5 12l7-7 7 7"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+        <OptiMateMetalSend paused={!canSend}>
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={!canSend}
+            title="Send"
+            aria-label="Send"
+            data-optimate-send=""
+            style={{
+              ...sendIconButtonStyle,
+              background: canSend ? '#2563eb' : '#9ca3af',
+              cursor: canSend ? 'pointer' : 'not-allowed',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 19V5M5 12l7-7 7 7"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </OptiMateMetalSend>
       </div>
       {enhanceError && <div role="alert" style={enhanceErrorStyle}>{enhanceError}</div>}
       <div style={modelSelectorRowStyle}>
@@ -1134,6 +1148,7 @@ function GmailChatComposer({
           onChange={(e) => onModelChange(e.target.value)}
           disabled={disabled || enhancing}
           title="Model used for the next GmailMate turn"
+          data-optimate-select=""
           style={modelSelectGoogleMateStyle}
         >
           {CHAT_PICKER_MODELS.map((m) => (
@@ -1144,6 +1159,7 @@ function GmailChatComposer({
         </select>
       </div>
     </div>
+    </OptiMateBeamComposer>
   )
 }
 
@@ -1165,7 +1181,7 @@ function OriginalEmailCard({
           <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {message.subject || '(no subject)'}
           </div>
-          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>From: {message.from}</div>
+          <div style={{ fontSize: 11, color: 'var(--theme-elevation-600, #d4d4d8)', marginTop: 2 }}>From: {message.from}</div>
         </div>
         <button type="button" onClick={onToggle} style={minimalButtonStyle}>
           {collapsed ? (summariseMode ? 'Show thread' : 'Show original email') : (summariseMode ? 'Collapse thread' : 'Collapse original email')}
@@ -1232,7 +1248,7 @@ const threadToggleStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 7,
   fontSize: 12,
-  color: '#4b5563',
+  color: 'var(--theme-elevation-600, #d4d4d8)',
   userSelect: 'none',
 }
 
@@ -1293,8 +1309,8 @@ const userBubble: React.CSSProperties = {
 
 const assistantBubble: React.CSSProperties = {
   alignSelf: 'flex-start',
-  background: '#fff',
-  color: '#1f2937',
+  background: 'var(--theme-elevation-100, #242426)',
+  color: 'var(--theme-text, #f5f5f7)',
   border: '1px solid var(--theme-border-color, #e5e7eb)',
   borderBottomLeftRadius: 3,
 }
@@ -1316,7 +1332,7 @@ const bubbleLabel: React.CSSProperties = {
 const modelBadgeStyle: React.CSSProperties = {
   marginTop: 6,
   fontSize: 10,
-  color: '#6b7280',
+  color: 'var(--theme-elevation-600, #d4d4d8)',
 }
 
 const draftActionRowStyle: React.CSSProperties = {
@@ -1351,7 +1367,8 @@ const gmailComposerWrapStyle: React.CSSProperties = {
 const composerInputRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'stretch',
-  gap: 8,
+  gap: 10,
+  padding: '18px 16px 0',
 }
 
 const googleMateComposerBoxStyle: React.CSSProperties = {
@@ -1359,10 +1376,10 @@ const googleMateComposerBoxStyle: React.CSSProperties = {
   flex: 1,
   minWidth: 0,
   minHeight: 104,
-  border: '1px solid var(--theme-border-color, #e5e7eb)',
-  borderRadius: 14,
-  background: 'var(--theme-input-bg, #fff)',
-  padding: '12px 14px',
+  border: 'none',
+  borderRadius: 0,
+  background: 'transparent',
+  padding: 0,
 }
 
 const enhancePillHostStyle: React.CSSProperties = {
@@ -1416,7 +1433,7 @@ const googleMateTextareaStyle: React.CSSProperties = {
 
 const sendIconButtonStyle: React.CSSProperties = {
   alignSelf: 'flex-end',
-  marginBottom: 14,
+  marginBottom: 12,
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -1449,9 +1466,9 @@ const compactInputStyle: React.CSSProperties = {
 
 const modelSelectorRowStyle: React.CSSProperties = {
   display: 'flex',
-  justifyContent: 'flex-end',
+  justifyContent: 'flex-start',
+  padding: '0 16px 14px',
   marginTop: 6,
-  marginBottom: 18,
 }
 
 const modelSelectGoogleMateStyle: React.CSSProperties = {
@@ -1474,7 +1491,7 @@ const originalEmailCardStyle: React.CSSProperties = {
 
 const originalEmailBodyStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#374151',
+  color: 'var(--theme-elevation-600, #d4d4d8)',
   marginTop: 8,
   whiteSpace: 'pre-wrap',
   maxHeight: 96,

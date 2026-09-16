@@ -1328,6 +1328,7 @@ export default function OptiMateVoice({
           onClick={start}
           title={`Start a voice call about ${businessName ?? 'this account'}`}
           aria-label="Start voice"
+          data-optimate-tool=""
           style={{
             display: 'inline-flex',
             alignItems: 'center',
