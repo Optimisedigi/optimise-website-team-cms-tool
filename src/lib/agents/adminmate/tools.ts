@@ -6,12 +6,24 @@ import {
   type ClientType,
 } from "../../client-field-options";
 
-/** Minimal shape of an existing client, used for duplicate detection. */
+/**
+ * Compact shape of an existing client. Used for duplicate detection and, when
+ * drafting a contract, to pick an existing (active or inactive) client and
+ * pre-fill the contract's client details from it. No credentials or
+ * connection fields are ever included.
+ */
 export interface AdminMateClient {
   id: string;
   name: string;
   slug: string;
   websiteUrl?: string;
+  tradingName?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  monthlyRetainer?: number;
+  setupFee?: number;
+  isActive?: boolean;
 }
 
 /**

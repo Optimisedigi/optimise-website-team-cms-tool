@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { buildContractDataFromSource } from "@/lib/contract-from-template";
 
 export async function POST(
   req: NextRequest,
@@ -28,70 +29,37 @@ export async function POST(
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
-    // When duplicating from a template, start the new contract with the
-    // template's own contractTitle (operator will rename for the client).
-    // When duplicating a normal contract, prefix "Copy of" so it's obvious
-    // this is a clone.
-    const newTitle = source.isTemplate
-      ? source.contractTitle || "Untitled"
-      : `Copy of ${source.contractTitle || "Untitled"}`;
+    const data = buildContractDataFromSource(source);
+
+    // Optional: the client Business tab passes `{ clientId }` so the new
+    // draft opens already linked to (and pre-filled from) that client.
+    const body = await req.json().catch(() => null) as { clientId?: unknown } | null;
+    const clientId = typeof body?.clientId === "number" || (typeof body?.clientId === "string" && /^\d+$/.test(body.clientId))
+      ? Number(body.clientId)
+      : null;
+    if (clientId != null) {
+      const client = await payload.findByID({
+        collection: "clients",
+        id: clientId,
+        depth: 0,
+        overrideAccess: true,
+      }).catch(() => null);
+      if (!client) {
+        return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      }
+      data.client = client.id;
+      data.contractTitle = `${source.isTemplate ? source.contractTitle || "Service Agreement" : data.contractTitle} - ${client.name}`;
+      data.clientName = client.name || "";
+      data.clientTradingName = client.tradingName || undefined;
+      data.clientContactName = client.contactName || undefined;
+      data.clientEmail = client.contactEmail || "placeholder@example.com";
+      data.clientPhone = client.contactPhone || undefined;
+      data.clientWebsite = client.websiteUrl || undefined;
+    }
 
     const newContract = await payload.create({
       collection: "contracts",
-      data: {
-        contractTitle: newTitle,
-        // The new contract is never itself a template, and never carries the
-        // template's button label.
-        isTemplate: false,
-        templateLabel: null,
-        status: "draft",
-        contractDate: new Date().toISOString().split("T")[0],
-        // Required DB columns — pass empty values for the new draft
-        clientName: "",
-        clientEmail: "placeholder@example.com",
-        // A template clone is a blank draft — do not inherit the source
-        // proposal or client, or the new contract opens as someone else's.
-        // Template content fields
-        scopeOfWork: source.scopeOfWork || undefined,
-        pricingNotes: source.pricingNotes || undefined,
-        paymentTermsOverride: source.paymentTermsOverride || undefined,
-        annualReviewEnabled: source.annualReviewEnabled || false,
-        annualReviewIntro: source.annualReviewIntro || undefined,
-        // Preserve the per-table toggle so duplicating a flat-retainer
-        // contract doesn't accidentally re-introduce the tier table.
-        // Coerce to a strict boolean so the column never lands as undefined.
-        annualReviewTierTableEnabled: source.annualReviewTierTableEnabled !== false,
-        annualReviewTierTableText: source.annualReviewTierTableText || undefined,
-        annualReviewNotice: source.annualReviewNotice || undefined,
-        annualReviewGoodFaithReview: source.annualReviewGoodFaithReview || undefined,
-        annualReviewAcceptance: source.annualReviewAcceptance || undefined,
-        // Annual review reminders — copy from template. If the template has no
-        // recipients, force reminders off so the new draft passes validation
-        // (the user can re-enable + pick recipients later).
-        annualReviewReminderRecipients: Array.isArray(source.annualReviewReminderRecipients)
-          ? source.annualReviewReminderRecipients.map((u: any) => (typeof u === "object" ? u?.id : u)).filter(Boolean)
-          : [],
-        annualReviewReminderEnabled:
-          Boolean(source.annualReviewReminderEnabled) &&
-          Array.isArray(source.annualReviewReminderRecipients) &&
-          source.annualReviewReminderRecipients.length > 0,
-        contractTerm: source.contractTerm || undefined,
-        paymentTerms: source.paymentTerms || undefined,
-        monthlyRetainer: source.monthlyRetainer ?? undefined,
-        setupFee: source.setupFee ?? undefined,
-        currency: source.currency ?? undefined,
-        effectiveDateConfirmed: source.effectiveDateConfirmed ?? false,
-        effectiveDateOnDeposit: source.effectiveDateOnDeposit ?? false,
-        // Agency fields
-        agencyContactName: source.agencyContactName || undefined,
-        agencyContactEmail: source.agencyContactEmail || undefined,
-        agencyContactPhone: source.agencyContactPhone || undefined,
-        agencySignerName: source.agencySignerName || undefined,
-        agencySignerTitle: source.agencySignerTitle || undefined,
-        agencySignature: typeof source.agencySignature === "object"
-          ? source.agencySignature?.id
-          : source.agencySignature || undefined,
-      },
+      data: data as any,
       overrideAccess: true,
     });
 

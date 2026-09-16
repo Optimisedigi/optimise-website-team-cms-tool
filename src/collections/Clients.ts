@@ -1840,7 +1840,7 @@ export const Clients: CollectionConfig = {
             },
             {
               name: "signedContractButton",
-              label: "Signed Contract",
+              label: "Contracts",
               type: "ui",
               admin: {
                 components: {

@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import OptiMateTranscribe from './OptiMateTranscribe'
 import { CLIENT_SERVICE_OPTIONS, CLIENT_TYPE_OPTIONS } from '@/lib/client-field-options'
 import type { AdminMateClient, StagedClient } from '@/lib/agents/adminmate/tools'
+import type { StagedContract } from '@/lib/agents/adminmate/contract-tools'
+import type { ContractTemplateOption } from '@/lib/contract-from-template'
+import AdminMateContractCard from './AdminMateContractCard'
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
 const STORAGE_KEY = 'optimate:adminmate'
@@ -23,6 +26,11 @@ export default function AdminMateChat() {
   const [draft, setDraft] = useState('')
   const [staged, setStaged] = useState<StagedClient>()
   const [similar, setSimilar] = useState<AdminMateClient[]>([])
+  const [stagedContract, setStagedContract] = useState<StagedContract>()
+  const [missingDetails, setMissingDetails] = useState<string[]>([])
+  const [templates, setTemplates] = useState<ContractTemplateOption[]>([])
+  const [templateChoices, setTemplateChoices] = useState<ContractTemplateOption[]>([])
+  const [clientChoices, setClientChoices] = useState<AdminMateClient[]>([])
   const [sending, setSending] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -35,9 +43,10 @@ export default function AdminMateChat() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
-  }, [messages, staged])
+  }, [messages, staged, stagedContract])
 
   const patch = (changes: Partial<StagedClient>) => setStaged((current) => current && { ...current, ...changes })
+  const patchContract = (changes: Partial<StagedContract>) => setStagedContract((current) => current && { ...current, ...changes })
 
   const send = async (text = draft) => {
     const message = text.trim()
@@ -47,6 +56,8 @@ export default function AdminMateChat() {
     setSuccess('')
     const history = messages
     setMessages((current) => [...current, { role: 'user', content: message }])
+    setTemplateChoices([])
+    setClientChoices([])
     if (text === draft) setDraft('')
     try {
       const response = await fetch('/api/optimate/adminmate/chat', {
@@ -59,6 +70,15 @@ export default function AdminMateChat() {
       setMessages((current) => [...current, { role: 'assistant', content: json.reply || 'Review the staged client below.' }])
       if (json.stagedClient) setStaged(json.stagedClient)
       setSimilar(Array.isArray(json.similarClients) ? json.similarClients : [])
+      if (json.stagedContract) {
+        setStagedContract(json.stagedContract)
+        setMissingDetails(Array.isArray(json.missingContractDetails) ? json.missingContractDetails : [])
+      }
+      if (Array.isArray(json.templateChoices)) {
+        setTemplateChoices(json.templateChoices)
+        setTemplates((current) => (current.length ? current : json.templateChoices))
+      }
+      if (Array.isArray(json.clientChoices)) setClientChoices(json.clientChoices)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'AdminMate could not reply')
       setDraft(message)
@@ -86,12 +106,34 @@ export default function AdminMateChat() {
     } finally { setCreating(false) }
   }
 
+  const createContract = async () => {
+    if (!stagedContract || creating) return
+    setCreating(true)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await fetch('/api/optimate/adminmate/create-contract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(stagedContract),
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Could not create the contract')
+      const clientNote = json.clientCreated ? ` New client ${json.clientCreated.name} was created too.` : ''
+      setSuccess(`Created draft contract “${json.contractTitle}”.${clientNote} Open ${json.adminUrl} to review, then send it for signing.`)
+      setStagedContract(undefined)
+      setMissingDetails([])
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not create the contract')
+    } finally { setCreating(false) }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 16px', display: 'grid', alignContent: 'start', gap: 10 }}>
         {messages.length === 0 && (
           <div style={noticeStyle}>
-            Describe the record you want. Example: “Create a client called Acme Corp, site acmecorp.com, contact Jane Doe jane@acme.com, Google Ads and SEO, $2k/mo.” AdminMate stages it for you to review and edit before anything is created.
+            Describe the record you want. Examples: “Create a client called Acme Corp, site acmecorp.com, contact Jane Doe jane@acme.com, Google Ads and SEO, $2k/mo.” or “Create a Google Ads contract for Acme Corp starting 1 October.” AdminMate asks for anything missing, then stages a card for you to review and edit before anything is created.
           </div>
         )}
         {messages.map((message, index) => (
@@ -100,6 +142,27 @@ export default function AdminMateChat() {
           </div>
         ))}
         {sending && <div style={{ color: 'var(--theme-elevation-500)', fontSize: 13 }}>AdminMate is thinking…</div>}
+        {!sending && templateChoices.length > 0 && (
+          <div role="group" aria-label="Choose a contract template" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {templateChoices.map((template) => (
+              <button {...{ ['k' + 'ey']: template.id }} type="button" onClick={() => void send(`Use the “${template.label}” template (id ${template.id}).`)} style={chipStyle}>
+                {template.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {!sending && clientChoices.length > 0 && (
+          <div role="group" aria-label="Choose a client" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {clientChoices.map((client) => (
+              <button {...{ ['k' + 'ey']: client.id }} type="button" onClick={() => void send(`Use the existing client “${client.name}” (id ${client.id}).`)} style={chipStyle}>
+                {client.name}{client.isActive === false ? ' (inactive)' : ''}
+              </button>
+            ))}
+            <button type="button" onClick={() => void send('None of these — create a new client for this contract.')} style={{ ...chipStyle, borderStyle: 'dashed' }}>
+              + New client
+            </button>
+          </div>
+        )}
         {staged && (
           <section aria-label="New client review" style={{ border: '1px solid #93c5fd', borderRadius: 12, padding: 12, background: 'rgba(59,130,246,.08)', display: 'grid', gap: 10 }}>
             <div><strong>Review new client</strong></div>
@@ -185,6 +248,17 @@ export default function AdminMateChat() {
             </button>
           </section>
         )}
+        {stagedContract && (
+          <AdminMateContractCard
+            staged={stagedContract}
+            templates={templates}
+            clients={clientChoices}
+            missing={missingDetails}
+            creating={creating}
+            onChange={patchContract}
+            onCreate={() => void createContract()}
+          />
+        )}
         {error && <div role="alert" style={{ ...noticeStyle, color: '#991b1b', background: '#fef2f2' }}>{error}</div>}
         {success && <div role="status" style={{ ...noticeStyle, color: '#166534', background: '#f0fdf4' }}>{success}</div>}
         <div ref={bottomRef} />
@@ -196,7 +270,7 @@ export default function AdminMateChat() {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() } }}
-            placeholder="Create a client called…"
+            placeholder="Create a client called… / Create a contract for…"
             rows={2}
             maxLength={8000}
             style={{ ...inputStyle, flex: 1, resize: 'none' }}
@@ -213,4 +287,5 @@ const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box'
 const labelStyle: React.CSSProperties = { display: 'grid', gap: 3, fontSize: 12, fontWeight: 700 }
 const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 8, padding: '9px 12px', background: '#1d4ed8', color: '#fff', fontWeight: 800, cursor: 'pointer' }
 const noticeStyle: React.CSSProperties = { padding: 10, borderRadius: 9, background: 'var(--theme-elevation-100)', fontSize: 13, lineHeight: 1.45 }
+const chipStyle: React.CSSProperties = { border: '1px solid #7c3aed', borderRadius: 999, padding: '6px 12px', background: 'var(--theme-bg)', color: '#7c3aed', fontWeight: 700, fontSize: 13, cursor: 'pointer' }
 const bubbleStyle: React.CSSProperties = { maxWidth: '88%', borderRadius: 12, padding: '9px 11px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 13, lineHeight: 1.45 }

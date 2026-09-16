@@ -6,6 +6,7 @@ import type { Message } from "@/lib/agents/_shared/llm/types";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 import { runAdminMateChatTurn } from "@/lib/agents/adminmate";
 import { listExistingClients } from "@/lib/agents/adminmate/list-clients";
+import { listContractTemplates } from "@/lib/contract-from-template";
 import { translateAgentError } from "@/lib/agents/optimate-google-ads/error-translator";
 
 interface HistoryEntry { role: "user" | "assistant"; content: string }
@@ -32,8 +33,9 @@ export async function POST(request: Request) {
     const parsedHistory = parseHistory(body.history);
     if (!parsedHistory) return NextResponse.json({ error: "history is invalid or too large" }, { status: 400 });
 
-    const [existingClients, settings] = await Promise.all([
+    const [existingClients, contractTemplates, settings] = await Promise.all([
       listExistingClients(payload),
+      listContractTemplates(payload),
       getOptiMateDefaultModels(payload),
     ]);
     const history = compactHistory(parsedHistory, settings.chatHistoryTokenLimit);
@@ -44,6 +46,7 @@ export async function POST(request: Request) {
     const result = await runAdminMateChatTurn({
       messages,
       existingClients,
+      contractTemplates,
       userId: user.id,
       modelOverride: settings.defaultChatModel,
     });
@@ -51,6 +54,10 @@ export async function POST(request: Request) {
       reply: result.reply,
       stagedClient: result.stagedClient,
       similarClients: result.similarClients,
+      stagedContract: result.stagedContract,
+      missingContractDetails: result.missingContractDetails,
+      templateChoices: result.templateChoices,
+      clientChoices: result.clientChoices,
       runId: result.runId,
       modelRequested: result.modelRequested,
       modelUsed: result.modelUsed,

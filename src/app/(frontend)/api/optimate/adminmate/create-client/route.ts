@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createLocalReq, getPayload } from "payload";
 import config from "@/payload.config";
 import { validateStagedClient } from "@/lib/agents/adminmate";
+import { ClientSlugConflictError, createClientFromStaged } from "@/lib/agents/adminmate/create-client";
 
 /**
  * Creates the client the admin confirmed in the AdminMate review card.
@@ -24,45 +25,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid client" }, { status: 400 });
   }
 
-  const conflict = await payload.find({
-    collection: "clients",
-    where: { slug: { equals: staged.slug } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-    select: { name: true },
-  });
-  if (conflict.totalDocs > 0) {
-    return NextResponse.json(
-      { error: `Slug "${staged.slug}" is already used by ${conflict.docs[0]?.name ?? "another client"}. Edit the slug and try again.` },
-      { status: 409 },
-    );
-  }
-
   try {
-    const created = await payload.create({
-      collection: "clients",
-      data: {
-        name: staged.name,
-        slug: staged.slug,
-        tradingName: staged.tradingName ?? null,
-        websiteUrl: staged.websiteUrl ?? null,
-        services: staged.services ?? null,
-        contactName: staged.contactName ?? null,
-        contactEmail: staged.contactEmail ?? null,
-        contactPhone: staged.contactPhone ?? null,
-        ...(staged.clientType ? { clientType: staged.clientType } : {}),
-        ...(staged.monthlyRetainer === undefined ? {} : { monthlyRetainer: staged.monthlyRetainer }),
-        ...(staged.setupFee === undefined ? {} : { setupFee: staged.setupFee }),
-        isActive: staged.isActive,
-        ...(staged.notes ? { clientPulse: { notes: staged.notes } } : {}),
-      },
-      depth: 0,
-      overrideAccess: false,
-      req: await createLocalReq({ user }, payload),
-    });
-    return NextResponse.json({ id: created.id, name: created.name, slug: created.slug });
+    const created = await createClientFromStaged(payload, staged, await createLocalReq({ user }, payload));
+    return NextResponse.json(created);
   } catch (error) {
+    if (error instanceof ClientSlugConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     console.error("[adminmate/create-client] create failed:", error);
     return NextResponse.json({ error: "The client could not be created" }, { status: 500 });
   }
