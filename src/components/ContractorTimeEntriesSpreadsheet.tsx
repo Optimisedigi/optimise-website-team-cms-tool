@@ -19,6 +19,18 @@ type TimeEntry = {
 type MonthlyTotal = { clientId: string; clientName: string; hours: number }
 type MonthlyAllocationRow = { month: string; monthLabel: string; totals: MonthlyTotal[] }
 
+const PROFITEROLE_CLIENT_NAME = 'Profiterole Patisserie'
+const PROFITEROLE_MONTHLY_RETAINER = 6500
+const DEFAULT_CONTRACTOR_RATE = '20.50'
+const MAX_CONTRACTOR_RATE = 10000
+
+const currencyFormatter = new Intl.NumberFormat('en-AU', {
+  style: 'currency',
+  currency: 'AUD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
 const statuses = [
   ['draft', 'Draft'],
   ['submitted', 'Submitted'],
@@ -172,6 +184,8 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const [canDelete, setCanDelete] = useState(false)
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
   const [showColumnPicker, setShowColumnPicker] = useState(false)
+  const [showCalculations, setShowCalculations] = useState(false)
+  const [contractorRateInput, setContractorRateInput] = useState(DEFAULT_CONTRACTOR_RATE)
   const [autoTotalEntryIds, setAutoTotalEntryIds] = useState<Set<string | number>>(() => new Set())
   const [paidUpdateEntryIds, setPaidUpdateEntryIds] = useState<Set<string | number>>(() => new Set())
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({})
@@ -179,8 +193,14 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const visibleClients = useMemo(() => clients.filter((client) => selectedClientIdSet.has(String(client.id))), [clients, selectedClientIdSet])
   const visibleMonthlyTotals = useMemo(() => monthlyTotals.map((row) => ({
     ...row,
+    profiteroleHours: row.totals.find((total) => total.clientName.trim().toLocaleLowerCase() === PROFITEROLE_CLIENT_NAME.toLocaleLowerCase())?.hours || 0,
     totals: row.totals.filter((total) => selectedClientIdSet.has(String(total.clientId))),
   })), [monthlyTotals, selectedClientIdSet])
+  const contractorRate = Number(contractorRateInput)
+  const hasValidContractorRate = contractorRateInput.trim() !== ''
+    && Number.isFinite(contractorRate)
+    && contractorRate >= 0
+    && contractorRate <= MAX_CONTRACTOR_RATE
 
   const load = async () => {
     setLoading(true)
@@ -390,7 +410,31 @@ export default function ContractorTimeEntriesSpreadsheet() {
         <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)', paddingBottom: 8 }}>
           Monthly allocations for the selected period.
         </div>
-        <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', paddingBottom: 1 }}>
+        <div style={{ position: 'relative', display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'end', paddingBottom: 1 }}>
+          {showCalculations && (
+            <label style={{ display: 'grid', gap: 3, width: 118, fontSize: 11, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
+              Hourly rate ($)
+              <input
+                aria-label="Hourly contractor rate"
+                aria-invalid={!hasValidContractorRate}
+                type="number"
+                min={0}
+                max={MAX_CONTRACTOR_RATE}
+                step="0.01"
+                value={contractorRateInput}
+                onChange={(event) => setContractorRateInput(event.target.value)}
+                style={{ ...inputStyle, padding: '5px 7px', fontSize: 12, borderColor: hasValidContractorRate ? undefined : '#dc2626' }}
+              />
+            </label>
+          )}
+          <button
+            type="button"
+            aria-expanded={showCalculations}
+            onClick={() => setShowCalculations((open) => !open)}
+            style={{ ...inputStyle, width: 'auto', minWidth: 0, padding: '5px 9px', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: showCalculations ? 'var(--theme-elevation-100)' : 'transparent', color: 'var(--theme-elevation-500)' }}
+          >
+            Calculations {showCalculations ? '−' : '+'}
+          </button>
           <button type="button" onClick={() => setShowColumnPicker((open) => !open)} style={{ ...inputStyle, width: 'auto', minWidth: 0, padding: '5px 9px', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: 'transparent', color: 'var(--theme-elevation-500)' }}>
             Columns ({visibleClients.length})
           </button>
@@ -416,30 +460,53 @@ export default function ContractorTimeEntriesSpreadsheet() {
       {error && <div style={{ marginBottom: 10, padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
 
       <div style={{ marginBottom: 24, border: '1px solid var(--theme-elevation-250)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)', boxShadow: '0 1px 0 rgba(0,0,0,.04)' }}>
-        <table style={{ width: '100%', minWidth: tableMinWidth, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+        <table style={{ width: '100%', minWidth: tableMinWidth + (showCalculations ? 150 : 0), borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
           <colgroup>
-            <col style={{ width: 90 }} />
+            <col style={{ width: 100 }} />
             {visibleClients.map((client) => <col key={client.id} style={{ width: 60 }} />)}
             <col style={{ width: 70 }} />
             <col style={{ width: 95 }} />
             <col style={{ width: 72 }} />
             <col style={{ width: 60 }} />
+            {showCalculations && <col style={{ width: 150 }} />}
           </colgroup>
           <thead>
             <tr>
-              <th colSpan={leadingColumnCount} style={thStyle}>Monthly allocation</th>
+              <th colSpan={leadingColumnCount} style={{ ...thStyle, whiteSpace: 'nowrap' }}>Monthly allocation</th>
               {visibleClients.map((client) => <th key={client.id} style={{ ...thStyle, textAlign: 'center', textTransform: 'none', letterSpacing: 0, whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.2, borderLeft: '1px solid var(--theme-elevation-100)' }}>{client.name}</th>)}
               <th colSpan={4} style={thStyle}></th>
+              {showCalculations && (
+                <th style={{ ...thStyle, textAlign: 'right', whiteSpace: 'normal', borderLeft: '2px solid var(--theme-elevation-200)' }}>
+                  Amount to transfer
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {visibleMonthlyTotals.map((row) => (
-              <tr key={row.month}>
-                <td colSpan={leadingColumnCount} style={{ ...tdStyle, fontWeight: 900 }}>{row.monthLabel}</td>
-                {row.totals.map((total) => <td key={total.clientId} style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, borderLeft: '1px solid var(--theme-elevation-100)' }}>{total.hours.toFixed(2)}</td>)}
-                <td colSpan={4} style={tdStyle}></td>
-              </tr>
-            ))}
+            {visibleMonthlyTotals.map((row) => {
+              const transferAmount = (PROFITEROLE_MONTHLY_RETAINER - (row.profiteroleHours * contractorRate)) / 2
+              return (
+                <tr key={row.month}>
+                  <td colSpan={leadingColumnCount} style={{ ...tdStyle, fontWeight: 900, whiteSpace: 'nowrap' }}>{row.monthLabel}</td>
+                  {row.totals.map((total) => <td key={total.clientId} style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, borderLeft: '1px solid var(--theme-elevation-100)' }}>{total.hours.toFixed(2)}</td>)}
+                  <td colSpan={4} style={tdStyle}></td>
+                  {showCalculations && (
+                    <td style={{ ...tdStyle, textAlign: 'right', borderLeft: '2px solid var(--theme-elevation-200)' }}>
+                      {hasValidContractorRate ? (
+                        <>
+                          <div style={{ fontWeight: 900, whiteSpace: 'nowrap' }}>{currencyFormatter.format(transferAmount)}</div>
+                          <div style={{ marginTop: 2, fontSize: 10, color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap' }}>
+                            {row.profiteroleHours.toFixed(2)} h × {currencyFormatter.format(contractorRate)}
+                          </div>
+                        </>
+                      ) : (
+                        <span style={{ color: '#b91c1c', fontSize: 11 }}>Enter a rate from $0 to $10,000</span>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

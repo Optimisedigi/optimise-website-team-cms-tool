@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
-import { buildUserToContractorMap } from "@/lib/contractor-user-link";
 
 const ENTRY_SELECT = {
   user: true,
@@ -16,6 +15,12 @@ const ENTRY_SELECT = {
 } as const;
 
 const COLUMN_PREF_KEY = "contractor-time-entries.visible-client-ids";
+const MONTH_ABBREVIATIONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function abbreviatedMonthLabel(month: string): string {
+  const [year, monthNumber] = month.split("-");
+  return `${MONTH_ABBREVIATIONS[Number(monthNumber) - 1]} ${year}`;
+}
 
 function hasTimeEntryAccess(user: any): boolean {
   return Boolean(user);
@@ -61,8 +66,8 @@ async function saveColumnClientIds(payload: any, user: any, clientIds: string[])
  *
  * Legacy portal submissions (`/api/contractor/[token]`) set only `contractor`,
  * so scoping the grid on `user` alone hides those weeks from both the admin's user
- * filter and the contractor's own view. Matching on email/name — the same
- * bridge contractor costs and payments use — folds them back in.
+ * filter and the contractor's own view. Authorization requires the user's
+ * normalized email to match the contractor email exactly; names are not unique.
  */
 async function contractorIdsForUser(
   payload: any,
@@ -74,7 +79,7 @@ async function contractorIdsForUser(
       collection: "contractors",
       pagination: false,
       depth: 0,
-      select: { name: true, email: true } as any,
+      select: { email: true } as any,
       overrideAccess: true,
     }),
     knownUser && String(knownUser.id) === String(userId)
@@ -83,10 +88,11 @@ async function contractorIdsForUser(
           .findByID({ collection: "users", id: userId, depth: 0, overrideAccess: true })
           .catch(() => null),
   ]);
-  if (!userDoc) return [];
-  const map = buildUserToContractorMap((contractorsResult?.docs || []) as any[], [userDoc as any]);
-  const contractorId = map.get(String(userId));
-  return contractorId ? [contractorId] : [];
+  const userEmail = String(userDoc?.email || "").trim().toLowerCase();
+  if (!userEmail) return [];
+  return (contractorsResult?.docs || [])
+    .filter((contractor: any) => String(contractor.email || "").trim().toLowerCase() === userEmail)
+    .map((contractor: any) => String(contractor.id));
 }
 
 /**
@@ -286,7 +292,7 @@ export async function GET(req: NextRequest) {
       .sort(([monthA], [monthB]) => monthB.localeCompare(monthA))
       .map(([month, totalsByClient]) => ({
         month,
-        monthLabel: new Date(`${month}-01T00:00:00`).toLocaleDateString("en-AU", { month: "long", year: "numeric" }),
+        monthLabel: abbreviatedMonthLabel(month),
         totals: (clientsResult.docs as any[]).map((client) => ({
           clientId: String(client.id),
           clientName: client.name || `Client ${client.id}`,
@@ -371,8 +377,20 @@ export async function PATCH(req: NextRequest) {
     if (!body.id) return NextResponse.json({ error: "Missing entry id" }, { status: 400 });
 
     const current = await payload.findByID({ collection: "contractor-time-entries" as any, id: body.id, depth: 0, overrideAccess: true });
-    if (user.role !== "admin" && String((current as any).user) !== String(user.id)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (user.role !== "admin") {
+      const currentOwner = (current as any).user;
+      const currentOwnerId = currentOwner && typeof currentOwner === "object" ? currentOwner.id : currentOwner;
+      const ownedByUser = currentOwnerId != null && String(currentOwnerId) === String(user.id);
+      let ownedLegacyPortalRow = false;
+      if (currentOwnerId == null) {
+        const currentContractor = (current as any).contractor;
+        const currentContractorId = currentContractor && typeof currentContractor === "object" ? currentContractor.id : currentContractor;
+        const contractorIds = await contractorIdsForUser(payload, user.id, user as any);
+        ownedLegacyPortalRow = currentContractorId != null && contractorIds.includes(String(currentContractorId));
+      }
+      if (!ownedByUser && !ownedLegacyPortalRow) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
     }
     const isPaidEntry = (current as any).status === "paid";
     if (isPaidEntry) {

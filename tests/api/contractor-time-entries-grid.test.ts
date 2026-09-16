@@ -133,6 +133,35 @@ describe("contractor time entries grid RBAC", () => {
     expect(mockPayload.update).not.toHaveBeenCalled();
   });
 
+  it("PATCH lets a non-admin edit their email-matched legacy portal row", async () => {
+    const { PATCH } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    mockPayload.auth.mockResolvedValue({ user: ownUser });
+    mockPayload.findByID.mockResolvedValue({ id: 31, user: null, contractor: 7, status: "draft" });
+    mockPayload.find.mockResolvedValueOnce({ docs: [{ id: 7, name: "Sam Specialist", email: "SAM@example.com" }] });
+    mockPayload.update.mockResolvedValue({ id: 31, user: null, contractor: 7, hours: 12, status: "draft", clientAllocations: [] });
+
+    const res = await PATCH(patchRequest({ id: 31, hours: 12 }));
+
+    expect(res.status).toBe(200);
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
+      id: 31,
+      data: { hours: 12 },
+      overrideAccess: true,
+    }));
+  });
+
+  it("PATCH rejects a same-name legacy portal row when contractor emails differ", async () => {
+    const { PATCH } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    mockPayload.auth.mockResolvedValue({ user: ownUser });
+    mockPayload.findByID.mockResolvedValue({ id: 31, user: null, contractor: 7, status: "draft" });
+    mockPayload.find.mockResolvedValueOnce({ docs: [{ id: 7, name: "Sam Specialist", email: "different@example.com" }] });
+
+    const res = await PATCH(patchRequest({ id: 31, hours: 12 }));
+
+    expect(res.status).toBe(401);
+    expect(mockPayload.update).not.toHaveBeenCalled();
+  });
+
   it("GET lets admins see all rows and select any user", async () => {
     const { GET } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
     mockPayload.auth.mockResolvedValue({ user: adminUser });
@@ -172,8 +201,8 @@ describe("contractor time entries grid RBAC", () => {
     ]);
     expect(body.columnClientIds).toEqual(["5"]);
     expect(body.monthlyTotals).toHaveLength(2);
-    expect(body.monthlyTotals[0]).toEqual(expect.objectContaining({ month: "2026-08", totals: [expect.objectContaining({ clientId: "5", hours: 4 })] }));
-    expect(body.monthlyTotals[1]).toEqual(expect.objectContaining({ month: "2026-07", totals: [expect.objectContaining({ clientId: "5", hours: 2 })] }));
+    expect(body.monthlyTotals[0]).toEqual(expect.objectContaining({ month: "2026-08", monthLabel: "Aug 2026", totals: [expect.objectContaining({ clientId: "5", hours: 4 })] }));
+    expect(body.monthlyTotals[1]).toEqual(expect.objectContaining({ month: "2026-07", monthLabel: "Jul 2026", totals: [expect.objectContaining({ clientId: "5", hours: 2 })] }));
     expect(mockPayload.find).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
@@ -236,7 +265,7 @@ describe("contractor time entries grid RBAC", () => {
     mockPayload.findByID.mockResolvedValue({ id: 42, name: "Sam Specialist", email: "sam@example.com" });
     mockPayload.find
       // contractor lookup for the selected user
-      .mockResolvedValueOnce({ docs: [{ id: 7, name: "Sam Specialist", email: null }] })
+      .mockResolvedValueOnce({ docs: [{ id: 7, name: "Sam Specialist", email: "sam@example.com" }] })
       .mockResolvedValueOnce({
         docs: [
           {
@@ -299,7 +328,7 @@ describe("contractor time entries grid RBAC", () => {
     const { GET } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
     mockPayload.auth.mockResolvedValue({ user: ownUser });
     mockPayload.find
-      .mockResolvedValueOnce({ docs: [{ id: 7, name: "sam  specialist", email: null }] })
+      .mockResolvedValueOnce({ docs: [{ id: 7, name: "sam  specialist", email: "SAM@example.com" }] })
       .mockResolvedValueOnce({ docs: [{ id: 31, user: null, contractor: { id: 7, name: "Sam Specialist" }, weekCommencing: "2026-07-20T00:00:00.000Z", hours: 16, status: "submitted", clientAllocations: [] }] })
       .mockResolvedValueOnce({ docs: [] })
       .mockResolvedValueOnce({ docs: [] })
@@ -324,6 +353,30 @@ describe("contractor time entries grid RBAC", () => {
               ],
             },
           ]),
+        },
+      }),
+    );
+  });
+
+  it("GET does not expose a same-name contractor's portal rows when emails differ", async () => {
+    const { GET } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    mockPayload.auth.mockResolvedValue({ user: ownUser });
+    mockPayload.find
+      .mockResolvedValueOnce({ docs: [{ id: 7, name: "Sam Specialist", email: "different@example.com" }] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] });
+
+    const res = await GET(getRequest({ month: "2026-07", weekMode: "this-month" }));
+
+    expect(res.status).toBe(200);
+    expect(mockPayload.find).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        collection: "contractor-time-entries",
+        where: {
+          and: expect.arrayContaining([{ user: { equals: 42 } }]),
         },
       }),
     );
