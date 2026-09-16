@@ -42,11 +42,20 @@ export default function AdminMateChat() {
   const [success, setSuccess] = useState('')
   const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
   const [emailPickerOpen, setEmailPickerOpen] = useState(false)
+  const draftRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     sessionStorage.removeItem(STORAGE_KEY)
   }, [])
+
+  useEffect(() => {
+    const textarea = draftRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    const borderHeight = textarea.offsetHeight - textarea.clientHeight
+    textarea.style.height = `${textarea.scrollHeight + borderHeight}px`
+  }, [draft])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
@@ -289,14 +298,14 @@ export default function AdminMateChat() {
         {success && <div role="status" style={{ ...noticeStyle, color: '#166534', background: '#f0fdf4' }}>{success}</div>}
         <div ref={bottomRef} />
       </div>
-      <div style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8, position: 'relative' }}>
+      <div style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8, position: 'relative', minWidth: 0 }}>
         {attachedEmail && (
           <div
             title={`From ${attachedEmail.from} · ${attachedEmail.date}`}
             style={attachedEmailStyle}
           >
             <span aria-hidden="true">✉️</span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {attachedEmail.subject || '(no subject)'} — {attachedEmail.from}
             </span>
             <button
@@ -317,8 +326,9 @@ export default function AdminMateChat() {
             setEmailPickerOpen(false)
           }}
         />
-        <div style={{ display: 'flex', gap: 7, alignItems: 'flex-end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto auto', gap: 7, alignItems: 'end', minWidth: 0 }}>
           <textarea
+            ref={draftRef}
             aria-label="Message AdminMate"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -326,7 +336,7 @@ export default function AdminMateChat() {
             placeholder="Create a client… / Reply to the attached email…"
             rows={2}
             maxLength={8000}
-            style={{ ...inputStyle, flex: 1, resize: 'none' }}
+            style={{ ...inputStyle, minWidth: 0, overflowY: 'hidden', resize: 'none' }}
           />
           <button
             type="button"
@@ -355,7 +365,7 @@ const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 8, pa
 const noticeStyle: React.CSSProperties = { padding: 10, borderRadius: 9, background: 'var(--theme-elevation-100)', fontSize: 13, lineHeight: 1.45 }
 const chipStyle: React.CSSProperties = { border: '1px solid #7c3aed', borderRadius: 999, padding: '6px 12px', background: 'var(--theme-bg)', color: '#7c3aed', fontWeight: 700, fontSize: 13, cursor: 'pointer' }
 const bubbleStyle: React.CSSProperties = { maxWidth: '88%', borderRadius: 12, padding: '9px 11px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 13, lineHeight: 1.45 }
-const attachedEmailStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', justifySelf: 'start', padding: '5px 8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, color: '#1e40af', fontSize: 11 }
+const attachedEmailStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '5px 8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, color: '#1e40af', fontSize: 11 }
 const removeAttachmentStyle: React.CSSProperties = { border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }
 const iconButtonStyle: React.CSSProperties = { width: 36, height: 36, flexShrink: 0, display: 'grid', placeItems: 'center', border: '1px solid var(--theme-elevation-200)', borderRadius: 8, background: 'var(--theme-bg)', color: 'var(--theme-elevation-600)', cursor: 'pointer' }
 const iconButtonActiveStyle: React.CSSProperties = { border: '1px solid #2563eb', background: '#eff6ff', color: '#1d4ed8' }

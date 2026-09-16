@@ -41,6 +41,19 @@ describe('AdminMateChat', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
+  it('grows and shrinks the message box to keep the draft visible', () => {
+    render(<AdminMateChat />)
+    const messageBox = screen.getByLabelText('Message AdminMate')
+
+    Object.defineProperty(messageBox, 'scrollHeight', { configurable: true, value: 96 })
+    fireEvent.change(messageBox, { target: { value: 'A message long enough to wrap onto several lines.' } })
+    expect(messageBox).toHaveStyle({ height: '96px', overflowY: 'hidden' })
+
+    Object.defineProperty(messageBox, 'scrollHeight', { configurable: true, value: 44 })
+    fireEvent.change(messageBox, { target: { value: 'Short again' } })
+    expect(messageBox).toHaveStyle({ height: '44px' })
+  })
+
   it('stages a client, applies edits, and creates it once', async () => {
     let resolveCreate: ((value: ReturnType<typeof response>) => void) | undefined
     fetchMock.mockImplementation((url: string) => {
@@ -111,7 +124,10 @@ describe('AdminMateChat', () => {
     render(<AdminMateChat />)
     fireEvent.click(screen.getByRole('button', { name: 'Attach an email from Gmail' }))
     fireEvent.click(screen.getByRole('button', { name: 'Choose Campaign question' }))
-    expect(screen.getByText(/Campaign question/)).toBeInTheDocument()
+    const attachmentLabel = screen.getByText(/Campaign question/)
+    const composer = screen.getByLabelText('Message AdminMate').parentElement
+    expect(attachmentLabel).toHaveStyle({ minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis' })
+    expect(composer).toHaveStyle({ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto auto', minWidth: '0' })
 
     fireEvent.change(screen.getByLabelText('Message AdminMate'), {
       target: { value: 'Reply with a friendly progress update.' },
