@@ -210,6 +210,10 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
   const [savedUrl, setSavedUrl] = useState<string | null>(persistedState?.savedUrl ?? null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [draftAttachments, setDraftAttachments] = useState<DraftImageAttachment[]>([])
+  const draftAttachmentsRef = useRef<DraftImageAttachment[]>([])
+  const pendingAttachmentCountRef = useRef(0)
+  const pendingAttachmentBytesRef = useRef(0)
+  const attachmentGenerationRef = useRef(0)
   const [draftAttachmentError, setDraftAttachmentError] = useState<string | null>(null)
   const [originalEmailCollapsed, setOriginalEmailCollapsed] = useState(Boolean(persistedState?.originalEmailCollapsed))
   const [readThread, setReadThread] = useState(Boolean(persistedState?.readThread))
@@ -359,7 +363,9 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     setDraftAttachmentError(null)
 
     const selected = Array.from(files)
-    if (draftAttachments.length + selected.length > MAX_DRAFT_ATTACHMENTS) {
+    const selectedBytes = selected.reduce((sum, file) => sum + file.size, 0)
+    const currentAttachments = draftAttachmentsRef.current
+    if (currentAttachments.length + pendingAttachmentCountRef.current + selected.length > MAX_DRAFT_ATTACHMENTS) {
       setDraftAttachmentError(`Attach up to ${MAX_DRAFT_ATTACHMENTS} images.`)
       return
     }
@@ -373,13 +379,15 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
       setDraftAttachmentError(`${oversized.name} is too large. Use images up to 3 MB.`)
       return
     }
-    const totalBytes = draftAttachments.reduce((sum, attachment) => sum + attachment.size, 0)
-      + selected.reduce((sum, file) => sum + file.size, 0)
-    if (totalBytes > MAX_DRAFT_ATTACHMENTS_TOTAL_BYTES) {
+    const currentBytes = currentAttachments.reduce((sum, attachment) => sum + attachment.size, 0)
+    if (currentBytes + pendingAttachmentBytesRef.current + selectedBytes > MAX_DRAFT_ATTACHMENTS_TOTAL_BYTES) {
       setDraftAttachmentError('Attachments can total up to 3 MB per draft.')
       return
     }
 
+    const generation = attachmentGenerationRef.current
+    pendingAttachmentCountRef.current += selected.length
+    pendingAttachmentBytesRef.current += selectedBytes
     try {
       const encoded = await Promise.all(selected.map(async (file): Promise<DraftImageAttachment> => ({
         name: file.name,
@@ -387,14 +395,33 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
         data: await readFileAsBase64(file),
         size: file.size,
       })))
-      setDraftAttachments((current) => [...current, ...encoded])
+      if (generation !== attachmentGenerationRef.current) return
+      pendingAttachmentCountRef.current -= selected.length
+      pendingAttachmentBytesRef.current -= selectedBytes
+      const next = [...draftAttachmentsRef.current, ...encoded]
+      draftAttachmentsRef.current = next
+      setDraftAttachments(next)
     } catch (error) {
+      if (generation !== attachmentGenerationRef.current) return
+      pendingAttachmentCountRef.current -= selected.length
+      pendingAttachmentBytesRef.current -= selectedBytes
       setDraftAttachmentError(error instanceof Error ? error.message : 'Could not read the selected image.')
     }
-  }, [draftAttachments])
+  }, [])
 
   const removeDraftAttachment = useCallback((index: number) => {
-    setDraftAttachments((current) => current.filter((_, attachmentIndex) => attachmentIndex !== index))
+    const next = draftAttachmentsRef.current.filter((_, attachmentIndex) => attachmentIndex !== index)
+    draftAttachmentsRef.current = next
+    setDraftAttachments(next)
+    setDraftAttachmentError(null)
+  }, [])
+
+  const clearDraftAttachments = useCallback(() => {
+    attachmentGenerationRef.current += 1
+    pendingAttachmentCountRef.current = 0
+    pendingAttachmentBytesRef.current = 0
+    draftAttachmentsRef.current = []
+    setDraftAttachments([])
     setDraftAttachmentError(null)
   }, [])
 
@@ -403,8 +430,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     setReplyError(null)
     setSavedUrl(null)
     setSaveError(null)
-    setDraftAttachments([])
-    setDraftAttachmentError(null)
+    clearDraftAttachments()
     setChatInput('')
     setChatMessages([])
     setOriginalEmailCollapsed(false)
@@ -419,7 +445,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     setResults([])
     setSearched(false)
     setSearchError(null)
-  }, [])
+  }, [clearDraftAttachments])
 
   const switchToCompose = useCallback(() => {
     setPhase('compose')
@@ -472,8 +498,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     setChatMessages([])
     setSavedUrl(null)
     setSaveError(null)
-    setDraftAttachments([])
-    setDraftAttachmentError(null)
+    clearDraftAttachments()
     setOriginalEmailCollapsed(true)
     setReadThread(false)
     try {
@@ -491,7 +516,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     } finally {
       setLoadingMessage(false)
     }
-  }, [])
+  }, [clearDraftAttachments])
 
   const draftNewEmail = useCallback(async () => {
     const prompt = instructions.trim()
@@ -514,6 +539,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
           message: prompt,
           history: history.filter((msg) => msg.role !== 'error').map(({ role, content }) => ({ role, content })),
           model: selectedModel,
+          attachments: draftAttachments.map(({ name, mediaType, data }) => ({ name, mediaType, data })),
           draft: {
             to: composeTo.trim() || undefined,
             subject: composeSubject.trim() || undefined,
@@ -549,7 +575,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     } finally {
       setDraftingReply(false)
     }
-  }, [instructions, chatMessages, selectedModel, composeTo, composeSubject, replyText])
+  }, [instructions, chatMessages, selectedModel, composeTo, composeSubject, replyText, draftAttachments])
 
   const sendReplyChatMessage = useCallback(async () => {
     if (!message || draftingReply) return
@@ -575,6 +601,9 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
           message: request,
           history: history.filter((msg) => msg.role !== 'error').map(({ role, content }) => ({ role, content })),
           model: selectedModel,
+          ...(!summariseMode && draftAttachments.length > 0
+            ? { attachments: draftAttachments.map(({ name, mediaType, data }) => ({ name, mediaType, data })) }
+            : {}),
           draft: {
             subject: replySubject(message.subject),
             to: parseFromAddress(message.from),
@@ -611,7 +640,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     } finally {
       setDraftingReply(false)
     }
-  }, [message, draftingReply, chatInput, chatMessages, selectedModel, replyText, readThread, summariseMode])
+  }, [message, draftingReply, chatInput, chatMessages, selectedModel, replyText, readThread, summariseMode, draftAttachments])
 
   const saveNewDraft = useCallback(async () => {
     if (!replyText.trim()) return
@@ -829,6 +858,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
               placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the email…'}
               selectedModel={selectedModel}
               enhanceMode="draft"
+              onAddAttachments={addDraftAttachments}
               onModelChange={(model) => {
                 modelManuallyChangedRef.current = true
                 setSelectedModel(model)
@@ -997,6 +1027,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
                   placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the reply…'}
                   selectedModel={selectedModel}
                   enhanceMode={summariseMode ? undefined : 'reply'}
+                  onAddAttachments={summariseMode ? undefined : addDraftAttachments}
                   onModelChange={(model) => {
                     modelManuallyChangedRef.current = true
                     setSelectedModel(model)
@@ -1078,7 +1109,7 @@ function DraftActionRow({
 }): React.ReactElement | null {
   const attachmentInputRef = useRef<HTMLInputElement>(null)
   const hasDraft = replyText.trim().length > 0
-  if (!hasDraft && !saveError && !savedUrl) return null
+  if (!hasDraft && !saveError && !savedUrl && attachments.length === 0 && !attachmentError) return null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
       <div style={draftActionRowStyle}>
@@ -1161,6 +1192,7 @@ function GmailChatComposer({
   placeholder,
   selectedModel,
   enhanceMode,
+  onAddAttachments,
   onModelChange,
 }: {
   value: string
@@ -1170,11 +1202,14 @@ function GmailChatComposer({
   placeholder: string
   selectedModel: string
   enhanceMode?: 'draft' | 'reply'
+  onAddAttachments?: (files: FileList | null) => void
   onModelChange: (model: string) => void
 }): React.ReactElement {
   const [enhancing, setEnhancing] = useState(false)
   const [enhanceError, setEnhanceError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const dragDepthRef = useRef(0)
+  const [imageDragActive, setImageDragActive] = useState(false)
   const enhanceVisible = value.trim().length > 0 || enhancing
   const canEnhance = Boolean(enhanceMode) && !disabled && !enhancing && value.trim().length > 0
   const canSend = !disabled && !enhancing && value.trim().length > 0
@@ -1213,7 +1248,40 @@ function GmailChatComposer({
     <OptiMateBeamComposer>
     <div style={gmailComposerWrapStyle}>
       <div style={composerInputRowStyle}>
-        <div style={googleMateComposerBoxStyle}>
+        <div
+          data-testid="gmail-draft-image-dropzone"
+          style={{
+            ...googleMateComposerBoxStyle,
+            ...(imageDragActive ? gmailImageDropActiveStyle : {}),
+          }}
+          onDragEnter={(event) => {
+            if (!onAddAttachments || disabled || enhancing || !Array.from(event.dataTransfer.types).includes('Files')) return
+            event.preventDefault()
+            dragDepthRef.current += 1
+            setImageDragActive(true)
+          }}
+          onDragOver={(event) => {
+            if (!onAddAttachments || disabled || enhancing || !Array.from(event.dataTransfer.types).includes('Files')) return
+            event.preventDefault()
+            event.dataTransfer.dropEffect = 'copy'
+          }}
+          onDragLeave={(event) => {
+            if (!imageDragActive) return
+            event.preventDefault()
+            dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+            if (dragDepthRef.current === 0) setImageDragActive(false)
+          }}
+          onDrop={(event) => {
+            if (!onAddAttachments || disabled || enhancing || !Array.from(event.dataTransfer.types).includes('Files')) return
+            event.preventDefault()
+            dragDepthRef.current = 0
+            setImageDragActive(false)
+            onAddAttachments(event.dataTransfer.files)
+          }}
+        >
+          {imageDragActive && (
+            <div style={gmailImageDropOverlayStyle}>Drop image for GmailMate and the Gmail draft</div>
+          )}
           {enhanceMode && (
             <div
               style={{
@@ -1565,6 +1633,29 @@ const googleMateComposerBoxStyle: React.CSSProperties = {
   borderRadius: 0,
   background: 'transparent',
   padding: 0,
+}
+
+const gmailImageDropActiveStyle: React.CSSProperties = {
+  borderRadius: 14,
+  outline: '2px dashed #60a5fa',
+  outlineOffset: 2,
+}
+
+const gmailImageDropOverlayStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  zIndex: 6,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 12,
+  borderRadius: 14,
+  background: 'rgba(17, 24, 39, 0.9)',
+  color: '#f8fafc',
+  fontSize: 12,
+  fontWeight: 700,
+  textAlign: 'center',
+  pointerEvents: 'none',
 }
 
 const enhancePillHostStyle: React.CSSProperties = {

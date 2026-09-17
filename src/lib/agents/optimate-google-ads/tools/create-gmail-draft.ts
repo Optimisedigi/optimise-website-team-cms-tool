@@ -31,7 +31,7 @@
 import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
-import { createGmailDraft } from "@/lib/gmail-service";
+import { createGmailDraft, type GmailDraftAttachment } from "@/lib/gmail-service";
 
 interface CreateGmailDraftArgs {
   subject: string;
@@ -99,12 +99,26 @@ export const createGmailDraftTool: CanonicalTool<CreateGmailDraftArgs> = {
       const replyInReplyTo = typeof ctx.context.gmailReplyInReplyTo === "string" ? ctx.context.gmailReplyInReplyTo : "";
       const to = replyTo || args.to || "";
       const subject = replySubject || args.subject;
+      const contextAttachments = ctx.context.gmailDraftAttachments;
+      const attachments = Array.isArray(contextAttachments)
+        ? contextAttachments.filter((attachment): attachment is GmailDraftAttachment => {
+            if (!attachment || typeof attachment !== "object") return false;
+            const candidate = attachment as Partial<GmailDraftAttachment>;
+            return typeof candidate.filename === "string"
+              && (candidate.mimeType === "image/png"
+                || candidate.mimeType === "image/jpeg"
+                || candidate.mimeType === "image/gif"
+                || candidate.mimeType === "image/webp")
+              && Buffer.isBuffer(candidate.content);
+          })
+        : [];
       const result = await createGmailDraft(tokenResult.accessToken, {
         to,
         subject,
         htmlBody: args.htmlBody,
         ...(replyThreadId ? { threadId: replyThreadId } : {}),
         ...(replyInReplyTo ? { inReplyTo: replyInReplyTo } : {}),
+        ...(attachments.length > 0 ? { attachments } : {}),
       });
       const gmailUrl = `https://mail.google.com/mail/u/0/#drafts/${result.messageId}`;
       return {

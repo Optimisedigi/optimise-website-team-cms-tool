@@ -146,6 +146,31 @@ describe("create_gmail_draft — execute", () => {
     expect(data.to).toBe("owner@acme.com");
   });
 
+  it("includes validated image attachments supplied by the agent context", async () => {
+    mockGetToken.mockResolvedValueOnce({ ok: true, accessToken: "tok" });
+    mockCreateDraft.mockResolvedValueOnce({ draftId: "d", messageId: "m" });
+    const args = createGmailDraftTool.validate!({
+      subject: "Screenshot",
+      htmlBody: "<p>See attached.</p>",
+    });
+    const attachment = {
+      filename: "screenshot.png",
+      mimeType: "image/png" as const,
+      content: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+    };
+    const ctx = baseCtx(7);
+    ctx.context.gmailDraftAttachments = [attachment];
+
+    await createGmailDraftTool.execute(args, ctx);
+
+    expect(mockCreateDraft).toHaveBeenCalledWith("tok", {
+      to: "",
+      subject: "Screenshot",
+      htmlBody: "<p>See attached.</p>",
+      attachments: [attachment],
+    });
+  });
+
   it("pins trusted reply metadata from context and creates the draft in the Gmail thread", async () => {
     mockGetToken.mockResolvedValueOnce({ ok: true, accessToken: "tok" });
     mockCreateDraft.mockResolvedValueOnce({ draftId: "d", messageId: "m" });

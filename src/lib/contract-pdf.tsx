@@ -65,19 +65,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3,
     borderBottomColor: "#1b4332",
   },
-  coverKicker: {
-    color: "#1b4332",
-    fontFamily: "Helvetica-Bold",
-    fontSize: 8,
-    letterSpacing: 1.4,
-    textTransform: "uppercase",
-    marginBottom: 18,
-  },
   coverTitle: {
     maxWidth: 400,
     color: "#141d18",
     fontFamily: "Helvetica-Bold",
-    fontSize: 36,
+    fontSize: 35,
     lineHeight: 1.02,
     marginBottom: 22,
   },
@@ -335,7 +327,6 @@ function renderSection(section: ContractSection, index: number, documentTitle: s
       return (
         <View key={`cover-${index}`}>
           <View style={styles.coverHero}>
-            <Text style={styles.coverKicker}>Contract Agreement</Text>
             <Text style={styles.coverTitle}>{documentTitle || "Contract Agreement"}</Text>
             <Text style={styles.coverText}>
               Between Optimise Digital Pty Ltd and {c.clientName}.

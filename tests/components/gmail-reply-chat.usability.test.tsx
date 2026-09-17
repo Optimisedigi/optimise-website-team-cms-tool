@@ -110,6 +110,21 @@ describe('GmailReplyChat usability smoke', () => {
       borderRadius: '999px',
     })
 
+    const png = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      'screenshot.png',
+      { type: 'image/png' },
+    )
+    const dropzone = screen.getByTestId('gmail-draft-image-dropzone')
+    fireEvent.dragEnter(dropzone, {
+      dataTransfer: { files: [png], types: ['Files'] },
+    })
+    expect(screen.getByText('Drop image for GmailMate and the Gmail draft')).toBeInTheDocument()
+    fireEvent.drop(dropzone, {
+      dataTransfer: { files: [png], types: ['Files'] },
+    })
+    expect(await screen.findByText('screenshot.png')).toBeInTheDocument()
+
     fireEvent.keyDown(composeTextarea, { key: 'Enter', shiftKey: false })
 
     expect(await screen.findByText(/Draft preview:/)).toBeInTheDocument()
@@ -119,15 +134,14 @@ describe('GmailReplyChat usability smoke', () => {
       color: '#fff',
     })
 
-    const png = new File(
-      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
-      'screenshot.png',
-      { type: 'image/png' },
-    )
-    fireEvent.change(screen.getByLabelText('Choose images for Gmail draft'), {
-      target: { files: [png] },
+    const chatCall = fetchMock.mock.calls.find(([url]) => url === '/api/optimate/email/chat')
+    expect(JSON.parse(chatCall?.[1]?.body as string)).toMatchObject({
+      attachments: [{
+        name: 'screenshot.png',
+        mediaType: 'image/png',
+        data: 'iVBORw0KGgo=',
+      }],
     })
-    expect(await screen.findByText('screenshot.png')).toBeInTheDocument()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Create Gmail draft' }))
 
@@ -143,6 +157,75 @@ describe('GmailReplyChat usability smoke', () => {
         data: 'iVBORw0KGgo=',
       }],
     })
+  })
+
+  it('sends dropped images with a direct agent-created Gmail draft request', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url === '/api/optimate/email/chat') {
+        return jsonResponse({
+          reply: 'Saved the draft.',
+          gmailDraft: { gmailUrl: 'https://mail.google.com/mail/u/0/#drafts/direct-1' },
+        })
+      }
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="compose" />)
+
+    const screenshot = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      'direct-draft.png',
+      { type: 'image/png' },
+    )
+    fireEvent.drop(await screen.findByTestId('gmail-draft-image-dropzone'), {
+      dataTransfer: { files: [screenshot], types: ['Files'] },
+    })
+    expect(await screen.findByText('direct-draft.png')).toBeInTheDocument()
+
+    const input = screen.getByPlaceholderText('Message GmailMate about the email…')
+    fireEvent.change(input, { target: { value: 'Create the Gmail draft now.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(await screen.findByText('Saved to Drafts.')).toBeInTheDocument()
+    const chatCall = fetchMock.mock.calls.find(([url]) => url === '/api/optimate/email/chat')
+    expect(JSON.parse(chatCall?.[1]?.body as string)).toMatchObject({
+      attachments: [{
+        name: 'direct-draft.png',
+        mediaType: 'image/png',
+        data: 'iVBORw0KGgo=',
+      }],
+    })
+  })
+
+  it('reserves attachment limits across overlapping drops', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="compose" />)
+    const dropzone = await screen.findByTestId('gmail-draft-image-dropzone')
+    const png = (name: string) => new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      name,
+      { type: 'image/png' },
+    )
+
+    fireEvent.drop(dropzone, {
+      dataTransfer: { files: [png('one.png'), png('two.png')], types: ['Files'] },
+    })
+    fireEvent.drop(dropzone, {
+      dataTransfer: { files: [png('three.png'), png('four.png')], types: ['Files'] },
+    })
+
+    expect(await screen.findByText('Attach up to 3 images.')).toBeInTheDocument()
+    expect(await screen.findByText('one.png')).toBeInTheDocument()
+    expect(screen.getByText('two.png')).toBeInTheDocument()
+    expect(screen.queryByText('three.png')).not.toBeInTheDocument()
+    expect(screen.queryByText('four.png')).not.toBeInTheDocument()
   })
 
   it('keeps Shift+Enter as a newline instead of sending', async () => {
@@ -361,6 +444,16 @@ describe('GmailReplyChat usability smoke', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Collapse original email' }))
     expect(screen.queryByText('Can you clarify the next steps?')).not.toBeInTheDocument()
 
+    const replyScreenshot = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      'reply-screenshot.png',
+      { type: 'image/png' },
+    )
+    fireEvent.drop(screen.getByTestId('gmail-draft-image-dropzone'), {
+      dataTransfer: { files: [replyScreenshot], types: ['Files'] },
+    })
+    expect(await screen.findByText('reply-screenshot.png')).toBeInTheDocument()
+
     const replyInput = screen.getByPlaceholderText('Message GmailMate about the reply…')
     fireEvent.change(replyInput, {
       target: { value: 'Be warm and explain the next step.' },
@@ -370,6 +463,19 @@ describe('GmailReplyChat usability smoke', () => {
       expect(replyInput).toHaveValue('Draft a warm reply that clearly explains the next step.')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    const replyChatCall = await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) => url === '/api/optimate/email/chat')
+      expect(call).toBeDefined()
+      return call
+    })
+    expect(JSON.parse(replyChatCall?.[1]?.body as string)).toMatchObject({
+      attachments: [{
+        name: 'reply-screenshot.png',
+        mediaType: 'image/png',
+        data: 'iVBORw0KGgo=',
+      }],
+    })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Create Gmail draft' }))
     await screen.findByText('Saved to Drafts.')
@@ -382,6 +488,11 @@ describe('GmailReplyChat usability smoke', () => {
         threadId: 'thread-1',
         inReplyTo: '<msg-1@example.com>',
         body: 'Hi Client,\n\nThe next step is to review the proposal together.',
+        attachments: [{
+          name: 'reply-screenshot.png',
+          mediaType: 'image/png',
+          data: 'iVBORw0KGgo=',
+        }],
       })
     })
   })

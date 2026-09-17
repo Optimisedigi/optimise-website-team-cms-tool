@@ -6,6 +6,7 @@ import { runEmailChatTurn } from "@/lib/agents/optimate-email";
 import type { Message } from "@/lib/agents/_shared/llm/types";
 import { isCanonicalModel, type CanonicalModelName } from "@/lib/agents/_shared/llm/registry";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
+import { parseGmailDraftAttachments } from "@/lib/gmail-draft-attachments";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { fetchThreadContext, type GmailThreadContext } from "@/lib/gmail-search";
 
@@ -62,11 +63,17 @@ export async function POST(request: Request) {
       draft?: unknown;
       email?: unknown;
       readThread?: unknown;
+      attachments?: unknown;
     };
 
     const message = typeof body.message === "string" ? body.message.trim() : "";
     if (!message) {
       return NextResponse.json({ error: "message is required" }, { status: 400 });
+    }
+
+    const attachmentResult = parseGmailDraftAttachments(body.attachments);
+    if (!attachmentResult.ok) {
+      return NextResponse.json({ error: attachmentResult.error }, { status: 400 });
     }
 
     let modelOverride: CanonicalModelName | undefined;
@@ -102,7 +109,14 @@ export async function POST(request: Request) {
       })),
       {
         role: "user",
-        content: [{ type: "text", text: buildUserMessage({ mode, message, draft, email, thread }) }],
+        content: [
+          ...attachmentResult.attachments.map((attachment) => ({
+            type: "image" as const,
+            mediaType: attachment.mimeType,
+            data: attachment.content.toString("base64"),
+          })),
+          { type: "text" as const, text: buildUserMessage({ mode, message, draft, email, thread }) },
+        ],
       },
     ];
 
@@ -110,6 +124,17 @@ export async function POST(request: Request) {
       messages,
       modelOverride,
       userId: typeof user.id === "number" ? user.id : Number(user.id),
+      draftAttachments: attachmentResult.attachments,
+      ...(mode === "reply"
+        ? {
+            gmailReply: {
+              to: draft.to || "",
+              subject: draft.subject || "",
+              ...(email.threadId ? { threadId: email.threadId } : {}),
+              ...(email.rfcMessageId ? { inReplyTo: email.rfcMessageId } : {}),
+            },
+          }
+        : {}),
     });
 
     return NextResponse.json({

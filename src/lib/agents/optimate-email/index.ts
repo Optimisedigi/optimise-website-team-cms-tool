@@ -33,6 +33,7 @@ import { summarizeEmailThreadTool } from "./tools/summarize-email-thread";
 import { stageEmailReplyTool } from "./tools/stage-email-reply";
 import { searchGmailInboxTool } from "./tools/search-gmail-inbox";
 import { readGmailMessageTool } from "./tools/read-gmail-message";
+import type { GmailDraftAttachment } from "@/lib/gmail-service";
 
 export const EMAIL_AGENT_NAME = "optimate-email";
 
@@ -123,6 +124,13 @@ export interface RunEmailChatTurnInput {
   messages: Message[];
   modelOverride?: string;
   userId?: number;
+  draftAttachments?: GmailDraftAttachment[];
+  gmailReply?: {
+    to: string;
+    subject: string;
+    threadId?: string;
+    inReplyTo?: string;
+  };
 }
 
 export interface GmailDraftResult {
@@ -170,6 +178,15 @@ export async function runEmailChatTurn(input: RunEmailChatTurnInput): Promise<Ru
     maxTokens: EMAIL_CHAT_MAX_TOKENS,
     context: {
       ...(input.userId !== undefined ? { userId: input.userId } : {}),
+      ...(input.draftAttachments?.length ? { gmailDraftAttachments: input.draftAttachments } : {}),
+      ...(input.gmailReply
+        ? {
+            gmailReplyTo: input.gmailReply.to,
+            gmailReplySubject: input.gmailReply.subject,
+            ...(input.gmailReply.threadId ? { gmailReplyThreadId: input.gmailReply.threadId } : {}),
+            ...(input.gmailReply.inReplyTo ? { gmailReplyInReplyTo: input.gmailReply.inReplyTo } : {}),
+          }
+        : {}),
     },
   });
 
@@ -209,6 +226,15 @@ export async function runEmailChatTurn(input: RunEmailChatTurnInput): Promise<Ru
       maxTokens: EMAIL_CHAT_MAX_TOKENS,
       context: {
         ...(input.userId !== undefined ? { userId: input.userId } : {}),
+        ...(input.draftAttachments?.length ? { gmailDraftAttachments: input.draftAttachments } : {}),
+        ...(input.gmailReply
+        ? {
+            gmailReplyTo: input.gmailReply.to,
+            gmailReplySubject: input.gmailReply.subject,
+            ...(input.gmailReply.threadId ? { gmailReplyThreadId: input.gmailReply.threadId } : {}),
+            ...(input.gmailReply.inReplyTo ? { gmailReplyInReplyTo: input.gmailReply.inReplyTo } : {}),
+          }
+        : {}),
       },
     });
     stagedEmailReply = extractLatestStagedEmailReply(result.steps);

@@ -120,12 +120,45 @@ describe("OptiMate selected model flow", () => {
         body: JSON.stringify({
           message: "Draft a reply",
           model: "claude-opus-5",
+          mode: "reply",
+          draft: { to: "client@example.com", subject: "Re: Screenshot" },
+          email: { threadId: "thread-1", rfcMessageId: "<message-1@example.com>" },
+          attachments: [{
+            name: "screenshot.png",
+            mediaType: "image/png",
+            data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString("base64"),
+          }],
         }),
       }),
     );
 
     expect(mocks.runEmailChatTurn).toHaveBeenCalledWith(
-      expect.objectContaining({ modelOverride: "claude-opus-5" }),
+      expect.objectContaining({
+        modelOverride: "claude-opus-5",
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "user",
+            content: expect.arrayContaining([
+              expect.objectContaining({
+                type: "image",
+                mediaType: "image/png",
+                data: "iVBORw0KGgo=",
+              }),
+            ]),
+          }),
+        ]),
+        draftAttachments: [expect.objectContaining({
+          filename: "screenshot.png",
+          mimeType: "image/png",
+          content: expect.any(Buffer),
+        })],
+        gmailReply: {
+          to: "client@example.com",
+          subject: "Re: Screenshot",
+          threadId: "thread-1",
+          inReplyTo: "<message-1@example.com>",
+        },
+      }),
     );
   });
 
