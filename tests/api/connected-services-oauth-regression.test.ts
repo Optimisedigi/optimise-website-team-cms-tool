@@ -203,6 +203,40 @@ describe("connected service OAuth and route regressions", () => {
     expect(mockCreateGmailDraft).not.toHaveBeenCalled();
   });
 
+  it("passes a validated PNG attachment into the Gmail draft", async () => {
+    const { POST } = await import("@/app/(frontend)/api/gmail/draft/route");
+    mockGetValidGmailToken.mockResolvedValueOnce({ ok: true, accessToken: "gmail-access" });
+    mockCreateGmailDraft.mockResolvedValueOnce({ draftId: "draft-1", messageId: "message-1" });
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+    const res = await POST(jsonReq("http://localhost/api/gmail/draft", {
+      body: "See attached.",
+      attachments: [{ name: "screenshot.png", mediaType: "image/png", data: png.toString("base64") }],
+    }));
+
+    expect(res.status).toBe(200);
+    expect(mockCreateGmailDraft).toHaveBeenCalledWith("gmail-access", expect.objectContaining({
+      attachments: [{ filename: "screenshot.png", mimeType: "image/png", content: png }],
+    }));
+  });
+
+  it("rejects a file whose contents do not match its claimed image type", async () => {
+    const { POST } = await import("@/app/(frontend)/api/gmail/draft/route");
+
+    const res = await POST(jsonReq("http://localhost/api/gmail/draft", {
+      body: "See attached.",
+      attachments: [{
+        name: "not-an-image.png",
+        mediaType: "image/png",
+        data: Buffer.from("not an image").toString("base64"),
+      }],
+    }));
+
+    expect(res.status).toBe(400);
+    expect(mockGetValidGmailToken).not.toHaveBeenCalled();
+    expect(mockCreateGmailDraft).not.toHaveBeenCalled();
+  });
+
   it("GSC connect requires admin auth before issuing a client-bound OAuth URL", async () => {
     const { GET } = await import("@/app/(frontend)/api/gsc/connect/route");
     mockPayload.auth.mockResolvedValueOnce({ user: { id: 7, role: "editor" } });

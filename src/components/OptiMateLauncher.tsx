@@ -621,7 +621,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 <div className="om-accounts">
                   {auditsLoading && (
                     <div className="om-accounts-loading">
-                      <RocketSplash compact onLight />
+                      <RocketSplash compact onLight whiteRocket />
                     </div>
                   )}
                   {auditsError && <p className="om-accounts-msg is-error">{auditsError}</p>}

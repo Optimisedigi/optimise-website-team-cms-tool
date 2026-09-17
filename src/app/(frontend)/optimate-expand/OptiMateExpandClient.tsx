@@ -253,7 +253,7 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
             </button>
 
             <div className="om-accounts">
-              {auditsLoading && <div className="om-accounts-loading"><RocketSplash compact onLight /></div>}
+              {auditsLoading && <div className="om-accounts-loading"><RocketSplash compact onLight whiteRocket /></div>}
               {auditsError && <p className="om-accounts-msg is-error">{auditsError}</p>}
               {!auditsLoading && !auditsError && filteredAudits.length === 0 && <p className="om-accounts-msg">No accounts with a Customer ID found.</p>}
               {filteredAudits.map((opt) => {

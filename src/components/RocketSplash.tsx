@@ -3,10 +3,10 @@
 /**
  * The Optimise Digital rocket, shown while a page loads.
  *
- * `onLight` is opt-in rather than detected: the source logo is black and the
- * dark dashboards invert it to white, which leaves it invisible on a light
- * surface. Callers on a light background ask for the un-inverted mark, so no
- * existing dark usage changes.
+ * `onLight` is opt-in rather than detected: the default source logo is black
+ * and dark dashboards invert it to white. `whiteRocket` uses the dedicated
+ * white artwork for OptiMate's dark in-panel loaders without changing other
+ * loading surfaces.
  *
  * Compact injects its own CSS so the OptiMate popout (no admin stylesheet)
  * still gets the animation.
@@ -32,9 +32,11 @@ const COMPACT_CSS = `
 export default function RocketSplash({
   onLight = false,
   compact = false,
+  whiteRocket = false,
 }: {
   onLight?: boolean
   compact?: boolean
+  whiteRocket?: boolean
 }) {
   return (
     <div
@@ -50,7 +52,12 @@ export default function RocketSplash({
           <div className="od-splash__flame od-splash__flame--3" />
         </div>
         <div className="od-splash__rocket">
-          <img src="/optimise-rocket-logo-black.png" alt="" width={48} height={48} />
+          <img
+            src={whiteRocket ? '/optimise-rocket-logo-white.webp' : '/optimise-rocket-logo-black.png'}
+            alt=""
+            width={48}
+            height={48}
+          />
         </div>
       </div>
       <div className="od-splash__text">Loading</div>

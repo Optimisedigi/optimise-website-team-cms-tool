@@ -2684,15 +2684,18 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 )}
               </div>
             </div>
+            </OptiMateBeamComposer>
 
-            {/* Model controls live directly below the input and size to their
-              longest option, with responsive shrinking for narrow panels.
-              Browsers ignore most styling on <option> elements. */}
+            {/* Model controls sit outside the typing surface, side by side,
+              and shrink only when the panel is too narrow for their labels. */}
             <div
               className="om-selects"
               data-optimate-select-row=""
               style={{
-                // Keep a clear gap below the model selector so it isn't clipped
+                width: 'fit-content',
+                maxWidth: '100%',
+                marginTop: 8,
+                // Keep a clear gap below the selectors so they are not clipped
                 // by the bottom edge of the popout window.
                 marginBottom: devParityEnabled ? 8 : 18,
               }}
@@ -2717,7 +2720,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 }
                 className="om-select"
                 data-optimate-select=""
-                style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
+                style={{
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  flex: '0 1 auto',
+                  width: 'auto',
+                }}
               >
                 <option value="off" disabled={modelRequiresReasoning(selectedModel)}>
                   Reasoning off
@@ -2743,7 +2750,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 title="Model used for the next message"
                 className="om-select om-select--wide"
                 data-optimate-select=""
-                style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
+                style={{
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  flex: '0 1 auto',
+                  width: 'auto',
+                }}
               >
                 {CHAT_PICKER_MODELS.map((m) => (
                   <option key={m.canonical} value={m.canonical}>
@@ -2752,7 +2763,6 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 ))}
               </select>
             </div>
-            </OptiMateBeamComposer>
 
             {devParityEnabled && (
               <details

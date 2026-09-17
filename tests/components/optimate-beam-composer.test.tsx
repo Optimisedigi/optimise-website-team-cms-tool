@@ -71,7 +71,7 @@ describe('OptiMateBeamComposer', () => {
     expect(container.querySelector('style')?.textContent).toContain('beam-spin-')
   })
 
-  it('keeps the real chat tools and selectors inside the composer beam', () => {
+  it('keeps real chat tools inside the beam and model selectors below it', () => {
     installMatchMedia()
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
@@ -108,6 +108,6 @@ describe('OptiMateBeamComposer', () => {
     expect(metal).not.toBeNull()
     expect(metal?.hasAttribute('data-paused')).toBe(false)
     expect(selectors).toHaveLength(2)
-    expect(Array.from(selectors).every((selector) => beam?.contains(selector))).toBe(true)
+    expect(Array.from(selectors).every((selector) => !beam?.contains(selector))).toBe(true)
   })
 })

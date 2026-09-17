@@ -58,6 +58,40 @@ interface ChatMessage {
   runId?: string
 }
 
+interface DraftImageAttachment {
+  name: string
+  mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+  data: string
+  size: number
+}
+
+const DRAFT_IMAGE_TYPES = new Set<DraftImageAttachment['mediaType']>([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+])
+const MAX_DRAFT_ATTACHMENTS = 3
+const MAX_DRAFT_ATTACHMENT_BYTES = 3 * 1024 * 1024
+const MAX_DRAFT_ATTACHMENTS_TOTAL_BYTES = 3 * 1024 * 1024
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      const separator = result.indexOf(',')
+      if (separator < 0) {
+        reject(new Error(`Could not read ${file.name}.`))
+        return
+      }
+      resolve(result.slice(separator + 1))
+    }
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`))
+    reader.readAsDataURL(file)
+  })
+}
+
 interface GmailReplyChatProps {
   initialPhase?: Phase
   initialSummariseMode?: boolean
@@ -175,6 +209,8 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
   const [saving, setSaving] = useState(false)
   const [savedUrl, setSavedUrl] = useState<string | null>(persistedState?.savedUrl ?? null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [draftAttachments, setDraftAttachments] = useState<DraftImageAttachment[]>([])
+  const [draftAttachmentError, setDraftAttachmentError] = useState<string | null>(null)
   const [originalEmailCollapsed, setOriginalEmailCollapsed] = useState(Boolean(persistedState?.originalEmailCollapsed))
   const [readThread, setReadThread] = useState(Boolean(persistedState?.readThread))
   const [summariseMode, setSummariseMode] = useState(Boolean(persistedState?.summariseMode ?? initialSummariseMode))
@@ -318,11 +354,57 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     }
   }, [composeTo, phase])
 
+  const addDraftAttachments = useCallback(async (files: FileList | null) => {
+    if (!files?.length) return
+    setDraftAttachmentError(null)
+
+    const selected = Array.from(files)
+    if (draftAttachments.length + selected.length > MAX_DRAFT_ATTACHMENTS) {
+      setDraftAttachmentError(`Attach up to ${MAX_DRAFT_ATTACHMENTS} images.`)
+      return
+    }
+    const unsupported = selected.find((file) => !DRAFT_IMAGE_TYPES.has(file.type as DraftImageAttachment['mediaType']))
+    if (unsupported) {
+      setDraftAttachmentError('Attachments must be PNG, JPEG, GIF, or WebP images.')
+      return
+    }
+    const oversized = selected.find((file) => file.size > MAX_DRAFT_ATTACHMENT_BYTES)
+    if (oversized) {
+      setDraftAttachmentError(`${oversized.name} is too large. Use images up to 3 MB.`)
+      return
+    }
+    const totalBytes = draftAttachments.reduce((sum, attachment) => sum + attachment.size, 0)
+      + selected.reduce((sum, file) => sum + file.size, 0)
+    if (totalBytes > MAX_DRAFT_ATTACHMENTS_TOTAL_BYTES) {
+      setDraftAttachmentError('Attachments can total up to 3 MB per draft.')
+      return
+    }
+
+    try {
+      const encoded = await Promise.all(selected.map(async (file): Promise<DraftImageAttachment> => ({
+        name: file.name,
+        mediaType: file.type as DraftImageAttachment['mediaType'],
+        data: await readFileAsBase64(file),
+        size: file.size,
+      })))
+      setDraftAttachments((current) => [...current, ...encoded])
+    } catch (error) {
+      setDraftAttachmentError(error instanceof Error ? error.message : 'Could not read the selected image.')
+    }
+  }, [draftAttachments])
+
+  const removeDraftAttachment = useCallback((index: number) => {
+    setDraftAttachments((current) => current.filter((_, attachmentIndex) => attachmentIndex !== index))
+    setDraftAttachmentError(null)
+  }, [])
+
   const resetDraftState = useCallback(() => {
     setReplyText('')
     setReplyError(null)
     setSavedUrl(null)
     setSaveError(null)
+    setDraftAttachments([])
+    setDraftAttachmentError(null)
     setChatInput('')
     setChatMessages([])
     setOriginalEmailCollapsed(false)
@@ -390,6 +472,8 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     setChatMessages([])
     setSavedUrl(null)
     setSaveError(null)
+    setDraftAttachments([])
+    setDraftAttachmentError(null)
     setOriginalEmailCollapsed(true)
     setReadThread(false)
     try {
@@ -543,6 +627,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
           to: composeTo.trim() || undefined,
           subject: composeSubject.trim() || undefined,
           body: replyText,
+          attachments: draftAttachments.map(({ name, mediaType, data }) => ({ name, mediaType, data })),
         }),
       })
       const data = (await res.json()) as { gmailUrl?: string; error?: string; reason?: string }
@@ -556,7 +641,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     } finally {
       setSaving(false)
     }
-  }, [replyText, composeTo, composeSubject])
+  }, [replyText, composeTo, composeSubject, draftAttachments])
 
   const saveDraft = useCallback(async () => {
     if (!message || !replyText.trim()) return
@@ -574,6 +659,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
           body: replyText,
           threadId: message.threadId || undefined,
           inReplyTo: message.rfcMessageId || undefined,
+          attachments: draftAttachments.map(({ name, mediaType, data }) => ({ name, mediaType, data })),
         }),
       })
       const data = (await res.json()) as { gmailUrl?: string; error?: string; reason?: string }
@@ -587,12 +673,12 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     } finally {
       setSaving(false)
     }
-  }, [message, replyText])
+  }, [message, replyText, draftAttachments])
 
   if (connected === null) {
     return (
       <div style={{ ...fillColumn, alignItems: 'center', justifyContent: 'center' }}>
-        <RocketSplash compact onLight />
+        <RocketSplash compact onLight whiteRocket />
       </div>
     )
   }
@@ -729,6 +815,10 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
               saving={saving}
               saveError={saveError}
               savedUrl={savedUrl}
+              attachments={draftAttachments}
+              attachmentError={draftAttachmentError}
+              onAddAttachments={addDraftAttachments}
+              onRemoveAttachment={removeDraftAttachment}
               onSave={saveNewDraft}
             />
             <GmailChatComposer
@@ -778,7 +868,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
 
             {searching && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180 }}>
-                <RocketSplash compact onLight />
+                <RocketSplash compact onLight whiteRocket />
               </div>
             )}
 
@@ -825,7 +915,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
           <div style={chatFirstPane}>
             {loadingMessage && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180 }}>
-                <RocketSplash compact onLight />
+                <RocketSplash compact onLight whiteRocket />
               </div>
             )}
             {replyError && <div style={errorBox}>{replyError}</div>}
@@ -893,6 +983,10 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
                   saving={saving}
                   saveError={saveError}
                   savedUrl={savedUrl}
+                  attachments={draftAttachments}
+                  attachmentError={draftAttachmentError}
+                  onAddAttachments={addDraftAttachments}
+                  onRemoveAttachment={removeDraftAttachment}
                   onSave={saveDraft}
                 />
                 <GmailChatComposer
@@ -966,32 +1060,84 @@ function DraftActionRow({
   saving,
   saveError,
   savedUrl,
+  attachments,
+  attachmentError,
+  onAddAttachments,
+  onRemoveAttachment,
   onSave,
 }: {
   replyText: string
   saving: boolean
   saveError: string | null
   savedUrl: string | null
+  attachments: DraftImageAttachment[]
+  attachmentError: string | null
+  onAddAttachments: (files: FileList | null) => void
+  onRemoveAttachment: (index: number) => void
   onSave: () => void
 }): React.ReactElement | null {
+  const attachmentInputRef = useRef<HTMLInputElement>(null)
   const hasDraft = replyText.trim().length > 0
   if (!hasDraft && !saveError && !savedUrl) return null
   return (
-    <div style={draftActionRowStyle}>
-      {hasDraft && !savedUrl && (
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          style={{ ...createDraftButtonStyle, opacity: saving ? 0.6 : 1 }}
-        >
-          {saving ? 'Creating…' : 'Create Gmail draft'}
-        </button>
-      )}
-      <div style={{ minWidth: 0, flex: 1 }}>
-        {saveError && <div style={inlineErrorStyle}>{saveError}</div>}
-        {savedUrl && <SavedDraftLink savedUrl={savedUrl} />}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <div style={draftActionRowStyle}>
+        {hasDraft && !savedUrl && (
+          <>
+            <input
+              ref={attachmentInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              multiple
+              aria-label="Choose images for Gmail draft"
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                onAddAttachments(event.target.files)
+                event.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => attachmentInputRef.current?.click()}
+              disabled={saving || attachments.length >= MAX_DRAFT_ATTACHMENTS}
+              style={attachDraftButtonStyle}
+            >
+              Attach image
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              style={{ ...createDraftButtonStyle, opacity: saving ? 0.6 : 1 }}
+            >
+              {saving ? 'Creating…' : 'Create Gmail draft'}
+            </button>
+          </>
+        )}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          {saveError && <div style={inlineErrorStyle}>{saveError}</div>}
+          {savedUrl && <SavedDraftLink savedUrl={savedUrl} />}
+        </div>
       </div>
+      {attachments.length > 0 && !savedUrl && (
+        <div style={draftAttachmentListStyle}>
+          {attachments.map((attachment, index) => (
+            <span key={`${attachment.name}-${index}`} style={draftAttachmentChipStyle}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachment.name}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${attachment.name}`}
+                onClick={() => onRemoveAttachment(index)}
+                disabled={saving}
+                style={removeAttachmentButtonStyle}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {attachmentError && <div style={inlineErrorStyle}>{attachmentError}</div>}
     </div>
   )
 }
@@ -1184,7 +1330,7 @@ function OriginalEmailCard({
           <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {message.subject || '(no subject)'}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--theme-elevation-600, #d4d4d8)', marginTop: 2 }}>From: {message.from}</div>
+          <div style={{ fontSize: 11, color: '#a1a1aa', marginTop: 2 }}>From: {message.from}</div>
         </div>
         <button type="button" onClick={onToggle} style={minimalButtonStyle}>
           {collapsed ? (summariseMode ? 'Show thread' : 'Show original email') : (summariseMode ? 'Collapse thread' : 'Collapse original email')}
@@ -1359,6 +1505,41 @@ const createDraftButtonStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
+const attachDraftButtonStyle: React.CSSProperties = {
+  ...createDraftButtonStyle,
+  background: '#27272a',
+  border: '1px solid #52525b',
+}
+
+const draftAttachmentListStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 6,
+  flexWrap: 'wrap',
+}
+
+const draftAttachmentChipStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 5,
+  maxWidth: 220,
+  padding: '4px 7px',
+  border: '1px solid #52525b',
+  borderRadius: 999,
+  background: '#27272a',
+  color: '#e4e4e7',
+  fontSize: 11,
+}
+
+const removeAttachmentButtonStyle: React.CSSProperties = {
+  border: 0,
+  background: 'transparent',
+  color: '#d4d4d8',
+  cursor: 'pointer',
+  padding: 0,
+  fontSize: 15,
+  lineHeight: 1,
+}
+
 const inlineErrorStyle: React.CSSProperties = {
   fontSize: 12,
   color: '#b91c1c',
@@ -1484,7 +1665,9 @@ const modelSelectGoogleMateStyle: React.CSSProperties = {
 }
 
 const originalEmailCardStyle: React.CSSProperties = {
-  background: 'var(--theme-elevation-50, #f3f4f6)',
+  background: '#111',
+  color: '#f5f5f7',
+  border: '1px solid #2f2f33',
   borderRadius: 8,
   padding: 10,
   flexShrink: 0,
@@ -1492,7 +1675,7 @@ const originalEmailCardStyle: React.CSSProperties = {
 
 const originalEmailBodyStyle: React.CSSProperties = {
   fontSize: 12,
-  color: 'var(--theme-elevation-600, #d4d4d8)',
+  color: '#d4d4d8',
   marginTop: 8,
   whiteSpace: 'pre-wrap',
   maxHeight: 96,
@@ -1502,7 +1685,7 @@ const originalEmailBodyStyle: React.CSSProperties = {
 const minimalButtonStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: '#2563eb',
+  color: '#60a5fa',
   fontSize: 11,
   cursor: 'pointer',
   padding: 0,

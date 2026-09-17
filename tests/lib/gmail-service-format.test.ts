@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendGmailSignature, formatGmailDraftHtml } from "@/lib/gmail-service";
+import { appendGmailSignature, buildMimeMessage, formatGmailDraftHtml } from "@/lib/gmail-service";
 
 describe("formatGmailDraftHtml", () => {
   it("wraps draft HTML in Gmail's native Verdana normal-size styling", () => {
@@ -48,5 +48,29 @@ describe("formatGmailDraftHtml", () => {
     const html = '<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,sans-serif;font-size:small;margin:0;padding:0;">Hello<br><br>World</div>';
 
     expect(formatGmailDraftHtml(html)).toBe(html);
+  });
+
+  it("builds a multipart Gmail draft with an image attachment", () => {
+    const encoded = buildMimeMessage({
+      to: "client@example.com",
+      subject: "Screenshot",
+      htmlBody: "<p>See attached.</p>",
+      attachments: [{
+        filename: "report screenshot.png",
+        mimeType: "image/png",
+        content: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      }],
+    });
+    const padded = encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+    const mime = Buffer.from(padded, "base64").toString("utf8");
+
+    expect(mime).toContain("Content-Type: multipart/mixed;");
+    expect(mime).toContain('Content-Type: text/html; charset="UTF-8"');
+    expect(mime).toContain("Content-Type: image/png;");
+    expect(mime).toContain("Content-Disposition: attachment; filename*=UTF-8''report%20screenshot.png");
+    expect(mime).toContain("iVBORw==");
+    const boundary = mime.match(/boundary="([^"]+)"/)?.[1];
+    expect(boundary).toBeTruthy();
+    expect(mime).toContain(`--${boundary}--`);
   });
 });

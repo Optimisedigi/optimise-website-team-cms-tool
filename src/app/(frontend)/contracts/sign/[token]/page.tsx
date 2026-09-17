@@ -2,6 +2,19 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import { Schibsted_Grotesk, Source_Serif_4 } from 'next/font/google'
+
+const contractSans = Schibsted_Grotesk({
+  subsets: ['latin'],
+  variable: '--contract-sans',
+  display: 'swap',
+})
+
+const contractSerif = Source_Serif_4({
+  subsets: ['latin'],
+  variable: '--contract-serif',
+  display: 'swap',
+})
 
 interface ContractInfo {
   contractTitle: string
@@ -276,44 +289,47 @@ export default function ContractSignPage() {
 
   // Styles
   const pageStyle: React.CSSProperties = {
-    background: '#e5e7eb',
+    width: '100%',
+    boxSizing: 'border-box',
+    background: '#f3f1ec',
     minHeight: '100vh',
     padding: '40px 16px',
   }
 
   const docStyle: React.CSSProperties = {
-    maxWidth: 800,
+    maxWidth: 900,
     margin: '0 auto',
     background: '#fff',
-    padding: '60px 50px',
-    fontFamily: 'Helvetica, Arial, sans-serif',
-    color: '#111',
-    lineHeight: 1.6,
-    fontSize: 14,
-    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+    padding: '54px 64px 46px',
+    fontFamily: 'var(--contract-serif), Georgia, serif',
+    color: '#141d18',
+    lineHeight: 1.65,
+    fontSize: 15,
+    boxShadow: '0 14px 44px rgba(27, 44, 35, 0.10)',
   }
 
   const hrStyle: React.CSSProperties = {
     border: 'none',
-    borderTop: '1px solid #ccc',
-    margin: '28px 0',
+    borderTop: '1px solid #d8ded9',
+    margin: '32px 0',
   }
 
   const hrThickStyle: React.CSSProperties = {
     border: 'none',
-    borderTop: '2px solid #111',
-    margin: '30px 0',
+    borderTop: '3px solid #1b4332',
+    margin: '34px 0',
   }
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '8px 10px',
+    padding: '10px 12px',
     fontSize: 14,
-    border: '1px solid #d1d5db',
-    borderRadius: 4,
-    outline: 'none',
+    border: '1px solid #aebbb3',
+    borderRadius: 2,
     boxSizing: 'border-box',
-    background: '#fafafa',
+    background: '#fff',
+    color: '#141d18',
+    fontFamily: 'var(--contract-sans), sans-serif',
   }
 
   const fieldLabelStyle: React.CSSProperties = {
@@ -416,23 +432,33 @@ export default function ContractSignPage() {
   const hostingAmount = contract.monthlyHosting ? formatCurrency(contract.monthlyHosting, currency) : null
 
   return (
-    <div style={pageStyle}>
-      <div className="signing-doc" style={docStyle}>
-        {/* Logo */}
-        <img
-          src="/logo.png"
-          alt="Optimise Digital"
-          style={{ width: 252, marginBottom: 20 }}
-        />
+    <main className={`${contractSans.variable} ${contractSerif.variable}`} style={pageStyle}>
+      <article className="signing-doc" style={docStyle}>
+        <header className="contract-header">
+          <img
+            className="contract-logo"
+            src="/contract-logo.png"
+            alt="Optimise Digital"
+          />
+          <span>Contract Agreement</span>
+        </header>
 
-        <hr style={hrThickStyle} />
+        <section className="contract-cover" aria-labelledby="contract-title">
+          <div className="contract-cover-copy">
+            <p className="contract-kicker">Contract Agreement</p>
+            <h1 id="contract-title">{contract.contractTitle || 'Contract Agreement'}</h1>
+            <p className="contract-intro">
+              Between Optimise Digital Pty Ltd and {clientDisplayName}.
+            </p>
+          </div>
 
-        {/* Cover — generous spacing around the agency/client names. */}
-        <p style={{ fontSize: 16, margin: '0 0 18px' }}>Contract Agreement</p>
-        <p style={{ fontSize: 16, margin: '0 0 8px' }}>Between</p>
-        <p style={{ fontSize: 20, fontWeight: 700, margin: '0 0 28px' }}>Optimise Digital Pty Ltd</p>
-        <p style={{ fontSize: 16, margin: '0 0 8px' }}>And</p>
-        <p style={{ fontSize: 20, fontWeight: 700, margin: '0 0 28px' }}>{clientDisplayName}</p>
+          <dl className="contract-summary">
+            <div><dt>Prepared for</dt><dd>{clientDisplayName}</dd></div>
+            <div><dt>Prepared by</dt><dd>Optimise Digital Pty Ltd</dd></div>
+            <div><dt>Effective date</dt><dd>{formatDate(contract.contractDate)}</dd></div>
+            <div><dt>Engagement</dt><dd>{contract.contractTitle || 'Digital services'}</dd></div>
+          </dl>
+        </section>
 
         <hr style={hrThickStyle} />
 
@@ -445,14 +471,8 @@ export default function ContractSignPage() {
         </p>
 
         {/* Client detail fields - callout box */}
-        <div style={{
-          borderLeft: '4px solid #f97316',
-          background: '#fff7ed',
-          padding: '16px 20px',
-          borderRadius: 6,
-          marginBottom: 20,
-        }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#f97316', margin: '0 0 6px' }}>
+        <section className="contract-action-card">
+          <p className="contract-action-title">
             Please review your details below before signing
           </p>
           <p style={{ fontSize: 12, color: '#666', margin: '0 0 14px' }}>
@@ -572,7 +592,7 @@ export default function ContractSignPage() {
                 fontWeight: 600,
                 border: 'none',
                 borderRadius: 4,
-                background: '#f97316',
+                background: '#1b4332',
                 color: '#fff',
                 cursor: 'pointer',
                 opacity: 0.7,
@@ -581,7 +601,7 @@ export default function ContractSignPage() {
               Click to Sign
             </button>
           </div>
-        </div>
+        </section>
 
         {/* Service Provider - clearly separated */}
         <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid #e5e7eb' }}>
@@ -862,17 +882,11 @@ export default function ContractSignPage() {
         </p>
 
         {/* Client signature - callout box */}
-        <div
+        <section
           ref={signatureRef}
-          style={{
-            borderLeft: '4px solid #f97316',
-            background: '#fff7ed',
-            padding: '16px 20px',
-            borderRadius: 6,
-            marginBottom: 24,
-          }}
+          className="contract-action-card contract-signature-card"
         >
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#f97316', margin: '0 0 12px' }}>
+          <p className="contract-action-title">
             Please sign below
           </p>
 
@@ -885,6 +899,7 @@ export default function ContractSignPage() {
             <button
               type="button"
               onClick={() => setSignatureMode('draw')}
+              aria-pressed={signatureMode === 'draw'}
               style={{
                 padding: '6px 16px',
                 fontSize: 13,
@@ -900,6 +915,7 @@ export default function ContractSignPage() {
             <button
               type="button"
               onClick={() => setSignatureMode('type')}
+              aria-pressed={signatureMode === 'type'}
               style={{
                 padding: '6px 16px',
                 fontSize: 13,
@@ -1034,10 +1050,10 @@ export default function ContractSignPage() {
               fontWeight: 700,
               border: 'none',
               borderRadius: 6,
-              background: signing || !hasValidSignature || !signerName || !consent ? '#94a3b8' : '#f97316',
+              background: signing || !hasValidSignature || !signerName || !consent ? '#94a3b8' : '#1b4332',
               color: '#fff',
               cursor: signing || !hasValidSignature || !signerName || !consent ? 'not-allowed' : 'pointer',
-              boxShadow: signing || !hasValidSignature || !signerName || !consent ? 'none' : '0 2px 8px rgba(249,115,22,0.3)',
+              boxShadow: signing || !hasValidSignature || !signerName || !consent ? 'none' : '0 2px 8px rgba(27,67,50,0.24)',
             }}
           >
             {signing ? 'Signing...' : 'Sign Contract'}
@@ -1046,7 +1062,7 @@ export default function ContractSignPage() {
           {signError && (
             <p style={{ margin: '12px 0 0', fontSize: 14, color: '#dc2626' }}>{signError}</p>
           )}
-        </div>
+        </section>
 
         {/* Service Provider signature */}
         <p style={{ fontSize: 15, margin: '30px 0 12px' }}>
@@ -1094,10 +1110,141 @@ export default function ContractSignPage() {
           integrity verification. Signed documents are retained for a minimum
           of 7 years in accordance with Australian record-keeping requirements.
         </p>
-      </div>
+      </article>
 
       {/* Scope content styles for rich text */}
       <style>{`
+        .signing-doc {
+          width: 100%;
+          box-sizing: border-box;
+          border-top: 8px solid #1b4332;
+          overflow-wrap: anywhere;
+        }
+        .contract-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+          padding-bottom: 22px;
+          border-bottom: 1px solid #d8ded9;
+          color: #5b6a62;
+          font-family: var(--contract-sans), sans-serif;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: .09em;
+          text-transform: uppercase;
+        }
+        .contract-logo {
+          display: block;
+          width: 131px;
+          max-width: 58%;
+          height: auto;
+        }
+        .contract-cover {
+          display: grid;
+          grid-template-columns: minmax(0, 1.25fr) minmax(260px, .75fr);
+          gap: 52px;
+          align-items: end;
+          min-height: 420px;
+          padding: 64px 0 50px;
+        }
+        .contract-kicker,
+        .contract-action-title {
+          margin: 0 0 12px;
+          color: #1b4332;
+          font-family: var(--contract-sans), sans-serif;
+          font-size: 12px;
+          font-weight: 750;
+          letter-spacing: .12em;
+          text-transform: uppercase;
+        }
+        .contract-cover h1 {
+          max-width: 620px;
+          margin: 0;
+          color: #141d18;
+          font-family: var(--contract-sans), sans-serif;
+          font-size: clamp(42px, 6vw, 64px);
+          line-height: 1.02;
+          letter-spacing: -.05em;
+          text-wrap: balance;
+        }
+        .contract-intro {
+          max-width: 560px;
+          margin: 28px 0 0;
+          color: #46534c;
+          font-size: 18px;
+          line-height: 1.6;
+        }
+        .contract-summary {
+          margin: 0;
+          padding: 0;
+          border-top: 3px solid #1b4332;
+          font-family: var(--contract-sans), sans-serif;
+        }
+        .contract-summary div {
+          padding: 13px 0;
+          border-bottom: 1px solid #d8ded9;
+        }
+        .contract-summary dt {
+          margin-bottom: 3px;
+          color: #68766e;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
+        .contract-summary dd {
+          margin: 0;
+          color: #141d18;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 1.35;
+        }
+        .signing-doc h2,
+        .signing-doc h3,
+        .signing-doc h4,
+        .signing-doc th,
+        .signing-doc button,
+        .signing-doc label,
+        .signing-doc strong {
+          font-family: var(--contract-sans), sans-serif;
+        }
+        .signing-doc h2 {
+          color: #1b4332;
+          letter-spacing: -.01em;
+        }
+        .contract-action-card {
+          margin-bottom: 24px;
+          padding: 22px 24px;
+          border: 1px solid #b9c9bf;
+          border-left: 5px solid #1b4332;
+          border-radius: 2px;
+          background: #f5f8f5;
+        }
+        .contract-action-title { margin-bottom: 8px; }
+        .contract-signature-card { scroll-margin-top: 24px; }
+        .signing-doc table {
+          width: 100% !important;
+          border-top-color: #1b4332 !important;
+          font-family: var(--contract-sans), sans-serif;
+        }
+        .signing-doc thead {
+          color: #fff;
+          background: #1b4332;
+        }
+        .signing-doc th { padding: 9px 10px !important; }
+        .signing-doc td { padding: 8px 10px !important; }
+        .signing-doc input:focus-visible,
+        .signing-doc textarea:focus-visible,
+        .signing-doc button:focus-visible,
+        .signing-doc a:focus-visible {
+          outline: 3px solid #d4a017;
+          outline-offset: 3px;
+        }
+        .signing-doc button:not(:disabled) {
+          transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+        }
+        .signing-doc button:not(:disabled):hover { filter: brightness(.92); }
         /* Client-details grid: 2 cols on tablet+ (≥ 600px), 1 col on phones. */
         .signing-fields-grid {
           display: grid;
@@ -1109,11 +1256,36 @@ export default function ContractSignPage() {
            gets the full width on tablet+; falls back to single column on
            mobile via the grid template below. */
         .signing-field--wide { grid-column: 1 / -1; }
+        @media (max-width: 720px) {
+          .contract-cover {
+            grid-template-columns: 1fr;
+            gap: 36px;
+            min-height: 0;
+            padding: 48px 0 38px;
+          }
+          .contract-cover h1 { font-size: clamp(36px, 11vw, 44px); }
+        }
         @media (max-width: 599px) {
           .signing-fields-grid { grid-template-columns: 1fr; }
-          /* Tighter page padding on phones so the contract content uses
-             more of the viewport. */
-          .signing-doc { padding: 24px 16px !important; }
+          .signing-doc {
+            width: calc(100vw - 32px) !important;
+            max-width: calc(100vw - 32px) !important;
+            padding: 28px 18px !important;
+            box-shadow: none !important;
+          }
+          .contract-header { align-items: flex-start; }
+          .contract-header span { max-width: 90px; text-align: right; }
+          .contract-logo { max-width: 64%; }
+          .contract-action-card { padding: 18px 16px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .signing-doc * { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+        }
+        @media (forced-colors: active) {
+          .signing-doc, .contract-action-card, .contract-summary, .contract-header {
+            border-color: CanvasText;
+          }
+          .signing-doc thead { color: Canvas; background: CanvasText; }
         }
         .scope-content p { margin: 0 0 6px; min-height: 1em; }
         .scope-content p:empty { margin: 0 0 8px; }
@@ -1130,6 +1302,6 @@ export default function ContractSignPage() {
         .scope-content strong { font-weight: 700; }
         .scope-content em { font-style: italic; }
       `}</style>
-    </div>
+    </main>
   )
 }

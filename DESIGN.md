@@ -110,3 +110,35 @@ The first Chromium renders at 1440×1000 and 320×800 scored responsive behavior
 Final rubric: **22/24**. Brief specificity 2, hierarchy 2, composition 2, consistency 2, typography 2, material logic 2, states 2, responsive behavior 2, accessibility evidence 1, motion 2, authentic content 2, visual distinctiveness 1. Data tests verify five connected paths, removal of job-seeker content, and readable question-and-answer coverage. Component tests verify exclusive decision branching, semantic route relationships, and keyboard pan, zoom, and reset. Route tests verify canonical slug rejection, fail-closed missing-client handling, PIN redirect, and authorized output.
 
 Changed-scope evidence: native semantics and names **pass by component tests**; keyboard pan, zoom, and reset transforms **pass by component tests**; pointer cancellation, 44px controls, reduced-motion, and forced-colors rules **pass by source review**; 320px page reflow **passes a Chromium check comparing page scroll width with viewport width plus screenshot review**; canonical authorization **passes route tests**. Representative screen-reader output, manual 200% text zoom, measured contrast tooling, browser matrix, RTL stress, and field performance remain **unverified**; no ADA or WCAG conformance claim is made.
+
+# Contract agreement surfaces
+
+## Scope and design read
+
+- **Surface:** client-facing legal document and matching signed PDF.
+- **Audience and job:** a client must understand the parties, commercial terms, obligations, and signature action without the visual design competing with legal content.
+- **Risk:** this is a low-frequency, high-consequence flow. Legibility, complete terms, clear signing state, and consistency between browser and PDF take priority over decoration.
+- **Platform:** responsive Next.js signing page plus paginated A4 output generated with React PDF.
+- **Constraints:** preserve all existing contract data, editable client details, signature modes, consent, integrity wording, and dynamic rich text; use the supplied Optimise Digital logo in the top-left header.
+
+## Thesis and system
+
+The agreement is a restrained editorial document. Deep green (`#1b4332`) marks the document spine, section titles, table headers, actions, and focus hierarchy; warm paper and white separate the browser canvas from the legal sheet. A sans-serif display face carries headings and field labels while a serif face carries long-form terms. The memorable device is the tall cover composition: a large agreement title balances a compact facts rail before the detailed terms begin. The digital and PDF versions share the same logo header, green rule, cover hierarchy, full-width commercial tables, quiet dividers, and running footer.
+
+The browser keeps one 900px content rail and collapses the cover and edit grid at narrow widths. Editable details and signature controls use bordered green callouts because they are actions inside an otherwise static document. There are no gradients, glass effects, generic card grids, hover lifts, emoji, or invented claims.
+
+## States, accessibility, and release checks
+
+- Existing loading, expired-link, failure, completed, editable, disabled, pending, and signing-error states remain intact.
+- The document uses `main`, `article`, `header`, section heading relationships, a definition list for cover facts, native fields/buttons, and visible `:focus-visible` outlines.
+- Input labels remain persistent. The signature canvas keeps its existing pointer/touch alternative through typed signing. Reduced-motion removes smooth scrolling and transitions; forced-colors restores document/table boundaries.
+- The mobile source order remains logo, title, facts, editable details, terms, consent, signatures, and integrity note. Tables expand to the shared rail rather than using the former 60% width.
+- The PDF repeats the supplied logo and document label at the top of every page, with a confidentiality and integrity footer at the bottom.
+
+## Render critique and release record
+
+The first narrow capture was made with Chrome’s command-line minimum 500px layout viewport and appeared clipped; a Playwright capture against the installed Chrome binary then verified a true 390px viewport with `scrollWidth` equal to `innerWidth` (390px). The revision explicitly bounds the document sheet to the narrow viewport. The first PDF render also exposed an automatic title hyphen and a cover rule spilling onto a blank page; automatic hyphenation was disabled and the cover was tightened before the final four-page fixture render.
+
+Final rubric: **22/24**. Brief specificity 2, hierarchy 2, composition 2, consistency 2, typography 2, material logic 2, states 2, responsive behavior 2, accessibility evidence 1, motion 2, authentic content 2, visual distinctiveness 1. The cover, facts rail, action callouts, tables, running logo header, and PDF footer now form one contract-specific system across the browser and A4 output.
+
+Changed-scope evidence: desktop 1440px and mobile 390px browser captures **pass visual review**; mobile horizontal reflow **passes** with a measured 390px document scroll width at a 390px viewport; the generated PDF **passes render review** for logo header, cover hierarchy, unbroken title, section continuation, and footer; 26 focused contract tests **pass**; TypeScript **passes**. Semantic landmarks, persistent labels, focus-visible, reduced-motion, forced-colors, and disabled controls **pass source review**. Representative screen-reader output, manual 200% text zoom, browser matrix, RTL/localization stress, and print-driver comparison remain **unverified**; no ADA or WCAG conformance claim is made.

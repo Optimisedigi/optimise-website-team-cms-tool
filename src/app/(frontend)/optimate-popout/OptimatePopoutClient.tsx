@@ -378,7 +378,7 @@ function AccountPickerOverlay({
 
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180 }}>
-              <RocketSplash compact onLight />
+              <RocketSplash compact onLight whiteRocket />
             </div>
           )}
           {error && <p style={{ fontSize: 12, color: '#dc2626' }}>{error}</p>}

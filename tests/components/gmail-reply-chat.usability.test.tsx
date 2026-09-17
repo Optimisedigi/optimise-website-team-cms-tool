@@ -119,6 +119,16 @@ describe('GmailReplyChat usability smoke', () => {
       color: '#fff',
     })
 
+    const png = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      'screenshot.png',
+      { type: 'image/png' },
+    )
+    fireEvent.change(screen.getByLabelText('Choose images for Gmail draft'), {
+      target: { files: [png] },
+    })
+    expect(await screen.findByText('screenshot.png')).toBeInTheDocument()
+
     fireEvent.click(await screen.findByRole('button', { name: 'Create Gmail draft' }))
 
     await screen.findByText('Saved to Drafts.')
@@ -127,6 +137,11 @@ describe('GmailReplyChat usability smoke', () => {
       to: 'client@example.com',
       subject: 'Follow up',
       body: 'Hi there,\n\nThanks for reaching out.',
+      attachments: [{
+        name: 'screenshot.png',
+        mediaType: 'image/png',
+        data: 'iVBORw0KGgo=',
+      }],
     })
   })
 
@@ -333,7 +348,12 @@ describe('GmailReplyChat usability smoke', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
 
     fireEvent.click(await screen.findByText('Proposal question'))
-    expect(await screen.findByRole('button', { name: 'Show original email' })).toBeInTheDocument()
+    const originalEmailToggle = await screen.findByRole('button', { name: 'Show original email' })
+    expect(originalEmailToggle).toBeInTheDocument()
+    expect(originalEmailToggle.parentElement?.parentElement).toHaveStyle({
+      background: '#111',
+      color: '#f5f5f7',
+    })
     expect(screen.queryByRole('button', { name: 'Enhance prompt without sending' })).not.toBeInTheDocument()
     expect(screen.queryByText('Can you clarify the next steps?')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show original email' }))

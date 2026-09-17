@@ -124,17 +124,37 @@ export async function refreshGmailAccessToken(refreshToken: string): Promise<{
   };
 }
 
+export interface GmailDraftAttachment {
+  filename: string;
+  mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  content: Buffer;
+}
+
+function safeMimeFilename(filename: string): string {
+  const cleaned = filename
+    .replace(/[\r\n\0]/g, "")
+    .replace(/[\\/]/g, "-")
+    .trim()
+    .slice(0, 180);
+  return cleaned || "image-attachment";
+}
+
+function wrapBase64(content: Buffer): string {
+  return content.toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
+}
+
 /**
  * Build an RFC 2822 MIME message and base64url-encode it for Gmail's API.
  */
-function buildMimeMessage(args: {
+export function buildMimeMessage(args: {
   to: string;
   subject: string;
   htmlBody: string;
   /** RFC 822 Message-ID of the message being replied to, for threading. */
   inReplyTo?: string;
+  attachments?: GmailDraftAttachment[];
 }): string {
-  const { to, subject, htmlBody, inReplyTo } = args;
+  const { to, subject, htmlBody, inReplyTo, attachments = [] } = args;
   // Encode subject as RFC 2047 if it contains non-ASCII to keep Gmail happy.
   const isAscii = /^[\x20-\x7E]*$/.test(subject);
   const encodedSubject = isAscii
@@ -145,15 +165,45 @@ function buildMimeMessage(args: {
     `To: ${to}`,
     `Subject: ${encodedSubject}`,
     "MIME-Version: 1.0",
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: 7bit",
   ];
   // In-thread replies: setting In-Reply-To / References lets Gmail group the
   // draft into the original conversation alongside threadId on the message.
   if (inReplyTo) {
     lines.push(`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`);
   }
-  lines.push("", htmlBody);
+
+  if (attachments.length === 0) {
+    lines.push(
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: 7bit",
+      "",
+      htmlBody,
+    );
+  } else {
+    const boundary = `----=_OptiMate_${crypto.randomUUID().replaceAll("-", "")}`;
+    lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`, "");
+    lines.push(
+      `--${boundary}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: 7bit",
+      "",
+      htmlBody,
+    );
+    attachments.forEach((attachment) => {
+      const filename = safeMimeFilename(attachment.filename);
+      const encodedFilename = encodeURIComponent(filename);
+      lines.push(
+        `--${boundary}`,
+        `Content-Type: ${attachment.mimeType}; name="${filename.replace(/"/g, "'")}"`,
+        "Content-Transfer-Encoding: base64",
+        `Content-Disposition: attachment; filename*=UTF-8''${encodedFilename}`,
+        "",
+        wrapBase64(attachment.content),
+      );
+    });
+    lines.push(`--${boundary}--`, "");
+  }
+
   const raw = lines.join("\r\n");
   // Gmail wants base64url (URL-safe, no padding).
   return Buffer.from(raw, "utf-8")
@@ -236,6 +286,8 @@ export async function createGmailDraft(
     inReplyTo?: string;
     /** Append the connected Gmail account's configured signature. Defaults to true. */
     appendSignature?: boolean;
+    /** Validated image files to attach to the draft. */
+    attachments?: GmailDraftAttachment[];
   },
 ): Promise<{ draftId: string; messageId: string }> {
   const oauth2Client = getOAuth2Client();
@@ -252,6 +304,7 @@ export async function createGmailDraft(
     subject: removeForbiddenDashes(args.subject),
     htmlBody,
     inReplyTo: args.inReplyTo,
+    attachments: args.attachments,
   });
 
   const res = await gmail.users.drafts.create({

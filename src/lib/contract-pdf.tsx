@@ -6,6 +6,7 @@ import {
   View,
   Image,
   StyleSheet,
+  Font,
   renderToBuffer,
 } from "@react-pdf/renderer";
 import {
@@ -17,27 +18,80 @@ import { getPrimaryClientEmail } from "./contract-emails";
 import path from "path";
 import fs from "fs";
 
+// Legal and company names should never be split with automatic hyphens.
+Font.registerHyphenationCallback((word) => [word]);
+
 const styles = StyleSheet.create({
   page: {
-    padding: 50,
+    paddingTop: 86,
+    paddingRight: 54,
+    paddingBottom: 70,
+    paddingLeft: 54,
     fontSize: 10,
-    fontFamily: "Helvetica",
-    lineHeight: 1.6,
-    color: "#111",
+    fontFamily: "Times-Roman",
+    lineHeight: 1.55,
+    color: "#141d18",
+  },
+  runningHeader: {
+    position: "absolute",
+    top: 30,
+    left: 54,
+    right: 54,
+    height: 34,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8ded9",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  logo: {
+    width: 100,
+    height: 16,
+    objectFit: "contain",
+  },
+  runningHeaderLabel: {
+    color: "#5b6a62",
+    fontFamily: "Helvetica-Bold",
+    fontSize: 7,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
   // Cover
-  logo: {
-    width: 214,
-    marginBottom: 20,
+  coverHero: {
+    minHeight: 225,
+    paddingTop: 32,
+    paddingBottom: 32,
+    borderBottomWidth: 3,
+    borderBottomColor: "#1b4332",
+  },
+  coverKicker: {
+    color: "#1b4332",
+    fontFamily: "Helvetica-Bold",
+    fontSize: 8,
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+    marginBottom: 18,
+  },
+  coverTitle: {
+    maxWidth: 400,
+    color: "#141d18",
+    fontFamily: "Helvetica-Bold",
+    fontSize: 36,
+    lineHeight: 1.02,
+    marginBottom: 22,
   },
   coverText: {
+    maxWidth: 360,
+    color: "#46534c",
     fontSize: 13,
-    marginBottom: 6,
+    lineHeight: 1.55,
   },
   coverNameBold: {
-    fontSize: 16,
+    color: "#1b4332",
+    fontSize: 17,
     fontFamily: "Helvetica-Bold",
-    marginTop: 10,
+    marginTop: 8,
     marginBottom: 18,
   },
   contractBetweenLine: {
@@ -68,20 +122,21 @@ const styles = StyleSheet.create({
   },
   hr: {
     borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-    marginVertical: 16,
+    borderBottomColor: "#d8ded9",
+    marginVertical: 18,
   },
   hrThick: {
-    borderBottomWidth: 2,
-    borderBottomColor: "#111",
-    marginVertical: 20,
+    borderBottomWidth: 3,
+    borderBottomColor: "#1b4332",
+    marginVertical: 22,
   },
   // Sections (body fontsize 9pt from Scope of Work down per design spec)
   sectionHeading: {
-    fontSize: 12,
+    color: "#1b4332",
+    fontSize: 18,
     fontFamily: "Helvetica-Bold",
-    marginTop: 16,
-    marginBottom: 6,
+    marginTop: 18,
+    marginBottom: 10,
   },
   sectionSubHeading: {
     fontSize: 10,
@@ -111,15 +166,17 @@ const styles = StyleSheet.create({
   // Tables — horizontal-lines-only look (no outer border, no vertical dividers).
   // Bold header row with a thin black bottom rule; light grey rule between body rows.
   table: {
-    marginVertical: 8,
+    marginVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: "#111",
-    width: "60%",
+    borderTopColor: "#1b4332",
+    width: "100%",
   },
   tableHeaderRow: {
     flexDirection: "row",
+    color: "#ffffff",
+    backgroundColor: "#1b4332",
     borderBottomWidth: 1,
-    borderBottomColor: "#111",
+    borderBottomColor: "#1b4332",
   },
   tableRow: {
     flexDirection: "row",
@@ -146,15 +203,17 @@ const styles = StyleSheet.create({
   },
   tableHeaderLabel: {
     width: "60%",
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    color: "#ffffff",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
   },
   tableHeaderValue: {
     width: "40%",
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    color: "#ffffff",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
     textAlign: "right",
@@ -163,15 +222,17 @@ const styles = StyleSheet.create({
   // Wide enough to fit long headers like "Trailing 3-month avg. monthly spend (AUD)"
   // on a single line; header text centered.
   tierTable: {
-    marginVertical: 8,
+    marginVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: "#111",
-    width: "90%",
+    borderTopColor: "#1b4332",
+    width: "100%",
   },
   tierTableHeaderRow: {
     flexDirection: "row",
+    color: "#ffffff",
+    backgroundColor: "#1b4332",
     borderBottomWidth: 1,
-    borderBottomColor: "#111",
+    borderBottomColor: "#1b4332",
   },
   tierTableRow: {
     flexDirection: "row",
@@ -184,15 +245,17 @@ const styles = StyleSheet.create({
     borderBottomColor: "#d4d4d4",
   },
   tierTableHeaderCell: {
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 6,
+    color: "#ffffff",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
     textAlign: "left",
   },
   tierTableHeaderCellLast: {
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 6,
+    color: "#ffffff",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
     textAlign: "left",
@@ -241,18 +304,23 @@ const styles = StyleSheet.create({
   },
   footer: {
     position: "absolute",
-    bottom: 30,
-    left: 50,
-    right: 50,
+    bottom: 24,
+    left: 54,
+    right: 54,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#d8ded9",
     textAlign: "center",
-    fontSize: 8,
-    color: "#999",
+    fontSize: 6.5,
+    lineHeight: 1.35,
+    color: "#68766e",
   },
+
 });
 
 function getLogoDataUri(): string | null {
   try {
-    const logoPath = path.join(process.cwd(), "public", "logo.png");
+    const logoPath = path.join(process.cwd(), "public", "contract-logo.png");
     const buffer = fs.readFileSync(logoPath);
     return `data:image/png;base64,${buffer.toString("base64")}`;
   } catch {
@@ -260,27 +328,27 @@ function getLogoDataUri(): string | null {
   }
 }
 
-function renderSection(section: ContractSection, index: number, logoUri: string | null) {
+function renderSection(section: ContractSection, index: number, documentTitle: string) {
   switch (section.type) {
     case "cover": {
       const c = section.cover!;
       return (
-        <View key={index}>
-          {logoUri && <Image style={styles.logo} src={logoUri} />}
-          <View style={styles.hrThick} />
+        <View key={`cover-${index}`}>
+          <View style={styles.coverHero}>
+            <Text style={styles.coverKicker}>Contract Agreement</Text>
+            <Text style={styles.coverTitle}>{documentTitle || "Contract Agreement"}</Text>
+            <Text style={styles.coverText}>
+              Between Optimise Digital Pty Ltd and {c.clientName}.
+            </Text>
+          </View>
 
-          <Text style={styles.coverText}>Contract Agreement</Text>
-          <Text style={[styles.coverText, { marginTop: 6 }]}>Between</Text>
-          <Text style={styles.coverNameBold}>Optimise Digital Pty Ltd</Text>
-          <Text style={[styles.coverText, { marginTop: 4 }]}>And</Text>
+          <Text style={[styles.coverText, { marginTop: 26 }]}>Prepared for</Text>
           <Text style={styles.coverNameBold}>{c.clientName}</Text>
           {c.clientTradingName ? (
-            <Text style={{ fontSize: 10, marginTop: -12, marginBottom: 16, color: "#555" }}>
+            <Text style={{ fontSize: 10, marginTop: -12, marginBottom: 16, color: "#5b6a62" }}>
               Trading as: {c.clientTradingName}
             </Text>
           ) : null}
-
-          <View style={styles.hrThick} />
 
           {/* This contract is between - Client section */}
           <Text style={{ fontFamily: "Helvetica-BoldOblique", fontSize: 10, marginBottom: 4 }}>
@@ -385,7 +453,6 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
               {" "}{c.endDate}
             </Text>
           ) : null}
-          <View style={styles.hrThick} />
         </View>
       );
     }
@@ -751,10 +818,10 @@ function renderLexicalTextRun(node: any, key?: number): React.ReactNode {
   const isBold = !!(node.format & 1);
   const isItalic = !!(node.format & 2);
 
-  let fontFamily = "Helvetica";
-  if (isBold && isItalic) fontFamily = "Helvetica-BoldOblique";
-  else if (isBold) fontFamily = "Helvetica-Bold";
-  else if (isItalic) fontFamily = "Helvetica-Oblique";
+  let fontFamily = "Times-Roman";
+  if (isBold && isItalic) fontFamily = "Times-BoldItalic";
+  else if (isBold) fontFamily = "Times-Bold";
+  else if (isItalic) fontFamily = "Times-Italic";
 
   return (
     <Text key={key} style={{ fontFamily }}>
@@ -774,13 +841,15 @@ const ContractPDF: React.FC<ContractPDFProps> = ({ data }) => {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {sections.map((section, i) => renderSection(section, i, logoUri))}
+        <View style={styles.runningHeader} fixed>
+          {logoUri ? <Image style={styles.logo} src={logoUri} /> : <Text>Optimise Digital</Text>}
+          <Text style={styles.runningHeaderLabel}>Contract Agreement</Text>
+        </View>
 
-        <Text style={styles.footer}>
-          This document was digitally signed via Optimise Digital&apos;s contract
-          management system. A SHA-256 hash of this document is stored for
-          integrity verification. Signed documents are retained for a minimum
-          of 7 years in accordance with Australian record-keeping requirements.
+        {sections.map((section, i) => renderSection(section, i, data.contractTitle))}
+
+        <Text style={styles.footer} fixed>
+          This document was digitally signed via Optimise Digital&apos;s contract management system. A SHA-256 hash of this document is stored for integrity verification. Signed documents are retained for a minimum of 7 years in accordance with Australian record-keeping requirements.
         </Text>
       </Page>
     </Document>

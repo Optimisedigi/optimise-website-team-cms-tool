@@ -46,7 +46,7 @@ describe("RocketSplash surface variant", () => {
     expect(splash.classList.contains("od-splash--light")).toBe(true);
   });
 
-  it("renders the rocket image and its flames on both surfaces", () => {
+  it("renders the default rocket image and its flames on both surfaces", () => {
     for (const onLight of [true, false]) {
       const { container } = render(<RocketSplash onLight={onLight} />);
 
@@ -56,6 +56,14 @@ describe("RocketSplash surface variant", () => {
       expect(img?.getAttribute("src")).toBe("/optimise-rocket-logo-black.png");
       expect(container.querySelectorAll(".od-splash__flame")).toHaveLength(3);
     }
+  });
+
+  it("uses the dedicated white artwork for OptiMate loaders", () => {
+    const { container } = render(<RocketSplash compact onLight whiteRocket />);
+
+    const img = container.querySelector(".od-splash__rocket img");
+    expect(img?.getAttribute("src")).toBe("/optimise-rocket-logo-white.webp");
+    expect(container.querySelectorAll(".od-splash__flame")).toHaveLength(3);
   });
 
   it("announces itself to screen readers while the page loads", () => {
