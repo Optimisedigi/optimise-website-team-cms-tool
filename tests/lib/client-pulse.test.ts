@@ -10,7 +10,7 @@ import {
   getClientPulseSummaries,
   groupClientPulseSources,
   type ClientPulseSources,
-} from "@/lib/client-pulse";
+} from '@/lib/client-pulse'
 
 const emptySources = (clients: Array<Record<string, unknown>>): ClientPulseSources => ({
   clients,
@@ -28,129 +28,284 @@ const emptySources = (clients: Array<Record<string, unknown>>): ClientPulseSourc
   clientPulseHistory: [],
   clientMetricSnapshots: [],
   clientAnalyticsSnapshots: [],
-});
+})
 
-function camelKey(value: string): string { return value.replace(/-([a-z])/g, (_, character: string) => character.toUpperCase()); }
+function camelKey(value: string): string {
+  return value.replace(/-([a-z])/g, (_, character: string) => character.toUpperCase())
+}
 
-describe("client-pulse", () => {
-  it("calculates increase, decrease and maintain target progress", () => {
-    expect(calculateTargetProgress({ metric: "organic_clicks", value: 100, direction: "increase" }, { organic_clicks: 80 })).toMatchObject({ progressPercent: 80, status: "watch" });
-    expect(calculateTargetProgress({ metric: "cpa", value: 50, direction: "decrease" }, { cpa: 40 })).toMatchObject({ progressPercent: 100, status: "on_track" });
-    expect(calculateTargetProgress({ metric: "roas", value: 4, direction: "maintain" }, { roas: 3.6 })).toMatchObject({ progressPercent: 90, status: "watch" });
-  });
+describe('client-pulse', () => {
+  it('calculates increase, decrease and maintain target progress', () => {
+    expect(
+      calculateTargetProgress(
+        { metric: 'organic_clicks', value: 100, direction: 'increase' },
+        { organic_clicks: 80 },
+      ),
+    ).toMatchObject({ progressPercent: 80, status: 'watch' })
+    expect(
+      calculateTargetProgress({ metric: 'cpa', value: 50, direction: 'decrease' }, { cpa: 40 }),
+    ).toMatchObject({ progressPercent: 100, status: 'on_track' })
+    expect(
+      calculateTargetProgress({ metric: 'roas', value: 4, direction: 'maintain' }, { roas: 3.6 }),
+    ).toMatchObject({ progressPercent: 90, status: 'watch' })
+  })
 
-  it("returns not_configured and missing_data target states", () => {
-    expect(calculateTargetProgress({ metric: "traffic", value: null }, { traffic: 10 }).status).toBe("not_configured");
-    expect(calculateTargetProgress({ metric: "traffic", value: 100 }, { traffic: null }).status).toBe("missing_data");
-  });
+  it('returns not_configured and missing_data target states', () => {
+    expect(
+      calculateTargetProgress({ metric: 'traffic', value: null }, { traffic: 10 }).status,
+    ).toBe('not_configured')
+    expect(
+      calculateTargetProgress({ metric: 'traffic', value: 100 }, { traffic: null }).status,
+    ).toBe('missing_data')
+  })
 
-  it("tracks the WeCanQuit assessment counter as a Client Pulse target", async () => {
+  it('tracks the WeCanQuit assessment counter as a Client Pulse target', async () => {
     const payload = {
       async find(args: Record<string, unknown>) {
-        if (args.collection === "clients") {
+        if (args.collection === 'clients') {
           return {
             docs: [
               {
                 id: 7,
-                name: "WeCanQuit",
-                slug: "we-can-quit",
+                name: 'WeCanQuit',
+                slug: 'we-can-quit',
                 isActive: true,
                 services: [],
                 wcqAssessmentsCompleted: 16,
-                clientPulse: { enabled: true, targetValue: 500, primaryTarget: "assessments", servicesTracked: [] },
+                clientPulse: {
+                  enabled: true,
+                  targetValue: 500,
+                  primaryTarget: 'assessments',
+                  servicesTracked: [],
+                },
               },
             ],
-          };
+          }
         }
-        return { docs: [] };
+        return { docs: [] }
       },
-    };
+    }
 
-    const summaries = await getClientPulseSummaries(payload, { now: new Date("2026-06-16T00:00:00.000Z") });
+    const summaries = await getClientPulseSummaries(payload, {
+      now: new Date('2026-06-16T00:00:00.000Z'),
+    })
     expect(summaries[0]?.target).toMatchObject({
-      metric: "assessments",
-      label: "Assessments",
+      metric: 'assessments',
+      label: 'Assessments',
       value: 500,
       currentValue: 16,
       progressPercent: 3,
-      status: "at_risk",
-    });
-    expect(summaries[0]?.wcqAssessments).toMatchObject({ current: 16, target: 500 });
-  });
+      status: 'at_risk',
+    })
+    expect(summaries[0]?.wcqAssessments).toMatchObject({ current: 16, target: 500 })
+  })
 
-  it("maps configured dashboard metrics in order and uses only persisted GA4/Ads comparisons", async () => {
-    const client = { id: 8, name: "Metrics client", slug: "metrics-client", isActive: true, services: [], clientPulse: { enabled: true, servicesTracked: [], dashboardMetrics: [{ metric: "ga4_sessions", label: "Website visits", enabled: true }, { metric: "google_ads_cost_per_lead", enabled: true }, { metric: "ga4_key_events", enabled: false }, { metric: "google_ads_spend", enabled: true }] } };
-    const sources = emptySources([client]);
-    sources.googleAdsSnapshots = [{ client: 8, level: "campaign", dateRangeLabel: "ROLLING_30D_CURRENT", rows: [{ spend: 500, conversions: 10 }] }, { client: 8, level: "campaign", dateRangeLabel: "ROLLING_30D_PREVIOUS", rows: [{ spend: 400, conversions: 8 }] }];
-    sources.clientAnalyticsSnapshots = [{ client: 8, dateRangeLabel: "ROLLING_30D_CURRENT", sessions: 200, keyEvents: 5 }, { client: 8, dateRangeLabel: "ROLLING_30D_PREVIOUS", sessions: 160, keyEvents: 4 }, { client: 8, dateRangeLabel: "MONTH_2026-05", sessions: 175 }];
-    const payload = { async find(args: Record<string, unknown>) { return { docs: args.collection === "clients" ? [client] : (sources[camelKey(String(args.collection)) as keyof ClientPulseSources] ?? []) }; } };
-    const [summary] = await getClientPulseSummaries(payload, { now: new Date("2026-06-16T00:00:00.000Z") });
-    expect(summary?.dashboardMetrics.map((metric) => metric.label)).toEqual(["Website visits", "Cost per lead", "Spend"]);
-    expect(summary?.dashboardMetrics[0]).toMatchObject({ value: 200, comparisonValue: 160, deltaPercent: 25 });
-    expect(summary?.dashboardMetrics[1]).toMatchObject({ value: 50, comparisonValue: 50, invertedDelta: true });
-    expect(summary?.ga4Sessions).toEqual([{ month: "2026-05", sessions: 175 }]);
-  });
+  it('maps configured dashboard metrics in order and uses only persisted GA4/Ads comparisons', async () => {
+    const client = {
+      id: 8,
+      name: 'Metrics client',
+      slug: 'metrics-client',
+      isActive: true,
+      services: [],
+      clientPulse: {
+        enabled: true,
+        servicesTracked: [],
+        dashboardMetrics: [
+          { metric: 'ga4_sessions', label: 'Website visits', enabled: true },
+          { metric: 'google_ads_cost_per_lead', enabled: true },
+          { metric: 'ga4_key_events', enabled: false },
+          { metric: 'google_ads_spend', enabled: true },
+        ],
+      },
+    }
+    const sources = emptySources([client])
+    sources.googleAdsSnapshots = [
+      {
+        client: 8,
+        level: 'campaign',
+        dateRangeLabel: 'ROLLING_30D_CURRENT',
+        rows: [{ spend: 500, conversions: 10 }],
+      },
+      {
+        client: 8,
+        level: 'campaign',
+        dateRangeLabel: 'ROLLING_30D_PREVIOUS',
+        rows: [{ spend: 400, conversions: 8 }],
+      },
+    ]
+    sources.clientAnalyticsSnapshots = [
+      { client: 8, dateRangeLabel: 'ROLLING_30D_CURRENT', sessions: 200, keyEvents: 5 },
+      { client: 8, dateRangeLabel: 'ROLLING_30D_PREVIOUS', sessions: 160, keyEvents: 4 },
+      { client: 8, dateRangeLabel: 'MONTH_2026-05', sessions: 175 },
+    ]
+    const payload = {
+      async find(args: Record<string, unknown>) {
+        return {
+          docs:
+            args.collection === 'clients'
+              ? [client]
+              : (sources[camelKey(String(args.collection)) as keyof ClientPulseSources] ?? []),
+        }
+      },
+    }
+    const [summary] = await getClientPulseSummaries(payload, {
+      now: new Date('2026-06-16T00:00:00.000Z'),
+    })
+    expect(summary?.dashboardMetrics.map((metric) => metric.label)).toEqual([
+      'Website visits',
+      'Cost per lead',
+      'Spend',
+    ])
+    expect(summary?.dashboardMetrics[0]).toMatchObject({
+      value: 200,
+      comparisonValue: 160,
+      deltaPercent: 25,
+    })
+    expect(summary?.dashboardMetrics[1]).toMatchObject({
+      value: 50,
+      comparisonValue: 50,
+      invertedDelta: true,
+    })
+    expect(summary?.ga4Sessions).toEqual([{ month: '2026-05', sessions: 175 }])
+  })
 
-  it("calculates WeCanQuit assessment month-on-month trend from cumulative snapshots", () => {
-    const target = calculateTargetProgress({ metric: "assessments", value: 500 }, { assessments: 30 });
+  it('calculates WeCanQuit assessment month-on-month trend from cumulative snapshots', () => {
+    const target = calculateTargetProgress(
+      { metric: 'assessments', value: 500 },
+      { assessments: 30 },
+    )
 
-    expect(calculateWcqAssessmentTrend([
-      { client: 7, source: "website-we-can-quit", date: "2026-06-15", assessmentsCompleted: 30 },
-      { client: 7, source: "website-we-can-quit", date: "2026-05-31", assessmentsCompleted: 20 },
-      { client: 7, source: "website-we-can-quit", date: "2026-04-30", assessmentsCompleted: 15 },
-    ], target, new Date("2026-06-16T00:00:00.000Z"))).toMatchObject({
+    expect(
+      calculateWcqAssessmentTrend(
+        [
+          {
+            client: 7,
+            source: 'website-we-can-quit',
+            date: '2026-06-15',
+            assessmentsCompleted: 30,
+          },
+          {
+            client: 7,
+            source: 'website-we-can-quit',
+            date: '2026-05-31',
+            assessmentsCompleted: 20,
+          },
+          {
+            client: 7,
+            source: 'website-we-can-quit',
+            date: '2026-04-30',
+            assessmentsCompleted: 15,
+          },
+        ],
+        target,
+        new Date('2026-06-16T00:00:00.000Z'),
+      ),
+    ).toMatchObject({
       current: 30,
       target: 500,
       currentMonth: 10,
       previousMonth: 5,
       momPercent: 100,
-    });
-  });
+    })
+  })
 
-  it("calculates neglect risk thresholds", () => {
-    const now = new Date("2026-06-09T00:00:00.000Z");
-    expect(calculateNeglectRisk({ lastMeaningfulActivityAt: "2026-06-01T00:00:00.000Z" }, { warningDays: 14, criticalDays: 30 }, now).status).toBe("good");
-    expect(calculateNeglectRisk({ lastMeaningfulActivityAt: "2026-05-20T00:00:00.000Z" }, { warningDays: 14, criticalDays: 30 }, now).status).toBe("watch");
-    expect(calculateNeglectRisk({ lastMeaningfulActivityAt: "2026-05-01T00:00:00.000Z" }, { warningDays: 14, criticalDays: 30 }, now).status).toBe("risk");
-  });
+  it('calculates neglect risk thresholds', () => {
+    const now = new Date('2026-06-09T00:00:00.000Z')
+    expect(
+      calculateNeglectRisk(
+        { lastMeaningfulActivityAt: '2026-06-01T00:00:00.000Z' },
+        { warningDays: 14, criticalDays: 30 },
+        now,
+      ).status,
+    ).toBe('good')
+    expect(
+      calculateNeglectRisk(
+        { lastMeaningfulActivityAt: '2026-05-20T00:00:00.000Z' },
+        { warningDays: 14, criticalDays: 30 },
+        now,
+      ).status,
+    ).toBe('watch')
+    expect(
+      calculateNeglectRisk(
+        { lastMeaningfulActivityAt: '2026-05-01T00:00:00.000Z' },
+        { warningDays: 14, criticalDays: 30 },
+        now,
+      ).status,
+    ).toBe('risk')
+  })
 
-  it("calculates service coverage status", () => {
-    expect(calculateServiceCoverage({ activeAutomations: 1, activeScheduledTasks: 1, activeGoalRuns: 0, manualWorkLast30Days: 1, reportCount: 1, servicesTracked: ["organic", "paid_search"] }).status).toBe("good");
-    expect(calculateServiceCoverage({ activeAutomations: 0, activeScheduledTasks: 0, activeGoalRuns: 0, manualWorkLast30Days: 0, reportCount: 0, servicesTracked: ["organic", "paid_search"] }).status).toBe("risk");
-  });
+  it('calculates service coverage status', () => {
+    expect(
+      calculateServiceCoverage({
+        activeAutomations: 1,
+        activeScheduledTasks: 1,
+        activeGoalRuns: 0,
+        manualWorkLast30Days: 1,
+        reportCount: 1,
+        servicesTracked: ['organic', 'paid_search'],
+      }).status,
+    ).toBe('good')
+    expect(
+      calculateServiceCoverage({
+        activeAutomations: 0,
+        activeScheduledTasks: 0,
+        activeGoalRuns: 0,
+        manualWorkLast30Days: 0,
+        reportCount: 0,
+        servicesTracked: ['organic', 'paid_search'],
+      }).status,
+    ).toBe('risk')
+  })
 
-  it("calculates MoM and YoY organic trend from monthly GSC snapshots", () => {
-    const now = new Date("2026-06-09T00:00:00.000Z");
+  it('calculates MoM and YoY organic trend from monthly GSC snapshots', () => {
+    const now = new Date('2026-06-09T00:00:00.000Z')
     const snapshots = [
-      { periodStart: "2026-06-01", periodEnd: "2026-06-30", totalClicks: 50 }, // current month — ignored
-      { periodStart: "2026-05-01", periodEnd: "2026-05-31", totalClicks: 120, totalImpressions: 4000 },
-      { periodStart: "2026-04-01", periodEnd: "2026-04-30", totalClicks: 100 },
-      { periodStart: "2025-05-01", periodEnd: "2025-05-31", totalClicks: 80 },
-    ];
+      { periodStart: '2026-06-01', periodEnd: '2026-06-30', totalClicks: 50 }, // current month — ignored
+      {
+        periodStart: '2026-05-01',
+        periodEnd: '2026-05-31',
+        totalClicks: 120,
+        totalImpressions: 4000,
+      },
+      { periodStart: '2026-04-01', periodEnd: '2026-04-30', totalClicks: 100 },
+      { periodStart: '2025-05-01', periodEnd: '2025-05-31', totalClicks: 80 },
+    ]
     expect(calculateOrganicTrend(snapshots, now)).toEqual({
-      month: "2026-05",
+      month: '2026-05',
       clicks: 120,
       impressions: 4000,
       momPercent: 20,
       yoyPercent: 50,
-    });
-  });
+    })
+  })
 
-  it("returns null trend deltas when comparison months are missing", () => {
-    const now = new Date("2026-06-09T00:00:00.000Z");
-    expect(calculateOrganicTrend([], now)).toMatchObject({ month: null, momPercent: null, yoyPercent: null });
-    expect(calculateOrganicTrend([{ periodStart: "2026-05-01", totalClicks: 10 }], now)).toMatchObject({ month: "2026-05", clicks: 10, momPercent: null, yoyPercent: null });
-  });
+  it('returns null trend deltas when comparison months are missing', () => {
+    const now = new Date('2026-06-09T00:00:00.000Z')
+    expect(calculateOrganicTrend([], now)).toMatchObject({
+      month: null,
+      momPercent: null,
+      yoyPercent: null,
+    })
+    expect(
+      calculateOrganicTrend([{ periodStart: '2026-05-01', totalClicks: 10 }], now),
+    ).toMatchObject({ month: '2026-05', clicks: 10, momPercent: null, yoyPercent: null })
+  })
 
-  it("calculates MoM ads trend from MONTH_ campaign snapshots", () => {
-    const now = new Date("2026-06-09T00:00:00.000Z");
+  it('calculates MoM ads trend from MONTH_ campaign snapshots', () => {
+    const now = new Date('2026-06-09T00:00:00.000Z')
     const snapshots = [
-      { dateRangeLabel: "LAST_30_DAYS", rows: [{ clicks: 999, conversions: 9, spend: 9 }] }, // rolling — ignored
-      { dateRangeLabel: "MONTH_2026-05", rows: [{ clicks: 200, conversions: 10, spend: 500 }, { clicks: 100, conversions: 10, spend: 300 }] },
-      { dateRangeLabel: "MONTH_2026-04", rows: [{ clicks: 250, conversions: 16, spend: 640 }] },
-    ];
+      { dateRangeLabel: 'LAST_30_DAYS', rows: [{ clicks: 999, conversions: 9, spend: 9 }] }, // rolling — ignored
+      {
+        dateRangeLabel: 'MONTH_2026-05',
+        rows: [
+          { clicks: 200, conversions: 10, spend: 500 },
+          { clicks: 100, conversions: 10, spend: 300 },
+        ],
+      },
+      { dateRangeLabel: 'MONTH_2026-04', rows: [{ clicks: 250, conversions: 16, spend: 640 }] },
+    ]
     expect(calculateAdsTrend(snapshots, now)).toEqual({
-      month: "2026-05",
+      month: '2026-05',
       clicks: 300,
       conversions: 20,
       cpa: 40,
@@ -163,113 +318,228 @@ describe("client-pulse", () => {
       mtdSpend: null,
       mtdClicksYoyPercent: null,
       mtdConversionsYoyPercent: null,
-    });
-  });
+    })
+  })
 
-  it("calculates MTD ads YoY from MTD campaign snapshots", () => {
-    const now = new Date("2026-06-09T00:00:00.000Z");
-    expect(calculateAdsTrend([
-      { dateRangeLabel: "MTD_2026-06", rows: [{ clicks: 150, conversions: 12, spend: 600 }] },
-      { dateRangeLabel: "MTD_LY_2026-06", rows: [{ clicks: 100, conversions: 10, spend: 500 }] },
-    ], now)).toMatchObject({
-      mtdMonth: "2026-06",
+  it('calculates MTD ads YoY from MTD campaign snapshots', () => {
+    const now = new Date('2026-06-09T00:00:00.000Z')
+    expect(
+      calculateAdsTrend(
+        [
+          { dateRangeLabel: 'MTD_2026-06', rows: [{ clicks: 150, conversions: 12, spend: 600 }] },
+          {
+            dateRangeLabel: 'MTD_LY_2026-06',
+            rows: [{ clicks: 100, conversions: 10, spend: 500 }],
+          },
+        ],
+        now,
+      ),
+    ).toMatchObject({
+      mtdMonth: '2026-06',
       mtdClicks: 150,
       mtdConversions: 12,
       mtdSpend: 600,
       mtdClicksYoyPercent: 50,
       mtdConversionsYoyPercent: 20,
-    });
-  });
+    })
+  })
 
-  it("returns empty ads trend without campaign trend snapshots", () => {
-    const now = new Date("2026-06-09T00:00:00.000Z");
-    expect(calculateAdsTrend([{ dateRangeLabel: "LAST_30_DAYS", rows: [{ clicks: 10 }] }], now)).toMatchObject({ month: null, clicks: null, mtdMonth: null });
-  });
+  it('returns empty ads trend without campaign trend snapshots', () => {
+    const now = new Date('2026-06-09T00:00:00.000Z')
+    expect(
+      calculateAdsTrend([{ dateRangeLabel: 'LAST_30_DAYS', rows: [{ clicks: 10 }] }], now),
+    ).toMatchObject({ month: null, clicks: null, mtdMonth: null })
+  })
 
-  it("calculates budget pacing from MTD spend and monthly budget", () => {
-    const now = new Date("2026-06-15T00:00:00.000Z");
-    const adsTrend = calculateAdsTrend([{ dateRangeLabel: "MTD_2026-06", rows: [{ spend: 4000 }] }], now);
-    expect(calculateBudgetPacing({ spendPolicy: { monthlyBudgetTarget: 10000 } }, [], adsTrend, now)).toMatchObject({
-      label: "10% below",
-      status: "watch",
+  it('calculates budget pacing from MTD spend and monthly budget', () => {
+    const now = new Date('2026-06-15T00:00:00.000Z')
+    const adsTrend = calculateAdsTrend(
+      [{ dateRangeLabel: 'MTD_2026-06', rows: [{ spend: 4000 }] }],
+      now,
+    )
+    expect(
+      calculateBudgetPacing({ spendPolicy: { monthlyBudgetTarget: 10000 } }, [], adsTrend, now),
+    ).toMatchObject({
+      label: '10% below',
+      status: 'watch',
       mtdSpend: 4000,
       expectedSpendToDate: 5000,
       deltaPercentPoints: -10,
-      source: "client",
-    });
-  });
+      source: 'client',
+    })
+  })
 
-  it("returns missing budget pacing states", () => {
-    const now = new Date("2026-06-15T00:00:00.000Z");
-    const emptyAdsTrend = calculateAdsTrend([], now);
-    expect(calculateBudgetPacing({}, [], emptyAdsTrend, now).label).toBe("No budget");
-    expect(calculateBudgetPacing({}, [{ monthlyBudget: 5000, updatedAt: "2026-06-01" }], emptyAdsTrend, now)).toMatchObject({ label: "No MTD", source: "google_ads_audit" });
-  });
+  it('returns missing budget pacing states', () => {
+    const now = new Date('2026-06-15T00:00:00.000Z')
+    const emptyAdsTrend = calculateAdsTrend([], now)
+    expect(calculateBudgetPacing({}, [], emptyAdsTrend, now).label).toBe('No budget')
+    expect(
+      calculateBudgetPacing(
+        {},
+        [{ monthlyBudget: 5000, updatedAt: '2026-06-01' }],
+        emptyAdsTrend,
+        now,
+      ),
+    ).toMatchObject({ label: 'No MTD', source: 'google_ads_audit' })
+  })
 
-  it("detects adaptive click anomalies only with enough history", () => {
-    const now = new Date("2026-06-09T00:00:00.000Z");
-    expect(calculateClickAnomalies([{ periodStart: "2026-05-01", totalClicks: 50 }], [], now)).toEqual([]);
-    expect(calculateClickAnomalies([
-      { periodStart: "2026-05-01", totalClicks: 40 },
-      { periodStart: "2026-04-01", totalClicks: 100 },
-      { periodStart: "2026-03-01", totalClicks: 105 },
-      { periodStart: "2026-02-01", totalClicks: 95 },
-    ], [], now)[0]).toMatchObject({ channel: "organic", status: "risk", percentChange: -60 });
-    expect(calculateClickAnomalies([], [
-      { dateRangeLabel: "MONTH_2026-05", rows: [{ clicks: 180 }] },
-      { dateRangeLabel: "MONTH_2026-04", rows: [{ clicks: 100 }] },
-      { dateRangeLabel: "MONTH_2026-03", rows: [{ clicks: 100 }] },
-      { dateRangeLabel: "MONTH_2026-02", rows: [{ clicks: 100 }] },
-    ], now)[0]).toMatchObject({ channel: "google_ads", status: "watch", percentChange: 80 });
-  });
+  it('detects adaptive click anomalies only with enough history', () => {
+    const now = new Date('2026-06-09T00:00:00.000Z')
+    expect(
+      calculateClickAnomalies([{ periodStart: '2026-05-01', totalClicks: 50 }], [], now),
+    ).toEqual([])
+    expect(
+      calculateClickAnomalies(
+        [
+          { periodStart: '2026-05-01', totalClicks: 40 },
+          { periodStart: '2026-04-01', totalClicks: 100 },
+          { periodStart: '2026-03-01', totalClicks: 105 },
+          { periodStart: '2026-02-01', totalClicks: 95 },
+        ],
+        [],
+        now,
+      )[0],
+    ).toMatchObject({ channel: 'organic', status: 'risk', percentChange: -60 })
+    expect(
+      calculateClickAnomalies(
+        [],
+        [
+          { dateRangeLabel: 'MONTH_2026-05', rows: [{ clicks: 180 }] },
+          { dateRangeLabel: 'MONTH_2026-04', rows: [{ clicks: 100 }] },
+          { dateRangeLabel: 'MONTH_2026-03', rows: [{ clicks: 100 }] },
+          { dateRangeLabel: 'MONTH_2026-02', rows: [{ clicks: 100 }] },
+        ],
+        now,
+      )[0],
+    ).toMatchObject({ channel: 'google_ads', status: 'watch', percentChange: 80 })
+  })
 
-  it("groups records by primary and covered client IDs", () => {
+  it('groups records by primary and covered client IDs', () => {
     const grouped = groupClientPulseSources(
       {
         ...emptySources([{ id: 1 }, { id: 2 }]),
-        scheduledTasks: [{ id: "a", client: 1, clientsCovered: [{ id: 2 }] }],
-        activityLog: [{ id: "b", client: { id: 2 } }],
+        scheduledTasks: [{ id: 'a', client: 1, clientsCovered: [{ id: 2 }] }],
+        activityLog: [{ id: 'b', client: { id: 2 } }],
       },
-      ["1", "2"],
-    );
-    expect(grouped.scheduledTasks.get("1")?.map((item) => item.id)).toEqual(["a"]);
-    expect(grouped.scheduledTasks.get("2")?.map((item) => item.id)).toEqual(["a"]);
-    expect(grouped.activityLog.get("2")?.map((item) => item.id)).toEqual(["b"]);
-  });
+      ['1', '2'],
+    )
+    expect(grouped.scheduledTasks.get('1')?.map((item) => item.id)).toEqual(['a'])
+    expect(grouped.scheduledTasks.get('2')?.map((item) => item.id)).toEqual(['a'])
+    expect(grouped.activityLog.get('2')?.map((item) => item.id)).toEqual(['b'])
+  })
 
-  it("returns deterministic summaries and score output", async () => {
-    const calls: string[] = [];
-    let clientsWhere: unknown;
+  it('returns deterministic summaries and score output', async () => {
+    const calls: string[] = []
+    let clientsWhere: unknown
     const payload = {
       async find(args: Record<string, unknown>) {
-        calls.push(String(args.collection));
-        if (args.collection === "clients") {
-          clientsWhere = args.where;
+        calls.push(String(args.collection))
+        if (args.collection === 'clients') {
+          clientsWhere = args.where
           return {
             docs: [
-              { id: 2, name: "Beta", slug: "beta", isActive: true, services: ["seo"], clientPulse: { enabled: true, targetValue: 100, primaryTarget: "organic_clicks", servicesTracked: ["organic"] } },
-              { id: 1, name: "Alpha", slug: "alpha", isActive: true, services: ["google_ads"], googleAdsCustomerId: "123", clientPulse: { enabled: true, targetValue: 10, primaryTarget: "paid_conversions", servicesTracked: ["paid_search"] } },
+              {
+                id: 2,
+                name: 'Beta',
+                slug: 'beta',
+                isActive: true,
+                services: ['seo'],
+                clientPulse: {
+                  enabled: true,
+                  targetValue: 100,
+                  primaryTarget: 'organic_clicks',
+                  servicesTracked: ['organic'],
+                },
+              },
+              {
+                id: 1,
+                name: 'Alpha',
+                slug: 'alpha',
+                isActive: true,
+                services: ['google_ads'],
+                googleAdsCustomerId: '123',
+                clientStartDate: '2025-12-09T00:00:00.000Z',
+                clientPulse: {
+                  enabled: true,
+                  targetValue: 10,
+                  primaryTarget: 'paid_conversions',
+                  servicesTracked: ['paid_search'],
+                },
+              },
             ],
-          };
+          }
         }
-        if (args.collection === "quarterly-organic-growth-snapshots") return { docs: [{ id: 10, client: 2, snapshotDate: "2026-06-01", clicks: 120 }] };
-        if (args.collection === "client-value-ledger-items") return { docs: [{ id: 20, client: 2, occurredAt: "2026-06-01", title: "SEO work", category: "seo" }, { id: 21, client: 1, occurredAt: "2026-06-01", title: "Paid search work", category: "paid_media" }] };
-        if (args.collection === "google-ads-snapshots") return { docs: [{ id: 30, client: 1, level: "campaign", capturedAt: "2026-06-01", dateRangeLabel: "MTD_2026-06", rows: [{ conversions: 12, costMicros: 120000000 }] }] };
-        if (args.collection === "client-pulse-history") return { docs: [{ id: 40, client: 1, date: "2026-06-08", score: 60, status: "watch" }] };
-        if (args.collection === "client-metric-snapshots") return { docs: [] };
-        return { docs: [] };
+        if (args.collection === 'quarterly-organic-growth-snapshots')
+          return { docs: [{ id: 10, client: 2, snapshotDate: '2026-06-01', clicks: 120 }] }
+        if (args.collection === 'client-value-ledger-items')
+          return {
+            docs: [
+              { id: 20, client: 2, occurredAt: '2026-06-01', title: 'SEO work', category: 'seo' },
+              {
+                id: 21,
+                client: 1,
+                occurredAt: '2026-06-01',
+                title: 'Paid search work',
+                category: 'paid_media',
+              },
+            ],
+          }
+        if (args.collection === 'google-ads-snapshots')
+          return {
+            docs: [
+              {
+                id: 30,
+                client: 1,
+                level: 'campaign',
+                capturedAt: '2026-06-01',
+                dateRangeLabel: 'MTD_2026-06',
+                rows: [{ conversions: 12, costMicros: 120000000 }],
+              },
+            ],
+          }
+        if (args.collection === 'client-pulse-history')
+          return { docs: [{ id: 40, client: 1, date: '2026-06-08', score: 60, status: 'watch' }] }
+        if (args.collection === 'client-metric-snapshots') return { docs: [] }
+        return { docs: [] }
       },
-    };
+    }
 
-    const summaries = await getClientPulseSummaries(payload, { now: new Date("2026-06-09T00:00:00.000Z") });
-    expect(summaries.map((summary) => summary.client.name)).toEqual(["Alpha", "Beta"]);
-    expect(summaries.map((summary) => summary.scores.overall.status)).toEqual(["watch", "watch"]);
+    const summaries = await getClientPulseSummaries(payload, {
+      now: new Date('2026-06-09T00:00:00.000Z'),
+    })
+    expect(summaries.map((summary) => summary.client.name)).toEqual(['Alpha', 'Beta'])
+    expect(summaries.map((summary) => summary.scores.overall.status)).toEqual(['watch', 'watch'])
+    expect(summaries[0]?.client).toMatchObject({
+      startDate: '2025-12-09T00:00:00.000Z',
+      monthsActive: 6,
+    })
     // Pulse page only shows active clients with the pulse toggle on.
     expect(clientsWhere).toEqual({
-      and: [{ isActive: { not_equals: false } }, { "clientPulse.enabled": { equals: true } }],
-    });
-    expect(summaries[0]?.scoreHistory.map((point) => point.date)).toEqual(["2026-06-08", "2026-06-09"]);
-    expect(calls.filter((collection) => collection !== "clients")).toHaveLength(14);
-    expect(new Set(calls)).toEqual(new Set(["clients", "scheduled-agent-tasks", "goal-runs", "activity-log", "client-value-ledger-items", "client-processes", "quarterly-organic-growth-snapshots", "gsc-snapshots", "google-ads-snapshots", "google-ads-audits", "site-health-reports", "ai-visibility-snapshots", "client-pulse-history", "client-metric-snapshots", "client-analytics-snapshots"]));
-  });
-});
+      and: [{ isActive: { not_equals: false } }, { 'clientPulse.enabled': { equals: true } }],
+    })
+    expect(summaries[0]?.scoreHistory.map((point) => point.date)).toEqual([
+      '2026-06-08',
+      '2026-06-09',
+    ])
+    expect(calls.filter((collection) => collection !== 'clients')).toHaveLength(14)
+    expect(new Set(calls)).toEqual(
+      new Set([
+        'clients',
+        'scheduled-agent-tasks',
+        'goal-runs',
+        'activity-log',
+        'client-value-ledger-items',
+        'client-processes',
+        'quarterly-organic-growth-snapshots',
+        'gsc-snapshots',
+        'google-ads-snapshots',
+        'google-ads-audits',
+        'site-health-reports',
+        'ai-visibility-snapshots',
+        'client-pulse-history',
+        'client-metric-snapshots',
+        'client-analytics-snapshots',
+      ]),
+    )
+  })
+})
