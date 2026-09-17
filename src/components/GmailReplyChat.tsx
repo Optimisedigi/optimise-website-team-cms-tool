@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import RocketSplash from './RocketSplash'
 import OptiMateBeamComposer from './OptiMateBeamComposer'
-import OptiMateMetalSend from './OptiMateMetalSend'
+import OptiMateMetalSend, { OptiMateMetalPill } from './OptiMateMetalSend'
 import { ThinkingOrb } from 'thinking-orbs'
 import {
   CHAT_PICKER_MODELS,
@@ -1077,21 +1077,24 @@ function GmailChatComposer({
                 transform: `translate(-50%, ${enhanceVisible ? '0' : '-4px'}) scale(${enhanceVisible ? 1 : 0.96})`,
               }}
             >
-              <button
-                type="button"
-                onClick={() => void enhancePrompt()}
-                disabled={!canEnhance}
-                title="Enhance prompt — clearer wording without sending it"
-                aria-label="Enhance prompt without sending"
-                aria-hidden={!enhanceVisible}
-                style={{
-                  ...enhancePillStyle,
-                  opacity: enhancing ? 0.65 : 1,
-                  cursor: canEnhance ? 'pointer' : 'default',
-                }}
-              >
-                {enhancing ? 'Enhancing…' : 'Enhance?'}
-              </button>
+              <OptiMateMetalPill>
+                <button
+                  type="button"
+                  onClick={() => void enhancePrompt()}
+                  disabled={!canEnhance}
+                  title="Enhance prompt — clearer wording without sending it"
+                  aria-label="Enhance prompt without sending"
+                  aria-hidden={!enhanceVisible}
+                  data-optimate-enhance=""
+                  style={{
+                    ...enhancePillStyle,
+                    opacity: enhancing ? 0.65 : 1,
+                    cursor: canEnhance ? 'pointer' : 'default',
+                  }}
+                >
+                  {enhancing ? 'Enhancing…' : 'Enhance?'}
+                </button>
+              </OptiMateMetalPill>
             </div>
           )}
           <textarea
@@ -1142,7 +1145,7 @@ function GmailChatComposer({
         </OptiMateMetalSend>
       </div>
       {enhanceError && <div role="alert" style={enhanceErrorStyle}>{enhanceError}</div>}
-      <div style={modelSelectorRowStyle}>
+      <div data-optimate-select-row="" style={modelSelectorRowStyle}>
         <select
           value={selectedModel}
           onChange={(e) => onModelChange(e.target.value)}
@@ -1398,10 +1401,10 @@ const enhancePillStyle: React.CSSProperties = {
   justifyContent: 'center',
   minHeight: 25,
   padding: '2px 12px 3px',
-  border: '2px solid #8d8d93',
+  border: 'none',
   borderRadius: 999,
-  background: 'linear-gradient(180deg, #34343a 0%, #25252a 100%)',
-  boxShadow: '0 0 12px rgba(255, 255, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
+  background: 'transparent',
+  boxShadow: 'none',
   color: '#f7f7f8',
   fontFamily: 'inherit',
   fontSize: 12,
@@ -1467,17 +1470,16 @@ const modelSelectorRowStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'flex-start',
   padding: '0 16px 14px',
-  marginTop: 6,
+  marginTop: 0,
 }
 
 const modelSelectGoogleMateStyle: React.CSSProperties = {
-  fontSize: 11,
   padding: '4px 8px',
   border: '1px solid var(--theme-border-color, #e5e7eb)',
   borderRadius: 6,
   background: 'var(--theme-input-bg, #fff)',
   color: 'var(--theme-text, #1f2937)',
-  width: 270,
+  width: 'auto',
   maxWidth: '100%',
 }
 

@@ -2685,14 +2685,13 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               </div>
             </div>
 
-            {/* Model selector lives BELOW the input row so the typebox is the
-              primary affordance. Both selects share the row's width rather than
-              using fixed pixel widths, which overflowed the 412px panel.
+            {/* Model controls live directly below the input and size to their
+              longest option, with responsive shrinking for narrow panels.
               Browsers ignore most styling on <option> elements. */}
             <div
               className="om-selects"
+              data-optimate-select-row=""
               style={{
-                marginTop: 6,
                 // Keep a clear gap below the model selector so it isn't clipped
                 // by the bottom edge of the popout window.
                 marginBottom: devParityEnabled ? 8 : 18,

@@ -754,7 +754,7 @@ export default function InvoiceAssistantChat() {
           disabled={sending}
           title="Model used for the next message"
           data-optimate-select=""
-          style={{ cursor: sending ? 'not-allowed' : 'pointer', width: 270, maxWidth: '100%' }}
+          style={{ cursor: sending ? 'not-allowed' : 'pointer' }}
         >
           {CHAT_PICKER_MODELS.map((m) => (
             <option key={m.canonical} value={m.canonical}>

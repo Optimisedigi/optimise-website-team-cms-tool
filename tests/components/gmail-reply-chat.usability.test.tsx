@@ -91,6 +91,10 @@ describe('GmailReplyChat usability smoke', () => {
       borderRadius: '50%',
     })
 
+    const modelSelect = screen.getByTitle('Model used for the next GmailMate turn')
+    expect(modelSelect).toHaveStyle({ width: 'auto' })
+    expect(modelSelect.parentElement).toHaveAttribute('data-optimate-select-row')
+
     fireEvent.change(screen.getByPlaceholderText('To (optional)…'), {
       target: { value: 'client@example.com' },
     })
@@ -101,6 +105,11 @@ describe('GmailReplyChat usability smoke', () => {
     fireEvent.change(composeTextarea, {
       target: { value: 'Thank them for the meeting and ask for the report.' },
     })
+    const enhanceButton = screen.getByRole('button', { name: 'Enhance prompt without sending' })
+    expect(enhanceButton.closest('.metal-fx-root, .metal-fx-fallback')).toHaveStyle({
+      borderRadius: '999px',
+    })
+
     fireEvent.keyDown(composeTextarea, { key: 'Enter', shiftKey: false })
 
     expect(await screen.findByText(/Draft preview:/)).toBeInTheDocument()
