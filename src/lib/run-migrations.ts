@@ -580,6 +580,16 @@ export async function runMigrations(
     await run("monthly_keyword_selections_selections.extra_applied_nkl_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `extra_applied_nkl_ids` text");
   }
 
+  // Campaign delivery start (2026-09-18), distinct from the contract start date.
+  // Must run before the marker short-circuit below: production carries the
+  // marker, so a copy of this ALTER in the full sweep below is unreachable there.
+  // Payload selects every flat `clients` column on every read, so while this
+  // column is missing each query dies on `no such column: campaign_start_date`
+  // and every client-facing screen renders blank.
+  async function addClientCampaignStartDate(): Promise<void> {
+    await run("clients.campaign_start_date", "ALTER TABLE `clients` ADD `campaign_start_date` text");
+  }
+
   async function addWatchtowerAndSiteHealthSchema(): Promise<void> {
     await run("google_ads_automation_events", "CREATE TABLE IF NOT EXISTS `google_ads_automation_events` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `client_id` integer, `customer_id` text, `change_date_time` text, `resource_name` text NOT NULL, `change_resource_type` text, `resource_change_operation` text, `client_type` text, `user_email` text, `campaign_id` text, `campaign_name` text, `changed_fields` text, `old_values` text, `new_values` text, `is_google_automated` integer DEFAULT false, `summary` text, `impact_spend_before` numeric, `impact_spend_after` numeric, `impact_conv_before` numeric, `impact_conv_after` numeric, `impact_computed_at` text, `review_status` text DEFAULT 'unreviewed', `related_approval_id` integer, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL)");
     await run("google_ads_automation_events_resource_name_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_automation_events_resource_name_idx` ON `google_ads_automation_events` (`resource_name`)");
@@ -619,6 +629,7 @@ export async function runMigrations(
     await repairSalesLeadsServicesSelectId();
     await setClientsListPerPage();
     await addMonthlyKeywordSelectionColumns();
+    await addClientCampaignStartDate();
     await addWatchtowerAndSiteHealthSchema();
 
     // Skip only when the marker AND the schema it claims to have created are
@@ -692,10 +703,9 @@ export async function runMigrations(
     await run("clients.client_goals", "ALTER TABLE `clients` ADD `client_goals` text");
     await run("clients.client_type", "ALTER TABLE `clients` ADD `client_type` text DEFAULT 'recurring'");
     await run("clients.client_start_date", "ALTER TABLE `clients` ADD `client_start_date` text");
-    // Campaign delivery start, distinct from the contract date above. Payload's
-    // generated schema selects this column on every clients query, so a deploy
-    // without it fails every client read with "Invalid time value".
-    await run("clients.campaign_start_date", "ALTER TABLE `clients` ADD `campaign_start_date` text");
+    // Campaign delivery start is applied by addClientCampaignStartDate() above,
+    // which runs before the marker short-circuit so production receives it too.
+    await addClientCampaignStartDate();
     await run("clients_services", `CREATE TABLE IF NOT EXISTS \`clients_services\` (
       \`order\` integer NOT NULL,
       \`parent_id\` integer NOT NULL,

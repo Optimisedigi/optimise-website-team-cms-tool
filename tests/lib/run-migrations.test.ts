@@ -58,19 +58,25 @@ describe("runMigrations", () => {
     }
   });
 
-  it("adds both client start-date columns so every clients query can be read", async () => {
-    const execute = vi.fn().mockResolvedValue({ rows: [] });
-    const batch = vi.fn().mockResolvedValue(undefined);
-    const payload = { db: { client: { execute, batch } } } as any;
+  it("adds the campaign start date column even when production is fully marked and short-circuits", async () => {
+    // Production state: current marker present, landing schema complete, so the
+    // runner returns early. A clients ALTER placed after that short-circuit is
+    // unreachable in production and every client read dies on the missing column.
+    const execute = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("sqlite_master") && sql.includes("landing_")) return { rows: [{ name: "landing_events" }] };
+      if (sql.includes("PRAGMA table_info(`landing_events`)")) return { rows: [{ name: "market" }] };
+      return { rows: [] };
+    });
+    const payload = { db: { client: { execute } } } as any;
 
     const results = await runMigrations(payload);
 
-    // Payload selects every flat clients column on every read, so a column that
-    // exists in the collection config but not here breaks all client screens.
-    for (const column of ["client_start_date", "campaign_start_date"]) {
-      expect(results).toContainEqual({ label: `clients.${column}`, status: "ok" });
-      expect(execute).toHaveBeenCalledWith(`ALTER TABLE \`clients\` ADD \`${column}\` text`);
-    }
+    expect(results.length).toBeLessThan(100);
+    expect(results).toContainEqual({ label: "clients.campaign_start_date", status: "ok" });
+    expect(execute.mock.calls.map(([sql]) => String(sql))).toContain(
+      "ALTER TABLE `clients` ADD `campaign_start_date` text",
+    );
   });
 
   it("adds every client email copy column so saving OptiMate Settings works", async () => {
