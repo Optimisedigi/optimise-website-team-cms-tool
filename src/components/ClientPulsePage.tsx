@@ -259,12 +259,16 @@ function StatusCount({ label, count, tone }: { label: string; count: number; ton
 }
 
 function ServiceLabels({ services }: { services: string[] }) {
-  if (services.length === 0)
+  // Several raw values share a display label (seo/organic -> "SEO",
+  // google_ads/paid_search -> "Google Ads"), so dedupe on the label to avoid
+  // repeated pills when a client has both variants recorded.
+  const labels = [...new Set(services.map(serviceLabel))]
+  if (labels.length === 0)
     return <span className="client-pulse-service-empty">No services set</span>
   return (
     <div className="client-pulse-service-labels" aria-label="Client services">
-      {services.map((service) => (
-        <span key={service}>{serviceLabel(service)}</span>
+      {labels.map((label) => (
+        <span key={label}>{label}</span>
       ))}
     </div>
   )

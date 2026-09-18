@@ -590,6 +590,26 @@ export async function runMigrations(
     await run("clients.campaign_start_date", "ALTER TABLE `clients` ADD `campaign_start_date` text");
   }
 
+  /**
+   * Fold the retired `seo` tracked-service value into `organic`.
+   *
+   * Both rendered as the same "SEO" pill on the Client Pulse card, so a client
+   * with both ticked showed the pill twice. `organic` is now the only SEO
+   * option. Promote exactly one `seo` row per client that has no `organic` row,
+   * then drop every remaining `seo` row — promoting all of them would just swap
+   * a duplicate `seo` for a duplicate `organic`.
+   *
+   * Runs before the marker short-circuit: production carries the marker, so
+   * anything placed in the main sweep would never execute there. Idempotent —
+   * after the sweep no `seo` rows remain, so re-runs are no-ops.
+   */
+  async function mergeClientPulseSeoService(): Promise<void> {
+    // Fresh databases create this table further down the main sweep.
+    if (!(await tableExists("clients_client_pulse_services_tracked"))) return;
+    await run("clients_client_pulse_services_tracked.promote_seo_to_organic", "UPDATE `clients_client_pulse_services_tracked` SET `value` = 'organic' WHERE `id` IN (SELECT MIN(`seo`.`id`) FROM `clients_client_pulse_services_tracked` AS `seo` WHERE `seo`.`value` = 'seo' AND `seo`.`parent_id` NOT IN (SELECT `parent_id` FROM `clients_client_pulse_services_tracked` WHERE `value` = 'organic') GROUP BY `seo`.`parent_id`)");
+    await run("clients_client_pulse_services_tracked.drop_duplicate_seo", "DELETE FROM `clients_client_pulse_services_tracked` WHERE `value` = 'seo'");
+  }
+
   async function addWatchtowerAndSiteHealthSchema(): Promise<void> {
     await run("google_ads_automation_events", "CREATE TABLE IF NOT EXISTS `google_ads_automation_events` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `client_id` integer, `customer_id` text, `change_date_time` text, `resource_name` text NOT NULL, `change_resource_type` text, `resource_change_operation` text, `client_type` text, `user_email` text, `campaign_id` text, `campaign_name` text, `changed_fields` text, `old_values` text, `new_values` text, `is_google_automated` integer DEFAULT false, `summary` text, `impact_spend_before` numeric, `impact_spend_after` numeric, `impact_conv_before` numeric, `impact_conv_after` numeric, `impact_computed_at` text, `review_status` text DEFAULT 'unreviewed', `related_approval_id` integer, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL)");
     await run("google_ads_automation_events_resource_name_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_automation_events_resource_name_idx` ON `google_ads_automation_events` (`resource_name`)");
@@ -630,6 +650,7 @@ export async function runMigrations(
     await setClientsListPerPage();
     await addMonthlyKeywordSelectionColumns();
     await addClientCampaignStartDate();
+    await mergeClientPulseSeoService();
     await addWatchtowerAndSiteHealthSchema();
 
     // Skip only when the marker AND the schema it claims to have created are

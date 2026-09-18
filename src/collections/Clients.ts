@@ -934,11 +934,15 @@ export const Clients: CollectionConfig = {
                       admin: {
                         description: "Services included in leadership Client Pulse scoring and filters.",
                       },
+                      // `organic` is the one SEO option. A separate `seo` value
+                      // used to exist and both rendered as the same "SEO" pill on
+                      // the Client Pulse card, so a client with both ticked showed
+                      // it twice. Legacy `seo` rows are folded into `organic` by
+                      // 20260918_140000_merge_client_pulse_seo_service.
                       options: [
-                        { label: "Organic", value: "organic" },
+                        { label: "SEO", value: "organic" },
                         { label: "Paid Search", value: "paid_search" },
                         { label: "Paid Social", value: "paid_social" },
-                        { label: "SEO", value: "seo" },
                         { label: "Content", value: "content" },
                         { label: "CRO", value: "cro" },
                         { label: "Automations", value: "automations" },

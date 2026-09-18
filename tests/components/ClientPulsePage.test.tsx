@@ -84,6 +84,17 @@ describe('ClientPulsePage', () => {
     expect(screen.getByText('SEO')).toBeInTheDocument()
   })
 
+  it('does not repeat a service pill when values share a label', () => {
+    const withOverlap = {
+      ...summary,
+      client: { ...summary.client, services: ['paid_search', 'organic', 'seo', 'google_ads'] },
+    } as unknown as ClientPulseSummary
+    render(<ClientPulsePage initialData={[withOverlap]} />)
+    const pills = screen.getByLabelText('Client services')
+    expect(within(pills).getAllByText('SEO')).toHaveLength(1)
+    expect(within(pills).getAllByText('Google Ads')).toHaveLength(1)
+  })
+
   it('links the client name and omits the removed action controls', () => {
     render(<ClientPulsePage initialData={[summary]} />)
     expect(screen.getByRole('link', { name: 'Berendsen Fluid Power' })).toHaveAttribute(

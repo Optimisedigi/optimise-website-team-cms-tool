@@ -463,7 +463,7 @@ export interface Client {
      * Services included in leadership Client Pulse scoring and filters.
      */
     servicesTracked?:
-      ('organic' | 'paid_search' | 'paid_social' | 'seo' | 'content' | 'cro' | 'automations' | 'client_comms')[] | null;
+      ('organic' | 'paid_search' | 'paid_social' | 'content' | 'cro' | 'automations' | 'client_comms')[] | null;
     /**
      * The first three enabled rows appear on the Client Pulse card in this order. A label can rename a metric for this client.
      */
