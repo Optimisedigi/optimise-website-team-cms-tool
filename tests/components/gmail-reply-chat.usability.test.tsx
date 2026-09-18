@@ -58,9 +58,65 @@ describe('GmailReplyChat usability smoke', () => {
 
     const search = await screen.findByPlaceholderText('Search inbox (Gmail syntax)…')
     expect(search).toHaveValue('')
-    expect(search).toHaveFocus()
+    // Focus lands in an effect after the connection check resolves, so wait for it
+    // rather than assuming it has already run on the first commit.
+    await waitFor(() => expect(search).toHaveFocus())
     expect(screen.queryByDisplayValue('someone@example.com')).not.toBeInTheDocument()
     expect(screen.queryByText('Old thread')).not.toBeInTheDocument()
+  })
+
+  it('keeps a reply that is already under way when the panel remounts', async () => {
+    window.sessionStorage.setItem(
+      'optimate:gmail-reply-chat:search',
+      JSON.stringify({
+        phase: 'message',
+        message: {
+          messageId: 'm1',
+          threadId: 't1',
+          rfcMessageId: '<m1@mail>',
+          subject: 'Quarterly check-in',
+          from: 'client@example.com',
+          to: 'user@example.com',
+          date: 'today',
+          body: 'Any update?',
+        },
+        replyText: 'Half-written reply I do not want to lose',
+      }),
+    )
+
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="search" />)
+
+    expect(await screen.findByText('Quarterly check-in')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Search inbox (Gmail syntax)…')).not.toBeInTheDocument()
+  })
+
+  it('does not search Gmail when the search box is empty', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="search" />)
+    await screen.findByPlaceholderText('Search inbox (Gmail syntax)…')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Search your inbox, pick an email/),
+      ).toBeInTheDocument()
+    })
+    expect(screen.queryByText('No matching emails.')).not.toBeInTheDocument()
+    expect(
+      fetchMock.mock.calls.some(([url]) => typeof url === 'string' && url.startsWith('/api/gmail/search')),
+    ).toBe(false)
   })
 
   it('opens directly into the compose flow and creates a Gmail draft', async () => {
@@ -92,8 +148,10 @@ describe('GmailReplyChat usability smoke', () => {
     })
 
     const modelSelect = screen.getByTitle('Model used for the next GmailMate turn')
-    expect(modelSelect).toHaveStyle({ width: 'auto' })
+    expect(modelSelect).toHaveStyle({ width: 'auto', maxWidth: '190px' })
     expect(modelSelect.parentElement).toHaveAttribute('data-optimate-select-row')
+    // The picker sits under the composer box, not inside the beam surface.
+    expect(modelSelect.closest('[data-optimate-beam-composer]')).toBeNull()
 
     fireEvent.change(screen.getByPlaceholderText('To (optional)…'), {
       target: { value: 'client@example.com' },
@@ -109,6 +167,13 @@ describe('GmailReplyChat usability smoke', () => {
     expect(enhanceButton.closest('.metal-fx-root, .metal-fx-fallback')).toHaveStyle({
       borderRadius: '999px',
     })
+    // The pill keeps its own row above the prompt instead of floating over the text.
+    const enhanceHost = enhanceButton.closest('[data-optimate-enhance-host]')
+    expect(enhanceHost).not.toBeNull()
+    expect(enhanceHost).not.toHaveStyle({ position: 'absolute' })
+    expect(composeTextarea.compareDocumentPosition(enhanceHost as Node)).toBe(
+      Node.DOCUMENT_POSITION_PRECEDING,
+    )
 
     const png = new File(
       [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],

@@ -1344,7 +1344,7 @@ export const Clients: CollectionConfig = {
                   access: sensitiveFieldAccess("clients"),
                   admin: {
                     description: "Client billing type",
-                    width: "50%",
+                    width: "25%",
                     condition: conditionRequiresFeature(
                       "clients",
                       (data: any) => !data?.isAgency,
@@ -1354,10 +1354,26 @@ export const Clients: CollectionConfig = {
                 },
                 {
                   name: "clientStartDate",
+                  label: "Contract Start Date",
                   type: "date",
                   access: sensitiveFieldAccess("clients"),
                   admin: {
-                    description: "When this client started working with us",
+                    description: "The date the client contract began",
+                    width: "25%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+                {
+                  name: "campaignStartDate",
+                  label: "Campaign Start Date",
+                  type: "date",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description:
+                      "The date campaign delivery began; used for Client Pulse tenure and audit cadence",
                     width: "25%",
                     condition: conditionRequiresFeature(
                       "clients",

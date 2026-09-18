@@ -618,9 +618,13 @@ export interface Client {
    */
   clientType?: ('recurring' | 'one_off' | 'paused') | null;
   /**
-   * When this client started working with us
+   * The date the client contract began
    */
   clientStartDate?: string | null;
+  /**
+   * The date campaign delivery began; used for Client Pulse tenure and audit cadence
+   */
+  campaignStartDate?: string | null;
   /**
    * When the retainer billing begins. Drives the pro-rated first month and setup-fee timing. Defaults to client start date when empty.
    */
@@ -11925,6 +11929,7 @@ export interface ClientsSelect<T extends boolean = true> {
   referredByContact?: T;
   clientType?: T;
   clientStartDate?: T;
+  campaignStartDate?: T;
   retainerStartDate?: T;
   monthlyRetainer?: T;
   setupFee?: T;

@@ -84,6 +84,14 @@ describe("Clients Collection", () => {
     expect(slugField).toHaveProperty("type", "text");
   });
 
+  it("stores distinct contract and campaign start dates", () => {
+    const contractStartDate = findField(Clients.fields, "clientStartDate");
+    const campaignStartDate = findField(Clients.fields, "campaignStartDate");
+
+    expect(contractStartDate).toMatchObject({ type: "date", label: "Contract Start Date" });
+    expect(campaignStartDate).toMatchObject({ type: "date", label: "Campaign Start Date" });
+  });
+
   it("should have apiKey field with auto-generation hook", () => {
     const apiKeyField = findField(Clients.fields, "apiKey");
     expect(apiKeyField).toBeDefined();

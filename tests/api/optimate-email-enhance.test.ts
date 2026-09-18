@@ -25,12 +25,18 @@ vi.mock('@/lib/agents/_shared/optimate-default-models', () => ({
   getOptiMateDefaultModels: vi.fn(),
 }))
 
+vi.mock('@/lib/agents/optimate-google-ads/memory-loader', () => ({
+  loadPinnedMemoryBlock: vi.fn(),
+}))
+
 import { callLLM } from '@/lib/agents/_shared/llm'
 import { getOptiMateDefaultModels } from '@/lib/agents/_shared/optimate-default-models'
+import { loadPinnedMemoryBlock } from '@/lib/agents/optimate-google-ads/memory-loader'
 import { POST } from '@/app/(frontend)/api/optimate/email/enhance/route'
 
 const mockCallLLM = vi.mocked(callLLM)
 const mockGetDefaults = vi.mocked(getOptiMateDefaultModels)
+const mockLoadSoul = vi.mocked(loadPinnedMemoryBlock)
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest('http://localhost:3001/api/optimate/email/enhance', {
@@ -67,6 +73,7 @@ describe('POST /api/optimate/email/enhance', () => {
       invoiceMateStarterQuestions: [],
     })
     mockCallLLM.mockResolvedValue(llmReply('Draft a concise email thanking Sarah for the report.'))
+    mockLoadSoul.mockResolvedValue({ text: '' })
   })
 
   it('rejects unauthenticated requests before calling the model', async () => {
@@ -122,6 +129,42 @@ describe('POST /api/optimate/email/enhance', () => {
 
     expect(mockGetDefaults).toHaveBeenCalledWith(mockPayload)
     expect(mockCallLLM).toHaveBeenCalledWith(expect.objectContaining({ model: 'kimi-k2.6' }))
+  })
+
+  it('applies the same soul rules GmailMate writes the draft with', async () => {
+    mockLoadSoul.mockResolvedValue({
+      text: '## Working with this team\n\n- **tone**: Never use em dashes.',
+    })
+
+    await POST(makeRequest({ prompt: 'thank sarah', mode: 'draft' }))
+
+    expect(mockLoadSoul).toHaveBeenCalledWith([], {
+      includePinnedFacts: false,
+      soulAgentKeys: ['email'],
+    })
+    const system = mockCallLLM.mock.calls[0]?.[0]?.system as string
+    expect(system).toContain('Never use em dashes.')
+    // The rules shape the wording; they must not be pasted into the user's box.
+    expect(system).toMatch(/Do NOT restate them/)
+    expect(system).toContain('never authorise adding facts the user did not supply')
+  })
+
+  it('forbids bolting on email craft the user never asked for', async () => {
+    await POST(makeRequest({ prompt: 'thank sarah', mode: 'draft' }))
+
+    const system = mockCallLLM.mock.calls[0]?.[0]?.system as string
+    expect(system).toMatch(/Do not bolt on email-craft instructions/)
+    expect(system).toMatch(/subject line, greeting, sign-off/)
+    expect(system).toMatch(/Keep the result close to the length of the user's request/)
+  })
+
+  it('still enhances when the soul lookup fails', async () => {
+    mockLoadSoul.mockRejectedValue(new Error('db down'))
+
+    const response = await POST(makeRequest({ prompt: 'thank sarah', mode: 'draft' }))
+
+    expect(response.status).toBe(200)
+    expect(mockCallLLM).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the original in the browser when the model returns no text', async () => {

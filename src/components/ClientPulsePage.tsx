@@ -423,12 +423,24 @@ function BudgetPacing({ pacing }: { pacing: ClientPulseSummary['budgetPacing'] }
 
 function TenureTimeline({ client }: { client: ClientPulseSummary['client'] }) {
   const months = client.monthsActive
+  const formatStartDate = (value: string | null) =>
+    value
+      ? new Intl.DateTimeFormat('en-AU', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }).format(new Date(value))
+      : null
+  const campaignStartDate = formatStartDate(client.campaignStartDate)
+  const contractStartDate = formatStartDate(client.contractStartDate)
+  const usingContractFallback = !client.campaignStartDate && Boolean(client.contractStartDate)
+
   if (months == null) {
     return (
       <div className="client-pulse-tenure is-missing">
         <div>
-          <strong>Start date needed</strong>
-          <span>Add it in the client record to track audit cadence.</span>
+          <strong>Campaign start date needed</strong>
+          <span>Add it on the client&rsquo;s Business tab to track campaign and audit cadence.</span>
         </div>
       </div>
     )
@@ -437,30 +449,30 @@ function TenureTimeline({ client }: { client: ClientPulseSummary['client'] }) {
   const currentMonth = months > 0 ? (months - 1) % 12 : 0
   const quarterlyDue = months > 0 && months % 3 === 0
   const monthsToQuarter = quarterlyDue ? 0 : 3 - (months % 3)
-  const startDate = client.startDate
-    ? new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).format(
-        new Date(client.startDate),
-      )
-    : null
   const cadenceText = quarterlyDue
     ? 'Quarterly audit due now'
     : `Quarterly audit in ${monthsToQuarter} month${monthsToQuarter === 1 ? '' : 's'}`
 
   return (
-    <section className="client-pulse-tenure" aria-label={`${client.name} tenure and audit cadence`}>
+    <section className="client-pulse-tenure" aria-label={`${client.name} campaign tenure and audit cadence`}>
       <div className="client-pulse-tenure__heading">
         <div>
           <strong>
-            {months} month{months === 1 ? '' : 's'} with us
+            {months} month{months === 1 ? '' : 's'} {usingContractFallback ? 'active' : 'campaign active'}
           </strong>
-          <span>{startDate ? `Since ${startDate}` : 'Start date unavailable'}</span>
+          <span>
+            {campaignStartDate
+              ? `Campaign since ${campaignStartDate}`
+              : 'Based on contract start \u2014 add a campaign start date'}
+          </span>
+          {contractStartDate ? <span>Contract since {contractStartDate}</span> : null}
         </div>
         <span className={quarterlyDue ? 'is-due' : ''}>{cadenceText}</span>
       </div>
       <div
         className="client-pulse-tenure__track"
         role="img"
-        aria-label={`Current annual service cycle: month ${currentMonth + 1} of 12. Monthly checkpoints are shown; quarter ends are months 3, 6, 9 and 12.`}
+        aria-label={`Current annual campaign cycle: month ${currentMonth + 1} of 12. Monthly checkpoints are shown; quarter ends are months 3, 6, 9 and 12.`}
       >
         {Array.from({ length: 12 }, (_, index) => (
           <span

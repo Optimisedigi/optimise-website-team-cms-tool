@@ -129,7 +129,24 @@ function readPersistedGmailReplyChatState(initialPhase: Phase): PersistedGmailRe
     const raw = window.sessionStorage.getItem(gmailReplyChatStorageKey(initialPhase))
     if (!raw) return null
     const parsed = JSON.parse(raw) as PersistedGmailReplyChatState
-    return parsed && typeof parsed === 'object' ? parsed : null
+    if (!parsed || typeof parsed !== 'object') return null
+    const storedPhase = parsed.phase ?? initialPhase
+
+    // The Reply / Summarise launcher always lands on its own search step, never
+    // on a leftover compose form with the last recipient still in it. The one
+    // exception is a reply already under way on a specific loaded email: that
+    // work is restored so a remount does not throw away a drafted reply.
+    if (initialPhase === 'search' && storedPhase !== 'message') {
+      return { ...parsed, phase: 'search', query: DEFAULT_QUERY, results: [], searched: false, message: null }
+    }
+
+    // Any entry point parked on the search step reopens on a blank search rather
+    // than last session's query and result list.
+    if (storedPhase === 'search') {
+      return { ...parsed, query: DEFAULT_QUERY, results: [], searched: false, message: null }
+    }
+
+    return parsed
   } catch {
     return null
   }
@@ -176,8 +193,7 @@ function assistantMessageText(data: EmailChatResponse, stagedBody?: string): str
 }
 
 export default function GmailReplyChat({ initialPhase = 'compose', initialSummariseMode = false }: GmailReplyChatProps): React.ReactElement {
-  // Reply / summarise should always open on a blank search, not last session.
-  const persistedState = initialPhase === 'search' ? null : readPersistedGmailReplyChatState(initialPhase)
+  const persistedState = readPersistedGmailReplyChatState(initialPhase)
   const [connected, setConnected] = useState<boolean | null>(null)
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null)
   const [statusError, setStatusError] = useState<string | null>(null)
@@ -460,7 +476,16 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
   }, [resetDraftState])
 
   const runSearch = useCallback(async () => {
-    const q = query.trim() || DEFAULT_QUERY
+    const q = query.trim()
+    // An empty box has nothing to search for; Gmail would return zero results and
+    // the user would see "No matching emails" instead of the starting hint.
+    if (!q) {
+      setSearchError(null)
+      setSearched(false)
+      setResults([])
+      searchInputRef.current?.focus()
+      return
+    }
     setSearching(true)
     setSearchError(null)
     setSearched(true)
@@ -1245,8 +1270,8 @@ function GmailChatComposer({
   }, [disabled, enhanceMode, enhancing, onChange, selectedModel, value])
 
   return (
-    <OptiMateBeamComposer>
     <div style={gmailComposerWrapStyle}>
+    <OptiMateBeamComposer>
       <div style={composerInputRowStyle}>
         <div
           data-testid="gmail-draft-image-dropzone"
@@ -1284,11 +1309,12 @@ function GmailChatComposer({
           )}
           {enhanceMode && (
             <div
+              data-optimate-enhance-host=""
               style={{
                 ...enhancePillHostStyle,
                 opacity: enhanceVisible ? 1 : 0,
                 pointerEvents: enhanceVisible ? 'auto' : 'none',
-                transform: `translate(-50%, ${enhanceVisible ? '0' : '-4px'}) scale(${enhanceVisible ? 1 : 0.96})`,
+                transform: `translateY(${enhanceVisible ? '0' : '-4px'}) scale(${enhanceVisible ? 1 : 0.96})`,
               }}
             >
               <OptiMateMetalPill>
@@ -1358,6 +1384,7 @@ function GmailChatComposer({
           </button>
         </OptiMateMetalSend>
       </div>
+      </OptiMateBeamComposer>
       {enhanceError && <div role="alert" style={enhanceErrorStyle}>{enhanceError}</div>}
       <div data-optimate-select-row="" style={modelSelectorRowStyle}>
         <select
@@ -1366,17 +1393,20 @@ function GmailChatComposer({
           disabled={disabled || enhancing}
           title="Model used for the next GmailMate turn"
           data-optimate-select=""
-          style={modelSelectGoogleMateStyle}
+          style={{
+            ...modelSelectGoogleMateStyle,
+            opacity: disabled || enhancing ? 0.48 : 1,
+            cursor: disabled || enhancing ? 'not-allowed' : 'pointer',
+          }}
         >
           {CHAT_PICKER_MODELS.map((m) => (
-            <option key={m.canonical} value={m.canonical}>
+            <option key={m.canonical} value={m.canonical} style={modelSelectOptionStyle}>
               {m.label}
             </option>
           ))}
         </select>
       </div>
     </div>
-    </OptiMateBeamComposer>
   )
 }
 
@@ -1621,11 +1651,13 @@ const composerInputRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'flex-end',
   gap: 10,
-  padding: '18px 16px 0',
+  padding: 16,
 }
 
 const googleMateComposerBoxStyle: React.CSSProperties = {
   position: 'relative',
+  display: 'flex',
+  flexDirection: 'column',
   flex: 1,
   minWidth: 0,
   minHeight: 104,
@@ -1658,12 +1690,13 @@ const gmailImageDropOverlayStyle: React.CSSProperties = {
   pointerEvents: 'none',
 }
 
+// The pill sits on its own row at the top of the composer box so it never
+// covers the first line of the prompt the user is reading.
 const enhancePillHostStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: -12,
-  left: '50%',
-  zIndex: 4,
-  display: 'inline-flex',
+  display: 'flex',
+  flexShrink: 0,
+  alignSelf: 'center',
+  marginBottom: 4,
   transition: 'opacity 150ms ease, transform 150ms ease',
 }
 
@@ -1738,21 +1771,35 @@ const compactInputStyle: React.CSSProperties = {
   fontSize: 12,
 }
 
+// The model picker now sits below the composer box rather than inside it, so it
+// no longer inherits the beam surface styling and carries its own compact look.
 const modelSelectorRowStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'flex-start',
-  padding: '0 16px 14px',
+  padding: '8px 4px 0',
   marginTop: 0,
 }
 
 const modelSelectGoogleMateStyle: React.CSSProperties = {
-  padding: '4px 8px',
-  border: '1px solid var(--theme-border-color, #e5e7eb)',
-  borderRadius: 6,
-  background: 'var(--theme-input-bg, #fff)',
-  color: 'var(--theme-text, #1f2937)',
   width: 'auto',
-  maxWidth: '100%',
+  maxWidth: 190,
+  minHeight: 24,
+  // Right padding leaves room for the native dropdown arrow, which the beam
+  // surface used to provide before this control moved out of it.
+  padding: '2px 26px 2px 10px',
+  border: '1px solid rgba(255, 255, 255, 0.12)',
+  borderRadius: 999,
+  background: '#29292b',
+  color: '#d4d4d8',
+  fontFamily: 'inherit',
+  fontSize: 11,
+  lineHeight: '16px',
+  textOverflow: 'ellipsis',
+}
+
+const modelSelectOptionStyle: React.CSSProperties = {
+  background: '#242426',
+  color: '#f5f5f7',
 }
 
 const originalEmailCardStyle: React.CSSProperties = {

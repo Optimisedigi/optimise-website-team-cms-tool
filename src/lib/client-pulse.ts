@@ -59,7 +59,8 @@ export interface ClientPulseSummary {
     accountManagers: Array<{ id: number | string; name?: string | null; email?: string | null }>
     priority: string
     hasGoogleAds: boolean
-    startDate: string | null
+    campaignStartDate: string | null
+    contractStartDate: string | null
     monthsActive: number | null
   }
   target: {
@@ -698,8 +699,14 @@ export function buildClientPulseSummary(input: {
       accountManagers: relationshipArray(input.client.accountManagers),
       priority: stringValue(pulse.priority) || 'normal',
       hasGoogleAds: clientHasGoogleAds(input.client),
-      startDate: stringValue(input.client.clientStartDate) || null,
-      monthsActive: monthsActiveFrom(stringValue(input.client.clientStartDate) || null, now),
+      campaignStartDate: stringValue(input.client.campaignStartDate) || null,
+      contractStartDate: stringValue(input.client.clientStartDate) || null,
+      monthsActive: monthsActiveFrom(
+        stringValue(input.client.campaignStartDate) ||
+          stringValue(input.client.clientStartDate) ||
+          null,
+        now,
+      ),
     },
     target,
     wcqAssessments,
@@ -1578,6 +1585,7 @@ function clientPulseClientSelect(includeAnalyticsMetrics: boolean): PlainRecord 
     services: true,
     googleAdsCustomerId: true,
     clientStartDate: true,
+    campaignStartDate: true,
     wcqAssessmentsCompleted: true,
     spendPolicy: {
       monthlyBudgetTarget: true,

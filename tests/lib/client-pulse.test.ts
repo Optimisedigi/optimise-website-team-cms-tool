@@ -458,7 +458,8 @@ describe('client-pulse', () => {
                 isActive: true,
                 services: ['google_ads'],
                 googleAdsCustomerId: '123',
-                clientStartDate: '2025-12-09T00:00:00.000Z',
+                clientStartDate: '2025-11-01T00:00:00.000Z',
+                campaignStartDate: '2025-12-09T00:00:00.000Z',
                 clientPulse: {
                   enabled: true,
                   targetValue: 10,
@@ -510,8 +511,15 @@ describe('client-pulse', () => {
     expect(summaries.map((summary) => summary.client.name)).toEqual(['Alpha', 'Beta'])
     expect(summaries.map((summary) => summary.scores.overall.status)).toEqual(['watch', 'watch'])
     expect(summaries[0]?.client).toMatchObject({
-      startDate: '2025-12-09T00:00:00.000Z',
+      campaignStartDate: '2025-12-09T00:00:00.000Z',
+      contractStartDate: '2025-11-01T00:00:00.000Z',
       monthsActive: 6,
+    })
+    // Beta has neither date, so tenure stays unknown rather than defaulting to zero.
+    expect(summaries[1]?.client).toMatchObject({
+      campaignStartDate: null,
+      contractStartDate: null,
+      monthsActive: null,
     })
     // Pulse page only shows active clients with the pulse toggle on.
     expect(clientsWhere).toEqual({

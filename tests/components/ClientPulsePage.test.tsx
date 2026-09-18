@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import ClientPulsePage from '@/components/ClientPulsePage'
@@ -123,25 +125,56 @@ describe('ClientPulsePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '3' }))
     expect(grid).toHaveAttribute('data-columns', '3')
+    expect(grid.getAttribute('style')).toContain('--pulse-grid-columns: 3')
     expect(screen.getByRole('button', { name: '3' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('shows client tenure and quarterly audit timing', () => {
+  it('does not override the selected desktop density at narrower admin widths', () => {
+    const styles = readFileSync(join(process.cwd(), 'src/app/(payload)/custom.scss'), 'utf8')
+    expect(styles).toMatch(
+      /\.client-pulse-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(var\(--pulse-grid-columns/,
+    )
+    expect(styles).not.toMatch(
+      /@media \(max-width: 1180px\) \{[\s\S]*?\.client-pulse-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2/,
+    )
+  })
+
+  it('prioritises campaign tenure while distinguishing the contract start date', () => {
     const withTenure = {
       ...summary,
       client: {
         ...summary.client,
-        startDate: '2025-03-18T00:00:00.000Z',
+        campaignStartDate: '2025-03-18T00:00:00.000Z',
+        contractStartDate: '2025-02-03T00:00:00.000Z',
         monthsActive: 18,
       },
     }
     render(<ClientPulsePage initialData={[withTenure]} />)
 
-    expect(screen.getByText('18 months with us')).toBeInTheDocument()
+    expect(screen.getByText('18 months campaign active')).toBeInTheDocument()
+    expect(screen.getByText('Campaign since 18 Mar 2025')).toBeInTheDocument()
+    expect(screen.getByText('Contract since 3 Feb 2025')).toBeInTheDocument()
     expect(screen.getByText('Quarterly audit due now')).toBeInTheDocument()
-    const timeline = screen.getByRole('img', { name: /Current annual service cycle/ })
+    const timeline = screen.getByRole('img', { name: /Current annual campaign cycle/ })
     expect(timeline.children[5]).toHaveClass('is-current')
     expect(timeline.children[6]).not.toHaveClass('is-current')
+  })
+
+  it('keeps tenure working from the contract date until a campaign date is added', () => {
+    const contractOnly = {
+      ...summary,
+      client: {
+        ...summary.client,
+        campaignStartDate: null,
+        contractStartDate: '2025-02-03T00:00:00.000Z',
+        monthsActive: 18,
+      },
+    }
+    render(<ClientPulsePage initialData={[contractOnly]} />)
+
+    expect(screen.getByText('18 months active')).toBeInTheDocument()
+    expect(screen.getByText(/add a campaign start date/i)).toBeInTheDocument()
+    expect(screen.getByText('Contract since 3 Feb 2025')).toBeInTheDocument()
   })
 
   it('offers a collapsed multi-select for active clients not already shown', () => {
