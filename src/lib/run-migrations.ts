@@ -692,6 +692,10 @@ export async function runMigrations(
     await run("clients.client_goals", "ALTER TABLE `clients` ADD `client_goals` text");
     await run("clients.client_type", "ALTER TABLE `clients` ADD `client_type` text DEFAULT 'recurring'");
     await run("clients.client_start_date", "ALTER TABLE `clients` ADD `client_start_date` text");
+    // Campaign delivery start, distinct from the contract date above. Payload's
+    // generated schema selects this column on every clients query, so a deploy
+    // without it fails every client read with "Invalid time value".
+    await run("clients.campaign_start_date", "ALTER TABLE `clients` ADD `campaign_start_date` text");
     await run("clients_services", `CREATE TABLE IF NOT EXISTS \`clients_services\` (
       \`order\` integer NOT NULL,
       \`parent_id\` integer NOT NULL,

@@ -58,6 +58,21 @@ describe("runMigrations", () => {
     }
   });
 
+  it("adds both client start-date columns so every clients query can be read", async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const payload = { db: { client: { execute, batch } } } as any;
+
+    const results = await runMigrations(payload);
+
+    // Payload selects every flat clients column on every read, so a column that
+    // exists in the collection config but not here breaks all client screens.
+    for (const column of ["client_start_date", "campaign_start_date"]) {
+      expect(results).toContainEqual({ label: `clients.${column}`, status: "ok" });
+      expect(execute).toHaveBeenCalledWith(`ALTER TABLE \`clients\` ADD \`${column}\` text`);
+    }
+  });
+
   it("adds every client email copy column so saving OptiMate Settings works", async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
     const batch = vi.fn().mockResolvedValue(undefined);
