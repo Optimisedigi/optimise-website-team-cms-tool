@@ -151,10 +151,10 @@ describe('ClientPulsePage', () => {
     }
     render(<ClientPulsePage initialData={[withTenure]} />)
 
-    expect(screen.getByText('18 months campaign active')).toBeInTheDocument()
-    expect(screen.getByText('Campaign since 18 Mar 2025')).toBeInTheDocument()
-    expect(screen.getByText('Contract since 3 Feb 2025')).toBeInTheDocument()
-    expect(screen.getByText('Quarterly audit due now')).toBeInTheDocument()
+    expect(screen.getByText('18 months')).toBeInTheDocument()
+    expect(screen.getByText('Campaign Mar 2025')).toBeInTheDocument()
+    expect(screen.getByText('Contract Feb 2025')).toBeInTheDocument()
+    expect(screen.getByText('Audit due')).toBeInTheDocument()
     const timeline = screen.getByRole('img', { name: /Current annual campaign cycle/ })
     expect(timeline.children[5]).toHaveClass('is-current')
     expect(timeline.children[6]).not.toHaveClass('is-current')
@@ -172,9 +172,9 @@ describe('ClientPulsePage', () => {
     }
     render(<ClientPulsePage initialData={[contractOnly]} />)
 
-    expect(screen.getByText('18 months active')).toBeInTheDocument()
-    expect(screen.getByText(/add a campaign start date/i)).toBeInTheDocument()
-    expect(screen.getByText('Contract since 3 Feb 2025')).toBeInTheDocument()
+    expect(screen.getByText('18 months')).toBeInTheDocument()
+    expect(screen.getByText('Add a campaign date')).toBeInTheDocument()
+    expect(screen.getByText('Contract Feb 2025')).toBeInTheDocument()
   })
 
   it('offers a collapsed multi-select for active clients not already shown', () => {

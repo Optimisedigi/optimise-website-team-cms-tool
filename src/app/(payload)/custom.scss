@@ -9230,9 +9230,9 @@ body.od-client-record {
 
 .client-pulse-tenure {
   display: grid;
-  gap: 7px;
-  margin: 0 20px 16px;
-  padding: 11px 13px;
+  gap: 6px;
+  margin: 0 20px 14px;
+  padding: 9px 12px;
   border: 1px solid var(--pulse-border);
   border-radius: 8px;
   background: var(--pulse-panel);
@@ -9244,13 +9244,9 @@ body.od-client-record {
   strong {
     font-size: 12px;
   }
-  span,
-  small {
+  span {
     color: var(--pulse-muted);
     font-size: 10px;
-  }
-  > small {
-    line-height: 1.35;
   }
 }
 
@@ -9261,8 +9257,13 @@ body.od-client-record {
   gap: 12px;
 
   > div {
-    display: grid;
-    gap: 2px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    // The two dates are short now, so they read as one line instead of a stack.
+    column-gap: 8px;
+    row-gap: 1px;
+    min-width: 0;
   }
   > span {
     max-width: 136px;
