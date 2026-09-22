@@ -1,7 +1,7 @@
 'use client'
 
 import { useField } from '@payloadcms/ui'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { normaliseSlideId } from '@/lib/proposal-slide-ids'
 
 type SlideOption = {
@@ -39,6 +39,10 @@ const SLIDE_OPTIONS: SlideOption[] = [
   { label: 'Page 27 — Closing', value: '27 Closing' },
 ]
 
+const NORMALISED_TO_OPTION: Record<string, string> = Object.fromEntries(
+  SLIDE_OPTIONS.map((opt) => [normaliseSlideId(opt.value), opt.value]),
+)
+
 
 export default function ProposalSlideRemovalPicker(props: { path?: string }) {
   const path = props.path || 'visibleSlides'
@@ -62,9 +66,24 @@ export default function ProposalSlideRemovalPicker(props: { path?: string }) {
     [selectedValues],
   )
 
+  // Normalize legacy stored values (e.g. "1", "3") to valid option values so Payload validation passes
+  useEffect(() => {
+    const normalised = selectedValues
+      .map((item) => NORMALISED_TO_OPTION[normaliseSlideId(item)])
+      .filter((v): v is string => !!v)
+    if (
+      normalised.length !== selectedValues.length ||
+      normalised.some((v, i) => v !== selectedValues[i])
+    ) {
+      setValue(normalised)
+    }
+  }, [selectedValues, setValue])
+
   const toggle = (option: SlideOption, checked: boolean) => {
     const optionId = normaliseSlideId(option.value)
-    const withoutThisSlide = selectedValues.filter((item) => normaliseSlideId(item) !== optionId)
+    const withoutThisSlide = selectedValues
+      .filter((item) => normaliseSlideId(item) !== optionId)
+      .map((item) => NORMALISED_TO_OPTION[normaliseSlideId(item)] ?? item)
     setValue(checked ? [...withoutThisSlide, option.value] : withoutThisSlide)
   }
 
