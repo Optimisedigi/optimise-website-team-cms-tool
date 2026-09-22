@@ -5,6 +5,7 @@ import type {
   CollectionAfterReadHook,
 } from "payload";
 import { proposalEditor } from "@/lib/proposalEditor";
+import { normaliseSlideId } from "@/lib/proposal-slide-ids";
 import { logActivity } from "../lib/activity-log";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 import { syncContractToClient } from "../lib/contract-to-client-sync";
@@ -1996,6 +1997,29 @@ export const ClientProposals: CollectionConfig = {
               name: "visibleSlides",
               type: "select",
               hasMany: true,
+              hooks: {
+                beforeValidate: [({ value }) => {
+                  if (!Array.isArray(value)) return value
+                  const VALID_OPTIONS = new Set([
+                    "01 Cover", "02 What This Covers", "03 Section 01", "04 Philosophy",
+                    "04b Order of Operations", "05 Section 02", "06 Mission Brief",
+                    "08 Section 03", "09 Competitor Analysis", "10 Keywords",
+                    "11 Section 04", "14 SEO Health", "15 CRO Health",
+                    "13 Section 05", "13a Building the Ship", "13b Section 06",
+                    "17 Organic Propulsion", "18 Paid Activation", "16 Section 07",
+                    "20 Return Modelling", "19 Section 08", "12 Priorities",
+                    "21 Section 09", "22 Roadmap", "23 Section 10",
+                    "24 Commercial", "27 Closing",
+                  ])
+                  const normalised = value
+                    .map((v: string) => {
+                      if (VALID_OPTIONS.has(v)) return v
+                      const id = normaliseSlideId(v)
+                      return [...VALID_OPTIONS].find((opt) => normaliseSlideId(opt) === id) ?? v
+                    })
+                  return normalised
+                }],
+              },
               admin: {
                 description:
                   "Tick pages to REMOVE from the report. Checked pages will be hidden. Leave empty to show all.",
