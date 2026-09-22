@@ -30,7 +30,7 @@ import {
   resolveStarterQuestions,
 } from "./optimate-starter-questions";
 
-export type OptiMateRealtimeModel = "gpt-realtime-mini" | "gpt-realtime-2";
+export type OptiMateRealtimeModel = "gpt-realtime-mini" | "gpt-realtime-2" | "gpt-live-1";
 
 export interface OptiMateDefaultModels {
   defaultChatModel: CanonicalModelName;
@@ -108,7 +108,7 @@ function resolveChatHistoryTokenLimit(value: unknown): number {
 }
 
 export function resolveVoiceRealtimeModel(value: unknown): OptiMateRealtimeModel {
-  return value === "gpt-realtime-2" || value === "gpt-realtime-mini"
+  return value === "gpt-realtime-2" || value === "gpt-realtime-mini" || value === "gpt-live-1"
     ? value
     : DEFAULT_VOICE_REALTIME_MODEL;
 }

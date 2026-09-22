@@ -56,6 +56,10 @@ const REALTIME_MODEL_OPTIONS = [
     label: "GPT Realtime 2 (~$2.88/hr, stronger tool use)",
     value: "gpt-realtime-2",
   },
+  {
+    label: "GPT Live 1 (~$3.60/hr, full-duplex + backend delegation)",
+    value: "gpt-live-1",
+  },
 ];
 
 const MODEL_OPTION_VALUES = new Set<string>(MODEL_OPTIONS.map((option) => option.value));
@@ -321,7 +325,7 @@ export const OptiMateSettings: GlobalConfig = {
                   admin: {
                     width: "50%",
                     description:
-                      "Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests.",
+                      "Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests; Live 1 is full-duplex with backend delegation.",
                   },
                 },
                 {

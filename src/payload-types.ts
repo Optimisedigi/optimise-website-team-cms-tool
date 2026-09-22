@@ -9987,7 +9987,7 @@ export interface RealtimeVoiceUsage {
   id: number;
   sessionId: string;
   agent: 'google-ads' | 'email' | 'invoice';
-  model: 'gpt-realtime-mini' | 'gpt-realtime-2';
+  model: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-live-1';
   /**
    * Hourly rate used at the time this call was recorded.
    */
@@ -15726,9 +15726,9 @@ export interface OptimateSetting {
    */
   blogImageGenerationModel: string;
   /**
-   * Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests.
+   * Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests; Live 1 is full-duplex with backend delegation.
    */
-  voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2';
+  voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-live-1';
   /**
    * Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.
    */

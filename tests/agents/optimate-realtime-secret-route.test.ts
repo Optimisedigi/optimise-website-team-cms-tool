@@ -117,6 +117,44 @@ describe('POST /api/optimate/realtime-secret', () => {
     expect(payload.session.model).toBe('gpt-realtime-2')
     expect(payload.session.reasoning).toEqual({ effort: 'minimal' })
   })
+
+  it('creates a live session for gpt-live-1 with type live', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    getDefaults.mockResolvedValue({ voiceRealtimeModel: 'gpt-live-1' })
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          value: 'ek_test_live',
+          expires_at: 1756310470,
+          session: { model: 'gpt-live-1' },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await POST(
+      makeRequest({
+        session: {
+          instructions: 'Use OptiMate voice rules.',
+          tools: [{ type: 'function', name: 'get_campaign_performance' }],
+          turnDetection: { type: 'server_vad', create_response: true },
+        },
+      }),
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.value).toBe('ek_test_live')
+    expect(body.model).toBe('gpt-live-1')
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const payload = JSON.parse(String(init.body))
+    expect(payload.session.type).toBe('live')
+    expect(payload.session.model).toBe('gpt-live-1')
+    expect(payload.session.tools).toEqual([{ type: 'function', name: 'get_campaign_performance' }])
+    expect(payload.session.reasoning).toBeUndefined()
+  })
 })
 
 afterEach(() => {

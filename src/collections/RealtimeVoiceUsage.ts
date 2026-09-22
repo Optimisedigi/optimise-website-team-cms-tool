@@ -48,6 +48,7 @@ export const RealtimeVoiceUsage: CollectionConfig = {
       options: [
         { label: "GPT Realtime Mini", value: "gpt-realtime-mini" },
         { label: "GPT Realtime 2", value: "gpt-realtime-2" },
+        { label: "GPT Live 1", value: "gpt-live-1" },
       ],
     },
     {
