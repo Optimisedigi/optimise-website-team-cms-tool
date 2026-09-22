@@ -1997,6 +1997,7 @@ export const ClientProposals: CollectionConfig = {
               name: "visibleSlides",
               type: "select",
               hasMany: true,
+              validate: () => true,
               hooks: {
                 beforeValidate: [({ value }) => {
                   if (!Array.isArray(value)) return value
