@@ -47,6 +47,7 @@ const agentLabels: Record<string, string> = {
 const modelLabels: Record<string, string> = {
   'gpt-realtime-mini': 'Realtime Mini',
   'gpt-realtime-2': 'Realtime 2',
+  'gpt-realtime-2.1': 'Realtime 2.1',
 }
 
 export default async function RealtimeVoiceUsagePage() {

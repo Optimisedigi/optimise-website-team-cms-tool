@@ -3,7 +3,7 @@
 import { type CSSProperties, useEffect, useState } from 'react'
 
 interface UsageSummaryRow {
-  model: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-live-1'
+  model: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-realtime-2.1'
   calls: number
   durationSeconds: number
   estimatedCostAud: number
@@ -39,7 +39,7 @@ function formatAud(value: number): string {
 const MODEL_LABELS: Record<UsageSummaryRow['model'], string> = {
   'gpt-realtime-mini': 'GPT Realtime Mini',
   'gpt-realtime-2': 'GPT Realtime 2',
-  'gpt-live-1': 'GPT Live 1',
+  'gpt-realtime-2.1': 'GPT Realtime 2.1',
 }
 
 const panelShellStyle: CSSProperties = {

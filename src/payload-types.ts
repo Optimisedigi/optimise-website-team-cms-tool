@@ -9987,7 +9987,7 @@ export interface RealtimeVoiceUsage {
   id: number;
   sessionId: string;
   agent: 'google-ads' | 'email' | 'invoice';
-  model: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-live-1';
+  model: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-realtime-2.1';
   /**
    * Hourly rate used at the time this call was recorded.
    */
@@ -15726,9 +15726,9 @@ export interface OptimateSetting {
    */
   blogImageGenerationModel: string;
   /**
-   * Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests; Live 1 is full-duplex with backend delegation.
+   * Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 and 2.1 are better for complex tool-heavy requests; 2.1 is the newest.
    */
-  voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-live-1';
+  voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-realtime-2.1';
   /**
    * How voice calls are authenticated and billed. Codex OAuth uses the connected ChatGPT subscription at flat rate; no automatic fallback to API key.
    */

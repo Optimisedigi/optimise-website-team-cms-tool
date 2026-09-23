@@ -1,9 +1,10 @@
-export type RealtimeVoiceModel = "gpt-realtime-mini" | "gpt-realtime-2" | "gpt-live-1";
+export type RealtimeVoiceModel = "gpt-realtime-mini" | "gpt-realtime-2" | "gpt-realtime-2.1";
 
 export const REALTIME_VOICE_MODEL_RATES_USD_PER_HOUR: Record<RealtimeVoiceModel, number> = {
   "gpt-realtime-mini": 0.9,
   "gpt-realtime-2": 2.88,
-  "gpt-live-1": 3.6,
+  // Same per-token pricing as gpt-realtime-2.
+  "gpt-realtime-2.1": 2.88,
 };
 
 // Latest checked USD → AUD spot rate for displaying OpenAI Realtime costs in AUD.
@@ -11,7 +12,9 @@ export const REALTIME_VOICE_MODEL_RATES_USD_PER_HOUR: Record<RealtimeVoiceModel,
 export const USD_TO_AUD_EXCHANGE_RATE = 1.419971;
 
 export function resolveRealtimeVoiceModel(value: unknown): RealtimeVoiceModel | null {
-  return value === "gpt-realtime-mini" || value === "gpt-realtime-2" || value === "gpt-live-1" ? value : null;
+  return value === "gpt-realtime-mini" || value === "gpt-realtime-2" || value === "gpt-realtime-2.1"
+    ? value
+    : null;
 }
 
 export function estimateRealtimeVoiceCostUsd(

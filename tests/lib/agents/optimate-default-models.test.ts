@@ -65,6 +65,16 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.voiceRealtimeModel).toBe("gpt-realtime-2");
   });
 
+  it.each([
+    ["gpt-realtime-2.1", "gpt-realtime-2.1"],
+    ["gpt-live-1", "gpt-realtime-2.1"],
+    ["not-a-model", DEFAULT_VOICE_REALTIME_MODEL],
+  ])("resolves stored voice model %s to %s", async (stored, expected) => {
+    nextGlobal = { voiceRealtimeModel: stored };
+    const result = await getOptiMateDefaultModels();
+    expect(result.voiceRealtimeModel).toBe(expected);
+  });
+
   it("falls back to registry defaults when the global is unset", async () => {
     nextGlobal = null;
     const result = await getOptiMateDefaultModels();

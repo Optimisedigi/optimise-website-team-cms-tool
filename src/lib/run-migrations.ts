@@ -601,6 +601,14 @@ export async function runMigrations(
       "optimate_settings.voice_auth_method",
       "ALTER TABLE `optimate_settings` ADD `voice_auth_method` text DEFAULT 'api-key'",
     );
+    // gpt-live-1 was briefly offered but cannot run on the Realtime API (and
+    // GPT-Live's own endpoint rejects ChatGPT-plan auth). Move any stored
+    // selection to the newest Realtime model so the select field renders it.
+    // Idempotent: matches no rows once applied.
+    await run(
+      "optimate_settings.voice_realtime_model gpt-live-1 -> gpt-realtime-2.1",
+      "UPDATE `optimate_settings` SET `voice_realtime_model` = 'gpt-realtime-2.1' WHERE `voice_realtime_model` = 'gpt-live-1'",
+    );
   }
 
   /**

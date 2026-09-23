@@ -194,35 +194,6 @@ function buildRealtimeSession(input: {
   const model = input.model
   const voice = normalizeVoice(process.env.OPTIMATE_REALTIME_VOICE)
 
-  // GPT-Live uses a delegation architecture: a voice model handles conversation
-  // while delegating tool use and reasoning to a backend (Responses delegation).
-  // The session type is 'live' instead of 'realtime'.
-  if (model === 'gpt-live-1') {
-    return {
-      type: 'live',
-      model,
-      instructions: input.instructions,
-      output_modalities: ['audio'],
-      audio: {
-        input: {
-          format: { type: 'audio/pcm', rate: DEFAULT_SAMPLE_RATE },
-          noise_reduction: { type: 'near_field' },
-          transcription: { model: DEFAULT_REALTIME_TRANSCRIPTION_MODEL },
-          turn_detection: input.turnDetection,
-        },
-        output: {
-          format: { type: 'audio/pcm', rate: DEFAULT_SAMPLE_RATE },
-          voice,
-          speed: 1.0,
-        },
-      },
-      max_output_tokens: 4096,
-      tools: input.tools,
-      tool_choice: 'auto',
-      tracing: 'auto',
-    }
-  }
-
   return {
     type: 'realtime',
     model,

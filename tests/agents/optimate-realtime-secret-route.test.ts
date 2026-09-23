@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mockPayload = {
   auth: vi.fn(),
 }
-const getDefaults = vi.fn(async (_payload?: unknown) => ({ voiceRealtimeModel: 'gpt-realtime-mini' }))
+type VoiceDefaults = { voiceRealtimeModel: string; voiceAuthMethod?: string }
+const getDefaults = vi.fn(
+  async (_payload?: unknown): Promise<VoiceDefaults> => ({ voiceRealtimeModel: 'gpt-realtime-mini' }),
+)
 
 vi.mock('payload', () => ({
   getPayload: vi.fn(() => Promise.resolve(mockPayload)),
@@ -14,6 +17,10 @@ vi.mock('next/headers', () => ({
 }))
 vi.mock('@/lib/agents/_shared/optimate-default-models', () => ({
   getOptiMateDefaultModels: (payload?: unknown) => getDefaults(payload),
+}))
+const resolveCredential = vi.fn()
+vi.mock('@/lib/agents/_shared/llm/auth/resolver', () => ({
+  resolveCredential: (provider: string) => resolveCredential(provider),
 }))
 
 import { POST } from '@/app/(frontend)/api/optimate/realtime-secret/route'
@@ -32,6 +39,7 @@ beforeEach(() => {
   mockPayload.auth.mockReset()
   getDefaults.mockReset()
   getDefaults.mockResolvedValue({ voiceRealtimeModel: 'gpt-realtime-mini' })
+  resolveCredential.mockReset()
   process.env.OPENAI_API_KEY = 'sk-test'
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
@@ -118,42 +126,77 @@ describe('POST /api/optimate/realtime-secret', () => {
     expect(payload.session.reasoning).toEqual({ effort: 'minimal' })
   })
 
-  it('creates a live session for gpt-live-1 with type live', async () => {
+  it('mints gpt-realtime-2.1 as a realtime session with minimal reasoning', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    getDefaults.mockResolvedValue({ voiceRealtimeModel: 'gpt-live-1' })
+    getDefaults.mockResolvedValue({ voiceRealtimeModel: 'gpt-realtime-2.1' })
     const fetchMock = vi.fn(async () =>
       new Response(
-        JSON.stringify({
-          value: 'ek_test_live',
-          expires_at: 1756310470,
-          session: { model: 'gpt-live-1' },
-        }),
+        JSON.stringify({ value: 'ek_test_21', session: { model: 'gpt-realtime-2.1' } }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    const res = await POST(
-      makeRequest({
-        session: {
-          instructions: 'Use OptiMate voice rules.',
-          tools: [{ type: 'function', name: 'get_campaign_performance' }],
-          turnDetection: { type: 'server_vad', create_response: true },
-        },
-      }),
-    )
+    const res = await POST(makeRequest({ session: { instructions: 'hi' } }))
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body.value).toBe('ek_test_live')
-    expect(body.model).toBe('gpt-live-1')
-
+    expect(body.model).toBe('gpt-realtime-2.1')
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     const payload = JSON.parse(String(init.body))
-    expect(payload.session.type).toBe('live')
-    expect(payload.session.model).toBe('gpt-live-1')
-    expect(payload.session.tools).toEqual([{ type: 'function', name: 'get_campaign_performance' }])
-    expect(payload.session.reasoning).toBeUndefined()
+    expect(payload.session.type).toBe('realtime')
+    expect(payload.session.model).toBe('gpt-realtime-2.1')
+    expect(payload.session.reasoning).toEqual({ effort: 'minimal' })
+  })
+
+  it('uses the ChatGPT plan login instead of OPENAI_API_KEY when voice billing is codex-oauth', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    getDefaults.mockResolvedValue({
+      voiceRealtimeModel: 'gpt-realtime-2.1',
+      voiceAuthMethod: 'codex-oauth',
+    })
+    resolveCredential.mockResolvedValue({
+      source: 'oauth',
+      authHeader: { Authorization: 'Bearer oauth-token', 'chatgpt-account-id': 'acct_1' },
+    })
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ value: 'ek_plan', session: { model: 'gpt-realtime-2.1' } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await POST(makeRequest({ session: { instructions: 'hi' } }))
+
+    expect(res.status).toBe(200)
+    expect(resolveCredential).toHaveBeenCalledWith('openai-codex')
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const headers = init.headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer oauth-token')
+    expect(headers['chatgpt-account-id']).toBe('acct_1')
+    expect(headers.Authorization).not.toContain('sk-test')
+  })
+
+  it('does not fall back to OPENAI_API_KEY when the ChatGPT plan login is missing', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    getDefaults.mockResolvedValue({
+      voiceRealtimeModel: 'gpt-realtime-2.1',
+      voiceAuthMethod: 'codex-oauth',
+    })
+    resolveCredential.mockResolvedValue({
+      source: 'api-key',
+      authHeader: { Authorization: 'Bearer sk-test' },
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await POST(makeRequest({ session: { instructions: 'hi' } }))
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toMatch(/ChatGPT/)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 

@@ -30,7 +30,7 @@ import {
   resolveStarterQuestions,
 } from "./optimate-starter-questions";
 
-export type OptiMateRealtimeModel = "gpt-realtime-mini" | "gpt-realtime-2" | "gpt-live-1";
+export type OptiMateRealtimeModel = "gpt-realtime-mini" | "gpt-realtime-2" | "gpt-realtime-2.1";
 export type OptiMateVoiceAuthMethod = "api-key" | "codex-oauth";
 
 export interface OptiMateDefaultModels {
@@ -111,7 +111,11 @@ function resolveChatHistoryTokenLimit(value: unknown): number {
 }
 
 export function resolveVoiceRealtimeModel(value: unknown): OptiMateRealtimeModel {
-  return value === "gpt-realtime-2" || value === "gpt-realtime-mini" || value === "gpt-live-1"
+  // gpt-live-1 was briefly selectable but cannot run through the Realtime API
+  // (it needs /v1/live/sessions, which rejects ChatGPT-plan auth). Map a stored
+  // selection to the newest Realtime model rather than silently downgrading.
+  if (value === "gpt-live-1") return "gpt-realtime-2.1";
+  return value === "gpt-realtime-2" || value === "gpt-realtime-mini" || value === "gpt-realtime-2.1"
     ? value
     : DEFAULT_VOICE_REALTIME_MODEL;
 }
