@@ -28,6 +28,7 @@ import * as migration_20260904_140000_fix_sales_leads_services_id_integer from '
 import * as migration_20260910_120000_backfill_keyword_cost_finder_activity from './20260910_120000_backfill_keyword_cost_finder_activity'
 import * as migration_20260918_120000_add_client_campaign_start_date from './20260918_120000_add_client_campaign_start_date'
 import * as migration_20260918_140000_merge_client_pulse_seo_service from './20260918_140000_merge_client_pulse_seo_service'
+import * as migration_20260922_120000_add_voice_auth_method from './20260922_120000_add_voice_auth_method'
 import * as migration_20260801_130000_add_proposal_meta_ads_job_state from './20260801_130000_add_proposal_meta_ads_job_state'
 import * as migration_20260304_120000_add_gsc_indexing_audits from './20260304_120000_add_gsc_indexing_audits'
 import * as migration_20260306_120000_add_contracts from './20260306_120000_add_contracts'
@@ -1061,5 +1062,10 @@ export const migrations = [
     up: migration_20260918_140000_merge_client_pulse_seo_service.up,
     down: migration_20260918_140000_merge_client_pulse_seo_service.down,
     name: '20260918_140000_merge_client_pulse_seo_service',
+  },
+  {
+    up: migration_20260922_120000_add_voice_auth_method.up,
+    down: migration_20260922_120000_add_voice_auth_method.down,
+    name: '20260922_120000_add_voice_auth_method',
   },
 ]
