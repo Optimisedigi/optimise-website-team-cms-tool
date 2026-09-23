@@ -3,6 +3,7 @@ import { headers as nextHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { getOptiMateDefaultModels } from '@/lib/agents/_shared/optimate-default-models'
+import { resolveCredential } from '@/lib/agents/_shared/llm/auth/resolver'
 
 export const runtime = 'nodejs'
 
@@ -24,8 +25,12 @@ type TurnDetectionConfig = {
  *
  * Server-side Realtime secret minting. The browser sends the OptiMate-owned
  * session payload (instructions + voice-safe tool definitions); this route adds
- * the OpenAI model/audio config and uses OPENAI_API_KEY to mint a short-lived
- * `ek_...` client secret. The real API key never leaves the server.
+ * the OpenAI model/audio config and mints a short-lived `ek_...` client secret.
+ *
+ * Auth is controlled by the `voiceAuthMethod` setting:
+ *  - `codex-oauth`: uses the connected ChatGPT (Codex OAuth) subscription.
+ *    No fallback to API key — a missing or failed OAuth credential is a hard error.
+ *  - `api-key` (default): uses OPENAI_API_KEY. The real key never leaves the server.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   try {
@@ -36,31 +41,64 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const apiKey = process.env.OPENAI_API_KEY?.trim()
-    if (!apiKey) {
-      const diag = describeEnvScope()
-      const rawPresent = typeof process.env.OPENAI_API_KEY === 'string'
-      // `present-but-blank` means the var IS injected but its value is empty or
-      // whitespace (e.g. a stray newline pasted into the Vercel field); a fully
-      // absent var means it was never injected into THIS deployment/scope.
-      const reason = rawPresent
-        ? 'OPENAI_API_KEY is present but blank (empty or whitespace-only value).'
-        : 'OPENAI_API_KEY is not set in this deployment.'
-      console.error(
-        `[optimate-realtime-secret] missing key — ${reason} ${diag.log}`,
-      )
-      return NextResponse.json(
-        {
-          error: `${reason} Active env: ${diag.env}. Set OPENAI_API_KEY for this environment in Vercel, then redeploy (env vars are baked at build time).`,
-          diagnostic: {
-            reason: rawPresent ? 'present-but-blank' : 'absent',
-            vercelEnv: diag.env,
-            commit: diag.commit,
-            deploymentUrl: diag.url,
+    const defaults = await getOptiMateDefaultModels(payload)
+    const voiceAuthMethod = defaults.voiceAuthMethod
+
+    // Resolve auth headers based on the configured billing method.
+    // codex-oauth: ChatGPT plan via Codex OAuth — no fallback to API key.
+    // api-key: OPENAI_API_KEY per-hour billing.
+    let authHeaders: Record<string, string>
+    if (voiceAuthMethod === 'codex-oauth') {
+      try {
+        const resolved = await resolveCredential('openai-codex')
+        if (resolved.source !== 'oauth') {
+          return NextResponse.json(
+            {
+              error:
+                'Voice billing is set to ChatGPT Plan (Codex OAuth) but no connected ChatGPT account was found. Connect a ChatGPT account in Agent Auth, or switch voice billing to API Key in OptiMate Settings.',
+            },
+            { status: 400 },
+          )
+        }
+        authHeaders = { ...resolved.authHeader, 'Content-Type': 'application/json' }
+      } catch (err) {
+        const reason = (err as Error).message || 'Unknown error'
+        console.error('[optimate-realtime-secret] Codex OAuth resolution failed:', reason)
+        return NextResponse.json(
+          {
+            error: `ChatGPT Plan (Codex OAuth) auth failed: ${reason}. No fallback to API key is configured — fix the OAuth connection or switch voice billing to API Key in OptiMate Settings.`,
           },
-        },
-        { status: 500 },
-      )
+          { status: 502 },
+        )
+      }
+    } else {
+      const apiKey = process.env.OPENAI_API_KEY?.trim()
+      if (!apiKey) {
+        const diag = describeEnvScope()
+        const rawPresent = typeof process.env.OPENAI_API_KEY === 'string'
+        const reason = rawPresent
+          ? 'OPENAI_API_KEY is present but blank (empty or whitespace-only value).'
+          : 'OPENAI_API_KEY is not set in this deployment.'
+        console.error(
+          `[optimate-realtime-secret] missing key — ${reason} ${diag.log}`,
+        )
+        return NextResponse.json(
+          {
+            error: `${reason} Active env: ${diag.env}. Set OPENAI_API_KEY for this environment in Vercel, then redeploy (env vars are baked at build time).`,
+            diagnostic: {
+              reason: rawPresent ? 'present-but-blank' : 'absent',
+              vercelEnv: diag.env,
+              commit: diag.commit,
+              deploymentUrl: diag.url,
+            },
+          },
+          { status: 500 },
+        )
+      }
+      authHeaders = {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      }
     }
 
     const body = (await request.json().catch(() => null)) as {
@@ -76,7 +114,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: 'session.instructions is required' }, { status: 400 })
     }
 
-    const defaults = await getOptiMateDefaultModels(payload)
     const session = buildRealtimeSession({
       model: defaults.voiceRealtimeModel,
       instructions,
@@ -86,10 +123,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: authHeaders,
       body: JSON.stringify({ session }),
     })
 

@@ -79,6 +79,10 @@ function normaliseRealtimeModel(value: unknown): string {
     : DEFAULT_VOICE_REALTIME_MODEL;
 }
 
+function normaliseVoiceAuthMethod(value: unknown): string {
+  return value === "codex-oauth" ? "codex-oauth" : "api-key";
+}
+
 function normaliseRequiredNativeModel(value: unknown, fallback: string): string {
   const model = typeof value === "string" ? value.trim() : "";
   return model || fallback;
@@ -164,6 +168,7 @@ export const OptiMateSettings: GlobalConfig = {
         data.defaultChatModel = normaliseRequiredPickerModel(data.defaultChatModel, DEFAULT_CHAT_MODEL);
         data.defaultAutonomousModel = normaliseRequiredPickerModel(data.defaultAutonomousModel, DEFAULT_AUTONOMOUS_MODEL);
         data.voiceRealtimeModel = normaliseRealtimeModel(data.voiceRealtimeModel);
+        data.voiceAuthMethod = normaliseVoiceAuthMethod(data.voiceAuthMethod);
         data.blogPrompterModel = normaliseOptionalPickerModel(data.blogPrompterModel);
         data.invoiceAssistantModel = normaliseOptionalPickerModel(data.invoiceAssistantModel);
         data.emailAssistantModel = normaliseOptionalPickerModel(data.emailAssistantModel);
@@ -326,6 +331,27 @@ export const OptiMateSettings: GlobalConfig = {
                     width: "50%",
                     description:
                       "Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests; Live 1 is full-duplex with backend delegation.",
+                  },
+                },
+                {
+                  name: "voiceAuthMethod",
+                  type: "select",
+                  label: "Voice billing",
+                  options: [
+                    {
+                      label: "ChatGPT Plan (Codex OAuth) — flat rate",
+                      value: "codex-oauth",
+                    },
+                    {
+                      label: "OpenAI API Key — billed per hour",
+                      value: "api-key",
+                    },
+                  ],
+                  defaultValue: "api-key",
+                  admin: {
+                    width: "50%",
+                    description:
+                      "How voice calls are authenticated and billed. Codex OAuth uses the connected ChatGPT subscription at flat rate; no automatic fallback to API key.",
                   },
                 },
                 {

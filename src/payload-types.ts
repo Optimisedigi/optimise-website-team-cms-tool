@@ -15730,6 +15730,10 @@ export interface OptimateSetting {
    */
   voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-live-1';
   /**
+   * How voice calls are authenticated and billed. Codex OAuth uses the connected ChatGPT subscription at flat rate; no automatic fallback to API key.
+   */
+  voiceAuthMethod?: ('codex-oauth' | 'api-key') | null;
+  /**
    * Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.
    */
   chatHistoryTokenLimit?: number | null;
@@ -16083,6 +16087,7 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
   negativeSweepModel?: T;
   blogImageGenerationModel?: T;
   voiceRealtimeModel?: T;
+  voiceAuthMethod?: T;
   chatHistoryTokenLimit?: T;
   googleMateStarterQuestions?:
     | T
