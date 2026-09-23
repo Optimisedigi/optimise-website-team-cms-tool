@@ -590,6 +590,19 @@ export async function runMigrations(
     await run("clients.campaign_start_date", "ALTER TABLE `clients` ADD `campaign_start_date` text");
   }
 
+  // OptiMate voice billing selector (2026-09-22). Runs before the marker
+  // short-circuit for the same reason as above: Payload selects every
+  // `optimate_settings` column, so while this is missing the settings global
+  // cannot be read or saved. Existing rows take the DEFAULT on ADD COLUMN.
+  async function addOptiMateVoiceAuthMethod(): Promise<void> {
+    // Fresh databases create this table further down the main sweep.
+    if (!(await tableExists("optimate_settings"))) return;
+    await run(
+      "optimate_settings.voice_auth_method",
+      "ALTER TABLE `optimate_settings` ADD `voice_auth_method` text DEFAULT 'api-key'",
+    );
+  }
+
   /**
    * Fold the retired `seo` tracked-service value into `organic`.
    *
@@ -650,6 +663,7 @@ export async function runMigrations(
     await setClientsListPerPage();
     await addMonthlyKeywordSelectionColumns();
     await addClientCampaignStartDate();
+    await addOptiMateVoiceAuthMethod();
     await mergeClientPulseSeoService();
     await addWatchtowerAndSiteHealthSchema();
 
@@ -4810,6 +4824,10 @@ export async function runMigrations(
     await run(
       "optimate_settings.voice_realtime_model",
       "ALTER TABLE `optimate_settings` ADD `voice_realtime_model` text DEFAULT 'gpt-realtime-mini'",
+    );
+    await run(
+      "optimate_settings.voice_auth_method",
+      "ALTER TABLE `optimate_settings` ADD `voice_auth_method` text DEFAULT 'api-key'",
     );
     // Chat history token budget (2026-06-29). Added to the global config after
     // the table was first created, so existing prod tables lack the column and
