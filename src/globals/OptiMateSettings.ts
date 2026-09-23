@@ -13,6 +13,7 @@ import {
 import {
   DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
   DEFAULT_VOICE_REALTIME_MODEL,
+  resolveVoiceRealtimeModel,
 } from "../lib/agents/_shared/optimate-default-models";
 import {
   CLIENT_EMAIL_COPY_SLOTS,
@@ -63,7 +64,6 @@ const REALTIME_MODEL_OPTIONS = [
 ];
 
 const MODEL_OPTION_VALUES = new Set<string>(MODEL_OPTIONS.map((option) => option.value));
-const REALTIME_MODEL_OPTION_VALUES = new Set<string>(REALTIME_MODEL_OPTIONS.map((option) => option.value));
 
 function normaliseOptionalPickerModel(value: unknown): string | undefined {
   return typeof value === "string" && MODEL_OPTION_VALUES.has(value) ? value : undefined;
@@ -73,10 +73,10 @@ function normaliseRequiredPickerModel(value: unknown, fallback: string): string 
   return typeof value === "string" && MODEL_OPTION_VALUES.has(value) ? value : fallback;
 }
 
+// Same mapping as the settings reader, so a stored legacy value (e.g.
+// gpt-live-1 -> gpt-realtime-2.1) is kept consistent when an admin saves.
 function normaliseRealtimeModel(value: unknown): string {
-  return typeof value === "string" && REALTIME_MODEL_OPTION_VALUES.has(value)
-    ? value
-    : DEFAULT_VOICE_REALTIME_MODEL;
+  return resolveVoiceRealtimeModel(value);
 }
 
 function normaliseVoiceAuthMethod(value: unknown): string {
