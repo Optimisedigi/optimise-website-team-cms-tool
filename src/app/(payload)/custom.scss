@@ -5375,6 +5375,325 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label='API'] {
     padding-inline: 3px;
     width: calc(100vw - 6px);
   }
+
+  .od-team-tasks-page {
+    min-width: 0;
+    padding: 16px 12px 32px !important;
+  }
+
+  .od-team-tasks-page h1 {
+    font-size: 28px !important;
+  }
+
+  .od-team-tasks-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .od-team-tasks-filters > * {
+    min-width: 0;
+  }
+
+  .od-team-tasks-filters input,
+  .od-team-tasks-filters select {
+    box-sizing: border-box;
+  }
+
+  .od-team-tasks-filters > div:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.od-team-tasks-mobile {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.od-team-tasks-week {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--theme-elevation-150, #d1d5db);
+  border-radius: 12px;
+  background: var(--theme-elevation-0, #fff);
+  color: var(--theme-text, #1f2937);
+}
+
+.od-team-tasks-week-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  color: #fff;
+}
+
+.od-team-tasks-week-header h2 {
+  flex: 1 1 155px;
+  min-width: 0;
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.od-team-tasks-week-header > span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.od-team-tasks-week-header button {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.od-team-tasks-cards {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.od-team-tasks-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--theme-elevation-150, #d1d5db);
+  border-radius: 9px;
+  background: var(--theme-elevation-0, #fff);
+  overflow-wrap: anywhere;
+}
+
+.od-team-tasks-card-top,
+.od-team-tasks-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.od-team-tasks-card-status,
+.od-team-tasks-card-priority {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.od-team-tasks-card-priority {
+  color: #92400e;
+  border: 1px solid #b45309;
+}
+
+.od-team-tasks-card h3 {
+  margin: 10px 0;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.od-team-tasks-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+}
+
+.od-team-tasks-card-meta div {
+  min-width: 0;
+}
+
+.od-team-tasks-card-meta dt {
+  color: var(--theme-elevation-600, #4b5563);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.od-team-tasks-card-meta dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.od-team-tasks-card-notes {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.od-team-tasks-card-actions {
+  margin-top: 12px;
+}
+
+.od-team-tasks-card-actions button,
+.od-team-tasks-card-options summary,
+.od-team-tasks-mobile-actions button {
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--theme-elevation-250, #9ca3af);
+  border-radius: 8px;
+  background: var(--theme-elevation-0, #fff);
+  color: var(--theme-text, #1f2937);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.od-team-tasks-card-actions > button {
+  flex: 1 1 125px;
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.od-team-tasks-card-options {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.od-team-tasks-card-options[open] {
+  flex-basis: 100%;
+}
+
+.od-team-tasks-card-options summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  list-style: none;
+}
+
+.od-team-tasks-card-options summary::-webkit-details-marker {
+  display: none;
+}
+
+.od-team-tasks-card-options > div {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.od-team-tasks-card-options label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.od-team-tasks-card-options select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--theme-elevation-250, #9ca3af);
+  border-radius: 8px;
+  background: var(--theme-elevation-0, #fff);
+  color: var(--theme-text, #1f2937);
+  font: inherit;
+}
+
+.od-team-tasks-card-options .od-team-tasks-delete {
+  color: #991b1b;
+  border-color: #991b1b;
+}
+
+.od-team-tasks-mobile-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.od-team-tasks-mobile-actions button:first-child {
+  background: #0f766e;
+  color: #fff;
+  border-color: #0f766e;
+}
+
+.od-team-tasks-card button:focus-visible,
+.od-team-tasks-card summary:focus-visible,
+.od-team-tasks-mobile-actions button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media (max-width: 360px) {
+  .od-team-tasks-filters,
+  .od-team-tasks-card-meta {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .od-team-tasks-table-frame {
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+  }
+
+  .od-team-tasks-table th {
+    white-space: nowrap;
+  }
+
+  .od-team-tasks-table .od-team-task-row:hover > td:not([rowspan]) {
+    background-color: rgba(255, 255, 255, .3);
+  }
+
+  .od-team-tasks-table td input[type='date'],
+  .od-team-tasks-table td select {
+    box-sizing: border-box;
+    min-height: 36px;
+  }
+
+  .od-team-tasks-table td textarea {
+    font-family: inherit;
+    font-weight: 650;
+  }
+
+  .od-team-tasks-week-count {
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .od-team-task-heading {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .od-team-task-heading > strong {
+    color: var(--theme-elevation-500, #596473);
+    font-size: 12px !important;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .od-team-task-heading input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .od-team-task-overview,
+  .od-team-task-section,
+  .od-team-task-comments-panel {
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid var(--theme-elevation-150, #d1d5db);
+    border-radius: 12px;
+    background: var(--theme-elevation-0, #fff);
+  }
+
+  .od-team-task-detail {
+    background: var(--theme-elevation-50, #f8fafc) !important;
+  }
+
+  .od-team-task-section > strong,
+  .od-team-task-comments-toolbar > strong {
+    font-size: 16px !important;
+  }
 }
 
 .od-team-task-comments-open,

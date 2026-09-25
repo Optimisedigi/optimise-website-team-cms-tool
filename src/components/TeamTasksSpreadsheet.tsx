@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import TeamTaskDetailPane from './TeamTaskDetailPane'
 import { TEAM_TASK_TYPE_OPTIONS } from '@/lib/team-task-options'
 import { isEmptyTeamTaskPlaceholder } from '@/lib/team-task-placeholder'
@@ -134,9 +134,9 @@ const thStyle: React.CSSProperties = {
   top: 0,
   zIndex: 2,
   textAlign: 'left',
-  background: 'var(--theme-bg)',
+  background: 'var(--theme-elevation-50)',
   borderBottom: '1px solid var(--theme-elevation-150)',
-  padding: '10px 8px',
+  padding: '12px 10px',
   fontSize: 11,
   textTransform: 'uppercase',
   letterSpacing: '.04em',
@@ -147,6 +147,19 @@ const tdStyle: React.CSSProperties = {
   borderBottom: '1px solid var(--theme-elevation-100)',
   padding: 6,
   verticalAlign: 'top',
+}
+
+const mobileTaskQuery = '(max-width: 768px)'
+
+function subscribeMobileTasks(onChange: () => void): () => void {
+  if (typeof window === 'undefined' || !window.matchMedia) return () => {}
+  const media = window.matchMedia(mobileTaskQuery)
+  media.addEventListener('change', onChange)
+  return () => media.removeEventListener('change', onChange)
+}
+
+function mobileTasksSnapshot(): boolean {
+  return typeof window !== 'undefined' && Boolean(window.matchMedia?.(mobileTaskQuery).matches)
 }
 
 const weekColors = [
@@ -257,34 +270,6 @@ function plainTextFromHtml(value: string): string {
     .trim()
 }
 
-function NotesPreview({ value }: { value: string }) {
-  const text = plainTextFromHtml(value)
-
-  return (
-    <div
-      title={text || 'Open task details to add notes'}
-      style={{
-        minHeight: 58,
-        border: '1px solid var(--theme-elevation-150)',
-        borderRadius: 6,
-        padding: '7px 8px',
-        background: 'rgba(255,255,255,.45)',
-        color: text ? 'inherit' : 'var(--theme-elevation-400)',
-        fontSize: 13,
-        lineHeight: 1.35,
-        overflow: 'hidden',
-        overflowWrap: 'anywhere',
-        display: '-webkit-box',
-        WebkitBoxOrient: 'vertical',
-        WebkitLineClamp: 4,
-        whiteSpace: 'pre-wrap',
-      }}
-    >
-      {text || 'Open details to add notes…'}
-    </div>
-  )
-}
-
 function WeekGroupCell({
   week,
   rowSpan,
@@ -299,9 +284,10 @@ function WeekGroupCell({
   onDeleteWeek: () => void
 }) {
   return (
-    <td rowSpan={rowSpan} style={{ ...tdStyle, width: 132, minWidth: 132, background: color, color: '#fff', textAlign: 'center', verticalAlign: 'middle' }}>
+    <td rowSpan={rowSpan} className="od-team-tasks-week-cell" style={{ ...tdStyle, width: 132, minWidth: 132, background: color, color: '#fff', textAlign: 'center', verticalAlign: 'middle' }}>
       <div style={{ display: 'grid', gap: 8, padding: '4px 2px', fontWeight: 800 }}>
         <span>{weekLabel(week)}</span>
+        <span className="od-team-tasks-week-count">{rowSpan} {rowSpan === 1 ? 'task' : 'tasks'}</span>
         {showDeleteWeek && (
           <button
             type="button"
@@ -325,7 +311,7 @@ function TaskDateCell({ task, disabled, onChange, cellStyle }: {
   cellStyle?: React.CSSProperties
 }) {
   return (
-    <td style={{ ...tdStyle, width: 120, minWidth: 120, ...cellStyle }}>
+    <td style={{ ...tdStyle, width: 152, minWidth: 152, ...cellStyle }}>
       <input
         type="date"
         aria-label={`Task date for ${task.title || 'task'}`}
@@ -340,6 +326,7 @@ function TaskDateCell({ task, disabled, onChange, cellStyle }: {
 }
 
 export default function TeamTasksSpreadsheet() {
+  const mobile = useSyncExternalStore(subscribeMobileTasks, mobileTasksSnapshot, () => false)
   const [tasks, setTasks] = useState<TeamTask[]>([])
   const [clients, setClients] = useState<Option[]>([])
   const [users, setUsers] = useState<Option[]>([])
@@ -354,16 +341,19 @@ export default function TeamTasksSpreadsheet() {
   const [canEditTaskFields, setCanEditTaskFields] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | number | null>(null)
+  const latestLoadId = useRef(0)
 
-  const load = async (requestedWeek = weekStart, requestedMode = weekMode) => {
+  const load = async (requestedWeek = weekStart, requestedMode = weekMode, requestedStatus = statusFilter, requestedClient = clientFilter) => {
+    const loadId = ++latestLoadId.current
     setLoading(true)
     setError('')
     try {
-      const params = new URLSearchParams({ status: statusFilter, weekStart: requestedMode === 'week' ? requestedWeek : requestedMode })
-      if (clientFilter) params.set('client', clientFilter)
+      const params = new URLSearchParams({ status: requestedStatus, weekStart: requestedMode === 'week' ? requestedWeek : requestedMode })
+      if (requestedClient) params.set('client', requestedClient)
       const res = await fetch(`/api/team-tasks/grid?${params.toString()}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load tasks')
+      if (loadId !== latestLoadId.current) return
       setTasks(json.tasks || [])
       setClients(json.clients || [])
       setUsers(json.users || [])
@@ -371,9 +361,9 @@ export default function TeamTasksSpreadsheet() {
       setCanEditTaskFields(Boolean(json.canEditTaskFields ?? json.canManage))
       setIsAdmin(Boolean(json.isAdmin))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load tasks')
+      if (loadId === latestLoadId.current) setError(err instanceof Error ? err.message : 'Failed to load tasks')
     } finally {
-      setLoading(false)
+      if (loadId === latestLoadId.current) setLoading(false)
     }
   }
 
@@ -477,14 +467,15 @@ export default function TeamTasksSpreadsheet() {
       if (!res.ok) throw new Error(json.error || 'Failed to save task')
       setTasks((prev) => prev.map((task) => task.id === id ? json.task : task))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save task')
+      const message = err instanceof Error ? err.message : 'Failed to save task'
       await load()
+      setError(message)
     } finally {
       setSavingId(null)
     }
   }
 
-  const addRow = async (dueDate = weekStart) => {
+  const addRow = async (dueDate = weekStart, refresh = true): Promise<boolean> => {
     setSavingId('new')
     setError('')
     try {
@@ -495,9 +486,11 @@ export default function TeamTasksSpreadsheet() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to add task')
-      await load()
+      if (refresh) await load()
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add task')
+      return false
     } finally {
       setSavingId(null)
     }
@@ -507,22 +500,25 @@ export default function TeamTasksSpreadsheet() {
     setSavingId('new')
     setError('')
     try {
-      // Decide the target week from the authoritative full list of weeks that
-      // already have tasks — not from `groupedTasks`, which in `week`/`last2`/
-      // `last4` mode only holds the currently-loaded subset and would make us
-      // skip (or duplicate) weeks that exist but aren't loaded yet.
+      // Check weeks across all clients and statuses, not the filtered tasks
+      // currently displayed in the grid.
       const params = new URLSearchParams({ status: 'all', weekStart: 'all' })
-      if (clientFilter) params.set('client', clientFilter)
       const res = await fetch(`/api/team-tasks/grid?${params.toString()}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to add week')
       const existing = new Set<string>(
         (json.tasks || []).map((task: TeamTask) => taskWeek(task.dueDate)).filter(Boolean),
       )
-      // Walk forward from the current week to the first week with no tasks, so
-      // the next *unavailable* week is added instead of jumping past a gap.
+      // The all-weeks response is capped, so verify a candidate directly
+      // before treating it as empty, even when it is absent from that list.
       let target = mondayKey()
-      while (existing.has(target)) {
+      while (true) {
+        if (!existing.has(target)) {
+          const check = await fetch(`/api/team-tasks/grid?${new URLSearchParams({ status: 'all', weekStart: target })}`)
+          const week = await check.json()
+          if (!check.ok) throw new Error(week.error || 'Failed to check week')
+          if (!week.tasks?.length) break
+        }
         const d = new Date(`${target}T00:00:00`)
         d.setDate(d.getDate() + 7)
         target = mondayKey(d)
@@ -530,23 +526,29 @@ export default function TeamTasksSpreadsheet() {
       // Create the row first; only switch the view to the new week once the
       // POST has succeeded, so a failed add never strands the UI on an empty
       // week that was never created.
-      await addRow(target)
-      setWeekMode('all')
+      if (!(await addRow(target, false))) return
+      // The empty-week placeholder is unassigned and in progress. Clear filters
+      // that would hide it, and focus its week without splitting weekly tasks.
+      setClientFilter('')
+      setStatusFilter('all')
+      setWeekMode('week')
       setWeekStart(target)
+      await load(target, 'week', 'all', '')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add week')
+    } finally {
       setSavingId(null)
     }
   }
 
   return (
-    <div style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
+    <div className="od-team-tasks-page" style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
       <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Team Tasks</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: '150px 220px 180px 260px 1fr', gap: 8, alignItems: 'end', marginBottom: 10 }}>
+      <div className="od-team-tasks-filters" style={{ display: 'grid', gridTemplateColumns: '150px 220px 180px 260px 1fr', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
           Weeks
           <select value={weekMode} onChange={(e) => setWeekMode(e.target.value as 'week' | 'all' | 'last2' | 'last4')} style={inputStyle}>
-            <option value="week">This week</option>
+            <option value="week">Selected week</option>
             <option value="all">All weeks</option>
             <option value="last2">Last 2 weeks</option>
             <option value="last4">Last 4 weeks</option>
@@ -566,12 +568,12 @@ export default function TeamTasksSpreadsheet() {
             style={{ ...inputStyle, cursor: weekMode === 'week' ? 'pointer' : 'default' }}
           />
         </label>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={inputStyle}>
+        <select aria-label="Filter tasks by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={inputStyle}>
           <option value="all">All statuses</option>
           <option value="open">Open work</option>
           {statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
-        <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={inputStyle}>
+        <select aria-label="Filter tasks by client" value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={inputStyle}>
           <option value="">All clients</option>
           {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
         </select>
@@ -580,13 +582,13 @@ export default function TeamTasksSpreadsheet() {
         </div>
       </div>
 
-      {error && <div style={{ marginBottom: 10, padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
+      {error && <div role="alert" style={{ marginBottom: 10, padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
 
-      <div style={{ width: '100%', maxWidth: 'none', border: '1px solid var(--theme-elevation-150)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)' }}>
-        <table style={{ width: '100%', minWidth: 1480, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+      {!mobile && <div className="od-team-tasks-table-frame" style={{ width: '100%', maxWidth: 'none', border: '1px solid var(--theme-elevation-150)', borderRadius: 12, overflow: 'auto', background: 'var(--theme-bg)' }}>
+        <table className="od-team-tasks-table" style={{ width: '100%', minWidth: 1520, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: 132 }} />
-            <col style={{ width: 120 }} />
+            <col style={{ width: 152 }} />
             <col style={{ width: 170 }} />
             <col style={{ width: 175 }} />
             <col style={{ width: 260 }} />
@@ -616,7 +618,7 @@ export default function TeamTasksSpreadsheet() {
             ) : groupedTasks.map(([week, rows], groupIndex) => {
               const weekColor = weekColors[groupIndex % weekColors.length]
               return rows.map((task, index) => (
-              <tr key={`${week}-${task.id}`} style={{ background: weekColor.bg, height: 74, ...priorityRowTint(task.priority), ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
+              <tr className="od-team-task-row" key={`${week}-${task.id}`} style={{ background: weekColor.bg, height: 74, ...priorityRowTint(task.priority), ...(savingId === task.id ? { opacity: .6 } : undefined) }}>
                 {index === 0 && (
                   <WeekGroupCell
                     week={week}
@@ -645,7 +647,9 @@ export default function TeamTasksSpreadsheet() {
                 </td>
                 <td style={{ ...tdStyle, ...priorityCellStyle(task.priority, 'middle') }}>
                   <textarea
+                    key={`${task.id}:${task.title}`}
                     defaultValue={task.title || ''}
+                    aria-label={`Task title for ${task.title || 'task'}`}
                     rows={2}
                     onBlur={(e) => {
                       if (e.target.value !== task.title) void patch(task.id, { title: e.target.value })
@@ -665,9 +669,9 @@ export default function TeamTasksSpreadsheet() {
                     onClick={() => openTask(task.id)}
                     aria-label={`Edit schedule for ${task.title || 'task'}`}
                     title="Edit task schedule"
-                    style={{ ...inputStyle, display: 'block', width: 30, height: 30, marginTop: 6, padding: 0, cursor: 'pointer', color: '#1d4ed8', fontSize: 15 }}
+                    style={{ ...inputStyle, display: 'block', width: 'auto', minHeight: 30, marginTop: 6, padding: '4px 8px', cursor: 'pointer', color: '#1d4ed8', fontSize: 11, fontWeight: 700 }}
                   >
-                    🕒
+                    Schedule
                   </button>
                 </td>
                 <td style={{ ...tdStyle, ...priorityCellStyle(task.priority, 'middle') }}>
@@ -711,6 +715,7 @@ export default function TeamTasksSpreadsheet() {
                         onClick={() => void deleteRow(task.id)}
                         disabled={savingId === task.id}
                         title="Delete row"
+                        aria-label={`Delete ${task.title || 'task'}`}
                         style={{ ...inputStyle, width: 36, height: 36, padding: 0, cursor: 'pointer', color: '#991b1b', fontWeight: 900 }}
                       >
                         ×
@@ -744,13 +749,85 @@ export default function TeamTasksSpreadsheet() {
             )}
           </tbody>
         </table>
-      </div>
+      </div>}
+      {mobile && (
+        <div className="od-team-tasks-mobile" aria-label="Weekly team tasks">
+          {loading ? <p role="status">Loading tasks…</p> : groupedTasks.length === 0 ? (
+            <p>No tasks match this week. Add the first task below.</p>
+          ) : groupedTasks.map(([week, rows], groupIndex) => {
+            const color = weekColors[groupIndex % weekColors.length]
+            return (
+              <section className="od-team-tasks-week" key={week} aria-label={`Week ${weekLabel(week)}`}>
+                <div className="od-team-tasks-week-header" style={{ background: color.box }}>
+                  <h2>Week {weekLabel(week)}</h2>
+                  <span>{rows.length} {rows.length === 1 ? 'task' : 'tasks'}</span>
+                  {canEditTaskFields && rows.every(isEmptyTeamTaskPlaceholder) && (
+                    <button type="button" disabled={savingId === `week:${week}`} onClick={() => void deleteEmptyWeek(week, rows)}>Delete empty week</button>
+                  )}
+                </div>
+                <div className="od-team-tasks-cards">
+                  {rows.map((task) => (
+                    <article className="od-team-tasks-card" key={task.id} style={{ borderInlineStart: `4px solid ${priorityRank(task.priority) === 2 ? '#dc2626' : priorityRank(task.priority) === 1 ? '#b45309' : color.box}` }}>
+                      <div className="od-team-tasks-card-top">
+                        <span className="od-team-tasks-card-status" style={statusTone(task.status)}>{statuses.find(([value]) => value === task.status)?.[1] || task.status}</span>
+                        {priorityRank(task.priority) > 0 && <span className="od-team-tasks-card-priority">{task.priority === 'urgent' ? 'Urgent' : 'Priority'}</span>}
+                      </div>
+                      <h3>{task.title || 'Untitled task'}</h3>
+                      <dl className="od-team-tasks-card-meta">
+                        <div><dt>Task date</dt><dd>{task.dueDate ? <time dateTime={task.dueDate.slice(0, 10)}>{new Date(`${task.dueDate.slice(0, 10)}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</time> : 'No date'}</dd></div>
+                        <div><dt>Client</dt><dd>{relName(task.client, clients) || 'No client'}</dd></div>
+                        <div><dt>Assigned</dt><dd>{relName(task.assignedTo, users) || 'Unassigned'}</dd></div>
+                        <div><dt>Type</dt><dd>{TEAM_TASK_TYPE_OPTIONS.find(({ value }) => value === task.taskType)?.label || task.taskType || 'Other'}</dd></div>
+                      </dl>
+                      {task.instructions && <p className="od-team-tasks-card-notes">{plainTextFromHtml(task.instructions)}</p>}
+                      <div className="od-team-tasks-card-actions">
+                        <button type="button" onClick={() => openTask(task.id)} aria-label={`Open details for ${task.title || 'task'}`}>Open task</button>
+                        <details className="od-team-tasks-card-options">
+                          <summary>Quick edit</summary>
+                          <div>
+                            <label>Client
+                              <select value={relId(task.client)} onChange={(e) => void patch(task.id, { client: e.target.value })} disabled={!canEditTaskFields || savingId === task.id}>
+                                <option value="">—</option>
+                                {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+                              </select>
+                            </label>
+                            <label>Task type
+                              <select value={task.taskType || 'other'} onChange={(e) => void patch(task.id, { taskType: e.target.value })} disabled={!canEditTaskFields || savingId === task.id}>
+                                {TEAM_TASK_TYPE_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                              </select>
+                            </label>
+                            <button type="button" onClick={() => void patch(task.id, { priority: nextPriority(task.priority) })} disabled={!canEditTaskFields || savingId === task.id} aria-label={`Change priority for ${task.title || 'task'}`}>
+                              {task.priority === 'urgent' ? 'Clear urgent priority' : task.priority === 'high' ? 'Make urgent' : 'Set priority'}
+                            </button>
+                            {canManage && <button type="button" className="od-team-tasks-delete" onClick={() => void deleteRow(task.id)} disabled={savingId === task.id}>Delete task</button>}
+                          </div>
+                        </details>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )
+          })}
+          {!loading && <div className="od-team-tasks-mobile-actions">
+            <button type="button" onClick={() => void addRow()} disabled={savingId === 'new'}>{savingId === 'new' ? 'Adding task…' : 'Add task this week'}</button>
+            {isAdmin && <button type="button" onClick={() => window.dispatchEvent(new Event('optimate:open-taskmate'))}>Open TaskMate</button>}
+            <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'}>{savingId === 'new' ? 'Adding week…' : '+ Add week'}</button>
+          </div>}
+        </div>
+      )}
       {selectedTaskId && (
         <TeamTaskDetailPane
           taskId={selectedTaskId}
           onClose={closeTask}
-          onTaskUpdated={(updatedTask) => {
-            setTasks((prev) => prev.map((task) => task.id === updatedTask.id ? { ...task, ...updatedTask } : task))
+          onTaskUpdated={(updatedTask, persistedFilterChange) => {
+            setTasks((prev) => {
+              const updated = prev.map((task) => task.id === updatedTask.id ? { ...task, ...updatedTask } : task)
+              return persistedFilterChange && weekMode === 'week'
+                ? updated.filter((task) => taskWeek(task.dueDate) === weekStart)
+                : updated
+            })
+            if (persistedFilterChange && (weekMode !== 'all' || statusFilter !== 'all' || clientFilter)) void load()
           }}
         />
       )}

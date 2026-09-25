@@ -337,7 +337,7 @@ function ScreenshotPreview({ screenshot, removing, onRemove, onRename }: { scree
   )
 }
 
-export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: { taskId: string | number; onClose: () => void; onTaskUpdated?: (task: TeamTask) => void }) {
+export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: { taskId: string | number; onClose: () => void; onTaskUpdated?: (task: TeamTask, persistedFilterChange?: boolean) => void }) {
   const [data, setData] = useState<DetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -346,6 +346,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
   const [deletingMediaId, setDeletingMediaId] = useState<string | number | null>(null)
   const [error, setError] = useState('')
   const [comment, setComment] = useState('')
+  const [titleDraft, setTitleDraft] = useState('')
   const [commentsOpen, setCommentsOpen] = useState(false)
   const commentsButtonRef = useRef<HTMLButtonElement | null>(null)
   const commentsBackRef = useRef<HTMLButtonElement | null>(null)
@@ -362,6 +363,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load task')
       setData(json)
+      setTitleDraft(json.task.title || '')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load task')
     } finally {
@@ -400,6 +402,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
     if (!data) return
     const previous = data.task
     const next = { ...data.task, ...patch }
+    setError('')
     setData({ ...data, task: next })
     onTaskUpdated?.(next)
     setSaving(true)
@@ -412,9 +415,12 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to save task')
       setData((current) => current ? { ...current, task: json.task } : current)
-      onTaskUpdated?.(json.task)
+      if ('title' in patch) setTitleDraft(json.task.title || '')
+      onTaskUpdated?.(json.task, 'dueDate' in patch || 'status' in patch || 'client' in patch)
     } catch (err) {
       setData((current) => current ? { ...current, task: previous } : current)
+      if ('title' in patch) setTitleDraft(previous.title || '')
+      onTaskUpdated?.(previous)
       setError(err instanceof Error ? err.message : 'Failed to save task')
     } finally {
       setSaving(false)
@@ -571,17 +577,21 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
           Drop images anywhere to attach them
         </div>
       )}
-      <aside className="od-team-task-detail" aria-label="Task details" style={{ width: 'min(1500px, calc(100vw - 10px))', height: '100%', background: 'var(--theme-elevation-0, #fff)', color: 'var(--theme-text, #1f2937)', boxShadow: '-18px 0 44px rgba(15,23,42,.22)', overflow: 'auto', boxSizing: 'border-box' }}>
+      <aside className="od-team-task-detail" aria-label="Task details" style={{ width: 'min(1180px, calc(100vw - 32px))', height: '100%', background: 'var(--theme-elevation-0, #fff)', color: 'var(--theme-text, #1f2937)', boxShadow: '-18px 0 44px rgba(15,23,42,.22)', overflow: 'auto', boxSizing: 'border-box' }}>
         <div className="od-team-task-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--theme-elevation-150)', position: 'sticky', top: 0, background: 'var(--theme-elevation-0, #fff)', zIndex: 2 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '1 1 auto' }}>
-            <strong style={{ fontSize: 18, whiteSpace: 'nowrap' }}>Task details:</strong>
+          <div className="od-team-task-heading" style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '1 1 auto' }}>
+            <strong style={{ fontSize: 18, whiteSpace: 'nowrap' }}>Task details</strong>
             {task ? (
               <input
-                value={task.title || ''}
+                value={titleDraft}
                 aria-label="Task title"
-                onChange={(e) => setData((current) => current ? { ...current, task: { ...current.task, title: e.target.value } } : current)}
-                onBlur={(e) => { if (e.target.value !== task.title) void patchTask({ title: e.target.value || 'New task' }) }}
-                style={{ border: 0, background: 'transparent', color: 'inherit', fontSize: 18, fontWeight: 800, minWidth: 0, flex: '1 1 auto', outline: 'none', padding: 0 }}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={(e) => {
+                  const next = e.target.value || 'New task'
+                  setTitleDraft(next)
+                  if (next !== task.title) void patchTask({ title: next })
+                }}
+                style={{ border: 0, background: 'transparent', color: 'inherit', fontSize: 20, fontWeight: 800, minWidth: 0, flex: '1 1 auto', padding: 0 }}
               />
             ) : (
               <span style={{ color: 'var(--theme-elevation-500)' }}>Loading…</span>
@@ -596,9 +606,10 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
         ) : !task ? (
           <div style={{ padding: 24, color: '#991b1b' }}>{error || 'Task not found'}</div>
         ) : (
-          <div className="od-team-task-main" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.08fr) minmax(320px, .92fr)', gap: 28, padding: '24px 24px', boxSizing: 'border-box' }}>
-            <section style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
+          <div className="od-team-task-main" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.08fr) minmax(320px, .92fr)', gap: 20, padding: '20px 24px', boxSizing: 'border-box' }}>
+            <section className="od-team-task-fields" style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
               {error && !commentsOpen && <div role="alert" style={{ padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
+              <div className="od-team-task-overview" style={{ display: 'grid', gap: 10 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <label style={{ display: 'grid', gap: 5, fontWeight: 700, fontSize: 12, color: 'var(--theme-elevation-500)' }}>
                   Assigned
@@ -634,14 +645,15 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
                   Forward to next week
                 </button>
               </div>
-              <span style={{ marginTop: -10, fontSize: 12, color: 'var(--theme-elevation-500)' }}>Choose a date to move this task into that week.</span>
+              <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Choose a date to move this task into that week.</span>
+              </div>
 
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div className="od-team-task-section" style={{ display: 'grid', gap: 8 }}>
                 <strong>Description / instructions</strong>
                 <RichBox value={task.instructions || ''} placeholder="Add task instructions…" onSave={(next) => { if (next !== (task.instructions || '')) void patchTask({ instructions: next }) }} />
               </div>
 
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div className="od-team-task-section" style={{ display: 'grid', gap: 8 }}>
                 <strong>Links</strong>
                 {(task.relatedLinks || []).map((link, index) => (
                   <div key={`${link.url}-${index}`} className="od-team-task-link-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, alignItems: 'center', padding: 8, borderRadius: 8, background: 'var(--theme-elevation-50)' }}>
@@ -657,7 +669,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div className="od-team-task-section" style={{ display: 'grid', gap: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                   <strong>Screenshots / images</strong>
                   <button type="button" onClick={() => imageInputRef.current?.click()} disabled={uploading} style={{ ...fieldStyle, width: 'auto', minWidth: 126, cursor: uploading ? 'wait' : 'pointer', color: '#2563eb', fontWeight: 800 }}>
