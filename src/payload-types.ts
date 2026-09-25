@@ -9328,7 +9328,9 @@ export interface LandingEvent {
     | 'section_dwell'
     | 'page_dwell'
     | 'chat_start'
-    | 'chat_identified';
+    | 'chat_identified'
+    | 'chat_open'
+    | 'chat_step';
   occurredAt: string;
   receivedAt: string;
   sessionId: string;

@@ -4,7 +4,8 @@ const PRODUCTION_ORIGIN = "https://cms.optimisedigital.online";
 
 type LandingDashboardPath =
   | "/api/dashboard/landing-experiments"
-  | "/api/dashboard/landing-pages";
+  | "/api/dashboard/landing-pages"
+  | "/api/dashboard/landing-chat";
 
 /**
  * Development reads landing analytics from production instead of a local copy.

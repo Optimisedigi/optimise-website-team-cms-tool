@@ -14,6 +14,8 @@
  * build emit a sections manifest the CMS fetches.
  */
 
+import type { LandingLayoutId } from "@/lib/landing-layouts";
+
 export interface LandingSection {
   /** `data-track-section` value — matches section_dwell's sectionId. */
   id: string;
@@ -46,8 +48,14 @@ export interface LandingPageMeta {
  * has to be findable on the page it describes, so a paraphrased label ("Key
  * sectors" for a section headed "We hire for these key sectors") makes the
  * reader hunt for the block the number belongs to.
+ *
+ * There are two lists because the page was rebuilt in place (see
+ * landing-layouts.ts): history recorded against the original page must keep
+ * its original rows, and the new page has sections the old one never had.
  */
-const MARKET_SECTIONS: LandingSection[] = [
+
+/** The page as served until the layout cutover. Frozen: it describes history. */
+export const ORIGINAL_SECTIONS: LandingSection[] = [
   // The hero leads with the page h1; every other row is its h2.
   { id: "hero", label: "Outsourcing, done better", anchor: null },
   { id: "logostrip", label: "Trusted by 200+ companies", anchor: "logostrip-h" },
@@ -67,6 +75,38 @@ const MARKET_SECTIONS: LandingSection[] = [
 ];
 
 /**
+ * The page as served since the layout cutover.
+ *
+ * Role pages (ad-group pages for one role) swap the sectors block for
+ * "What your <role> can own" and add the seniority tiers after it; market and
+ * category pages keep sectors. One list serves both - a section a page does not
+ * have simply shows as not reached - which keeps the rows in one stable order.
+ */
+export const CURRENT_SECTIONS: LandingSection[] = [
+  { id: "hero", label: "Outsourcing to Vietnam, done better", anchor: null },
+  { id: "logostrip", label: "Trusted by 200+ companies", anchor: "logostrip-h" },
+  { id: "fit", label: "Is Away Digital right for your business?", anchor: "fit" },
+  { id: "answers", label: "Short on time? Watch the answers.", anchor: "answers" },
+  { id: "how", label: "How it Works", anchor: "how" },
+  { id: "tools", label: "Are you ready to outsource?", anchor: "tools" },
+  { id: "proof", label: "200+ companies grow faster with our top-tier talent.", anchor: "proof" },
+  { id: "concerns", label: "The most common concerns we hear", anchor: "concerns-h" },
+  { id: "compare", label: "Vietnam vs. the alternatives", anchor: "compare" },
+  { id: "commercial", label: "What your monthly invoice includes", anchor: "commercial" },
+  { id: "faqs", label: "FAQs", anchor: "faqs" },
+  { id: "sectors", label: "We hire for these key sectors. Here are the facts.", anchor: "sectors" },
+  // Role pages only; the role section reuses the #sectors anchor it replaces.
+  { id: "role-scope", label: "What your role can own", anchor: "sectors" },
+  { id: "tiers", label: "Match the level to your workload", anchor: "tiers" },
+  { id: "contact", label: "Talk to our team", anchor: "contact" },
+  { id: "booking", label: "Choose your time", anchor: null },
+];
+
+export function sectionsForLayout(layout: LandingLayoutId): LandingSection[] {
+  return layout === "original" ? ORIGINAL_SECTIONS : CURRENT_SECTIONS;
+}
+
+/**
  * The live public domain. Previews embed these URLs in an iframe, which the
  * landing project permits through its frame-ancestors header — a domain change
  * here needs the matching entry there, and in the property's allowedOrigins, or
@@ -79,14 +119,14 @@ export const LANDING_PAGES: Record<string, LandingPageMeta> = {
     pageId: "offshore-teams-au",
     label: "AU: Outsourcing to Vietnam",
     url: `${BASE}/outsourcing-au`,
-    sections: MARKET_SECTIONS,
+    sections: CURRENT_SECTIONS,
     goalSectionId: "booking",
   },
   "offshore-teams-us": {
     pageId: "offshore-teams-us",
     label: "US: Offshore Teams in Vietnam",
     url: `${BASE}/outsourcing-us`,
-    sections: MARKET_SECTIONS,
+    sections: CURRENT_SECTIONS,
     goalSectionId: "booking",
   },
 };
@@ -123,9 +163,13 @@ function titleCase(slug: string): string {
  * hyphens, and the URL is always built against `BASE` - a crafted id can never
  * point the preview iframe at another origin, only at a path on our own site.
  */
-export function resolveLandingPage(pageId: string): LandingPageMeta | null {
+export function resolveLandingPage(
+  pageId: string,
+  layout: LandingLayoutId = "current",
+): LandingPageMeta | null {
+  const sections = sectionsForLayout(layout);
   const known = LANDING_PAGES[pageId];
-  if (known) return known;
+  if (known) return { ...known, sections };
 
   const slug = AD_GROUP_PAGE_ID.exec(pageId)?.[1];
   if (!slug) return null;
@@ -137,7 +181,7 @@ export function resolveLandingPage(pageId: string): LandingPageMeta | null {
     pageId,
     label: market ? `${market.toUpperCase()}: ${name}` : name,
     url: `${BASE}/lp/${slug}`,
-    sections: MARKET_SECTIONS,
+    sections,
     goalSectionId: "booking",
   };
 }

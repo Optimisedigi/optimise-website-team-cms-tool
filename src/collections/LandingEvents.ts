@@ -64,6 +64,9 @@ export const LandingEvents: CollectionConfig = {
         // its own event API rather than from listeners on this page.
         "chat_start",
         "chat_identified",
+        // Guided chat depth: panel opened (auto or button) and each answer given.
+        "chat_open",
+        "chat_step",
       ].map((value) => ({ label: value, value })),
     },
     { name: "occurredAt", type: "date", required: true, index: true },

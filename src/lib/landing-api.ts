@@ -44,6 +44,11 @@ export const LANDING_EVENT_TYPES = [
      once the chat has captured an email. */
   "chat_start",
   "chat_identified",
+  /* Guided chat depth. `chat_open` is the panel opening (properties.trigger is
+     "auto" or "button"); `chat_step` is one answer (node, choice and step ids
+     only - never anything the visitor typed). */
+  "chat_open",
+  "chat_step",
 ] as const;
 
 export type LandingEventType = (typeof LANDING_EVENT_TYPES)[number];

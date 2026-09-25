@@ -6,6 +6,7 @@ import { validateDashboardToken } from "../verify/route";
 import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
 import { resolveLandingDateRange } from "@/lib/landing-date-range";
 import { LANDING_PAGES } from "@/lib/landing-page-sections";
+import { clampToLayout, hasLayouts, layoutAdsDateRange, parseLayout } from "@/lib/landing-layouts";
 import {
   CHAT_LEAD_SQL_PREDICATE,
   CHAT_STARTED_SQL_PREDICATE,
@@ -394,6 +395,16 @@ export async function GET(req: NextRequest) {
   const range = resolveLandingDateRange(req.nextUrl.searchParams);
   if (!range) return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
 
+  // Page layout (Away only): events and ad spend are both narrowed to the
+  // chosen layout's lifetime. A read-time clamp; nothing stored changes.
+  const layout = hasLayouts(slug) ? parseLayout(req.nextUrl.searchParams.get("layout")) : null;
+  const layoutWindow = layout
+    ? clampToLayout(layout, range.since, range.until)
+    : { since: range.since, until: range.until, empty: false };
+  const adsDateRange = layout
+    ? layoutAdsDateRange(layout, range, layoutWindow, range.googleAdsRange)
+    : range.googleAdsRange;
+
   try {
     const upstream = await fetch(localPreview ? LOCAL_PREVIEW_MANIFEST_URL : MANIFEST_URL, {
       // Local previews must reflect the latest generated file immediately; production can cache briefly.
@@ -419,14 +430,14 @@ export async function GET(req: NextRequest) {
     ).docs[0] as { id?: number | string; googleAdsCustomerId?: string } | undefined;
 
     const [adGroups, engagement] = await Promise.all([
-      client?.googleAdsCustomerId
+      client?.googleAdsCustomerId && adsDateRange
         ? loadAdGroupMetrics(
             String(client.googleAdsCustomerId).replace(/[^0-9]/g, ""),
-            range.googleAdsRange,
+            adsDateRange,
           )
         : Promise.resolve(new Map<string, AdGroupMetric>()),
-      client?.id
-        ? loadEngagement(payload, client.id, range.since, range.until)
+      client?.id && !layoutWindow.empty
+        ? loadEngagement(payload, client.id, layoutWindow.since, layoutWindow.until)
         : Promise.resolve(new Map<string, Engagement>()),
     ]);
 
@@ -499,6 +510,10 @@ export async function GET(req: NextRequest) {
       // The UI says "no ad data" rather than showing a misleading zero spend.
       adMetricsAvailable: adGroups.size > 0,
       rangeLabel: range.label,
+      layout,
+      layoutSince: layout ? layoutWindow.since : null,
+      layoutUntil: layout ? layoutWindow.until : null,
+      layoutEmpty: layoutWindow.empty,
     });
   } catch (error) {
     return NextResponse.json(

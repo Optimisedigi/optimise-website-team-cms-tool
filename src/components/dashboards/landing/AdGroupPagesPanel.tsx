@@ -7,6 +7,7 @@ import {
   landingDateRangeParams,
   type LandingDateRange,
 } from "@/lib/landing-date-range";
+import type { LandingLayoutId } from "@/lib/landing-layouts";
 
 /**
  * Every generated ad-group landing page, with a preview.
@@ -77,10 +78,13 @@ export function AdGroupPagesPanel({
   slug,
   range = DEFAULT_LANDING_DATE_RANGE,
   onPagesLoaded,
+  layout,
 }: {
   slug: string;
   range?: LandingDateRange;
   onPagesLoaded?: (pages: ManifestPage[]) => void;
+  /** Page layout to report on (Away only); omitted for single-layout clients. */
+  layout?: LandingLayoutId;
 }) {
   const [pages, setPages] = useState<ManifestPage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +96,7 @@ export function AdGroupPagesPanel({
       try {
         const query = new URLSearchParams({ slug });
         landingDateRangeParams(range).forEach((value, key) => query.set(key, value));
+        if (layout) query.set("layout", layout);
         const res = await fetch(`/api/dashboard/landing-pages?${query}`);
         const json = await res.json();
         if (cancelled) return;
@@ -106,7 +111,7 @@ export function AdGroupPagesPanel({
     return () => {
       cancelled = true;
     };
-  }, [slug, range, onPagesLoaded]);
+  }, [slug, range, onPagesLoaded, layout]);
 
   if (error) {
     return (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { landingDateRangeParams, type LandingDateRange } from "@/lib/landing-date-range";
+import type { LandingLayoutId } from "@/lib/landing-layouts";
 import type { ManifestPage } from "./AdGroupPagesPanel";
 
 const CARD = "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm";
@@ -24,7 +25,16 @@ const PAGE_SETS = {
 type PageSet = keyof typeof PAGE_SETS;
 
 /** Local-only review catalog for category pages that have not been deployed yet. */
-export function CategoryPreviewPanel({ slug, range }: { slug: string; range: LandingDateRange }) {
+export function CategoryPreviewPanel({
+  slug,
+  range,
+  layout,
+}: {
+  slug: string;
+  range: LandingDateRange;
+  /** Page layout to report on (Away only); omitted for single-layout clients. */
+  layout?: LandingLayoutId;
+}) {
   const [pages, setPages] = useState<ManifestPage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openSlug, setOpenSlug] = useState<string | null>(null);
@@ -36,6 +46,7 @@ export function CategoryPreviewPanel({ slug, range }: { slug: string; range: Lan
       try {
         const query = new URLSearchParams({ slug, preview: "1" });
         landingDateRangeParams(range).forEach((value, key) => query.set(key, value));
+        if (layout) query.set("layout", layout);
         const response = await fetch(`/api/dashboard/landing-pages?${query}`);
         const json = await response.json();
         if (!response.ok) throw new Error(json?.error || `Failed (${response.status})`);
@@ -48,7 +59,7 @@ export function CategoryPreviewPanel({ slug, range }: { slug: string; range: Lan
       }
     })();
     return () => { cancelled = true; };
-  }, [slug, range]);
+  }, [slug, range, layout]);
 
   if (error) return <section className={CARD}><h3 className="text-base font-bold">Category page previews</h3><p className="mt-2 text-sm text-red-600">{error}</p></section>;
   if (!pages) return <section className={CARD}><h3 className="text-base font-bold">Category page previews</h3><p className="mt-2 text-sm text-slate-500">Loading previews…</p></section>;

@@ -386,6 +386,22 @@ describe("landing experiment routes", () => {
       expect(payloadMock.create).not.toHaveBeenCalled();
     });
 
+    it("accepts the guided-chat depth events with their id-only properties", async () => {
+      const open = { ...sampleEvent("evt-chat-open", "chat_open"), properties: { chat_id: "renee-guided", trigger: "auto" } };
+      const step = {
+        ...sampleEvent("evt-chat-step", "chat_step"),
+        properties: { chat_id: "renee-guided", node: "welcome", choice: "ready", step: 1 },
+      };
+      const res = await eventsPOST(eventsRequest(eventBatch([open, step], validToken())));
+
+      expect(res.status).toBe(202);
+      await expect(res.json()).resolves.toEqual({ accepted: 2, rejected: 0, excluded: 0 });
+      const written = payloadMock.create.mock.calls.map((call) => call[0].data);
+      expect(written.map((row) => row.eventType)).toEqual(["chat_open", "chat_step"]);
+      expect(written[0].properties).toEqual({ chat_id: "renee-guided", trigger: "auto" });
+      expect(written[1].properties).toEqual({ chat_id: "renee-guided", node: "welcome", choice: "ready", step: 1 });
+    });
+
     it("rejects malformed events without aborting the valid ones", async () => {
       const res = await eventsPOST(
         eventsRequest(

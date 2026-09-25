@@ -308,7 +308,7 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await GET(
-      get(`?slug=${SLUG}&start=2026-08-19&end=2026-08-20`, "dashboard_token=valid-token"),
+      get(`?slug=${SLUG}&start=2026-08-19&end=2026-08-20&layout=original`, "dashboard_token=valid-token"),
     );
     const body = await res.json();
     const bpo = body.pages.find((p: { slug: string }) => p.slug === "bpo-services-au");
@@ -544,5 +544,110 @@ describe("GET /api/dashboard/landing-pages decoration", () => {
     expect(body.pages[0].bounceRate).toBeNull();
     expect(body.pages[0].medianSeconds).toBeNull();
     expect(body.pages[0].sessions).toBe(0);
+  });
+});
+
+describe("GET /api/dashboard/landing-pages layout split", () => {
+  const COOKIE = "dashboard_token=valid-token";
+  const sqlText = (statement: unknown): string => {
+    const chunks = (statement as { queryChunks?: { value?: unknown[] }[] } | undefined)?.queryChunks ?? [];
+    return chunks
+      .flatMap((chunk) => (Array.isArray(chunk?.value) ? chunk.value : []))
+      .filter((part): part is string => typeof part === "string")
+      .join("");
+  };
+  const engagementSql = () =>
+    mockRun.mock.calls.map((call) => sqlText(call[0])).find((sql) => sql.includes("AS converted"));
+
+  function stubAdsAndManifest() {
+    const fetchMock = vi.fn((url: string, _init?: RequestInit) =>
+      Promise.resolve(
+        String(url).includes("ad-groups/list")
+          ? { ok: true, status: 200, json: () => Promise.resolve({ success: true, adGroups: [] }) }
+          : { ok: true, status: 200, json: () => Promise.resolve(MANIFEST) },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const adsRangeOf = (fetchMock: ReturnType<typeof stubAdsAndManifest>): string | null => {
+    const call = fetchMock.mock.calls.find(([url]) => String(url).includes("ad-groups/list"));
+    return call ? JSON.parse(String(call[1]?.body)).dateRange : null;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-28T00:00:00.000Z"));
+    mockValidateDashboardToken.mockReset();
+    mockValidateDashboardToken.mockReturnValue(true);
+    mockAuth.mockReset();
+    mockFind.mockReset();
+    mockRun.mockReset();
+    mockRun.mockResolvedValue({ rows: [] });
+    process.env.GROWTH_TOOLS_URL = "http://growth.test";
+    process.env.INTERNAL_API_KEY = "k";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    delete process.env.GROWTH_TOOLS_URL;
+    delete process.env.INTERNAL_API_KEY;
+  });
+
+  it("defaults to the current layout and starts events and ads at the cutover", async () => {
+    mockFind.mockResolvedValue({ docs: [{ id: 7, googleAdsCustomerId: "3425353766" }] });
+    const fetchMock = stubAdsAndManifest();
+
+    const res = await GET(get(`?slug=${SLUG}&start=2026-09-20&end=2026-09-26`, COOKIE));
+    const body = await res.json();
+
+    expect(body.layout).toBe("current");
+    expect(body.layoutSince).toBe("2026-09-24T16:12:36.000Z");
+    expect(body.layoutEmpty).toBe(false);
+    expect(engagementSql()).toContain("occurred_at >= '2026-09-24T16:12:36.000Z'");
+    expect(adsRangeOf(fetchMock)).toBe("2026-09-25,2026-09-26");
+  });
+
+  it("ends the original layout at the cutover, and its ads the day before", async () => {
+    mockFind.mockResolvedValue({ docs: [{ id: 7, googleAdsCustomerId: "3425353766" }] });
+    const fetchMock = stubAdsAndManifest();
+
+    const res = await GET(get(`?slug=${SLUG}&start=2026-09-20&end=2026-09-26&layout=original`, COOKIE));
+    const body = await res.json();
+
+    expect(body.layout).toBe("original");
+    expect(body.layoutUntil).toBe("2026-09-24T16:12:36.000Z");
+    expect(engagementSql()).toContain("occurred_at < '2026-09-24T16:12:36.000Z'");
+    expect(adsRangeOf(fetchMock)).toBe("2026-09-20,2026-09-24");
+  });
+
+  it("returns the page list with no numbers when the range predates the layout", async () => {
+    mockFind.mockResolvedValue({ docs: [{ id: 7, googleAdsCustomerId: "3425353766" }] });
+    const fetchMock = stubAdsAndManifest();
+
+    const res = await GET(get(`?slug=${SLUG}&start=2026-08-01&end=2026-08-31`, COOKIE));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.layoutEmpty).toBe(true);
+    expect(body.pages.length).toBeGreaterThan(0);
+    expect(body.pages.every((page: { sessions: number }) => page.sessions === 0)).toBe(true);
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(adsRangeOf(fetchMock)).toBeNull();
+  });
+
+  it("leaves other clients unfiltered and without layout info", async () => {
+    mockFind.mockResolvedValue({ docs: [{ id: 9, googleAdsCustomerId: "1112223333" }] });
+    const fetchMock = stubAdsAndManifest();
+
+    const res = await GET(get(`?slug=other-client&start=2026-08-01&end=2026-09-26&layout=current`, COOKIE));
+    const body = await res.json();
+
+    expect(body.layout).toBeNull();
+    expect(body.layoutEmpty).toBe(false);
+    expect(engagementSql()).not.toContain("2026-09-24T16:12:36.000Z");
+    expect(adsRangeOf(fetchMock)).toBe("2026-08-01,2026-09-26");
   });
 });

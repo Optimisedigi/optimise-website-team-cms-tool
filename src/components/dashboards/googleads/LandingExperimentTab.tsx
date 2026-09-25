@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import RocketSplash from "@/components/RocketSplash";
 import { resolveLandingPage, type LandingPageMeta } from "@/lib/landing-page-sections";
+import type { LandingLayoutId } from "@/lib/landing-layouts";
+import { LandingLayoutToggle, LAYOUT_CUTOVER_LABEL } from "../landing/LandingLayoutToggle";
 import { AWAY_DIGITAL_SLUG, isAwayDigitalSlug } from "@/lib/away-digital";
 import {
   DEFAULT_LANDING_DATE_RANGE,
@@ -133,6 +135,10 @@ interface ReportResponse {
   /** Reporting baseline: events before this are excluded whatever range is picked. */
   dataStartDate?: string | null;
   baselineApplied?: boolean;
+  /** Page layout the report was clamped to; null for single-layout clients. */
+  layout?: LandingLayoutId | null;
+  /** True when the range lies entirely outside the chosen layout's lifetime. */
+  layoutEmpty?: boolean;
 }
 
 const BEHAVIOUR_LABELS: Record<string, string> = {
@@ -217,8 +223,12 @@ function formatSeconds(seconds: number): string {
  * raw ids ordered by time: one ordered list across two different pages would
  * describe a page that does not exist.
  */
-function resolveSectionTemplate(page: string, pages: Segment[]): LandingPageMeta | null {
-  if (page) return resolveLandingPage(page) ?? null;
+function resolveSectionTemplate(
+  page: string,
+  pages: Segment[],
+  layout: LandingLayoutId,
+): LandingPageMeta | null {
+  if (page) return resolveLandingPage(page, layout) ?? null;
 
   /* Unrecognised ids are skipped rather than treated as fatal. Bailing out on
      the first unknown id meant one stray page_id - or one new page - removed
@@ -226,7 +236,7 @@ function resolveSectionTemplate(page: string, pages: Segment[]): LandingPageMeta
      far worse answer than describing the pages we do recognise. */
   const known = pages
     .filter((entry) => entry.key !== "(unset)")
-    .map((entry) => resolveLandingPage(entry.key))
+    .map((entry) => resolveLandingPage(entry.key, layout))
     .filter((meta): meta is LandingPageMeta => meta !== null);
   if (known.length === 0) return null;
 
@@ -309,6 +319,8 @@ export function LandingExperimentTab({
   standaloneHeader = false,
   landingPages,
   onLoadingChange,
+  layout: controlledLayout,
+  onLayoutChange,
 }: {
   slug: string;
   customerId?: string;
@@ -334,6 +346,9 @@ export function LandingExperimentTab({
   /** Fires whenever the report starts or finishes loading, so a parent can keep
    *  its own panels out of sight until this one has something to show. */
   onLoadingChange?: (loading: boolean) => void;
+  /** Page layout to report on (Away only). Uncontrolled when omitted. */
+  layout?: LandingLayoutId;
+  onLayoutChange?: (layout: LandingLayoutId) => void;
 }) {
   const [data, setData] = useState<ReportResponse | null>(null);
   const [catalogPages, setCatalogPages] = useState<
@@ -357,6 +372,13 @@ export function LandingExperimentTab({
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const range = controlledRange ?? internalRange;
+  const [internalLayout, setInternalLayout] = useState<LandingLayoutId>("current");
+  const layout = controlledLayout ?? internalLayout;
+  const layoutAware = isAwayDigitalSlug(slug);
+  const updateLayout = (next: LandingLayoutId) => {
+    setInternalLayout(next);
+    onLayoutChange?.(next);
+  };
   const updateRange = (next: LandingDateRange) => {
     setInternalRange(next);
     onRangeChange?.(next);
@@ -399,6 +421,7 @@ export function LandingExperimentTab({
     if (device) query.set("device", device);
     if (scopedPageKey) query.set("pages", scopedPageKey);
     if (market) query.set("market", market);
+    if (layoutAware) query.set("layout", layout);
 
     fetch(`/api/dashboard/landing-experiments?${query}`)
       .then(async (res) => {
@@ -420,13 +443,14 @@ export function LandingExperimentTab({
     return () => {
       cancelled = true;
     };
-  }, [slug, range, page, device, scopedPageKey, market]);
+  }, [slug, range, page, device, scopedPageKey, market, layoutAware, layout]);
 
   useEffect(() => {
     if (landingPages !== undefined || !isAwayDigitalSlug(slug)) return;
     let cancelled = false;
     const catalogQuery = new URLSearchParams({ slug });
     landingDateRangeParams(range).forEach((value, key) => catalogQuery.set(key, value));
+    catalogQuery.set("layout", layout);
 
     fetch(`/api/dashboard/landing-pages?${catalogQuery}`, {
       credentials: "include",
@@ -460,7 +484,7 @@ export function LandingExperimentTab({
                 })[0]
               : undefined;
             const market = typeof row.market === "string" ? row.market : undefined;
-            return resolveLandingPage(pageId)
+            return resolveLandingPage(pageId, layout)
               ? [{ pageId, title, adGroupName, clicks, campaign, market }]
               : [];
           }),
@@ -473,7 +497,7 @@ export function LandingExperimentTab({
     return () => {
       cancelled = true;
     };
-  }, [slug, range, landingPages]);
+  }, [slug, range, landingPages, layout]);
   /**
    * What happened to these leads after the form, from HubSpot.
    *
@@ -675,7 +699,7 @@ export function LandingExperimentTab({
   const running = data.experiment?.status?.toLowerCase() === "running";
   // Resolved against every page, not the filtered list: the selected page keeps
   // its sections and preview regardless of what the list is currently showing.
-  const sectionTemplate = resolveSectionTemplate(page, allPageOptions);
+  const sectionTemplate = resolveSectionTemplate(page, allPageOptions, layout);
   // The shared market previews predate ad-group landing page IDs; each is the
   // template behind its matching generic Vietnam outsourcing ad group.
   const previewCatalogPageId =
@@ -922,6 +946,13 @@ export function LandingExperimentTab({
               {landingDateRangeCaption(range)}
             </span>
           </div>
+          {/* Its own column beside Range: it scopes the whole report the same way. */}
+          {layoutAware && (
+            <div className="flex shrink-0 flex-col gap-1 text-xs text-slate-500">
+              <span className="flex h-4 items-center">Layout</span>
+              <LandingLayoutToggle layout={layout} onChange={updateLayout} />
+            </div>
+          )}
           {data.baselineApplied && data.dataStartDate && (
             <span
               id="landing-range-tooltip"
@@ -1016,7 +1047,13 @@ export function LandingExperimentTab({
 
       {!hasVariants && (
         <div className={CARD}>
-          <p className="text-sm text-slate-500">No landing events recorded in this range.</p>
+          <p className="text-sm text-slate-500">
+            {data.layoutEmpty
+              ? data.layout === "original"
+                ? `This range starts after the original layout was replaced on ${LAYOUT_CUTOVER_LABEL}. Switch to the new layout to see it.`
+                : `The new layout went live on ${LAYOUT_CUTOVER_LABEL}, after this range ends. Switch to the original layout to see it.`
+              : "No landing events recorded in this range."}
+          </p>
         </div>
       )}
 

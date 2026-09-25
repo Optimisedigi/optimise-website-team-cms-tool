@@ -146,7 +146,7 @@ describe("LandingExperimentTab with a single landing page", () => {
     // uses instead of hard-coding a date pair that rots overnight.
     const expectedRange = landingDateRangeParams(DEFAULT_LANDING_DATE_RANGE);
     expect(fetchMock).toHaveBeenCalledWith(
-      `/api/dashboard/landing-pages?slug=away-digital-teams&${expectedRange}`,
+      `/api/dashboard/landing-pages?slug=away-digital-teams&${expectedRange}&layout=current`,
       expect.objectContaining({ credentials: "include" }),
     );
   });

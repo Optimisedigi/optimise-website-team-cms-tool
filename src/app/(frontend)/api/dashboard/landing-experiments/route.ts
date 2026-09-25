@@ -5,6 +5,7 @@ import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
 import { proxyProductionLandingDashboard } from "@/lib/production-landing-dashboard";
 import { resolveLandingDateRange } from "@/lib/landing-date-range";
+import { clampToLayout, hasLayouts, parseLayout } from "@/lib/landing-layouts";
 import {
   labelCampaignIds,
   loadGoogleAdsCampaignNames,
@@ -484,9 +485,21 @@ export async function GET(req: NextRequest) {
   const parsedStart = rawStart ? new Date(rawStart) : null;
   const dataStartDate =
     parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart.toISOString() : null;
-  const since =
+  const baselineSince =
     dataStartDate && dataStartDate > requestedSince ? dataStartDate : requestedSince;
-  const baselineApplied = since !== requestedSince;
+  const baselineApplied = baselineSince !== requestedSince;
+
+  // Page layout (Away only): the page was rebuilt in place, so its old and new
+  // data are separated by the cutover moment. A read-time clamp, like the
+  // baseline above. An empty window runs as a zero-length range, which returns
+  // the normal report shape with nothing in it.
+  const layoutAware = hasLayouts(slug);
+  const layout = layoutAware ? parseLayout(req.nextUrl.searchParams.get("layout")) : null;
+  const layoutWindow = layout
+    ? clampToLayout(layout, baselineSince, range.until)
+    : { since: baselineSince, until: range.until, empty: false };
+  const since = layoutWindow.since;
+  const until = layoutWindow.until;
 
   const experiments = await payload.find({
     collection: "landing-experiments",
@@ -519,8 +532,8 @@ export async function GET(req: NextRequest) {
       : "`event_type` = '" + primaryGoal.replace(/'/g, "''") + "'";
 
   const [facets, paidTraffic, campaignNames] = await Promise.all([
-    loadFacets(payload, client.id, since, range.until, goalPredicate, pageScope),
-    loadPaidTraffic(payload, client.id, since, range.until, goalPredicate),
+    loadFacets(payload, client.id, since, until, goalPredicate, pageScope),
+    loadPaidTraffic(payload, client.id, since, until, goalPredicate),
     loadGoogleAdsCampaignNames(String(client.googleAdsCustomerId ?? "")),
   ]);
   facets.attribution = labelCampaignIds(facets.attribution, campaignNames);
@@ -572,7 +585,7 @@ export async function GET(req: NextRequest) {
       collection: "landing-events",
       where: {
         client: { equals: client.id },
-        occurredAt: { greater_than_equal: since, less_than: range.until },
+        occurredAt: { greater_than_equal: since, less_than: until },
         ...(running?.experimentId ? { experimentId: { equals: running.experimentId } } : {}),
         // Only the page filter narrows the query. Device and market are
         // applied in memory below, because their summaries have to show the
@@ -750,6 +763,11 @@ export async function GET(req: NextRequest) {
       dataStartDate,
       baselineApplied,
       rangeStart: since,
+      // null for clients with a single layout; the UI shows no toggle then.
+      layout,
+      layoutSince: layout ? since : null,
+      layoutUntil: layout ? until : null,
+      layoutEmpty: layoutWindow.empty,
       filters: { page: pageFilter, pages: pageScope, device: deviceFilter, market: marketFilter },
       ...facets,
       engagedSessions: engagedSessionsInRange.size,
