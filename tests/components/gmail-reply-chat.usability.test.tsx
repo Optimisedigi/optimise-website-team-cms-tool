@@ -4,6 +4,27 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import GmailReplyChat from '@/components/GmailReplyChat'
 
+vi.mock('@/components/OptiMateVoice', () => ({
+  default: ({ mode, attachedEmailMessageId, onTurn, onStagedEmailReply, onGmailDraftCreated }: {
+    mode: string
+    attachedEmailMessageId?: string | null
+    onTurn?: (id: string, role: 'user' | 'assistant', text: string) => void
+    onStagedEmailReply?: (reply: { subject?: string; body: string }) => void
+    onGmailDraftCreated?: (draft: { gmailUrl: string }) => void
+  }) => (
+    <div data-testid="gmail-voice" data-mode={mode} data-message-id={attachedEmailMessageId ?? ''}>
+      <button type="button" aria-label="Start voice" onClick={() => {
+        onTurn?.('voice-user', 'user', 'Please draft this email')
+        onStagedEmailReply?.({ subject: 'Voice subject', body: 'Voice draft body' })
+      }}>Start voice</button>
+      <button type="button" onClick={() => {
+        onGmailDraftCreated?.({ gmailUrl: 'https://mail.google.com/draft/voice' })
+        onTurn?.('voice-assistant', 'assistant', 'Draft saved.\n\n[Open draft in Gmail](https://mail.google.com/draft/voice)')
+      }}>Save by voice</button>
+    </div>
+  ),
+}))
+
 vi.mock('@/components/RocketSplash', () => ({
   default: ({ compact }: { compact?: boolean }) => (
     <div role="status" aria-label="Loading" data-compact={compact ? 'true' : 'false'}>
@@ -126,7 +147,7 @@ describe('GmailReplyChat usability smoke', () => {
       if (url === '/api/optimate/email/chat') {
         return jsonResponse({
           reply: 'I’ve staged the draft below.',
-          stagedEmailReply: { body: 'Hi there,\n\nThanks for reaching out.' },
+          stagedEmailReply: { subject: 'Follow up', body: 'Hi there,\n\nThanks for reaching out.' },
           modelUsed: 'claude-sonnet-4.6',
         })
       }
@@ -153,12 +174,10 @@ describe('GmailReplyChat usability smoke', () => {
     // The picker sits under the composer box, not inside the beam surface.
     expect(modelSelect.closest('[data-optimate-beam-composer]')).toBeNull()
 
-    fireEvent.change(screen.getByPlaceholderText('To (optional)…'), {
-      target: { value: 'client@example.com' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('Subject…'), {
-      target: { value: 'Follow up' },
-    })
+    const recipients = screen.getByRole('textbox', { name: 'Recipients' })
+    expect(screen.queryByPlaceholderText('Subject…')).not.toBeInTheDocument()
+    expect(recipients).toHaveStyle({ width: '100%' })
+    fireEvent.change(recipients, { target: { value: 'client@example.com' } })
     const composeTextarea = screen.getByPlaceholderText('Message GmailMate about the email…')
     fireEvent.change(composeTextarea, {
       target: { value: 'Thank them for the meeting and ask for the report.' },
@@ -221,6 +240,177 @@ describe('GmailReplyChat usability smoke', () => {
         mediaType: 'image/png',
         data: 'iVBORw0KGgo=',
       }],
+    })
+  })
+
+  it('keeps the full-width recipient field ready for another contact after selection', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url.startsWith('/api/gmail/contacts')) {
+        return jsonResponse({ suggestions: url.includes('grace')
+          ? [{ name: 'Grace Hopper', email: 'grace@example.com' }]
+          : [{ name: 'Doe, Jane', email: 'jane@example.com' }] })
+      }
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="compose" />)
+    const recipients = await screen.findByRole('textbox', { name: 'Recipients' })
+    expect(recipients).toHaveStyle({ width: '100%' })
+    expect(screen.queryByPlaceholderText('Subject…')).not.toBeInTheDocument()
+
+    fireEvent.change(recipients, { target: { value: 'jane' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Doe, Jane/ }))
+    expect(recipients).toHaveValue('jane@example.com, ')
+    expect(recipients).toHaveFocus()
+
+    fireEvent.change(recipients, { target: { value: 'jane@example.com, grace' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Grace Hopper/ }))
+    expect(recipients).toHaveValue('jane@example.com, grace@example.com, ')
+    expect(recipients).toHaveFocus()
+  })
+
+  it('replaces the subject on a revised draft instead of silently keeping the previous one', async () => {
+    window.sessionStorage.setItem('optimate:gmail-reply-chat:compose', JSON.stringify({
+      phase: 'compose', composeSubject: 'Old subject', replyText: 'Old body',
+    }))
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url === '/api/optimate/email/chat') return jsonResponse({ stagedEmailReply: { subject: 'New subject', body: 'New body' } })
+      if (url === '/api/gmail/draft') return jsonResponse({ gmailUrl: 'https://mail.google.com/draft/1' })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="compose" />)
+    const input = await screen.findByPlaceholderText('Ask GmailMate for an edit…')
+    fireEvent.change(input, { target: { value: 'Rewrite with a new subject.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText(/New body/)
+    fireEvent.click(screen.getByRole('button', { name: 'Create Gmail draft' }))
+    await screen.findByText('Saved to Drafts.')
+    const draftCall = fetchMock.mock.calls.find(([url]) => url === '/api/gmail/draft')
+    expect(JSON.parse(draftCall?.[1]?.body as string)).toMatchObject({ subject: 'New subject', body: 'New body' })
+  })
+
+  it('does not pass an old hidden subject into a fresh draft request', async () => {
+    window.sessionStorage.setItem('optimate:gmail-reply-chat:compose', JSON.stringify({
+      phase: 'compose', composeSubject: 'Old subject',
+    }))
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url === '/api/optimate/email/chat') return jsonResponse({ stagedEmailReply: { subject: 'Current subject', body: 'Hi there' } })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="compose" />)
+    const input = await screen.findByPlaceholderText('Message GmailMate about the email…')
+    fireEvent.change(input, { target: { value: 'Draft a new note.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText(/Hi there/)
+    const chatCall = fetchMock.mock.calls.find(([url]) => url === '/api/optimate/email/chat')
+    expect(JSON.parse(chatCall?.[1]?.body as string).draft.subject).toBeUndefined()
+  })
+
+  it('stages a voice draft for review without saving it until confirmed', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url === '/api/gmail/draft') return jsonResponse({ gmailUrl: 'https://mail.google.com/draft/voice' })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="compose" />)
+    expect(await screen.findByTestId('gmail-voice')).toHaveAttribute('data-mode', 'email')
+    expect(screen.getByTestId('gmail-voice')).toHaveAttribute('data-message-id', '')
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/gmail/draft')).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Start voice' }))
+    expect(await screen.findByText(/Draft preview:[\s\S]*Voice draft body/)).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/gmail/draft')).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Gmail draft' }))
+    await screen.findByText('Saved to Drafts.')
+    const draftCall = fetchMock.mock.calls.find(([url]) => url === '/api/gmail/draft')
+    expect(JSON.parse(draftCall?.[1]?.body as string)).toMatchObject({
+      subject: 'Voice subject', body: 'Voice draft body',
+    })
+  })
+
+  it('recognizes a voice-created Gmail draft and renders its link without Markdown punctuation', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url === '/api/gmail/draft') throw new Error('The voice tool already saved this draft')
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="compose" />)
+    await screen.findByTestId('gmail-voice')
+    fireEvent.click(screen.getByRole('button', { name: 'Start voice' }))
+    expect(await screen.findByRole('button', { name: 'Create Gmail draft' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save by voice' }))
+    expect(await screen.findByText('Saved to Drafts.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create Gmail draft' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open draft in Gmail' })).toHaveAttribute('href', 'https://mail.google.com/draft/voice')
+    expect(screen.queryByText(/\[Open draft in Gmail\]/)).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/gmail/draft')).toBe(false)
+  })
+
+  it('stages a spoken reply on the selected thread before saving a Gmail draft', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url.startsWith('/api/gmail/search')) return jsonResponse({ results: [{
+        messageId: 'msg-1', threadId: 'thread-1', subject: 'Question', from: 'Jane <jane@example.com>', date: 'today', snippet: 'Hello',
+      }] })
+      if (url === '/api/gmail/message/msg-1') return jsonResponse({
+        messageId: 'msg-1', threadId: 'thread-1', rfcMessageId: '<msg-1@example.com>',
+        subject: 'Question', from: 'Jane <jane@example.com>', to: 'user@example.com', date: 'today', body: 'Hello',
+      })
+      if (url === '/api/gmail/draft') return jsonResponse({ gmailUrl: 'https://mail.google.com/draft/reply' })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="search" />)
+    fireEvent.change(await screen.findByPlaceholderText('Search inbox (Gmail syntax)…'), { target: { value: 'from:jane' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    fireEvent.click(await screen.findByText('Question'))
+    expect(await screen.findByTestId('gmail-voice')).toHaveAttribute('data-message-id', 'msg-1')
+    fireEvent.click(screen.getByRole('button', { name: 'Start voice' }))
+    expect(await screen.findByText(/Draft preview:[\s\S]*Voice draft body/)).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/gmail/draft')).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Create Gmail draft' }))
+    await screen.findByText('Saved to Drafts.')
+    const draftCall = fetchMock.mock.calls.find(([url]) => url === '/api/gmail/draft')
+    expect(JSON.parse(draftCall?.[1]?.body as string)).toMatchObject({
+      to: 'jane@example.com', subject: 'Re: Question', threadId: 'thread-1',
+      inReplyTo: '<msg-1@example.com>', body: 'Voice draft body',
+    })
+  })
+
+  it('does not send a trailing recipient separator to Gmail', async () => {
+    window.sessionStorage.setItem('optimate:gmail-reply-chat:compose', JSON.stringify({
+      phase: 'compose',
+      composeTo: 'Ada Lovelace <ada@example.com>, ',
+      composeSubject: 'Follow up',
+      replyText: 'Hi Ada,',
+    }))
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      if (url === '/api/gmail/draft') return jsonResponse({ gmailUrl: 'https://mail.google.com/draft/1' })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+
+    render(<GmailReplyChat initialPhase="compose" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Gmail draft' }))
+    await screen.findByText('Saved to Drafts.')
+    const draftCall = fetchMock.mock.calls.find(([url]) => url === '/api/gmail/draft')
+    expect(JSON.parse(draftCall?.[1]?.body as string)).toMatchObject({
+      to: 'Ada Lovelace <ada@example.com>',
+      subject: 'Follow up',
     })
   })
 
@@ -496,6 +686,8 @@ describe('GmailReplyChat usability smoke', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
 
     fireEvent.click(await screen.findByText('Proposal question'))
+    expect(await screen.findByTestId('gmail-voice')).toHaveAttribute('data-message-id', 'msg-1')
+    expect(screen.getByTestId('gmail-voice')).toHaveAttribute('data-mode', 'email')
     const originalEmailToggle = await screen.findByRole('button', { name: 'Show original email' })
     expect(originalEmailToggle).toBeInTheDocument()
     expect(originalEmailToggle.parentElement?.parentElement).toHaveStyle({

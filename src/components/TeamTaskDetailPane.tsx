@@ -346,6 +346,10 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
   const [deletingMediaId, setDeletingMediaId] = useState<string | number | null>(null)
   const [error, setError] = useState('')
   const [comment, setComment] = useState('')
+  const [commentsOpen, setCommentsOpen] = useState(false)
+  const commentsButtonRef = useRef<HTMLButtonElement | null>(null)
+  const commentsBackRef = useRef<HTMLButtonElement | null>(null)
+  const commentsPanelRef = useRef<HTMLElement | null>(null)
   const [linkDraft, setLinkDraft] = useState<LinkRow>({ label: '', url: '' })
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const dragDepthRef = useRef(0)
@@ -365,7 +369,32 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
     }
   }
 
-  useEffect(() => { void load() }, [taskId])
+  useEffect(() => { setCommentsOpen(false); void load() }, [taskId])
+
+  useEffect(() => {
+    if (!commentsOpen) return
+    commentsBackRef.current?.focus()
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setCommentsOpen(false)
+        commentsButtonRef.current?.focus()
+      }
+      if (event.key !== 'Tab') return
+      const focusable = commentsPanelRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), textarea:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]')
+      if (!focusable?.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [commentsOpen])
 
   const patchTask = async (patch: Partial<TeamTask>) => {
     if (!data) return
@@ -529,6 +558,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
 
   return (
     <div
+      className="od-team-task-backdrop"
       style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15, 23, 42, .35)', display: 'flex', justifyContent: 'flex-end', paddingInline: 5, boxSizing: 'border-box' }}
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
       onDragEnter={handleDragEnter}
@@ -541,8 +571,8 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
           Drop images anywhere to attach them
         </div>
       )}
-      <aside style={{ width: 'min(1500px, calc(100vw - 10px))', height: '100%', background: 'var(--theme-bg)', boxShadow: '-18px 0 44px rgba(15,23,42,.22)', overflow: 'auto', boxSizing: 'border-box' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--theme-elevation-150)', position: 'sticky', top: 0, background: 'var(--theme-bg)', zIndex: 2 }}>
+      <aside className="od-team-task-detail" aria-label="Task details" style={{ width: 'min(1500px, calc(100vw - 10px))', height: '100%', background: 'var(--theme-elevation-0, #fff)', color: 'var(--theme-text, #1f2937)', boxShadow: '-18px 0 44px rgba(15,23,42,.22)', overflow: 'auto', boxSizing: 'border-box' }}>
+        <div className="od-team-task-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--theme-elevation-150)', position: 'sticky', top: 0, background: 'var(--theme-elevation-0, #fff)', zIndex: 2 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '1 1 auto' }}>
             <strong style={{ fontSize: 18, whiteSpace: 'nowrap' }}>Task details:</strong>
             {task ? (
@@ -557,7 +587,8 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
               <span style={{ color: 'var(--theme-elevation-500)' }}>Loading…</span>
             )}
           </div>
-          <button type="button" onClick={onClose} style={{ ...fieldStyle, width: 42, cursor: 'pointer', fontWeight: 900, flex: '0 0 auto' }}>×</button>
+          <button ref={commentsButtonRef} type="button" className="od-team-task-comments-open" aria-controls="od-team-task-comments" aria-expanded={commentsOpen} disabled={!task} onClick={() => setCommentsOpen(true)} style={{ ...fieldStyle, width: 'auto', cursor: 'pointer', fontWeight: 800, flex: '0 0 auto' }}>Comments ({data?.comments.length ?? 0})</button>
+          <button type="button" onClick={onClose} aria-label="Close task details" style={{ ...fieldStyle, width: 42, cursor: 'pointer', fontWeight: 900, flex: '0 0 auto' }}>×</button>
         </div>
 
         {loading ? (
@@ -565,9 +596,9 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
         ) : !task ? (
           <div style={{ padding: 24, color: '#991b1b' }}>{error || 'Task not found'}</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.08fr) minmax(320px, .92fr)', gap: 28, padding: '24px 24px', boxSizing: 'border-box' }}>
+          <div className="od-team-task-main" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.08fr) minmax(320px, .92fr)', gap: 28, padding: '24px 24px', boxSizing: 'border-box' }}>
             <section style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
-              {error && <div style={{ padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
+              {error && !commentsOpen && <div role="alert" style={{ padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <label style={{ display: 'grid', gap: 5, fontWeight: 700, fontSize: 12, color: 'var(--theme-elevation-500)' }}>
                   Assigned
@@ -584,7 +615,7 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
                 </label>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'end' }}>
+              <div className="od-team-task-date-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'end' }}>
                 <label style={{ display: 'grid', gap: 5, fontWeight: 700, fontSize: 12, color: 'var(--theme-elevation-500)' }}>
                   Task date
                   <input
@@ -613,13 +644,13 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
               <div style={{ display: 'grid', gap: 8 }}>
                 <strong>Links</strong>
                 {(task.relatedLinks || []).map((link, index) => (
-                  <div key={`${link.url}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, alignItems: 'center', padding: 8, borderRadius: 8, background: 'var(--theme-elevation-50)' }}>
+                  <div key={`${link.url}-${index}`} className="od-team-task-link-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, alignItems: 'center', padding: 8, borderRadius: 8, background: 'var(--theme-elevation-50)' }}>
                     <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>{link.label || link.url}</span>
                     <a href={link.url} target="_blank" rel="noreferrer" style={{ ...fieldStyle, width: 76, textAlign: 'center', textDecoration: 'none', color: '#2563eb', fontWeight: 800 }}>Open</a>
                     <button type="button" onClick={() => removeLink(index)} style={{ ...fieldStyle, width: 38, color: '#991b1b', cursor: 'pointer' }}>×</button>
                   </div>
                 ))}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr auto', gap: 8 }}>
+                <div className="od-team-task-link-editor" style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr auto', gap: 8 }}>
                   <input value={linkDraft.label || ''} onChange={(e) => setLinkDraft({ ...linkDraft, label: e.target.value })} placeholder="Label" style={fieldStyle} />
                   <input value={linkDraft.url || ''} onChange={(e) => setLinkDraft({ ...linkDraft, url: e.target.value })} placeholder="Link URL" style={fieldStyle} />
                   <button type="button" onClick={addLink} style={{ ...fieldStyle, width: 82, cursor: 'pointer', fontWeight: 800 }}>Add</button>
@@ -649,11 +680,13 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
               </div>
             </section>
 
-            <section style={{ display: 'grid', gap: 14, alignContent: 'start' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <section ref={commentsPanelRef} id="od-team-task-comments" className={`od-team-task-comments-panel${commentsOpen ? ' is-open' : ''}`} role={commentsOpen ? 'dialog' : 'region'} aria-modal={commentsOpen || undefined} aria-label="Comments and activity" style={{ display: 'grid', gap: 14, alignContent: 'start' }}>
+              <div className="od-team-task-comments-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button ref={commentsBackRef} className="od-team-task-comments-back" type="button" onClick={() => { setCommentsOpen(false); commentsButtonRef.current?.focus() }} aria-label="Back to task details">← Back</button>
                 <strong style={{ fontSize: 18 }}>Comments and activity</strong>
                 {saving && <span style={{ color: 'var(--theme-elevation-500)', fontSize: 12 }}>Saving…</span>}
               </div>
+              {error && commentsOpen && <div role="alert" style={{ padding: 10, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>{error}</div>}
               <CommentComposer value={comment} users={users} onChange={setComment} />
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                 <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Tip: @mention a team member to create a bell notification.</span>

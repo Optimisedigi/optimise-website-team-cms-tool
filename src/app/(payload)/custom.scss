@@ -5377,6 +5377,134 @@ body.role-non-admin .doc-tabs .doc-tab[aria-label='API'] {
   }
 }
 
+.od-team-task-comments-open,
+.od-team-task-comments-back {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .od-team-task-backdrop {
+    padding-inline: 0 !important;
+  }
+
+  .od-team-task-detail {
+    width: 100vw !important;
+    height: 100dvh !important;
+    animation: od-team-task-slide-in 220ms ease-out both;
+  }
+
+  .od-team-task-header {
+    gap: 8px !important;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 12px !important;
+  }
+
+  .od-team-task-header strong {
+    display: none;
+  }
+
+  .od-team-task-header input {
+    min-width: 0;
+  }
+
+  .od-team-task-comments-open,
+  .od-team-task-comments-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .od-team-task-comments-open {
+    min-width: 0;
+    padding-inline: 8px !important;
+  }
+
+  .od-team-task-main {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 16px !important;
+    padding: 16px !important;
+  }
+
+  .od-team-task-date-row,
+  .od-team-task-link-editor {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .od-team-task-date-row button,
+  .od-team-task-link-editor button {
+    width: 100% !important;
+  }
+
+  .od-team-task-link-row {
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+  }
+
+  .od-team-task-link-row > span {
+    overflow-wrap: anywhere;
+  }
+
+  .od-team-task-comments-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    background: var(--theme-elevation-0, #fff);
+    color: var(--theme-text, #1f2937);
+    box-shadow: -16px 0 32px rgba(15, 23, 42, .2);
+    transform: translateX(100%);
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 220ms ease-out, visibility 0s linear 220ms;
+  }
+
+  .od-team-task-comments-panel.is-open {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform 220ms ease-out, visibility 0s;
+  }
+
+  .od-team-task-comments-toolbar {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .od-team-task-comments-back {
+    border: 0;
+    padding: 8px 0;
+    background: none;
+    color: #1d4ed8;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .od-team-task-comments-panel article {
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+  }
+
+  .od-team-task-comments-panel article > div:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .od-team-task-comments-panel article > div:last-child > div:first-child {
+    flex-wrap: wrap;
+  }
+}
+
+@keyframes od-team-task-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .od-team-task-detail { animation: none; }
+  .od-team-task-comments-panel { transition: none !important; }
+}
+
 // ============================================================
 // Shared collection list view — card-table port
 // ============================================================

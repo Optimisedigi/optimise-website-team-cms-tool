@@ -159,8 +159,8 @@ export default function AdminMateChat() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 16px', display: 'grid', alignContent: 'start', gap: 10 }}>
         {messages.length === 0 && (
-          <div style={noticeStyle}>
-            Describe the record you want. Examples: “Create a client called Acme Corp, site acmecorp.com, contact Jane Doe jane@acme.com, Google Ads and SEO, $2k/mo.” or “Create a Google Ads contract for Acme Corp starting 1 October.” AdminMate asks for anything missing, then stages a card for you to review and edit before anything is created.
+          <div style={{ ...bubbleStyle, background: '#2a2a2d', color: '#fff', justifySelf: 'start' }}>
+            Try: “Create a client called Acme Corp” or “Draft a Google Ads contract.” I’ll ask for missing details and show you a review card first.
           </div>
         )}
         {messages.map((message, index) => (

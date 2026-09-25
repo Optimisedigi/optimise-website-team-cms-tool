@@ -97,6 +97,8 @@ interface OptiMateVoiceProps {
   /** Email mode only: the agent staged a reply via stage_email_reply. The host
    *  surfaces this in the review box for the user to edit and confirm. */
   onStagedEmailReply?: (reply: { subject?: string; body: string }) => void
+  /** Email mode: a Gmail draft was saved directly by the voice tool. */
+  onGmailDraftCreated?: (draft: { gmailUrl: string; subject?: string; to?: string }) => void
   /** Development-only parity trace sink for comparing voice against typed chat. */
   onDevTrace?: (trace: GoogleMateDevVoiceTrace) => void
   /** Shared typed-chat state so voice can hit the exact same backend semantics. */
@@ -410,6 +412,7 @@ export default function OptiMateVoice({
   triggerSize = 40,
   attachedEmailMessageId,
   onStagedEmailReply,
+  onGmailDraftCreated,
   onDevTrace,
   typedChatContext,
   buildTypedChatRequest,
@@ -833,6 +836,7 @@ export default function OptiMateVoice({
               : undefined,
           to: typeof gmailDraftData.to === 'string' && gmailDraftData.to ? gmailDraftData.to : undefined,
         }
+        onGmailDraftCreated?.(pendingGmailDraftRef.current)
       }
 
       const output =
@@ -878,6 +882,7 @@ export default function OptiMateVoice({
       sendEvent,
       requestResponse,
       onStagedEmailReply,
+      onGmailDraftCreated,
     ],
   )
 

@@ -41,6 +41,13 @@ describe('AdminMateChat', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
+  it('shows a short, readable opening example on a dark bubble', () => {
+    render(<AdminMateChat />)
+    const example = screen.getByText(/Try: “Create a client called Acme Corp”/)
+    expect(example).toHaveStyle({ background: '#2a2a2d', color: '#fff' })
+    expect(example.textContent?.length).toBeLessThan(150)
+  })
+
   it('grows and shrinks the message box to keep the draft visible', () => {
     render(<AdminMateChat />)
     const messageBox = screen.getByLabelText('Message AdminMate')

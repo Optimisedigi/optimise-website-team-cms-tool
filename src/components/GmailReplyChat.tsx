@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import RocketSplash from './RocketSplash'
 import OptiMateBeamComposer from './OptiMateBeamComposer'
+import OptiMateVoice from './OptiMateVoice'
 import OptiMateMetalSend, { OptiMateMetalPill } from './OptiMateMetalSend'
 import { ThinkingOrb } from 'thinking-orbs'
 import {
@@ -53,6 +54,7 @@ type ChatRole = 'user' | 'assistant' | 'error'
 interface ChatMessage {
   role: ChatRole
   content: string
+  voiceId?: string
   modelUsed?: string
   modelRequested?: string
   runId?: string
@@ -181,8 +183,11 @@ function recipientSearchTerm(value: string): string {
 function replaceActiveRecipient(value: string, suggestion: ContactSuggestion): string {
   const parts = value.split(',')
   const prefix = parts.slice(0, -1).map((part) => part.trim()).filter(Boolean)
-  const formatted = suggestion.name ? `${suggestion.name} <${suggestion.email}>` : suggestion.email
-  return [...prefix, formatted].join(', ')
+  return `${[...prefix, suggestion.email].join(', ')}, `
+}
+
+function completedRecipients(value: string): string {
+  return value.trim().replace(/,\s*$/, '')
 }
 
 function assistantMessageText(data: EmailChatResponse, stagedBody?: string): string {
@@ -209,7 +214,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
   const [loadingMessage, setLoadingMessage] = useState(false)
 
   const [instructions, setInstructions] = useState(persistedState?.instructions ?? '')
-  const [composeSubject, setComposeSubject] = useState(persistedState?.composeSubject ?? '')
+  const [composeSubject, setComposeSubject] = useState(persistedState?.replyText ? persistedState.composeSubject ?? '' : '')
   const [composeTo, setComposeTo] = useState(persistedState?.composeTo ?? '')
   const [contactSuggestions, setContactSuggestions] = useState<ContactSuggestion[]>([])
   const [contactsOpen, setContactsOpen] = useState(false)
@@ -219,6 +224,22 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
 
   const [chatInput, setChatInput] = useState(persistedState?.chatInput ?? '')
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(persistedState?.chatMessages ?? [])
+  const onVoiceTurn = useCallback((voiceId: string, role: 'user' | 'assistant', text: string) => {
+    if (!text.trim()) return
+    setChatMessages((current) => {
+      const index = current.findIndex((entry) => entry.voiceId === voiceId)
+      if (index < 0) return [...current, { voiceId, role, content: text }]
+      return current.map((entry, position) => position === index ? { ...entry, content: text } : entry)
+    })
+  }, [])
+  const onVoiceStagedReply = useCallback((reply: { subject?: string; body: string }) => {
+    if (!reply.body.trim()) return
+    setReplyText(reply.body)
+    if (phase === 'compose') setComposeSubject(reply.subject?.trim() ?? '')
+    setSavedUrl(null)
+    setSaveError(null)
+    setChatMessages((current) => [...current, { role: 'assistant', content: `Draft preview:\n\n${reply.body}` }])
+  }, [phase])
   const [selectedModel, setSelectedModel] = useState<string>(persistedState?.selectedModel ?? DEFAULT_CHAT_MODEL)
   const modelManuallyChangedRef = useRef(Boolean(persistedState?.selectedModel))
 
@@ -237,6 +258,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const recipientInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -566,7 +588,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
           model: selectedModel,
           attachments: draftAttachments.map(({ name, mediaType, data }) => ({ name, mediaType, data })),
           draft: {
-            to: composeTo.trim() || undefined,
+            to: completedRecipients(composeTo) || undefined,
             subject: composeSubject.trim() || undefined,
             body: replyText || undefined,
           },
@@ -581,7 +603,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
       const assistantText = assistantMessageText(data, stagedBody)
       if (stagedBody) setReplyText(stagedBody)
       if (data.gmailDraft?.gmailUrl) setSavedUrl(data.gmailDraft.gmailUrl)
-      if (data.stagedEmailReply?.subject && !composeSubject.trim()) setComposeSubject(data.stagedEmailReply.subject)
+      if (stagedBody) setComposeSubject(data.stagedEmailReply?.subject?.trim() ?? '')
       setChatMessages((prev) => [
         ...prev,
         {
@@ -678,7 +700,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          to: composeTo.trim() || undefined,
+          to: completedRecipients(composeTo) || undefined,
           subject: composeSubject.trim() || undefined,
           body: replyText,
           attachments: draftAttachments.map(({ name, mediaType, data }) => ({ name, mediaType, data })),
@@ -762,6 +784,27 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     )
   }
 
+  const voiceControl = (phase === 'compose' || (phase === 'message' && message)) ? (
+    <OptiMateVoice
+      key={phase === 'message' ? message?.messageId : 'compose'}
+      auditId="email"
+      mode="email"
+      businessName={phase === 'message' ? 'email reply' : 'email draft'}
+      attachedEmailMessageId={phase === 'message' ? message?.messageId ?? null : null}
+      onTurn={onVoiceTurn}
+      onAssistantMessage={(text) => setChatMessages((current) => [...current, { role: 'assistant', content: text }])}
+      onStagedEmailReply={onVoiceStagedReply}
+      onGmailDraftCreated={({ gmailUrl }) => {
+        try {
+          const url = new URL(gmailUrl)
+          if (url.protocol === 'https:' && url.hostname === 'mail.google.com') setSavedUrl(url.href)
+        } catch {
+          // Do not surface an invalid tool-provided link as a saved Gmail draft.
+        }
+      }}
+    />
+  ) : null
+
   return (
     <div style={fillColumn}>
       <div
@@ -803,7 +846,9 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
             <div style={detailStripStyle}>
               <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
                 <input
+                  ref={recipientInputRef}
                   type="text"
+                  aria-label="Recipients"
                   value={composeTo}
                   onChange={(e) => {
                     setComposeTo(e.target.value)
@@ -825,6 +870,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
                           setComposeTo(replaceActiveRecipient(composeTo, contact))
                           setContactSuggestions([])
                           setContactsOpen(false)
+                          recipientInputRef.current?.focus()
                         }}
                         style={contactOption}
                       >
@@ -835,13 +881,6 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
                   </div>
                 )}
               </div>
-              <input
-                type="text"
-                value={composeSubject}
-                onChange={(e) => setComposeSubject(e.target.value)}
-                placeholder="Subject…"
-                style={{ ...compactInputStyle, flex: 1 }}
-              />
             </div>
 
             {replyError && <div style={errorBox}>{replyError}</div>}
@@ -879,6 +918,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
               value={instructions}
               onChange={setInstructions}
               onSend={draftNewEmail}
+              voiceControl={voiceControl}
               disabled={draftingReply}
               placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the email…'}
               selectedModel={selectedModel}
@@ -1048,6 +1088,7 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
                   value={chatInput}
                   onChange={setChatInput}
                   onSend={sendReplyChatMessage}
+                  voiceControl={voiceControl}
                   disabled={draftingReply}
                   placeholder={replyText ? 'Ask GmailMate for an edit…' : 'Message GmailMate about the reply…'}
                   selectedModel={selectedModel}
@@ -1068,10 +1109,18 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
 }
 
 function LinkifiedText({ text }: { text: string }): React.ReactElement {
-  const parts = text.split(/(https?:\/\/\S+)/g)
+  const parts = text.split(/(\[[^\]]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/\S+)/g)
   return (
     <>
       {parts.map((part, index) => {
+        const markdownLink = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/)
+        if (markdownLink) {
+          return (
+            <a key={`${index}-${part}`} href={markdownLink[2]} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+              {markdownLink[1]}
+            </a>
+          )
+        }
         if (!/^https?:\/\//.test(part)) return <Fragment key={`${index}-${part}`}>{part}</Fragment>
         const href = part.replace(/[).,]+$/, '')
         const suffix = part.slice(href.length)
@@ -1213,6 +1262,7 @@ function GmailChatComposer({
   value,
   onChange,
   onSend,
+  voiceControl,
   disabled,
   placeholder,
   selectedModel,
@@ -1223,6 +1273,7 @@ function GmailChatComposer({
   value: string
   onChange: (value: string) => void
   onSend: () => void
+  voiceControl?: React.ReactNode
   disabled: boolean
   placeholder: string
   selectedModel: string
@@ -1365,6 +1416,7 @@ function GmailChatComposer({
             style={googleMateTextareaStyle}
           />
         </div>
+        {voiceControl}
         <OptiMateMetalSend>
           <button
             type="button"
