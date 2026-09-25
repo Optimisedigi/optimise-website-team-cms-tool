@@ -32,6 +32,7 @@ import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanit
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { createGmailDraft, type GmailDraftAttachment } from "@/lib/gmail-service";
+import { renderDraftTableIfPresent } from "@/lib/email-draft-markdown";
 
 interface CreateGmailDraftArgs {
   subject: string;
@@ -44,7 +45,7 @@ export const createGmailDraftTool: CanonicalTool<CreateGmailDraftArgs> = {
   // Creates a real Gmail draft, so the agent loop must de-duplicate repeats.
   sideEffect: true,
   description:
-    "Create a ONE-OFF draft in the user's own Gmail Drafts folder, right now. Never sends mail. The connected Gmail account's signature is appended automatically. Use when the user asks for a draft email NOW (not on a schedule), including drafts based on the current conversation or an OptiMate analysis. The classic pairing: call get_budget_management_email first, then pass its `html` field as `htmlBody` here so the budget email lands as a real Gmail draft instead of pasted HTML in chat. For general emails, pass the client-ready body as `htmlBody` without hand-writing a signature. Args: subject (required), htmlBody (required, raw HTML), to (optional recipient — leave blank if user didn't specify; Gmail forces them to pick one before sending). Requires the CMS user to have Gmail connected. Returns the Gmail deep-link to the draft. NOT for recurring drafts — use propose_scheduled_task for those.",
+    "Create a ONE-OFF draft in the user's own Gmail Drafts folder, right now. Never sends mail. The connected Gmail account's signature is appended automatically. Use when the user asks for a draft email NOW (not on a schedule), including drafts based on the current conversation or an OptiMate analysis. The classic pairing: call get_budget_management_email first, then pass its `html` field as `htmlBody` here so the budget email lands as a real Gmail draft instead of pasted HTML in chat. For general emails, pass the client-ready body as `htmlBody` without hand-writing a signature. When a user requests a table, use a markdown table with a header row and separator row; it is rendered into a bordered HTML table with a light-blue header before saving. Do not invent unreadable screenshot cells. Args: subject (required), htmlBody (required, raw HTML), to (optional recipient — leave blank if user didn't specify; Gmail forces them to pick one before sending). Requires the CMS user to have Gmail connected. Returns the Gmail deep-link to the draft. NOT for recurring drafts — use propose_scheduled_task for those.",
   inputSchema: {
     type: "object",
     properties: {
@@ -115,7 +116,7 @@ export const createGmailDraftTool: CanonicalTool<CreateGmailDraftArgs> = {
       const result = await createGmailDraft(tokenResult.accessToken, {
         to,
         subject,
-        htmlBody: args.htmlBody,
+        htmlBody: renderDraftTableIfPresent(args.htmlBody),
         ...(replyThreadId ? { threadId: replyThreadId } : {}),
         ...(replyInReplyTo ? { inReplyTo: replyInReplyTo } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),

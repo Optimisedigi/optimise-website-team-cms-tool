@@ -4,6 +4,7 @@ import config from "@/payload.config";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { createGmailDraft } from "@/lib/gmail-service";
 import { parseGmailDraftAttachments } from "@/lib/gmail-draft-attachments";
+import { markdownLiteToHtml } from "@/lib/email-draft-markdown";
 import {
   extractEmailHeaders,
   stripAgentSignOff,
@@ -35,73 +36,6 @@ interface DraftBody {
 }
 
 
-/**
- * Minimal markdown-lite \u2192 HTML for chat replies. Handles the subset OptiMate
- * actually emits: paragraphs, **bold**, `code`, bullet lists (- item),
- * numbered lists. Anything else passes through escaped. Keeps the output
- * narrow and predictable so Gmail's compose pane renders it cleanly.
- */
-function markdownLiteToHtml(input: string): string {
-  const escapeHtml = (s: string) =>
-    s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-
-  const formatInline = (s: string): string =>
-    escapeHtml(s)
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(
-        /`([^`]+)`/g,
-        '<code style="background:#f3f4f6;padding:1px 4px;border-radius:3px;font-family:ui-monospace,Menlo,Consolas,monospace;">$1</code>',
-      );
-
-  const lines = input.split("\n");
-  const out: string[] = [];
-  let listType: "ul" | "ol" | null = null;
-
-  const closeList = () => {
-    if (listType) {
-      out.push(`</${listType}>`);
-      listType = null;
-    }
-  };
-
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/\r$/, "");
-    const bulletMatch = line.match(/^[-*]\s+(.+)/);
-    const numberedMatch = line.match(/^\d+\.\s+(.+)/);
-
-    if (bulletMatch) {
-      if (listType !== "ul") {
-        closeList();
-        out.push("<ul>");
-        listType = "ul";
-      }
-      out.push(`<li>${formatInline(bulletMatch[1])}</li>`);
-    } else if (numberedMatch) {
-      if (listType !== "ol") {
-        closeList();
-        out.push("<ol>");
-        listType = "ol";
-      }
-      out.push(`<li>${formatInline(numberedMatch[1])}</li>`);
-    } else if (line.trim() === "") {
-      closeList();
-      // Don't emit empty paragraphs; just let the next block start a fresh one.
-    } else {
-      closeList();
-      out.push(`<p>${formatInline(line)}</p>`);
-    }
-  }
-  closeList();
-
-  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#1f2937;">${out.join(
-    "",
-  )}</div>`;
-}
 
 export async function POST(req: NextRequest) {
   const payloadConfig = await config;

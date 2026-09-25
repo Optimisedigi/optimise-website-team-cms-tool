@@ -36,7 +36,7 @@ export const stageEmailReplyTool: CanonicalTool<StageEmailReplyArgs> = {
         type: "string",
         minLength: 1,
         description:
-          "The full polished email reply body in plain text or markdown-lite. Rewrite rough user notes into natural email copy by default; preserve specific phrasing when the user clearly asks you to include it. Start with a natural greeting and end after the final substantive sentence. No subject line, headers, manual sign-off, sender name, or signature.",
+          "The full polished email reply body in plain text or markdown-lite. Rewrite rough user notes into natural email copy by default; preserve specific phrasing when the user clearly asks you to include it. Start with a natural greeting and end after the final substantive sentence. When the user asks for a table (including from a pasted screenshot), transcribe the readable cells as a markdown table with a header row and separator row, placed in the email body. Keep uncertain cells out rather than inventing values; ask if the table cannot be read. The Gmail draft renderer gives the table black borders and a light-blue header. No subject line, headers, manual sign-off, sender name, or signature.",
       },
       subject: {
         type: "string",

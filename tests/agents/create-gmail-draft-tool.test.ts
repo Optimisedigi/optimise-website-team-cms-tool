@@ -146,6 +146,39 @@ describe("create_gmail_draft — execute", () => {
     expect(data.to).toBe("owner@acme.com");
   });
 
+  it("puts a requested markdown table into the Gmail HTML body", async () => {
+    mockGetToken.mockResolvedValueOnce({ ok: true, accessToken: "tok" });
+    mockCreateDraft.mockResolvedValueOnce({ draftId: "d", messageId: "m" });
+    const args = createGmailDraftTool.validate!({
+      subject: "Summary",
+      htmlBody: "Hi,\n\n| Name | Amount |\n| --- | --- |\n| A & B | £10 |",
+    });
+
+    await createGmailDraftTool.execute(args, baseCtx());
+
+    const draft = mockCreateDraft.mock.calls[0]?.[1] as { htmlBody: string };
+    expect(draft.htmlBody).toContain('<table style="border-collapse:collapse;border:1px solid #000;');
+    expect(draft.htmlBody).toContain("background-color:#dbeafe");
+    expect(draft.htmlBody).toContain("A &amp; B");
+  });
+
+  it("preserves report HTML while rendering a requested table in the same Gmail draft", async () => {
+    mockGetToken.mockResolvedValueOnce({ ok: true, accessToken: "tok" });
+    mockCreateDraft.mockResolvedValueOnce({ draftId: "d", messageId: "m" });
+    const args = createGmailDraftTool.validate!({
+      subject: "Summary",
+      htmlBody: '<p>Hi,</p>\n| Item | Total |\n| --- | --- |\n| A \\| B | £10 |\n<br>Regards',
+    });
+
+    await createGmailDraftTool.execute(args, baseCtx());
+
+    const draft = mockCreateDraft.mock.calls[0]?.[1] as { htmlBody: string };
+    expect(draft.htmlBody).toContain('<p>Hi,</p>');
+    expect(draft.htmlBody).toContain('background-color:#dbeafe');
+    expect(draft.htmlBody).toContain('A | B');
+    expect(draft.htmlBody).toContain('<br>Regards');
+  });
+
   it("includes validated image attachments supplied by the agent context", async () => {
     mockGetToken.mockResolvedValueOnce({ ok: true, accessToken: "tok" });
     mockCreateDraft.mockResolvedValueOnce({ draftId: "d", messageId: "m" });

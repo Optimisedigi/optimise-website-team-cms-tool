@@ -1341,6 +1341,13 @@ function GmailChatComposer({
             ref={textareaRef}
             rows={3}
             value={value}
+            onPaste={(event) => {
+              if (!onAddAttachments || disabled || enhancing) return
+              const images = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith('image/'))
+              if (images.length === 0) return
+              event.preventDefault()
+              onAddAttachments(event.clipboardData.files)
+            }}
             onChange={(e) => {
               onChange(e.target.value)
               if (enhanceError) setEnhanceError(null)
