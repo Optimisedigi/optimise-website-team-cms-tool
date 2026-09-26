@@ -632,6 +632,28 @@ export async function runMigrations(
     await run("clients_client_pulse_services_tracked.drop_duplicate_seo", "DELETE FROM `clients_client_pulse_services_tracked` WHERE `value` = 'seo'");
   }
 
+  async function addInThePictureSchema(): Promise<void> {
+    // Existing databases must run this before either legacy marker return.
+    // Fresh databases create these prerequisites in the full sweep below.
+    for (const table of [
+      'clients',
+      'blog_posts',
+      '_blog_posts_v',
+      'payload_locked_documents_rels',
+      'payload_migrations',
+    ]) {
+      if (!(await tableExists(table))) return
+    }
+    const beforeWebsiteSync = results.length
+    for (const [label, statement] of inThePictureSchema) await run(`in_the_picture.${label}`, statement)
+    if (results.slice(beforeWebsiteSync).every((result) => result.status !== 'error')) {
+      await run(
+        'mark_migration:20260926_120000_in_the_picture_sync',
+        "INSERT INTO payload_migrations (name, batch, created_at, updated_at) SELECT '20260926_120000_in_the_picture_sync', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM payload_migrations WHERE name = '20260926_120000_in_the_picture_sync')",
+      )
+    }
+  }
+
   async function addWatchtowerAndSiteHealthSchema(): Promise<void> {
     await run("google_ads_automation_events", "CREATE TABLE IF NOT EXISTS `google_ads_automation_events` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `client_id` integer, `customer_id` text, `change_date_time` text, `resource_name` text NOT NULL, `change_resource_type` text, `resource_change_operation` text, `client_type` text, `user_email` text, `campaign_id` text, `campaign_name` text, `changed_fields` text, `old_values` text, `new_values` text, `is_google_automated` integer DEFAULT false, `summary` text, `impact_spend_before` numeric, `impact_spend_after` numeric, `impact_conv_before` numeric, `impact_conv_after` numeric, `impact_computed_at` text, `review_status` text DEFAULT 'unreviewed', `related_approval_id` integer, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL)");
     await run("google_ads_automation_events_resource_name_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_automation_events_resource_name_idx` ON `google_ads_automation_events` (`resource_name`)");
@@ -675,6 +697,7 @@ export async function runMigrations(
     await addOptiMateVoiceAuthMethod();
     await mergeClientPulseSeoService();
     await addWatchtowerAndSiteHealthSchema();
+    await addInThePictureSchema()
 
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the
@@ -6234,12 +6257,8 @@ export async function runMigrations(
       "INSERT INTO clients_presentations (_order, _parent_id, id, title, deck_slug, kind, is_public) SELECT COALESCE((SELECT MAX(_order) FROM clients_presentations WHERE _parent_id = c.id), 0) + 1, c.id, 'autotrader-google-ads-audit', 'Google Ads Audit', 'google-ads-audit', 'deck', 1 FROM clients c WHERE c.slug = 'autotrader' AND NOT EXISTS (SELECT 1 FROM clients_presentations p WHERE p._parent_id = c.id AND p.deck_slug = 'google-ads-audit')",
     );
 
-    // Shared additive SQL: the production runner and Payload's checked-in migration must agree.
-    const beforeWebsiteSync = results.length;
-    for (const [label, statement] of inThePictureSchema) await run(`in_the_picture.${label}`, statement);
-    if (results.slice(beforeWebsiteSync).every(result => result.status !== 'error')) {
-      await run('mark_migration:20260926_120000_in_the_picture_sync', "INSERT OR IGNORE INTO payload_migrations (name, batch, created_at, updated_at) VALUES ('20260926_120000_in_the_picture_sync', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
-    }
+    // Fresh-database path: prerequisites now exist. Reuse the same additive SQL.
+    await addInThePictureSchema()
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
