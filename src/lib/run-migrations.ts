@@ -1,4 +1,5 @@
 import type { Payload } from "payload";
+import { inThePictureSchema } from './in-the-picture/schema';
 
 /**
  * One result row per `run()` call inside `runMigrations`.
@@ -6232,6 +6233,13 @@ export async function runMigrations(
       "seed_autotrader_audit_deck",
       "INSERT INTO clients_presentations (_order, _parent_id, id, title, deck_slug, kind, is_public) SELECT COALESCE((SELECT MAX(_order) FROM clients_presentations WHERE _parent_id = c.id), 0) + 1, c.id, 'autotrader-google-ads-audit', 'Google Ads Audit', 'google-ads-audit', 'deck', 1 FROM clients c WHERE c.slug = 'autotrader' AND NOT EXISTS (SELECT 1 FROM clients_presentations p WHERE p._parent_id = c.id AND p.deck_slug = 'google-ads-audit')",
     );
+
+    // Shared additive SQL: the production runner and Payload's checked-in migration must agree.
+    const beforeWebsiteSync = results.length;
+    for (const [label, statement] of inThePictureSchema) await run(`in_the_picture.${label}`, statement);
+    if (results.slice(beforeWebsiteSync).every(result => result.status !== 'error')) {
+      await run('mark_migration:20260926_120000_in_the_picture_sync', "INSERT OR IGNORE INTO payload_migrations (name, batch, created_at, updated_at) VALUES ('20260926_120000_in_the_picture_sync', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+    }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

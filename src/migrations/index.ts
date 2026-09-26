@@ -178,6 +178,8 @@ import * as migration_20260710_120000_add_proposal_meta_ads_status from './20260
 import * as migration_20260710_130000_add_shared_working_docs from './20260710_130000_add_shared_working_docs'
 import * as migration_20260812_120000_add_client_pulse_dashboard_metrics from './20260812_120000_add_client_pulse_dashboard_metrics'
 
+import * as migration_20260926_120000_in_the_picture_sync from './20260926_120000_in_the_picture_sync'
+
 export const migrations = [
   {
     up: migration_20260210_034208_add_client_analysis_fields.up,
@@ -1073,5 +1075,10 @@ export const migrations = [
     up: migration_20260922_130000_backfill_voice_auth_method.up,
     down: migration_20260922_130000_backfill_voice_auth_method.down,
     name: '20260922_130000_backfill_voice_auth_method',
+  },
+  {
+    up: migration_20260926_120000_in_the_picture_sync.up,
+    down: migration_20260926_120000_in_the_picture_sync.down,
+    name: '20260926_120000_in_the_picture_sync',
   },
 ]

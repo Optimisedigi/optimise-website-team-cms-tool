@@ -17,6 +17,8 @@ import { ClientProposalKeywordResearchJobs } from "./collections/ClientProposalK
 import { ClientProposals } from "./collections/ClientProposals";
 import { ClientDiscoveryBriefings } from "./collections/ClientDiscoveryBriefings";
 import { BlogPosts } from "./collections/BlogPosts";
+import { BlogIdeas } from "./collections/BlogIdeas";
+import { BlogSyncEvents } from "./collections/BlogSyncEvents";
 import { SeoAudits } from "./collections/SeoAudits";
 import { SeoAuditProposals } from "./collections/SeoAuditProposals";
 import { CroAudits } from "./collections/CroAudits";
@@ -154,7 +156,7 @@ export default buildConfig({
     // Clients
     Clients, ClientWishlistItems, HostingPaymentOffers, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
     // Content
-    BlogPosts, BlogPrompts, JobPosts, Media,
+    BlogPosts, BlogPrompts, BlogIdeas, BlogSyncEvents, JobPosts, Media,
     // SEO
     InternalLinkSuggestions,
     // Audits

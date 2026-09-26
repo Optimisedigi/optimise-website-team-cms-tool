@@ -3,6 +3,8 @@ import matter from "gray-matter";
 import { logActivity } from "../lib/activity-log";
 import { createLedgerItem } from "../lib/client-value-ledger";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { configuredClientId } from "../lib/in-the-picture/config";
+import { enqueuePost, nextRevision } from "../lib/in-the-picture/outbox";
 
 /**
  * Blog Posts Collection
@@ -140,6 +142,10 @@ export const BlogPosts: CollectionConfig = {
             });
         }
       },
+      async ({ doc, previousDoc, req }) => {
+        if (req.context?.skipWebsiteSync) return;
+        await enqueuePost(req.payload, doc, previousDoc, req);
+      },
     ],
     beforeChange: [
       ({ data }) => {
@@ -274,7 +280,24 @@ export const BlogPosts: CollectionConfig = {
 
         return data;
       },
+      async ({ data, originalDoc, req }) => {
+        if (originalDoc?.websiteBlogIdeaId && data?.websiteBlogIdeaId && data.websiteBlogIdeaId !== originalDoc.websiteBlogIdeaId) {
+          throw new Error('The website Blog ID cannot be changed after linking');
+        }
+        if (originalDoc?.slug && data?.slug && originalDoc.slug !== data.slug && configuredClientId()) {
+          const delivered = await req.payload.find({ collection: 'blog-sync-events', where: { and: [{ postId: { equals: String(originalDoc.id) } }, { state: { equals: 'delivered' } }, { kind: { equals: 'published' } }] }, limit: 1, depth: 0, overrideAccess: true, req });
+          if (delivered.docs.length) throw new Error('Website slug cannot change after delivery');
+        }
+        const client = typeof (data?.client ?? originalDoc?.client) === 'object' ? (data?.client ?? originalDoc?.client)?.id : (data?.client ?? originalDoc?.client);
+        if (configuredClientId() && client === configuredClientId() && (data?.status === 'published' || originalDoc?.status === 'published')) {
+          data.websiteSyncRevision = nextRevision(originalDoc?.websiteSyncRevision);
+        }
+        return data;
+      },
     ],
+    afterDelete: [async ({ doc, req }) => {
+      await enqueuePost(req.payload, { ...doc, websiteSyncRevision: nextRevision(doc.websiteSyncRevision) }, doc, req, true);
+    }],
   },
   fields: [
     // Client Selection (at the top for visibility)
@@ -304,6 +327,13 @@ export const BlogPosts: CollectionConfig = {
           "Review the generated draft, then confirm the selected client is correct before publishing",
       },
     },
+    {
+      name: 'websiteBlogIdeaId', type: 'text', admin: { position: 'sidebar', description: 'Exact website Blog ID (UUID). Never matched by title.' },
+      validate: (value: string | null | undefined) => !value || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) || 'Enter a valid Blog UUID',
+    },
+    { name: 'websiteCategory', type: 'select', options: ['tax-tips', 'business-handbook', 'contractor-handbook'], admin: { position: 'sidebar', description: 'Explicit website category; editor must choose.' } },
+    { name: 'websiteServiceSlug', type: 'select', options: ['accounting', 'taxation', 'tax-advisory', 'superfunds', 'business-accounting', 'business-advice', 'virtual-fractional-cfo', 'income-averaging', 'property-service', 'finance-financial-planning', 'creative-tax-deductions', 'entertainment-industry-accounting'], admin: { position: 'sidebar', description: 'Exact website service slug; editor must choose.' } },
+    { name: 'websiteSyncRevision', type: 'text', admin: { readOnly: true, position: 'sidebar', description: 'Latest queued article revision.' } },
     {
       name: "markdownGuide",
       type: "ui",

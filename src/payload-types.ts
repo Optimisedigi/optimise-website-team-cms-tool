@@ -87,6 +87,8 @@ export interface Config {
     'meeting-schedulers': MeetingScheduler;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
+    'blog-ideas': BlogIdea;
+    'blog-sync-events': BlogSyncEvent;
     'job-posts': JobPost;
     media: Media;
     'internal-link-suggestions': InternalLinkSuggestion;
@@ -204,6 +206,8 @@ export interface Config {
     'meeting-schedulers': MeetingSchedulersSelect<false> | MeetingSchedulersSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
+    'blog-ideas': BlogIdeasSelect<false> | BlogIdeasSelect<true>;
+    'blog-sync-events': BlogSyncEventsSelect<false> | BlogSyncEventsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'internal-link-suggestions': InternalLinkSuggestionsSelect<false> | InternalLinkSuggestionsSelect<true>;
@@ -6299,6 +6303,7 @@ export interface User {
         | 'media-basic'
         | 'blog-posts'
         | 'blog-prompts'
+        | 'blog-ideas'
         | 'blog-settings'
         | 'job-posts'
         | 'media'
@@ -6415,6 +6420,7 @@ export interface PermissionProfile {
         | 'media-basic'
         | 'blog-posts'
         | 'blog-prompts'
+        | 'blog-ideas'
         | 'blog-settings'
         | 'job-posts'
         | 'media'
@@ -7798,6 +7804,37 @@ export interface BlogPost {
    */
   clientConfirmed?: boolean | null;
   /**
+   * Exact website Blog ID (UUID). Never matched by title.
+   */
+  websiteBlogIdeaId?: string | null;
+  /**
+   * Explicit website category; editor must choose.
+   */
+  websiteCategory?: ('tax-tips' | 'business-handbook' | 'contractor-handbook') | null;
+  /**
+   * Exact website service slug; editor must choose.
+   */
+  websiteServiceSlug?:
+    | (
+        | 'accounting'
+        | 'taxation'
+        | 'tax-advisory'
+        | 'superfunds'
+        | 'business-accounting'
+        | 'business-advice'
+        | 'virtual-fractional-cfo'
+        | 'income-averaging'
+        | 'property-service'
+        | 'finance-financial-planning'
+        | 'creative-tax-deductions'
+        | 'entertainment-industry-accounting'
+      )
+    | null;
+  /**
+   * Latest queued article revision.
+   */
+  websiteSyncRevision?: string | null;
+  /**
    * The H1 title. Make it intent-led: describe what the reader will learn + who it's for.
    */
   title: string;
@@ -8265,6 +8302,66 @@ export interface BlogPrompt {
    * Syncs back to Growth Tools content gap tracker
    */
   gapStatus?: ('open' | 'in_progress' | 'published') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-ideas".
+ */
+export interface BlogIdea {
+  id: number;
+  client: number | Client;
+  blogId: string;
+  /**
+   * 1 is highest priority
+   */
+  priority: number;
+  blogIdea: string;
+  suggestedTitle?: string | null;
+  mainPoint?: string | null;
+  keyPoints?: string | null;
+  pointsToAvoid?: string | null;
+  supportingContent?: string | null;
+  contributor?: string | null;
+  idealAuthor?: string | null;
+  status: 'open' | 'published';
+  publishedSlug?: string | null;
+  sourceUpdatedAt?: string | null;
+  recordRevision: number;
+  orderRevision: number;
+  editorNotes?: string | null;
+  linkedPost?: (number | null) | BlogPost;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-sync-events".
+ */
+export interface BlogSyncEvent {
+  id: number;
+  eventKey: string;
+  clientId: number;
+  postId: string;
+  revision: string;
+  kind: 'published' | 'unpublished';
+  body:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  state: 'pending' | 'delivered' | 'retry' | 'review' | 'superseded';
+  attempts: number;
+  nextAttempt?: string | null;
+  leaseToken?: string | null;
+  leaseUntil?: string | null;
+  acknowledgedAt?: string | null;
+  lastError?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -11495,6 +11592,14 @@ export interface PayloadLockedDocument {
         value: number | BlogPrompt;
       } | null)
     | ({
+        relationTo: 'blog-ideas';
+        value: number | BlogIdea;
+      } | null)
+    | ({
+        relationTo: 'blog-sync-events';
+        value: number | BlogSyncEvent;
+      } | null)
+    | ({
         relationTo: 'job-posts';
         value: number | JobPost;
       } | null)
@@ -13089,6 +13194,10 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
 export interface BlogPostsSelect<T extends boolean = true> {
   client?: T;
   clientConfirmed?: T;
+  websiteBlogIdeaId?: T;
+  websiteCategory?: T;
+  websiteServiceSlug?: T;
+  websiteSyncRevision?: T;
   title?: T;
   excerpt?: T;
   content?: T;
@@ -13135,6 +13244,53 @@ export interface BlogPromptsSelect<T extends boolean = true> {
   source?: T;
   archivedAt?: T;
   gapStatus?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-ideas_select".
+ */
+export interface BlogIdeasSelect<T extends boolean = true> {
+  client?: T;
+  blogId?: T;
+  priority?: T;
+  blogIdea?: T;
+  suggestedTitle?: T;
+  mainPoint?: T;
+  keyPoints?: T;
+  pointsToAvoid?: T;
+  supportingContent?: T;
+  contributor?: T;
+  idealAuthor?: T;
+  status?: T;
+  publishedSlug?: T;
+  sourceUpdatedAt?: T;
+  recordRevision?: T;
+  orderRevision?: T;
+  editorNotes?: T;
+  linkedPost?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-sync-events_select".
+ */
+export interface BlogSyncEventsSelect<T extends boolean = true> {
+  eventKey?: T;
+  clientId?: T;
+  postId?: T;
+  revision?: T;
+  kind?: T;
+  body?: T;
+  state?: T;
+  attempts?: T;
+  nextAttempt?: T;
+  leaseToken?: T;
+  leaseUntil?: T;
+  acknowledgedAt?: T;
+  lastError?: T;
   updatedAt?: T;
   createdAt?: T;
 }

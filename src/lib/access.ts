@@ -51,6 +51,7 @@ export const FEATURE_KEYS = [
   // Content
   { label: "Blog Posts", value: "blog-posts" },
   { label: "Blog Prompts", value: "blog-prompts" },
+  { label: "In The Picture Blog Ideas", value: "blog-ideas" },
   { label: "Blog Settings (Global)", value: "blog-settings" },
   { label: "Job Posts", value: "job-posts" },
   { label: "Media", value: "media" },
@@ -135,6 +136,7 @@ export const AUTO_GRANT_CLIENTS_BASIC_TRIGGERS: readonly FeatureSlug[] = [
   "meeting-schedulers",
   "blog-posts",
   "blog-prompts",
+  "blog-ideas",
   "blog-settings",
   "job-posts",
   "internal-link-suggestions",
@@ -169,6 +171,7 @@ export const AUTO_GRANT_MEDIA_BASIC_TRIGGERS: readonly FeatureSlug[] = [
   "media", // full media implies basic
   "blog-posts",
   "blog-prompts",
+  "blog-ideas",
   "clients", // author photos
   "clients-basic", // author photos for basic clients access
   "contracts", // contract uploads
@@ -256,6 +259,7 @@ export function userHasFeature(user: any, slug: FeatureSlug | string): boolean {
 const BLOG_ACCESS_FEATURES: readonly FeatureSlug[] = [
   "blog-posts",
   "blog-prompts",
+  "blog-ideas",
   "blog-settings",
 ] as const;
 
