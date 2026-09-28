@@ -43,7 +43,9 @@ export const AgentApprovalQueue: CollectionConfig = {
   hooks: {
     afterChange: [
       async ({ doc, operation, req }) => {
-        if (doc.status === "pending") {
+        // queueForApproval sends notifications after its approval row is readable.
+        // Doing it here would write notification rows inside the approval create.
+        if (doc.status === "pending" && !req.context?.deferApprovalNotifications) {
           await fanOutApprovalNotifications(req.payload, {
             approvalId: Number(doc.id),
             agentRunId: String(doc.agentRunId),

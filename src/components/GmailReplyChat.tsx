@@ -5,6 +5,7 @@ import RocketSplash from './RocketSplash'
 import OptiMateBeamComposer from './OptiMateBeamComposer'
 import OptiMateVoice from './OptiMateVoice'
 import OptiMateMetalSend, { OptiMateMetalPill } from './OptiMateMetalSend'
+import styles from './GmailReplyChat.module.css'
 import { ThinkingOrb } from 'thinking-orbs'
 import {
   CHAT_PICKER_MODELS,
@@ -1052,11 +1053,9 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
                 )}
 
                 <div style={{ ...chatPanel, flex: 1, minHeight: 150, overflowY: 'auto' }}>
-                  {chatMessages.length === 0 && !draftingReply && (
+                  {chatMessages.length === 0 && !draftingReply && summariseMode && (
                     <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '18px 8px' }}>
-                      {summariseMode
-                        ? 'Chat with GmailMate to summarise the thread. Ask for a summary, key points, or action items.'
-                        : 'Chat with GmailMate about the reply. Ask for edits until it sounds right, then create a Gmail draft when ready.'}
+                      Chat with GmailMate to summarise the thread. Ask for a summary, key points, or action items.
                     </div>
                   )}
                   {chatMessages.map((msg, index) => (
@@ -1358,36 +1357,6 @@ function GmailChatComposer({
           {imageDragActive && (
             <div style={gmailImageDropOverlayStyle}>Drop image for GmailMate and the Gmail draft</div>
           )}
-          {enhanceMode && (
-            <div
-              data-optimate-enhance-host=""
-              style={{
-                ...enhancePillHostStyle,
-                opacity: enhanceVisible ? 1 : 0,
-                pointerEvents: enhanceVisible ? 'auto' : 'none',
-                transform: `translateY(${enhanceVisible ? '0' : '-4px'}) scale(${enhanceVisible ? 1 : 0.96})`,
-              }}
-            >
-              <OptiMateMetalPill>
-                <button
-                  type="button"
-                  onClick={() => void enhancePrompt()}
-                  disabled={!canEnhance}
-                  title="Enhance prompt — clearer wording without sending it"
-                  aria-label="Enhance prompt without sending"
-                  aria-hidden={!enhanceVisible}
-                  data-optimate-enhance=""
-                  style={{
-                    ...enhancePillStyle,
-                    opacity: enhancing ? 0.65 : 1,
-                    cursor: canEnhance ? 'pointer' : 'default',
-                  }}
-                >
-                  {enhancing ? 'Enhancing…' : 'Enhance?'}
-                </button>
-              </OptiMateMetalPill>
-            </div>
-          )}
           <textarea
             ref={textareaRef}
             rows={3}
@@ -1411,6 +1380,7 @@ function GmailChatComposer({
               }
             }}
             placeholder={placeholder}
+            aria-label="Message GmailMate"
             disabled={disabled || enhancing}
             data-optimate-input=""
             style={googleMateTextareaStyle}
@@ -1444,6 +1414,37 @@ function GmailChatComposer({
         </OptiMateMetalSend>
       </div>
       </OptiMateBeamComposer>
+      {enhanceMode && (
+        <div
+          data-optimate-enhance-host=""
+          style={{
+            ...enhancePillHostStyle,
+            opacity: enhanceVisible ? 1 : 0,
+            pointerEvents: enhanceVisible ? 'auto' : 'none',
+            transform: `translate(-50%, ${enhanceVisible ? '-50%' : 'calc(-50% - 4px)'}) scale(${enhanceVisible ? 1 : 0.96})`,
+          }}
+        >
+          <OptiMateMetalPill>
+            <button
+              type="button"
+              onClick={() => void enhancePrompt()}
+              disabled={!canEnhance}
+              title="Enhance prompt — clearer wording without sending it"
+              aria-label="Enhance prompt without sending"
+              aria-hidden={!enhanceVisible}
+              className={styles.enhance}
+              data-optimate-enhance=""
+              style={{
+                ...enhancePillStyle,
+                opacity: enhancing ? 0.65 : 1,
+                cursor: canEnhance ? 'pointer' : 'default',
+              }}
+            >
+              {enhancing ? 'Enhancing…' : 'Enhance?'}
+            </button>
+          </OptiMateMetalPill>
+        </div>
+      )}
       {enhanceError && <div role="alert" style={enhanceErrorStyle}>{enhanceError}</div>}
       <div data-optimate-select-row="" style={modelSelectorRowStyle}>
         <select
@@ -1534,7 +1535,7 @@ const primaryButton: React.CSSProperties = {
 const ghostLink: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: '#2563eb',
+  color: '#fff',
   fontSize: 11,
   cursor: 'pointer',
   padding: 0,
@@ -1703,13 +1704,16 @@ const inlineErrorStyle: React.CSSProperties = {
 }
 
 const gmailComposerWrapStyle: React.CSSProperties = {
+  position: 'relative',
   flexShrink: 0,
 }
 
 const composerInputRowStyle: React.CSSProperties = {
   display: 'flex',
-  alignItems: 'flex-end',
-  gap: 10,
+  flexWrap: 'wrap',
+  justifyContent: 'flex-end',
+  alignItems: 'center',
+  gap: 8,
   padding: 16,
 }
 
@@ -1717,9 +1721,9 @@ const googleMateComposerBoxStyle: React.CSSProperties = {
   position: 'relative',
   display: 'flex',
   flexDirection: 'column',
-  flex: 1,
+  flex: '0 0 100%',
   minWidth: 0,
-  minHeight: 104,
+  minHeight: 80,
   border: 'none',
   borderRadius: 0,
   background: 'transparent',
@@ -1749,13 +1753,13 @@ const gmailImageDropOverlayStyle: React.CSSProperties = {
   pointerEvents: 'none',
 }
 
-// The pill sits on its own row at the top of the composer box so it never
-// covers the first line of the prompt the user is reading.
+// Straddle the composer's top border without reserving space inside the textarea.
 const enhancePillHostStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 0,
+  left: '50%',
+  zIndex: 7,
   display: 'flex',
-  flexShrink: 0,
-  alignSelf: 'center',
-  marginBottom: 4,
   transition: 'opacity 150ms ease, transform 150ms ease',
 }
 
@@ -1786,7 +1790,6 @@ const enhanceErrorStyle: React.CSSProperties = {
 const googleMateTextareaStyle: React.CSSProperties = {
   width: '100%',
   minHeight: 80,
-  height: '100%',
   padding: 0,
   border: 'none',
   fontSize: 13,
@@ -1834,8 +1837,8 @@ const compactInputStyle: React.CSSProperties = {
 // no longer inherits the beam surface styling and carries its own compact look.
 const modelSelectorRowStyle: React.CSSProperties = {
   display: 'flex',
-  justifyContent: 'flex-start',
-  padding: '8px 4px 0',
+  justifyContent: 'flex-end',
+  padding: '6px 4px 2px',
   marginTop: 0,
 }
 
@@ -1851,7 +1854,8 @@ const modelSelectGoogleMateStyle: React.CSSProperties = {
   background: '#29292b',
   color: '#d4d4d8',
   fontFamily: 'inherit',
-  fontSize: 11,
+  fontSize: 10,
+  fontWeight: 400,
   lineHeight: '16px',
   textOverflow: 'ellipsis',
 }
@@ -1882,7 +1886,7 @@ const originalEmailBodyStyle: React.CSSProperties = {
 const minimalButtonStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: '#60a5fa',
+  color: '#fff',
   fontSize: 11,
   cursor: 'pointer',
   padding: 0,

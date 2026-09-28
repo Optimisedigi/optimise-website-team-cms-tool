@@ -61,8 +61,13 @@ export interface ApprovalRow {
 export async function queueForApproval(input: QueueForApprovalInput): Promise<number> {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
+  const startedAt = Date.now();
   const created = (await payload.create({
     collection: COLLECTION,
+    // A queue row must be committed before the notification fan-out starts
+    // separate SQLite writes. The collection hook defers fan-out for this path.
+    disableTransaction: true,
+    context: { deferApprovalNotifications: true },
     data: {
       title: input.title,
       agentName: input.agentName,
@@ -78,6 +83,24 @@ export async function queueForApproval(input: QueueForApprovalInput): Promise<nu
     },
     overrideAccess: true,
   })) as { id: number };
+
+  // Confirm the row is visible to the review page before telling the agent it
+  // can give the user a link. A returned ID alone does not prove persistence.
+  const persisted = (await payload.findByID({
+    collection: COLLECTION,
+    id: created.id,
+    depth: 0,
+    overrideAccess: true,
+  })) as { id: number; agentRunId: string };
+  if (persisted.id !== created.id || persisted.agentRunId !== input.agentRunId) {
+    throw new Error(`Approval #${created.id} was not persisted for this run`);
+  }
+  payload.logger?.info?.({
+    msg: "queueForApproval: approval persisted",
+    approvalId: created.id,
+    proposalType: input.proposalType,
+    elapsedMs: Date.now() - startedAt,
+  });
 
   // Fan out a bell notification to every admin so any team-member can review.
   // Best-effort — a fan-out failure must not block proposal creation; the

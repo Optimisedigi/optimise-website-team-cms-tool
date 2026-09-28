@@ -51,6 +51,16 @@ describe("AgentApprovalQueue Collection", () => {
     expect(clearApprovalNotifications).not.toHaveBeenCalled();
   });
 
+  it("defers bell notifications until the queued approval is persisted", async () => {
+    const hook = getAfterChangeHooks()[0];
+    await hook({
+      doc: { id: 86, status: "pending" },
+      operation: "create",
+      req: { payload: { id: "payload" }, context: { deferApprovalNotifications: true } },
+    } as any);
+    expect(fanOutApprovalNotifications).not.toHaveBeenCalled();
+  });
+
   it("clears related bell notifications when an approval is actioned", async () => {
     const hook = getAfterChangeHooks()[0];
 

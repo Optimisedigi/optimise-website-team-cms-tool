@@ -189,12 +189,11 @@ const ACTION_CLAIMS: ReadonlyArray<{
       "i'll queue",
       "i will queue",
     ],
-    // Any propose_* tool counts; if none of them fired, we have a lie.
-    // Indicator-only: we treat presence of ANY tool name starting with
-    // `propose_` as satisfying this requirement (see check fn below).
-    tools: ["__any_propose__"],
+    // Goal-run creation also queues a human approval, but its tool is named
+    // create_*; overlooking it makes the retry queue the same goal twice.
+    tools: ["__any_propose__", "create_account_efficiency_goal_run", "create_goal_run"],
     expectedToolHint:
-      "Call the relevant propose_* tool now with the data you already gathered. Do not return text until the tool call has been made.",
+      "Call the relevant propose_* or create_*_goal_run tool now with the data you already gathered. Do not return text until the tool call has been made.",
   },
   {
     phrases: [

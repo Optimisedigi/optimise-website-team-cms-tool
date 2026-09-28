@@ -52,8 +52,9 @@ let nextUpdateError: Error | null = null;
 const findCalls: FindArgs[] = [];
 const updateCalls: UpdateArgs[] = [];
 
-const { findImpl, updateImpl, createImpl } = vi.hoisted(() => ({
+const { findImpl, findByIDImpl, updateImpl, createImpl } = vi.hoisted(() => ({
   findImpl: vi.fn(),
+  findByIDImpl: vi.fn(),
   updateImpl: vi.fn(),
   createImpl: vi.fn(),
 }));
@@ -73,6 +74,7 @@ updateImpl.mockImplementation(async (args: UpdateArgs) => {
 vi.mock("payload", () => ({
   getPayload: vi.fn(async () => ({
     find: findImpl,
+    findByID: findByIDImpl,
     update: updateImpl,
     create: createImpl,
   })),
@@ -97,6 +99,8 @@ beforeEach(() => {
   markGoalRunStatusMock.mockReset();
   recordGoalRunSnapshotMock.mockReset();
   findImpl.mockClear();
+  findByIDImpl.mockReset();
+  findByIDImpl.mockImplementation(async ({ id }: { id: number }) => ({ id, agentRunId: "run_create_goal_run_test" }));
   updateImpl.mockClear();
   createImpl.mockReset();
   findCalls.length = 0;
@@ -207,7 +211,14 @@ describe("create_goal_run — execute()", () => {
         status: "pending",
       },
       overrideAccess: true,
+      disableTransaction: true,
+      context: { deferApprovalNotifications: true },
     });
+    expect(findByIDImpl).toHaveBeenCalledWith(expect.objectContaining({
+      collection: "agent-approval-queue",
+      id: 77,
+      overrideAccess: true,
+    }));
 
     expect(startGoalRunMock).not.toHaveBeenCalled();
     expect(markGoalRunStatusMock).not.toHaveBeenCalled();

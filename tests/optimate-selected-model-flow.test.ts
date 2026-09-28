@@ -33,15 +33,15 @@ const mocks = vi.hoisted(() => ({
   runEmailChatTurn: vi.fn(async () => ({
     reply: "ok",
     runId: "email-run",
-    modelRequested: "claude-opus-5",
-    modelUsed: "claude-opus-5",
+    modelRequested: "claude-opus-5.5",
+    modelUsed: "claude-opus-5.5",
     source: "oauth",
   })),
   runChatTurn: vi.fn(async () => ({
     reply: "ok",
     runId: "google-run",
-    modelRequested: "claude-opus-5",
-    modelUsed: "claude-opus-5",
+    modelRequested: "claude-opus-5.5",
+    modelUsed: "claude-opus-5.5",
     source: "oauth",
     proposals: [],
     confirmRequests: [],
@@ -49,8 +49,8 @@ const mocks = vi.hoisted(() => ({
   runPortfolioChatTurn: vi.fn(async () => ({
     reply: "ok",
     runId: "google-portfolio-run",
-    modelRequested: "claude-opus-5",
-    modelUsed: "claude-opus-5",
+    modelRequested: "claude-opus-5.5",
+    modelUsed: "claude-opus-5.5",
     source: "oauth",
     proposals: [],
     confirmRequests: [],
@@ -100,13 +100,13 @@ describe("OptiMate selected model flow", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: "Summarise overdue invoices",
-          model: "claude-opus-5",
+          model: "claude-opus-5.5",
         }),
       }) as never,
     );
 
     expect(mocks.getOptiMateDefaultModels).toHaveBeenCalled();
-    expect(mocks.callLLM).toHaveBeenCalledWith(expect.objectContaining({ model: "claude-opus-5" }));
+    expect(mocks.callLLM).toHaveBeenCalledWith(expect.objectContaining({ model: "claude-opus-5.5" }));
     expect(mocks.callLLM).not.toHaveBeenCalledWith(expect.objectContaining({ model: "grok-build" }));
   });
 
@@ -119,7 +119,7 @@ describe("OptiMate selected model flow", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: "Draft a reply",
-          model: "claude-opus-5",
+          model: "claude-opus-5.5",
           mode: "reply",
           draft: { to: "client@example.com", subject: "Re: Screenshot" },
           email: { threadId: "thread-1", rfcMessageId: "<message-1@example.com>" },
@@ -134,7 +134,7 @@ describe("OptiMate selected model flow", () => {
 
     expect(mocks.runEmailChatTurn).toHaveBeenCalledWith(
       expect.objectContaining({
-        modelOverride: "claude-opus-5",
+        modelOverride: "claude-opus-5.5",
         messages: expect.arrayContaining([
           expect.objectContaining({
             role: "user",
@@ -171,7 +171,7 @@ describe("OptiMate selected model flow", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: "Review this account",
-          model: "claude-opus-5",
+          model: "claude-opus-5.5",
           sessionId: "session-1",
         }),
       }),
@@ -179,7 +179,7 @@ describe("OptiMate selected model flow", () => {
     );
 
     expect(mocks.runChatTurn).toHaveBeenCalledWith(
-      expect.objectContaining({ modelOverride: "claude-opus-5" }),
+      expect.objectContaining({ modelOverride: "claude-opus-5.5" }),
     );
   });
 
@@ -212,7 +212,7 @@ describe("OptiMate selected model flow", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: "Compare selected accounts",
-          model: "claude-opus-5",
+          model: "claude-opus-5.5",
           sessionId: "session-1",
           selectedAccountRefs: ["123"],
         }),
@@ -220,7 +220,7 @@ describe("OptiMate selected model flow", () => {
     );
 
     expect(mocks.runPortfolioChatTurn).toHaveBeenCalledWith(
-      expect.objectContaining({ modelOverride: "claude-opus-5" }),
+      expect.objectContaining({ modelOverride: "claude-opus-5.5" }),
     );
   });
 });

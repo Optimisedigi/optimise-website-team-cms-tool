@@ -26,8 +26,10 @@ const REQUIRED_CREDENTIAL_BY_PROVIDER: Record<ProviderName, string> = {
   "kimi-coding": "Kimi For Coding OAuth subscription",
   minimax: "MINIMAX_API_KEY",
   "minimax-openai": "MINIMAX_API_KEY for the legacy OpenAI-compatible MiniMax endpoint",
+  mimo: "MIMO_API_KEY",
   openai: "OPENAI_API_KEY",
   "openai-codex": "ChatGPT/Codex OAuth subscription",
+  "xai-api": "XAI_API_KEY",
   "xai-grok": "SuperGrok OAuth subscription",
 };
 

@@ -29,6 +29,7 @@ export const MODEL_REGISTRY = {
   "claude-sonnet-5": { provider: "anthropic", model: "claude-sonnet-5" },
   "claude-sonnet-4.6": { provider: "anthropic", model: "claude-sonnet-4-6" },
   "claude-sonnet-4.5": { provider: "anthropic", model: "claude-sonnet-4-5" },
+  "claude-opus-5.5": { provider: "anthropic", model: "claude-opus-5-5" },
   "claude-opus-5": { provider: "anthropic", model: "claude-opus-5" },
   "claude-opus-4-8": { provider: "anthropic", model: "claude-opus-4-8" },
   "claude-opus-4.7": { provider: "anthropic", model: "claude-opus-4-7" },
@@ -50,7 +51,14 @@ export const MODEL_REGISTRY = {
   "minimax-m3": { provider: "minimax", model: "MiniMax-M3" },
   "minimax-m2.7": { provider: "minimax-openai", model: "MiniMax-M2.7" },
 
+  // Xiaomi MiMo Open Platform (billed API key, not a subscription OAuth path).
+  "mimo-v2.6-pro": { provider: "mimo", model: "mimo-v2.6-pro" },
+  "mimo-v2.6-flash": { provider: "mimo", model: "mimo-v2.6-flash" },
+
   // OpenAI / GPT (OpenAI-compatible). API-key path billed to OPENAI_API_KEY.
+  "gpt-6-astra": { provider: "openai", model: "gpt-6-astra" },
+  "gpt-6-sol": { provider: "openai", model: "gpt-6-sol" },
+  "gpt-6-luna": { provider: "openai", model: "gpt-6-luna" },
   "gpt-5.5": { provider: "openai", model: "gpt-5.5" },
   "gpt-4o": { provider: "openai", model: "gpt-4o" },
 
@@ -79,6 +87,7 @@ export const MODEL_REGISTRY = {
   // SuperGrok subscription via device-code OAuth — NOT the billed XAI_API_KEY
   // path. grok-4.6 / grok-4.5 are the current chat models; grok-build and
   // grok-composer-2.5-fast stay as stored-setting aliases.
+  "grok-4.7": { provider: "xai-api", model: "grok-4.7" },
   "grok-4.6": { provider: "xai-grok", model: "grok-4.6" },
   "grok-4.5": { provider: "xai-grok", model: "grok-4.5" },
   "grok-build": { provider: "xai-grok", model: "grok-build" },
@@ -92,8 +101,10 @@ export type ProviderName =
   | "kimi-coding"
   | "minimax"
   | "minimax-openai"
+  | "mimo"
   | "openai"
   | "openai-codex"
+  | "xai-api"
   | "xai-grok";
 
 export interface AnthropicProviderConfig {
@@ -171,6 +182,11 @@ export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
     baseUrl: "https://api.minimaxi.chat/v1",
     supportsOAuth: false,
   },
+  mimo: {
+    handler: "callOpenAICompatible",
+    baseUrl: "https://api.xiaomimimo.com/v1",
+    supportsOAuth: false,
+  },
   openai: {
     handler: "callOpenAICompatible",
     baseUrl: "https://api.openai.com/v1",
@@ -181,6 +197,11 @@ export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
     // The Codex Responses endpoint is <baseUrl>/codex/responses.
     baseUrl: "https://chatgpt.com/backend-api",
     supportsOAuth: true,
+  },
+  "xai-api": {
+    handler: "callOpenAICompatible",
+    baseUrl: "https://api.x.ai/v1",
+    supportsOAuth: false,
   },
   "xai-grok": {
     handler: "callXaiGrok",
@@ -237,14 +258,20 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   requiresReasoning?: boolean;
 }> = [
   { canonical: "claude-sonnet-5", label: "Claude Sonnet 5 (OAuth)", hint: "Default. Best brand voice, free via Claude Max." },
-  { canonical: "claude-opus-5", label: "Claude Opus 5 (OAuth)", hint: "Latest Opus. Heaviest reasoning for complex investigations." },
+  { canonical: "claude-opus-5.5", label: "Claude Opus 5.5 (OAuth)", hint: "Latest Opus. Adaptive thinking is always on." },
   { canonical: "claude-haiku-4.5", label: "Claude Haiku 4.5 (OAuth)", hint: "Fastest Claude. Latest Haiku." },
   { canonical: "kimi-k3", label: "Kimi K3 (Kimi OAuth)", hint: "Kimi's flagship. Long-horizon coding, up to 1M context. Default for autonomous runs. Reasoning is always on for K3. No API tokens billed.", requiresReasoning: true },
   { canonical: "kimi-for-coding", label: "Kimi For Coding (Kimi OAuth)", hint: "Kimi K2.7 Code via device-code OAuth. No API tokens billed." },
   { canonical: "minimax-m3", label: "MiniMax M3", hint: "Latest MiniMax fallback for agentic workflows." },
+  { canonical: "mimo-v2.6-pro", label: "MiMo V2.6 Pro (API key)", hint: "Xiaomi flagship. Billed to MIMO_API_KEY; requires an API key." },
+  { canonical: "mimo-v2.6-flash", label: "MiMo V2.6 Flash (API key)", hint: "Faster Xiaomi model. Billed to MIMO_API_KEY; requires an API key." },
+  { canonical: "gpt-6-astra", label: "GPT-6 Astra (API key)", hint: "Latest flagship. Billed to OPENAI_API_KEY; not ChatGPT OAuth." },
+  { canonical: "gpt-6-sol", label: "GPT-6 Sol (API key)", hint: "Balanced GPT-6. Billed to OPENAI_API_KEY; not ChatGPT OAuth." },
+  { canonical: "gpt-6-luna", label: "GPT-6 Luna (API key)", hint: "Fast GPT-6. Billed to OPENAI_API_KEY; not ChatGPT OAuth." },
   { canonical: "gpt-5.6-sol", label: "GPT-5.6 Sol (ChatGPT OAuth)", hint: "Frontier heavyweight. Heaviest reasoning for complex work. Reasoning controlled per request." },
   { canonical: "gpt-5.6-terra", label: "GPT-5.6 Terra (ChatGPT OAuth)", hint: "Balanced daily driver. Reasoning controlled per request." },
   { canonical: "gpt-5.6-luna", label: "GPT-5.6 Luna (ChatGPT OAuth)", hint: "Fast and affordable. Reasoning controlled per request." },
+  { canonical: "grok-4.7", label: "Grok 4.7 (API key)", hint: "Latest Grok. Billed to XAI_API_KEY; not SuperGrok OAuth." },
   { canonical: "grok-4.6", label: "Grok 4.6 (SuperGrok OAuth)", hint: "xAI Grok 4.6 via your SuperGrok subscription. No API tokens billed." },
   { canonical: "grok-4.5", label: "Grok 4.5 (SuperGrok OAuth)", hint: "Previous Grok generation via SuperGrok subscription." },
 ];

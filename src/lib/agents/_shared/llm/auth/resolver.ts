@@ -78,8 +78,12 @@ function envApiKeyFor(provider: ProviderName): string | undefined {
     case "minimax":
     case "minimax-openai":
       return process.env.MINIMAX_API_KEY;
+    case "mimo":
+      return process.env.MIMO_API_KEY;
     case "openai":
       return process.env.OPENAI_API_KEY;
+    case "xai-api":
+      return process.env.XAI_API_KEY;
     case "openai-codex":
       // Codex is OAuth-only — there is no API key for the subscription path.
       // Returning undefined makes the resolver throw NoCredentialError when
@@ -105,6 +109,7 @@ function apiKeyAuthHeader(
     // Anthropic API key auth uses x-api-key, not Authorization.
     return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
   }
+  if (provider === "mimo") return { "api-key": apiKey };
   // OpenAI/Anthropic-compatible third-party providers use Bearer.
   return { Authorization: `Bearer ${apiKey}` };
 }

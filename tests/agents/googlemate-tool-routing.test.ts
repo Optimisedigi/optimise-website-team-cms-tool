@@ -54,6 +54,17 @@ describe("GoogleMate tool routing", () => {
     expect(names).toContain("create_gmail_draft");
   });
 
+  it("marks approval-writing goal tools as side effects in routed and full tool sets", () => {
+    const goalTools = getGoogleMateInitialTools([userMessage("Set up an efficiency goal")]);
+    const fullTools = getTools();
+    for (const tools of [goalTools, fullTools]) {
+      expect(tools.find((tool) => tool.name === "create_account_efficiency_goal_run")?.sideEffect).toBe(true);
+      expect(tools.find((tool) => tool.name === "create_goal_run")?.sideEffect).toBe(true);
+    }
+    expect(getGoogleMateInitialTools([userMessage("Propose campaign negatives")])
+      .find((tool) => tool.name === "propose_negative_keywords")?.sideEffect).toBe(true);
+  });
+
   it("routes last-week weekly budget Gmail drafts to the deterministic shortcut", () => {
     const names = toolNamesFor("Create a Gmail draft for the weekly Google Ads budget report for last week");
 

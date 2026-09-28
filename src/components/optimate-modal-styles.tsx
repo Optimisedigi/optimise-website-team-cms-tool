@@ -620,8 +620,8 @@ export const OPTIMATE_MODAL_CSS = `
   border-radius: 10px;
   background: #f3f5f8;
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--om-ink-3);
   cursor: pointer;
 }

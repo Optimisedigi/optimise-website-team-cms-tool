@@ -89,7 +89,7 @@ describe('OptiMateBeamComposer', () => {
       }),
     )
 
-    const { container } = render(<OptiMateChatCore auditId="audit-1" customerId="customer-1" />)
+    const { container, rerender } = render(<OptiMateChatCore auditId="audit-1" customerId="customer-1" />)
     const beam = container.querySelector('[data-beam]')
     const input = screen.getByPlaceholderText('Feel free to ask')
     const email = screen.getByRole('button', { name: 'Browse Gmail inbox' })
@@ -109,5 +109,10 @@ describe('OptiMateBeamComposer', () => {
     expect(metal?.hasAttribute('data-paused')).toBe(false)
     expect(selectors).toHaveLength(2)
     expect(Array.from(selectors).every((selector) => !beam?.contains(selector))).toBe(true)
+    rerender(<OptiMateChatCore auditId="audit-1" customerId="customer-1" fluid />)
+    expect(container.querySelector('[data-optimate-select-row]')).toHaveStyle({
+      justifyContent: 'flex-end',
+      marginBottom: '4px',
+    })
   })
 })

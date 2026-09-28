@@ -88,6 +88,7 @@ import { resetProposalCounter } from "./tools/_propose-helpers";
 import { readClientConnectionFlags } from "./tools/_client-tokens";
 import { loadPinnedMemoryBlock } from "./memory-loader";
 import { checkRunForCorrection, type CorrectionRequest } from "./post-run-checks";
+import { verifyApprovalReply } from "./verify-approval-reply";
 import { logAgentStep } from "../_shared/activity-log";
 import { memoryToolRoutingPrompt, shouldAttachMemoryTools } from "../_shared/memory-tool-routing";
 import { getPayload } from "payload";
@@ -260,18 +261,20 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
 }
 
 /**
- * Every `propose_*` tool writes an approval-queue record for a human to review.
+ * Every `propose_*` and goal-run creation tool writes an approval-queue record for a human to review.
  * That is a side effect, so the agent loop must de-duplicate identical repeat
  * calls or a degenerate model loop buries the reviewer in duplicate cards.
  *
  * Applied centrally rather than as a flag on ~20 individual tools: the naming
  * convention is the contract, and a new propose_* tool inherits the protection
- * automatically. De-duplication only ever matches byte-identical arguments, so
+ * automatically. The two goal creation tools are explicitly included. De-duplication only ever matches byte-identical arguments, so
  * proposing genuinely different changes is unaffected.
  */
 function markProposalsAsSideEffecting(tools: CanonicalTool<unknown>[]): CanonicalTool<unknown>[] {
   return tools.map((tool) =>
-    tool.name.startsWith("propose_") && !tool.sideEffect ? { ...tool, sideEffect: true } : tool,
+    (tool.name.startsWith("propose_") || tool.name === "create_goal_run" || tool.name === "create_account_efficiency_goal_run") && !tool.sideEffect
+      ? { ...tool, sideEffect: true }
+      : tool,
   );
 }
 
@@ -324,10 +327,10 @@ function dedupeTools(
   tools: CanonicalTool<unknown>[],
   options?: { restrictExternalContextActions?: boolean },
 ): CanonicalTool<unknown>[] {
-  return applyToolRestrictions(
+  return markProposalsAsSideEffecting(applyToolRestrictions(
     Array.from(new Map(tools.map((tool) => [tool.name, tool])).values()),
     options,
-  );
+  ));
 }
 
 function detectInitialToolBundles(messages: Message[]): GoogleMateToolBundleName[] {
@@ -614,7 +617,7 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
   const proposals = await fetchProposalsForRun(result.runId);
   const confirmRequests = extractConfirmRequests(result.steps);
   return {
-    reply,
+    reply: verifyApprovalReply(reply, proposals),
     runId: result.runId,
     modelRequested,
     modelUsed: result.modelUsed,
@@ -766,7 +769,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   const confirmRequests = extractConfirmRequests(result.steps);
 
   return {
-    reply,
+    reply: verifyApprovalReply(reply, proposals),
     runId: result.runId,
     modelRequested,
     modelUsed: result.modelUsed,

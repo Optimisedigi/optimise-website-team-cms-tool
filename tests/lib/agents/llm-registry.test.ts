@@ -11,7 +11,7 @@ describe("OptiMate OAuth model registry", () => {
     ["gpt-5.6-luna", "openai-codex", "gpt-5.6-luna"],
     ["gpt-5.6-terra", "openai-codex", "gpt-5.6-terra"],
     ["claude-sonnet-5", "anthropic", "claude-sonnet-5"],
-    ["claude-opus-5", "anthropic", "claude-opus-5"],
+    ["claude-opus-5.5", "anthropic", "claude-opus-5-5"],
     ["grok-4.6", "xai-grok", "grok-4.6"],
     ["grok-4.5", "xai-grok", "grok-4.5"],
   ] as const)(

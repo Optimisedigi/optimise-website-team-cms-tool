@@ -186,13 +186,11 @@ describe('GmailReplyChat usability smoke', () => {
     expect(enhanceButton.closest('.metal-fx-root, .metal-fx-fallback')).toHaveStyle({
       borderRadius: '999px',
     })
-    // The pill keeps its own row above the prompt instead of floating over the text.
+    // The pill straddles the composer's border without taking a row above the prompt.
     const enhanceHost = enhanceButton.closest('[data-optimate-enhance-host]')
-    expect(enhanceHost).not.toBeNull()
-    expect(enhanceHost).not.toHaveStyle({ position: 'absolute' })
-    expect(composeTextarea.compareDocumentPosition(enhanceHost as Node)).toBe(
-      Node.DOCUMENT_POSITION_PRECEDING,
-    )
+    expect(enhanceHost).toHaveStyle({ position: 'absolute', top: '0px', left: '50%' })
+    expect(enhanceHost?.parentElement).not.toHaveStyle({ marginTop: '12px' })
+    expect(composeTextarea.closest('[data-optimate-beam-composer]')?.contains(enhanceHost)).toBe(false)
 
     const png = new File(
       [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
@@ -689,7 +687,12 @@ describe('GmailReplyChat usability smoke', () => {
     expect(await screen.findByTestId('gmail-voice')).toHaveAttribute('data-message-id', 'msg-1')
     expect(screen.getByTestId('gmail-voice')).toHaveAttribute('data-mode', 'email')
     const originalEmailToggle = await screen.findByRole('button', { name: 'Show original email' })
-    expect(originalEmailToggle).toBeInTheDocument()
+    expect(originalEmailToggle).toHaveStyle({ color: '#fff' })
+    expect(screen.getByRole('button', { name: 'New draft' })).toHaveStyle({ color: '#fff' })
+    expect(screen.getByRole('button', { name: '← Results' })).toHaveStyle({ color: '#fff' })
+    expect(screen.queryByText(/Chat with GmailMate about the reply/)).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Message GmailMate' })).toBeInTheDocument()
+    expect(screen.getByTestId('gmail-draft-image-dropzone')).toHaveStyle({ flex: '0 0 100%' })
     expect(originalEmailToggle.parentElement?.parentElement).toHaveStyle({
       background: '#111',
       color: '#f5f5f7',
@@ -715,7 +718,11 @@ describe('GmailReplyChat usability smoke', () => {
     fireEvent.change(replyInput, {
       target: { value: 'Be warm and explain the next step.' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Enhance prompt without sending' }))
+    const enhance = screen.getByRole('button', { name: 'Enhance prompt without sending' })
+    const enhanceHost = enhance.closest('[data-optimate-enhance-host]')
+    expect(enhanceHost).toHaveStyle({ position: 'absolute', left: '50%' })
+    expect(replyInput.closest('[data-optimate-beam-composer]')?.contains(enhanceHost)).toBe(false)
+    fireEvent.click(enhance)
     await waitFor(() => {
       expect(replyInput).toHaveValue('Draft a warm reply that clearly explains the next step.')
     })

@@ -165,6 +165,12 @@ describe("detectPromisedButNotDelivered", () => {
     ).toBeNull();
   });
 
+  it("does not re-queue a goal after its create tool was called", () => {
+    const reply = "Queued approval #86, review at /admin/agent-approvals/86";
+    expect(detectPromisedButNotDelivered(reply, ["create_account_efficiency_goal_run"])).toBeNull();
+    expect(detectPromisedButNotDelivered(reply, ["create_goal_run"])).toBeNull();
+  });
+
   it("fires on 'scheduling the task' without propose_scheduled_task", () => {
     expect(
       detectPromisedButNotDelivered(

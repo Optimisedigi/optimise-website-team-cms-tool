@@ -57,12 +57,17 @@ describe("getOptiMateDefaultModels", () => {
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe("gpt-5.6-terra");
     expect(result.defaultAutonomousModel).toBe("minimax-m3");
-    expect(result.emailAssistantModel).toBe("claude-opus-5");
+    expect(result.emailAssistantModel).toBe("claude-opus-5.5");
     expect(result.blogPrompterModel).toBe("claude-sonnet-5");
     expect(result.searchTermResearchModel).toBe("kimi-k3");
     expect(result.negativeSweepModel).toBe("claude-haiku-4.5");
     expect(result.blogImageGenerationModel).toBe("custom-imagen");
     expect(result.voiceRealtimeModel).toBe("gpt-realtime-2");
+  });
+
+  it("keeps a saved Opus 5 preference on the newest Opus", async () => {
+    nextGlobal = { defaultChatModel: "claude-opus-5" };
+    expect((await getOptiMateDefaultModels()).defaultChatModel).toBe("claude-opus-5.5");
   });
 
   it.each([

@@ -33,7 +33,8 @@ interface OpenAIMessage {
 
 export interface OpenAIRequestBody {
   model: string;
-  max_tokens: number;
+  max_tokens?: number;
+  max_completion_tokens?: number;
   temperature?: number;
   messages: OpenAIMessage[];
   tools?: Array<{
@@ -49,7 +50,7 @@ export interface OpenAIRequestBody {
  * Matches gpt-5* (incl. gpt-5.5) and the o-series (o1/o3/o4...).
  */
 function modelOnlyAllowsDefaultTemperature(providerModel: string): boolean {
-  return /^(gpt-5|o\d)/i.test(providerModel);
+  return /^(gpt-[56]|o\d)/i.test(providerModel);
 }
 
 export function toOpenAI(opts: CallLLMOptions, providerModel: string): OpenAIRequestBody {
@@ -142,9 +143,14 @@ export function toOpenAI(opts: CallLLMOptions, providerModel: string): OpenAIReq
 
   const body: OpenAIRequestBody = {
     model: providerModel,
-    max_tokens: opts.maxTokens ?? 4096,
     messages,
   };
+  // GPT-6 and Xiaomi MiMo use the Chat Completions completion budget field.
+  if (providerModel.startsWith("gpt-6-") || providerModel.startsWith("mimo-")) {
+    body.max_completion_tokens = opts.maxTokens ?? 4096;
+  } else {
+    body.max_tokens = opts.maxTokens ?? 4096;
+  }
   // Only send temperature when the model actually accepts a non-default value.
   if (
     opts.temperature !== undefined &&

@@ -24,7 +24,7 @@
 }
 
 .surface:focus-within {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.65);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 16px 38px rgba(0, 0, 0, 0.26);
@@ -144,7 +144,6 @@
   cursor: not-allowed !important;
 }
 
-.surface :global([data-optimate-input]:focus-visible),
 .surface :global([data-optimate-tool]:focus-visible),
 .surface :global([data-optimate-select]:focus-visible),
 .surface :global([data-optimate-send]:focus-visible),

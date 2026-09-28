@@ -2488,6 +2488,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Feel free to ask"
+                aria-label="Message OptiMate"
                 disabled={loading}
                 data-optimate-input=""
                 style={{
@@ -2686,18 +2687,17 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             </div>
             </OptiMateBeamComposer>
 
-            {/* Model controls sit outside the typing surface, side by side,
-              and shrink only when the panel is too narrow for their labels. */}
+            {/* Model controls sit outside the typing surface and wrap on narrow screens. */}
             <div
               className="om-selects"
               data-optimate-select-row=""
               style={{
-                width: 'fit-content',
+                width: '100%',
                 maxWidth: '100%',
-                marginTop: 8,
-                // Keep a clear gap below the selectors so they are not clipped
-                // by the bottom edge of the popout window.
-                marginBottom: devParityEnabled ? 8 : 18,
+                justifyContent: 'flex-end',
+                flexWrap: 'wrap',
+                marginTop: 6,
+                marginBottom: fluid ? 4 : 8,
               }}
             >
               <select
