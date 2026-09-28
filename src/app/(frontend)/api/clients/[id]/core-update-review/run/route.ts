@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { withHttps } from "@/lib/site-health/targets";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -55,12 +56,20 @@ export async function POST(
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
-  const siteUrl = typeof client.websiteUrl === "string" ? client.websiteUrl.trim() : "";
+  const siteUrl = withHttps(typeof client.websiteUrl === "string" ? client.websiteUrl : "");
   if (!siteUrl) {
     return NextResponse.json(
       { error: "Client needs a Website URL before running a Core Update Review" },
       { status: 400 },
     );
+  }
+  try {
+    const parsed = new URL(siteUrl);
+    if (!["https:", "http:"].includes(parsed.protocol) || !parsed.hostname) {
+      throw new TypeError("Invalid site URL");
+    }
+  } catch {
+    return NextResponse.json({ error: "Client Website URL must be a valid HTTP or HTTPS address" }, { status: 400 });
   }
 
   try {
