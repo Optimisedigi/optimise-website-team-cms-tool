@@ -134,6 +134,9 @@ describe("conversions card", () => {
     // the rest are drop-off and belong to their own card.
     const started = await card("Chats started");
     expect(within(started).getByText("7")).toBeTruthy();
+    // The chat is the page's own guided chat, not HubSpot's.
+    expect(within(started).getByText(/guided chat on the page/)).toBeTruthy();
+    expect(within(started).queryByText(/HubSpot/)).toBeNull();
 
     const conversions = await card("Conversions");
     expect(within(conversions).queryByText("10")).toBeNull();

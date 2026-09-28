@@ -15756,14 +15756,20 @@ export interface OptimateSetting {
    */
   defaultChatModel:
     | 'claude-sonnet-5'
-    | 'claude-opus-5'
+    | 'claude-opus-5.5'
     | 'claude-haiku-4.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
     | 'minimax-m3'
+    | 'mimo-v2.6-pro'
+    | 'mimo-v2.6-flash'
+    | 'gpt-6-astra'
+    | 'gpt-6-sol'
+    | 'gpt-6-luna'
     | 'gpt-5.6-sol'
     | 'gpt-5.6-terra'
     | 'gpt-5.6-luna'
+    | 'grok-4.7'
     | 'grok-4.6'
     | 'grok-4.5';
   /**
@@ -15771,14 +15777,20 @@ export interface OptimateSetting {
    */
   defaultAutonomousModel:
     | 'claude-sonnet-5'
-    | 'claude-opus-5'
+    | 'claude-opus-5.5'
     | 'claude-haiku-4.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
     | 'minimax-m3'
+    | 'mimo-v2.6-pro'
+    | 'mimo-v2.6-flash'
+    | 'gpt-6-astra'
+    | 'gpt-6-sol'
+    | 'gpt-6-luna'
     | 'gpt-5.6-sol'
     | 'gpt-5.6-terra'
     | 'gpt-5.6-luna'
+    | 'grok-4.7'
     | 'grok-4.6'
     | 'grok-4.5';
   /**
@@ -15787,14 +15799,20 @@ export interface OptimateSetting {
   blogPrompterModel?:
     | (
         | 'claude-sonnet-5'
-        | 'claude-opus-5'
+        | 'claude-opus-5.5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
+        | 'mimo-v2.6-pro'
+        | 'mimo-v2.6-flash'
+        | 'gpt-6-astra'
+        | 'gpt-6-sol'
+        | 'gpt-6-luna'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
+        | 'grok-4.7'
         | 'grok-4.6'
         | 'grok-4.5'
       )
@@ -15805,14 +15823,20 @@ export interface OptimateSetting {
   invoiceAssistantModel?:
     | (
         | 'claude-sonnet-5'
-        | 'claude-opus-5'
+        | 'claude-opus-5.5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
+        | 'mimo-v2.6-pro'
+        | 'mimo-v2.6-flash'
+        | 'gpt-6-astra'
+        | 'gpt-6-sol'
+        | 'gpt-6-luna'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
+        | 'grok-4.7'
         | 'grok-4.6'
         | 'grok-4.5'
       )
@@ -15823,14 +15847,20 @@ export interface OptimateSetting {
   emailAssistantModel?:
     | (
         | 'claude-sonnet-5'
-        | 'claude-opus-5'
+        | 'claude-opus-5.5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
+        | 'mimo-v2.6-pro'
+        | 'mimo-v2.6-flash'
+        | 'gpt-6-astra'
+        | 'gpt-6-sol'
+        | 'gpt-6-luna'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
+        | 'grok-4.7'
         | 'grok-4.6'
         | 'grok-4.5'
       )
@@ -15841,14 +15871,20 @@ export interface OptimateSetting {
   searchTermResearchModel?:
     | (
         | 'claude-sonnet-5'
-        | 'claude-opus-5'
+        | 'claude-opus-5.5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
+        | 'mimo-v2.6-pro'
+        | 'mimo-v2.6-flash'
+        | 'gpt-6-astra'
+        | 'gpt-6-sol'
+        | 'gpt-6-luna'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
+        | 'grok-4.7'
         | 'grok-4.6'
         | 'grok-4.5'
       )
@@ -15859,14 +15895,20 @@ export interface OptimateSetting {
   negativeSweepModel?:
     | (
         | 'claude-sonnet-5'
-        | 'claude-opus-5'
+        | 'claude-opus-5.5'
         | 'claude-haiku-4.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
+        | 'mimo-v2.6-pro'
+        | 'mimo-v2.6-flash'
+        | 'gpt-6-astra'
+        | 'gpt-6-sol'
+        | 'gpt-6-luna'
         | 'gpt-5.6-sol'
         | 'gpt-5.6-terra'
         | 'gpt-5.6-luna'
+        | 'grok-4.7'
         | 'grok-4.6'
         | 'grok-4.5'
       )

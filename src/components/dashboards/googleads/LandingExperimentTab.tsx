@@ -1003,7 +1003,7 @@ export function LandingExperimentTab({
           <StatCard
             label="Chats started"
             value={headlineChatSessions.toLocaleString()}
-            note="Google Ads sessions that started a chat with the HubSpot bot"
+            note="Google Ads sessions that started a chat with the guided chat on the page"
           />
           {/* Rate of the total above, so it moves with chat sign-ups too. The
               per-market split beside it is the experiment's own goal measure,
@@ -1072,6 +1072,11 @@ export function LandingExperimentTab({
           sectionMeasurementSessions={data.sectionMeasurementSessions ?? 0}
           device={device}
           onDeviceChange={setDevice}
+          previewNote={
+            layoutAware && layout === "original"
+              ? "Preview shows the page as it is today, not the original layout these rows describe."
+              : null
+          }
         />
       )}
 
@@ -1313,6 +1318,7 @@ function SectionDwellPanel({
   sectionMeasurementSessions,
   device,
   onDeviceChange,
+  previewNote = null,
 }: {
   sections: SectionDwell[];
   pageMeta: LandingPageMeta | null;
@@ -1323,6 +1329,8 @@ function SectionDwellPanel({
   sectionMeasurementSessions: number;
   device: string;
   onDeviceChange: (device: string) => void;
+  /** Shown above the preview when it does not match the rows (original layout). */
+  previewNote?: string | null;
 }) {
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
@@ -1459,6 +1467,11 @@ function SectionDwellPanel({
               <div className="shrink-0 border-b border-slate-100 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.06em] leading-relaxed text-slate-500">
                 {previewLabel}
               </div>
+              {previewNote && (
+                <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900">
+                  {previewNote}
+                </p>
+              )}
               <iframe
                 src={previewSrc}
                 title={`Preview of ${pageMeta.label}`}

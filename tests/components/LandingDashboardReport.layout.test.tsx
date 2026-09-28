@@ -90,6 +90,29 @@ describe("landing dashboard layout toggle", () => {
     ).toBe("true");
   });
 
+  it("warns that the preview is today's page only while the original layout is shown", async () => {
+    const withPage = { ...REPORT, pages: [{ key: "offshore-teams-au", sessions: 3, conversions: 0, conversionRate: 0 }] };
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          url.includes("landing-pages")
+            ? { pages: [] }
+            : url.includes("landing-chat")
+              ? { all: EMPTY_CHAT, paid: EMPTY_CHAT, trackingSince: null, truncated: false }
+              : withPage,
+      }),
+    );
+    render(<LandingDashboardReport slug="away-digital-teams" />);
+
+    await screen.findByTitle(/Preview of/);
+    const note = /Preview shows the page as it is today/;
+    expect(screen.queryByText(note)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Original layout/ }));
+    expect(await screen.findByText(note)).toBeTruthy();
+  });
+
   it("shows no toggle and sends no layout for other clients", async () => {
     render(<LandingDashboardReport slug="other-client" />);
 
