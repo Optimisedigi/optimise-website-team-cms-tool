@@ -115,6 +115,9 @@ const createProposalHook: CollectionAfterChangeHook = async ({
 
 export const GoogleAdsAudits: CollectionConfig = {
   slug: "google-ads-audits",
+  // Payload's lock lookup ORs every collection together and exceeds SQLite's
+  // expression-depth limit when an audit is opened in the admin.
+  lockDocuments: false,
   labels: {
     singular: "Google Ads",
     plural: "Google Ads",

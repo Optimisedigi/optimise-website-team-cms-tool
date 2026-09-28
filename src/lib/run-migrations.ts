@@ -591,6 +591,49 @@ export async function runMigrations(
     await run("clients.campaign_start_date", "ALTER TABLE `clients` ADD `campaign_start_date` text");
   }
 
+  // The original KPI table used _ytd, but Payload maps YTD to _y_t_d.
+  // Rename instead of adding when possible so existing values survive.
+  // If a new zero-default column was already added, copy historical nonzero
+  // values once; the marker prevents later deliberate zero edits being undone.
+  // Run before the schema-marker shortcut used by production.
+  async function repairAgencyKpiSnapshotColumns(): Promise<void> {
+    if (!(await tableExists("agency_kpi_snapshots"))) return;
+    for (const [oldName, newName] of [
+      ["retainer_ytd", "retainer_y_t_d"],
+      ["one_off_ytd", "one_off_y_t_d"],
+    ] as const) {
+      const hasOld = await columnExists("agency_kpi_snapshots", oldName);
+      if (await columnExists("agency_kpi_snapshots", newName)) {
+        if (!hasOld) continue;
+        const marker = `20260928_repair_agency_kpi_ytd_${newName}`;
+        if (await markerExists(marker)) continue;
+        const condition = `\`${newName}\` = 0 AND \`${oldName}\` <> 0`;
+        const count = await client!.execute(`SELECT count(*) AS total FROM \`agency_kpi_snapshots\` WHERE ${condition}`);
+        if (Number((count as { rows: Array<{ total: number }> }).rows[0]?.total) > 0) {
+          await run(
+            `agency_kpi_snapshots.${newName}.backfill`,
+            `UPDATE \`agency_kpi_snapshots\` SET \`${newName}\` = \`${oldName}\` WHERE ${condition}`,
+          );
+          if (results.at(-1)?.status !== "ok") continue;
+        }
+        await run(
+          `mark_migration:${marker}`,
+          `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('${marker}', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+        );
+      } else if (hasOld) {
+        await run(
+          `agency_kpi_snapshots.${newName}`,
+          `ALTER TABLE \`agency_kpi_snapshots\` RENAME COLUMN \`${oldName}\` TO \`${newName}\``,
+        );
+      } else {
+        await run(
+          `agency_kpi_snapshots.${newName}`,
+          `ALTER TABLE \`agency_kpi_snapshots\` ADD \`${newName}\` numeric DEFAULT 0 NOT NULL`,
+        );
+      }
+    }
+  }
+
   // OptiMate voice billing selector (2026-09-22). Runs before the marker
   // short-circuit for the same reason as above: Payload selects every
   // `optimate_settings` column, so while this is missing the settings global
@@ -694,6 +737,7 @@ export async function runMigrations(
     await setClientsListPerPage();
     await addMonthlyKeywordSelectionColumns();
     await addClientCampaignStartDate();
+    await repairAgencyKpiSnapshotColumns();
     await addOptiMateVoiceAuthMethod();
     await mergeClientPulseSeoService();
     await addWatchtowerAndSiteHealthSchema();
@@ -5273,8 +5317,8 @@ export async function runMigrations(
       \`active_leads\` numeric DEFAULT 0 NOT NULL,
       \`arr\` numeric DEFAULT 0 NOT NULL,
       \`monthly_retainer\` numeric DEFAULT 0 NOT NULL,
-      \`retainer_ytd\` numeric DEFAULT 0 NOT NULL,
-      \`one_off_ytd\` numeric DEFAULT 0 NOT NULL,
+      \`retainer_y_t_d\` numeric DEFAULT 0 NOT NULL,
+      \`one_off_y_t_d\` numeric DEFAULT 0 NOT NULL,
       \`lead_conversion\` numeric DEFAULT 0 NOT NULL,
       \`mtd_costs\` numeric DEFAULT 0 NOT NULL,
       \`updated_at\` text DEFAULT CURRENT_TIMESTAMP NOT NULL,

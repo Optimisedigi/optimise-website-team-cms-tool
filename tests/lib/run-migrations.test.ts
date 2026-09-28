@@ -1,8 +1,101 @@
 import { describe, expect, it, vi } from "vitest";
+import { createClient } from "@libsql/client";
 import { runMigrations } from "@/lib/run-migrations";
 import { EMAIL_COPY_SLOT_KEYS } from "@/lib/agents/optimate-google-ads/tools/_email-copy-slots";
 
 describe("runMigrations", () => {
+  it("renames legacy KPI columns before the production schema-marker shortcut without losing values", async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql === "PRAGMA table_info(`agency_kpi_snapshots`)") {
+        return { rows: [{ name: "retainer_ytd" }, { name: "one_off_ytd" }] };
+      }
+      if (sql.includes("sqlite_master") && sql.includes("agency_kpi_snapshots")) return { rows: [{ name: "agency_kpi_snapshots" }] };
+      if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("sqlite_master") && sql.includes("landing_")) return { rows: [{ name: "landing_events" }] };
+      if (sql === "PRAGMA table_info(`landing_events`)") return { rows: [{ name: "market" }] };
+      return { rows: [] };
+    });
+    const payload = { db: { client: { execute } } } as any;
+
+    const results = await runMigrations(payload);
+    const statements = execute.mock.calls.map(([sql]) => String(sql));
+
+    expect(results).toContainEqual({ label: "agency_kpi_snapshots.retainer_y_t_d", status: "ok" });
+    expect(results).toContainEqual({ label: "agency_kpi_snapshots.one_off_y_t_d", status: "ok" });
+    expect(statements).toContain("ALTER TABLE `agency_kpi_snapshots` RENAME COLUMN `retainer_ytd` TO `retainer_y_t_d`");
+    expect(statements).toContain("ALTER TABLE `agency_kpi_snapshots` RENAME COLUMN `one_off_ytd` TO `one_off_y_t_d`");
+    expect(statements).not.toContain("ALTER TABLE `agency_kpi_snapshots` ADD `retainer_y_t_d` numeric DEFAULT 0 NOT NULL");
+  });
+
+  it("keeps stored KPI values and skips the repair when run twice", async () => {
+    const db = createClient({ url: ":memory:" });
+    try {
+      await db.execute("CREATE TABLE agency_kpi_snapshots (id integer PRIMARY KEY, retainer_ytd numeric NOT NULL, one_off_ytd numeric NOT NULL)");
+      await db.execute("INSERT INTO agency_kpi_snapshots VALUES (1, 1250, 875)");
+      const execute = vi.fn(async (sql: string) => {
+        if (sql.includes("sqlite_master") && sql.includes("agency_kpi_snapshots")) return db.execute(sql);
+        if (sql === "PRAGMA table_info(`agency_kpi_snapshots`)" || sql.startsWith("ALTER TABLE `agency_kpi_snapshots`")) return db.execute(sql);
+        if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+        if (sql.includes("sqlite_master") && sql.includes("landing_")) return { rows: [{ name: "landing_events" }] };
+        if (sql === "PRAGMA table_info(`landing_events`)") return { rows: [{ name: "market" }] };
+        return { rows: [] };
+      });
+      const payload = { db: { client: { execute } } } as any;
+
+      await runMigrations(payload);
+      const firstRunCount = execute.mock.calls.filter(([sql]) => String(sql).startsWith("ALTER TABLE `agency_kpi_snapshots`")).length;
+      await runMigrations(payload);
+      const rows = (await db.execute("SELECT retainer_y_t_d, one_off_y_t_d FROM agency_kpi_snapshots WHERE id = 1")).rows;
+
+      expect(firstRunCount).toBe(2);
+      expect(execute.mock.calls.filter(([sql]) => String(sql).startsWith("ALTER TABLE `agency_kpi_snapshots`"))).toHaveLength(2);
+      expect(rows[0]).toMatchObject({ retainer_y_t_d: 1250, one_off_y_t_d: 875 });
+    } finally {
+      db.close();
+    }
+  });
+
+  it("recovers historical KPI totals when both columns exist without overwriting later edits", async () => {
+    const db = createClient({ url: ":memory:" });
+    try {
+      await db.execute("CREATE TABLE agency_kpi_snapshots (id integer PRIMARY KEY, retainer_ytd numeric NOT NULL, retainer_y_t_d numeric DEFAULT 0 NOT NULL, one_off_ytd numeric NOT NULL, one_off_y_t_d numeric DEFAULT 0 NOT NULL)");
+      await db.execute("CREATE TABLE payload_migrations (name text PRIMARY KEY, batch integer, created_at text, updated_at text)");
+      await db.execute("INSERT INTO agency_kpi_snapshots VALUES (1, 1250, 0, 875, 0), (2, 300, 400, 100, 200)");
+      const execute = vi.fn(async (sql: string) => {
+        if (sql.includes("sqlite_master") && (sql.includes("agency_kpi_snapshots") || sql.includes("payload_migrations"))) return db.execute(sql);
+        if (sql.includes("agency_kpi_snapshots") && (sql.startsWith("PRAGMA") || sql.startsWith("UPDATE") || sql.startsWith("SELECT count"))) return db.execute(sql);
+        if (sql.includes("20260928_repair_agency_kpi_ytd") || sql.startsWith("INSERT OR IGNORE INTO `payload_migrations`")) return db.execute(sql);
+        if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+        if (sql.includes("sqlite_master") && sql.includes("landing_")) return { rows: [{ name: "landing_events" }] };
+        if (sql === "PRAGMA table_info(`landing_events`)") return { rows: [{ name: "market" }] };
+        return { rows: [] };
+      });
+      const payload = { db: { client: { execute } } } as any;
+
+      const results = await runMigrations(payload);
+      expect(results).toContainEqual({ label: "agency_kpi_snapshots.retainer_y_t_d.backfill", status: "ok" });
+      expect(results).toContainEqual({ label: "agency_kpi_snapshots.one_off_y_t_d.backfill", status: "ok" });
+      expect((await db.execute("SELECT retainer_y_t_d, one_off_y_t_d FROM agency_kpi_snapshots WHERE id = 1")).rows[0])
+        .toMatchObject({ retainer_y_t_d: 1250, one_off_y_t_d: 875 });
+      expect((await db.execute("SELECT retainer_y_t_d, one_off_y_t_d FROM agency_kpi_snapshots WHERE id = 2")).rows[0])
+        .toMatchObject({ retainer_y_t_d: 400, one_off_y_t_d: 200 });
+
+      await db.execute("UPDATE agency_kpi_snapshots SET retainer_y_t_d = 0 WHERE id = 1");
+      await runMigrations(payload);
+      expect((await db.execute("SELECT retainer_y_t_d FROM agency_kpi_snapshots WHERE id = 1")).rows[0]?.retainer_y_t_d).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("creates the KPI snapshot table with Payload's column names on fresh databases", async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    await runMigrations({ db: { client: { execute } } } as any);
+    const statement = execute.mock.calls.map(([sql]) => String(sql)).find((sql) => sql.startsWith("CREATE TABLE IF NOT EXISTS `agency_kpi_snapshots`"));
+    expect(statement).toContain("`retainer_y_t_d` numeric DEFAULT 0 NOT NULL");
+    expect(statement).toContain("`one_off_y_t_d` numeric DEFAULT 0 NOT NULL");
+  });
+
   it("rebuilds contractor time entries when legacy unique week index remains", async () => {
     const batch = vi.fn().mockResolvedValue(undefined);
     const execute = vi.fn(async (sql: string) => {

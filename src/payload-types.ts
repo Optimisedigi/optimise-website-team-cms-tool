@@ -11624,10 +11624,6 @@ export interface PayloadLockedDocument {
         value: number | CroAudit;
       } | null)
     | ({
-        relationTo: 'google-ads-audits';
-        value: number | GoogleAdsAudit;
-      } | null)
-    | ({
         relationTo: 'google-ads-audit-snapshots';
         value: number | GoogleAdsAuditSnapshot;
       } | null)
