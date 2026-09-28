@@ -11764,10 +11764,6 @@ export interface PayloadLockedDocument {
         value: number | ContractorPayment;
       } | null)
     | ({
-        relationTo: 'users';
-        value: number | User;
-      } | null)
-    | ({
         relationTo: 'permission-profiles';
         value: number | PermissionProfile;
       } | null)

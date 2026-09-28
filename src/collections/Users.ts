@@ -3,6 +3,10 @@ import { FEATURE_KEYS, adminOnlyField } from "../lib/access";
 
 export const Users: CollectionConfig = {
   slug: "users",
+  // Payload's lock cleanup expands every lockable collection into an OR query.
+  // With this many collections it exceeds SQLite's expression-depth limit on
+  // user updates, including Gmail OAuth callbacks and token refreshes.
+  lockDocuments: false,
   auth: {
     // Per-user API key feature is intentionally OFF — nothing in this
     // codebase consumes Payload's per-user API keys. Service-to-service
