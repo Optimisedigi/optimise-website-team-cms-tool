@@ -208,15 +208,57 @@ export async function reconcilePosts(
           ...post,
           websiteSyncRevision: previous?.revision ?? post.websiteSyncRevision,
         })
-        if (
-          previous?.kind === snapshot.event &&
+        const matchesSnapshot = previous?.kind === snapshot.event &&
           JSON.stringify(previous.body) === JSON.stringify(snapshot)
-        )
-          continue
         const lastRevision = [previous?.revision, post.websiteSyncRevision]
           .filter((value): value is string => typeof value === 'string')
           .sort()
           .at(-1)
+        if (post.status === 'review') {
+          const publicEvents = await payload.find({
+            collection: 'blog-sync-events',
+            where: { and: [
+              { postId: { equals: String(post.id) } },
+              { clientId: { equals: client } },
+              { kind: { in: ['published', 'unpublished'] } },
+            ] },
+            sort: '-id',
+            limit: 1,
+            depth: 0,
+            overrideAccess: true,
+          })
+          const lastPublic = publicEvents.docs[0]
+          if (lastPublic?.kind === 'published' && lastPublic.state === 'delivered') {
+            // A saved review may have lost its afterChange enqueue. Restore the
+            // public removal even when the private review event already exists.
+            const revision = matchesSnapshot ? previous.revision : nextRevision(lastRevision)
+            await enqueuePost(payload, { ...post, websiteSyncRevision: revision }, {
+              ...post, status: 'published', websiteSyncRevision: lastPublic.revision,
+            })
+            result.queued++
+            continue
+          }
+          if (previous?.kind === 'unpublished' &&
+            previous.eventKey === `${post.id}:${previous.revision}:unpublished` &&
+            (!post.websiteSyncRevision || post.websiteSyncRevision <= previous.revision)) {
+            const pairedReview = await payload.find({
+              collection: 'blog-sync-events',
+              where: { eventKey: { equals: `${post.id}:${previous.revision}` } },
+              limit: 1,
+              depth: 0,
+              overrideAccess: true,
+            })
+            if (pairedReview.docs[0]?.kind === 'review_requested' &&
+              JSON.stringify(pairedReview.docs[0].body) === JSON.stringify(snapshot)) continue
+            // The public event was queued, but creating its private pair failed.
+            if (!pairedReview.docs.length) {
+              await enqueuePost(payload, { ...post, websiteSyncRevision: previous.revision })
+              result.queued++
+              continue
+            }
+          }
+        }
+        if (matchesSnapshot) continue
         const revision = nextRevision(lastRevision)
         await enqueuePost(payload, { ...post, websiteSyncRevision: revision })
         result.queued++
@@ -274,6 +316,21 @@ export async function deliverPending(
       })
       // Do not ask for a private review while the old public article is still live.
       if (unpublish.docs.length && unpublish.docs[0].state !== 'delivered') continue
+      const lastDeliveredPublic = await payload.find({
+        collection: 'blog-sync-events',
+        where: { and: [
+          { postId: { equals: event.postId } },
+          { clientId: { equals: clientId } },
+          { kind: { in: ['published', 'unpublished'] } },
+          { state: { equals: 'delivered' } },
+          { revision: { less_than_equal: event.revision } },
+        ] },
+        sort: '-id',
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (lastDeliveredPublic.docs[0]?.kind === 'published') continue
     }
     const lease = randomUUID()
     if (!(await claim(payload, event.id, clientId, now, lease))) continue

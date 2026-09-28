@@ -87,6 +87,56 @@ describe('private In The Picture article review', () => {
     expect(await reconcilePosts(payload as never)).toEqual({ scanned: 1, queued: 0, errors: 0 })
   })
 
+  it('recovers a failed unpublish enqueue before reconciling a saved review', async () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+    const priorRevision = '2026-09-25T00:00:00.000Z'
+    const published = { ...review, status: 'published' as const, websiteSyncRevision: priorRevision }
+    const events: Array<Record<string, unknown>> = [{
+      id: 1, eventKey: `31:${priorRevision}`, clientId: 1, postId: '31',
+      revision: priorRevision, kind: 'published', state: 'delivered', body: { event: 'published' },
+    }]
+    let failUnpublish = true
+    const payload = {
+      findByID: vi.fn(async () => ({ id: 1, authors: [{ name: 'Jane Editor' }] })),
+      find: vi.fn(async ({ collection, where }: { collection: string; where?: { eventKey?: { equals: string }; and?: Array<Record<string, unknown>> } }) => {
+        if (collection === 'blog-posts') return { docs: [review], hasNextPage: false }
+        if (collection === 'blog-sync-events') {
+          if (where?.eventKey) return { docs: events.filter(event => event.eventKey === where.eventKey?.equals) }
+          const kinds = where?.and?.find(part => 'kind' in part)?.kind as { in: string[] } | undefined
+          return { docs: (kinds ? events.filter(event => kinds.in.includes(String(event.kind))) : events).slice(-1) }
+        }
+        return { docs: [] }
+      }),
+      create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        if (data.kind === 'unpublished' && failUnpublish) {
+          failUnpublish = false
+          throw new Error('Temporary database error')
+        }
+        events.push({ ...data, id: events.length + 1 })
+        return data
+      }),
+    }
+    await expect(enqueuePost(payload as never, review, published)).rejects.toThrow('Temporary database error')
+    expect(events).toHaveLength(1)
+    expect(await reconcilePosts(payload as never)).toEqual({ scanned: 1, queued: 1, errors: 0 })
+    expect(events.slice(1).map(event => event.kind)).toEqual(['unpublished', 'review_requested'])
+    expect(events[1].revision).toBe(events[2].revision)
+    expect(await reconcilePosts(payload as never)).toEqual({ scanned: 1, queued: 0, errors: 0 })
+
+    // If creating the private pair fails, reuse the already queued public revision.
+    events.splice(2, 1)
+    expect(await reconcilePosts(payload as never)).toEqual({ scanned: 1, queued: 1, errors: 0 })
+    expect(events[2]).toMatchObject({ kind: 'review_requested', revision: events[1].revision })
+    expect(await reconcilePosts(payload as never)).toEqual({ scanned: 1, queued: 0, errors: 0 })
+
+    // A review row from an older attempt must not hide its missing public pair.
+    events.splice(1, 1)
+    expect(await reconcilePosts(payload as never)).toEqual({ scanned: 1, queued: 1, errors: 0 })
+    expect(events[2]).toMatchObject({ kind: 'unpublished', revision: events[1].revision })
+    expect(await reconcilePosts(payload as never)).toEqual({ scanned: 1, queued: 0, errors: 0 })
+    expect(events).toHaveLength(3)
+  })
+
   it('cannot publish a reviewed draft without approval of its current unchanged revision', async () => {
     process.env.IN_THE_PICTURE_CLIENT_ID = '1'
     const beforeChange = BlogPosts.hooks?.beforeChange?.[2]
@@ -143,7 +193,12 @@ describe('private In The Picture article review', () => {
       }) } },
       find: vi.fn(async ({ where }: { where: { eventKey?: { equals: string }; and?: Array<Record<string, unknown>> } }) => {
         if (where.eventKey) return { docs: events.filter(event => event.eventKey === where.eventKey?.equals) }
-        if (where.and?.some(part => 'postId' in part)) return { docs: [] }
+        if (where.and?.some(part => 'postId' in part)) {
+          const publicKind = where.and.some(part => 'kind' in part)
+          return { docs: publicKind ? events.filter(event =>
+            ['published', 'unpublished'].includes(event.kind) && event.state === 'delivered',
+          ).slice(-1) : [] }
+        }
         return { docs: events.filter(event => ['pending', 'retry'].includes(event.state)) }
       }),
     }
@@ -156,6 +211,14 @@ describe('private In The Picture article review', () => {
     expect(sent).toEqual(['unpublished'])
     expect(events[1].state).toBe('pending')
     expect((await deliverPending(payload as never)).delivered).toBe(2)
+    expect(sent).toEqual(['unpublished', 'unpublished', 'review_requested'])
+
+    // If the unpublish row was never saved, do not send a private review
+    // while the last public event is still a delivered publication.
+    events.splice(0, 1)
+    events.unshift({ id: 0, eventKey: `31:${revision}:published`, postId: '31', revision, kind: 'published', state: 'delivered', attempts: 1, body: { event: 'published' } })
+    events[1].state = 'pending'
+    expect((await deliverPending(payload as never)).delivered).toBe(0)
     expect(sent).toEqual(['unpublished', 'unpublished', 'review_requested'])
   })
 
