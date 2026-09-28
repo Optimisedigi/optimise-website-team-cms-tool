@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Payload, PayloadRequest } from 'payload'
 import type { BlogPost } from '@/payload-types'
 import { configuredClientId, websiteUrl } from './config'
-import { publishedEvent } from './article'
+import { publishedEvent, reviewRequestedEvent } from './article'
 
 async function hydratedPost(
   payload: Payload,
@@ -36,7 +36,7 @@ async function hydratedPost(
   return { ...post, featuredImage, content }
 }
 
-async function checkedPublishedEvent(
+async function checkedArticleEvent(
   payload: Payload,
   post: BlogPost,
   req?: PayloadRequest,
@@ -65,7 +65,10 @@ async function checkedPublishedEvent(
   })
   if (!client.authors?.some((author) => author.name === post.author))
     throw new Error('Byline does not match this client’s public blog-author profile')
-  return publishedEvent(await hydratedPost(payload, post, req), ideaId)
+  const hydrated = await hydratedPost(payload, post, req)
+  return post.status === 'review'
+    ? reviewRequestedEvent(hydrated, ideaId)
+    : publishedEvent(hydrated, ideaId)
 }
 
 function clientOf(post: BlogPost): number | null {
@@ -87,47 +90,58 @@ export async function enqueuePost(
     return
   const wasPublished =
     previous?.status === 'published' && previous.clientConfirmed && clientOf(previous) === clientId
+  const wasReview =
+    previous?.status === 'review' && previous.clientConfirmed && clientOf(previous) === clientId
   const isPublished =
     !deleted && post.status === 'published' && post.clientConfirmed && clientOf(post) === clientId
-  if (!isPublished && !wasPublished) return
+  const isReview =
+    !deleted && post.status === 'review' && post.clientConfirmed && clientOf(post) === clientId
+  if (!isPublished && !isReview && !wasPublished && !wasReview) return
   const postId = String(post.id)
   const revision = post.websiteSyncRevision || nextRevision(previous?.websiteSyncRevision)
   let body: Record<string, unknown>
-  if (isPublished) {
-    body = await checkedPublishedEvent(payload, { ...post, websiteSyncRevision: revision }, req)
-  } else body = { version: 1, event: 'unpublished', postId, revision }
-  const encoded = JSON.stringify(body)
-  if (Buffer.byteLength(encoded) > 2_000_000) throw new Error('Article event exceeds 2 MB')
-  const eventKey = `${postId}:${revision}`
-  const found = await payload.find({
-    collection: 'blog-sync-events',
-    where: { eventKey: { equals: eventKey } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-    ...(req ? { req } : {}),
-  })
-  if (found.docs.length) {
-    if (found.docs[0].clientId !== clientId) throw new Error('Sync event belongs to another client')
-    if (JSON.stringify(found.docs[0].body) !== encoded) throw new Error('Conflicting sync revision')
-    return
+  if (isPublished || isReview) {
+    body = await checkedArticleEvent(payload, { ...post, websiteSyncRevision: revision }, req)
+  } else body = { version: 1, event: wasPublished ? 'unpublished' : 'review_withdrawn', postId, revision }
+  const queueEvent = async (
+    eventKey: string,
+    kind: 'published' | 'unpublished' | 'review_requested' | 'review_withdrawn',
+    eventBody: Record<string, unknown>,
+  ): Promise<void> => {
+    const encoded = JSON.stringify(eventBody)
+    if (Buffer.byteLength(encoded) > 2_000_000) throw new Error('Article event exceeds 2 MB')
+    const found = await payload.find({
+      collection: 'blog-sync-events',
+      where: { eventKey: { equals: eventKey } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      ...(req ? { req } : {}),
+    })
+    if (found.docs.length) {
+      if (found.docs[0].clientId !== clientId) throw new Error('Sync event belongs to another client')
+      if (JSON.stringify(found.docs[0].body) !== encoded) throw new Error('Conflicting sync revision')
+      return
+    }
+    await payload.create({
+      collection: 'blog-sync-events',
+      data: { eventKey, clientId, postId, revision, kind, body: eventBody, state: 'pending', attempts: 0 },
+      depth: 0,
+      overrideAccess: true,
+      ...(req ? { req } : {}),
+    })
   }
-  await payload.create({
-    collection: 'blog-sync-events',
-    data: {
-      eventKey,
-      clientId,
-      postId,
-      revision,
-      kind: isPublished ? 'published' : 'unpublished',
-      body,
-      state: 'pending',
-      attempts: 0,
-    },
-    depth: 0,
-    overrideAccess: true,
-    ...(req ? { req } : {}),
-  })
+  // A private review request alone cannot take the previously published page offline.
+  if (wasPublished && isReview) {
+    await queueEvent(`${postId}:${revision}:unpublished`, 'unpublished', {
+      version: 1, event: 'unpublished', postId, revision,
+    })
+  }
+  await queueEvent(
+    `${postId}:${revision}`,
+    isPublished ? 'published' : isReview ? 'review_requested' : wasPublished ? 'unpublished' : 'review_withdrawn',
+    body,
+  )
 }
 
 type DbClient = {
@@ -166,7 +180,7 @@ export async function reconcilePosts(
         and: [
           { client: { equals: client } },
           { clientConfirmed: { equals: true } },
-          { status: { equals: 'published' } },
+          { status: { in: ['published', 'review'] } },
         ],
       },
       page,
@@ -182,18 +196,20 @@ export async function reconcilePosts(
           where: {
             and: [{ postId: { equals: String(post.id) } }, { clientId: { equals: client } }],
           },
-          sort: '-revision',
+          // A public unpublish and private review can share a revision; the
+          // last inserted event is the current state for reconciliation.
+          sort: '-id',
           limit: 1,
           depth: 0,
           overrideAccess: true,
         })
         const previous = latest.docs[0]
-        const snapshot = await checkedPublishedEvent(payload, {
+        const snapshot = await checkedArticleEvent(payload, {
           ...post,
           websiteSyncRevision: previous?.revision ?? post.websiteSyncRevision,
         })
         if (
-          previous?.kind === 'published' &&
+          previous?.kind === snapshot.event &&
           JSON.stringify(previous.body) === JSON.stringify(snapshot)
         )
           continue
@@ -228,22 +244,37 @@ export async function deliverPending(
   const clientId = configuredClientId()
   if (!clientId) throw new Error('Sync client not configured')
   const now = new Date().toISOString()
+  // The website's current article endpoint only accepts published/unpublished events.
+  // Keep review drafts queued until the receiving app implements the private review contract.
+  const reviewEnabled = process.env.IN_THE_PICTURE_REVIEW_SYNC_ENABLED === '1'
   const pending = await payload.find({
     collection: 'blog-sync-events',
     where: {
       and: [
         { clientId: { equals: clientId } },
+        { kind: { in: reviewEnabled ? ['published', 'unpublished', 'review_requested', 'review_withdrawn'] : ['published', 'unpublished'] } },
         { state: { in: ['pending', 'retry'] } },
         { or: [{ nextAttempt: { exists: false } }, { nextAttempt: { less_than_equal: now } }] },
       ],
     },
-    sort: 'createdAt',
+    sort: 'id',
     limit: 8,
     depth: 0,
     overrideAccess: true,
   })
   const result = { delivered: 0, reviewed: 0, retried: 0 }
   for (const event of pending.docs) {
+    if (event.kind === 'review_requested') {
+      const unpublish = await payload.find({
+        collection: 'blog-sync-events',
+        where: { eventKey: { equals: `${event.postId}:${event.revision}:unpublished` } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      // Do not ask for a private review while the old public article is still live.
+      if (unpublish.docs.length && unpublish.docs[0].state !== 'delivered') continue
+    }
     const lease = randomUUID()
     if (!(await claim(payload, event.id, clientId, now, lease))) continue
     const started = Date.now()
@@ -263,7 +294,7 @@ export async function deliverPending(
         depth: 0,
         overrideAccess: true,
       })
-      if (newer.docs.length && event.kind === 'published') {
+      if (newer.docs.length && (event.kind === 'published' || event.kind === 'review_requested' || event.kind === 'review_withdrawn')) {
         state = 'superseded'
         error = 'Superseded by newer event'
       } else {

@@ -149,15 +149,6 @@ export const BlogPosts: CollectionConfig = {
     ],
     beforeChange: [
       ({ data }) => {
-        // Sync Payload's _status with the custom status field
-        if (data?.status === 'published') {
-          data._status = 'published'
-        } else if (data?.status === 'draft' || data?.status === 'review') {
-          data._status = 'draft'
-        }
-        return data
-      },
-      ({ data }) => {
         if (!data?.markdownSource) return data;
 
         try {
@@ -280,7 +271,44 @@ export const BlogPosts: CollectionConfig = {
 
         return data;
       },
+      ({ data }) => {
+        // Markdown import can set status; sync Payload's version status afterwards.
+        if (data?.status === 'published') data._status = 'published'
+        else if (data?.status === 'draft' || data?.status === 'review') data._status = 'draft'
+        return data
+      },
       async ({ data, originalDoc, req }) => {
+        if (configuredClientId() && originalDoc?.status === 'published' && data?.status === 'review' && (typeof originalDoc.client === 'number' ? originalDoc.client : originalDoc.client?.id) === configuredClientId() && process.env.IN_THE_PICTURE_REVIEW_SYNC_ENABLED !== '1') {
+          throw new Error('The website review receiver must be enabled before moving a published article back to review');
+        }
+        if (configuredClientId() && originalDoc?.status !== 'published' && data?.status === 'published' && originalDoc?.id) {
+          const client = typeof (data?.client ?? originalDoc.client) === 'object' ? (data?.client ?? originalDoc.client)?.id : (data?.client ?? originalDoc.client);
+          if (client === configuredClientId()) {
+            const reviews = await req.payload.find({
+              collection: 'blog-sync-events',
+              where: { and: [{ postId: { equals: String(originalDoc.id) } }, { clientId: { equals: client } }, { kind: { in: ['review_requested', 'review_withdrawn'] } }] },
+              sort: '-revision', limit: 1, depth: 0, overrideAccess: true, req,
+            });
+            // A review save can persist even if enqueueing failed. For an unreviewed
+            // draft with a sync revision, permit the legacy direct-publish path only
+            // when a previous public event proves that revision was not review-only.
+            let needsApproval = originalDoc.status === 'review' || reviews.docs.length > 0;
+            if (!needsApproval && originalDoc.status === 'draft' && originalDoc.websiteSyncRevision) {
+              const priorPublic = await req.payload.find({
+                collection: 'blog-sync-events',
+                where: { and: [{ postId: { equals: String(originalDoc.id) } }, { clientId: { equals: client } }, { revision: { equals: originalDoc.websiteSyncRevision } }, { kind: { in: ['published', 'unpublished'] } }] },
+                limit: 1, depth: 0, overrideAccess: true, req,
+              });
+              needsApproval = !priorPublic.docs.length;
+            }
+            if (needsApproval) {
+              const approved = reviews.docs[0]?.kind === 'review_requested' && reviews.docs[0].state === 'approved' && reviews.docs[0].revision === originalDoc.websiteSyncRevision;
+              const reviewedFields = ['title', 'slug', 'excerpt', 'author', 'publishedDate', 'readingTime', 'websiteCategory', 'websiteServiceSlug', 'websiteBlogIdeaId', 'markdownContent', 'content', 'featuredImage', 'featuredImageAlt'];
+              const changed = reviewedFields.some((field) => data?.[field] !== undefined && JSON.stringify(data[field]) !== JSON.stringify(originalDoc[field]));
+              if (!approved || changed) throw new Error('This article needs approval of its current review revision before publishing');
+            }
+          }
+        }
         if (originalDoc?.websiteBlogIdeaId && data?.websiteBlogIdeaId && data.websiteBlogIdeaId !== originalDoc.websiteBlogIdeaId) {
           throw new Error('The website Blog ID cannot be changed after linking');
         }
@@ -289,7 +317,7 @@ export const BlogPosts: CollectionConfig = {
           if (delivered.docs.length) throw new Error('Website slug cannot change after delivery');
         }
         const client = typeof (data?.client ?? originalDoc?.client) === 'object' ? (data?.client ?? originalDoc?.client)?.id : (data?.client ?? originalDoc?.client);
-        if (configuredClientId() && client === configuredClientId() && (data?.status === 'published' || originalDoc?.status === 'published')) {
+        if (configuredClientId() && client === configuredClientId() && (['published', 'review'].includes(data?.status) || ['published', 'review'].includes(originalDoc?.status))) {
           data.websiteSyncRevision = nextRevision(originalDoc?.websiteSyncRevision);
         }
         return data;
@@ -316,15 +344,15 @@ export const BlogPosts: CollectionConfig = {
       type: "checkbox",
       defaultValue: false,
       validate: (value: boolean | null | undefined, args: { siblingData: Record<string, unknown> }) => {
-        if (args.siblingData?.status === "published" && !value) {
-          return "Please confirm the selected client is correct before publishing.";
+        if (['published', 'review'].includes(String(args.siblingData?.status)) && !value) {
+          return "Please confirm the selected client before sending for review or publishing.";
         }
         return true;
       },
       admin: {
         position: "sidebar",
         description:
-          "Review the generated draft, then confirm the selected client is correct before publishing",
+          "Confirm the selected client before sending a draft for review or publishing",
       },
     },
     {
@@ -570,7 +598,7 @@ export const BlogPosts: CollectionConfig = {
               required: true,
               admin: {
                 position: "sidebar",
-                description: "Only 'Published' posts appear on the website.",
+                description: "Ready for Review queues a private client review; only 'Published' posts appear publicly. Website delivery needs the review sync enabled after the receiving app is ready.",
               },
             },
           ],

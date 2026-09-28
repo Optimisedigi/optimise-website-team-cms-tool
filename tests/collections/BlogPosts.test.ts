@@ -121,7 +121,7 @@ describe("BlogPosts: beforeChange status sync hook", () => {
 
   beforeEach(() => {
     const hooks = getBeforeChangeHooks();
-    statusHook = hooks[0];
+    statusHook = hooks[1];
   });
 
   it("should set _status to published when status is published", () => {
@@ -157,7 +157,7 @@ describe("BlogPosts: beforeChange markdown parsing hook", () => {
     vi.clearAllMocks();
     const hooks = getBeforeChangeHooks();
     expect(hooks.length).toBeGreaterThanOrEqual(1);
-    markdownHook = hooks[1];
+    markdownHook = hooks[0];
   });
 
   it("should return data unchanged when markdownSource is empty", () => {
@@ -548,7 +548,7 @@ describe("BlogPosts: field validation", () => {
   it("requires client confirmation before publishing", () => {
     const clientConfirmedField = findField(BlogPosts.fields, "clientConfirmed");
     const result = clientConfirmedField.validate(false, { siblingData: { status: "published" } });
-    expect(result).toContain("Please confirm the selected client is correct before publishing.");
+    expect(result).toContain("Please confirm the selected client before sending for review or publishing.");
   });
 
   it("should reject excerpt > 200 chars when status is published", () => {

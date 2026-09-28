@@ -7800,7 +7800,7 @@ export interface BlogPost {
    */
   client: number | Client;
   /**
-   * Review the generated draft, then confirm the selected client is correct before publishing
+   * Confirm the selected client before sending a draft for review or publishing
    */
   clientConfirmed?: boolean | null;
   /**
@@ -7921,7 +7921,7 @@ export interface BlogPost {
    */
   publishedDate: string;
   /**
-   * Only 'Published' posts appear on the website.
+   * Ready for Review queues a private client review; only 'Published' posts appear publicly. Website delivery needs the review sync enabled after the receiving app is ready.
    */
   status: 'draft' | 'review' | 'published';
   /**
@@ -8345,7 +8345,7 @@ export interface BlogSyncEvent {
   clientId: number;
   postId: string;
   revision: string;
-  kind: 'published' | 'unpublished';
+  kind: 'published' | 'unpublished' | 'review_requested' | 'review_withdrawn';
   body:
     | {
         [k: string]: unknown;
@@ -8355,7 +8355,7 @@ export interface BlogSyncEvent {
     | number
     | boolean
     | null;
-  state: 'pending' | 'delivered' | 'retry' | 'review' | 'superseded';
+  state: 'pending' | 'delivered' | 'retry' | 'review' | 'superseded' | 'approved' | 'changes_requested';
   attempts: number;
   nextAttempt?: string | null;
   leaseToken?: string | null;

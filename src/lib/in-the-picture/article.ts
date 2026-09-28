@@ -127,6 +127,12 @@ export function markdownBlocks(source: string): Block[] {
   }
   return result
 }
+export function reviewRequestedEvent(post: BlogPost, ideaId?: string): Record<string, unknown> {
+  if (post.status !== 'review' || !post.clientConfirmed) throw new Error('Review must be confirmed for this client')
+  const published = publishedEvent({ ...post, status: 'published' }, ideaId)
+  return { ...published, event: 'review_requested' }
+}
+
 export function publishedEvent(post: BlogPost, ideaId?: string): Record<string, unknown> {
   const client = typeof post.client === 'number' ? post.client : post.client?.id
   if (!configuredClientId() || client !== configuredClientId() || !post.clientConfirmed || post.status !== 'published') throw new Error('Post is not approved for this client')
