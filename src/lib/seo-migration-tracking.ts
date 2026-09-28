@@ -8,7 +8,7 @@ import { buildSeoMigrationReportEmail } from "@/lib/seo-migration-report-email";
 
 export const POST_MIGRATION_EMAIL_MILESTONES = [1, 2, 3, 7, 10, 14, 21, 30] as const;
 export const GSC_DATA_LAG_DAYS = GSC_LAG_DAYS;
-export const PRE_MIGRATION_CHART_DAYS = 14;
+export const PRE_MIGRATION_CHART_DAYS = 60;
 export const POST_MIGRATION_TRACKING_DAYS = 90;
 
 export type TrackingSeverity = "critical" | "warning" | "advisory" | "healthy";

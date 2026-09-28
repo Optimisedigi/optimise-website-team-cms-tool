@@ -121,34 +121,32 @@ function elapsedDaysAfterMigration(cutoverDate?: string): number {
 function TrackingReport({ result }: { result: MigrationResult }) {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
-  const points = result.trackingSnapshots ?? []
-  const latest = points[points.length - 1]
-  const hasSplitClickData = points.some((p) => p.brandClicks != null || p.genericClicks != null)
+  const [viewDays, setViewDays] = useState<30 | 60>(30)
+  const allPoints = result.trackingSnapshots ?? []
+  const latest = allPoints[allPoints.length - 1]
+  const points = allPoints.filter((p) => p.daysSinceCutover >= -viewDays && p.daysSinceCutover <= viewDays)
+  const preDaysAvailable = points.filter((p) => p.daysSinceCutover < 1).length
+  const hasSplitClickData = allPoints.some((p) => p.brandClicks != null || p.genericClicks != null)
   const maxClicks = Math.max(1, ...points.map((p) => p.clicks))
+  const maxTableClicks = Math.max(1, ...allPoints.map((p) => p.clicks))
   const maxImpressions = Math.max(1, ...points.map((p) => p.impressions))
-  const w = 760
-  const h = 250
+  const w = Math.max(760, points.length * 10 + 68)
+  const h = 320
   const pad = 34
-  const axisBottom = 56 // extra room for vertical date labels
-  const plotH = h - pad - axisBottom
-  const x = (i: number) => pad + (points.length <= 1 ? 0 : (i / (points.length - 1)) * (w - pad * 2))
-  const yClicks = (v: number) => pad + plotH - (v / maxClicks) * plotH
-  const yImpressions = (v: number) => pad + plotH - (v / maxImpressions) * plotH
-  // Render at most ~14 x-axis labels so they don't overlap.
-  const labelStep = Math.max(1, Math.ceil(points.length / 14))
-  const clicksLine = points.map((p, i) => `${x(i)},${yClicks(p.clicks)}`).join(' ')
-  const impressionsLine = points.map((p, i) => `${x(i)},${yImpressions(p.impressions)}`).join(' ')
-  // Search Console data lags ~3 days, so a just-completed migration has only
-  // pre-cutover days. Without this guard the marker defaults to index 0 and
-  // shades the whole chart as "after the migration", which is wrong.
+  const chartWidth = w - pad * 2
+  const slotWidth = chartWidth / Math.max(1, points.length)
+  const barWidth = Math.max(2, Math.min(8, slotWidth - 2))
+  const x = (i: number) => pad + i * slotWidth + (slotWidth - barWidth) / 2
+  const labelStep = Math.max(1, Math.ceil(points.length / 12))
+  // Cutover is day 1; do not show a migration marker when GSC has only pre-cutover data.
   const migrationIndex = points.findIndex((p) => p.daysSinceCutover >= 1)
   const hasPostMigrationPoints = migrationIndex >= 0
-  const migrationX = x(Math.max(0, migrationIndex))
-  const totalBrand = points.filter((p) => p.daysSinceCutover >= 1).reduce((s, p) => s + (p.brandClicks ?? 0), 0)
-  const totalGeneric = points.filter((p) => p.daysSinceCutover >= 1).reduce((s, p) => s + (p.genericClicks ?? 0), 0)
+  const migrationX = pad + Math.max(0, migrationIndex) * slotWidth
+  const totalBrand = allPoints.filter((p) => p.daysSinceCutover >= 1).reduce((s, p) => s + (p.brandClicks ?? 0), 0)
+  const totalGeneric = allPoints.filter((p) => p.daysSinceCutover >= 1).reduce((s, p) => s + (p.genericClicks ?? 0), 0)
   const splitTotal = Math.max(1, totalBrand + totalGeneric)
-  const maxSplitClicks = Math.max(1, ...points.flatMap((p) => [p.brandClicks ?? 0, p.genericClicks ?? 0]))
-  const maxSplitImpressions = Math.max(1, ...points.flatMap((p) => [p.brandImpressions ?? 0, p.genericImpressions ?? 0]))
+  const maxSplitClicks = Math.max(1, ...allPoints.flatMap((p) => [p.brandClicks ?? 0, p.genericClicks ?? 0]))
+  const maxSplitImpressions = Math.max(1, ...allPoints.flatMap((p) => [p.brandImpressions ?? 0, p.genericImpressions ?? 0]))
   const issueReport = result.trackingIssueReport ?? {}
   const cutoverDay = result.cutoverDate?.slice(0, 10) || points.find((p) => p.daysSinceCutover === 1)?.date || ''
   const currentMigrationDay = elapsedDaysAfterMigration(cutoverDay)
@@ -204,23 +202,37 @@ function TrackingReport({ result }: { result: MigrationResult }) {
           ['Avg position', latest?.position ?? '-'],
         ].map(([label, value]) => <div key={label} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: '#f8fafc' }}><div style={{ fontSize: 11, color: '#64748b' }}>{label}</div><div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{value}</div></div>)}
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 300, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }} role="img" aria-label="Post-migration clicks and impressions chart">
-        {[0, .25, .5, .75, 1].map((t) => <line key={t} x1={pad} x2={w - pad} y1={pad + t * plotH} y2={pad + t * plotH} stroke="#e2e8f0" />)}
-        {hasPostMigrationPoints && <>
-          <rect x={migrationX} y={18} width={w - pad - migrationX} height={pad + plotH - 18} fill="#fee2e2" opacity="0.16" />
-          <line x1={migrationX} x2={migrationX} y1={18} y2={pad + plotH} stroke="#991b1b" strokeDasharray="6 5" strokeWidth={3} />
-          <text x={migrationX + 8} y={24} fontSize={12} fill="#991b1b" fontWeight={700}>Migration date</text>
-        </>}
-        <polyline points={clicksLine} fill="none" stroke="#2563eb" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-        <polyline points={impressionsLine} fill="none" stroke="#8b5cf6" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-        {points.map((p, i) => (i % labelStep === 0 || i === points.length - 1)
-          ? <text key={p.date} x={x(i)} y={pad + plotH + 8} fontSize={9} fill="#94a3b8" textAnchor="end" transform={`rotate(-90 ${x(i)} ${pad + plotH + 8})`}>{formatDayLabel(p.date)}</text>
-          : null)}
-      </svg>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }} role="group" aria-label="Traffic chart date range">
+        {([30, 60] as const).map((days) => (
+          <button key={days} type="button" aria-pressed={viewDays === days} onClick={() => setViewDays(days)} style={{ ...smallButton, minHeight: 36, background: viewDays === days ? '#1d4ed8' : '#fff', color: viewDays === days ? '#fff' : '#1e40af', border: '1px solid #1d4ed8' }}>
+            {days} days before and after
+          </button>
+        ))}
+      </div>
+      {preDaysAvailable < viewDays && <div style={{ fontSize: 12, color: '#92400e', marginBottom: 8 }}>
+        {preDaysAvailable} of {viewDays} pre-migration days available. Refresh GSC data to load earlier days.
+      </div>}
+      <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
+        <svg viewBox={`0 0 ${w} ${h}`} style={{ display: 'block', width: w, minWidth: '100%', height: h }} role="img" aria-label={`Daily clicks and impressions bars, up to ${viewDays} days before and after migration. Daily values are listed in the table below.`}>
+          <text x={pad} y={20} fontSize={12} fill="#1e40af" fontWeight={700}>Total clicks · peak {fmt(maxClicks)}</text>
+          <text x={pad} y={150} fontSize={12} fill="#6d28d9" fontWeight={700}>Impressions · peak {fmt(maxImpressions)}</text>
+          {[40, 125, 170, 255].map((y) => <line key={y} x1={pad} x2={w - pad} y1={y} y2={y} stroke="#e2e8f0" />)}
+          {hasPostMigrationPoints && <>
+            <rect x={migrationX} y={30} width={w - pad - migrationX} height={225} fill="#fef2f2" />
+            <line x1={migrationX} x2={migrationX} y1={30} y2={255} stroke="#991b1b" strokeDasharray="6 5" strokeWidth={2} />
+            <text x={migrationX + 5} y={38} fontSize={11} fill="#991b1b" fontWeight={700}>Migration date</text>
+          </>}
+          {points.map((p, i) => <g key={p.date}>
+            <rect x={x(i)} y={125 - (p.clicks / maxClicks) * 80} width={barWidth} height={(p.clicks / maxClicks) * 80} fill="#2563eb" />
+            <rect x={x(i)} y={255 - (p.impressions / maxImpressions) * 80} width={barWidth} height={(p.impressions / maxImpressions) * 80} fill="#7c3aed" />
+            {(i % labelStep === 0 || i === points.length - 1) && <text x={x(i) + barWidth / 2} y={267} fontSize={10} fill="#475569" textAnchor="end" transform={`rotate(-50 ${x(i) + barWidth / 2} 267)`}>{formatDayLabel(p.date)}</text>}
+          </g>)}
+        </svg>
+      </div>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: '#475569' }}>
         <span><span style={{ ...dot, background: '#2563eb' }} /> Total clicks</span>
-        <span><span style={{ ...dot, background: '#8b5cf6' }} /> Impressions</span>
-        <span>{hasSplitClickData ? 'Total clicks are calculated from our brand-term classification, so they equal brand + generic clicks.' : 'Blue line shows total daily GSC clicks.'}</span>
+        <span><span style={{ ...dot, background: '#7c3aed' }} /> Impressions</span>
+        <span>{hasSplitClickData ? 'Total clicks are calculated from our brand-term classification, so they equal brand + generic clicks.' : 'Bars show total daily GSC clicks and impressions.'}</span>
         {!hasPostMigrationPoints && <span style={{ color: '#b45309' }}>Only pre-migration days are available so far — Search Console finalises data a few days late, so the migration marker appears once the first post-migration day lands.</span>}
       </div>
       <div style={{ marginTop: 14 }}>
@@ -236,16 +248,16 @@ function TrackingReport({ result }: { result: MigrationResult }) {
               <tr><th align="left">Date</th><th align="left">Total clicks</th><th align="left">Brand clicks</th><th align="left">Brand impressions</th><th align="left">Generic clicks</th><th align="left">Generic impressions</th><th align="right">Impr. share</th></tr>
             </thead>
             <tbody>
-              {points.map((p) => {
+              {allPoints.map((p) => {
                 const brandClicks = p.brandClicks ?? 0
                 const genericClicks = p.genericClicks ?? 0
                 const brandImpressions = p.brandImpressions ?? 0
                 const genericImpressions = p.genericImpressions ?? 0
                 const totalImpressions = Math.max(1, brandImpressions + genericImpressions)
                 const metricBar = (value: number, max: number, color: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}><span style={{ minWidth: 30, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(value)}</span><span style={{ display: 'inline-block', height: 7, width: `${Math.max(4, Math.min(100, (value / max) * 100))}%`, maxWidth: 70, background: color, borderRadius: 999 }} /></div>
-                return <tr key={p.date}>
+                return <tr key={p.date} style={p.daysSinceCutover === 1 ? { background: '#fff3cf', color: '#422006', fontWeight: 700, borderTop: '2px solid #92400e', borderBottom: '2px solid #92400e' } : undefined}>
                   <td style={{ padding: '4px 6px 4px 0', whiteSpace: 'nowrap' }}>{formatDayLabel(p.date)}{p.daysSinceCutover === 1 ? ' · migration' : p.daysSinceCutover < 1 ? ` · ${p.daysSinceCutover}d` : ` · +${p.daysSinceCutover - 1}d`}</td>
-                  <td style={{ padding: '4px 6px' }}>{metricBar(p.clicks, maxClicks, '#2563eb')}</td>
+                  <td style={{ padding: '4px 6px' }}>{metricBar(p.clicks, maxTableClicks, '#2563eb')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(brandClicks, maxSplitClicks, '#0ea5e9')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(brandImpressions, maxSplitImpressions, '#38bdf8')}</td>
                   <td style={{ padding: '4px 6px' }}>{metricBar(genericClicks, maxSplitClicks, '#22c55e')}</td>
