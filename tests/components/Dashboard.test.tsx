@@ -48,6 +48,54 @@ function responseFor(url: string) {
   return null
 }
 
+describe('Dashboard assessment goal', () => {
+  it('combines the two sources and shows the target only on the total', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      ok: true,
+      json: async () => url === '/api/dashboard'
+        ? { ...dashboardData, wcqAssessmentTarget: { current: 36, cipherInitialConsults: 14, target: 500 } }
+        : responseFor(url),
+    })))
+
+    render(<Dashboard />)
+
+    expect(await screen.findByRole('progressbar', { name: 'Combined total' })).toHaveAttribute('aria-valuetext', '50 of 500, 10%')
+    expect(screen.getByRole('progressbar', { name: 'WeCanQuit Assessments' })).toHaveAttribute('aria-valuetext', '36 towards the combined goal')
+    expect(screen.getByRole('progressbar', { name: 'Cipher Health Initial Consults' })).toHaveAttribute('aria-valuetext', '14 towards the combined goal')
+    expect(screen.queryByText(/count unavailable/)).not.toBeInTheDocument()
+  })
+
+  it('does not report an inaccurate combined goal when the Cipher feed is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      ok: true,
+      json: async () => url === '/api/dashboard'
+        ? { ...dashboardData, wcqAssessmentTarget: { current: 36, cipherInitialConsults: null, target: 500 } }
+        : responseFor(url),
+    })))
+
+    render(<Dashboard />)
+
+    expect(await screen.findByText('Cipher Health count unavailable; combined goal cannot be calculated.')).toBeInTheDocument()
+    expect(screen.queryByRole('progressbar', { name: 'Combined total' })).not.toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'WeCanQuit Assessments' })).toBeInTheDocument()
+  })
+
+  it('shows progress beyond 100% without stretching the bar past its track', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      ok: true,
+      json: async () => url === '/api/dashboard'
+        ? { ...dashboardData, wcqAssessmentTarget: { current: 520, cipherInitialConsults: 14, target: 500 } }
+        : responseFor(url),
+    })))
+
+    render(<Dashboard />)
+
+    const total = await screen.findByRole('progressbar', { name: 'Combined total' })
+    expect(total).toHaveAttribute('aria-valuetext', '534 of 500, 107%')
+    expect(total.firstElementChild).toHaveStyle({ width: '100%' })
+  })
+})
+
 describe('Dashboard activity panel', () => {
   it('places pending statements immediately after Action Items in the right column', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({ ok: true, json: async () => responseFor(url) })))

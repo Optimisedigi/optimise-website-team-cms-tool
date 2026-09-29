@@ -191,6 +191,7 @@ interface DashboardData {
   wcqAssessmentTarget?: {
     current: number
     target: number
+    cipherInitialConsults: number | null
   } | null
   kpiMom?: {
     activeClients?: KpiDelta
@@ -927,10 +928,10 @@ const Dashboard = () => {
 
         {/* ── Right Column ── */}
         <div className="od-dash__side">
-          {/* WeCanQuit assessment target — unique to this one client */}
-          {data.wcqAssessmentTarget && data.wcqAssessmentTarget.target > 0 && (
-            <WcqAssessmentTargetBar
-              current={data.wcqAssessmentTarget.current}
+          {data.wcqAssessmentTarget && (
+            <AssessmentTargetBars
+              wcq={data.wcqAssessmentTarget.current}
+              cipher={data.wcqAssessmentTarget.cipherInitialConsults}
               target={data.wcqAssessmentTarget.target}
             />
           )}
@@ -2299,28 +2300,34 @@ function ActionItems({
   )
 }
 
-// ─── Yearly Sales Target Bar ─────────────────────────────
+// ─── Combined assessment goal ───────────────────────────
 
-function WcqAssessmentTargetBar({ current, target }: { current: number; target: number }) {
-  const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0
+function AssessmentTargetBars({ wcq, cipher, target }: { wcq: number; cipher: number | null; target: number }) {
+  const total = cipher === null ? null : wcq + cipher
+  const percent = total === null ? null : Math.round((total / target) * 100)
+  const rows = [
+    ...(total === null ? [] : [{ label: 'Combined total', count: total, color: 'linear-gradient(90deg, #468d8b, #74b3a8)', goal: true }]),
+    { label: 'WeCanQuit Assessments', count: wcq, color: '#468d8b', goal: false },
+    ...(cipher === null ? [] : [{ label: 'Cipher Health Initial Consults', count: cipher, color: '#56748f', goal: false }]),
+  ]
   return (
-    <div
-      className="od-box"
-      style={{ marginBottom: 12 }}
-      title={`${current.toLocaleString('en-AU')} of ${target.toLocaleString('en-AU')} paid + completed assessments`}
-    >
-      <div className="od-box__body" style={{ padding: '14px 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 8 }}>
-          <b style={{ fontSize: 12.5, color: 'var(--od-t1)' }}>WeCanQuit Assessments</b>
-          <span style={{ color: 'var(--od-t3)', fontSize: 12 }}>
-            <b style={{ color: 'var(--od-t1)' }}>{current.toLocaleString('en-AU')}</b>
-            {' / '}{target.toLocaleString('en-AU')} ·{' '}
-            <b style={{ color: 'var(--od-green)' }}>{pct}%</b>
-          </span>
-        </div>
-        <div style={{ position: 'relative', height: 8, borderRadius: 20, background: '#eef0f3', overflow: 'hidden' }}>
-          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 20, background: 'linear-gradient(90deg, #468d8b, #74b3a8)' }} />
-        </div>
+    <div className="od-box" style={{ marginBottom: 12 }}>
+      <div className="od-box__body" style={{ padding: '14px 16px', display: 'grid', gap: 14 }}>
+        {rows.map(({ label, count, color, goal }) => (
+          <div key={label}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 8, gap: '2px 8px' }}>
+              <b style={{ fontSize: 12.5, color: 'var(--od-t1)' }}>{label}</b>
+              <span style={{ color: 'var(--od-t1)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                <b>{count.toLocaleString('en-AU')}</b>
+                {goal && <>{' / '}{target.toLocaleString('en-AU')} · <b style={{ color: 'var(--od-green)' }}>{percent}%</b></>}
+              </span>
+            </div>
+            <div role="progressbar" aria-label={label} aria-valuenow={Math.min(count, target)} aria-valuemin={0} aria-valuemax={target} aria-valuetext={goal ? `${count} of ${target}, ${percent}%` : `${count} towards the combined goal`} style={{ height: 8, borderRadius: 20, background: '#eef0f3', overflow: 'hidden' }}>
+              <div style={{ width: `${Math.min(100, (count / target) * 100)}%`, height: '100%', borderRadius: 20, background: color }} />
+            </div>
+          </div>
+        ))}
+        {cipher === null && <small style={{ color: 'var(--od-t2)', fontSize: 11 }}>Cipher Health count unavailable; combined goal cannot be calculated.</small>}
       </div>
     </div>
   )

@@ -973,11 +973,32 @@ export async function GET() {
     }
   } catch { /* agency not configured */ }
 
-  // WeCanQuit assessment target — unique to this one client. Surfaces the
-  // aggregate counter pushed from the WeCanQuit app (paid + completed
-  // assessments, no patient data) as a progress bar on the dashboard. Other
-  // clients never have these fields set.
-  let wcqAssessmentTarget: { current: number; target: number } | null = null;
+  // The WeCanQuit feed counts completed paid and $0 self-serve assessments.
+  // Never substitute a fixed Cipher count for a failed or unconfigured live feed.
+  let cipherInitialConsults: number | null = null;
+  const cipherUrl = process.env.CIPHER_HEALTH_METRICS_URL;
+  const cipherSecret = process.env.CIPHER_HEALTH_METRICS_SECRET;
+  if (cipherUrl && cipherSecret) {
+    try {
+      const url = new URL(cipherUrl);
+      if (url.protocol !== "https:") throw new Error("Cipher metrics URL must use HTTPS");
+      const response = await fetch(url, {
+        headers: { authorization: `Bearer ${cipherSecret}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!response.ok) throw new Error(`Cipher metrics returned ${response.status}`);
+      const body: unknown = await response.json();
+      if (typeof body !== "object" || body === null || !("initialConsults" in body) ||
+          typeof body.initialConsults !== "number" || !Number.isSafeInteger(body.initialConsults) || body.initialConsults < 0) {
+        throw new Error("Invalid Cipher metrics response");
+      }
+      cipherInitialConsults = body.initialConsults;
+    } catch (error) {
+      console.warn("[dashboard] Cipher initial consult count unavailable", error instanceof Error ? error.message : error);
+    }
+  }
+  let wcqAssessmentTarget: { current: number; target: number; cipherInitialConsults: number | null } | null = null;
   try {
     const wcq = await payload.find({
       collection: "clients",
@@ -988,11 +1009,8 @@ export async function GET() {
     });
     const wcqDoc = wcq.docs[0] as any;
     if (wcqDoc) {
-      const target = Number(wcqDoc.wcqAssessmentTarget) || 0;
       const current = Number(wcqDoc.wcqAssessmentsCompleted) || 0;
-      if (target > 0) {
-        wcqAssessmentTarget = { current, target };
-      }
+      wcqAssessmentTarget = { current, target: 500, cipherInitialConsults };
     }
   } catch { /* we-can-quit client not present */ }
 
