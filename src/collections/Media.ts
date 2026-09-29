@@ -94,7 +94,10 @@ export const Media: CollectionConfig = {
       name: "publicImageLink",
       type: "ui",
       admin: {
-        components: { Field: "./components/MediaPublicImageLink" },
+        components: {
+          Field: "./components/MediaPublicImageLink",
+          Cell: "./components/MediaPublicImageLinkCell",
+        },
       },
     },
     {

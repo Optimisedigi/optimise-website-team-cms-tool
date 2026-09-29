@@ -52,6 +52,11 @@ describe("Media Collection", () => {
     }
   });
 
+  it("renders public image links in the media list instead of an empty UI field", () => {
+    const linkField = Media.fields.find((field) => "name" in field && field.name === "publicImageLink");
+    expect(linkField?.admin?.components?.Cell).toBe("./components/MediaPublicImageLinkCell");
+  });
+
   it("should have optional alt field", () => {
     const altField = Media.fields.find(
       (f) => "name" in f && f.name === "alt"

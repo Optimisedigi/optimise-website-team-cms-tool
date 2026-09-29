@@ -131,6 +131,7 @@ import { default as default_cce1b7420de9fe5183217c041b5a6118 } from '../../../co
 import { default as default_4d0f5bb8e6ad7a9090a88ed52a1972ef } from '../../../components/BlogPostsClientFilter'
 import { default as default_6c751ab69932cc559e5c82f606fdbdb0 } from '../../../components/BlogPrompterListView'
 import { default as default_97796339b0743241a1ff560a27eaa12a } from '../../../components/MediaPublicImageLink'
+import { default as default_a82acbf55f5a6668d8816fdea0ba90d2 } from '../../../components/MediaPublicImageLinkCell'
 import { default as default_72255986d47c1b790f52db8aabe6d202 } from '../../../components/InternalLinkSuggestionsListView'
 import { default as default_3d6cbb93c24934a6d54420e5106bbab0 } from '../../../components/ViewReportLink'
 import { default as default_5ee4907bc6cc2a02fa1a48dea9e62484 } from '../../../components/DownloadMarkdownButton'
@@ -351,6 +352,7 @@ export const importMap = {
   "./components/BlogPostsClientFilter#default": default_4d0f5bb8e6ad7a9090a88ed52a1972ef,
   "./components/BlogPrompterListView#default": default_6c751ab69932cc559e5c82f606fdbdb0,
   "./components/MediaPublicImageLink#default": default_97796339b0743241a1ff560a27eaa12a,
+  "./components/MediaPublicImageLinkCell#default": default_a82acbf55f5a6668d8816fdea0ba90d2,
   "./components/InternalLinkSuggestionsListView#default": default_72255986d47c1b790f52db8aabe6d202,
   "./components/ViewReportLink#default": default_3d6cbb93c24934a6d54420e5106bbab0,
   "./components/DownloadMarkdownButton#default": default_5ee4907bc6cc2a02fa1a48dea9e62484,
