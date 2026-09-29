@@ -91,6 +91,13 @@ export const Media: CollectionConfig = {
   },
   fields: [
     {
+      name: "publicImageLink",
+      type: "ui",
+      admin: {
+        components: { Field: "./components/MediaPublicImageLink" },
+      },
+    },
+    {
       name: "alt",
       type: "text",
       admin: {
