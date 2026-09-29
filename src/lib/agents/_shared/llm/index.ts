@@ -5,7 +5,7 @@
  *
  *   const response = await callLLM({
  *     model: 'claude-sonnet-5',
- *     fallbackModels: ['gpt-5.6-terra', 'kimi-k3'],
+ *     fallbackModels: ['kimi-k3', 'minimax-m3'],
  *     system: '...',
  *     messages: [...],
  *     tools: [...],

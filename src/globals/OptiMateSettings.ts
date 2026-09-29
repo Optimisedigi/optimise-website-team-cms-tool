@@ -13,6 +13,7 @@ import {
 import {
   DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
   DEFAULT_VOICE_REALTIME_MODEL,
+  normaliseModelName,
   resolveVoiceRealtimeModel,
 } from "../lib/agents/_shared/optimate-default-models";
 import {
@@ -65,12 +66,17 @@ const REALTIME_MODEL_OPTIONS = [
 
 const MODEL_OPTION_VALUES = new Set<string>(MODEL_OPTIONS.map((option) => option.value));
 
+// Picker-model saves run the same legacy-alias mapping as the settings reader
+// so a stored retired value upgrades to its successor instead of silently
+// resetting to the registry default on the next admin save.
 function normaliseOptionalPickerModel(value: unknown): string | undefined {
-  return typeof value === "string" && MODEL_OPTION_VALUES.has(value) ? value : undefined;
+  const model = normaliseModelName(value);
+  return typeof model === "string" && MODEL_OPTION_VALUES.has(model) ? model : undefined;
 }
 
 function normaliseRequiredPickerModel(value: unknown, fallback: string): string {
-  return typeof value === "string" && MODEL_OPTION_VALUES.has(value) ? value : fallback;
+  const model = normaliseModelName(value);
+  return typeof model === "string" && MODEL_OPTION_VALUES.has(model) ? model : fallback;
 }
 
 // Same mapping as the settings reader, so a stored legacy value (e.g.

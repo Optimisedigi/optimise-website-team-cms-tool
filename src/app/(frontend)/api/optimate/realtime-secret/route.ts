@@ -10,6 +10,7 @@ export const runtime = 'nodejs'
 const DEFAULT_REALTIME_VOICE = 'marin'
 const DEFAULT_REALTIME_TRANSCRIPTION_MODEL = 'gpt-4o-transcribe'
 const DEFAULT_SAMPLE_RATE = 24_000
+const TASKMATE_VOICE_INSTRUCTIONS = 'You are TaskMate, a voice planning companion for an agency admin. Discuss the tasks, clients, week, due dates, assignees and priorities they want. Ask brief clarifying questions and repeat important details back. Do not claim to create, stage, assign, or save tasks. No tools are available. The admin will end this call and press Generate task list to prepare a separate review list before any assignment. Keep answers concise and conversational.'
 
 type TurnDetectionConfig = {
   type?: unknown
@@ -39,6 +40,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     const { user } = await payload.auth({ headers: headersList })
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const body = (await request.json().catch(() => null)) as { mode?: unknown; session?: unknown } | null
+    const isTaskMate = body?.mode === 'taskmate'
+    if (isTaskMate && user.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const defaults = await getOptiMateDefaultModels(payload)
@@ -101,15 +107,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     }
 
-    const body = (await request.json().catch(() => null)) as {
-      session?: unknown
-    } | null
     const requestedSession = isRecord(body?.session) ? body.session : null
-    if (!requestedSession) {
+    if (!isTaskMate && !requestedSession) {
       return NextResponse.json({ error: 'session is required' }, { status: 400 })
     }
 
-    const instructions = readNonEmptyString(requestedSession.instructions)
+    const instructions = isTaskMate ? TASKMATE_VOICE_INSTRUCTIONS : readNonEmptyString(requestedSession?.instructions)
     if (!instructions) {
       return NextResponse.json({ error: 'session.instructions is required' }, { status: 400 })
     }
@@ -117,8 +120,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     const session = buildRealtimeSession({
       model: defaults.voiceRealtimeModel,
       instructions,
-      tools: Array.isArray(requestedSession.tools) ? requestedSession.tools : [],
-      turnDetection: normalizeTurnDetection(requestedSession.turnDetection),
+      tools: isTaskMate ? [] : Array.isArray(requestedSession?.tools) ? requestedSession.tools : [],
+      turnDetection: normalizeTurnDetection(isTaskMate ? undefined : requestedSession?.turnDetection),
     })
 
     const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {

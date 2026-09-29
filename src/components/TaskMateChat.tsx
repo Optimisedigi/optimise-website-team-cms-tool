@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import OptiMateTranscribe from './OptiMateTranscribe'
+import TaskMateLiveVoice from './TaskMateLiveVoice'
 import OptiMateBeamComposer from './OptiMateBeamComposer'
 import OptiMateMetalSend from './OptiMateMetalSend'
 import { ThinkingOrb } from 'thinking-orbs'
@@ -18,6 +18,8 @@ export default function TaskMateChat() {
   const [users, setUsers] = useState<TaskMateUser[]>([])
   const [staged, setStaged] = useState<StagedTaskList>()
   const [sending, setSending] = useState(false)
+  const [voiceActive, setVoiceActive] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState('')
   const [assigning, setAssigning] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -45,14 +47,14 @@ export default function TaskMateChat() {
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
   }, [messages, draft, staged])
 
-  const send = async (text = draft) => {
+  const send = async (text = draft, displayText = text) => {
     const message = text.trim()
     if (!message || sending) return
     setSending(true)
     setError('')
     setSuccess('')
-    const history = messages
-    setMessages((current) => [...current, { role: 'user', content: message }])
+    const history = messages.slice(-50)
+    setMessages((current) => [...current, { role: 'user', content: displayText }])
     if (text === draft) setDraft('')
     try {
       const response = await fetch('/api/optimate/taskmate/chat', {
@@ -68,8 +70,61 @@ export default function TaskMateChat() {
       if (json.stagedTaskList) setStaged(json.stagedTaskList)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'TaskMate could not reply')
-      setDraft(message)
+      if (text === draft) setDraft(message)
     } finally { setSending(false) }
+  }
+
+  const generate = async () => {
+    const requests = messages.filter((entry) => entry.role === 'user' && entry.content !== 'Generate task list for review now.').map((entry) => entry.content)
+    const prompt = `Generate task list for review now from all of these requests, accounting for later corrections:\n${requests.join('\n')}`
+    if (prompt.length <= 8000) {
+      await send(prompt, 'Generate task list for review now.')
+      return
+    }
+
+    const conversation = messages.filter((entry) => entry.content !== 'Generate task list for review now.')
+      .map((entry) => `${entry.role === 'user' ? 'Admin' : 'TaskMate'}: ${entry.content}`)
+    const portions = splitRequests(conversation, 6900)
+    setSending(true)
+    setError('')
+    setSuccess('')
+    setMessages((current) => [...current, { role: 'user', content: 'Generate task list for review now.' }])
+    try {
+      let combined: StagedTaskList | undefined
+      for (const [index, portion] of portions.entries()) {
+        setGenerationProgress(`Generating portion ${index + 1} of ${portions.length}…`)
+        const response = await fetch('/api/optimate/taskmate/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `Generate task list for review now from portion ${index + 1} of ${portions.length}. TaskMate lines are context, not new requests. Include only the admin's tasks in this portion; keep the requested week${combined ? ` starting ${combined.weekStart}` : ''}. Account for corrections here to earlier tasks, retaining their title and client when updating them:\n${portion}`,
+            history: [],
+          }),
+        })
+        const json = await response.json()
+        if (!response.ok) throw new Error(json.error || 'TaskMate could not generate this portion')
+        const next = json.stagedTaskList as StagedTaskList | undefined
+        if (!next?.tasks?.length) throw new Error(`TaskMate did not stage portion ${index + 1}. No partial list was applied; try again.`)
+        if (combined && combined.weekStart !== next.weekStart) throw new Error('The portions used different weeks. No partial list was applied; clarify the week and try again.')
+        const tasks = combined ? [...combined.tasks] : []
+        for (const task of next.tasks) {
+          const previous = tasks.findIndex((item) => item.clientId === task.clientId && item.title.toLowerCase() === task.title.toLowerCase())
+          if (previous >= 0) tasks[previous] = task
+          else tasks.push(task)
+        }
+        if (tasks.length > 50) throw new Error('More than 50 tasks were proposed. No partial list was applied; prepare separate weekly lists.')
+        combined = { weekStart: next.weekStart, tasks }
+        if (json.clients) setClients(json.clients)
+        if (json.users) setUsers(json.users)
+      }
+      setStaged(combined)
+      setMessages((current) => [...current, { role: 'assistant', content: `Review the ${combined?.tasks.length ?? 0} tasks gathered from ${portions.length} portions before assigning.` }])
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'TaskMate could not generate the task list')
+    } finally {
+      setGenerationProgress('')
+      setSending(false)
+    }
   }
 
   const assign = async () => {
@@ -158,7 +213,11 @@ export default function TaskMateChat() {
         <div ref={bottomRef} />
       </div>
       <div style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8 }}>
-        <button type="button" disabled={sending} onClick={() => void send('Generate task list for review now.')} style={{ ...primaryButtonStyle, background: '#7c3aed' }}>Generate task list</button>
+        <button type="button" disabled={sending || voiceActive || messages.length === 0} onClick={() => void generate()} style={{ ...primaryButtonStyle, background: '#7c3aed', opacity: sending || voiceActive || messages.length === 0 ? 0.55 : 1 }}>Generate task list</button>
+        {generationProgress && <span role="status">{generationProgress}</span>}
+        <span id="taskmate-live-notice" role={voiceActive ? 'status' : undefined} style={{ fontSize: 12, color: 'var(--theme-elevation-700)' }}>
+          {voiceActive ? 'End the live call before generating the review list.' : 'GPT Live sends microphone audio to OpenAI when you start a call.'}
+        </span>
         <OptiMateBeamComposer>
           <div style={{ position: 'relative', minHeight: 116, padding: '16px 16px 54px' }}>
             <textarea
@@ -173,7 +232,7 @@ export default function TaskMateChat() {
               style={{ ...inputStyle, minHeight: 48, resize: 'none', padding: 0 }}
             />
             <div data-optimate-control-row="" style={{ position: 'absolute', insetInline: 16, bottom: 12, justifyContent: 'flex-end' }}>
-              <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={(text) => setDraft((current) => `${current}${current.trim() ? ' ' : ''}${text}`)} />
+              <TaskMateLiveVoice disabled={sending} onActiveChange={setVoiceActive} onTurn={(role, content) => setMessages((current) => [...current, { role, content }])} />
               <OptiMateMetalSend>
                 <button type="button" disabled={sending || !draft.trim()} onClick={() => void send()} aria-label="Send" title="Send" data-optimate-send="">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -187,6 +246,31 @@ export default function TaskMateChat() {
       </div>
     </div>
   )
+}
+
+function splitRequests(requests: string[], maxLength: number): string[] {
+  const portions: string[] = []
+  let current = ''
+  for (const request of requests) {
+    let remaining = request
+    while (remaining.length) {
+      const available = maxLength - current.length - (current ? 1 : 0)
+      if (remaining.length <= available) {
+        current += `${current ? '\n' : ''}${remaining}`
+        break
+      }
+      if (current && available < remaining.length) {
+        portions.push(current)
+        current = ''
+        continue
+      }
+      portions.push(remaining.slice(0, maxLength))
+      const role = request.startsWith('TaskMate: ') ? 'TaskMate' : 'Admin'
+      remaining = `${role} (continued): ${remaining.slice(maxLength)}`
+    }
+  }
+  if (current) portions.push(current)
+  return portions
 }
 
 const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid var(--theme-elevation-200)', borderRadius: 7, padding: '8px 9px', background: 'var(--theme-bg)', color: 'var(--theme-text)', font: 'inherit' }

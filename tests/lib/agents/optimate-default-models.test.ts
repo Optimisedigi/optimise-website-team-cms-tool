@@ -55,7 +55,7 @@ describe("getOptiMateDefaultModels", () => {
       voiceRealtimeModel: "gpt-realtime-2",
     };
     const result = await getOptiMateDefaultModels();
-    expect(result.defaultChatModel).toBe("gpt-5.6-terra");
+    expect(result.defaultChatModel).toBe("gpt-6-sol");
     expect(result.defaultAutonomousModel).toBe("minimax-m3");
     expect(result.emailAssistantModel).toBe("claude-opus-5.5");
     expect(result.blogPrompterModel).toBe("claude-sonnet-5");
@@ -68,6 +68,18 @@ describe("getOptiMateDefaultModels", () => {
   it("keeps a saved Opus 5 preference on the newest Opus", async () => {
     nextGlobal = { defaultChatModel: "claude-opus-5" };
     expect((await getOptiMateDefaultModels()).defaultChatModel).toBe("claude-opus-5.5");
+  });
+
+  it.each([
+    ["gpt-5.6-sol", "gpt-6-sol"],
+    ["gpt-5.6-terra", "gpt-6-sol"],
+    ["gpt-5.6-luna", "gpt-6-luna"],
+    ["grok-4.5", "grok-4.6"],
+    ["claude-sonnet-4.6", "claude-sonnet-5"],
+    ["claude-sonnet-4.5", "claude-sonnet-5"],
+  ])("keeps saved retired selection %s on %s", async (stored, expected) => {
+    nextGlobal = { defaultChatModel: stored };
+    expect((await getOptiMateDefaultModels()).defaultChatModel).toBe(expected);
   });
 
   it.each([

@@ -13,7 +13,7 @@
  * Adding a new model is one line here. Adding a new provider needs a new
  * entry in PROVIDER_CONFIG plus a new adapter under providers/.
  *
- * Last reviewed: 2026-05-07 (Kimi K2 series deprecates 2026-05-25).
+ * Last reviewed: 2026-09-30 (Kimi K2 series deprecates 2026-05-25).
  */
 /**
  * Reasoning-effort levels for the GPT-5.5-class models served over the Codex
@@ -27,8 +27,10 @@ export const MODEL_REGISTRY = {
   // impersonation) when ANTHROPIC OAuth is connected; otherwise via
   // ANTHROPIC_API_KEY when explicitly selected by the user.
   "claude-sonnet-5": { provider: "anthropic", model: "claude-sonnet-5" },
-  "claude-sonnet-4.6": { provider: "anthropic", model: "claude-sonnet-4-6" },
-  "claude-sonnet-4.5": { provider: "anthropic", model: "claude-sonnet-4-5" },
+  // Sonnet 4.6 / 4.5 stay as names for old stored selections but now run the
+  // most recent Sonnet.
+  "claude-sonnet-4.6": { provider: "anthropic", model: "claude-sonnet-5" },
+  "claude-sonnet-4.5": { provider: "anthropic", model: "claude-sonnet-5" },
   "claude-opus-5.5": { provider: "anthropic", model: "claude-opus-5-5" },
   "claude-opus-5": { provider: "anthropic", model: "claude-opus-5" },
   "claude-opus-4-8": { provider: "anthropic", model: "claude-opus-4-8" },
@@ -66,9 +68,9 @@ export const MODEL_REGISTRY = {
   // Codex OAuth ("Sign in with ChatGPT"). Reasoning effort is selected per
   // request, not baked into the model name.
   //
-  // GPT-5.6 family — three agentic coding tiers from OpenAI's Codex catalog
-  // (Sol = frontier heavyweight, Terra = balanced daily driver, Luna = fast and
-  // affordable). Launched July 2026; replaces the retired GPT-5.4 / 5.4 Mini.
+  // GPT-5.6 family (Sol / Terra / Luna) — retired from the picker now that the
+  // GPT-6 family is on the billed OpenAI API. Kept so stored selections and old
+  // per-request model names still resolve on the Codex OAuth backend.
   "gpt-5.6-sol": { provider: "openai-codex", model: "gpt-5.6-sol" },
   "gpt-5.6-terra": { provider: "openai-codex", model: "gpt-5.6-terra" },
   "gpt-5.6-luna": { provider: "openai-codex", model: "gpt-5.6-luna" },
@@ -76,7 +78,7 @@ export const MODEL_REGISTRY = {
   // Back-compat aliases for stored prod selections pointing at models OpenAI has
   // since retired (GPT-5.4, 5.4 Mini) or the short-lived GPT-4 picker entries.
   // The Codex OAuth backend rejects those model IDs, so route them to the
-  // closest supported GPT-5.6 tier instead of failing as "Unknown model".
+  // closest surviving GPT-5.6 tier instead of failing as "Unknown model".
   "gpt-5.4": { provider: "openai-codex", model: "gpt-5.6-terra" },
   "gpt-5.4-mini": { provider: "openai-codex", model: "gpt-5.6-luna" },
   "gpt-4.1": { provider: "openai-codex", model: "gpt-5.6-terra" },
@@ -85,7 +87,8 @@ export const MODEL_REGISTRY = {
 
   // xAI Grok over the grok-cli proxy (cli-chat-proxy.grok.com), served by a
   // SuperGrok subscription via device-code OAuth — NOT the billed XAI_API_KEY
-  // path. grok-4.6 / grok-4.5 are the current chat models; grok-build and
+  // path. grok-4.6 is the current chat model; grok-4.5 is retired from the
+  // picker but kept so stored selections still resolve; grok-build and
   // grok-composer-2.5-fast stay as stored-setting aliases.
   "grok-4.7": { provider: "xai-api", model: "grok-4.7" },
   "grok-4.6": { provider: "xai-grok", model: "grok-4.6" },
@@ -220,9 +223,10 @@ export function isCanonicalModel(name: string): name is CanonicalModelName {
 
 /**
  * Default model when a chat session starts (sticky until the user picks
- * something else). Sonnet 5 is Anthropic's current best Sonnet and
- * connects via OAuth (Claude Code client impersonation), drawing from the
- * agency's $150/mo Max plan rather than billed API.
+ * something else). Sonnet 5 is Anthropic's current best Sonnet — the retired
+ * Sonnet 4.6 / 4.5 names run Sonnet 5 too — and connects via OAuth (Claude
+ * Code client impersonation), drawing from the agency's $150/mo Max plan
+ * rather than billed API.
  */
 export const DEFAULT_CHAT_MODEL: CanonicalModelName = "claude-sonnet-5";
 
@@ -233,7 +237,6 @@ export const DEFAULT_CHAT_MODEL: CanonicalModelName = "claude-sonnet-5";
  */
 export const DEFAULT_AUTONOMOUS_MODEL: CanonicalModelName = "kimi-k3";
 export const DEFAULT_AUTONOMOUS_FALLBACKS: CanonicalModelName[] = [
-  "gpt-5.6-terra",
   "kimi-k3",
   "claude-sonnet-5",
   "minimax-m3",
@@ -268,12 +271,8 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   { canonical: "gpt-6-astra", label: "GPT-6 Astra (API key)", hint: "Latest flagship. Billed to OPENAI_API_KEY; not ChatGPT OAuth." },
   { canonical: "gpt-6-sol", label: "GPT-6 Sol (API key)", hint: "Balanced GPT-6. Billed to OPENAI_API_KEY; not ChatGPT OAuth." },
   { canonical: "gpt-6-luna", label: "GPT-6 Luna (API key)", hint: "Fast GPT-6. Billed to OPENAI_API_KEY; not ChatGPT OAuth." },
-  { canonical: "gpt-5.6-sol", label: "GPT-5.6 Sol (ChatGPT OAuth)", hint: "Frontier heavyweight. Heaviest reasoning for complex work. Reasoning controlled per request." },
-  { canonical: "gpt-5.6-terra", label: "GPT-5.6 Terra (ChatGPT OAuth)", hint: "Balanced daily driver. Reasoning controlled per request." },
-  { canonical: "gpt-5.6-luna", label: "GPT-5.6 Luna (ChatGPT OAuth)", hint: "Fast and affordable. Reasoning controlled per request." },
   { canonical: "grok-4.7", label: "Grok 4.7 (API key)", hint: "Latest Grok. Billed to XAI_API_KEY; not SuperGrok OAuth." },
   { canonical: "grok-4.6", label: "Grok 4.6 (SuperGrok OAuth)", hint: "xAI Grok 4.6 via your SuperGrok subscription. No API tokens billed." },
-  { canonical: "grok-4.5", label: "Grok 4.5 (SuperGrok OAuth)", hint: "Previous Grok generation via SuperGrok subscription." },
 ];
 
 /**

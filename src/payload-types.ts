@@ -15766,12 +15766,8 @@ export interface OptimateSetting {
     | 'gpt-6-astra'
     | 'gpt-6-sol'
     | 'gpt-6-luna'
-    | 'gpt-5.6-sol'
-    | 'gpt-5.6-terra'
-    | 'gpt-5.6-luna'
     | 'grok-4.7'
-    | 'grok-4.6'
-    | 'grok-4.5';
+    | 'grok-4.6';
   /**
    * Model used for unattended Google Ads runs (scheduled tasks, cron) where no human picks a model.
    */
@@ -15787,12 +15783,8 @@ export interface OptimateSetting {
     | 'gpt-6-astra'
     | 'gpt-6-sol'
     | 'gpt-6-luna'
-    | 'gpt-5.6-sol'
-    | 'gpt-5.6-terra'
-    | 'gpt-5.6-luna'
     | 'grok-4.7'
-    | 'grok-4.6'
-    | 'grok-4.5';
+    | 'grok-4.6';
   /**
    * Optional. Model used by blog and copy features — the Blog Prompter AI Suggest button, blog draft generation, blog post image-prompt generation, and Google Ads ad copy generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.
    */
@@ -15809,12 +15801,8 @@ export interface OptimateSetting {
         | 'gpt-6-astra'
         | 'gpt-6-sol'
         | 'gpt-6-luna'
-        | 'gpt-5.6-sol'
-        | 'gpt-5.6-terra'
-        | 'gpt-5.6-luna'
         | 'grok-4.7'
         | 'grok-4.6'
-        | 'grok-4.5'
       )
     | null;
   /**
@@ -15833,12 +15821,8 @@ export interface OptimateSetting {
         | 'gpt-6-astra'
         | 'gpt-6-sol'
         | 'gpt-6-luna'
-        | 'gpt-5.6-sol'
-        | 'gpt-5.6-terra'
-        | 'gpt-5.6-luna'
         | 'grok-4.7'
         | 'grok-4.6'
-        | 'grok-4.5'
       )
     | null;
   /**
@@ -15857,12 +15841,8 @@ export interface OptimateSetting {
         | 'gpt-6-astra'
         | 'gpt-6-sol'
         | 'gpt-6-luna'
-        | 'gpt-5.6-sol'
-        | 'gpt-5.6-terra'
-        | 'gpt-5.6-luna'
         | 'grok-4.7'
         | 'grok-4.6'
-        | 'grok-4.5'
       )
     | null;
   /**
@@ -15881,12 +15861,8 @@ export interface OptimateSetting {
         | 'gpt-6-astra'
         | 'gpt-6-sol'
         | 'gpt-6-luna'
-        | 'gpt-5.6-sol'
-        | 'gpt-5.6-terra'
-        | 'gpt-5.6-luna'
         | 'grok-4.7'
         | 'grok-4.6'
-        | 'grok-4.5'
       )
     | null;
   /**
@@ -15905,12 +15881,8 @@ export interface OptimateSetting {
         | 'gpt-6-astra'
         | 'gpt-6-sol'
         | 'gpt-6-luna'
-        | 'gpt-5.6-sol'
-        | 'gpt-5.6-terra'
-        | 'gpt-5.6-luna'
         | 'grok-4.7'
         | 'grok-4.6'
-        | 'grok-4.5'
       )
     | null;
   /**

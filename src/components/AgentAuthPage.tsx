@@ -420,7 +420,7 @@ export default function AgentAuthPage() {
       <h1 style={{ margin: "0 0 4px" }}>OptiMate auth</h1>
       <p style={{ color: "#666", marginTop: 0 }}>
         Per-provider credential status for OptiMate. Claude uses Anthropic OAuth/API keys; Kimi is available through both API keys and Kimi For Coding OAuth; MiniMax uses API keys.
-        GPT-5.6 is available through ChatGPT subscription OAuth; GPT-6 uses a separately billed <code>OPENAI_API_KEY</code>. Grok 4.6 / 4.5 use SuperGrok subscription OAuth; Grok 4.7 uses a separately billed <code>XAI_API_KEY</code>. Xiaomi MiMo V2.6 uses <code>MIMO_API_KEY</code>.
+        GPT-6 Astra, Sol and Luna use a separately billed <code>OPENAI_API_KEY</code>. Grok 4.6 uses SuperGrok subscription OAuth; Grok 4.7 uses a separately billed <code>XAI_API_KEY</code>. Xiaomi MiMo V2.6 uses <code>MIMO_API_KEY</code>.
       </p>
 
       {message && (
@@ -432,7 +432,7 @@ export default function AgentAuthPage() {
       <div style={{ ...cardStyle, background: "#fffbeb", borderColor: "#fde68a" }}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>GPT / OpenAI auth</h2>
         <p style={{ margin: 0, fontSize: 13, color: "#92400e", lineHeight: 1.5 }}>
-          Connect a ChatGPT plan with Codex OAuth (card below) for GPT-5.6. GPT-6 Astra, Sol and Luna use <code>OPENAI_API_KEY</code> and are billed separately; without the key, requests fall through to the configured fallback. The Codex path uses a private endpoint that OpenAI can change at any time. Kill-switch: set <code>CODEX_OAUTH_DISABLED=1</code> to disable subscription calls.
+          Connect a ChatGPT plan with Codex OAuth (card below) to keep older GPT picks and flat-rate voice billing on the subscription. GPT-6 Astra, Sol and Luna use <code>OPENAI_API_KEY</code> and are billed separately; without the key, requests fall through to the configured fallback. The Codex path uses a private endpoint that OpenAI can change at any time. Kill-switch: set <code>CODEX_OAUTH_DISABLED=1</code> to disable subscription calls.
         </p>
       </div>
 
@@ -557,7 +557,7 @@ export default function AgentAuthPage() {
         <p style={{ marginTop: 0, fontSize: 13, color: "#666", lineHeight: 1.5 }}>
           Opens xAI sign-in in a new tab and uses the OAuth device-code flow — no code to paste. Spends your
           {" "}<strong>SuperGrok subscription</strong> (via the grok-cli proxy), not billed <code>XAI_API_KEY</code> tokens.
-          Powers the <code>grok-4.6</code> and <code>grok-4.5</code> models. This reuses the grok CLI's
+          Powers the <code>grok-4.6</code> model and older stored Grok picks. This reuses the grok CLI's
           private OAuth client against an undocumented endpoint — a ToS grey area xAI can break at any time — so any
           failure falls through the normal fallback chain (Kimi → MiniMax → Claude). Kill-switch: set
           {" "}<code>XAI_GROK_OAUTH_DISABLED=1</code> in the environment to disable it fleet-wide instantly.

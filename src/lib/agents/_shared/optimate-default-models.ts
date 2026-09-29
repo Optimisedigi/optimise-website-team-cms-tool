@@ -62,19 +62,19 @@ export interface OptiMateDefaultModels {
   invoiceMateStarterQuestions: string[];
 }
 
-/** True if the model is canonical AND still offered in the chat picker. */
-function normaliseModelName(value: unknown): unknown {
+/** Maps stored selections of retired models to their closest surviving picker model. */
+export function normaliseModelName(value: unknown): unknown {
   // Stored selections of retired models map to the closest surviving tier so a
   // saved provider preference does not silently fall back to the default model.
-  if (value === "gpt-5.5-codex" || value === "gpt-5.5-codex-medium" || value === "gpt-5.5-codex-low" || value === "gpt-5.4") return "gpt-5.6-terra";
-  if (value === "gpt-5.4-mini") return "gpt-5.6-luna";
+  if (value === "gpt-5.5-codex" || value === "gpt-5.5-codex-medium" || value === "gpt-5.5-codex-low" || value === "gpt-5.4" || value === "gpt-5.6-sol" || value === "gpt-5.6-terra") return "gpt-6-sol";
+  if (value === "gpt-5.4-mini" || value === "gpt-5.6-luna") return "gpt-6-luna";
   if (value === "claude-opus-4-8" || value === "claude-opus-5") return "claude-opus-5.5";
-  if (value === "claude-sonnet-4.6") return "claude-sonnet-5";
-  if (value === "grok-build") return "grok-4.6";
-  if (value === "grok-composer-2.5-fast") return "grok-4.5";
+  if (value === "claude-sonnet-4.6" || value === "claude-sonnet-4.5") return "claude-sonnet-5";
+  if (value === "grok-build" || value === "grok-composer-2.5-fast" || value === "grok-4.5") return "grok-4.6";
   return value;
 }
 
+/** True if the model is canonical AND still offered in the chat picker. */
 function isUsablePickerModel(value: unknown): value is CanonicalModelName {
   const model = normaliseModelName(value);
   return (

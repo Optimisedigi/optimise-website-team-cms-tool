@@ -10,10 +10,9 @@ const DEFAULT_MODELS: CanonicalModelName[] = [
   "claude-haiku-4.5",
   "kimi-for-coding",
   "minimax-m3",
-  "gpt-5.6-terra",
-  "gpt-5.6-luna",
+  "gpt-6-sol",
+  "gpt-6-luna",
   "grok-4.6",
-  "grok-4.5",
 ];
 
 interface BlogBriefConfig {
@@ -367,7 +366,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 }
 
 function printUsage(): void {
-  console.log("Usage: npm run blog:evaluate -- run --brief growth-systems --models claude-sonnet-4.6");
+  console.log("Usage: npm run blog:evaluate -- run --brief growth-systems --models claude-sonnet-5");
 }
 
 function wordCount(text: string): number { return normaliseText(text).split(/\s+/).filter(Boolean).length; }
