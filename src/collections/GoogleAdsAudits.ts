@@ -8,6 +8,11 @@ import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
 import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 import { normalizeCampaignProposalKeywords } from "../lib/campaign-proposal-normalize";
+import {
+  campaignProposalTimelineEntries,
+  deferTimelineEntries,
+  resolveTimelineOwner,
+} from "../lib/account-timeline-auto";
 import { GOOGLE_SEARCH_LANGUAGE_OPTIONS, SEARCH_LOCATION_OPTIONS, normalizeSearchLocation } from "../lib/search-target-options";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = async ({
@@ -195,6 +200,16 @@ export const GoogleAdsAudits: CollectionConfig = {
             user: req.user?.id,
           }).catch(() => {});
         }
+      },
+      // Campaign structure proposal finished generating (Growth Tools PATCHes
+      // status "completed") → client (or proposal) Account Timeline.
+      ({ doc, previousDoc, req }) => {
+        deferTimelineEntries(
+          req.payload,
+          resolveTimelineOwner(doc),
+          campaignProposalTimelineEntries(doc, previousDoc, new Date()),
+          `google ads audit ${doc.id} campaign proposal`,
+        );
       },
     ],
   },

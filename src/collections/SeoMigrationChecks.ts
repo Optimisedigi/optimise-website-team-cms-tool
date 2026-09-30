@@ -1,5 +1,10 @@
 import type { CollectionConfig } from "payload";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import {
+  deferTimelineEntries,
+  resolveTimelineOwner,
+  seoMigrationTimelineEntries,
+} from "../lib/account-timeline-auto";
 
 /**
  * Post-Migration SEO Review.
@@ -30,6 +35,19 @@ export const SeoMigrationChecks: CollectionConfig = {
     create: canAccess("seo-migration-checks"),
     update: canAccess("seo-migration-checks"),
     delete: adminOnlyDelete,
+  },
+  hooks: {
+    afterChange: [
+      // SEO migration (cutover) date added or changed → client Account Timeline.
+      ({ doc, previousDoc, req }) => {
+        deferTimelineEntries(
+          req.payload,
+          resolveTimelineOwner({ client: doc.client }),
+          seoMigrationTimelineEntries(doc, previousDoc, new Date()),
+          `seo migration review ${doc.id}`,
+        );
+      },
+    ],
   },
   fields: [
     {

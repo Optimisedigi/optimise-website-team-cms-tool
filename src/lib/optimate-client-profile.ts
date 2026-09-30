@@ -53,6 +53,7 @@ export type OptimateClientProfile = {
   };
   commercial?: {
     clientStartDate: string | null;
+    campaignStartDate: string | null;
     retainerStartDate: string | null;
     monthlyRetainer: number | null;
     setupFee: number | null;
@@ -375,6 +376,7 @@ function projectProfile(
   if (want("commercial")) {
     out.commercial = {
       clientStartDate: client.clientStartDate ?? null,
+      campaignStartDate: client.campaignStartDate ?? null,
       retainerStartDate: client.retainerStartDate ?? null,
       monthlyRetainer: client.monthlyRetainer ?? null,
       setupFee: client.setupFee ?? null,

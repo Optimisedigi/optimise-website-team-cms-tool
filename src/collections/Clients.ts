@@ -21,7 +21,13 @@ import {
   sensitiveFieldAccess,
 } from "../lib/access";
 import { hasValidApiKey } from "./api-key-access";
-import { CLIENT_SERVICE_OPTIONS, CLIENT_TYPE_OPTIONS } from "../lib/client-field-options";
+import { addClientTimelineEntries } from "../lib/account-timeline-auto";
+import {
+  ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS,
+  ACCOUNT_TIMELINE_SERVICE_AREA_OPTIONS,
+  CLIENT_SERVICE_OPTIONS,
+  CLIENT_TYPE_OPTIONS,
+} from "../lib/client-field-options";
 import { LEAD_CHANNEL_OPTIONS } from "../lib/lead-channel";
 import {
   deferPostCommit,
@@ -225,6 +231,7 @@ export const Clients: CollectionConfig = {
       trackRetainerChange,
       derivePresentationDeckSlugs,
       deriveWebsiteTypeFields,
+      addClientTimelineEntries,
     ],
     afterChange: [
       async ({ doc, operation, req }) => {
@@ -2105,51 +2112,13 @@ export const Clients: CollectionConfig = {
                       name: "serviceArea",
                       type: "select",
                       defaultValue: "google_ads",
-                      options: [
-                        { label: "Google Ads", value: "google_ads" },
-                        { label: "SEO", value: "seo" },
-                        { label: "Analytics / Tracking", value: "analytics" },
-                        { label: "Website", value: "website" },
-                        { label: "Social / Meta", value: "social" },
-                        { label: "Content", value: "content" },
-                        { label: "Contracts / Legal", value: "contracts" },
-                        { label: "Onboarding", value: "onboarding" },
-                        { label: "General", value: "general" },
-                      ],
+                      options: [...ACCOUNT_TIMELINE_SERVICE_AREA_OPTIONS],
                     },
                     {
                       name: "actionType",
                       type: "select",
                       required: true,
-                      options: [
-                        { label: "Account Takeover", value: "account_takeover" },
-                        { label: "Account Access Granted", value: "access_granted" },
-                        { label: "Onboarding Started", value: "onboarding_started" },
-                        { label: "Onboarding Completed", value: "onboarding_completed" },
-                        { label: "Contract Signed", value: "contract_signed" },
-                        { label: "Contract Renewed", value: "contract_renewed" },
-                        { label: "Scope of Work Changed", value: "scope_changed" },
-                        { label: "Kickoff Meeting", value: "kickoff_meeting" },
-                        { label: "Strategy Meeting", value: "strategy_meeting" },
-                        { label: "Review Meeting", value: "review_meeting" },
-                        { label: "Client Presentation", value: "client_presentation" },
-                        { label: "Tagging Updated", value: "tagging_updated" },
-                        { label: "Conversion Tracking Changed", value: "conversion_tracking_changed" },
-                        { label: "GA4 Setup / Migration", value: "ga4_setup" },
-                        { label: "GTM Setup / Updated", value: "gtm_updated" },
-                        { label: "Campaign Structure Proposed", value: "campaign_structure_proposed" },
-                        { label: "Campaign Structure Implemented", value: "campaign_structure_implemented" },
-                        { label: "Budget Changed", value: "budget_changed" },
-                        { label: "Negative Keyword List Added", value: "negative_keywords_added" },
-                        { label: "Bid Strategy Changed", value: "bid_strategy_changed" },
-                        { label: "Ad Copy Updated", value: "ad_copy_updated" },
-                        { label: "Landing Pages Changed", value: "landing_pages_changed" },
-                        { label: "Dashboard Created", value: "dashboard_created" },
-                        { label: "Reporting Started", value: "reporting_started" },
-                        { label: "Strategy Change", value: "strategy_change" },
-                        { label: "Process Milestone", value: "process_milestone" },
-                        { label: "Other", value: "other" },
-                      ],
+                      options: [...ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS],
                     },
                     {
                       name: "description",

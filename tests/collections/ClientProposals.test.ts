@@ -809,6 +809,42 @@ describe("ClientProposals: convertToClient hook", () => {
     expect(timeline[0].addedBy).toBe("Alice");
   });
 
+  it("keeps the new client's own timeline rows when copying the prospect timeline", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
+    const createdRow = {
+      id: "auto-row",
+      date: "2026-09-30T02:00:00.000Z",
+      serviceArea: "onboarding",
+      actionType: "client_created",
+      description: "Client account created in the CMS",
+    };
+    mockPayload.create.mockResolvedValueOnce({ id: "new-client-id", accountTimeline: [createdRow] });
+    mockPayload.update.mockResolvedValue({});
+
+    await convertToClientHook({
+      doc: {
+        id: "prop-1",
+        convertToClient: true,
+        businessName: "Timeline Keep",
+        slug: "timeline-keep",
+        proposalAccountTimeline: [
+          { id: "tl-1", date: "2026-09-01T02:00:00.000Z", serviceArea: "contracts", actionType: "contract_sent", description: "Contract sent to client: Retainer" },
+        ],
+      },
+      req: mockReq(),
+      previousDoc: { convertToClient: false },
+    });
+
+    const clientUpdate = mockPayload.update.mock.calls.find(
+      ([args]: any[]) => args.collection === "clients" && args.id === "new-client-id",
+    );
+    expect(clientUpdate![0].data.accountTimeline.map((row: { actionType: string }) => row.actionType)).toEqual([
+      "client_created",
+      "contract_sent",
+    ]);
+    expect(clientUpdate![0].data.accountTimeline[0]).toEqual(createdRow);
+  });
+
   it("should re-point a discovery briefing from the proposal to the new client on conversion", async () => {
     // find() is called for sales-leads check, salesLead lookup, each
     // collectionsToRelink iteration, and finally the discovery briefing

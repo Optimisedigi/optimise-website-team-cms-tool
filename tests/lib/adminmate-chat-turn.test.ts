@@ -79,3 +79,43 @@ describe("runAdminMateChatTurn Gmail draft enforcement", () => {
     expect(mockRunAgent).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("runAdminMateChatTurn client questions", () => {
+  beforeEach(() => mockRunAgent.mockReset());
+
+  const questionInput = (text: string) => ({
+    messages: [{ role: "user" as const, content: [{ type: "text" as const, text }] }],
+    existingClients: [],
+    contractTemplates: [],
+    clientDetails: { getProfile: async () => null, getExtras: async () => null, getDiscoveryBriefings: async () => [] },
+    userId: 17,
+    modelOverride: "gpt-5.6-luna",
+  });
+
+  it("registers get_client_details when a reader is supplied and not otherwise", async () => {
+    mockRunAgent.mockResolvedValue(assistantResult("Account Timeline, 10 Jul 2026: Google ads campaign went live."));
+
+    await runAdminMateChatTurn(questionInput("for client EPG, what date did the Google ads campaigns go live?"));
+    expect(mockRunAgent.mock.calls[0][0].tools.map((tool: { name: string }) => tool.name)).toContain("get_client_details");
+    expect(mockRunAgent.mock.calls[0][0].systemPrompt).toContain("get_client_details");
+
+    const { clientDetails: _omit, ...withoutReader } = questionInput("hi");
+    await runAdminMateChatTurn(withoutReader);
+    expect(mockRunAgent.mock.calls[1][0].tools.map((tool: { name: string }) => tool.name)).not.toContain("get_client_details");
+  });
+
+  it("does not force a create-client correction when the admin asked a question about a client", async () => {
+    mockRunAgent.mockResolvedValueOnce(assistantResult("Yes, the Google Ads ID is set up.", [{
+      step: 1,
+      type: "tool-call",
+      toolName: "get_client_details",
+      output: { ok: true, data: { tracking: { googleAdsCustomerIdSet: true } } },
+      timestamp: "2026-09-30T10:00:00.000Z",
+    }]));
+
+    const result = await runAdminMateChatTurn(questionInput("Is the Google Ads ID set up for the new client EPG?"));
+
+    expect(mockRunAgent).toHaveBeenCalledTimes(1);
+    expect(result.reply).toBe("Yes, the Google Ads ID is set up.");
+  });
+});

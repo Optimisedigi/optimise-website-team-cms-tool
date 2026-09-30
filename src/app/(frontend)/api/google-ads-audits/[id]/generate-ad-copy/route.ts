@@ -5,6 +5,7 @@ import config from "@/payload.config";
 import { callLLM } from "@/lib/agents/_shared/llm";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 import { DEFAULT_AUTONOMOUS_FALLBACKS } from "@/lib/agents/_shared/llm/registry";
+import { adCopyTimelineEntry, appendTimelineEntries, resolveTimelineOwner } from "@/lib/account-timeline-auto";
 
 const SYSTEM_PROMPT = `You are a Google Ads RSA (Responsive Search Ad) copywriter. Generate ad copy for one ad group.
 
@@ -265,6 +266,22 @@ Top Keywords: ${ag.keywords.join(", ")}${brandNote}`;
         });
 
         console.log(`[generate-ad-copy] Saved ad copy for audit ${id}`);
+
+        // Record it on the client's (or proposal's) Account Timeline. Best-effort:
+        // the ad copy is already saved, so a timeline failure is only logged.
+        const timelineOwner = resolveTimelineOwner(audit);
+        if (timelineOwner) {
+          try {
+            await appendTimelineEntries(payload, timelineOwner, [adCopyTimelineEntry(adCopyMap, new Date())]);
+          } catch (timelineErr) {
+            payload.logger.error({
+              msg: "[generate-ad-copy] Account timeline entry failed",
+              auditId: id,
+              owner: timelineOwner,
+              error: timelineErr instanceof Error ? timelineErr.message : String(timelineErr),
+            });
+          }
+        }
       } catch (error) {
         console.error("[generate-ad-copy] Background error:", error);
         try {

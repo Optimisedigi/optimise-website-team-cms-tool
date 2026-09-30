@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const callbacks: Array<() => Promise<void> | void> = []
+let auditClient: unknown = undefined
 const execute = vi.fn(async () => ({}))
 const callLLM = vi.fn(async () => ({
   message: {
@@ -37,6 +38,7 @@ vi.mock('payload', () => ({
     auth: vi.fn(async () => ({ user: { id: 1 } })),
     findByID: vi.fn(async () => ({
       id: 7,
+      client: auditClient,
       businessName: 'EPG Engines',
       websiteUrl: 'https://example.com',
       campaignProposal: {
@@ -69,6 +71,7 @@ vi.mock('@/lib/agents/_shared/llm', () => ({ callLLM }))
 describe('POST /api/google-ads-audits/[id]/generate-ad-copy', () => {
   beforeEach(() => {
     callbacks.length = 0
+    auditClient = undefined
     execute.mockClear()
     callLLM.mockClear()
     vi.stubGlobal(
@@ -102,6 +105,28 @@ describe('POST /api/google-ads-audits/[id]/generate-ad-copy', () => {
         sql: expect.stringContaining('generated_ad_copy'),
         args: [expect.stringContaining('Engine Parts'), 'generated', expect.any(String), '7'],
       }),
+    )
+    // No client or proposal linked → no timeline row.
+    expect(execute).not.toHaveBeenCalledWith(
+      expect.objectContaining({ sql: expect.stringContaining('account_timeline') }),
+    )
+  })
+
+  it('adds an ad copy entry to the linked client account timeline after saving', async () => {
+    auditClient = { id: 42 }
+    const { POST } =
+      await import('@/app/(frontend)/api/google-ads-audits/[id]/generate-ad-copy/route')
+
+    await POST(new Request('https://cms.test/api') as never, { params: Promise.resolve({ id: '7' }) })
+    await callbacks[0]()
+
+    const sqls = execute.mock.calls.map((call) => (call as unknown as [{ sql: string }])[0].sql)
+    const saveIndex = sqls.findIndex((sql) => sql.includes('generated_ad_copy'))
+    const timelineIndex = sqls.findIndex((sql) => sql.includes('INSERT INTO `client_account_timeline`'))
+    expect(saveIndex).toBeGreaterThanOrEqual(0)
+    expect(timelineIndex).toBeGreaterThan(saveIndex)
+    expect((execute.mock.calls[timelineIndex] as unknown as [{ args: unknown[] }])[0].args).toEqual(
+      expect.arrayContaining([42, 'ad_copy_generated', 'Google Ads ad copy generated for 1 ad group across 1 campaign']),
     )
   })
 })

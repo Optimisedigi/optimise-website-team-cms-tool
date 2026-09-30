@@ -5,6 +5,11 @@ import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 import { ANNUAL_REVIEW_DEFAULTS } from "../lib/tier-table";
 import { scheduleContractReminders } from "../lib/contract-reminders";
 import { validateClientEmails } from "../lib/contract-emails";
+import {
+  contractTimelineEntries,
+  deferTimelineEntries,
+  resolveTimelineOwner,
+} from "../lib/account-timeline-auto";
 
 /**
  * Wrap a plain-text default in a minimal Lexical rich-text root so
@@ -166,6 +171,15 @@ export const Contracts: CollectionConfig = {
             user: req.user?.id,
           }).catch(() => {});
         }
+
+        // Sent / signed → client (or proposal) Account Timeline. Deferred past
+        // this save and best-effort: never blocks sending or signing.
+        deferTimelineEntries(
+          req.payload,
+          resolveTimelineOwner(doc),
+          contractTimelineEntries(doc, previousDoc, new Date()),
+          `contract ${doc.id}`,
+        );
 
         // Reschedule the two annual-review reminders. Idempotent —
         // pending rows are replaced; sent/failed/skipped history is kept.
