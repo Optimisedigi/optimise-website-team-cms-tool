@@ -42,7 +42,7 @@ describe('planTimelineBackfill', () => {
     ).toBe(true)
   })
 
-  it('adds sent and signed history for contracts, skipping drafts, templates and trashed ones', () => {
+  it('adds sent and signed history for contracts (templates that were really sent included), skipping drafts and trashed ones', () => {
     const plan = planTimelineBackfill(
       source({
         contracts: [
@@ -56,10 +56,11 @@ describe('planTimelineBackfill', () => {
             client: 42,
           },
           {
+            // Sent to the client, then ticked "template" for reuse (EPG's case).
             id: 2,
-            status: 'completed',
-            contractTitle: 'Template',
-            sentAt: '2026-06-10T01:00:00.000Z',
+            status: 'sent',
+            contractTitle: 'Agreement also used as template',
+            sentAt: '2026-06-17T01:14:49.859Z',
             isTemplate: true,
             client: 42,
           },
@@ -79,6 +80,7 @@ describe('planTimelineBackfill', () => {
       '2026-06-01 client_created',
       '2026-06-10 contract_sent',
       '2026-06-12 contract_signed',
+      '2026-06-17 contract_sent',
     ])
     const signed = plan.owners
       .find((owner) => owner.id === 42)
@@ -243,6 +245,46 @@ describe('planTimelineBackfill', () => {
         event: 'campaign_structure_proposed',
         timeline: 'clients:42',
       },
+    ])
+  })
+
+  it("covers EPG's records: start dates, and a proposal and ad copy that were later approved", () => {
+    const plan = planTimelineBackfill(
+      source({
+        clients: [
+          {
+            id: 42,
+            name: 'EPG engines',
+            createdAt: '2026-05-20T05:18:10.617Z',
+            clientStartDate: '2026-06-29T12:00:00.000Z',
+            retainerStartDate: '2026-06-29T12:00:00.000Z',
+            campaignStartDate: null,
+          },
+        ],
+        proposals: [],
+        audits: [
+          {
+            id: 7,
+            client: 42,
+            campaignProposalStatus: 'approved',
+            campaignProposalGeneratedAt: '2026-07-03T01:19:39.634Z',
+            campaignProposal: JSON.stringify({ proposedCampaigns: [{ adGroups: [{}] }] }),
+            adCopyStatus: 'approved',
+            adCopyGeneratedAt: '2026-07-08T04:09:57.782Z',
+            generatedAdCopy: JSON.stringify({ Brand: { Core: {} } }),
+          },
+          // Still running / only a draft: not recorded.
+          { id: 8, client: 42, campaignProposalStatus: 'running', adCopyStatus: 'draft' },
+        ],
+      }),
+      { exclude: ['client_created'] },
+    )
+
+    expect(actions(plan, 42)).toEqual([
+      '2026-06-29 contract_start',
+      '2026-06-29 retainer_start',
+      '2026-07-03 campaign_structure_proposed',
+      '2026-07-08 ad_copy_generated',
     ])
   })
 

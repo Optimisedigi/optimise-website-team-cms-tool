@@ -6,6 +6,7 @@ import {
   adCopyTimelineEntry,
   appendTimelineEntries,
   campaignProposalTimelineEntries,
+  clientStartDateEntries,
   clientTimelineEntries,
   contractTimelineEntries,
   deferTimelineEntries,
@@ -105,13 +106,12 @@ describe('contractTimelineEntries', () => {
     expect(entries.map((e) => e.actionType)).toEqual(['contract_sent', 'contract_signed'])
   })
 
-  it('ignores unrelated saves, drafts, templates and trashed contracts', () => {
+  it('ignores unrelated saves, drafts and trashed contracts', () => {
     const sent = { ...base, status: 'sent', sentAt: '2026-09-20T00:00:00.000Z' }
     expect(contractTimelineEntries(sent, sent, NOW)).toEqual([])
     expect(contractTimelineEntries({ ...base, status: 'draft' }, undefined, NOW)).toEqual([])
-    expect(
-      contractTimelineEntries({ ...sent, isTemplate: true }, { ...base, status: 'draft' }, NOW),
-    ).toEqual([])
+    // Ticking "template" on an already-sent contract changes nothing.
+    expect(contractTimelineEntries({ ...sent, isTemplate: true }, sent, NOW)).toEqual([])
     expect(
       contractTimelineEntries(
         { ...sent, deletedAt: '2026-09-21' },
@@ -119,6 +119,80 @@ describe('contractTimelineEntries', () => {
         NOW,
       ),
     ).toEqual([])
+  })
+})
+
+describe('template contracts', () => {
+  it('records a contract marked as a template once it is really sent', () => {
+    expect(
+      contractTimelineEntries(
+        {
+          contractTitle: 'EPG Agreement',
+          client: 8,
+          status: 'sent',
+          sentAt: '2026-06-17T01:14:49.859Z',
+          isTemplate: true,
+        },
+        { contractTitle: 'EPG Agreement', client: 8, status: 'draft', isTemplate: true },
+        NOW,
+      ).map((e) => `${e.date.slice(0, 10)} ${e.actionType}`),
+    ).toEqual(['2026-06-17 contract_sent'])
+  })
+})
+
+describe('clientStartDateEntries', () => {
+  it('adds contract, retainer and campaign start dates on the stored calendar day', () => {
+    expect(
+      clientStartDateEntries({
+        clientStartDate: '2026-06-29T12:00:00.000Z',
+        retainerStartDate: '2026-06-29T12:00:00.000Z',
+        campaignStartDate: '2026-07-10T12:00:00.000Z',
+      }),
+    ).toEqual([
+      {
+        date: '2026-06-29T02:00:00.000Z',
+        serviceArea: 'contracts',
+        actionType: 'contract_start',
+        description: 'Contract start date',
+      },
+      {
+        date: '2026-06-29T02:00:00.000Z',
+        serviceArea: 'contracts',
+        actionType: 'retainer_start',
+        description: 'Retainer start date',
+      },
+      {
+        date: '2026-07-10T02:00:00.000Z',
+        serviceArea: 'general',
+        actionType: 'campaign_start',
+        description: 'Campaign start date',
+      },
+    ])
+    expect(clientStartDateEntries({ clientStartDate: null, campaignStartDate: 'junk' })).toEqual([])
+  })
+
+  it('records a start date entered for the first time, not later edits or unsubmitted fields', () => {
+    const types = (data: Record<string, unknown>, original: Record<string, unknown>) =>
+      clientTimelineEntries('update', data, original, NOW).map((e) => e.actionType)
+
+    expect(
+      types({ campaignStartDate: '2026-07-10T12:00:00.000Z' }, { campaignStartDate: null }),
+    ).toEqual(['campaign_start'])
+    expect(
+      types(
+        { clientStartDate: '2026-07-01T12:00:00.000Z' },
+        { clientStartDate: '2026-06-29T12:00:00.000Z' },
+      ),
+    ).toEqual([])
+    expect(types({ name: 'x' }, { clientStartDate: null })).toEqual([])
+    expect(
+      clientTimelineEntries(
+        'create',
+        { clientStartDate: '2026-06-29T12:00:00.000Z' },
+        undefined,
+        NOW,
+      ).map((e) => e.actionType),
+    ).toEqual(['client_created', 'contract_start'])
   })
 })
 

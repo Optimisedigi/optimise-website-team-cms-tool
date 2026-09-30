@@ -208,7 +208,7 @@ export function contractTimelineEntries(
   previousDoc: ContractLike | null | undefined,
   now: Date,
 ): AutoTimelineEntry[] {
-  if (doc.isTemplate || doc.deletedAt) return []
+  if (doc.deletedAt) return []
   const statusChanged = doc.status !== previousDoc?.status
   const newlyLinked = !sameOwner(resolveTimelineOwner(doc), resolveTimelineOwner(previousDoc))
   if (!statusChanged && !newlyLinked) return []
@@ -222,10 +222,13 @@ export function contractTimelineEntries(
 /**
  * Every sent/signed entry a contract's current state implies: [sent] for a
  * sent contract, [sent, signed] for a signed one ([signed] if it has no sent
- * date). Templates and trashed contracts have none.
+ * date). Trashed contracts have none. A contract marked "template" still
+ * counts once it has really been sent: copies always start as blank drafts
+ * (see contract-from-template.ts), so a sent/signed status only ever comes
+ * from an actual send to a client.
  */
 export function contractHistoryEntries(doc: ContractLike, now: Date): AutoTimelineEntry[] {
-  if (doc.isTemplate || doc.deletedAt) return []
+  if (doc.deletedAt) return []
   const title = doc.contractTitle?.trim() || 'Untitled contract'
   const sent: AutoTimelineEntry = {
     date: timelineDate(doc.sentAt, now),
@@ -246,9 +249,73 @@ export function contractHistoryEntries(doc: ContractLike, now: Date): AutoTimeli
   return doc.sentAt ? [sent, signed] : [signed]
 }
 
-type ClientLike = { googleAdsCustomerId?: string | null }
+type ClientLike = {
+  googleAdsCustomerId?: string | null
+  clientStartDate?: string | null
+  campaignStartDate?: string | null
+  retainerStartDate?: string | null
+}
 
-/** Entries for a client save: record creation and the first Google Ads account link. */
+const START_DATE_FIELDS = [
+  {
+    field: 'clientStartDate',
+    serviceArea: 'contracts',
+    actionType: 'contract_start',
+    description: 'Contract start date',
+  },
+  {
+    field: 'retainerStartDate',
+    serviceArea: 'contracts',
+    actionType: 'retainer_start',
+    description: 'Retainer start date',
+  },
+  {
+    field: 'campaignStartDate',
+    serviceArea: 'general',
+    actionType: 'campaign_start',
+    description: 'Campaign start date',
+  },
+] as const
+
+type StartDateField = (typeof START_DATE_FIELDS)[number]['field']
+
+/**
+ * Calendar day of a date-only field (Payload stores these as midday UTC), taken
+ * as stored rather than time-zone converted, so it matches the date picker.
+ */
+function dateOnlyDay(value: string | null | undefined): string | null {
+  if (!value) return null
+  const day = value.slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) && !Number.isNaN(Date.parse(day)) ? day : null
+}
+
+/**
+ * One entry per start date on the client (contract, retainer, campaign),
+ * dated on that start date. `only` limits it to the named fields.
+ */
+export function clientStartDateEntries(
+  client: ClientLike,
+  only?: ReadonlySet<StartDateField>,
+): AutoTimelineEntry[] {
+  const entries: AutoTimelineEntry[] = []
+  for (const spec of START_DATE_FIELDS) {
+    if (only && !only.has(spec.field)) continue
+    const day = dateOnlyDay(client[spec.field])
+    if (!day) continue
+    entries.push({
+      date: timelineDate(day, new Date(0)),
+      serviceArea: spec.serviceArea,
+      actionType: spec.actionType,
+      description: spec.description,
+    })
+  }
+  return entries
+}
+
+/**
+ * Entries for a client save: record creation, the first Google Ads account
+ * link, and start dates entered for the first time.
+ */
 export function clientTimelineEntries(
   operation: 'create' | 'update',
   data: ClientLike,
@@ -276,6 +343,19 @@ export function clientTimelineEntries(
       description: `Google Ads account linked (customer ID ${nextId})`,
     })
   }
+  // Start dates entered for the first time. Later edits are not re-added, so
+  // the timeline never shows two conflicting start dates for the same thing.
+  // A field missing from `data` (not submitted, or hidden by field access) is
+  // unchanged.
+  const newlySet = new Set<StartDateField>(
+    START_DATE_FIELDS.filter(
+      ({ field }) =>
+        data[field] !== undefined &&
+        dateOnlyDay(originalDoc?.[field]) === null &&
+        dateOnlyDay(data[field]) !== null,
+    ).map(({ field }) => field),
+  )
+  if (newlySet.size > 0) entries.push(...clientStartDateEntries(data, newlySet))
   return entries
 }
 

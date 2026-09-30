@@ -39,6 +39,8 @@ export const ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS = [
   { label: "Onboarding Started", value: "onboarding_started" },
   { label: "Onboarding Completed", value: "onboarding_completed" },
   // Contracts & agreements
+  { label: "Contract Start Date", value: "contract_start" },
+  { label: "Retainer Start Date", value: "retainer_start" },
   { label: "Contract Sent", value: "contract_sent" },
   { label: "Contract Signed", value: "contract_signed" },
   { label: "Contract Renewed", value: "contract_renewed" },
@@ -54,6 +56,7 @@ export const ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS = [
   { label: "GA4 Setup / Migration", value: "ga4_setup" },
   { label: "GTM Setup / Updated", value: "gtm_updated" },
   // Google Ads
+  { label: "Campaign Start Date", value: "campaign_start" },
   { label: "Google Ads Account Linked", value: "google_ads_account_linked" },
   { label: "Campaign Structure Proposed", value: "campaign_structure_proposed" },
   { label: "Campaign Structure Implemented", value: "campaign_structure_implemented" },

@@ -3,6 +3,7 @@ import {
   adCopyTimelineEntry,
   appendTimelineEntries,
   campaignProposalTimelineEntries,
+  clientStartDateEntries,
   contractHistoryEntries,
   parseJson,
   relationId,
@@ -16,8 +17,9 @@ import {
 /**
  * One-off backfill of automatic Account Timeline entries for events that
  * happened before automatic entries existed: contracts sent/signed, client
- * records created, campaign structures proposed, ad copy generated, and SEO
- * migration dates. "Google Ads account linked" is not backfilled — the date an
+ * records created, contract/retainer/campaign start dates, campaign structures
+ * proposed (including later approved), ad copy generated (including later
+ * published or approved), and SEO migration dates. "Google Ads account linked" is not backfilled — the date an
  * ID was added is not stored anywhere.
  *
  * Safety:
@@ -37,7 +39,14 @@ import {
 export const BACKFILL_ADDED_BY = 'Automatic (backfill)'
 
 export type BackfillSource = Readonly<{
-  clients: ReadonlyArray<{ id: number; name?: string | null; createdAt?: string | null }>
+  clients: ReadonlyArray<{
+    id: number
+    name?: string | null
+    createdAt?: string | null
+    clientStartDate?: string | null
+    retainerStartDate?: string | null
+    campaignStartDate?: string | null
+  }>
   /** Proposals, with the client they converted into (if any). */
   proposals: ReadonlyArray<{ id: number; businessName?: string | null; client?: unknown }>
   contracts: ReadonlyArray<{
@@ -102,6 +111,13 @@ function asDate(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+/**
+ * Statuses meaning the work was generated. Approval (and publishing, for ad
+ * copy) happen after generation, so those records count too.
+ */
+const PROPOSAL_DONE_STATUSES: ReadonlySet<string> = new Set(['completed', 'approved'])
+const AD_COPY_DONE_STATUSES: ReadonlySet<string> = new Set(['generated', 'published', 'approved'])
+
 export type BackfillOptions = Readonly<{
   /** Entry types (action values) to leave out entirely, e.g. ["client_created"]. */
   exclude?: readonly string[]
@@ -165,16 +181,19 @@ export function planTimelineBackfill(
   }
 
   for (const client of source.clients) {
+    const owner: TimelineOwner = { collection: 'clients', id: client.id }
     const created = asDate(client.createdAt)
-    if (!created) continue
-    add({ collection: 'clients', id: client.id }, [
-      {
-        date: timelineDate(created, created),
-        serviceArea: 'onboarding',
-        actionType: 'client_created',
-        description: 'Client account created in the CMS',
-      },
-    ])
+    if (created) {
+      add(owner, [
+        {
+          date: timelineDate(created, created),
+          serviceArea: 'onboarding',
+          actionType: 'client_created',
+          description: 'Client account created in the CMS',
+        },
+      ])
+    }
+    add(owner, clientStartDateEntries(client))
   }
 
   // Only real event dates are used. An event whose date was never recorded is
@@ -200,7 +219,14 @@ export function planTimelineBackfill(
 
   for (const audit of source.audits) {
     const owner = ownerOf(audit)
-    const proposalEntries = campaignProposalTimelineEntries(audit, null, new Date(0))
+    // An approved proposal was generated first, so it counts as proposed.
+    const proposalEntries = PROPOSAL_DONE_STATUSES.has(audit.campaignProposalStatus ?? '')
+      ? campaignProposalTimelineEntries(
+          { ...audit, campaignProposalStatus: 'completed' },
+          null,
+          new Date(0),
+        )
+      : []
     if (proposalEntries.length > 0 && !asDate(audit.campaignProposalGeneratedAt)) {
       noDate('google ads audit', audit.id, 'campaign_structure_proposed', owner)
     } else {
@@ -208,7 +234,11 @@ export function planTimelineBackfill(
     }
     const adCopyAt = asDate(audit.adCopyGeneratedAt)
     const adCopy = parseJson(audit.generatedAdCopy)
-    if (audit.adCopyStatus === 'generated' && adCopy && typeof adCopy === 'object') {
+    if (
+      AD_COPY_DONE_STATUSES.has(audit.adCopyStatus ?? '') &&
+      adCopy &&
+      typeof adCopy === 'object'
+    ) {
       if (adCopyAt)
         add(owner, [
           adCopyTimelineEntry(adCopy as Record<string, Record<string, unknown>>, adCopyAt),
@@ -281,7 +311,17 @@ type SqlClient = {
 export async function loadBackfillSource(payload: Payload): Promise<BackfillSource> {
   const common = { depth: 0, pagination: false, overrideAccess: true } as const
   const [clients, proposals, contracts, audits, migrations] = await Promise.all([
-    payload.find({ collection: 'clients', ...common, select: { name: true, createdAt: true } }),
+    payload.find({
+      collection: 'clients',
+      ...common,
+      select: {
+        name: true,
+        createdAt: true,
+        clientStartDate: true,
+        retainerStartDate: true,
+        campaignStartDate: true,
+      },
+    }),
     payload.find({
       collection: 'client-proposals',
       ...common,
@@ -308,8 +348,8 @@ export async function loadBackfillSource(payload: Payload): Promise<BackfillSour
       ...common,
       where: {
         or: [
-          { campaignProposalStatus: { equals: 'completed' } },
-          { adCopyStatus: { equals: 'generated' } },
+          { campaignProposalStatus: { in: [...PROPOSAL_DONE_STATUSES] } },
+          { adCopyStatus: { in: [...AD_COPY_DONE_STATUSES] } },
         ],
       },
       select: {
