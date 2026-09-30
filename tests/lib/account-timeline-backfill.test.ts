@@ -245,6 +245,36 @@ describe('planTimelineBackfill', () => {
       },
     ])
   })
+
+  it('leaves out excluded entry types, including from the no-date list', () => {
+    const plan = planTimelineBackfill(
+      source({
+        contracts: [
+          {
+            id: 1,
+            status: 'sent',
+            contractTitle: 'Retainer',
+            sentAt: '2026-06-10T01:00:00.000Z',
+            client: 42,
+          },
+        ],
+        audits: [
+          {
+            id: 7,
+            client: 42,
+            adCopyStatus: 'generated',
+            generatedAdCopy: JSON.stringify({ Brand: { Core: {} } }),
+          },
+        ],
+      }),
+      { exclude: ['client_created', 'ad_copy_generated'] },
+    )
+
+    expect(actions(plan, 42)).toEqual(['2026-06-10 contract_sent'])
+    expect(actions(plan, 43)).toBeUndefined()
+    expect(plan.byAction).toEqual({ contract_sent: 1 })
+    expect(plan.skippedNoDate).toEqual([])
+  })
 })
 
 describe('applyTimelineBackfill (real SQLite)', () => {

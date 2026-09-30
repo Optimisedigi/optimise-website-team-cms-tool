@@ -119,6 +119,33 @@ describe('POST /api/account-timeline/backfill', () => {
     expect(insertCalls()).toHaveLength(0)
   })
 
+  it('applies only the entry types not excluded', async () => {
+    const { POST } = await import('@/app/(frontend)/api/account-timeline/backfill/route')
+
+    const res = await POST(post(JSON.stringify({ apply: true, exclude: ['client_created'] })))
+
+    expect(await res.json()).toMatchObject({
+      mode: 'apply',
+      excluded: ['client_created'],
+      planned: 1,
+      added: 1,
+      byAction: { contract_sent: 1 },
+    })
+    expect(insertCalls()).toHaveLength(1)
+    expect(JSON.stringify(insertCalls())).not.toContain('client_created')
+  })
+
+  it('rejects an exclude list with unknown or non-string values, writing nothing', async () => {
+    const { POST } = await import('@/app/(frontend)/api/account-timeline/backfill/route')
+
+    for (const exclude of [['client_createdd'], 'client_created', [1]]) {
+      const res = await POST(post(JSON.stringify({ apply: true, exclude })))
+      expect(res.status).toBe(400)
+    }
+    expect(find).not.toHaveBeenCalled()
+    expect(insertCalls()).toHaveLength(0)
+  })
+
   it('rejects a body that is not JSON', async () => {
     const { POST } = await import('@/app/(frontend)/api/account-timeline/backfill/route')
     const res = await POST(post('apply'))

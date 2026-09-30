@@ -17,6 +17,8 @@ export const maxDuration = 300
  * Adds automatic Account Timeline entries for past events (see
  * src/lib/account-timeline-backfill.ts). Preview by default: nothing is
  * written unless the body is exactly `{ "apply": true }`. Safe to re-run.
+ * Optional `"exclude": ["client_created", ...]` leaves those entry types out
+ * (values from ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS; unknown values are a 400).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!hasValidApiKey(request)) {
@@ -30,14 +32,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch {
     return NextResponse.json({ error: 'Body must be JSON, e.g. {"apply": true}' }, { status: 400 })
   }
-  const apply =
-    typeof body === 'object' && body !== null && (body as { apply?: unknown }).apply === true
+  const fields = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+  const apply = fields.apply === true
+
+  const knownActions = new Set<string>(ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS.map((o) => o.value))
+  const rawExclude = fields.exclude ?? []
+  if (
+    !Array.isArray(rawExclude) ||
+    !rawExclude.every((value) => typeof value === 'string' && knownActions.has(value))
+  ) {
+    return NextResponse.json(
+      { error: '"exclude" must be a list of timeline action values, e.g. ["client_created"]' },
+      { status: 400 },
+    )
+  }
+  const exclude = [...new Set(rawExclude as string[])].sort()
 
   const started = Date.now()
   const payload = await getPayload({ config: await config })
   let plan: ReturnType<typeof planTimelineBackfill>
   try {
-    plan = planTimelineBackfill(await loadBackfillSource(payload))
+    plan = planTimelineBackfill(await loadBackfillSource(payload), { exclude })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     payload.logger.error({
@@ -65,6 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const summary = {
     mode: apply ? 'apply' : 'preview',
+    excluded: exclude,
     owners: plan.owners.length,
     planned: plan.planned,
     skippedAlreadyOnTimeline: plan.skippedAlreadyOnTimeline,

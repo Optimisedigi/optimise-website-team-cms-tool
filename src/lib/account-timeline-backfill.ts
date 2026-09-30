@@ -102,8 +102,17 @@ function asDate(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+export type BackfillOptions = Readonly<{
+  /** Entry types (action values) to leave out entirely, e.g. ["client_created"]. */
+  exclude?: readonly string[]
+}>
+
 /** Pure: decide which entries to add, per owner, from the loaded records. */
-export function planTimelineBackfill(source: BackfillSource): BackfillPlan {
+export function planTimelineBackfill(
+  source: BackfillSource,
+  options: BackfillOptions = {},
+): BackfillPlan {
+  const excluded = new Set(options.exclude ?? [])
   const clientIds = new Set(source.clients.map((client) => client.id))
   const convertedTo = new Map<number, number>()
   const proposalIds = new Set<number>()
@@ -140,6 +149,7 @@ export function planTimelineBackfill(source: BackfillSource): BackfillPlan {
     if (!owner) return
     const ownerKey = `${owner.collection}:${owner.id}`
     for (const entry of entries) {
+      if (excluded.has(entry.actionType)) continue
       const dayKey = `${ownerKey}|${entry.actionType}|${entry.date.slice(0, 10)}`
       const entryKey = `${dayKey}|${entry.description}`
       if (onTimeline.has(dayKey)) {
@@ -171,7 +181,7 @@ export function planTimelineBackfill(source: BackfillSource): BackfillPlan {
   // left out and listed in skippedNoDate rather than given a guessed date.
   const skippedNoDate: BackfillSkippedNoDate[] = []
   const noDate = (record: string, id: number, event: string, owner: TimelineOwner | null): void => {
-    if (!owner) return
+    if (!owner || excluded.has(event)) return
     skippedNoDate.push({ record, id, event, timeline: `${owner.collection}:${owner.id}` })
   }
 
