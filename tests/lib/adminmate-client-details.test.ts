@@ -7,6 +7,8 @@ import {
   lexicalToPlainText,
   resolveClient,
   validateClientDetailsArgs,
+  projectBudget,
+  type ClientBudgetRecord,
   type ClientDetailsExtras,
   type ClientDetailsReader,
   type DiscoveryBriefingRecord,
@@ -134,10 +136,60 @@ const briefing: DiscoveryBriefingRecord = {
     '# Client Discovery Briefing\n\n## Business Overview\n\nEngine rebuild workshop.\n\n## Google Ads\n\nBudget around $2,000/month, prior agency wasted spend.',
 }
 
+// EPG's Budget Management records as stored on live (30 Sep 2026).
+const campaign = (
+  campaignName: string,
+  enabled: boolean,
+  budgetPercentage: number,
+  actualDailyBudget: number,
+  lastPushedAt: string | null,
+) => ({
+  campaignName,
+  adGroupName: null,
+  enabled,
+  budgetPercentage,
+  calculatedDailyBudget: enabled ? 50 : 0,
+  actualDailyBudget,
+  lastPushedAt,
+  standalone: false,
+  standaloneBudget: 0,
+  standaloneStartDate: null,
+  standaloneEndDate: null,
+})
+const pushed = '2026-07-10T04:41:08.049Z'
+const epgBudget: ClientBudgetRecord = {
+  auditId: '7',
+  monthlyBudget: 3500,
+  spendPolicyMonthlyTarget: 3500,
+  annualPlaceholders: {
+    thisYear: {
+      rows: [
+        {
+          id: 'row-1',
+          label: 'Budget',
+          values: { jul: 3500, aug: 3500, sep: 3500, oct: 3500, nov: 3500, dec: '' },
+        },
+      ],
+      actualTotals: { jul: 2156, aug: 3470, sep: 2859 },
+    },
+    lastYear: { rows: [{ id: 'row-2', label: 'Budget', values: {} }], actualTotals: {} },
+  },
+  legacyAnnualPlaceholders: null,
+  campaigns: [
+    campaign('Generic_Products', false, 0, 20, null),
+    campaign('Brand_Products_Kohler', true, 40, 76.19, pushed),
+    campaign('Brand', true, 30, 57.14, pushed),
+    campaign('Brand_Products_Lombardini', false, 0, 20, null),
+    campaign('Brand_Products_Rehlko', true, 30, 57.14, pushed),
+  ],
+}
+const NOW = new Date('2026-09-30T01:00:00.000Z')
+
 function reader(): ClientDetailsReader & {
   getProfile: ReturnType<typeof vi.fn>
   getExtras: ReturnType<typeof vi.fn>
   getDiscoveryBriefings: ReturnType<typeof vi.fn>
+  getBudget: ReturnType<typeof vi.fn>
 } {
   return {
     getProfile: vi.fn(async () => profile),
@@ -147,6 +199,7 @@ function reader(): ClientDetailsReader & {
       clientPin: includePin ? extras.clientPin : null,
     })),
     getDiscoveryBriefings: vi.fn(async () => [briefing]),
+    getBudget: vi.fn(async () => epgBudget),
   }
 }
 
@@ -184,6 +237,27 @@ describe('get_client_details', () => {
     expect(data.getProfile).toHaveBeenCalledWith('42', ['timeline'])
     expect(data.getExtras).not.toHaveBeenCalled()
     expect(data.getDiscoveryBriefings).not.toHaveBeenCalled()
+    expect(data.getBudget).not.toHaveBeenCalled()
+  })
+
+  it("answers EPG's Google Ads budget from the budget section, reading nothing else", async () => {
+    const data = reader()
+    const tool = createClientDetailsTool(existing, data)
+
+    const result = await run(tool, { client: 'EPG', sections: ['budget'] })
+
+    expect(result.ok).toBe(true)
+    expect(result.data).toMatchObject({
+      budget: {
+        found: true,
+        monthlyBudget: 3500,
+        enabledCampaignsGoogleAdsDailyTotal: 190.47,
+      },
+    })
+    expect(data.getBudget).toHaveBeenCalledWith('42')
+    expect(data.getProfile).not.toHaveBeenCalled()
+    expect(data.getExtras).not.toHaveBeenCalled()
+    expect(data.getDiscoveryBriefings).not.toHaveBeenCalled()
   })
 
   it('returns only the requested sections and never the PIN unless asked', async () => {
@@ -195,6 +269,7 @@ describe('get_client_details', () => {
       unknown
     >
     expect(all).not.toHaveProperty('access')
+    expect(all).toHaveProperty('budget')
     expect(JSON.stringify(all)).not.toContain('3355')
     expect(data.getExtras).toHaveBeenLastCalledWith('42', { includePin: false })
 
@@ -310,6 +385,78 @@ describe('buildClientDetails', () => {
   })
 })
 
+describe('projectBudget', () => {
+  it('lists campaigns enabled-first with their share and Google Ads daily budget', () => {
+    const out = projectBudget(epgBudget, NOW) as { campaigns: Array<Record<string, unknown>> }
+    expect(out.campaigns.map((c) => [c.campaign, c.enabled, c.googleAdsDailyBudget])).toEqual([
+      ['Brand', true, 57.14],
+      ['Brand_Products_Kohler', true, 76.19],
+      ['Brand_Products_Rehlko', true, 57.14],
+      ['Brand_Products_Lombardini', false, 20],
+      ['Generic_Products', false, 20],
+    ])
+    expect(out.campaigns[1]).toEqual({
+      campaign: 'Brand_Products_Kohler',
+      enabled: true,
+      shareOfMonthlyBudgetPercent: 40,
+      plannedDailyBudget: 50,
+      googleAdsDailyBudget: 76.19,
+      lastPushedToGoogleAds: '2026-07-10',
+    })
+  })
+
+  it('shows budget vs actual by month for this financial year, skipping empty months and years', () => {
+    const out = projectBudget(epgBudget, NOW) as { budgetVsActualByMonth: unknown }
+    expect(out.budgetVsActualByMonth).toEqual([
+      {
+        financialYear: 'This FY (2026/27)',
+        months: [
+          { month: 'Jul 2026', budget: 3500, actualSpend: 2156 },
+          { month: 'Aug 2026', budget: 3500, actualSpend: 3470 },
+          { month: 'Sep 2026', budget: 3500, actualSpend: 2859 },
+          { month: 'Oct 2026', budget: 3500, actualSpend: null },
+          { month: 'Nov 2026', budget: 3500, actualSpend: null },
+        ],
+      },
+    ])
+  })
+
+  it('uses the Sydney date for the financial year and labels January with the next calendar year', () => {
+    // 30 Jun 2027 15:00 UTC is 1 Jul 2027 in Sydney: the new financial year.
+    const record: ClientBudgetRecord = {
+      ...epgBudget,
+      annualPlaceholders: {
+        thisYear: { rows: [{ id: 'r', label: 'Budget', values: { jan: 4000 } }], actualTotals: {} },
+        lastYear: { rows: [], actualTotals: {} },
+      },
+    }
+    const out = projectBudget(record, new Date('2027-06-30T15:00:00.000Z')) as {
+      budgetVsActualByMonth: Array<{ financialYear: string; months: Array<{ month: string }> }>
+    }
+    expect(out.budgetVsActualByMonth[0]?.financialYear).toBe('This FY (2027/28)')
+    expect(out.budgetVsActualByMonth[0]?.months[0]?.month).toBe('Jan 2028')
+  })
+
+  it('says so when no budget is set up or it could not be loaded', () => {
+    const empty: ClientBudgetRecord = {
+      auditId: null,
+      monthlyBudget: null,
+      spendPolicyMonthlyTarget: null,
+      annualPlaceholders: null,
+      legacyAnnualPlaceholders: null,
+      campaigns: [],
+    }
+    expect(projectBudget(empty, NOW)).toEqual({
+      found: false,
+      note: 'No Google Ads budget is set up in Budget Management for this client.',
+    })
+    expect(projectBudget(null, NOW)).toEqual({
+      found: false,
+      note: 'Budget data could not be loaded.',
+    })
+  })
+})
+
 describe('createPayloadClientDetailsReader', () => {
   const payloadWith = (doc: Record<string, unknown>) => ({
     findByID: vi.fn(async () => doc),
@@ -342,8 +489,79 @@ describe('createPayloadClientDetailsReader', () => {
 
     expect(await data.getExtras('42 OR 1=1', { includePin: true })).toBeNull()
     expect(await data.getDiscoveryBriefings('abc')).toEqual([])
+    expect(await data.getBudget('abc')).toBeNull()
     expect(payload.findByID).not.toHaveBeenCalled()
     expect(payload.find).not.toHaveBeenCalled()
+  })
+})
+
+describe('createPayloadClientDetailsReader getBudget', () => {
+  it("reads the client's newest audit and that audit's campaign budgets", async () => {
+    const find = vi.fn(async ({ collection }: { collection: string }) =>
+      collection === 'google-ads-audits'
+        ? { docs: [{ id: 7, monthlyBudget: 3500, annualBudgetPlaceholders: null }] }
+        : {
+            docs: [
+              {
+                campaignName: 'Brand',
+                adGroupName: '',
+                enabled: true,
+                budgetPercentage: 30,
+                calculatedDailyBudget: 50,
+                actualDailyBudget: 57.14,
+                lastPushedAt: pushed,
+                standalone: false,
+                standaloneBudget: 0,
+              },
+            ],
+          },
+    )
+    const findByID = vi.fn(async () => ({
+      spendPolicy: { monthlyBudgetTarget: 3500 },
+      annualClientBudgetPlaceholders: { thisYear: {} },
+    }))
+    const data = createPayloadClientDetailsReader({ find, findByID } as unknown as Payload)
+
+    const budget = await data.getBudget('42')
+
+    expect(budget).toMatchObject({
+      auditId: '7',
+      monthlyBudget: 3500,
+      spendPolicyMonthlyTarget: 3500,
+      campaigns: [{ campaignName: 'Brand', adGroupName: null, actualDailyBudget: 57.14 }],
+    })
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'google-ads-audits',
+        where: { client: { equals: 42 } },
+        sort: '-createdAt',
+        limit: 1,
+      }),
+    )
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'google-ads-campaign-budgets',
+        where: { audit: { equals: 7 } },
+      }),
+    )
+  })
+
+  it('returns an empty record when the client has no audit, and null when loading fails', async () => {
+    const find = vi.fn(async () => ({ docs: [] }))
+    const findByID = vi.fn(async () => ({ spendPolicy: {}, annualClientBudgetPlaceholders: null }))
+    const data = createPayloadClientDetailsReader({ find, findByID } as unknown as Payload)
+    expect(await data.getBudget('42')).toEqual({
+      auditId: null,
+      monthlyBudget: null,
+      spendPolicyMonthlyTarget: null,
+      annualPlaceholders: null,
+      legacyAnnualPlaceholders: null,
+      campaigns: [],
+    })
+    expect(find).toHaveBeenCalledTimes(1)
+
+    findByID.mockRejectedValueOnce(new Error('database is locked'))
+    expect(await data.getBudget('42')).toBeNull()
   })
 })
 

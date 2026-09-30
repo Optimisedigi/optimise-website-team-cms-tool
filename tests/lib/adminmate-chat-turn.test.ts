@@ -87,7 +87,7 @@ describe("runAdminMateChatTurn client questions", () => {
     messages: [{ role: "user" as const, content: [{ type: "text" as const, text }] }],
     existingClients: [],
     contractTemplates: [],
-    clientDetails: { getProfile: async () => null, getExtras: async () => null, getDiscoveryBriefings: async () => [] },
+    clientDetails: { getProfile: async () => null, getExtras: async () => null, getDiscoveryBriefings: async () => [], getBudget: async () => null },
     userId: 17,
     modelOverride: "gpt-5.6-luna",
   });

@@ -11,6 +11,15 @@ import {
   CLIENT_SERVICE_OPTIONS,
   optionLabel,
 } from '@/lib/client-field-options'
+import {
+  ANNUAL_BUDGET_MONTHS,
+  annualBudgetColumnTotal,
+  annualBudgetHasExplicitValue,
+  financialYearLabel,
+  financialYearStartYear,
+  normalizeAnnualBudgetMultiYearData,
+} from '@/lib/google-ads-annual-budget-placeholders'
+import { timelineDay } from '@/lib/account-timeline-auto'
 import { searchClients } from './contract-tools'
 import type { AdminMateClient } from './tools'
 
@@ -24,7 +33,8 @@ import type { AdminMateClient } from './tools'
  * profile does not carry (overview, pulse/legacy notes, PIN, discovery
  * briefings), keyword search, and the labels the admin sees in the CMS.
  * The client hub PIN is only read when the `access` section is requested
- * explicitly — never through `all`.
+ * explicitly — never through `all`. The `budget` section reads the same
+ * records the Budget Management tab shows, read-only.
  */
 
 export const CLIENT_DETAIL_SECTIONS = [
@@ -33,6 +43,7 @@ export const CLIENT_DETAIL_SECTIONS = [
   'discovery_briefing',
   'business',
   'tracking',
+  'budget',
   'commercial',
   'contact',
   'access',
@@ -74,6 +85,32 @@ export interface DiscoveryBriefingRecord {
   updatedAt: string | null
 }
 
+export interface CampaignBudgetRecord {
+  campaignName: string
+  adGroupName: string | null
+  enabled: boolean
+  budgetPercentage: number | null
+  calculatedDailyBudget: number | null
+  actualDailyBudget: number | null
+  lastPushedAt: string | null
+  standalone: boolean
+  standaloneBudget: number | null
+  standaloneStartDate: string | null
+  standaloneEndDate: string | null
+}
+
+/** What the Budget Management tab reads for a client: its newest Google Ads audit. */
+export interface ClientBudgetRecord {
+  auditId: string | null
+  monthlyBudget: number | null
+  spendPolicyMonthlyTarget: number | null
+  /** Client-level FY budget grid (current storage). */
+  annualPlaceholders: unknown
+  /** Audit-level FY budget grid (legacy storage, used when the client has none). */
+  legacyAnnualPlaceholders: unknown
+  campaigns: CampaignBudgetRecord[]
+}
+
 /** Data access the tool depends on; injected so the tool stays testable. */
 export interface ClientDetailsReader {
   getProfile(
@@ -82,6 +119,12 @@ export interface ClientDetailsReader {
   ): Promise<OptimateClientProfile | null>
   getExtras(clientId: string, options: { includePin: boolean }): Promise<ClientDetailsExtras | null>
   getDiscoveryBriefings(clientId: string): Promise<DiscoveryBriefingRecord[]>
+  /** Null only when the records could not be loaded. */
+  getBudget(clientId: string): Promise<ClientBudgetRecord | null>
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 function toClientId(id: string): number | null {
@@ -141,6 +184,81 @@ export function createPayloadClientDetailsReader(payload: Payload): ClientDetail
         markdown: doc.markdown ?? null,
         updatedAt: doc.updatedAt ?? null,
       }))
+    },
+    async getBudget(clientId) {
+      const id = toClientId(clientId)
+      if (id === null) return null
+      try {
+        const [clientDoc, audits] = await Promise.all([
+          payload.findByID({
+            collection: 'clients',
+            id,
+            depth: 0,
+            overrideAccess: true,
+            select: {
+              spendPolicy: { monthlyBudgetTarget: true },
+              annualClientBudgetPlaceholders: true,
+            },
+          }),
+          // Same audit the Budget Management tab uses: the client's newest.
+          payload.find({
+            collection: 'google-ads-audits',
+            where: { client: { equals: id } },
+            sort: '-createdAt',
+            limit: 1,
+            depth: 0,
+            overrideAccess: true,
+            select: { monthlyBudget: true, annualBudgetPlaceholders: true },
+          }),
+        ])
+        const audit = audits.docs[0]
+        const campaigns = audit
+          ? (
+              await payload.find({
+                collection: 'google-ads-campaign-budgets',
+                where: { audit: { equals: audit.id } },
+                pagination: false,
+                depth: 0,
+                overrideAccess: true,
+                select: {
+                  campaignName: true,
+                  adGroupName: true,
+                  enabled: true,
+                  budgetPercentage: true,
+                  calculatedDailyBudget: true,
+                  actualDailyBudget: true,
+                  lastPushedAt: true,
+                  standalone: true,
+                  standaloneBudget: true,
+                  standaloneStartDate: true,
+                  standaloneEndDate: true,
+                },
+              })
+            ).docs
+          : []
+        return {
+          auditId: audit ? String(audit.id) : null,
+          monthlyBudget: numberOrNull(audit?.monthlyBudget),
+          spendPolicyMonthlyTarget: numberOrNull(clientDoc.spendPolicy?.monthlyBudgetTarget),
+          annualPlaceholders: clientDoc.annualClientBudgetPlaceholders ?? null,
+          legacyAnnualPlaceholders: audit?.annualBudgetPlaceholders ?? null,
+          campaigns: campaigns.map((campaign) => ({
+            campaignName: campaign.campaignName,
+            adGroupName: campaign.adGroupName?.trim() || null,
+            enabled: campaign.enabled !== false,
+            budgetPercentage: numberOrNull(campaign.budgetPercentage),
+            calculatedDailyBudget: numberOrNull(campaign.calculatedDailyBudget),
+            actualDailyBudget: numberOrNull(campaign.actualDailyBudget),
+            lastPushedAt: campaign.lastPushedAt ?? null,
+            standalone: campaign.standalone === true,
+            standaloneBudget: numberOrNull(campaign.standaloneBudget),
+            standaloneStartDate: campaign.standaloneStartDate ?? null,
+            standaloneEndDate: campaign.standaloneEndDate ?? null,
+          })),
+        }
+      } catch {
+        return null
+      }
     },
   }
 }
@@ -311,17 +429,118 @@ function projectBriefing(
   }
 }
 
+function money(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 100) / 100 : null
+}
+
+const BUDGET_NOTE =
+  "From CMS Budget Management (the client's newest Google Ads audit). googleAdsDailyBudget is the last value the CMS synced from or pushed to Google Ads, not a live Google Ads reading. monthlyBudget is the default for any month without a planned budget. actualSpend is what Budget Management recorded for that month."
+
+/**
+ * Budget Management figures in a form the agent can quote: monthly budget,
+ * per-campaign daily budgets, and planned vs actual spend by month for this
+ * and last financial year (Jul–Jun, as the Budget Management tab shows).
+ */
+export function projectBudget(
+  record: ClientBudgetRecord | null,
+  now: Date,
+): Record<string, unknown> {
+  if (!record) return { found: false, note: 'Budget data could not be loaded.' }
+
+  const placeholders = normalizeAnnualBudgetMultiYearData(
+    record.annualPlaceholders,
+    record.legacyAnnualPlaceholders,
+  )
+  // Financial year by the Sydney calendar day, matching the Budget Management tab.
+  const [year, month, dayOfMonth] = (timelineDay(now) ?? now.toISOString().slice(0, 10))
+    .split('-')
+    .map(Number)
+  const thisFyStart = financialYearStartYear(
+    new Date(year ?? 1970, (month ?? 1) - 1, dayOfMonth ?? 1),
+  )
+
+  const budgetVsActualByMonth = (['thisYear', 'lastYear'] as const)
+    .map((key) => {
+      const fyStart = key === 'thisYear' ? thisFyStart : thisFyStart - 1
+      const data = placeholders[key]
+      const months = ANNUAL_BUDGET_MONTHS.flatMap((m) => {
+        const actual = data.actualTotals[m.key]
+        const budget = annualBudgetHasExplicitValue(data, m.key)
+          ? money(annualBudgetColumnTotal(data, m.key))
+          : null
+        const actualSpend = typeof actual === 'number' ? money(actual) : null
+        if (budget === null && actualSpend === null) return []
+        const calendarYear = m.monthIndex >= 6 ? fyStart : fyStart + 1
+        return [{ month: `${m.label} ${calendarYear}`, budget, actualSpend }]
+      })
+      return {
+        financialYear: `${key === 'thisYear' ? 'This' : 'Last'} FY (${financialYearLabel(fyStart)})`,
+        months,
+      }
+    })
+    .filter((fy) => fy.months.length > 0)
+
+  if (
+    record.auditId === null &&
+    record.spendPolicyMonthlyTarget === null &&
+    budgetVsActualByMonth.length === 0
+  ) {
+    return {
+      found: false,
+      note: 'No Google Ads budget is set up in Budget Management for this client.',
+    }
+  }
+
+  const campaigns = [...record.campaigns]
+    .sort(
+      (a, b) =>
+        Number(b.enabled) - Number(a.enabled) ||
+        a.campaignName.localeCompare(b.campaignName) ||
+        (a.adGroupName ?? '').localeCompare(b.adGroupName ?? ''),
+    )
+    .map((c) => ({
+      campaign: c.campaignName,
+      ...(c.adGroupName ? { adGroup: c.adGroupName } : {}),
+      enabled: c.enabled,
+      ...(c.standalone
+        ? {
+            standaloneBudget: money(c.standaloneBudget),
+            standaloneStartDate: day(c.standaloneStartDate),
+            standaloneEndDate: day(c.standaloneEndDate),
+          }
+        : { shareOfMonthlyBudgetPercent: c.budgetPercentage ?? 0 }),
+      plannedDailyBudget: money(c.calculatedDailyBudget),
+      googleAdsDailyBudget: money(c.actualDailyBudget),
+      lastPushedToGoogleAds: day(c.lastPushedAt),
+    }))
+  const enabledDaily = record.campaigns
+    .filter((c) => c.enabled)
+    .reduce((sum, c) => sum + (c.actualDailyBudget ?? 0), 0)
+
+  return {
+    found: true,
+    monthlyBudget: money(record.monthlyBudget),
+    spendPolicyMonthlyTarget: money(record.spendPolicyMonthlyTarget),
+    campaigns,
+    enabledCampaignsGoogleAdsDailyTotal: money(enabledDaily),
+    budgetVsActualByMonth,
+    note: BUDGET_NOTE,
+  }
+}
+
 export interface ClientDetailsSource {
   client: Pick<AdminMateClient, 'id' | 'name' | 'slug' | 'tradingName' | 'isActive'>
   profile: OptimateClientProfile | null
   extras: ClientDetailsExtras | null
   briefings: DiscoveryBriefingRecord[]
+  budget?: ClientBudgetRecord | null
 }
 
 export function buildClientDetails(
   source: ClientDetailsSource,
   sections: readonly ClientDetailSection[],
   search?: string,
+  now: Date = new Date(),
 ): Record<string, unknown> {
   const { client, profile, extras } = source
   const terms = searchTerms(search)
@@ -420,6 +639,7 @@ export function buildClientDetails(
     }
   }
 
+  if (want('budget')) out.budget = projectBudget(source.budget ?? null, now)
   if (want('commercial')) out.commercial = profile?.commercial ?? null
   if (want('contact')) out.contact = profile?.contact ?? null
   if (want('access')) out.access = { clientHubPin: extras?.clientPin ?? null }
@@ -505,6 +725,7 @@ export function createClientDetailsTool(
       "'discovery_briefing' = what the client said in their discovery briefing questionnaire; " +
       "'business' = website, services, 'Who is this client?' overview, business type, goals, keywords, competitors, locations; " +
       "'tracking' = whether a Google Ads customer ID is set up plus Meta, GA4, Search Console, GTM and conversion-action setup; " +
+      "'budget' = Google Ads budget from Budget Management: monthly budget, each campaign's share and daily budget, and budget vs actual spend by month (daily figures are the last values synced to Google Ads, not live); " +
       "'commercial' = client/campaign/retainer start dates, retainer, setup fee, one-off projects; " +
       "'contact' = contact person, additional contacts, account managers; " +
       "'access' = the client hub PIN (only request when the admin asks for the PIN); " +
@@ -568,18 +789,21 @@ export function createClientDetailsTool(
         (section) => section === 'notes' || section === 'business' || section === 'access',
       )
       const includePin = args.sections.includes('access')
+      const needsBudget = args.sections.includes('budget')
       const started = Date.now()
-      const [profile, extras, briefings] = await Promise.all([
+      const [profile, extras, briefings, budget] = await Promise.all([
         groups.length > 0 ? reader.getProfile(client.id, groups) : Promise.resolve(null),
         needsExtras ? reader.getExtras(client.id, { includePin }) : Promise.resolve(null),
         args.sections.includes('discovery_briefing')
           ? reader.getDiscoveryBriefings(client.id)
           : Promise.resolve([]),
+        needsBudget ? reader.getBudget(client.id) : Promise.resolve(null),
       ])
       ctx.log('adminmate get_client_details', {
         clientId: client.id,
         sections: args.sections,
         profileFound: groups.length === 0 ? null : Boolean(profile),
+        budgetLoaded: needsBudget ? budget !== null : null,
         elapsedMs: Date.now() - started,
       })
       if (groups.length > 0 && !profile)
@@ -587,9 +811,10 @@ export function createClientDetailsTool(
       return {
         ok: true,
         data: buildClientDetails(
-          { client, profile, extras, briefings },
+          { client, profile, extras, briefings, budget },
           args.sections,
           args.search,
+          new Date(),
         ),
       }
     },
