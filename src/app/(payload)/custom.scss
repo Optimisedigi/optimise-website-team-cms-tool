@@ -394,17 +394,25 @@ body:has(.login.template-minimal) {
 // Hide specific collection links from the sidebar that should only be reached
 // via deep links (e.g. from a parent collection's tab or an inline UI button).
 // Their slugs still work for direct route access — we only hide the nav entry.
-// Pair with `hideUnlessFeature(...)` in the collection config so non-admins
-// without the feature are also blocked from the route.
+// Hiding a link does not change collection access; direct routes keep their
+// existing permissions.
 .nav .nav__link[href='/admin/collections/keyword-deep-dive-sessions'],
 .nav .nav__link[href='/admin/collections/negative-keyword-lists'],
 .nav .nav__link[href='/admin/collections/keyword-snapshots'],
 .nav .nav__link[href='/admin/collections/activity-log'],
+.nav .nav__link[href='/admin/collections/client-portal-requests'],
+.nav .nav__link[href='/admin/collections/client-value-ledger-items'],
+.nav .nav__link[href='/admin/collections/google-ads-audit-snapshots'],
+.nav .nav__link[href='/admin/collections/blog-sync-events'],
 .nav .nav__link[href='/admin/collections/client-wishlist-items'],
 .nav .nav__link[href='/admin/collections/team-task-comments'],
 .nav .nav__link[href='/admin/collections/match-type-synonym-rules'],
 .nav .nav__link[href='/admin/collections/match-type-allow-list-terms'],
 .nav #nav-client-wishlist-items,
+.nav #nav-client-portal-requests,
+.nav #nav-client-value-ledger-items,
+.nav #nav-google-ads-audit-snapshots,
+.nav #nav-blog-sync-events,
 .nav #nav-match-type-synonym-rules,
 .nav #nav-match-type-allow-list-terms {
   display: none !important;
