@@ -103,6 +103,8 @@
   color: #52606d;
   font-size: 15px;
   line-height: 1.5;
+  /* Admins author the allowance as a multi-line list; keep their line breaks. */
+  white-space: pre-line;
 }
 
 .pricing {
