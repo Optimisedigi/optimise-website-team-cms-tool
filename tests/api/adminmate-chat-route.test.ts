@@ -104,6 +104,66 @@ describe("AdminMate chat route email attachment", () => {
     });
   });
 
+  it("sends attached screenshots to the agent as image parts and returns links", async () => {
+    runAdminMateChatTurn.mockResolvedValueOnce({
+      reply: "That screenshot is the We Can Quit contract.",
+      links: [{ label: "Website Hosting (signed)", href: "/admin/collections/contracts/15" }],
+      runId: "run-2",
+      modelRequested: "gpt-5.6-luna",
+      modelUsed: "gpt-5.6-luna",
+      source: "service-account",
+    });
+    const { POST } = await import("@/app/(frontend)/api/optimate/adminmate/chat/route");
+    const response = await POST(postRequest({
+      message: "",
+      imageAttachments: [{ name: "contract.png", mediaType: "image/png", data: "iVBORw0KGgo=" }],
+    }));
+
+    expect(response.status).toBe(200);
+    const content = runAdminMateChatTurn.mock.calls[0][0].messages.at(-1).content;
+    expect(content[0]).toEqual({ type: "image", mediaType: "image/png", data: "iVBORw0KGgo=" });
+    expect(content[1].text).toContain("Admin attached 1 image: contract.png");
+    expect(content[1].text).toContain("untrusted");
+    expect(content[1].text).toContain("Please review the attached image.");
+    await expect(response.json()).resolves.toMatchObject({
+      links: [{ label: "Website Hosting (signed)", href: "/admin/collections/contracts/15" }],
+    });
+  });
+
+  it("labels screenshots re-sent from an earlier turn", async () => {
+    const { POST } = await import("@/app/(frontend)/api/optimate/adminmate/chat/route");
+    await POST(postRequest({
+      message: "and the setup fee?",
+      imageAttachments: [{ name: "contract.png", mediaType: "image/png", data: "iVBORw0KGgo=" }],
+      imagesFromEarlierTurn: true,
+    }));
+    const content = runAdminMateChatTurn.mock.calls[0][0].messages.at(-1).content;
+    expect(content[0]).toMatchObject({ type: "image" });
+    expect(content[1].text).toContain("Re-attached from earlier in this chat 1 image: contract.png");
+  });
+
+  it("rejects image data that does not match its declared type", async () => {
+    const { POST } = await import("@/app/(frontend)/api/optimate/adminmate/chat/route");
+    const response = await POST(postRequest({
+      message: "What is this?",
+      imageAttachments: [{ name: "x.png", mediaType: "image/png", data: "PHN2Zz4=" }],
+    }));
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringMatching(/does not match/) });
+    expect(runAdminMateChatTurn).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid image attachments before running the agent", async () => {
+    const { POST } = await import("@/app/(frontend)/api/optimate/adminmate/chat/route");
+    const response = await POST(postRequest({
+      message: "What is this?",
+      imageAttachments: [{ name: "x.svg", mediaType: "image/svg+xml", data: "PHN2Zz4=" }],
+    }));
+
+    expect(response.status).toBe(400);
+    expect(runAdminMateChatTurn).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid attachment identifiers before accessing Gmail", async () => {
     const { POST } = await import("@/app/(frontend)/api/optimate/adminmate/chat/route");
     const response = await POST(postRequest({

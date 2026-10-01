@@ -161,6 +161,78 @@ describe('AdminMateChat', () => {
       attachedEmail: { messageId: 'gmail-message-1', subject: 'Campaign question' },
     })
   })
+  it('shows client links from the reply as buttons and drops unsafe ones', async () => {
+    fetchMock.mockResolvedValueOnce(response({
+      reply: 'Here is the We Can Quit contract.',
+      links: [
+        { label: 'Website Hosting (signed)', href: '/admin/collections/contracts/15' },
+        { label: 'Phish', href: 'https://evil.example/login' },
+        { label: 'Looker dashboard', href: 'https://lookerstudio.google.com/r/abc', external: true },
+      ],
+    }))
+    render(<AdminMateChat />)
+    fireEvent.change(screen.getByLabelText('Message AdminMate'), { target: { value: 'give me a link to the contract for we can quit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    const link = await screen.findByRole('link', { name: /Website Hosting \(signed\)/ })
+    expect(link).toHaveAttribute('href', '/admin/collections/contracts/15')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(screen.queryByRole('link', { name: /Phish/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Looker dashboard \(external\)/ })).toHaveAttribute('href', 'https://lookerstudio.google.com/r/abc')
+  })
+
+  it('attaches a pasted screenshot, sends it with the message and clears it', async () => {
+    const requestBodies: Array<Record<string, unknown>> = []
+    fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+      requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+      return Promise.resolve(response({ reply: 'That is the We Can Quit contract.' }))
+    })
+    render(<AdminMateChat />)
+    const box = screen.getByLabelText('Message AdminMate')
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'image.png', { type: 'image/png' })
+    fireEvent.paste(box, { clipboardData: { files: [file] } })
+
+    expect(await screen.findByRole('button', { name: /^Remove screenshot-/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+    fireEvent.change(box, { target: { value: 'how much was hosting in this contract?' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await screen.findByText('That is the We Can Quit contract.')
+    expect(requestBodies[0]).toMatchObject({
+      message: 'how much was hosting in this contract?',
+      imageAttachments: [{ mediaType: 'image/png', data: 'iVBORw==' }],
+    })
+    expect(screen.queryByRole('button', { name: /^Remove screenshot-/ })).not.toBeInTheDocument()
+    expect(requestBodies[0]).not.toHaveProperty('imagesFromEarlierTurn')
+
+    // A follow-up question still carries the screenshot, marked as re-sent.
+    expect(screen.getByRole('status')).toHaveTextContent('AdminMate can still see your earlier screenshot')
+    fireEvent.change(box, { target: { value: 'and what was the setup fee?' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await vi.waitFor(() => expect(requestBodies).toHaveLength(2))
+    expect(requestBodies[1]).toMatchObject({
+      message: 'and what was the setup fee?',
+      imageAttachments: [{ mediaType: 'image/png', data: 'iVBORw==' }],
+      imagesFromEarlierTurn: true,
+    })
+    expect(screen.getAllByText(/\[Attached image: screenshot-/)).toHaveLength(1)
+
+    // Clearing it stops it being sent.
+    await screen.findByRole('button', { name: 'Stop sharing earlier screenshots' })
+    fireEvent.click(screen.getByRole('button', { name: 'Stop sharing earlier screenshots' }))
+    fireEvent.change(box, { target: { value: 'thanks' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await vi.waitFor(() => expect(requestBodies).toHaveLength(3))
+    expect(requestBodies[2]).not.toHaveProperty('imageAttachments')
+  })
+
+  it('rejects unsupported image types with a message', async () => {
+    render(<AdminMateChat />)
+    const file = new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' })
+    fireEvent.paste(screen.getByLabelText('Message AdminMate'), { clipboardData: { files: [file] } })
+    expect(await screen.findByRole('alert')).toHaveTextContent(/not a supported image/)
+  })
+
   it('starts a new chat instead of restoring a previous thread', () => {
     sessionStorage.setItem('optimate:adminmate', JSON.stringify({
       messages: [{ role: 'user', content: 'create client leftover' }],

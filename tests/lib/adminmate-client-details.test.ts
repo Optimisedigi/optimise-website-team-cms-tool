@@ -9,6 +9,7 @@ import {
   validateClientDetailsArgs,
   projectBudget,
   type ClientBudgetRecord,
+  type ClientContractRecord,
   type ClientDetailsExtras,
   type ClientDetailsReader,
   type DiscoveryBriefingRecord,
@@ -185,11 +186,48 @@ const epgBudget: ClientBudgetRecord = {
 }
 const NOW = new Date('2026-09-30T01:00:00.000Z')
 
+const lexical = (text: string) => ({
+  root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text }] }] },
+})
+
+const epgContract: ClientContractRecord = {
+  id: '12',
+  title: 'Website Build & Hosting - EPG engines',
+  status: 'completed',
+  linkedToClient: true,
+  clientName: 'EPG engines',
+  contractDate: '2026-06-01T00:00:00.000Z',
+  contractStartDate: '2026-06-15T00:00:00.000Z',
+  contractEndDate: null,
+  sentAt: '2026-06-01T03:00:00.000Z',
+  agencySignedAt: '2026-06-01T02:00:00.000Z',
+  clientSignedAt: '2026-06-02T05:00:00.000Z',
+  clientSignerName: 'Eddie Grant',
+  currency: 'AUD',
+  monthlyRetainer: 1500,
+  setupFee: 0,
+  hideSetupFee: true,
+  monthlyHosting: null,
+  annualHosting: 480,
+  additionalWork: [{ projectName: 'Website build', amount: 6500, countTowardsRetainer: false }],
+  pricingNotes: lexical('Hosting renews each June.'),
+  contractTerm: '12 months',
+  paymentTerms: 'Net 14',
+  scopeOfWork: lexical('Build and host a WordPress site.'),
+  paymentTermsOverride: null,
+  terminationOverride: null,
+  annualReviewEnabled: false,
+  annualReviewTierTableText: null,
+  hasSignedPdf: true,
+  updatedAt: '2026-06-02T05:00:00.000Z',
+}
+
 function reader(): ClientDetailsReader & {
   getProfile: ReturnType<typeof vi.fn>
   getExtras: ReturnType<typeof vi.fn>
   getDiscoveryBriefings: ReturnType<typeof vi.fn>
   getBudget: ReturnType<typeof vi.fn>
+  getContracts: ReturnType<typeof vi.fn>
 } {
   return {
     getProfile: vi.fn(async () => profile),
@@ -200,6 +238,7 @@ function reader(): ClientDetailsReader & {
     })),
     getDiscoveryBriefings: vi.fn(async () => [briefing]),
     getBudget: vi.fn(async () => epgBudget),
+    getContracts: vi.fn(async () => [epgContract]),
   }
 }
 
@@ -258,6 +297,57 @@ describe('get_client_details', () => {
     expect(data.getProfile).not.toHaveBeenCalled()
     expect(data.getExtras).not.toHaveBeenCalled()
     expect(data.getDiscoveryBriefings).not.toHaveBeenCalled()
+  })
+
+  it('answers how much hosting was agreed from the contracts section, reading nothing else', async () => {
+    const data = reader()
+    const tool = createClientDetailsTool(existing, data)
+
+    const result = await run(tool, { client: 'EPG', sections: ['contracts'] })
+
+    expect(result.ok).toBe(true)
+    expect(result.data).toMatchObject({
+      contracts: {
+        found: true,
+        count: 1,
+        contracts: [
+          {
+            title: 'Website Build & Hosting - EPG engines',
+            status: 'Completed (signed)',
+            clientSignedAt: '2026-06-02',
+            startDate: '2026-06-15',
+            pricing: {
+              currency: 'AUD',
+              monthlyRetainer: 1500,
+              monthlyHosting: null,
+              annualHosting: 480,
+              setupFeeHiddenOnContract: true,
+              additionalWork: [{ project: 'Website build', amount: 6500 }],
+              pricingNotes: 'Hosting renews each June.',
+            },
+            contractTerm: '12 months',
+            scopeOfWork: 'Build and host a WordPress site.',
+          },
+        ],
+      },
+    })
+    expect(data.getContracts).toHaveBeenCalledWith('42', ['EPG engines'])
+    expect(data.getProfile).not.toHaveBeenCalled()
+    expect(data.getExtras).not.toHaveBeenCalled()
+    expect(data.getBudget).not.toHaveBeenCalled()
+  })
+
+  it('does not load contracts for a general lookup', async () => {
+    const data = reader()
+    const tool = createClientDetailsTool(existing, data)
+
+    const all = (await run(tool, { client: 'epg', sections: ['all'] })).data as Record<
+      string,
+      unknown
+    >
+
+    expect(all).not.toHaveProperty('contracts')
+    expect(data.getContracts).not.toHaveBeenCalled()
   })
 
   it('returns only the requested sections and never the PIN unless asked', async () => {
@@ -562,6 +652,60 @@ describe('createPayloadClientDetailsReader getBudget', () => {
 
     findByID.mockRejectedValueOnce(new Error('database is locked'))
     expect(await data.getBudget('42')).toBeNull()
+  })
+})
+
+describe('createPayloadClientDetailsReader getContracts', () => {
+  const doc = (overrides: Record<string, unknown>) => ({
+    id: 1,
+    contractTitle: 'Agreement',
+    status: 'completed',
+    isTemplate: false,
+    client: null,
+    clientName: 'Someone Else',
+    monthlyHosting: 40,
+    additionalWork: [],
+    signingToken: 'secret-token',
+    clientSignedIp: '10.0.0.1',
+    ...overrides,
+  })
+
+  it('returns linked contracts and exact-name unlinked ones, skipping templates and loose matches', async () => {
+    const find = vi.fn(async () => ({
+      docs: [
+        doc({ id: 1, client: 42 }),
+        doc({ id: 2, clientName: 'EPG Engines' }),
+        doc({ id: 3, clientName: 'EPG engines spare parts' }),
+        doc({ id: 4, client: 42, isTemplate: true }),
+        doc({ id: 5, client: 99, clientName: 'EPG engines' }),
+      ],
+    }))
+    const data = createPayloadClientDetailsReader({ find } as unknown as Payload)
+
+    const contracts = await data.getContracts('42', ['EPG engines'])
+
+    expect(contracts?.map((c) => [c.id, c.linkedToClient])).toEqual([
+      ['1', true],
+      ['2', false],
+    ])
+    expect(contracts?.[0]?.monthlyHosting).toBe(40)
+    expect(contracts?.[0]?.hasSignedPdf).toBe(false)
+    expect(JSON.stringify(contracts)).not.toContain('secret-token')
+    expect(JSON.stringify(contracts)).not.toContain('10.0.0.1')
+    const query = (find.mock.calls[0] as unknown as [{ collection: string; select: Record<string, unknown> }])[0]
+    expect(query.collection).toBe('contracts')
+    expect(query.select).not.toHaveProperty('signingToken')
+    expect(query.select).not.toHaveProperty('clientSignature')
+  })
+
+  it('returns null when loading fails or the id is not numeric', async () => {
+    const find = vi.fn(async () => {
+      throw new Error('database is locked')
+    })
+    const data = createPayloadClientDetailsReader({ find } as unknown as Payload)
+    expect(await data.getContracts('42', ['EPG'])).toBeNull()
+    expect(await data.getContracts('abc', ['EPG'])).toBeNull()
+    expect(find).toHaveBeenCalledTimes(1)
   })
 })
 

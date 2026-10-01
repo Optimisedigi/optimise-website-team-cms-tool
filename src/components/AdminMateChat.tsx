@@ -11,9 +11,21 @@ import AdminMateContractCard from './AdminMateContractCard'
 import OptiMateBeamComposer from './OptiMateBeamComposer'
 import OptiMateMetalSend from './OptiMateMetalSend'
 import { ThinkingOrb } from 'thinking-orbs'
+import { prepareAdminMateImage, type PreparedImage } from './adminmate-image'
+import { MAX_ADMINMATE_IMAGES } from '@/lib/agents/adminmate/image-attachments'
+import { toSafeClientLink, type ClientLink } from '@/lib/agents/adminmate/client-link-href'
 
 type GmailDraft = { gmailUrl: string; subject: string; to: string }
-type ChatMessage = { role: 'user' | 'assistant'; content: string; gmailDraft?: GmailDraft }
+type ChatMessage = { role: 'user' | 'assistant'; content: string; gmailDraft?: GmailDraft; links?: ClientLink[] }
+
+/** Only allow-listed CMS pages, or https links the server marked external, are rendered. */
+const safeLinks = (value: unknown): ClientLink[] | undefined =>
+  Array.isArray(value)
+    ? value.flatMap((link) => {
+      const clean = toSafeClientLink(link)
+      return clean ? [clean] : []
+    })
+    : undefined
 const STORAGE_KEY = 'optimate:adminmate'
 
 const TEXT_FIELDS: Array<{ key: keyof StagedClient; label: string }> = [
@@ -45,6 +57,12 @@ export default function AdminMateChat() {
   const [success, setSuccess] = useState('')
   const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
   const [emailPickerOpen, setEmailPickerOpen] = useState(false)
+  const [images, setImages] = useState<PreparedImage[]>([])
+  // The last screenshots sent, re-sent with follow-up questions so AdminMate can
+  // still see them, until new ones are attached or the admin clears them.
+  const [earlierImages, setEarlierImages] = useState<PreparedImage[]>([])
+  const [dragActive, setDragActive] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const draftRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -67,22 +85,61 @@ export default function AdminMateChat() {
   const patch = (changes: Partial<StagedClient>) => setStaged((current) => current && { ...current, ...changes })
   const patchContract = (changes: Partial<StagedContract>) => setStagedContract((current) => current && { ...current, ...changes })
 
+  const addImages = async (files: File[], pasted = false) => {
+    const incoming = files.filter((file) => file.type.startsWith('image/'))
+    if (incoming.length === 0) return
+    const slots = MAX_ADMINMATE_IMAGES - images.length
+    if (slots <= 0) {
+      setError(`Attach up to ${MAX_ADMINMATE_IMAGES} images per message.`)
+      return
+    }
+    const stamp = new Date().toISOString().slice(11, 19).replace(/:/g, '')
+    const results = await Promise.all(incoming.slice(0, slots).map((file, index) =>
+      prepareAdminMateImage(file, pasted || !file.name ? `screenshot-${stamp}${index ? `-${index + 1}` : ''}` : file.name)))
+    const ready = results.flatMap((result) => result.ok ? [result.value] : [])
+    const failed = results.flatMap((result) => result.ok ? [] : [result.error])
+    if (ready.length > 0) setImages((current) => [...current, ...ready].slice(0, MAX_ADMINMATE_IMAGES))
+    setError(failed[0] ?? (incoming.length > slots ? `Attached the first ${slots}. Limit is ${MAX_ADMINMATE_IMAGES} images per message.` : ''))
+    if (imageInputRef.current) imageInputRef.current.value = ''
+  }
+
   const send = async (text = draft) => {
-    const message = text.trim()
-    if (!message || sending) return
+    const typed = text.trim()
+    const freshImages = text === draft ? images : []
+    if ((!typed && freshImages.length === 0) || sending) return
+    const reusingEarlier = freshImages.length === 0 && earlierImages.length > 0
+    const outgoingImages = reusingEarlier ? earlierImages : freshImages
+    const message = typed || 'Please review the attached image.'
     setSending(true)
     setError('')
     setSuccess('')
     const history = messages
-    setMessages((current) => [...current, { role: 'user', content: message }])
+    const imageNote = freshImages.length > 0
+      ? `\n\n[Attached image${freshImages.length === 1 ? '' : 's'}: ${freshImages.map((image) => image.name).join(', ')}]`
+      : ''
+    setMessages((current) => [...current, { role: 'user', content: `${message}${imageNote}` }])
     setTemplateChoices([])
     setClientChoices([])
-    if (text === draft) setDraft('')
+    if (text === draft) {
+      setDraft('')
+      setImages([])
+    }
+    if (freshImages.length > 0) setEarlierImages(freshImages)
     try {
       const response = await fetch('/api/optimate/adminmate/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history, attachedEmail }),
+        body: JSON.stringify({
+          message,
+          history,
+          attachedEmail,
+          ...(outgoingImages.length > 0
+            ? {
+              imageAttachments: outgoingImages.map(({ name, mediaType, data }) => ({ name, mediaType, data })),
+              ...(reusingEarlier ? { imagesFromEarlierTurn: true } : {}),
+            }
+            : {}),
+        }),
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json.error || 'AdminMate could not reply')
@@ -90,6 +147,7 @@ export default function AdminMateChat() {
         role: 'assistant',
         content: json.reply || 'Review the result below.',
         gmailDraft: json.gmailDraft,
+        links: safeLinks(json.links),
       }])
       // Keep the selected email attached so clarification and revision turns
       // continue to use the original Gmail message and thread metadata.
@@ -108,7 +166,8 @@ export default function AdminMateChat() {
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'AdminMate could not reply')
-      setDraft(message)
+      setDraft(typed)
+      if (freshImages.length > 0) setImages(freshImages)
     } finally { setSending(false) }
   }
 
@@ -176,6 +235,15 @@ export default function AdminMateChat() {
               >
                 Open Gmail draft ↗
               </a>
+            )}
+            {message.links && message.links.length > 0 && (
+              <div role="group" aria-label="Client links" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {message.links.map((link) => (
+                  <a {...{ ['k' + 'ey']: link.href }} href={link.href} target="_blank" rel="noopener noreferrer" style={clientLinkStyle}>
+                    {link.label}{link.external ? ' (external)' : ''} ↗
+                  </a>
+                ))}
+              </div>
             )}
           </div>
         ))}
@@ -306,7 +374,52 @@ export default function AdminMateChat() {
         {success && <div role="status" style={{ ...noticeStyle, color: '#166534', background: '#f0fdf4' }}>{success}</div>}
         <div ref={bottomRef} />
       </div>
-      <div style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8, position: 'relative', minWidth: 0 }}>
+      <div
+        onDragOver={(event) => {
+          if (!Array.from(event.dataTransfer.types).includes('Files')) return
+          event.preventDefault()
+          setDragActive(true)
+        }}
+        onDragLeave={(event) => {
+          if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
+          setDragActive(false)
+        }}
+        onDrop={(event) => {
+          if (!Array.from(event.dataTransfer.types).includes('Files')) return
+          event.preventDefault()
+          setDragActive(false)
+          void addImages(Array.from(event.dataTransfer.files))
+        }}
+        style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8, position: 'relative', minWidth: 0, ...(dragActive ? { outline: '2px dashed #2563eb', outlineOffset: -4 } : {}) }}
+      >
+        {images.length === 0 && earlierImages.length > 0 && (
+          <div role="status" style={attachedEmailStyle}>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              AdminMate can still see {earlierImages.length === 1 ? 'your earlier screenshot' : `your ${earlierImages.length} earlier screenshots`}
+            </span>
+            <button type="button" onClick={() => setEarlierImages([])} aria-label="Stop sharing earlier screenshots" style={removeAttachmentStyle}>
+              ✕
+            </button>
+          </div>
+        )}
+        {images.length > 0 && (
+          <div role="group" aria-label={`${images.length} attached image${images.length === 1 ? '' : 's'}`} style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {images.map((image, index) => (
+              <div {...{ ['k' + 'ey']: `${image.name}-${index}` }} title={`${image.name} · ${Math.round(image.size / 1024)} KB`} style={attachedImageStyle}>
+                <img src={`data:${image.mediaType};base64,${image.data}`} alt={image.name} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4 }} />
+                <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
+                  aria-label={`Remove ${image.name}`}
+                  style={removeAttachmentStyle}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {attachedEmail && (
           <div
             title={`From ${attachedEmail.from} · ${attachedEmail.date}`}
@@ -342,7 +455,13 @@ export default function AdminMateChat() {
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() } }}
-              placeholder="Create a client… / Reply to the attached email…"
+              onPaste={(event) => {
+                const files = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith('image/'))
+                if (files.length === 0) return
+                event.preventDefault()
+                void addImages(files, true)
+              }}
+              placeholder="Create a client… / Ask about a client… / Paste a screenshot…"
               rows={3}
               maxLength={8000}
               data-optimate-input=""
@@ -364,10 +483,33 @@ export default function AdminMateChat() {
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                 </svg>
               </button>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                multiple
+                hidden
+                onChange={(event) => void addImages(Array.from(event.target.files ?? []))}
+              />
+              <button
+                type="button"
+                disabled={sending || images.length >= MAX_ADMINMATE_IMAGES}
+                onClick={() => imageInputRef.current?.click()}
+                aria-label="Attach a screenshot or image"
+                title="Attach a screenshot or image (or paste / drop one)"
+                data-optimate-tool=""
+                style={{ ...iconButtonStyle, marginLeft: 6, ...(images.length > 0 ? iconButtonActiveStyle : {}) }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="9" cy="9" r="2" />
+                  <path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21" />
+                </svg>
+              </button>
               <span style={{ flex: 1 }} />
               <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={(text) => setDraft((current) => `${current}${current.trim() ? ' ' : ''}${text}`)} />
               <OptiMateMetalSend>
-                <button type="button" disabled={sending || !draft.trim()} onClick={() => void send()} aria-label="Send" title="Send" data-optimate-send="">
+                <button type="button" disabled={sending || (!draft.trim() && images.length === 0)} onClick={() => void send()} aria-label="Send" title="Send" data-optimate-send="">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
@@ -391,4 +533,6 @@ const attachedEmailStyle: React.CSSProperties = { display: 'flex', alignItems: '
 const removeAttachmentStyle: React.CSSProperties = { border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }
 const iconButtonStyle: React.CSSProperties = { width: 36, height: 36, flexShrink: 0, display: 'grid', placeItems: 'center', border: '1px solid var(--theme-elevation-200)', borderRadius: 8, background: 'var(--theme-bg)', color: 'var(--theme-elevation-600)', cursor: 'pointer' }
 const iconButtonActiveStyle: React.CSSProperties = { border: '1px solid #2563eb', background: '#eff6ff', color: '#1d4ed8' }
+const clientLinkStyle: React.CSSProperties = { display: 'inline-block', padding: '5px 9px', borderRadius: 7, background: '#1d4ed8', color: '#fff', fontWeight: 700, fontSize: 12, textDecoration: 'none' }
+const attachedImageStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, padding: 4, paddingRight: 8, border: '1px solid #bfdbfe', borderRadius: 8, background: '#eff6ff', color: '#1e40af', fontSize: 11 }
 const gmailDraftLinkStyle: React.CSSProperties = { display: 'inline-block', marginTop: 8, padding: '6px 9px', borderRadius: 7, background: '#166534', color: '#fff', fontWeight: 800, textDecoration: 'none' }

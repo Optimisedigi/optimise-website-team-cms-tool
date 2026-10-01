@@ -87,7 +87,7 @@ describe("runAdminMateChatTurn client questions", () => {
     messages: [{ role: "user" as const, content: [{ type: "text" as const, text }] }],
     existingClients: [],
     contractTemplates: [],
-    clientDetails: { getProfile: async () => null, getExtras: async () => null, getDiscoveryBriefings: async () => [], getBudget: async () => null },
+    clientDetails: { getProfile: async () => null, getExtras: async () => null, getDiscoveryBriefings: async () => [], getBudget: async () => null, getContracts: async () => [] },
     userId: 17,
     modelOverride: "gpt-5.6-luna",
   });
@@ -102,6 +102,45 @@ describe("runAdminMateChatTurn client questions", () => {
     const { clientDetails: _omit, ...withoutReader } = questionInput("hi");
     await runAdminMateChatTurn(withoutReader);
     expect(mockRunAgent.mock.calls[1][0].tools.map((tool: { name: string }) => tool.name)).not.toContain("get_client_details");
+  });
+
+  it("registers get_client_links alongside get_client_details", async () => {
+    mockRunAgent.mockResolvedValue(assistantResult("Here you go."));
+    await runAdminMateChatTurn(questionInput("give me a link to the contract for we can quit"));
+    expect(mockRunAgent.mock.calls[0][0].tools.map((tool: { name: string }) => tool.name)).toContain("get_client_links");
+  });
+
+  it("returns links from get_client_links as buttons, dropping unsafe or duplicate hrefs", async () => {
+    mockRunAgent.mockResolvedValueOnce(assistantResult("Here is the We Can Quit contract.", [{
+      step: 1,
+      type: "tool-call",
+      toolName: "get_client_links",
+      output: {
+        ok: true,
+        data: {
+          links: [
+            { label: "SEO Retainer (signed)", href: "/admin/collections/contracts/12" },
+            { label: "duplicate", href: "/admin/collections/contracts/12" },
+            { label: "Phish", href: "https://evil.example/login" },
+            { label: "SEO Retainer — signed PDF", href: "/api/contracts/12/download-pdf" },
+          ],
+        },
+      },
+      timestamp: "2026-10-02T10:00:00.000Z",
+    }]));
+
+    const result = await runAdminMateChatTurn(questionInput("give me a link to the contract for we can quit"));
+
+    expect(result.links).toEqual([
+      { label: "SEO Retainer (signed)", href: "/admin/collections/contracts/12" },
+      { label: "SEO Retainer — signed PDF", href: "/api/contracts/12/download-pdf" },
+    ]);
+  });
+
+  it("returns no links when get_client_links was not called", async () => {
+    mockRunAgent.mockResolvedValueOnce(assistantResult("The retainer is $1,500."));
+    const result = await runAdminMateChatTurn(questionInput("what is the retainer for we can quit?"));
+    expect(result.links).toBeUndefined();
   });
 
   it("does not force a create-client correction when the admin asked a question about a client", async () => {
