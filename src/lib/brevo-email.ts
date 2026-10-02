@@ -19,6 +19,7 @@ export interface SendBrevoEmailInput {
   htmlContent: string;
   textContent?: string;
   cc?: BrevoRecipient[];
+  replyTo?: BrevoRecipient;
   sender?: { name: string; email: string };
 }
 
@@ -70,6 +71,7 @@ export async function sendBrevoEmail(input: SendBrevoEmailInput): Promise<SendBr
         sender,
         to: input.to,
         ...(input.cc && input.cc.length > 0 && { cc: input.cc }),
+        ...(input.replyTo && { replyTo: input.replyTo }),
         subject: input.subject,
         htmlContent: input.htmlContent,
         ...(input.textContent && { textContent: input.textContent }),

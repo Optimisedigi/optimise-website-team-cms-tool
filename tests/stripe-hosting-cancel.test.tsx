@@ -30,6 +30,7 @@ describe('hosting Checkout cancellation', () => {
       offerId: '99',
       email: 'billing@example.com',
       idempotencyKey: 'checkout-test',
+      billingStart: {},
       returnToPaymentLink: '/hosting-pay/token with spaces?x=1&y=2',
       quote: {
         currency: 'aud',
@@ -53,14 +54,22 @@ describe('hosting Checkout cancellation', () => {
   })
 
   it.each([
-    { interval: 'month' as const, anchored: true },
-    { interval: 'year' as const, anchored: false },
-  ])('anchors only monthly billing to the 1st ($interval)', async ({ interval, anchored }) => {
+    { interval: 'month' as const, billingStart: {} },
+    {
+      interval: 'year' as const,
+      billingStart: {
+        billing_cycle_anchor_config: { day_of_month: 15, month: 11, hour: 2, minute: 0 as const, second: 0 as const },
+        proration_behavior: 'create_prorations' as const,
+      },
+    },
+    { interval: 'month' as const, billingStart: { trial_end: 1_800_000_000 } },
+  ])('passes the billing start schedule to Stripe unchanged ($interval)', async ({ interval, billingStart }) => {
     await createHostingCheckout({
       clientId: '42',
       offerId: '99',
       email: 'billing@example.com',
       idempotencyKey: 'checkout-test',
+      billingStart,
       quote: {
         currency: 'aud',
         interval,
@@ -74,14 +83,10 @@ describe('hosting Checkout cancellation', () => {
     })
 
     const subscriptionData = createSession.mock.calls[0]?.[0]?.subscription_data
-    if (anchored) {
-      expect(subscriptionData).toMatchObject({
-        billing_cycle_anchor_config: { day_of_month: 1 },
-        proration_behavior: 'create_prorations',
-      })
-    } else {
-      expect(subscriptionData).not.toHaveProperty('billing_cycle_anchor_config')
-    }
+    expect(subscriptionData).toEqual({
+      metadata: { cmsClientId: '42', hostingOfferId: '99' },
+      ...billingStart,
+    })
   })
 
   it('renders a return link only for an internal hosting payment path', async () => {

@@ -1517,6 +1517,9 @@ export const Clients: CollectionConfig = {
                     { name: "recipientName", type: "text", admin: { hidden: true } },
                     { name: "recipientEmail", type: "email", admin: { hidden: true } },
                     { name: "billingInterval", type: "select", options: ["month", "year"], admin: { hidden: true } },
+                    // Day work starts (Sydney calendar date, YYYY-MM-DD). The first full
+                    // charge and every renewal fall on this date. Blank = the sign-up date.
+                    { name: "billingStartDate", type: "text", admin: { hidden: true }, validate: (value: unknown) => !value || /^\d{4}-\d{2}-\d{2}$/.test(String(value)) || "Use a YYYY-MM-DD date." },
                     { name: "stripeCustomerId", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
                     { name: "stripeSubscriptionId", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
                     { name: "stripeHostingItemId", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },

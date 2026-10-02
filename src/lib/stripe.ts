@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import type { HostingQuote } from './hosting-billing'
+import type { StripeBillingStartParams } from './hosting-billing-schedule'
 
 function required(name: 'STRIPE_SECRET_KEY' | 'STRIPE_WEBHOOK_SECRET' | 'CMS_URL'): string {
   const value = process.env[name]?.trim()
@@ -66,13 +67,6 @@ export async function expireHostingCheckoutSession(sessionId: string) {
   return getStripe().checkout.sessions.expire(sessionId)
 }
 
-/**
- * Monthly hosting is always debited on the 1st. Stripe's anchor hour is UTC;
- * 02:00 UTC is midday on the 1st in Australian time zones, so the charge and
- * its receipt fall on the 1st for both Stripe (UTC) and the client.
- */
-export const MONTHLY_BILLING_ANCHOR = { day_of_month: 1, hour: 2, minute: 0, second: 0 } as const
-
 export type HostingSubscriptionStopAction = 'end_of_period' | 'immediately' | 'undo'
 
 export async function stopHostingSubscription(
@@ -92,6 +86,8 @@ export async function createHostingCheckout(input: {
   customerId?: string | null
   email: string
   quote: HostingQuote
+  /** When the first charge and renewals fall; see stripeBillingStartParams. */
+  billingStart: StripeBillingStartParams
   idempotencyKey: string
   returnToPaymentLink?: string
 }) {
@@ -117,14 +113,8 @@ export async function createHostingCheckout(input: {
       metadata,
       subscription_data: {
         metadata,
-        // The first payment covers the days until the 1st (pro-rata); every
-        // later monthly payment is taken on the 1st.
-        ...(input.quote.interval === 'month'
-          ? {
-              billing_cycle_anchor_config: MONTHLY_BILLING_ANCHOR,
-              proration_behavior: 'create_prorations' as const,
-            }
-          : {}),
+        // Renewals fall on the client's billing start date each month or year.
+        ...input.billingStart,
       },
       success_url: `${site}/hosting-pay/success`,
       cancel_url: input.returnToPaymentLink
@@ -141,6 +131,50 @@ export async function createHostingCheckout(input: {
             unit_amount: input.quote.totalCents,
             product_data: { name: input.quote.planName, metadata },
             recurring: { interval: input.quote.interval },
+          },
+        },
+      ],
+    },
+    { idempotencyKey: input.idempotencyKey },
+  )
+}
+
+/**
+ * A single card payment for a one-off hosting charge (for example, backdated
+ * hosting). `mode: 'payment'` never creates a subscription, so paying it
+ * cannot start or change recurring billing.
+ */
+export async function createHostingOneOffCheckout(input: {
+  clientId: string
+  paymentId: string
+  customerId?: string | null
+  email: string
+  description: string
+  currency: string
+  totalCents: number
+  idempotencyKey: string
+  returnToPaymentLink: string
+}) {
+  const site = getCmsUrl()
+  const metadata = { cmsClientId: input.clientId, hostingOneOffPaymentId: input.paymentId }
+  return getStripe().checkout.sessions.create(
+    {
+      mode: 'payment',
+      payment_method_types: ['card'],
+      ...(input.customerId ? { customer: input.customerId } : { customer_email: input.email }),
+      client_reference_id: input.clientId,
+      metadata,
+      payment_intent_data: { metadata, receipt_email: input.email },
+      success_url: `${site}/hosting-pay/once/paid`,
+      cancel_url: `${site}/hosting-pay/cancel?return_to=${encodeURIComponent(input.returnToPaymentLink)}`,
+      // One line for the surcharge-inclusive total; the payment page itemises it.
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: input.currency,
+            unit_amount: input.totalCents,
+            product_data: { name: input.description, metadata },
           },
         },
       ],

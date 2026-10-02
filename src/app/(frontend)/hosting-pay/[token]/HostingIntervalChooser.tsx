@@ -12,6 +12,8 @@ export type IntervalOption = Readonly<{
   surcharge: string
   total: string
   saving: string | null
+  /** When the client is charged, in plain words. */
+  schedule: Readonly<{ headline: string; detail: string }>
 }>
 
 type Props = Readonly<{
@@ -76,28 +78,10 @@ export function HostingIntervalChooser({ token, options, defaultInterval }: Prop
 
       <div className={styles.actionArea}>
         <div className={styles.debitNotice} role="note" aria-live="polite">
-          {selected.interval === 'month' ? (
-            <>
-              <p>
-                <strong>Your card is debited automatically on the 1st of every month.</strong>
-              </p>
-              <p>
-                Today you pay a pro-rata amount for the days left until the 1st. Stripe shows the
-                exact amount before you confirm. From then on, {selected.total} is charged on the
-                1st of each month until cancelled.
-              </p>
-            </>
-          ) : (
-            <>
-              <p>
-                <strong>You pay {selected.total} today for 12 months of hosting.</strong>
-              </p>
-              <p>
-                It renews automatically on the same date each year, charged to the same card, until
-                cancelled.
-              </p>
-            </>
-          )}
+          <p>
+            <strong>{selected.schedule.headline}</strong>
+          </p>
+          <p>{selected.schedule.detail}</p>
         </div>
         <button type="submit">
           Continue securely to Stripe

@@ -70,6 +70,7 @@ export interface Config {
     clients: Client;
     'client-wishlist-items': ClientWishlistItem;
     'hosting-payment-offers': HostingPaymentOffer;
+    'hosting-one-off-payments': HostingOneOffPayment;
     'client-proposals': ClientProposal;
     'client-proposal-keyword-research-jobs': ClientProposalKeywordResearchJob;
     'client-discovery-briefings': ClientDiscoveryBriefing;
@@ -189,6 +190,7 @@ export interface Config {
     clients: ClientsSelect<false> | ClientsSelect<true>;
     'client-wishlist-items': ClientWishlistItemsSelect<false> | ClientWishlistItemsSelect<true>;
     'hosting-payment-offers': HostingPaymentOffersSelect<false> | HostingPaymentOffersSelect<true>;
+    'hosting-one-off-payments': HostingOneOffPaymentsSelect<false> | HostingOneOffPaymentsSelect<true>;
     'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
     'client-proposal-keyword-research-jobs': ClientProposalKeywordResearchJobsSelect<false> | ClientProposalKeywordResearchJobsSelect<true>;
     'client-discovery-briefings': ClientDiscoveryBriefingsSelect<false> | ClientDiscoveryBriefingsSelect<true>;
@@ -654,6 +656,7 @@ export interface Client {
     recipientName?: string | null;
     recipientEmail?: string | null;
     billingInterval?: ('month' | 'year') | null;
+    billingStartDate?: string | null;
     stripeCustomerId?: string | null;
     stripeSubscriptionId?: string | null;
     stripeHostingItemId?: string | null;
@@ -7186,6 +7189,33 @@ export interface ClientWishlistItem {
   createdAt: string;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "hosting-one-off-payments".
+ */
+export interface HostingOneOffPayment {
+  id: number;
+  client: number | Client;
+  tokenHash: string;
+  status: 'active' | 'checkout_pending' | 'paid' | 'revoked';
+  expiresAt: string;
+  stripeCheckoutSessionId?: string | null;
+  paidAt?: string | null;
+  /**
+   * Immutable description, amount, surcharge and recipient.
+   */
+  snapshot:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Durable background job records for client proposal keyword research polling.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -11549,6 +11579,10 @@ export interface PayloadLockedDocument {
         value: number | HostingPaymentOffer;
       } | null)
     | ({
+        relationTo: 'hosting-one-off-payments';
+        value: number | HostingOneOffPayment;
+      } | null)
+    | ({
         relationTo: 'client-proposals';
         value: number | ClientProposal;
       } | null)
@@ -12061,6 +12095,7 @@ export interface ClientsSelect<T extends boolean = true> {
         recipientName?: T;
         recipientEmail?: T;
         billingInterval?: T;
+        billingStartDate?: T;
         stripeCustomerId?: T;
         stripeSubscriptionId?: T;
         stripeHostingItemId?: T;
@@ -12462,6 +12497,21 @@ export interface HostingPaymentOffersSelect<T extends boolean = true> {
   expiresAt?: T;
   selectedInterval?: T;
   stripeCheckoutSessionId?: T;
+  snapshot?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "hosting-one-off-payments_select".
+ */
+export interface HostingOneOffPaymentsSelect<T extends boolean = true> {
+  client?: T;
+  tokenHash?: T;
+  status?: T;
+  expiresAt?: T;
+  stripeCheckoutSessionId?: T;
+  paidAt?: T;
   snapshot?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -16081,6 +16131,10 @@ export interface HostingBillingSetting {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Shown to clients on the payment page and in the payment link email. Leave blank to use the standard wording. Edits affect future offers only.
+   */
+  renewalNote?: string | null;
   capacityChangeClause: string;
   noticeEmailSubject: string;
   noticeEmailBody: string;
@@ -16347,6 +16401,7 @@ export interface HostingBillingSettingsSelect<T extends boolean = true> {
         active?: T;
         id?: T;
       };
+  renewalNote?: T;
   capacityChangeClause?: T;
   noticeEmailSubject?: T;
   noticeEmailBody?: T;

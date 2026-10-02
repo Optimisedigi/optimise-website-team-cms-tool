@@ -88,6 +88,36 @@ async function completeOffer(payload: any, offerId: unknown, clientId: number | 
   })
 }
 
+/**
+ * A one-off hosting payment (mode `payment`) completed. Mark that link paid,
+ * but only if it really belongs to the client in the session. Never touches
+ * the client's subscription record.
+ */
+async function completeOneOffPayment(payload: any, session: any, paidAt: Date): Promise<void> {
+  const paymentId = session.metadata?.hostingOneOffPaymentId
+  if (session.payment_status !== 'paid') return
+  let payment: any
+  try {
+    payment = await payload.findByID({
+      collection: 'hosting-one-off-payments',
+      id: paymentId,
+      depth: 0,
+      overrideAccess: true,
+    })
+  } catch {
+    return
+  }
+  const clientId = session.metadata?.cmsClientId || session.client_reference_id
+  if (String(stripeObjectId(payment.client) ?? payment.client) !== String(clientId)) return
+  if (payment.status === 'paid') return
+  await payload.update({
+    collection: 'hosting-one-off-payments',
+    id: payment.id,
+    data: { status: 'paid', paidAt: paidAt.toISOString(), stripeCheckoutSessionId: session.id },
+    overrideAccess: true,
+  })
+}
+
 async function resolveInvoiceClientId(invoice: any): Promise<string | undefined> {
   const references = getStripeInvoiceReferences(invoice)
   if (references.clientId) return references.clientId
@@ -125,6 +155,13 @@ export async function POST(req: NextRequest) {
 
   const payload = await getPayload({ config: await config })
   const object: any = event.data.object
+  // One-off payments are separate from the subscription: handle them here and
+  // stop, so they can never overwrite the client's recurring billing record.
+  if (object.metadata?.hostingOneOffPaymentId) {
+    if (event.type === 'checkout.session.completed')
+      await completeOneOffPayment(payload, object, new Date(event.created * 1000))
+    return NextResponse.json({ received: true })
+  }
   let clientId = object.metadata?.cmsClientId || object.client_reference_id
   if (!clientId && (event.type === 'invoice.paid' || event.type === 'invoice.payment_failed')) {
     try {

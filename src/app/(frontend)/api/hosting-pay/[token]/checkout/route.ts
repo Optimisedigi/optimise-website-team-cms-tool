@@ -13,35 +13,10 @@ import {
   hasLiveHostingSubscription,
   type HostingQuote,
 } from '@/lib/hosting-billing'
+import { planBillingStart, stripeBillingStartParams } from '@/lib/hosting-billing-schedule'
+import { createTokenRateLimiter } from '@/lib/hosting-pay-rate-limit'
 
-const RATE_LIMIT_WINDOW_MS = 60_000
-const MAX_ATTEMPTS_PER_WINDOW = 8
-const MAX_TRACKED_TOKENS = 1_000
-const attempts = new Map<string, { count: number; until: number }>()
-
-function isRateLimited(token: string): boolean {
-  const now = Date.now()
-  for (const [key, state] of attempts) {
-    if (state.until <= now) attempts.delete(key)
-  }
-
-  const key = hashOfferToken(token)
-  const state = attempts.get(key) || {
-    count: 0,
-    until: now + RATE_LIMIT_WINDOW_MS,
-  }
-  state.count += 1
-  attempts.delete(key)
-  attempts.set(key, state)
-
-  while (attempts.size > MAX_TRACKED_TOKENS) {
-    const oldestKey = attempts.keys().next().value
-    if (!oldestKey) break
-    attempts.delete(oldestKey)
-  }
-
-  return state.count > MAX_ATTEMPTS_PER_WINDOW
-}
+const isRateLimited = createTokenRateLimiter()
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -131,6 +106,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     )
   }
   const quote: HostingQuote = interval === 'month' ? snapshot.monthly : snapshot.annual
+  const now = new Date()
+  const billingStart = stripeBillingStartParams(
+    planBillingStart(snapshot.billingStartDate, interval, now),
+    interval,
+    now,
+  )
   const retrySuffix = offer.stripeCheckoutSessionId ? `-${offer.stripeCheckoutSessionId}` : ''
   let session: Awaited<ReturnType<typeof createHostingCheckout>>
   try {
@@ -140,13 +121,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       customerId: client.hostingSubscription?.stripeCustomerId,
       email: snapshot.recipientEmail,
       quote,
+      billingStart,
       // One key per checkout attempt, deliberately not per interval: two
       // simultaneous requests (say monthly and annual) share it, so Stripe
       // opens at most one session and refuses the other. Switching frequency
-      // later gets a fresh key via the expired session's ID. v3 anchors
-      // monthly billing to the 1st; versioning avoids colliding with sessions
+      // later gets a fresh key via the expired session's ID. v4 bills from the
+      // client's start date; versioning avoids colliding with sessions
       // created by earlier request shapes.
-      idempotencyKey: `hosting-checkout-v3-${offer.id}${retrySuffix}`,
+      idempotencyKey: `hosting-checkout-v4-${offer.id}${retrySuffix}`,
       returnToPaymentLink: `/hosting-pay/${token}`,
     })
   } catch (error) {

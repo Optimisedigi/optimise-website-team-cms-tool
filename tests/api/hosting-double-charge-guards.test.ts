@@ -27,6 +27,8 @@ const missing = Object.assign(new Error('No such checkout.session'), { code: 're
 vi.mock('payload', () => ({ getPayload: vi.fn(async () => payload) }))
 vi.mock('@/payload.config', () => ({ default: Promise.resolve({}) }))
 vi.mock('@/lib/access', () => ({ userHasFeature: () => true }))
+// Issuing a link emails it; never let these tests reach Brevo.
+vi.mock('@/lib/brevo-email', () => ({ sendBrevoEmail: vi.fn(async () => ({ ok: true })) }))
 vi.mock('@/lib/stripe', () => ({
   getCmsUrl: () => 'https://cms.test',
   isStripeMissingResource: (error: unknown) =>
@@ -237,6 +239,34 @@ describe('paying a link', () => {
 
     expect(response.status).toBe(303)
     expect(stripe.createHostingCheckout).toHaveBeenCalledTimes(1)
+  })
+
+  it("bills from the offer's start date: nothing charged before it, renewals on it", async () => {
+    // 2 Oct 2026 in Sydney; the annual start date is about six weeks away.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-02T00:00:00.000Z'))
+    try {
+      payload.find.mockResolvedValue({
+        docs: [
+          {
+            ...offer,
+            status: 'active',
+            stripeCheckoutSessionId: null,
+            snapshot: { ...offer.snapshot, billingStartDate: '2026-11-15' },
+          },
+        ],
+      })
+
+      await pay('token-start-date')
+
+      const args = stripe.createHostingCheckout.mock.calls[0]?.[0] as { billingStart: unknown }
+      expect(args.billingStart).toEqual({
+        billing_cycle_anchor: Date.UTC(2026, 10, 15, 2) / 1000,
+        proration_behavior: 'none',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('uses one Stripe request key per attempt, whichever frequency is chosen', async () => {

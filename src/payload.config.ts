@@ -13,6 +13,7 @@ import { Media } from "./collections/Media";
 import { Clients } from "./collections/Clients";
 import { ClientWishlistItems } from "./collections/ClientWishlistItems";
 import { HostingPaymentOffers } from "./collections/HostingPaymentOffers";
+import { HostingOneOffPayments } from "./collections/HostingOneOffPayments";
 import { ClientProposalKeywordResearchJobs } from "./collections/ClientProposalKeywordResearchJobs";
 import { ClientProposals } from "./collections/ClientProposals";
 import { ClientDiscoveryBriefings } from "./collections/ClientDiscoveryBriefings";
@@ -154,7 +155,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientWishlistItems, HostingPaymentOffers, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
+    Clients, ClientWishlistItems, HostingPaymentOffers, HostingOneOffPayments, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
     // Content
     BlogPosts, BlogPrompts, BlogIdeas, BlogSyncEvents, JobPosts, Media,
     // SEO

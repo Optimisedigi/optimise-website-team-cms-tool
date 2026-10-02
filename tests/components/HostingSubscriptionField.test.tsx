@@ -104,12 +104,67 @@ describe('HostingSubscriptionField billing recipient', () => {
     await act(async () => fireEvent.click(create))
 
     expect(globalThis.confirm).toHaveBeenCalledWith(
-      'Create a seven-day hosting payment offer for billing@example.com? This revokes any current offer.',
+      'Create a seven-day hosting payment offer and email the payment link to billing@example.com? This revokes any current offer.',
     )
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith(
       '/api/clients/42/hosting-offers',
       { method: 'POST', credentials: 'include' },
     ))
+  })
+})
+
+describe('HostingSubscriptionField one-off payments', () => {
+  it('shows the one-off payment section only to staff with hosting billing access', async () => {
+    auth.user = { id: 2, role: 'editor', features: ['clients'] }
+    const { unmount } = await renderPanel()
+    expect(screen.queryByRole('heading', { name: 'One-off payment' })).not.toBeInTheDocument()
+    unmount()
+
+    auth.user = { id: 1, role: 'admin' }
+    await renderPanel()
+    expect(screen.getByRole('heading', { name: 'One-off payment' })).toBeInTheDocument()
+  })
+})
+
+describe('HostingSubscriptionField offer email result', () => {
+  const createOfferReturning = async (result: Record<string, unknown>) => {
+    setField('hostingSubscription.recipientEmail', 'billing@example.com')
+    await renderPanel()
+    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        url: 'http://localhost:3004/hosting-pay/test',
+        expiresAt: '2026-08-30T00:00:00.000Z',
+        ...result,
+      }),
+    })
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Create hosting offer' })),
+    )
+  }
+
+  it('confirms who the payment link was emailed to', async () => {
+    await createOfferReturning({ emailSent: true, emailedTo: 'billing@example.com' })
+
+    expect(await screen.findByRole('status', { name: 'Hosting offer status' })).toHaveTextContent(
+      'Offer created and emailed to billing@example.com.',
+    )
+  })
+
+  it('tells the admin to send the link by hand when the email fails, and copies it', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+
+    await createOfferReturning({ emailSent: false })
+
+    expect(await screen.findByRole('status', { name: 'Hosting offer status' })).toHaveTextContent(
+      'Offer created, but the email could not be sent.',
+    )
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Copy payment link' })),
+    )
+    expect(writeText).toHaveBeenCalledWith('http://localhost:3004/hosting-pay/test')
+    expect(screen.getByRole('button', { name: 'Link copied' })).toBeInTheDocument()
   })
 })
 

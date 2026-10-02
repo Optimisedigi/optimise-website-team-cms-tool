@@ -52,6 +52,25 @@ export function createHostingQuote(input: {
   }
 }
 
+/** Default client-facing renewal note (Hosting Billing Settings → Client terms). */
+export const HOSTING_RENEWAL_NOTE_DEFAULT =
+  'Your hosting renews automatically and is paid from your card for the next period. If you want to stop renting your website, just let us know and we can cancel straight away.'
+
+/**
+ * What a client saves a year by paying annually: the annual discount on the
+ * hosting fee (12 x monthly fee - annual fee). Card surcharge is left out on
+ * purpose. One yearly card charge carries less fixed surcharge than twelve
+ * monthly ones, but that is not a discount we advertise. With no discount
+ * this is 0, so no "save" line is shown.
+ */
+export function annualSavingCents(
+  monthly: HostingQuote | null | undefined,
+  annual: HostingQuote | null | undefined,
+): number {
+  if (!monthly || !annual) return 0
+  return Math.max(0, monthly.baseCents * 12 - annual.baseCents)
+}
+
 export function formatMoney(cents: number, currency = 'aud'): string {
   return new Intl.NumberFormat('en-AU', {
     style: 'currency',

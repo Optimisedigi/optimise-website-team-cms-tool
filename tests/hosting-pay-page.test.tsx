@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import HostingPay from '@/app/(frontend)/hosting-pay/[token]/page'
 import styles from '@/app/(frontend)/hosting-pay/[token]/hosting-pay.module.css'
 
@@ -11,12 +11,17 @@ vi.mock('payload', () => ({
 
 vi.mock('@/payload.config', () => ({ default: {} }))
 
-vi.mock('@/lib/hosting-billing', () => ({
-  hashOfferToken: (token: string) => `hash:${token}`,
-  formatMoney: (cents: number) => `$${(cents / 100).toFixed(2)}`,
-}))
+vi.mock('@/lib/hosting-billing', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/hosting-billing')>()
+  return {
+    annualSavingCents: actual.annualSavingCents,
+    HOSTING_RENEWAL_NOTE_DEFAULT: actual.HOSTING_RENEWAL_NOTE_DEFAULT,
+    hashOfferToken: (token: string) => `hash:${token}`,
+    formatMoney: (cents: number) => `$${(cents / 100).toFixed(2)}`,
+  }
+})
 
-const snapshot = {
+const snapshot: Record<string, any> = {
   selectedInterval: 'month',
   recipientName: 'Saved billing contact',
   monthly: {
@@ -48,7 +53,18 @@ async function renderOffer(client: unknown) {
   render(await HostingPay({ params: Promise.resolve({ token: 'test-token' }) }))
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  // 2 Oct 2026, 10:00 in Sydney. Only Date is faked; timers stay real.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-02T00:00:00.000Z'))
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  delete snapshot.billingStartDate
+  delete snapshot.renewalNote
+})
 
 describe('HostingPay payment review', () => {
   it('places the linked client name inside the payment card', async () => {
@@ -72,13 +88,55 @@ describe('HostingPay payment review', () => {
     const annual = screen.getByRole('radio', { name: /Annual/ })
     expect(monthly).toBeChecked()
     expect(annual).not.toBeChecked()
-    expect(screen.getByText(/debited automatically on the 1st of every month/i)).toBeInTheDocument()
+    expect(
+      screen.getByText('It renews automatically on the 2nd of each month, charged to the same card, until cancelled.'),
+    ).toBeInTheDocument()
 
     fireEvent.click(annual)
 
     expect(annual).toBeChecked()
     expect(screen.getByText('Total charged each year')).toBeInTheDocument()
     expect(screen.getByText(/You pay \$1332\.29 today for 12 months/)).toBeInTheDocument()
+  })
+
+  it('tells the client nothing is charged until a future billing start date', async () => {
+    snapshot.billingStartDate = '2026-11-15'
+    await renderOffer({ id: 42, name: 'Cipher Health' })
+
+    expect(
+      screen.getByText('Nothing is charged today. Your first payment of $111.31 is on 15 November 2026.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/charged automatically on the 15th of each month/)).toBeInTheDocument()
+  })
+
+  it('shows the renewal and cancellation note from settings, or the standard wording', async () => {
+    await renderOffer({ id: 42, name: 'Cipher Health' })
+    expect(screen.getByText(/If you want to stop renting your website, just let us know/)).toBeInTheDocument()
+    cleanup()
+
+    snapshot.renewalNote = 'Custom renewal wording.'
+    await renderOffer({ id: 42, name: 'Cipher Health' })
+    expect(screen.getByText('Custom renewal wording.')).toBeInTheDocument()
+  })
+
+  it('shows no annual saving when the plan has no annual discount', async () => {
+    // The fixture's annual fee is exactly 12 x the monthly fee.
+    await renderOffer({ id: 42, name: 'Cipher Health' })
+
+    expect(screen.queryByText(/Save/)).not.toBeInTheDocument()
+  })
+
+  it('shows the annual discount on the hosting fee as the saving', async () => {
+    // 10% off 12 x $109 = $130.80 off; surcharge differences are not counted.
+    const fullAnnual = snapshot.annual
+    snapshot.annual = { ...fullAnnual, baseCents: 117720, surchargeCents: 2189, totalCents: 119909 }
+    try {
+      await renderOffer({ id: 42, name: 'Cipher Health' })
+
+      expect(screen.getByText('Save $130.80 a year')).toBeInTheDocument()
+    } finally {
+      snapshot.annual = fullAnnual
+    }
   })
 
   it('renders the plan allowance as a bulleted list with exclusions separated', async () => {

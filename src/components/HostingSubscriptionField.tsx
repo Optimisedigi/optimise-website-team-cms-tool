@@ -2,6 +2,7 @@
 
 import { Button, useAuth, useDocumentInfo, useField, useForm } from '@payloadcms/ui'
 import { userHasFeature } from '@/lib/access'
+import { HostingOneOffPayments } from './HostingOneOffPayments'
 import { useEffect, useMemo, useState } from 'react'
 import './HostingSubscriptionField.css'
 
@@ -27,7 +28,7 @@ const annualCentsFrom = (monthlyCents: number, discountPercentage?: number | nul
   return Math.round(monthlyCents * 12 * (1 - applied / 100))
 }
 
-type OfferResult = { url: string; expiresAt: string }
+type OfferResult = { url: string; expiresAt: string; emailSent?: boolean; emailedTo?: string }
 type StopAction = 'end_of_period' | 'immediately' | 'undo'
 type StopResult = {
   subscriptionStatus: string
@@ -81,11 +82,16 @@ export default function HostingSubscriptionField() {
   const { value: billingInterval, setValue: setBillingInterval } = useField<'month' | 'year'>({
     path: 'hostingSubscription.billingInterval',
   })
+  const { value: billingStartDate, setValue: setBillingStartDate } = useField<string>({
+    path: 'hostingSubscription.billingStartDate',
+  })
   const [plans, setPlans] = useState<HostingPlan[]>([])
+  const [currency, setCurrency] = useState('aud')
   const [plansLoading, setPlansLoading] = useState(true)
   const [customPlanSelected, setCustomPlanSelected] = useState(false)
   const [message, setMessage] = useState('')
   const [offerUrl, setOfferUrl] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
   const [creating, setCreating] = useState(false)
   const { value: stripeSubscriptionId } = useField<string>({
     path: 'hostingSubscription.stripeSubscriptionId',
@@ -109,9 +115,10 @@ export default function HostingSubscriptionField() {
       .then((response) =>
         response.ok ? response.json() : Promise.reject(new Error('Plan lookup failed')),
       )
-      .then((settings) =>
-        setPlans((settings.plans || []).filter((plan: HostingPlan) => plan.active !== false)),
-      )
+      .then((settings) => {
+        setPlans((settings.plans || []).filter((plan: HostingPlan) => plan.active !== false))
+        if (typeof settings.currency === 'string' && settings.currency) setCurrency(settings.currency)
+      })
       .catch(() =>
         setMessage('Standard plans could not be loaded. You can still enter a custom plan.'),
       )
@@ -168,7 +175,7 @@ export default function HostingSubscriptionField() {
     if (
       !id ||
       !window.confirm(
-        `Create a seven-day hosting payment offer for ${recipientEmail}? This revokes any current offer.`,
+        `Create a seven-day hosting payment offer and email the payment link to ${recipientEmail}? This revokes any current offer.`,
       )
     )
       return
@@ -187,11 +194,26 @@ export default function HostingSubscriptionField() {
       if (!response.ok || !result.url)
         throw new Error(result.error || 'Could not create the hosting offer.')
       setOfferUrl(result.url)
-      setMessage(`Offer created. It expires ${new Date(result.expiresAt!).toLocaleString()}.`)
+      setLinkCopied(false)
+      const expires = new Date(result.expiresAt!).toLocaleString()
+      setMessage(
+        result.emailSent
+          ? `Offer created and emailed to ${result.emailedTo}. It expires ${expires}.`
+          : `Offer created, but the email could not be sent. Use Copy payment link below and send it to the client yourself. It expires ${expires}.`,
+      )
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not create the hosting offer.')
     } finally {
       setCreating(false)
+    }
+  }
+
+  const copyOfferUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(offerUrl)
+      setLinkCopied(true)
+    } catch {
+      setMessage(`Could not copy automatically. The payment link is: ${offerUrl}`)
     }
   }
 
@@ -304,11 +326,27 @@ export default function HostingSubscriptionField() {
             aria-describedby="hosting-billing-interval-help"
           >
             <option value="">Select an option</option>
-            <option value="month">Monthly (debited on the 1st)</option>
+            <option value="month">Monthly</option>
             <option value="year">Annual</option>
           </select>
           <span id="hosting-billing-interval-help">
             Preselected on the payment page. The client can switch between monthly and annual.
+            Annual clients see only the annual price in the payment link email.
+          </span>
+        </div>
+        <div className="hosting-subscription-field__control">
+          <label htmlFor="hosting-billing-start-date">Billing start date</label>
+          <input
+            id="hosting-billing-start-date"
+            type="date"
+            value={billingStartDate || ''}
+            onChange={(event) => setBillingStartDate(event.target.value || null)}
+            aria-describedby="hosting-billing-start-help"
+          />
+          <span id="hosting-billing-start-help">
+            The day work starts. The first full payment and every renewal fall on this date, each
+            month or each year. Leave blank to start billing on the day the client signs up. A
+            future date means nothing is charged until then.
           </span>
         </div>
       </div>
@@ -325,12 +363,17 @@ export default function HostingSubscriptionField() {
           {creating ? 'Creating offer…' : 'Create hosting offer'}
         </Button>
         {offerUrl && (
-          <a href={offerUrl} target="_blank" rel="noreferrer">
-            Open client payment link
-          </a>
+          <>
+            <a href={offerUrl} target="_blank" rel="noreferrer">
+              Open client payment link
+            </a>
+            <Button type="button" size="small" buttonStyle="secondary" onClick={copyOfferUrl}>
+              {linkCopied ? 'Link copied' : 'Copy payment link'}
+            </Button>
+          </>
         )}
       </div>
-      <p role="status" aria-live="polite">
+      <p role="status" aria-live="polite" aria-label="Hosting offer status">
         {message}
       </p>
 
@@ -387,6 +430,15 @@ export default function HostingSubscriptionField() {
             {stopMessage}
           </p>
         </div>
+      )}
+
+      {id && canStopPayments && (
+        <HostingOneOffPayments
+          clientId={id}
+          recipientEmail={recipientEmail || ''}
+          currency={currency}
+          saveClient={submit}
+        />
       )}
     </section>
   )

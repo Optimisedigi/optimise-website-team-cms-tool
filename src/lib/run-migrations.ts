@@ -6191,6 +6191,9 @@ export async function runMigrations(
       ["hosting_subscription_offer_expires_at", "text"],
       ["hosting_subscription_offer_completed_at", "text"],
       ["hosting_subscription_active_offer_id", "integer"],
+      // 2026-10-02: per-client billing start date. Keep in sync with
+      // src/migrations/20261002_120000_hosting_billing_start_date.ts.
+      ["hosting_subscription_billing_start_date", "text"],
     ] as const) {
       await run(
         `clients.${column[0]}`,
@@ -6208,6 +6211,8 @@ export async function runMigrations(
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`);
+    // 2026-10-02: client-facing renewal/cancellation note (nullable; blank = standard wording).
+    await run("hosting_billing_settings.renewal_note", "ALTER TABLE `hosting_billing_settings` ADD COLUMN `renewal_note` text");
     await run("hosting_billing_settings_plans", `CREATE TABLE IF NOT EXISTS \`hosting_billing_settings_plans\` (
       \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL, \`id\` text PRIMARY KEY NOT NULL,
       \`name\` text NOT NULL, \`description\` text, \`included_allowance\` text NOT NULL,
@@ -6270,6 +6275,16 @@ export async function runMigrations(
       FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
     )`);
     await run("hosting_payment_offers_client_idx", "CREATE INDEX IF NOT EXISTS `hosting_payment_offers_client_idx` ON `hosting_payment_offers` (`client_id`)");
+    // 2026-10-03: one-off hosting payment links. Keep in sync with
+    // src/migrations/20261003_120000_hosting_one_off_payments.ts.
+    await run("hosting_one_off_payments", `CREATE TABLE IF NOT EXISTS \`hosting_one_off_payments\` (
+      \`id\` integer PRIMARY KEY NOT NULL, \`client_id\` integer NOT NULL, \`token_hash\` text NOT NULL UNIQUE,
+      \`status\` text DEFAULT 'active' NOT NULL, \`expires_at\` text NOT NULL, \`stripe_checkout_session_id\` text,
+      \`paid_at\` text, \`snapshot\` text NOT NULL, \`created_at\` text NOT NULL, \`updated_at\` text NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("hosting_one_off_payments_client_idx", "CREATE INDEX IF NOT EXISTS `hosting_one_off_payments_client_idx` ON `hosting_one_off_payments` (`client_id`)");
+    await run("locked_docs_rels.hosting_one_off_payments_id", "ALTER TABLE `payload_locked_documents_rels` ADD `hosting_one_off_payments_id` integer REFERENCES `hosting_one_off_payments`(`id`) ON DELETE cascade");
 
     await run("clients_hosting_subscription_price_changes", `CREATE TABLE IF NOT EXISTS \`clients_hosting_subscription_price_changes\` (
       \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL, \`id\` text PRIMARY KEY NOT NULL,

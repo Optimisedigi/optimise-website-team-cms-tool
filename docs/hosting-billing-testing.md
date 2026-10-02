@@ -157,7 +157,9 @@ On the client's **Billing** tab, the **Current subscription** block (shown once 
 
 API: `POST /api/clients/8/hosting-subscription/stop` with `{"action":"end_of_period" | "immediately" | "undo"}` (needs the `hosting-billing-settings` feature, same as price changes; staff without it see the subscription but no stop buttons).
 
-Monthly subscriptions are anchored to the 1st of each month (02:00 UTC). The first charge is pro-rata to the 1st. Annual subscriptions renew on the sign-up date. The client picks monthly or annual on the payment page; the admin interval is only the default.
+Billing follows the client's **Billing start date** (hosting panel; snapshotted on each offer). Renewals fall on that day each month, or that day and month each year, at 02:00 UTC (shorter months use their last day). Blank or today: charge at sign-up. Future: nothing charged until the start date (Stripe `billing_cycle_anchor`, or a trial ending on it when it is more than one period away, so Stripe shows `trialing`). Past: pro-rata now, renewals pinned to the start day via `billing_cycle_anchor_config`. Offers issued before 2026-10-02 have no start date and bill from sign-up. The client picks monthly or annual on the payment page; the admin interval is only the default, and an annual default makes the email show only the annual price.
+
+To test a future start: set a start date ~2 weeks ahead, create an offer, pay with `4242 4242 4242 4242`, and confirm Stripe shows no charge today and the next invoice on the start date.
 
 The stop endpoint accepts only `Content-Type: application/json` (`415` otherwise), so a form on another site cannot trigger it with a logged-in admin's cookie.
 

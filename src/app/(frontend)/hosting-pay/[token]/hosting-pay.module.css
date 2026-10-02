@@ -354,6 +354,13 @@
   margin-top: 12px;
 }
 
+/* Admin-authored renewal/cancellation note: the term clients most need to see. */
+.terms .renewalNote {
+  color: #14202b;
+  font-weight: 600;
+  white-space: pre-line;
+}
+
 .cancelMessage {
   margin: 14px 0 0;
   color: #52606d;

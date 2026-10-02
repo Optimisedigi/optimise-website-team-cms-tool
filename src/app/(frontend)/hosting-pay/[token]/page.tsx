@@ -1,11 +1,14 @@
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import {
+  annualSavingCents,
   hashOfferToken,
   formatMoney,
+  HOSTING_RENEWAL_NOTE_DEFAULT,
   type HostingInterval,
   type HostingQuote,
 } from '@/lib/hosting-billing'
+import { describeBillingStart, planBillingStart } from '@/lib/hosting-billing-schedule'
 import { parseHostingAllowance } from '@/lib/hosting-allowance'
 import { HostingIntervalChooser, type IntervalOption } from './HostingIntervalChooser'
 import styles from './hosting-pay.module.css'
@@ -17,6 +20,9 @@ type OfferSnapshot = {
   annual: HostingQuote
   selectedInterval?: HostingInterval
   recipientName?: string
+  /** YYYY-MM-DD; absent on offers issued before start dates existed. */
+  billingStartDate?: string | null
+  renewalNote?: string
 }
 
 export default async function HostingPay({ params }: { params: Promise<{ token: string }> }) {
@@ -56,18 +62,26 @@ export default async function HostingPay({ params }: { params: Promise<{ token: 
     (quote): quote is HostingQuote => Boolean(quote?.totalCents),
   )
   const plan = quotes[0]
-  const yearOfMonthly = snapshot.monthly ? snapshot.monthly.totalCents * 12 : 0
+  const yearlySavingCents = annualSavingCents(snapshot.monthly, snapshot.annual)
+  const now = new Date()
   const options: IntervalOption[] = quotes.map((quote) => {
-    const savingCents = quote.interval === 'year' ? yearOfMonthly - quote.totalCents : 0
+    const savingCents = quote.interval === 'year' ? yearlySavingCents : 0
+    const total = formatMoney(quote.totalCents, quote.currency)
     return {
       interval: quote.interval,
       hostingFee: formatMoney(quote.baseCents, quote.currency),
       surcharge: formatMoney(quote.surchargeCents, quote.currency),
-      total: formatMoney(quote.totalCents, quote.currency),
+      total,
       saving:
         savingCents > 0 ? `Save ${formatMoney(savingCents, quote.currency)} a year` : null,
+      schedule: describeBillingStart(
+        planBillingStart(snapshot.billingStartDate, quote.interval, now),
+        quote.interval,
+        total,
+      ),
     }
   })
+  const renewalNote = snapshot.renewalNote?.trim() || HOSTING_RENEWAL_NOTE_DEFAULT
   const allowance = parseHostingAllowance(plan?.allowance)
   const exclusions = allowance.exclusions?.match(/^([^:]+:)\s*([\s\S]*)$/)
   const clientName =
@@ -115,11 +129,10 @@ export default async function HostingPay({ params }: { params: Promise<{ token: 
 
         <section className={styles.terms} aria-labelledby="hosting-terms-title">
           <h2 id="hosting-terms-title">Renewal and capacity terms</h2>
+          <p className={styles.renewalNote}>{renewalNote}</p>
           <p>
-            Monthly plans are debited automatically from your card on the 1st of every month.
-            The first monthly payment is a pro-rata amount covering the days up to the 1st.
-            Annual plans renew automatically each year on the date you sign up. Billing
-            continues until cancelled according to your agreement.
+            Payments are taken automatically from your card on your billing start date, then on
+            that same date each month or each year, depending on the option you choose.
           </p>
           <p>{plan?.clause}</p>
         </section>

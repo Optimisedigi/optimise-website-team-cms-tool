@@ -1,5 +1,6 @@
 import type { GlobalConfig } from "payload";
 import { globalAccess, hideGlobalUnlessFeature } from "../lib/access";
+import { HOSTING_RENEWAL_NOTE_DEFAULT } from "../lib/hosting-billing";
 
 export const HostingBillingSettings: GlobalConfig = {
   slug: "hosting-billing-settings",
@@ -22,6 +23,7 @@ export const HostingBillingSettings: GlobalConfig = {
         { name: "active", type: "checkbox", defaultValue: true },
       ] }] },
       { label: "Client terms", fields: [
+        { name: "renewalNote", label: "Renewal and cancellation note", type: "textarea", defaultValue: HOSTING_RENEWAL_NOTE_DEFAULT, admin: { description: "Shown to clients on the payment page and in the payment link email. Leave blank to use the standard wording. Edits affect future offers only." } },
         { name: "capacityChangeClause", type: "textarea", required: true, defaultValue: "If hosting capacity exceeds the included allowance, we may propose a future price change with written notice. The change will take effect at a future renewal only." },
         { name: "noticeEmailSubject", type: "text", required: true, defaultValue: "Hosting capacity price change notice for {{clientName}}" },
         { name: "noticeEmailBody", type: "textarea", required: true, defaultValue: "Hello {{clientName}},\n\nWe are proposing a hosting price change from {{currentPrice}} to {{newPrice}}, effective on {{effectiveDate}}. Reason: {{reason}}." },
