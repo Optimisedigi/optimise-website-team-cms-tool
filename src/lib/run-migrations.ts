@@ -32,6 +32,18 @@ export type MigrationResult = {
  *  - Statement order matches the legacy POST handler exactly — some ALTERs
  *    depend on prior CREATEs.
  */
+// Shared by the pre-short-circuit step and the full sweep so both stay identical.
+const HOSTING_ONE_OFF_PAYMENTS_TABLE = `CREATE TABLE IF NOT EXISTS \`hosting_one_off_payments\` (
+      \`id\` integer PRIMARY KEY NOT NULL, \`client_id\` integer NOT NULL, \`token_hash\` text NOT NULL UNIQUE,
+      \`status\` text DEFAULT 'active' NOT NULL, \`expires_at\` text NOT NULL, \`stripe_checkout_session_id\` text,
+      \`paid_at\` text, \`snapshot\` text NOT NULL, \`created_at\` text NOT NULL, \`updated_at\` text NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`;
+const HOSTING_ONE_OFF_PAYMENTS_CLIENT_IDX =
+  "CREATE INDEX IF NOT EXISTS `hosting_one_off_payments_client_idx` ON `hosting_one_off_payments` (`client_id`)";
+const HOSTING_ONE_OFF_PAYMENTS_LOCK_REL =
+  "ALTER TABLE `payload_locked_documents_rels` ADD `hosting_one_off_payments_id` integer REFERENCES `hosting_one_off_payments`(`id`) ON DELETE cascade";
+
 export async function runMigrations(
   payload: Payload,
   opts?: { onProgress?: (result: MigrationResult) => void },
@@ -675,6 +687,23 @@ export async function runMigrations(
     await run("clients_client_pulse_services_tracked.drop_duplicate_seo", "DELETE FROM `clients_client_pulse_services_tracked` WHERE `value` = 'seo'");
   }
 
+  // Hosting billing start date, renewal note and one-off payment links
+  // (2026-10-02/03). Must run before the marker short-circuit below: production
+  // carries the marker, so the copies in the hosting section of the main sweep
+  // never run there. Payload selects every flat `clients` column on every read,
+  // so while the start date column is missing every client screen fails.
+  // Fresh databases skip this and get the same statements in the main sweep.
+  async function addHostingStartDateAndOneOffPayments(): Promise<void> {
+    for (const table of ["clients", "hosting_billing_settings", "payload_locked_documents_rels"]) {
+      if (!(await tableExists(table))) return;
+    }
+    await run("clients.hosting_subscription_billing_start_date", "ALTER TABLE `clients` ADD `hosting_subscription_billing_start_date` text");
+    await run("hosting_billing_settings.renewal_note", "ALTER TABLE `hosting_billing_settings` ADD COLUMN `renewal_note` text");
+    await run("hosting_one_off_payments", HOSTING_ONE_OFF_PAYMENTS_TABLE);
+    await run("hosting_one_off_payments_client_idx", HOSTING_ONE_OFF_PAYMENTS_CLIENT_IDX);
+    await run("locked_docs_rels.hosting_one_off_payments_id", HOSTING_ONE_OFF_PAYMENTS_LOCK_REL);
+  }
+
   async function addInThePictureSchema(): Promise<void> {
     // Existing databases must run this before either legacy marker return.
     // Fresh databases create these prerequisites in the full sweep below.
@@ -740,6 +769,7 @@ export async function runMigrations(
     await repairAgencyKpiSnapshotColumns();
     await addOptiMateVoiceAuthMethod();
     await mergeClientPulseSeoService();
+    await addHostingStartDateAndOneOffPayments();
     await addWatchtowerAndSiteHealthSchema();
     await addInThePictureSchema()
 
@@ -6277,14 +6307,9 @@ export async function runMigrations(
     await run("hosting_payment_offers_client_idx", "CREATE INDEX IF NOT EXISTS `hosting_payment_offers_client_idx` ON `hosting_payment_offers` (`client_id`)");
     // 2026-10-03: one-off hosting payment links. Keep in sync with
     // src/migrations/20261003_120000_hosting_one_off_payments.ts.
-    await run("hosting_one_off_payments", `CREATE TABLE IF NOT EXISTS \`hosting_one_off_payments\` (
-      \`id\` integer PRIMARY KEY NOT NULL, \`client_id\` integer NOT NULL, \`token_hash\` text NOT NULL UNIQUE,
-      \`status\` text DEFAULT 'active' NOT NULL, \`expires_at\` text NOT NULL, \`stripe_checkout_session_id\` text,
-      \`paid_at\` text, \`snapshot\` text NOT NULL, \`created_at\` text NOT NULL, \`updated_at\` text NOT NULL,
-      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
-    )`);
-    await run("hosting_one_off_payments_client_idx", "CREATE INDEX IF NOT EXISTS `hosting_one_off_payments_client_idx` ON `hosting_one_off_payments` (`client_id`)");
-    await run("locked_docs_rels.hosting_one_off_payments_id", "ALTER TABLE `payload_locked_documents_rels` ADD `hosting_one_off_payments_id` integer REFERENCES `hosting_one_off_payments`(`id`) ON DELETE cascade");
+    await run("hosting_one_off_payments", HOSTING_ONE_OFF_PAYMENTS_TABLE);
+    await run("hosting_one_off_payments_client_idx", HOSTING_ONE_OFF_PAYMENTS_CLIENT_IDX);
+    await run("locked_docs_rels.hosting_one_off_payments_id", HOSTING_ONE_OFF_PAYMENTS_LOCK_REL);
 
     await run("clients_hosting_subscription_price_changes", `CREATE TABLE IF NOT EXISTS \`clients_hosting_subscription_price_changes\` (
       \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL, \`id\` text PRIMARY KEY NOT NULL,

@@ -172,6 +172,36 @@ describe("runMigrations", () => {
     );
   });
 
+  it("adds the hosting start date, renewal note and one-off payments table when production short-circuits", async () => {
+    // Production state: markers present, so the runner returns early. These were
+    // first shipped only in the main sweep and never reached production, leaving
+    // every client read failing on the missing hosting column.
+    const execute = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("sqlite_master") && /'(landing_|clients'|hosting_billing_settings'|payload_locked_documents_rels')/.test(sql))
+        return { rows: [{ name: "present" }] };
+      if (sql.includes("PRAGMA table_info(`landing_events`)")) return { rows: [{ name: "market" }] };
+      return { rows: [] };
+    });
+    const payload = { db: { client: { execute } } } as any;
+
+    const results = await runMigrations(payload);
+    const statements = execute.mock.calls.map(([sql]) => String(sql));
+
+    expect(results.length).toBeLessThan(100);
+    for (const label of [
+      "clients.hosting_subscription_billing_start_date",
+      "hosting_billing_settings.renewal_note",
+      "hosting_one_off_payments",
+      "hosting_one_off_payments_client_idx",
+      "locked_docs_rels.hosting_one_off_payments_id",
+    ]) {
+      expect(results).toContainEqual({ label, status: "ok" });
+    }
+    expect(statements).toContain("ALTER TABLE `clients` ADD `hosting_subscription_billing_start_date` text");
+    expect(statements).toContain("ALTER TABLE `hosting_billing_settings` ADD COLUMN `renewal_note` text");
+  });
+
   it("adds every client email copy column so saving OptiMate Settings works", async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
     const batch = vi.fn().mockResolvedValue(undefined);
