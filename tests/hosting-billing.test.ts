@@ -7,6 +7,38 @@ import {
   shouldApplyHostingPriceChange,
   validateSurchargeConfig,
 } from '@/lib/hosting-billing'
+import { parseHostingAllowance } from '@/lib/hosting-allowance'
+
+describe('hosting allowance text', () => {
+  it.each([
+    {
+      name: 'inline bullet glyphs with a trailing exclusion',
+      text: '• Updates • Monitoring, with response • 10 GB storage Not included: redesigns.',
+      expected: {
+        intro: null,
+        items: ['Updates', 'Monitoring, with response', '10 GB storage'],
+        exclusions: 'Not included: redesigns.',
+      },
+    },
+    {
+      name: 'one item per line with dashes',
+      text: '- 10GB storage\n- 100GB bandwidth',
+      expected: { intro: null, items: ['10GB storage', '100GB bandwidth'], exclusions: null },
+    },
+    {
+      name: 'a lead-in before the first bullet',
+      text: 'Includes: • A • B',
+      expected: { intro: 'Includes:', items: ['A', 'B'], exclusions: null },
+    },
+    {
+      name: 'a single sentence',
+      text: '10GB storage, 100GB bandwidth/month',
+      expected: { intro: '10GB storage, 100GB bandwidth/month', items: [], exclusions: null },
+    },
+  ])('parses $name', ({ text, expected }) => {
+    expect(parseHostingAllowance(text)).toEqual(expected)
+  })
+})
 
 describe('hosting billing quotes', () => {
   it('grosses up and rounds to cents', () =>

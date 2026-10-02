@@ -52,6 +52,38 @@ describe('hosting Checkout cancellation', () => {
     )
   })
 
+  it.each([
+    { interval: 'month' as const, anchored: true },
+    { interval: 'year' as const, anchored: false },
+  ])('anchors only monthly billing to the 1st ($interval)', async ({ interval, anchored }) => {
+    await createHostingCheckout({
+      clientId: '42',
+      offerId: '99',
+      email: 'billing@example.com',
+      idempotencyKey: 'checkout-test',
+      quote: {
+        currency: 'aud',
+        interval,
+        planName: 'Website Hosting',
+        allowance: '10GB',
+        clause: 'Terms',
+        baseCents: 10000,
+        surchargeCents: 0,
+        totalCents: 10000,
+      },
+    })
+
+    const subscriptionData = createSession.mock.calls[0]?.[0]?.subscription_data
+    if (anchored) {
+      expect(subscriptionData).toMatchObject({
+        billing_cycle_anchor_config: { day_of_month: 1 },
+        proration_behavior: 'create_prorations',
+      })
+    } else {
+      expect(subscriptionData).not.toHaveProperty('billing_cycle_anchor_config')
+    }
+  })
+
   it('renders a return link only for an internal hosting payment path', async () => {
     render(await CancelPage({ searchParams: Promise.resolve({ return_to: '/hosting-pay/valid-token' }) }))
 

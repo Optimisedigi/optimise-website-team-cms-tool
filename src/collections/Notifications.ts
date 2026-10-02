@@ -121,6 +121,10 @@ export const Notifications: CollectionConfig = {
           label: "Team task mention",
           value: "team-task-mention",
         },
+        {
+          label: "Duplicate hosting subscription",
+          value: "hosting-duplicate-subscription",
+        },
       ],
     },
     {

@@ -7,11 +7,13 @@ type Field = { value: unknown; setValue: ReturnType<typeof vi.fn> }
 
 const fields: Record<string, Field> = {}
 const submit = vi.fn().mockResolvedValue(undefined)
+const auth: { user: Record<string, unknown> | null } = { user: { id: 1, role: 'admin' } }
 
 vi.mock('@payloadcms/ui', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
   ),
+  useAuth: () => auth,
   useDocumentInfo: () => ({ id: 42 }),
   useForm: () => ({ submit }),
   useField: ({ path }: { path: string }) => {
@@ -41,6 +43,7 @@ async function renderPanel() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  auth.user = { id: 1, role: 'admin' }
   for (const path of Object.keys(fields)) delete fields[path]
   setField('contactEmail', 'contact@example.com')
   setField('hostingSubscription.planName', 'Care Plan')
@@ -107,5 +110,52 @@ describe('HostingSubscriptionField billing recipient', () => {
       '/api/clients/42/hosting-offers',
       { method: 'POST', credentials: 'include' },
     ))
+  })
+})
+
+describe('HostingSubscriptionField stopping payments', () => {
+  it('hides stop controls when the client has no subscription', async () => {
+    await renderPanel()
+
+    expect(screen.queryByRole('button', { name: /Stop payments immediately/ })).not.toBeInTheDocument()
+  })
+
+  it('stops payments at the end of the period and reflects the result', async () => {
+    setField('hostingSubscription.stripeSubscriptionId', 'sub_123')
+    setField('hostingSubscription.subscriptionStatus', 'active')
+    setField('hostingSubscription.cancelAtPeriodEnd', false)
+    setField('hostingSubscription.currentPeriodEnd', '2026-11-01T02:00:00.000Z')
+    await renderPanel()
+    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        subscriptionStatus: 'active',
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: '2026-11-01T02:00:00.000Z',
+      }),
+    })
+
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Stop at end of current period' })),
+    )
+
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/clients/42/hosting-subscription/stop', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'end_of_period' }),
+    })
+    await waitFor(() => expect(fields['hostingSubscription.cancelAtPeriodEnd'].value).toBe(true))
+    expect(screen.getByText(/Payments will stop on 1 November 2026/)).toBeInTheDocument()
+  })
+
+  it('shows the subscription but no stop controls to staff without billing permission', async () => {
+    auth.user = { id: 2, role: 'user', featureAccess: ['clients'] }
+    setField('hostingSubscription.stripeSubscriptionId', 'sub_123')
+    setField('hostingSubscription.subscriptionStatus', 'active')
+    await renderPanel()
+
+    expect(screen.getByText('Current subscription')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Stop/ })).not.toBeInTheDocument()
   })
 })

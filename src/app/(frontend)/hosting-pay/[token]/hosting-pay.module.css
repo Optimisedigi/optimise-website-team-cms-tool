@@ -75,22 +75,7 @@
 }
 
 .clientName {
-  margin: 0 0 14px;
-  color: #14202b;
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-
-.interval {
-  margin: 0 0 2px;
-  color: #52606d;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.planName {
-  margin: 0;
+  margin: 0 0 6px;
   color: #14202b;
   font-size: 24px;
   font-weight: 650;
@@ -98,13 +83,149 @@
   line-height: 1.25;
 }
 
-.allowance {
+.planName {
+  margin: 0;
+  color: #14202b;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.allowanceIntro,
+.allowanceExclusions {
   margin: 12px 0 0;
   color: #52606d;
   font-size: 15px;
   line-height: 1.5;
-  /* Admins author the allowance as a multi-line list; keep their line breaks. */
-  white-space: pre-line;
+}
+
+.allowanceExclusions strong {
+  color: #394754;
+  font-weight: 650;
+}
+
+.allowanceList {
+  margin: 12px 0 0;
+  padding: 0 0 0 20px;
+  color: #52606d;
+  font-size: 15px;
+  line-height: 1.5;
+  list-style: disc;
+}
+
+.allowanceList li + li {
+  margin-top: 6px;
+}
+
+.allowanceList li::marker {
+  color: #8795a1;
+}
+
+.chooser {
+  margin: 0;
+  padding: 20px 28px 4px;
+  border: 0;
+}
+
+.chooserLegend {
+  margin: 0 0 12px;
+  padding: 0;
+  color: #14202b;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.chooserOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.chooserOption {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 14px 44px;
+  background: #ffffff;
+  border: 1px solid #c9d2da;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.chooserOption:hover {
+  border-color: #8795a1;
+}
+
+.chooserOption:has(input:checked) {
+  border-color: #14202b;
+  box-shadow: 0 0 0 1px #14202b;
+}
+
+.chooserOption:has(input:focus-visible) {
+  outline: 3px solid #2b84b8;
+  outline-offset: 2px;
+}
+
+.chooserOption input {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #14202b;
+}
+
+.chooserTitle {
+  color: #14202b;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.chooserPrice {
+  color: #14202b;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.chooserPrice span {
+  color: #66737f;
+  font-weight: 400;
+}
+
+.chooserSaving {
+  color: #1f6f43;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.debitNotice {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #dce2e7;
+  border-left: 4px solid #14202b;
+  border-radius: 8px;
+}
+
+.debitNotice p {
+  margin: 0;
+  color: #52606d;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.debitNotice p + p {
+  margin-top: 4px;
+}
+
+.debitNotice strong {
+  color: #14202b;
+  font-size: 15px;
+  font-weight: 650;
 }
 
 .pricing {
@@ -292,9 +413,14 @@
   }
 
   .plan,
+  .chooser,
   .actionArea,
   .terms {
     padding-inline: 20px;
+  }
+
+  .chooserOptions {
+    grid-template-columns: 1fr;
   }
 
   .pricing {
@@ -309,6 +435,8 @@
 @media (forced-colors: active) {
   .reviewCard,
   .terms,
+  .chooserOption,
+  .debitNotice,
   .actionArea button {
     border-color: CanvasText;
   }

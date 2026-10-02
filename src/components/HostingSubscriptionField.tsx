@@ -1,6 +1,7 @@
 'use client'
 
-import { Button, useDocumentInfo, useField, useForm } from '@payloadcms/ui'
+import { Button, useAuth, useDocumentInfo, useField, useForm } from '@payloadcms/ui'
+import { userHasFeature } from '@/lib/access'
 import { useEffect, useMemo, useState } from 'react'
 import './HostingSubscriptionField.css'
 
@@ -27,7 +28,38 @@ const annualCentsFrom = (monthlyCents: number, discountPercentage?: number | nul
 }
 
 type OfferResult = { url: string; expiresAt: string }
+type StopAction = 'end_of_period' | 'immediately' | 'undo'
+type StopResult = {
+  subscriptionStatus: string
+  cancelAtPeriodEnd: boolean
+  currentPeriodEnd: string | null
+}
 const CUSTOM_PLAN = '__custom__'
+
+const STATUS_LABELS: Record<string, string> = {
+  active: 'Active',
+  trialing: 'Active',
+  past_due: 'Payment overdue',
+  unpaid: 'Unpaid',
+  payment_failed: 'Last payment failed',
+  incomplete: 'Awaiting first payment',
+  incomplete_expired: 'First payment expired',
+  canceled: 'Stopped',
+  paused: 'Paused',
+}
+
+const formatDate = (value?: string | null) =>
+  value
+    ? new Date(value).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+    : ''
+
+const STOP_CONFIRMATIONS: Record<StopAction, (endDate: string) => string> = {
+  end_of_period: (endDate) =>
+    `Stop hosting payments at the end of the current period${endDate ? ` (${endDate})` : ''}? The client will not be charged again.`,
+  immediately: () =>
+    'Stop hosting payments immediately? The subscription ends now and no refund is issued automatically. This cannot be undone.',
+  undo: () => 'Undo the scheduled stop? Payments will continue as normal.',
+}
 
 export default function HostingSubscriptionField() {
   const { id } = useDocumentInfo()
@@ -55,6 +87,22 @@ export default function HostingSubscriptionField() {
   const [message, setMessage] = useState('')
   const [offerUrl, setOfferUrl] = useState('')
   const [creating, setCreating] = useState(false)
+  const { value: stripeSubscriptionId } = useField<string>({
+    path: 'hostingSubscription.stripeSubscriptionId',
+  })
+  const { value: subscriptionStatus, setValue: setSubscriptionStatus } = useField<string>({
+    path: 'hostingSubscription.subscriptionStatus',
+  })
+  const { value: cancelAtPeriodEnd, setValue: setCancelAtPeriodEnd } = useField<boolean>({
+    path: 'hostingSubscription.cancelAtPeriodEnd',
+  })
+  const { value: currentPeriodEnd, setValue: setCurrentPeriodEnd } = useField<string>({
+    path: 'hostingSubscription.currentPeriodEnd',
+  })
+  const { user } = useAuth()
+  const canStopPayments = userHasFeature(user, 'hosting-billing-settings')
+  const [stopping, setStopping] = useState<StopAction | null>(null)
+  const [stopMessage, setStopMessage] = useState('')
 
   useEffect(() => {
     fetch('/api/globals/hosting-billing-settings?depth=0', { credentials: 'include' })
@@ -147,6 +195,47 @@ export default function HostingSubscriptionField() {
     }
   }
 
+  const stopPayments = async (action: StopAction) => {
+    if (!id || !window.confirm(STOP_CONFIRMATIONS[action](formatDate(currentPeriodEnd)))) return
+    setStopping(action)
+    setStopMessage('Updating Stripe…')
+    try {
+      const response = await fetch(`/api/clients/${id}/hosting-subscription/stop`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const result = (await response.json().catch(() => ({}))) as Partial<StopResult> & {
+        error?: string
+      }
+      if (!response.ok) throw new Error(result.error || 'Could not update the subscription.')
+      // Keep form state in step with the saved record so a later Save does not
+      // write the old subscription state back.
+      setSubscriptionStatus(result.subscriptionStatus)
+      setCancelAtPeriodEnd(Boolean(result.cancelAtPeriodEnd))
+      if (result.currentPeriodEnd) setCurrentPeriodEnd(result.currentPeriodEnd)
+      setStopMessage(
+        action === 'undo'
+          ? 'Scheduled stop removed. Payments will continue.'
+          : action === 'immediately'
+            ? 'Payments stopped. The subscription has ended.'
+            : `Payments will stop on ${formatDate(result.currentPeriodEnd)}.`,
+      )
+    } catch (error) {
+      setStopMessage(error instanceof Error ? error.message : 'Could not update the subscription.')
+    } finally {
+      setStopping(null)
+    }
+  }
+
+  const isStopped = subscriptionStatus === 'canceled'
+  const statusLabel = isStopped
+    ? 'Stopped'
+    : cancelAtPeriodEnd
+      ? `Stopping on ${formatDate(currentPeriodEnd)}`
+      : STATUS_LABELS[subscriptionStatus || ''] || subscriptionStatus || 'Unknown'
+
   return (
     <section className="hosting-subscription-field" aria-labelledby="hosting-subscription-heading">
       <header className="hosting-subscription-field__header">
@@ -207,16 +296,20 @@ export default function HostingSubscriptionField() {
           </span>
         </div>
         <div className="hosting-subscription-field__control">
-          <label htmlFor="hosting-billing-interval">Billing interval</label>
+          <label htmlFor="hosting-billing-interval">Default billing option</label>
           <select
             id="hosting-billing-interval"
             value={billingInterval || ''}
             onChange={(event) => setBillingInterval(event.target.value as 'month' | 'year')}
+            aria-describedby="hosting-billing-interval-help"
           >
-            <option value="">Select an interval</option>
-            <option value="month">Monthly</option>
+            <option value="">Select an option</option>
+            <option value="month">Monthly (debited on the 1st)</option>
             <option value="year">Annual</option>
           </select>
+          <span id="hosting-billing-interval-help">
+            Preselected on the payment page. The client can switch between monthly and annual.
+          </span>
         </div>
       </div>
       <div className="hosting-subscription-field__actions">
@@ -240,6 +333,61 @@ export default function HostingSubscriptionField() {
       <p role="status" aria-live="polite">
         {message}
       </p>
+
+      {stripeSubscriptionId && (
+        <div className="hosting-subscription-field__subscription">
+          <h3>Current subscription</h3>
+          <dl>
+            <div>
+              <dt>Status</dt>
+              <dd>{statusLabel}</dd>
+            </div>
+            {!isStopped && currentPeriodEnd && (
+              <div>
+                <dt>{cancelAtPeriodEnd ? 'Paid until' : 'Next payment'}</dt>
+                <dd>{formatDate(currentPeriodEnd)}</dd>
+              </div>
+            )}
+          </dl>
+          {!isStopped && canStopPayments && (
+            <div className="hosting-subscription-field__actions">
+              {cancelAtPeriodEnd ? (
+                <Button
+                  type="button"
+                  size="small"
+                  buttonStyle="secondary"
+                  disabled={stopping !== null}
+                  onClick={() => stopPayments('undo')}
+                >
+                  {stopping === 'undo' ? 'Updating…' : 'Undo scheduled stop'}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="small"
+                  buttonStyle="secondary"
+                  disabled={stopping !== null}
+                  onClick={() => stopPayments('end_of_period')}
+                >
+                  {stopping === 'end_of_period' ? 'Updating…' : 'Stop at end of current period'}
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="small"
+                buttonStyle="error"
+                disabled={stopping !== null}
+                onClick={() => stopPayments('immediately')}
+              >
+                {stopping === 'immediately' ? 'Stopping…' : 'Stop payments immediately'}
+              </Button>
+            </div>
+          )}
+          <p role="status" aria-live="polite">
+            {stopMessage}
+          </p>
+        </div>
+      )}
     </section>
   )
 }

@@ -6,6 +6,8 @@ import {
   type HostingInterval,
   type HostingQuote,
 } from '@/lib/hosting-billing'
+import { parseHostingAllowance } from '@/lib/hosting-allowance'
+import { HostingIntervalChooser, type IntervalOption } from './HostingIntervalChooser'
 import styles from './hosting-pay.module.css'
 
 export const metadata = { robots: { index: false, follow: false }, title: 'Review hosting billing' }
@@ -49,9 +51,25 @@ export default async function HostingPay({ params }: { params: Promise<{ token: 
     )
 
   const snapshot = offer.snapshot as OfferSnapshot
-  const quotes = snapshot.selectedInterval
-    ? [snapshot.selectedInterval === 'month' ? snapshot.monthly : snapshot.annual]
-    : [snapshot.monthly, snapshot.annual]
+  // The client always chooses monthly or annual; the admin's pick is only the default.
+  const quotes = [snapshot.monthly, snapshot.annual].filter(
+    (quote): quote is HostingQuote => Boolean(quote?.totalCents),
+  )
+  const plan = quotes[0]
+  const yearOfMonthly = snapshot.monthly ? snapshot.monthly.totalCents * 12 : 0
+  const options: IntervalOption[] = quotes.map((quote) => {
+    const savingCents = quote.interval === 'year' ? yearOfMonthly - quote.totalCents : 0
+    return {
+      interval: quote.interval,
+      hostingFee: formatMoney(quote.baseCents, quote.currency),
+      surcharge: formatMoney(quote.surchargeCents, quote.currency),
+      total: formatMoney(quote.totalCents, quote.currency),
+      saving:
+        savingCents > 0 ? `Save ${formatMoney(savingCents, quote.currency)} a year` : null,
+    }
+  })
+  const allowance = parseHostingAllowance(plan?.allowance)
+  const exclusions = allowance.exclusions?.match(/^([^:]+:)\s*([\s\S]*)$/)
   const clientName =
     typeof offer.client === 'object' && offer.client?.name
       ? offer.client.name
@@ -63,56 +81,47 @@ export default async function HostingPay({ params }: { params: Promise<{ token: 
           <img src="/Optimise-Digital-Logo-rocket-animation%20(larger%20file).gif" alt="Optimise Digital" />
         </a>
         <section aria-label="Hosting billing">
-          {quotes.map((quote) => (
-            <article className={styles.reviewCard} key={quote.interval}>
-              <header className={styles.plan}>
-                <p className={styles.clientName}>{clientName}</p>
-                <p className={styles.interval}>
-                  {quote.interval === 'month' ? 'Monthly billing' : 'Annual billing'}
+          <article className={styles.reviewCard}>
+            <header className={styles.plan}>
+              <p className={styles.clientName}>{clientName}</p>
+              <h2 className={styles.planName}>{plan?.planName}</h2>
+              {allowance.intro && <p className={styles.allowanceIntro}>{allowance.intro}</p>}
+              {allowance.items.length > 0 && (
+                <ul className={styles.allowanceList}>
+                  {allowance.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
+              {allowance.exclusions && (
+                <p className={styles.allowanceExclusions}>
+                  {exclusions ? (
+                    <>
+                      <strong>{exclusions[1]}</strong> {exclusions[2]}
+                    </>
+                  ) : (
+                    allowance.exclusions
+                  )}
                 </p>
-                <h2 className={styles.planName}>{quote.planName}</h2>
-                <p className={styles.allowance}>{quote.allowance}</p>
-              </header>
-              <dl className={styles.pricing}>
-                <div className={styles.priceRow}>
-                  <dt>Hosting fee</dt>
-                  <dd>{formatMoney(quote.baseCents, quote.currency)}</dd>
-                </div>
-                <div className={styles.priceRow}>
-                  <dt>Card processing surcharge</dt>
-                  <dd>{formatMoney(quote.surchargeCents, quote.currency)}</dd>
-                </div>
-                <div className={`${styles.priceRow} ${styles.totalRow}`}>
-                  <dt>Total charged each {quote.interval}</dt>
-                  <dd>{formatMoney(quote.totalCents, quote.currency)}</dd>
-                </div>
-              </dl>
-              <div className={styles.actionArea}>
-                <form action={`/api/hosting-pay/${token}/checkout`} method="post">
-                  <input type="hidden" name="interval" value={quote.interval} />
-                  <button type="submit">
-                    Continue securely to Stripe
-                    <svg aria-hidden="true" viewBox="0 0 24 24">
-                      <rect x="5" y="10" width="14" height="10" rx="2" />
-                      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-                    </svg>
-                  </button>
-                </form>
-                <p className={styles.securityNote}>
-                  Payment details are entered securely on Stripe.
-                </p>
-              </div>
-            </article>
-          ))}
+              )}
+            </header>
+            <HostingIntervalChooser
+              token={token}
+              options={options}
+              defaultInterval={snapshot.selectedInterval ?? 'month'}
+            />
+          </article>
         </section>
 
         <section className={styles.terms} aria-labelledby="hosting-terms-title">
           <h2 id="hosting-terms-title">Renewal and capacity terms</h2>
           <p>
-            Billing renews automatically each selected period until cancelled according to your
-            agreement.
+            Monthly plans are debited automatically from your card on the 1st of every month.
+            The first monthly payment is a pro-rata amount covering the days up to the 1st.
+            Annual plans renew automatically each year on the date you sign up. Billing
+            continues until cancelled according to your agreement.
           </p>
-          <p>{snapshot.monthly.clause}</p>
+          <p>{plan?.clause}</p>
         </section>
         <p className={styles.footer}>
           <a

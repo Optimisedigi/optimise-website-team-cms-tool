@@ -98,6 +98,23 @@ export function shouldApplyHostingPriceChange(
   return Number.isFinite(effectiveAt) && effectiveAt <= now.getTime() + leadTimeMs
 }
 
+/** Stripe statuses after which a subscription can never charge the card again. */
+const ENDED_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
+
+export function isEndedSubscriptionStatus(status: string | null | undefined): boolean {
+  return ENDED_SUBSCRIPTION_STATUSES.has(String(status ?? ''))
+}
+
+/**
+ * True while the client's recorded subscription can still bill them. Used to
+ * refuse a second payment link so one client is never charged twice.
+ */
+export function hasLiveHostingSubscription(
+  hosting: { stripeSubscriptionId?: string | null; subscriptionStatus?: string | null } | null | undefined,
+): boolean {
+  return Boolean(hosting?.stripeSubscriptionId) && !isEndedSubscriptionStatus(hosting?.subscriptionStatus)
+}
+
 export function hashOfferToken(token: string): string {
   const crypto = require('crypto') as typeof import('crypto')
   return crypto.createHash('sha256').update(token).digest('hex')

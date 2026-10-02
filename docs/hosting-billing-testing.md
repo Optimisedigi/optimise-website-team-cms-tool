@@ -47,13 +47,13 @@ If the `whsec_…` printed by `stripe listen` differs from `STRIPE_WEBHOOK_SECRE
 3. Set:
    - **Plan name** → `Care Plan — Standard` (auto-fills allowance + both fee fields), or **Custom plan** to type your own.
    - **Monthly fee** → dollars; annual auto-sets to `monthly × 12`. Need a discounted annual? Edit the plan in the global instead.
-   - **Billing interval** → Monthly or Annual. This is what the client sees; the other cadence is hidden.
+   - **Default billing option** → Monthly or Annual. This is only preselected; the client can switch on the payment page. The frequency they pay with is recorded on the client when Stripe confirms the subscription.
 4. Click **Create hosting offer** → confirm. It saves the client first, then creates the offer.
 5. Status line shows the expiry; click **Open client payment link** (or copy the URL).
 
 **There is no offer email.** Nothing sends the link to the client — the admin copies it out of this panel and sends it manually. If you want emailed delivery, that's a feature gap to build, not a config toggle.
 
-Each new offer **revokes** the previous one, so old links die immediately.
+Each new offer **revokes** the previous one and closes its open Stripe page, so old links die immediately. It is refused while the client already has a live subscription (see section 9).
 
 ---
 
@@ -61,14 +61,14 @@ Each new offer **revokes** the previous one, so old links die immediately.
 
 Open the link in a **private/incognito window** — that's the real client experience (no CMS session, and it proves the token gate works).
 
-You should see: plan name, allowance, hosting fee, card processing surcharge, total per period, then the renewal + capacity clause. One card only, matching the interval you picked.
+You should see: client name, plan name, the allowance as a bulleted list, a Monthly/Annual choice (the admin's default preselected), hosting fee, card processing surcharge and total for the selected option, a debit notice, then the renewal + capacity clause.
 
-1. **Continue to Stripe** → Stripe Checkout, showing two line items (`… hosting` and `Card processing surcharge`).
+1. **Continue to Stripe** → Stripe Checkout, showing one recurring line item: the plan name at the total (hosting + surcharge combined). Monthly shows a smaller pro-rata amount today, "then … per month starting on" the next 1st.
 2. Pay with `4242 4242 4242 4242`, any future expiry, any CVC, any postcode.
 3. Land on `/hosting-pay/success`.
 
 Other client paths worth walking while refining:
-- Cancel in Stripe → `/hosting-pay/cancel`; reopening the link resumes the **same** Stripe session.
+- Cancel in Stripe → `/hosting-pay/cancel`; reopening the link with the same option resumes the **same** Stripe session. Picking the other option expires it and opens a new one.
 - Reopen after paying → `410`, "already been used".
 - Expired/revoked/garbage token → "Payment link unavailable".
 
@@ -142,9 +142,37 @@ curl -s -X POST http://localhost:3004/api/clients/8/hosting-price-changes \
 curl -s http://localhost:3004/api/hosting-subscriptions/sweep -H "x-api-key: $AUDIT_API_KEY"
 ```
 
-The Brevo notice sends **before** anything is stored: if email fails you get `502` and no pending change. The sweep only applies changes that are `pending`, have `noticeSentAt`, and fall within 2 hours of `effectiveAt` — shift `effectiveAt` to ~now to test without waiting.
+The Brevo notice sends **before** anything is stored: if email fails you get `502` and no pending change. The sweep only applies changes that are `pending`, have `noticeSentAt`, and fall within 2 hours of `effectiveAt`. To test without waiting, shift `effectiveAt` to ~now directly in the local database: the admin UI and REST API can no longer edit `priceChanges` (see section 9).
 
 Cancel a pending one: `POST /api/clients/8/hosting-price-changes/<changeId>/cancel`.
+
+---
+
+## 8. Stopping a subscription
+
+On the client's **Billing** tab, the **Current subscription** block (shown once a subscription exists) has:
+
+- **Stop at end of current period**: no further charges; hosting stays paid until the period ends. Reversible with **Undo scheduled stop**.
+- **Stop payments immediately**: cancels now. Stripe does not refund automatically.
+
+API: `POST /api/clients/8/hosting-subscription/stop` with `{"action":"end_of_period" | "immediately" | "undo"}` (needs the `hosting-billing-settings` feature, same as price changes; staff without it see the subscription but no stop buttons).
+
+Monthly subscriptions are anchored to the 1st of each month (02:00 UTC). The first charge is pro-rata to the 1st. Annual subscriptions renew on the sign-up date. The client picks monthly or annual on the payment page; the admin interval is only the default.
+
+The stop endpoint accepts only `Content-Type: application/json` (`415` otherwise), so a form on another site cannot trigger it with a logged-in admin's cookie.
+
+---
+
+## 9. Double-charge and tampering guards
+
+- **One live subscription per client.** "Create hosting offer" returns `409` while the client's subscription is live (any status except `canceled` / `incomplete_expired`). Stop it first, or use a price change.
+- **Reissuing a link closes the old Stripe page.** The previous offer's open Checkout session is expired before the offer is revoked. If that session was just paid, or Stripe cannot be reached, the route returns `409` and keeps the old offer untouched.
+- **Checkout fails closed.** If Stripe cannot be reached when looking up the existing session, the client gets `503` instead of a second checkout. Only a session Stripe reports as `resource_missing` is replaced. Checkout also returns `409` when the client already has a live subscription.
+- **Simultaneous clicks open one session.** The Stripe request key is per checkout attempt, not per option, so a monthly and an annual request arriving together cannot both open sessions; the loser gets `409`.
+- **Price changes follow the real frequency.** Scheduling reads monthly/annual from the Stripe subscription itself, and the webhook records it on the client. Item IDs from an ended subscription are never carried over to a new one.
+- **Webhook never overwrites a live subscription.** If Stripe reports a different subscription while the recorded one is live, the client record is left unchanged and every admin gets a "Duplicate hosting subscription" bell notification. Cancel and refund the duplicate in Stripe. Its invoices are also ignored, so they can't mark the client as failed.
+- **Offers are only marked paid for the client they belong to.**
+- **Server-managed fields are locked.** Stripe IDs, subscription status and period, offer bookkeeping, and `priceChanges` can only be written by server routes. Staff edits through the admin or REST API are silently dropped and the saved value is kept. `hosting-payment-offers` records are read-only for everyone (create/update only via the offer and checkout routes). Plan, fees, recipient and default interval stay editable.
 
 ---
 

@@ -4,7 +4,9 @@ import { canAccess, adminOnlyDelete, hideUnlessAnyFeature } from "../lib/access"
 export const HostingPaymentOffers: CollectionConfig = {
   slug: "hosting-payment-offers",
   admin: { group: "Finance", hidden: hideUnlessAnyFeature("clients"), useAsTitle: "id" },
-  access: { read: canAccess("clients"), create: canAccess("clients"), update: canAccess("clients"), delete: adminOnlyDelete },
+  // Offers are issued and updated only by server routes (overrideAccess). Staff
+  // can view them, but a hand-made or edited offer could carry any price.
+  access: { read: canAccess("clients"), create: () => false, update: () => false, delete: adminOnlyDelete },
   fields: [
     { name: "client", type: "relationship", relationTo: "clients", required: true, index: true },
     { name: "tokenHash", type: "text", required: true, unique: true, access: { read: () => false } },

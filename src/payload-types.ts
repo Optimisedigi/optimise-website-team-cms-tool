@@ -11065,7 +11065,8 @@ export interface Notification {
     | 'meeting-response-accepted'
     | 'meeting-response-declined'
     | 'meeting-confirmed'
-    | 'team-task-mention';
+    | 'team-task-mention'
+    | 'hosting-duplicate-subscription';
   title: string;
   /**
    * Short summary line.

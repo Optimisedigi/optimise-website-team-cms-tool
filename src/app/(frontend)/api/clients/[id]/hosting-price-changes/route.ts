@@ -4,6 +4,7 @@ import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import { createHostingQuote, formatMoney } from '@/lib/hosting-billing'
 import { sendBrevoEmail } from '@/lib/brevo-email'
+import { getHostingSubscriptionItems } from '@/lib/stripe'
 
 function renderTemplate(template: string, values: Record<string, string>): string {
   return Object.entries(values).reduce(
@@ -59,6 +60,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     )
   }
 
+  // Price the change at the frequency Stripe actually bills (the client picks
+  // monthly or annual at checkout), never the admin's default. A mismatch would
+  // put a monthly price on an annual subscription and change its billing cycle.
+  let interval: 'month' | 'year' | undefined
+  try {
+    interval = (await getHostingSubscriptionItems(hosting.stripeSubscriptionId)).interval
+  } catch {
+    return NextResponse.json(
+      { error: 'Could not read the subscription from Stripe. Nothing was scheduled.' },
+      { status: 502 },
+    )
+  }
+  if (!interval) {
+    return NextResponse.json(
+      { error: 'Could not tell whether this subscription is monthly or annual. Nothing was scheduled.' },
+      { status: 422 },
+    )
+  }
+
   const surcharge = {
     percentage: Number(settings.cardSurchargePercentage),
     fixedCents: Number(settings.cardSurchargeFixedCents),
@@ -71,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     surcharge,
   }
   const quote =
-    hosting.billingInterval === 'year'
+    interval === 'year'
       ? createHostingQuote({
           ...shared,
           baseCents: Number(body.annualBaseCents),
@@ -83,7 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           interval: 'month',
         })
   const current =
-    hosting.billingInterval === 'year'
+    interval === 'year'
       ? createHostingQuote({
           ...shared,
           baseCents: Number(hosting.annualBaseCents),

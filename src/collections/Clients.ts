@@ -35,6 +35,14 @@ import {
   startInitialGoogleAdsSnapshot,
 } from "../lib/google-ads-audit-bootstrap";
 
+/**
+ * Hosting fields only server code may write (Stripe webhook, offer, stop and
+ * price-change routes, all using overrideAccess). Staff edits through the admin
+ * or REST API are dropped and the saved value kept, so nobody can bypass the
+ * price-change notice process or point the CMS at a different subscription.
+ */
+const SERVER_MANAGED_HOSTING_FIELD = { create: () => false, update: () => false };
+
 const restrictBlogTaxonomyUpdates: CollectionBeforeChangeHook = ({ data, operation, req }) => {
   if (
     operation === "update" &&
@@ -1509,21 +1517,21 @@ export const Clients: CollectionConfig = {
                     { name: "recipientName", type: "text", admin: { hidden: true } },
                     { name: "recipientEmail", type: "email", admin: { hidden: true } },
                     { name: "billingInterval", type: "select", options: ["month", "year"], admin: { hidden: true } },
-                    { name: "stripeCustomerId", type: "text", admin: { hidden: true } },
-                    { name: "stripeSubscriptionId", type: "text", admin: { hidden: true } },
-                    { name: "stripeHostingItemId", type: "text", admin: { hidden: true } },
-                    { name: "stripeSurchargeItemId", type: "text", admin: { hidden: true } },
-                    { name: "stripeLatestInvoiceId", type: "text", admin: { hidden: true } },
-                    { name: "subscriptionStatus", type: "text", admin: { hidden: true } },
-                    { name: "currentPeriodEnd", type: "date", admin: { hidden: true } },
-                    { name: "cancelAtPeriodEnd", type: "checkbox", admin: { hidden: true } },
-                    { name: "providerEventCreatedAt", type: "date", admin: { hidden: true } },
-                    { name: "providerEventId", type: "text", admin: { hidden: true } },
-                    { name: "activeOffer", type: "relationship", relationTo: "hosting-payment-offers", admin: { hidden: true } },
-                    { name: "offerCreatedAt", type: "date", admin: { hidden: true } },
-                    { name: "offerExpiresAt", type: "date", admin: { hidden: true } },
-                    { name: "offerCompletedAt", type: "date", admin: { hidden: true } },
-                    { name: "priceChanges", type: "array", admin: { hidden: true }, fields: [{ name: "status", type: "select", options: ["pending", "canceled", "applied", "failed"] }, { name: "reason", type: "textarea" }, { name: "effectiveAt", type: "date" }, { name: "oldQuote", type: "json" }, { name: "newQuote", type: "json" }, { name: "noticeSentAt", type: "date" }, { name: "noticeMessageId", type: "text" }, { name: "appliedAt", type: "date" }, { name: "stripeReference", type: "text" }, { name: "lastError", type: "text" }, { name: "retryCount", type: "number", min: 0 }] },
+                    { name: "stripeCustomerId", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "stripeSubscriptionId", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "stripeHostingItemId", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "stripeSurchargeItemId", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "stripeLatestInvoiceId", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "subscriptionStatus", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "currentPeriodEnd", type: "date", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "cancelAtPeriodEnd", type: "checkbox", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "providerEventCreatedAt", type: "date", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "providerEventId", type: "text", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "activeOffer", type: "relationship", relationTo: "hosting-payment-offers", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "offerCreatedAt", type: "date", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "offerExpiresAt", type: "date", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "offerCompletedAt", type: "date", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true } },
+                    { name: "priceChanges", type: "array", access: SERVER_MANAGED_HOSTING_FIELD, admin: { hidden: true }, fields: [{ name: "status", type: "select", options: ["pending", "canceled", "applied", "failed"] }, { name: "reason", type: "textarea" }, { name: "effectiveAt", type: "date" }, { name: "oldQuote", type: "json" }, { name: "newQuote", type: "json" }, { name: "noticeSentAt", type: "date" }, { name: "noticeMessageId", type: "text" }, { name: "appliedAt", type: "date" }, { name: "stripeReference", type: "text" }, { name: "lastError", type: "text" }, { name: "retryCount", type: "number", min: 0 }] },
                   ],
                 },
               ],

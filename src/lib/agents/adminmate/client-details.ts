@@ -383,10 +383,13 @@ export function createPayloadClientDetailsReader(payload: Payload): ClientDetail
           },
         })
         return result.docs
-          .filter((doc) => doc.isTemplate !== true)
           .flatMap((doc): ClientContractRecord[] => {
             const linkedId = relationId(doc.client)
             const linked = linkedId === id
+            // Signed client contracts are often also flagged as templates so the
+            // team can reuse them. A contract linked to this client is the
+            // client's own contract either way; only skip unlinked templates.
+            if (doc.isTemplate === true && !linked) return []
             // `like` is a loose word match; keep unlinked contracts only on an exact name match.
             const nameMatches =
               linkedId === null &&

@@ -20,25 +20,70 @@ export function verifyStripeWebhook(body: string | Buffer, signature: string): S
   return getStripe().webhooks.constructEvent(body, signature, required('STRIPE_WEBHOOK_SECRET'))
 }
 
-export async function getHostingSubscriptionItems(
-  subscriptionId: string,
-): Promise<{ hostingItemId?: string; surchargeItemId?: string }> {
+export async function getHostingSubscriptionItems(subscriptionId: string): Promise<{
+  hostingItemId?: string
+  surchargeItemId?: string
+  /** How often Stripe actually bills this subscription (the client's choice). */
+  interval?: 'month' | 'year'
+}> {
   const subscription = (await getStripe().subscriptions.retrieve(subscriptionId, {
     expand: ['items.data.price.product'],
   })) as any
   const items = subscription.items?.data || []
+  const hostingItem = items.find(
+    (item: any) => item.price?.product?.name !== 'Card processing surcharge',
+  )
+  const interval = hostingItem?.price?.recurring?.interval
   return {
-    hostingItemId: items.find(
-      (item: any) => item.price?.product?.name !== 'Card processing surcharge',
-    )?.id,
+    hostingItemId: hostingItem?.id,
     surchargeItemId: items.find(
       (item: any) => item.price?.product?.name === 'Card processing surcharge',
     )?.id,
+    interval: interval === 'month' || interval === 'year' ? interval : undefined,
   }
 }
 
 export async function getHostingCheckoutSession(sessionId: string) {
   return getStripe().checkout.sessions.retrieve(sessionId)
+}
+
+/** Stripe reports a deleted or unknown object with this error code. */
+export function isStripeMissingResource(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === 'resource_missing'
+}
+
+/**
+ * Stripe refused a request because its idempotency key is already used with
+ * different parameters, or by a request still in flight.
+ */
+export function isStripeIdempotencyConflict(error: unknown): boolean {
+  const { rawType, code } = (error ?? {}) as { rawType?: unknown; code?: unknown }
+  return rawType === 'idempotency_error' || code === 'idempotency_key_in_use'
+}
+
+/** Close an unpaid Checkout session so a client who switches plan cannot pay both. */
+export async function expireHostingCheckoutSession(sessionId: string) {
+  return getStripe().checkout.sessions.expire(sessionId)
+}
+
+/**
+ * Monthly hosting is always debited on the 1st. Stripe's anchor hour is UTC;
+ * 02:00 UTC is midday on the 1st in Australian time zones, so the charge and
+ * its receipt fall on the 1st for both Stripe (UTC) and the client.
+ */
+export const MONTHLY_BILLING_ANCHOR = { day_of_month: 1, hour: 2, minute: 0, second: 0 } as const
+
+export type HostingSubscriptionStopAction = 'end_of_period' | 'immediately' | 'undo'
+
+export async function stopHostingSubscription(
+  subscriptionId: string,
+  action: HostingSubscriptionStopAction,
+) {
+  const stripe = getStripe()
+  if (action === 'immediately') return stripe.subscriptions.cancel(subscriptionId)
+  return stripe.subscriptions.update(subscriptionId, {
+    cancel_at_period_end: action === 'end_of_period',
+  })
 }
 
 export async function createHostingCheckout(input: {
@@ -70,7 +115,17 @@ export async function createHostingCheckout(input: {
       customer,
       client_reference_id: input.clientId,
       metadata,
-      subscription_data: { metadata },
+      subscription_data: {
+        metadata,
+        // The first payment covers the days until the 1st (pro-rata); every
+        // later monthly payment is taken on the 1st.
+        ...(input.quote.interval === 'month'
+          ? {
+              billing_cycle_anchor_config: MONTHLY_BILLING_ANCHOR,
+              proration_behavior: 'create_prorations' as const,
+            }
+          : {}),
+      },
       success_url: `${site}/hosting-pay/success`,
       cancel_url: input.returnToPaymentLink
         ? `${site}/hosting-pay/cancel?return_to=${encodeURIComponent(input.returnToPaymentLink)}`

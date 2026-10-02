@@ -66,10 +66,11 @@ const ClientSignedContractButton = () => {
     ])
       .then(([contractData, templateData]) => {
         if (cancelled) return
-        // Templates never carry a client, but filter defensively; trashed
+        // Every row is linked to this client by the query, so it is this
+        // client's contract even when it is also used as a template. Trashed
         // contracts stay hidden until restored.
         const rows: ContractRow[] = (contractData.docs ?? []).filter(
-          (doc: { deletedAt?: string | null; isTemplate?: boolean | null }) => !doc.deletedAt && !doc.isTemplate,
+          (doc: { deletedAt?: string | null }) => !doc.deletedAt,
         )
         setContracts(rows)
         const docs: Template[] = templateData.docs ?? []

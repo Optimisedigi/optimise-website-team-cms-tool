@@ -670,14 +670,16 @@ describe('createPayloadClientDetailsReader getContracts', () => {
     ...overrides,
   })
 
-  it('returns linked contracts and exact-name unlinked ones, skipping templates and loose matches', async () => {
+  it('returns linked contracts and exact-name unlinked ones, skipping unlinked templates and loose matches', async () => {
     const find = vi.fn(async () => ({
       docs: [
         doc({ id: 1, client: 42 }),
         doc({ id: 2, clientName: 'EPG Engines' }),
         doc({ id: 3, clientName: 'EPG engines spare parts' }),
-        doc({ id: 4, client: 42, isTemplate: true }),
+        // A signed client contract the team also reuses as a template.
+        doc({ id: 4, client: 42, isTemplate: true, annualHosting: 390 }),
         doc({ id: 5, client: 99, clientName: 'EPG engines' }),
+        doc({ id: 6, clientName: 'EPG engines', isTemplate: true }),
       ],
     }))
     const data = createPayloadClientDetailsReader({ find } as unknown as Payload)
@@ -687,7 +689,9 @@ describe('createPayloadClientDetailsReader getContracts', () => {
     expect(contracts?.map((c) => [c.id, c.linkedToClient])).toEqual([
       ['1', true],
       ['2', false],
+      ['4', true],
     ])
+    expect(contracts?.[2]?.annualHosting).toBe(390)
     expect(contracts?.[0]?.monthlyHosting).toBe(40)
     expect(contracts?.[0]?.hasSignedPdf).toBe(false)
     expect(JSON.stringify(contracts)).not.toContain('secret-token')
