@@ -3,6 +3,8 @@ import type { CollectionConfig } from 'payload'
 /** Private durable delivery queue. Post ID is stored as text to survive deletion. */
 export const BlogSyncEvents: CollectionConfig = {
   slug: 'blog-sync-events',
+  // Never edited in the admin; see the locked-documents note in payload.config.ts.
+  lockDocuments: false,
   admin: { group: 'Content', useAsTitle: 'eventKey', defaultColumns: ['eventKey', 'state', 'attempts', 'lastError', 'updatedAt'] },
   access: {
     read: ({ req }) => req.user?.role === 'admin',

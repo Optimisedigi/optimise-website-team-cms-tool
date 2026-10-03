@@ -14,6 +14,8 @@ import { canAccess } from "../lib/access";
  */
 export const LandingEvents: CollectionConfig = {
   slug: "landing-events",
+  // Never edited in the admin; see the locked-documents note in payload.config.ts.
+  lockDocuments: false,
   labels: { singular: "Landing Event", plural: "Landing Events" },
   admin: {
     useAsTitle: "eventType",

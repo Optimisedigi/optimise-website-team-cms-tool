@@ -153,6 +153,12 @@ export default buildConfig({
       beforeDashboard: ["./components/Dashboard"],
     },
   },
+  // Locked documents: when a record opens, Payload checks who is editing it
+  // with one query that has a condition per lockable collection. SQLite caps a
+  // query's expression depth at 100, and at 96 lockable collections opening any
+  // client failed ("Expression tree is too large"), blanking the page. Set
+  // `lockDocuments: false` on any collection that is never edited by hand
+  // (server-written logs, offers, rate limits). A test guards the ceiling.
   collections: [
     // Clients
     Clients, ClientWishlistItems, HostingPaymentOffers, HostingOneOffPayments, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,

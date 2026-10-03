@@ -14,6 +14,8 @@ import type { CollectionConfig } from "payload";
  */
 export const AgentCredentials: CollectionConfig = {
   slug: "agent-credentials" as any,
+  // Never edited in the admin; see the locked-documents note in payload.config.ts.
+  lockDocuments: false,
   labels: {
     singular: "Agent Credential",
     plural: "Agent Credentials",

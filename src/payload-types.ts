@@ -11575,14 +11575,6 @@ export interface PayloadLockedDocument {
         value: number | ClientWishlistItem;
       } | null)
     | ({
-        relationTo: 'hosting-payment-offers';
-        value: number | HostingPaymentOffer;
-      } | null)
-    | ({
-        relationTo: 'hosting-one-off-payments';
-        value: number | HostingOneOffPayment;
-      } | null)
-    | ({
         relationTo: 'client-proposals';
         value: number | ClientProposal;
       } | null)
@@ -11645,10 +11637,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'blog-ideas';
         value: number | BlogIdea;
-      } | null)
-    | ({
-        relationTo: 'blog-sync-events';
-        value: number | BlogSyncEvent;
       } | null)
     | ({
         relationTo: 'job-posts';
@@ -11775,10 +11763,6 @@ export interface PayloadLockedDocument {
         value: number | LandingExperiment;
       } | null)
     | ({
-        relationTo: 'landing-events';
-        value: number | LandingEvent;
-      } | null)
-    | ({
         relationTo: 'landing-domains';
         value: number | LandingDomain;
       } | null)
@@ -11837,10 +11821,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'agent-soul';
         value: number | AgentSoul;
-      } | null)
-    | ({
-        relationTo: 'realtime-voice-usage';
-        value: number | RealtimeVoiceUsage;
       } | null)
     | ({
         relationTo: 'optimate-chat-turns';
@@ -11907,20 +11887,12 @@ export interface PayloadLockedDocument {
         value: number | ClientPulseHistory;
       } | null)
     | ({
-        relationTo: 'agent-credentials';
-        value: number | AgentCredential;
-      } | null)
-    | ({
         relationTo: 'contract-reminders';
         value: number | ContractReminder;
       } | null)
     | ({
         relationTo: 'notifications';
         value: number | Notification;
-      } | null)
-    | ({
-        relationTo: 'pin-rate-limits';
-        value: number | PinRateLimit;
       } | null)
     | ({
         relationTo: 'match-type-violation-candidates';

@@ -24,6 +24,8 @@ import type { CollectionConfig } from "payload";
  */
 export const PinRateLimits: CollectionConfig = {
   slug: "pin-rate-limits",
+  // Never edited in the admin; see the locked-documents note in payload.config.ts.
+  lockDocuments: false,
   admin: { hidden: true },
   access: {
     read: () => false,

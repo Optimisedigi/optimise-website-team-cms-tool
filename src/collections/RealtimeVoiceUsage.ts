@@ -2,6 +2,8 @@ import type { CollectionConfig } from "payload";
 
 export const RealtimeVoiceUsage: CollectionConfig = {
   slug: "realtime-voice-usage",
+  // Never edited in the admin; see the locked-documents note in payload.config.ts.
+  lockDocuments: false,
   labels: {
     singular: "Realtime Voice Usage",
     plural: "Realtime Voice Usage",

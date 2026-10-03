@@ -3,6 +3,8 @@ import { canAccess, adminOnlyDelete, hideUnlessAnyFeature } from "../lib/access"
 
 export const HostingPaymentOffers: CollectionConfig = {
   slug: "hosting-payment-offers",
+  // Never edited in the admin; see the locked-documents note in payload.config.ts.
+  lockDocuments: false,
   admin: { group: "Finance", hidden: hideUnlessAnyFeature("clients"), useAsTitle: "id" },
   // Offers are issued and updated only by server routes (overrideAccess). Staff
   // can view them, but a hand-made or edited offer could carry any price.

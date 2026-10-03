@@ -8,6 +8,8 @@ import { canAccess, adminOnlyDelete, hideUnlessAnyFeature } from '../lib/access'
  */
 export const HostingOneOffPayments: CollectionConfig = {
   slug: 'hosting-one-off-payments',
+  // Never edited in the admin; see the locked-documents note in payload.config.ts.
+  lockDocuments: false,
   labels: { singular: 'Hosting one-off payment', plural: 'Hosting one-off payments' },
   admin: {
     group: 'Finance',
