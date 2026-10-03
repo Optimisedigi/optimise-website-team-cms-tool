@@ -44,6 +44,8 @@ export const HostingOneOffPayments: CollectionConfig = {
     { name: 'scheduledSendAt', type: 'date', index: true },
     { name: 'emailSentAt', type: 'date' },
     { name: 'sendAttempts', type: 'number', defaultValue: 0 },
+    // When an unpaid link is due to be emailed again (Resend link with a date).
+    { name: 'resendAt', type: 'date', index: true },
     // Set when the admin removes a cancelled link from the client page list.
     // The record is kept so the history can still be checked here.
     { name: 'hiddenAt', type: 'date' },

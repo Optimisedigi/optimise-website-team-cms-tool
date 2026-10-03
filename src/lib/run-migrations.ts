@@ -54,6 +54,13 @@ const HOSTING_ONE_OFF_SCHEDULED_SEND: Array<[string, string]> = [
     "hosting_one_off_payments_scheduled_send_at_idx",
     "CREATE INDEX IF NOT EXISTS `hosting_one_off_payments_scheduled_send_at_idx` ON `hosting_one_off_payments` (`scheduled_send_at`)",
   ],
+  // 2026-10-05: scheduled resends. Keep in sync with
+  // src/migrations/20261005_120000_hosting_one_off_scheduled_resend.ts.
+  ["hosting_one_off_payments.resend_at", "ALTER TABLE `hosting_one_off_payments` ADD `resend_at` text"],
+  [
+    "hosting_one_off_payments_resend_at_idx",
+    "CREATE INDEX IF NOT EXISTS `hosting_one_off_payments_resend_at_idx` ON `hosting_one_off_payments` (`resend_at`)",
+  ],
 ];
 
 export async function runMigrations(

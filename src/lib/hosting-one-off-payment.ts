@@ -144,6 +144,17 @@ function escapeHtml(value: string): string {
 
 const MONO = 'font-family:Menlo,Consolas,monospace;'
 
+/**
+ * Who a billing email greets: the name set in the hosting section, else the
+ * client's main Contact Name.
+ */
+export function billingRecipientName(client: {
+  contactName?: string | null
+  hostingSubscription?: { recipientName?: string | null } | null
+}): string {
+  return String(client.hostingSubscription?.recipientName || client.contactName || '').trim()
+}
+
 /** The first name from a contact name ("Sam Lee" -> "Sam"), or '' when blank. */
 export function firstName(name: string | null | undefined): string {
   return (name ?? '').trim().split(/\s+/)[0] ?? ''

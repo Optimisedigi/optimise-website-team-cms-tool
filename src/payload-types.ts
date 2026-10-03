@@ -7201,6 +7201,7 @@ export interface HostingOneOffPayment {
   scheduledSendAt?: string | null;
   emailSentAt?: string | null;
   sendAttempts?: number | null;
+  resendAt?: string | null;
   hiddenAt?: string | null;
   stripeCheckoutSessionId?: string | null;
   paidAt?: string | null;
@@ -12489,6 +12490,7 @@ export interface HostingOneOffPaymentsSelect<T extends boolean = true> {
   scheduledSendAt?: T;
   emailSentAt?: T;
   sendAttempts?: T;
+  resendAt?: T;
   hiddenAt?: T;
   stripeCheckoutSessionId?: T;
   paidAt?: T;

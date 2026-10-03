@@ -182,6 +182,7 @@ import * as migration_20260926_120000_in_the_picture_sync from './20260926_12000
 import * as migration_20261002_120000_hosting_billing_start_date from './20261002_120000_hosting_billing_start_date'
 import * as migration_20261003_120000_hosting_one_off_payments from './20261003_120000_hosting_one_off_payments'
 import * as migration_20261004_120000_hosting_one_off_scheduled_send from './20261004_120000_hosting_one_off_scheduled_send'
+import * as migration_20261005_120000_hosting_one_off_scheduled_resend from './20261005_120000_hosting_one_off_scheduled_resend'
 
 export const migrations = [
   {
@@ -1098,5 +1099,10 @@ export const migrations = [
     up: migration_20261004_120000_hosting_one_off_scheduled_send.up,
     down: migration_20261004_120000_hosting_one_off_scheduled_send.down,
     name: '20261004_120000_hosting_one_off_scheduled_send',
+  },
+  {
+    up: migration_20261005_120000_hosting_one_off_scheduled_resend.up,
+    down: migration_20261005_120000_hosting_one_off_scheduled_resend.down,
+    name: '20261005_120000_hosting_one_off_scheduled_resend',
   },
 ]

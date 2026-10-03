@@ -108,20 +108,23 @@ describe('HostingOneOffPayments', () => {
     const table = await screen.findByRole('table', { name: 'Payment links sent' })
     // Only links that were sent and not paid or cancelled can be resent.
     expect(within(table).getAllByRole('button', { name: /^Resend link/ })).toHaveLength(1)
-    await act(async () =>
-      fireEvent.click(
-        within(table).getByRole('button', {
-          name: 'Resend link for Backdated hosting, July to September',
-        }),
-      ),
+    fireEvent.click(
+      within(table).getByRole('button', {
+        name: 'Resend link for Backdated hosting, July to September',
+      }),
     )
+    // Opening the options sends nothing yet.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Resend now' })))
 
     expect(window.confirm).toHaveBeenCalledWith(
-      expect.stringContaining('the link in the earlier email stops working'),
+      expect.stringContaining('again now? They get a new link valid for 14 days'),
     )
     expect(fetchMock).toHaveBeenCalledWith('/api/clients/8/hosting-one-off-payments/33/resend', {
       method: 'POST',
       credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
     })
     expect(screen.getByRole('status', { name: 'One-off payment status' })).toHaveTextContent(
       'Payment link for $302.60 emailed again to billing@example.com.',
@@ -139,14 +142,75 @@ describe('HostingOneOffPayments', () => {
       .mockResolvedValueOnce(json({ error: 'This payment has already been made.' }, false, 409))
       .mockResolvedValueOnce(json({ payments: [sent] }))
 
-    await act(async () =>
-      fireEvent.click(await screen.findByRole('button', { name: /^Resend link/ })),
-    )
+    fireEvent.click(await screen.findByRole('button', { name: /^Resend link/ }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Resend now' })))
 
     expect(screen.getByRole('status', { name: 'One-off payment status' })).toHaveTextContent(
       'This payment has already been made.',
     )
     expect(screen.queryByRole('link', { name: 'Open payment link' })).not.toBeInTheDocument()
+  })
+
+  it('schedules a resend for a chosen date without sending anything now', async () => {
+    fetchMock.mockResolvedValueOnce(json({ payments: [sent] }))
+    await renderSection()
+    fetchMock
+      .mockResolvedValueOnce(json({ resendAt: '2026-10-09T22:00:00.000Z' }))
+      .mockResolvedValueOnce(
+        json({ payments: [{ ...sent, resendAt: '2026-10-09T22:00:00.000Z' }] }),
+      )
+
+    fireEvent.click(await screen.findByRole('button', { name: /^Resend link/ }))
+    fireEvent.change(screen.getByLabelText('Resend on (optional)'), {
+      target: { value: '2026-10-10' },
+    })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Schedule resend' })))
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('again at 9am on 10 Oct 2026?'),
+    )
+    expect(fetchMock).toHaveBeenCalledWith('/api/clients/8/hosting-one-off-payments/31/resend', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sendOn: '2026-10-10' }),
+    })
+    expect(screen.getByRole('status', { name: 'One-off payment status' })).toHaveTextContent(
+      'Payment link will be emailed again to billing@example.com at 9am on 10 Oct 2026.',
+    )
+    // No new link exists yet, so there is nothing to copy.
+    expect(screen.queryByRole('link', { name: 'Open payment link' })).not.toBeInTheDocument()
+    const row = within(screen.getByRole('table', { name: 'Payment links sent' })).getAllByRole(
+      'row',
+    )[1] as HTMLElement
+    expect(row).toHaveTextContent('Waiting for payment. Resend scheduled for 10 Oct 2026')
+  })
+
+  it('cancels a scheduled resend', async () => {
+    const scheduled = { ...sent, resendAt: '2026-10-09T22:00:00.000Z' }
+    fetchMock.mockResolvedValueOnce(json({ payments: [scheduled] }))
+    await renderSection()
+    fetchMock
+      .mockResolvedValueOnce(json({ resendAt: null }))
+      .mockResolvedValueOnce(json({ payments: [sent] }))
+
+    await act(async () =>
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: 'Cancel scheduled resend for Backdated hosting, July to September',
+        }),
+      ),
+    )
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/clients/8/hosting-one-off-payments/31/resend', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cancelSchedule: true }),
+    })
+    expect(screen.getByRole('status', { name: 'One-off payment status' })).toHaveTextContent(
+      'Scheduled resend cancelled.',
+    )
   })
 
   it('uses the Hosting Billing Settings currency in the label and the confirmation', async () => {

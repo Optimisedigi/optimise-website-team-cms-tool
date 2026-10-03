@@ -150,6 +150,19 @@
   white-space: nowrap;
 }
 
+/* Inline "Resend link" options: optional date plus the action buttons. */
+.hosting-subscription-field__resend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hosting-subscription-field__resend label {
+  font-size: 12px;
+  color: var(--theme-elevation-500);
+}
+
 @media (max-width: 900px) {
   .hosting-subscription-field {
     padding: 16px;

@@ -8,6 +8,7 @@ import { parseBillingStartDate } from "@/lib/hosting-billing-schedule";
 import { expireHostingCheckoutSession, getCmsUrl, getHostingCheckoutSession, isStripeMissingResource } from "@/lib/stripe";
 import { sendBrevoEmail } from "@/lib/brevo-email";
 import { buildHostingOfferEmail } from "@/lib/hosting-offer-email";
+import { billingRecipientName } from "@/lib/hosting-one-off-payment";
 import { loadStatementTemplates } from "@/lib/invoice-statement-templates";
 
 /**
@@ -43,13 +44,14 @@ async function emailOfferLink(payload: any, input: { client: any; hosting: any; 
  try {
   const accounts = await loadStatementTemplates(payload);
   const { client, hosting, snapshot } = input;
+  const recipientName = billingRecipientName(client);
   return await sendBrevoEmail({
    sender: { email: accounts.fromEmail, name: "Optimise Digital" },
    replyTo: { email: accounts.replyToEmail },
-   to: [{ email: hosting.recipientEmail, ...(hosting.recipientName ? { name: hosting.recipientName } : {}) }],
+   to: [{ email: hosting.recipientEmail, ...(recipientName ? { name: recipientName } : {}) }],
    ...buildHostingOfferEmail({
     clientName: client.name,
-    recipientName: hosting.recipientName,
+    recipientName,
     monthly: snapshot.monthly,
     annual: snapshot.annual,
     defaultInterval: hosting.billingInterval === "year" ? "year" : "month",
@@ -71,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
  const { id } = await params; const client: any = await payload.findByID({ collection: "clients", id, overrideAccess: true }); const settings: any = await payload.findGlobal({ slug: "hosting-billing-settings", overrideAccess: true }); const hosting = client.hostingSubscription || {};
  if (!hosting.planName || !hosting.recipientEmail || !hosting.monthlyBaseCents || !hosting.annualBaseCents || !hosting.billingInterval) return NextResponse.json({ error: "Save a plan, monthly fee, client email and billing interval before generating an offer." }, { status: 422 });
  const surcharge = { percentage: Number(settings.cardSurchargePercentage), fixedCents: Number(settings.cardSurchargeFixedCents) }; const base = { currency: settings.currency || "aud", allowance: hosting.allowance || "", clause: hosting.capacityClause || settings.capacityChangeClause || "", planName: hosting.planName, surcharge };
- const snapshot = { monthly: createHostingQuote({ ...base, baseCents: Number(hosting.monthlyBaseCents), interval: "month" }), annual: createHostingQuote({ ...base, baseCents: Number(hosting.annualBaseCents), interval: "year" }), selectedInterval: hosting.billingInterval, recipientEmail: hosting.recipientEmail, recipientName: hosting.recipientName || "", billingStartDate: parseBillingStartDate(hosting.billingStartDate), renewalNote: String(settings.renewalNote || "").trim() || HOSTING_RENEWAL_NOTE_DEFAULT };
+ const snapshot = { monthly: createHostingQuote({ ...base, baseCents: Number(hosting.monthlyBaseCents), interval: "month" }), annual: createHostingQuote({ ...base, baseCents: Number(hosting.annualBaseCents), interval: "year" }), selectedInterval: hosting.billingInterval, recipientEmail: hosting.recipientEmail, recipientName: billingRecipientName(client), billingStartDate: parseBillingStartDate(hosting.billingStartDate), renewalNote: String(settings.renewalNote || "").trim() || HOSTING_RENEWAL_NOTE_DEFAULT };
  if (hasLiveHostingSubscription(hosting)) return NextResponse.json({ error: "This client already has an active hosting subscription. Stop it before sending a new payment link, or use a price change to adjust it." }, { status: 409 });
  const retireError = await retirePreviousOffer(payload, hosting.activeOffer); if (retireError) return NextResponse.json({ error: retireError }, { status: 409 });
  const token = crypto.randomBytes(32).toString("base64url"); const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString(); const offer: any = await (payload as any).create({ collection: "hosting-payment-offers", data: { client: Number(id), tokenHash: hashOfferToken(token), expiresAt, snapshot }, overrideAccess: true });

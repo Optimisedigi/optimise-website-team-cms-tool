@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import type { Payload } from 'payload'
 import { hashOfferToken } from './hosting-billing'
 import {
+  billingRecipientName,
   buildOneOffPaymentEmail,
   createOneOffQuote,
   ONE_OFF_LINK_DAYS,
@@ -17,7 +18,12 @@ import {
 } from './hosting-one-off-payment-status'
 import { sendBrevoEmail } from './brevo-email'
 import { loadStatementTemplates } from './invoice-statement-templates'
-import { getCmsUrl } from './stripe'
+import {
+  expireHostingCheckoutSession,
+  getCmsUrl,
+  getHostingCheckoutSession,
+  isStripeMissingResource,
+} from './stripe'
 
 /**
  * Issuing and emailing one-off payment links. Shared by the client page, the
@@ -64,6 +70,31 @@ export async function sendOneOffPaymentEmail(
     })
   } catch {
     return { ok: false, code: 'email-build-failed' }
+  }
+}
+
+/**
+ * Loads what a later send needs: the client's name, and the frozen snapshot
+ * with a blank greeting name filled from the client's current name (links
+ * made before names were captured, or before a name was entered).
+ */
+async function emailContext(
+  payload: Payload,
+  payment: any,
+): Promise<{ clientName: string; snapshot: OneOffSnapshot }> {
+  const frozen = payment.snapshot as OneOffSnapshot
+  try {
+    const client: any = await payload.findByID({
+      collection: 'clients',
+      id: typeof payment.client === 'object' ? payment.client.id : payment.client,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const recipientName = frozen.recipientName?.trim() || billingRecipientName(client)
+    return { clientName: client.name || '', snapshot: { ...frozen, recipientName } }
+  } catch {
+    // The email still reads correctly without the client's details.
+    return { clientName: '', snapshot: frozen }
   }
 }
 
@@ -114,8 +145,7 @@ export async function issueOneOffPayment(
       fixedCents: Number(settings.cardSurchargeFixedCents),
     }),
     recipientEmail: hosting.recipientEmail,
-    // The name set in the hosting section, else the client's main contact.
-    recipientName: String(hosting.recipientName || client.contactName || '').trim(),
+    recipientName: billingRecipientName(client),
   }
   const scheduledSendAt = input.request.scheduledSendAt
   const token = newToken()
@@ -168,6 +198,25 @@ export async function issueOneOffPayment(
 }
 
 /**
+ * Before a link is reissued, closes any Stripe checkout the client left open
+ * on the old link, so only the new link can be paid. 'paid' means the client
+ * has just paid (nothing to resend); 'unreachable' means Stripe could not be
+ * checked, so nothing should change yet.
+ */
+export async function closeOldCheckout(payment: any): Promise<'ok' | 'paid' | 'unreachable'> {
+  const sessionId: string | null = payment.stripeCheckoutSessionId || null
+  if (payment.status !== 'checkout_pending' || !sessionId) return 'ok'
+  try {
+    const session = await getHostingCheckoutSession(sessionId)
+    if (session.status === 'complete') return 'paid'
+    if (session.status === 'open') await expireHostingCheckoutSession(session.id)
+    return 'ok'
+  } catch (error) {
+    return isStripeMissingResource(error) ? 'ok' : 'unreachable'
+  }
+}
+
+/**
  * Emails a sent link again with a new token and a fresh 14 days. The link in
  * the earlier email stops working. Fails (returns null) if a checkout was
  * started since `seenSessionId` was read, so a client paying right now is
@@ -189,22 +238,17 @@ export async function resendOneOffPayment(
   })
   if (!reissued) return null
 
-  let clientName = ''
-  try {
-    const client: any = await payload.findByID({
-      collection: 'clients',
-      id: typeof payment.client === 'object' ? payment.client.id : payment.client,
-      depth: 0,
-      overrideAccess: true,
-    })
-    clientName = client.name || ''
-  } catch {
-    // The email still reads correctly without the client name.
-  }
-  const snapshot = payment.snapshot as OneOffSnapshot
+  const { clientName, snapshot } = await emailContext(payload, payment)
   const url = `${getCmsUrl()}/hosting-pay/once/${token}`
   const email = await sendOneOffPaymentEmail(payload, { clientName, snapshot, url, expiresAt })
-  if (email.ok) await markEmailed(payload, payment.id, now)
+  if (email.ok)
+    // A resend also settles any resend that was scheduled for later.
+    await payload.update({
+      collection: 'hosting-one-off-payments',
+      id: payment.id,
+      data: { emailSentAt: now.toISOString(), resendAt: null, sendAttempts: 0 },
+      overrideAccess: true,
+    })
   else
     console.error('[hosting-one-off-payments] resend email failed', {
       paymentId: payment.id,
@@ -264,21 +308,10 @@ export async function sendDueScheduledOneOffPayments(
       continue
     }
 
-    let clientName = ''
-    try {
-      const client: any = await payload.findByID({
-        collection: 'clients',
-        id: typeof payment.client === 'object' ? payment.client.id : payment.client,
-        depth: 0,
-        overrideAccess: true,
-      })
-      clientName = client.name || ''
-    } catch {
-      // The email still reads correctly without the client name.
-    }
+    const { clientName, snapshot } = await emailContext(payload, payment)
     const email = await sendOneOffPaymentEmail(payload, {
       clientName,
-      snapshot: payment.snapshot as OneOffSnapshot,
+      snapshot,
       url: `${getCmsUrl()}/hosting-pay/once/${token}`,
       expiresAt,
     })
@@ -296,6 +329,78 @@ export async function sendDueScheduledOneOffPayments(
       code: email.code,
       status: email.status,
     })
+  }
+
+  const resends = await sendDueScheduledResends(payload, now)
+  return {
+    due: summary.due + resends.due,
+    sent: summary.sent + resends.sent,
+    failed: summary.failed + resends.failed,
+    skipped: summary.skipped + resends.skipped,
+  }
+}
+
+/**
+ * Resends unpaid links whose scheduled resend date has passed, exactly like
+ * the Resend link button: the client gets a new link valid for 14 days and
+ * the old one stops working. The old link keeps working until then. Paid and
+ * cancelled links are never picked up, so paying or cancelling stops it.
+ */
+async function sendDueScheduledResends(payload: Payload, now: Date): Promise<ScheduledSendSummary> {
+  const due = await payload.find({
+    collection: 'hosting-one-off-payments',
+    where: {
+      and: [
+        { status: { in: ['active', 'checkout_pending'] } },
+        { resendAt: { less_than_equal: now.toISOString() } },
+        { sendAttempts: { less_than: MAX_SCHEDULED_SEND_ATTEMPTS } },
+      ],
+    },
+    sort: 'resendAt',
+    limit: MAX_PER_RUN,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const summary: ScheduledSendSummary = { due: due.docs.length, sent: 0, failed: 0, skipped: 0 }
+
+  for (const payment of due.docs as any[]) {
+    const checkout = await closeOldCheckout(payment)
+    if (checkout === 'paid') {
+      // Stripe's webhook will mark it paid; nothing to resend.
+      await payload.update({
+        collection: 'hosting-one-off-payments',
+        id: payment.id,
+        data: { resendAt: null },
+        overrideAccess: true,
+      })
+      summary.skipped += 1
+      continue
+    }
+    if (checkout === 'unreachable') {
+      summary.skipped += 1
+      continue
+    }
+    const resent = await resendOneOffPayment(payload, {
+      payment,
+      seenSessionId: payment.stripeCheckoutSessionId || null,
+      now,
+    })
+    if (!resent) {
+      // The link changed since it was read (paid, cancelled or a new checkout); retry next run.
+      summary.skipped += 1
+      continue
+    }
+    if (resent.emailSent) {
+      summary.sent += 1
+      continue
+    }
+    await payload.update({
+      collection: 'hosting-one-off-payments',
+      id: payment.id,
+      data: { sendAttempts: Number(payment.sendAttempts ?? 0) + 1 },
+      overrideAccess: true,
+    })
+    summary.failed += 1
   }
   return summary
 }

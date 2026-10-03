@@ -73,7 +73,7 @@ CMS → Growth Tools unmatched calls: 4
 | `/api/clients/[id]/google-ads-conversion-actions` | GET | payload-session | json-body, 400-validation | growth-tools, fetch | `src/app/(frontend)/api/clients/[id]/google-ads-conversion-actions/route.ts` |
 | `/api/clients/[id]/hosting-offers` | POST | payload-session | json-body | email | `src/app/(frontend)/api/clients/[id]/hosting-offers/route.ts` |
 | `/api/clients/[id]/hosting-one-off-payments/[paymentId]/hide` | POST | payload-session | json-body |  | `src/app/(frontend)/api/clients/[id]/hosting-one-off-payments/[paymentId]/hide/route.ts` |
-| `/api/clients/[id]/hosting-one-off-payments/[paymentId]/resend` | POST | payload-session | json-body | email | `src/app/(frontend)/api/clients/[id]/hosting-one-off-payments/[paymentId]/resend/route.ts` |
+| `/api/clients/[id]/hosting-one-off-payments/[paymentId]/resend` | POST | payload-session | json-body, 400-validation | email | `src/app/(frontend)/api/clients/[id]/hosting-one-off-payments/[paymentId]/resend/route.ts` |
 | `/api/clients/[id]/hosting-one-off-payments/[paymentId]/revoke` | POST | payload-session | json-body |  | `src/app/(frontend)/api/clients/[id]/hosting-one-off-payments/[paymentId]/revoke/route.ts` |
 | `/api/clients/[id]/hosting-one-off-payments` | GET, POST | payload-session | json-body, 400-validation | email | `src/app/(frontend)/api/clients/[id]/hosting-one-off-payments/route.ts` |
 | `/api/clients/[id]/hosting-price-changes/[changeId]/cancel` | POST | payload-session | json-body |  | `src/app/(frontend)/api/clients/[id]/hosting-price-changes/[changeId]/cancel/route.ts` |
@@ -759,7 +759,7 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
 
 ```json
 {
-  "generatedAt": "2026-10-03T11:42:42.470Z",
+  "generatedAt": "2026-10-03T12:09:01.215Z",
   "cmsRows": [
     {
       "route": "/api/account-timeline/backfill",
@@ -1499,7 +1499,7 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
         "POST"
       ],
       "auth": "payload-session",
-      "validation": "json-body",
+      "validation": "json-body, 400-validation",
       "external": "email",
       "hasTryCatch": true,
       "growthToolsCalls": [],

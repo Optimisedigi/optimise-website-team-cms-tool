@@ -200,12 +200,15 @@ describe("runMigrations", () => {
       "hosting_one_off_payments.send_attempts",
       "hosting_one_off_payments.hidden_at",
       "hosting_one_off_payments_scheduled_send_at_idx",
+      "hosting_one_off_payments.resend_at",
+      "hosting_one_off_payments_resend_at_idx",
     ]) {
       expect(results).toContainEqual({ label, status: "ok" });
     }
     expect(statements).toContain("ALTER TABLE `clients` ADD `hosting_subscription_billing_start_date` text");
     expect(statements).toContain("ALTER TABLE `hosting_billing_settings` ADD COLUMN `renewal_note` text");
     expect(statements).toContain("ALTER TABLE `hosting_one_off_payments` ADD `scheduled_send_at` text");
+    expect(statements).toContain("ALTER TABLE `hosting_one_off_payments` ADD `resend_at` text");
   });
 
   it("adds every client email copy column so saving OptiMate Settings works", async () => {

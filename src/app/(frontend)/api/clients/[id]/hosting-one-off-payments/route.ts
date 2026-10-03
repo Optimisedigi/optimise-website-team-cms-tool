@@ -23,9 +23,11 @@ function summarise(doc: any) {
     paidAt: doc.paidAt ?? null,
     scheduledSendAt: doc.scheduledSendAt ?? null,
     emailSentAt: doc.emailSentAt ?? null,
-    /** A scheduled email that has stopped retrying; the admin must act. */
+    resendAt: doc.resendAt ?? null,
+    /** A scheduled email or resend that has stopped retrying; the admin must act. */
     sendFailed:
-      doc.status === 'scheduled' && Number(doc.sendAttempts ?? 0) >= MAX_SCHEDULED_SEND_ATTEMPTS,
+      (doc.status === 'scheduled' || Boolean(doc.resendAt)) &&
+      Number(doc.sendAttempts ?? 0) >= MAX_SCHEDULED_SEND_ATTEMPTS,
   }
 }
 

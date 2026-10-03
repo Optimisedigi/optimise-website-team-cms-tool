@@ -279,17 +279,24 @@ describe('sending scheduled one-off payment emails', () => {
     )
   }
 
+  // Links due for a first send, and unpaid links due for a scheduled resend.
+  let firstSends: unknown[]
+  let resends: unknown[]
+
   beforeEach(() => {
-    payload.find.mockResolvedValue({
-      docs: [
-        payment({
-          status: 'scheduled',
-          scheduledSendAt: '2026-10-09T22:00:00.000Z',
-          sendAttempts: 0,
-        }),
-      ],
-    })
+    firstSends = [
+      payment({
+        status: 'scheduled',
+        scheduledSendAt: '2026-10-09T22:00:00.000Z',
+        sendAttempts: 0,
+      }),
+    ]
+    resends = []
+    payload.find.mockImplementation(async ({ where }: { where: { and: object[] } }) => ({
+      docs: JSON.stringify(where).includes('resendAt') ? resends : firstSends,
+    }))
     payload.findByID.mockResolvedValue({ id: 8, name: 'We Can Quit' })
+    payload.db.drizzle.run.mockResolvedValue({ rowsAffected: 1 })
     claimScheduledForSend.mockResolvedValue(true)
     returnToSchedule.mockResolvedValue(true)
   })
@@ -361,6 +368,116 @@ describe('sending scheduled one-off payment emails', () => {
     } finally {
       delete process.env.CRON_SECRET
     }
+  })
+
+  it('greets by the client contact name when the link saved no name', async () => {
+    firstSends = [
+      payment({
+        status: 'scheduled',
+        scheduledSendAt: '2026-10-09T22:00:00.000Z',
+        snapshot: { ...snapshot, recipientName: '' },
+      }),
+    ]
+    payload.findByID.mockResolvedValue({ id: 8, name: 'We Can Quit', contactName: 'Peter Lee' })
+
+    await run()
+
+    const sent = sendBrevoEmail.mock.calls[0]?.[0]
+    expect(sent.textContent.startsWith('Hi Peter,')).toBe(true)
+    expect(sent.to).toEqual([{ email: 'billing@example.com', name: 'Peter Lee' }])
+  })
+
+  describe('scheduled resends', () => {
+    beforeEach(() => {
+      firstSends = []
+      resends = [payment({ resendAt: '2026-10-09T22:00:00.000Z', sendAttempts: 0 })]
+    })
+
+    it('only picks up unpaid, uncancelled links whose resend is due', async () => {
+      await run()
+
+      expect(payload.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            and: [
+              { status: { in: ['active', 'checkout_pending'] } },
+              { resendAt: { less_than_equal: NOW.toISOString() } },
+              { sendAttempts: { less_than: 5 } },
+            ],
+          },
+        }),
+      )
+    })
+
+    it('emails a new 14-day link and clears the schedule', async () => {
+      expect(await run()).toEqual({ due: 1, sent: 1, failed: 0, skipped: 0 })
+
+      const sent = sendBrevoEmail.mock.calls[0]?.[0]
+      expect(sent.textContent).toMatch(/https:\/\/cms\.test\/hosting-pay\/once\/[\w-]{43}/)
+      expect(sent.textContent.startsWith('Hi Sam,')).toBe(true)
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 31,
+          data: { emailSentAt: NOW.toISOString(), resendAt: null, sendAttempts: 0 },
+        }),
+      )
+    })
+
+    it('closes a checkout left open on the old link first', async () => {
+      resends = [
+        payment({
+          status: 'checkout_pending',
+          stripeCheckoutSessionId: 'cs_open',
+          resendAt: '2026-10-09T22:00:00.000Z',
+        }),
+      ]
+      stripe.getHostingCheckoutSession.mockResolvedValue({ id: 'cs_open', status: 'open' })
+
+      expect(await run()).toMatchObject({ sent: 1 })
+      expect(stripe.expireHostingCheckoutSession).toHaveBeenCalledWith('cs_open')
+    })
+
+    it('drops the resend without emailing when the client has just paid', async () => {
+      resends = [
+        payment({
+          status: 'checkout_pending',
+          stripeCheckoutSessionId: 'cs_done',
+          resendAt: '2026-10-09T22:00:00.000Z',
+        }),
+      ]
+      stripe.getHostingCheckoutSession.mockResolvedValue({ id: 'cs_done', status: 'complete' })
+
+      expect(await run()).toMatchObject({ sent: 0, skipped: 1 })
+      expect(sendBrevoEmail).not.toHaveBeenCalled()
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 31, data: { resendAt: null } }),
+      )
+    })
+
+    it('tries again next run when Stripe cannot be reached', async () => {
+      resends = [
+        payment({
+          status: 'checkout_pending',
+          stripeCheckoutSessionId: 'cs_x',
+          resendAt: '2026-10-09T22:00:00.000Z',
+        }),
+      ]
+      stripe.getHostingCheckoutSession.mockRejectedValue(new Error('network'))
+
+      expect(await run()).toMatchObject({ sent: 0, skipped: 1 })
+      expect(sendBrevoEmail).not.toHaveBeenCalled()
+      expect(payload.update).not.toHaveBeenCalled()
+    })
+
+    it('counts a failed email so it stops retrying after five tries', async () => {
+      sendBrevoEmail.mockResolvedValue({ ok: false, code: 'brevo-error' })
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      expect(await run()).toMatchObject({ sent: 0, failed: 1 })
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 31, data: { sendAttempts: 1 } }),
+      )
+    })
   })
 })
 
@@ -820,13 +937,18 @@ describe('cancelling a one-off payment link', () => {
 })
 
 describe('resending a one-off payment link', () => {
-  const resend = async (paymentId = '31', clientId = '8') => {
+  const resend = async (paymentId = '31', clientId = '8', body?: unknown) => {
     const { POST } =
       await import('@/app/(frontend)/api/clients/[id]/hosting-one-off-payments/[paymentId]/resend/route')
     return POST(
       new NextRequest(
         `http://localhost/api/clients/${clientId}/hosting-one-off-payments/${paymentId}/resend`,
-        { method: 'POST' },
+        {
+          method: 'POST',
+          ...(body === undefined
+            ? {}
+            : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+        },
       ),
       { params: Promise.resolve({ id: clientId, paymentId }) },
     )
@@ -854,8 +976,12 @@ describe('resending a one-off payment link', () => {
     expect(sent.to).toEqual([{ email: 'billing@example.com', name: 'Sam' }])
     expect(sent.subject).toBe('Payment request: Backdated hosting, July to September 2026')
     expect(sent.textContent).toContain(body.url)
+    // Sending now also settles any resend that was scheduled for later.
     expect(payload.update).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 31, data: { emailSentAt: expect.any(String) } }),
+      expect.objectContaining({
+        id: 31,
+        data: { emailSentAt: expect.any(String), resendAt: null, sendAttempts: 0 },
+      }),
     )
   })
 
@@ -930,6 +1056,64 @@ describe('resending a one-off payment link', () => {
 
     expect((await resend()).status).toBe(403)
     expect(run).not.toHaveBeenCalled()
+  })
+
+  it('greets by the client contact name when the link saved no name', async () => {
+    payload.findByID.mockImplementation(async ({ collection }: { collection: string }) =>
+      collection === 'clients'
+        ? { id: 8, name: 'We Can Quit', contactName: 'Peter Lee' }
+        : payment({ snapshot: { ...snapshot, recipientName: '' } }),
+    )
+
+    await resend()
+
+    expect(sendBrevoEmail.mock.calls[0]?.[0].textContent.startsWith('Hi Peter,')).toBe(true)
+  })
+
+  it('schedules a resend for 9am Sydney without changing the current link', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T02:00:00.000Z'))
+    try {
+      const response = await resend('31', '8', { sendOn: '2026-10-10' })
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ resendAt: '2026-10-09T22:00:00.000Z' })
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 31,
+          data: { resendAt: '2026-10-09T22:00:00.000Z', sendAttempts: 0 },
+        }),
+      )
+      expect(run).not.toHaveBeenCalled()
+      expect(sendBrevoEmail).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a scheduled resend', async () => {
+    const response = await resend('31', '8', { cancelSchedule: true })
+
+    expect(await response.json()).toEqual({ resendAt: null })
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 31, data: { resendAt: null, sendAttempts: 0 } }),
+    )
+    expect(sendBrevoEmail).not.toHaveBeenCalled()
+  })
+
+  it('rejects a resend date that is not after today', async () => {
+    const response = await resend('31', '8', { sendOn: '2020-01-01' })
+
+    expect(response.status).toBe(400)
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it('will not schedule a resend for a paid link', async () => {
+    payload.findByID.mockResolvedValue(payment({ status: 'paid' }))
+    const nextMonth = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10)
+
+    expect((await resend('31', '8', { sendOn: nextMonth })).status).toBe(409)
+    expect(payload.update).not.toHaveBeenCalled()
   })
 })
 

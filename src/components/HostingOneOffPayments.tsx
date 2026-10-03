@@ -15,6 +15,8 @@ type OneOffPayment = {
   paidAt: string | null
   scheduledSendAt: string | null
   emailSentAt: string | null
+  /** When this unpaid link is due to be emailed again, if scheduled. */
+  resendAt: string | null
   sendFailed: boolean
 }
 
@@ -57,8 +59,16 @@ function statusLabel(payment: OneOffPayment): string {
       : `Email scheduled for ${date(payment.scheduledSendAt)}`
   if (payment.status === 'paid') return `Paid ${date(payment.paidAt)}`
   if (payment.status === 'revoked') return 'Cancelled'
-  if (new Date(payment.expiresAt) <= new Date()) return 'Expired'
-  return payment.status === 'checkout_pending' ? 'Client opened checkout' : 'Waiting for payment'
+  const current =
+    new Date(payment.expiresAt) <= new Date()
+      ? 'Expired'
+      : payment.status === 'checkout_pending'
+        ? 'Client opened checkout'
+        : 'Waiting for payment'
+  if (!payment.resendAt) return current
+  return payment.sendFailed
+    ? `${current}. Scheduled resend failed; resend it now instead.`
+    : `${current}. Resend scheduled for ${date(payment.resendAt)}`
 }
 
 /**
@@ -91,6 +101,9 @@ export function HostingOneOffPayments({
   const [link, setLink] = useState('')
   const [copied, setCopied] = useState(false)
   const [retryCancel, setRetryCancel] = useState<ReadonlySet<number>>(new Set())
+  // The row whose resend options are open, and the optional date chosen there.
+  const [resendFor, setResendFor] = useState<number | null>(null)
+  const [resendOn, setResendOn] = useState('')
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/clients/${clientId}/hosting-one-off-payments`, {
@@ -187,35 +200,63 @@ export function HostingOneOffPayments({
     }
   }
 
-  // Emails the link again with a new link valid for 14 days; the old one stops working.
-  const resend = async (payment: OneOffPayment) => {
-    if (
-      !window.confirm(
-        `Email the payment link for "${payment.description}" to ${payment.recipientEmail} again? They get a new link valid for 14 days, and the link in the earlier email stops working.`,
-      )
-    )
-      return
+  /**
+   * Emails the link again now, or schedules that for 9am Sydney on a date.
+   * Either way the client gets a new link valid for 14 days and the link in
+   * the earlier email stops working when the resend goes out.
+   */
+  const resend = async (
+    payment: OneOffPayment,
+    options: { sendOn?: string; cancelSchedule?: boolean } = {},
+  ) => {
+    const when = options.sendOn ? `at 9am on ${date(`${options.sendOn}T12:00:00Z`)}` : 'now'
+    const question = options.cancelSchedule
+      ? `Cancel the scheduled resend for "${payment.description}"? The current link keeps working.`
+      : `Email the payment link for "${payment.description}" to ${payment.recipientEmail} again ${when}? They get a new link valid for 14 days, and the link in the earlier email stops working.`
+    if (!window.confirm(question)) return
     setBusy(true)
     try {
       const response = await fetch(
         `/api/clients/${clientId}/hosting-one-off-payments/${payment.id}/resend`,
-        { method: 'POST', credentials: 'include' },
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(
+            options.cancelSchedule
+              ? { cancelSchedule: true }
+              : options.sendOn
+                ? { sendOn: options.sendOn }
+                : {},
+          ),
+        },
       )
       const result = (await response.json().catch(() => ({}))) as {
         url?: string
         emailSent?: boolean
         emailedTo?: string
+        resendAt?: string | null
         error?: string
       }
-      if (!response.ok || !result.url)
+      const scheduling = Boolean(options.sendOn || options.cancelSchedule)
+      if (!response.ok || (!scheduling && !result.url))
         throw new Error(result.error || 'Could not resend the payment link.')
-      setLink(result.url)
-      setCopied(false)
-      setMessage(
-        result.emailSent
-          ? `Payment link for ${money(payment.totalCents, payment.currency)} emailed again to ${result.emailedTo}.`
-          : 'A new payment link was made, but the email could not be sent. Use Copy payment link and send it to the client yourself.',
-      )
+      setResendFor(null)
+      setResendOn('')
+      if (options.cancelSchedule) setMessage('Scheduled resend cancelled.')
+      else if (options.sendOn)
+        setMessage(
+          `Payment link will be emailed again to ${payment.recipientEmail} at 9am on ${date(result.resendAt ?? null)}.`,
+        )
+      else {
+        setLink(result.url ?? '')
+        setCopied(false)
+        setMessage(
+          result.emailSent
+            ? `Payment link for ${money(payment.totalCents, payment.currency)} emailed again to ${result.emailedTo}.`
+            : 'A new payment link was made, but the email could not be sent. Use Copy payment link and send it to the client yourself.',
+        )
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not resend the payment link.')
     } finally {
@@ -355,18 +396,71 @@ export function HostingOneOffPayments({
                   </td>
                   <td>{statusLabel(payment)}</td>
                   <td>
-                    {(payment.status === 'active' || payment.status === 'checkout_pending') && (
-                      <Button
-                        type="button"
-                        size="small"
-                        buttonStyle="secondary"
-                        disabled={busy}
-                        aria-label={`Resend link for ${payment.description}`}
-                        onClick={() => resend(payment)}
-                      >
-                        Resend link
-                      </Button>
-                    )}
+                    {(payment.status === 'active' || payment.status === 'checkout_pending') &&
+                      (resendFor === payment.id ? (
+                        <div
+                          className="hosting-subscription-field__resend"
+                          role="group"
+                          aria-label={`Resend options for ${payment.description}`}
+                        >
+                          <label htmlFor={`resend-on-${payment.id}`}>Resend on (optional)</label>
+                          <input
+                            id={`resend-on-${payment.id}`}
+                            type="date"
+                            min={tomorrowInSydney()}
+                            value={resendOn}
+                            onChange={(event) => setResendOn(event.target.value)}
+                          />
+                          <Button
+                            type="button"
+                            size="small"
+                            disabled={busy}
+                            onClick={() => resend(payment, resendOn ? { sendOn: resendOn } : {})}
+                          >
+                            {resendOn ? 'Schedule resend' : 'Resend now'}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="small"
+                            buttonStyle="secondary"
+                            disabled={busy}
+                            onClick={() => {
+                              setResendFor(null)
+                              setResendOn('')
+                            }}
+                          >
+                            Back
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            size="small"
+                            buttonStyle="secondary"
+                            disabled={busy}
+                            aria-label={`Resend link for ${payment.description}`}
+                            onClick={() => {
+                              setResendFor(payment.id)
+                              setResendOn('')
+                            }}
+                          >
+                            Resend link
+                          </Button>
+                          {payment.resendAt && (
+                            <Button
+                              type="button"
+                              size="small"
+                              buttonStyle="secondary"
+                              disabled={busy}
+                              aria-label={`Cancel scheduled resend for ${payment.description}`}
+                              onClick={() => resend(payment, { cancelSchedule: true })}
+                            >
+                              Cancel resend
+                            </Button>
+                          )}
+                        </>
+                      ))}
                     {open && (
                       <Button
                         type="button"
