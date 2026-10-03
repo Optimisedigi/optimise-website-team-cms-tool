@@ -223,7 +223,7 @@ export function describeBillingStart(
   }
   if (start.kind === 'past') {
     return {
-      headline: `Today you pay a pro-rata amount up to ${formatBillingDate(start.nextChargeDate)}.`,
+      headline: `Today you pay for hosting up to ${formatBillingDate(start.nextChargeDate)}.`,
       detail: `Stripe shows the exact amount before you confirm. From then on, ${total} is charged automatically ${renewalPhrase(start.startDate, interval)}, to the same card, until cancelled.`,
     }
   }

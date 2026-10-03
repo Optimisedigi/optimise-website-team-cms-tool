@@ -177,6 +177,20 @@ describe('stripeBillingStartParams', () => {
 })
 
 describe('describeBillingStart', () => {
+  it('tells a past-start client what today covers without calling it pro-rata', () => {
+    expect(
+      describeBillingStart(
+        { kind: 'past', startDate: '2026-09-14', nextChargeDate: '2027-09-14' },
+        'year',
+        '$390.00',
+      ),
+    ).toEqual({
+      headline: 'Today you pay for hosting up to 14 September 2027.',
+      detail:
+        'Stripe shows the exact amount before you confirm. From then on, $390.00 is charged automatically on 14 September each year, to the same card, until cancelled.',
+    })
+  })
+
   it('tells a future-start client nothing is charged until the start date', () => {
     expect(
       describeBillingStart({ kind: 'future', startDate: '2026-11-15' }, 'year', '$1,088.55'),
