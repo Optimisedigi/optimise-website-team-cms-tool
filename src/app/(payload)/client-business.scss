@@ -254,6 +254,21 @@
     }
   }
 
+  // "+ Contract" rendered inside the Contracts body, pinned to the header.
+  .od-biz-section--contracts {
+    position: relative;
+
+    > .od-biz-section__header {
+      padding-inline-end: 150px;
+    }
+
+    .od-biz-contracts__header-action {
+      position: absolute;
+      top: 16px;
+      inset-inline-end: 20px;
+    }
+  }
+
   // ── Sub-tabs (Billing) ──
   .od-biz-subtabs {
     display: flex;

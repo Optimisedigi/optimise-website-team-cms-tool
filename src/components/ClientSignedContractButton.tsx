@@ -7,10 +7,11 @@ import type React from 'react'
 /**
  * Contracts panel on the client Business tab.
  *
- * Shows every contract linked to this client (draft / sent / completed) with
- * a link to open it, the signed PDF when one exists, and "New contract from
- * template" buttons that create a draft already linked to (and pre-filled
- * from) this client via POST /api/contracts/{templateId}/duplicate.
+ * Shows only the contracts linked to this client (draft / sent / completed)
+ * with a link to open it and the signed PDF when one exists. Templates stay
+ * hidden until "+ Contract" (pinned to the section header) is pressed; it
+ * lists templates that create a draft already linked to (and pre-filled from)
+ * this client via POST /api/contracts/{templateId}/duplicate.
  */
 
 type ContractRow = {
@@ -48,6 +49,10 @@ const ClientSignedContractButton = (): React.ReactElement => {
 
   const [contracts, setContracts] = useState<ContractRow[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
+  const [templatesState, setTemplatesState] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+    'idle',
+  )
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [creating, setCreating] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -61,22 +66,18 @@ const ClientSignedContractButton = (): React.ReactElement => {
       sort: '-contractDate',
       depth: '0',
     })
-    Promise.all([
-      fetch(`/api/contracts?${contractsQuery}`).then((res) => (res.ok ? res.json() : { docs: [] })),
-      fetch('/api/contracts?where[isTemplate][equals]=true&limit=50&depth=0').then((res) => (res.ok ? res.json() : { docs: [] })),
-    ])
-      .then(([contractData, templateData]) => {
+    fetch(`/api/contracts?${contractsQuery}`)
+      .then((res) => (res.ok ? res.json() : { docs: [] }))
+      .then((contractData) => {
         if (cancelled) return
         // Every row is linked to this client by the query, so it is this
-        // client's contract even when it is also used as a template. Trashed
-        // contracts stay hidden until restored.
+        // client's contract even when it is also used as a template (signed
+        // client contracts are often reused as templates). Trashed contracts
+        // stay hidden until restored.
         const rows: ContractRow[] = (contractData.docs ?? []).filter(
           (doc: { deletedAt?: string | null }) => !doc.deletedAt,
         )
         setContracts(rows)
-        const docs: Template[] = templateData.docs ?? []
-        docs.sort((a, b) => templateLabel(a).localeCompare(templateLabel(b)))
-        setTemplates(docs)
       })
       .catch(() => {
         if (!cancelled) setError('Could not load contracts for this client.')
@@ -88,6 +89,26 @@ const ClientSignedContractButton = (): React.ReactElement => {
       cancelled = true
     }
   }, [clientId])
+
+  // Templates load only when the picker is first opened.
+  useEffect(() => {
+    if (!pickerOpen || templatesState !== 'idle') return
+    setTemplatesState('loading')
+    fetch('/api/contracts?where[isTemplate][equals]=true&limit=50&depth=0')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load templates')
+        return res.json()
+      })
+      .then((templateData) => {
+        const docs: Template[] = (templateData.docs ?? []).filter(
+          (doc: { deletedAt?: string | null }) => !doc.deletedAt,
+        )
+        docs.sort((a, b) => templateLabel(a).localeCompare(templateLabel(b)))
+        setTemplates(docs)
+        setTemplatesState('ready')
+      })
+      .catch(() => setTemplatesState('error'))
+  }, [pickerOpen, templatesState])
 
   const handleOpenSigned = useCallback(() => {
     if (!signedContractUrl) return
@@ -126,6 +147,45 @@ const ClientSignedContractButton = (): React.ReactElement => {
 
   return (
     <div className="od-biz-contracts">
+      <div className="od-biz-contracts__header-action">
+        <button
+          type="button"
+          className="od-biz-btn od-biz-btn--primary"
+          onClick={() => setPickerOpen((open) => !open)}
+          aria-expanded={pickerOpen}
+          aria-controls="od-biz-contract-templates"
+        >
+          {pickerOpen ? 'Close' : '+ Contract'}
+        </button>
+      </div>
+
+      {pickerOpen && (
+        <div className="od-biz-contracts__templates" id="od-biz-contract-templates">
+          <span className="od-biz-label">New contract from template</span>
+          {templatesState === 'loading' && (
+            <span className="od-biz-empty">Loading templates…</span>
+          )}
+          {templatesState === 'error' && (
+            <span className="od-biz-error" role="alert">Could not load templates.</span>
+          )}
+          {templatesState === 'ready' && templates.length === 0 && (
+            <span className="od-biz-empty">No contract templates yet.</span>
+          )}
+          {templates.map((template) => (
+            <button
+              key={String(template.id)}
+              type="button"
+              className="od-biz-btn"
+              onClick={() => void handleCreate(template)}
+              disabled={creating !== null}
+              aria-busy={creating === String(template.id) || undefined}
+            >
+              {creating === String(template.id) ? 'Creating…' : templateLabel(template)}
+            </button>
+          ))}
+        </div>
+      )}
+
       {showLegacySigned && (
         <div className="od-biz-contract-row">
           <span className="od-biz-pill od-biz-pill--green">Signed</span>
@@ -174,24 +234,6 @@ const ClientSignedContractButton = (): React.ReactElement => {
             )
           })}
         </ul>
-      )}
-
-      {templates.length > 0 && (
-        <div className="od-biz-contracts__templates">
-          <span className="od-biz-label">New contract from template</span>
-          {templates.map((template) => (
-            <button
-              key={String(template.id)}
-              type="button"
-              className="od-biz-btn"
-              onClick={() => void handleCreate(template)}
-              disabled={creating !== null}
-              aria-busy={creating === String(template.id) || undefined}
-            >
-              {creating === String(template.id) ? 'Creating…' : templateLabel(template)}
-            </button>
-          ))}
-        </div>
       )}
 
       {error && <p className="od-biz-error" role="alert">{error}</p>}

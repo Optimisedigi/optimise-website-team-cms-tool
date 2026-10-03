@@ -193,6 +193,10 @@ describe('HostingSubscriptionField offer email result', () => {
     expect(await screen.findByRole('status', { name: 'Hosting offer result' })).toHaveTextContent(
       'Offer created, but the email could not be sent.',
     )
+    const notice = screen.getByRole('status', { name: 'Hosting payment link' })
+    expect(notice).toHaveTextContent('Payment link created, not emailed')
+    expect(notice).toHaveTextContent('Status: Link created, but the email did not send')
+    expect(notice).not.toHaveTextContent('billing@example.com')
     await act(async () =>
       fireEvent.click(screen.getByRole('button', { name: 'Copy payment link' })),
     )
@@ -270,6 +274,100 @@ describe('HostingSubscriptionField payment history', () => {
     expect(screen.getByRole('button', { name: '+ New subscription' })).toBeInTheDocument()
     expect(screen.getByText(/No hosting subscription yet/)).toBeInTheDocument()
     expect(screen.queryByLabelText('Current subscription')).not.toBeInTheDocument()
+  })
+
+  const offerRecord = (overrides: Record<string, unknown> = {}) => ({
+    id: 7,
+    status: 'active',
+    createdAt: '2026-10-03T13:30:29.955Z',
+    expiresAt: '2099-10-17T13:30:29.865Z',
+    selectedInterval: null,
+    snapshot: {
+      recipientEmail: 'billing@example.com',
+      monthly: { totalCents: 5900, currency: 'aud', planName: 'Managed Hosting — Essential' },
+      annual: { totalCents: 70800, currency: 'aud', planName: 'Managed Hosting — Essential' },
+    },
+    ...overrides,
+  })
+
+  function mockOffer(response: { ok: boolean; body?: unknown }) {
+    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) =>
+      url.startsWith('/api/hosting-payment-offers/7')
+        ? { ok: response.ok, json: async () => response.body ?? {} }
+        : { ok: true, json: async () => ({ plans: [] }) },
+    )
+  }
+
+  function withSentOffer() {
+    setField('hostingSubscription.stripeSubscriptionId', '')
+    setField('hostingSubscription.activeOffer', 7)
+    setField('hostingSubscription.offerCreatedAt', '2026-10-03T13:30:29.955Z')
+    setField('hostingSubscription.offerExpiresAt', '2099-10-17T13:30:29.865Z')
+  }
+
+  const notice = () => screen.findByRole('status', { name: 'Hosting payment link' })
+
+  it.each([
+    [{}, 'Status: Payment not started yet'],
+    [
+      { status: 'checkout_pending', selectedInterval: 'month' },
+      'Status: Started payment (chose monthly), not paid yet',
+    ],
+    [
+      { status: 'checkout_pending', selectedInterval: 'year' },
+      'Status: Started payment (chose annual), not paid yet',
+    ],
+    [{ status: 'revoked' }, 'Status: Cancelled (replaced or withdrawn)'],
+    [{ status: 'expired' }, 'Status: Expired without payment'],
+    [{ expiresAt: '2026-01-15T00:00:00.000Z' }, 'Status: Expired without payment'],
+  ])('shows the offer name, price, recipient and live status %#', async (overrides, status) => {
+    withSentOffer()
+    mockOffer({ ok: true, body: offerRecord(overrides) })
+    await renderPanel()
+    await waitFor(async () => expect(await notice()).toHaveTextContent(status))
+    const banner = await notice()
+    expect(banner).toHaveTextContent(
+      'Managed Hosting — Essential · $59.00/month or $708.00/year',
+    )
+    expect(banner).toHaveTextContent('Payment link sent to billing@example.com on 3 Oct 2026')
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/hosting-payment-offers/7?depth=0',
+      expect.objectContaining({ credentials: 'include' }),
+    )
+    expect(screen.queryByText(/No hosting subscription yet/)).not.toBeInTheDocument()
+  })
+
+  it('falls back to the saved dates when the offer cannot be read', async () => {
+    withSentOffer()
+    setField('hostingSubscription.recipientEmail', 'billing@example.com')
+    mockOffer({ ok: false })
+    await renderPanel()
+    await waitFor(async () =>
+      expect(await notice()).toHaveTextContent(
+        'Status: Sent, awaiting payment (live status unavailable)',
+      ),
+    )
+    expect(await notice()).toHaveTextContent('Care Plan')
+    expect(await notice()).toHaveTextContent(
+      'Payment link sent to billing@example.com on 3 Oct 2026',
+    )
+  })
+
+  it('shows no link notice when no offer was ever sent', async () => {
+    setField('hostingSubscription.stripeSubscriptionId', '')
+    await renderPanel()
+    expect(screen.queryByRole('status', { name: 'Hosting payment link' })).not.toBeInTheDocument()
+    expect(screen.getByText(/No hosting subscription yet/)).toBeInTheDocument()
+  })
+
+  it('does not look up the offer once the client is subscribed', async () => {
+    setField('hostingSubscription.activeOffer', 7)
+    await renderPanel()
+    expect(screen.queryByRole('status', { name: 'Hosting payment link' })).not.toBeInTheDocument()
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/hosting-payment-offers/'),
+      expect.anything(),
+    )
   })
 
   it('lists the latest six payments with totals and can show them all', async () => {

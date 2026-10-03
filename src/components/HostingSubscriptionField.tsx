@@ -29,7 +29,55 @@ const annualCentsFrom = (monthlyCents: number, discountPercentage?: number | nul
   return Math.round(monthlyCents * 12 * (1 - applied / 100))
 }
 
-type OfferResult = { url: string; expiresAt: string; emailSent?: boolean; emailedTo?: string }
+type OfferResult = {
+  url: string
+  expiresAt: string
+  emailSent?: boolean
+  emailedTo?: string
+  offerId?: string | number
+}
+type OfferQuote = { totalCents?: number; currency?: string; planName?: string }
+/** The live hosting-payment-offers record behind the emailed link. */
+type OfferRecord = {
+  status?: 'active' | 'checkout_pending' | 'completed' | 'revoked' | 'expired'
+  createdAt?: string
+  expiresAt?: string
+  selectedInterval?: 'month' | 'year' | null
+  snapshot?: { monthly?: OfferQuote; annual?: OfferQuote; recipientEmail?: string }
+}
+type OfferState = { kind: 'none' | 'loading' | 'error' } | { kind: 'ready'; offer: OfferRecord }
+
+/**
+ * Plain-language status of an emailed link; time-expired links read as expired.
+ * Viewing the link records nothing — only choosing a billing option on it moves
+ * the offer to checkout_pending — so "active" means payment not started yet.
+ */
+const offerStatus = (
+  offer: OfferRecord,
+  now: number,
+): { label: string; tone: 'pending' | 'warn' | 'success' } => {
+  const expired = Boolean(offer.expiresAt && new Date(offer.expiresAt).getTime() <= now)
+  if (offer.status === 'completed') return { label: 'Paid', tone: 'success' }
+  if (offer.status === 'revoked') {
+    return { label: 'Cancelled (replaced or withdrawn)', tone: 'warn' }
+  }
+  if (offer.status === 'expired' || expired) {
+    return { label: 'Expired without payment', tone: 'warn' }
+  }
+  if (offer.status === 'checkout_pending') {
+    const choice =
+      offer.selectedInterval === 'year'
+        ? 'annual'
+        : offer.selectedInterval === 'month'
+          ? 'monthly'
+          : ''
+    return {
+      label: `Started payment${choice ? ` (chose ${choice})` : ''}, not paid yet`,
+      tone: 'pending',
+    }
+  }
+  return { label: 'Payment not started yet', tone: 'pending' }
+}
 type OfferOutcome = { kind: 'emailed' | 'email_failed'; email: string; expiresAt: string }
 type HistoryState =
   | { kind: 'idle' | 'loading' }
@@ -164,6 +212,22 @@ export default function HostingSubscriptionField() {
   const { value: currentPeriodEnd, setValue: setCurrentPeriodEnd } = useField<string>({
     path: 'hostingSubscription.currentPeriodEnd',
   })
+  const { value: offerCreatedAt } = useField<string>({ path: 'hostingSubscription.offerCreatedAt' })
+  const { value: offerExpiresAt } = useField<string>({ path: 'hostingSubscription.offerExpiresAt' })
+  const { value: offerCompletedAt } = useField<string>({
+    path: 'hostingSubscription.offerCompletedAt',
+  })
+  const { value: activeOfferValue } = useField<string | number | { id?: string | number } | null>({
+    path: 'hostingSubscription.activeOffer',
+  })
+  // An offer created in this session is newer than the saved form value.
+  const [createdOfferId, setCreatedOfferId] = useState<string | number | null>(null)
+  const activeOfferId =
+    createdOfferId ??
+    (activeOfferValue && typeof activeOfferValue === 'object'
+      ? activeOfferValue.id
+      : activeOfferValue)
+  const [offerState, setOfferState] = useState<OfferState>({ kind: 'none' })
   const { user } = useAuth()
   const canStopPayments = userHasFeature(user, 'hosting-billing-settings')
   const [stopping, setStopping] = useState<StopAction | null>(null)
@@ -202,6 +266,28 @@ export default function HostingSubscriptionField() {
       })
     return () => controller.abort()
   }, [])
+
+  // Live status of the emailed sign-up link (not started / started / paid / expired).
+  useEffect(() => {
+    if (stripeSubscriptionId || activeOfferId == null || activeOfferId === '') {
+      setOfferState({ kind: 'none' })
+      return
+    }
+    const controller = new AbortController()
+    setOfferState({ kind: 'loading' })
+    fetch(`/api/hosting-payment-offers/${encodeURIComponent(String(activeOfferId))}?depth=0`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then((response) =>
+        response.ok ? response.json() : Promise.reject(new Error('Offer lookup failed')),
+      )
+      .then((offer: OfferRecord) => setOfferState({ kind: 'ready', offer }))
+      .catch(() => {
+        if (!controller.signal.aborted) setOfferState({ kind: 'error' })
+      })
+    return () => controller.abort()
+  }, [activeOfferId, stripeSubscriptionId])
 
   // Seed from the main client contact once. A billing contact can be different,
   // so never overwrite an email an admin has deliberately entered here.
@@ -277,6 +363,7 @@ export default function HostingSubscriptionField() {
         throw new Error(result.error || 'Could not create the hosting offer.')
       setOfferUrl(result.url)
       setLinkCopied(false)
+      if (result.offerId != null) setCreatedOfferId(result.offerId)
       setOfferOutcome({
         kind: result.emailSent ? 'emailed' : 'email_failed',
         email: result.emailedTo || recipientEmail || '',
@@ -424,6 +511,54 @@ export default function HostingSubscriptionField() {
       ? 'warn'
       : STATUS_TONES[subscriptionStatus || ''] || 'off'
   const hasSubscription = Boolean(stripeSubscriptionId)
+  // The emailed sign-up link and where it is up to. The client record only
+  // gains a subscription once Stripe confirms, so until then this is the only
+  // sign that a link went out. Falls back to the dates saved on the client when
+  // the offer record cannot be read.
+  const linkNotice = (() => {
+    if (hasSubscription) return null
+    const now = Date.now()
+    const emailFailed = offerOutcome?.kind === 'email_failed'
+    if (offerState.kind === 'ready') {
+      const { offer } = offerState
+      const { monthly, annual } = offer.snapshot ?? {}
+      const prices = [
+        monthly?.totalCents ? `${money(monthly.totalCents, monthly.currency)}/month` : '',
+        annual?.totalCents ? `${money(annual.totalCents, annual.currency)}/year` : '',
+      ].filter(Boolean)
+      const status = offerStatus(offer, now)
+      return {
+        name: monthly?.planName || annual?.planName || planName || 'Hosting',
+        prices: prices.join(' or '),
+        email: emailFailed ? '' : offer.snapshot?.recipientEmail || '',
+        emailFailed,
+        sentAt: offer.createdAt || offerCreatedAt || '',
+        expiresAt: offer.expiresAt || '',
+        status:
+          emailFailed && status.tone === 'pending'
+            ? { label: 'Link created, but the email did not send', tone: 'warn' as const }
+            : status,
+      }
+    }
+    if (!offerOutcome && !(offerCreatedAt && !offerCompletedAt)) return null
+    const expiresAt = offerOutcome?.expiresAt || offerExpiresAt || ''
+    const expired = Boolean(expiresAt && new Date(expiresAt).getTime() <= now)
+    const unknown = offerState.kind === 'error' ? ' (live status unavailable)' : ''
+    return {
+      name: planName || 'Hosting',
+      prices: '',
+      // On a failed send the route returns no recipient; never guess from the form.
+      email: emailFailed ? '' : offerOutcome?.email || recipientEmail || '',
+      emailFailed,
+      sentAt: offerOutcome ? new Date(now).toISOString() : offerCreatedAt || '',
+      expiresAt,
+      status: emailFailed
+        ? { label: 'Link created, but the email did not send', tone: 'warn' as const }
+        : expired
+          ? { label: `Expired without payment${unknown}`, tone: 'warn' as const }
+          : { label: `Sent, awaiting payment${unknown}`, tone: 'pending' as const },
+    }
+  })()
   const canCreateOffer = Boolean(
     id && planName && recipientEmail && monthlyBaseCents && billingInterval && !creating,
   )
@@ -645,7 +780,32 @@ export default function HostingSubscriptionField() {
       )}
 
       <div className="od-hosting__body">
-        {!hasSubscription ? (
+        {linkNotice ? (
+          <div
+            className={[
+              'od-hosting__banner',
+              'od-hosting__pending',
+              `od-hosting__banner--${linkNotice.status.tone}`,
+            ].join(' ')}
+            role="status"
+            aria-label="Hosting payment link"
+          >
+            <div className="od-hosting__banner-text">
+              <b>
+                {linkNotice.name}
+                {linkNotice.prices ? ` · ${linkNotice.prices}` : ''}
+              </b>
+              <div className="od-hosting__pending-meta">
+                {linkNotice.emailFailed
+                  ? 'Payment link created, not emailed'
+                  : `Payment link sent${linkNotice.email ? ` to ${linkNotice.email}` : ''}`}
+                {linkNotice.sentAt ? ` on ${shortDate(linkNotice.sentAt)}` : ''}
+                {linkNotice.expiresAt ? ` · link expires ${shortDate(linkNotice.expiresAt)}` : ''}
+              </div>
+            </div>
+            <span className="od-hosting__pending-status">Status: {linkNotice.status.label}</span>
+          </div>
+        ) : !hasSubscription ? (
           <p className="od-hosting__empty">
             No hosting subscription yet. Use New subscription to email the client a payment link.
           </p>

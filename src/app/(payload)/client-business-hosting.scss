@@ -118,7 +118,11 @@
     font-size: 12.5px;
     &--success { background: #e8f6ee; color: #157f3c; }
     &--warn { background: #fef6e7; color: #92590a; }
+    &--pending { background: #eaf3fb; color: #1d5f8c; }
   }
+  &__pending { margin-top: 16px; }
+  &__pending-meta { margin-top: 2px; font-weight: 400; }
+  &__pending-status { font-weight: 600; white-space: nowrap; }
   &__banner-text { flex: 1; min-width: 200px; font-weight: 600; }
   &__status-msg { margin: 0; font-size: 12px; color: #5b6573; &:empty { display: none; } }
 
