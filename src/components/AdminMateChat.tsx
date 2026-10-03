@@ -8,6 +8,11 @@ import type { AdminMateClient, StagedClient } from '@/lib/agents/adminmate/tools
 import type { StagedContract } from '@/lib/agents/adminmate/contract-tools'
 import type { ContractTemplateOption } from '@/lib/contract-from-template'
 import AdminMateContractCard from './AdminMateContractCard'
+import AdminMateOneOffPaymentCard from './AdminMateOneOffPaymentCard'
+import type {
+  OneOffPaymentPreview,
+  StagedOneOffPayment,
+} from '@/lib/agents/adminmate/one-off-payment-tool'
 import OptiMateBeamComposer from './OptiMateBeamComposer'
 import OptiMateMetalSend from './OptiMateMetalSend'
 import { ThinkingOrb } from 'thinking-orbs'
@@ -44,6 +49,8 @@ export default function AdminMateChat() {
   const [staged, setStaged] = useState<StagedClient>()
   const [similar, setSimilar] = useState<AdminMateClient[]>([])
   const [stagedContract, setStagedContract] = useState<StagedContract>()
+  const [stagedPayment, setStagedPayment] = useState<StagedOneOffPayment>()
+  const [paymentPreview, setPaymentPreview] = useState<OneOffPaymentPreview>()
   const [missingDetails, setMissingDetails] = useState<string[]>([])
   const [templates, setTemplates] = useState<ContractTemplateOption[]>([])
   const [templateChoices, setTemplateChoices] = useState<ContractTemplateOption[]>([])
@@ -80,7 +87,7 @@ export default function AdminMateChat() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
-  }, [messages, staged, stagedContract])
+  }, [messages, staged, stagedContract, stagedPayment])
 
   const patch = (changes: Partial<StagedClient>) => setStaged((current) => current && { ...current, ...changes })
   const patchContract = (changes: Partial<StagedContract>) => setStagedContract((current) => current && { ...current, ...changes })
@@ -158,6 +165,10 @@ export default function AdminMateChat() {
         setStagedContract(json.stagedContract)
         setMissingDetails(Array.isArray(json.missingContractDetails) ? json.missingContractDetails : [])
       }
+      if (json.stagedOneOffPayment) {
+        setStagedPayment(json.stagedOneOffPayment)
+        setPaymentPreview(json.oneOffPaymentPreview ?? undefined)
+      }
       if (Array.isArray(json.contractTemplates)) setTemplates(json.contractTemplates)
       if (Array.isArray(json.templateChoices)) setTemplateChoices(json.templateChoices)
       if (Array.isArray(json.clientChoices)) {
@@ -211,6 +222,48 @@ export default function AdminMateChat() {
       setMissingDetails([])
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create the contract')
+    } finally { setCreating(false) }
+  }
+
+  // Uses the same endpoint as the client page's One-off payment panel, so the
+  // link, email and schedule behave identically and the same billing
+  // permission applies.
+  const sendPayment = async () => {
+    if (!stagedPayment || creating) return
+    setCreating(true)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await fetch(
+        `/api/clients/${encodeURIComponent(stagedPayment.clientId)}/hosting-one-off-payments`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: stagedPayment.description,
+            amount: stagedPayment.amount,
+            ...(stagedPayment.sendOn ? { sendOn: stagedPayment.sendOn } : {}),
+          }),
+        },
+      )
+      const json = await response.json().catch(() => ({}))
+      if (!response.ok || !json.payment) throw new Error(json.error || 'Could not create the payment link.')
+      const total = (json.payment.totalCents / 100).toLocaleString('en-AU', {
+        style: 'currency',
+        currency: String(json.payment.currency || 'aud').toUpperCase(),
+      })
+      setSuccess(
+        json.payment.status === 'scheduled'
+          ? `Payment link for ${total} scheduled for ${stagedPayment.clientName}. It will be emailed to ${json.payment.recipientEmail} at 9am Sydney time on ${stagedPayment.sendOn}. You can cancel it from the client page until then.`
+          : json.emailSent
+            ? `Payment link for ${total} emailed to ${json.emailedTo}.`
+            : `Payment link created, but the email could not be sent. Send this link to the client yourself: ${json.url}`,
+      )
+      setStagedPayment(undefined)
+      setPaymentPreview(undefined)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not create the payment link.')
     } finally { setCreating(false) }
   }
 
@@ -368,6 +421,16 @@ export default function AdminMateChat() {
             creating={creating}
             onChange={patchContract}
             onCreate={() => void createContract()}
+          />
+        )}
+        {stagedPayment && (
+          <AdminMateOneOffPaymentCard
+            staged={stagedPayment}
+            preview={paymentPreview}
+            sending={creating}
+            onChange={(changes) => setStagedPayment((current) => current && { ...current, ...changes })}
+            onConfirm={() => void sendPayment()}
+            onDiscard={() => { setStagedPayment(undefined); setPaymentPreview(undefined) }}
           />
         )}
         {error && <div role="alert" style={{ ...noticeStyle, color: '#991b1b', background: '#fef2f2' }}>{error}</div>}

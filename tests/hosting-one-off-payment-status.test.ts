@@ -1,7 +1,11 @@
 import { createClient } from '@libsql/client'
 import { drizzle } from 'drizzle-orm/libsql'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { moveFromPayable } from '@/lib/hosting-one-off-payment-status'
+import {
+  claimScheduledForSend,
+  moveFromPayable,
+  returnToSchedule,
+} from '@/lib/hosting-one-off-payment-status'
 
 /**
  * Runs the real conditional UPDATE against SQLite. Checkout and cancel race
@@ -24,10 +28,10 @@ beforeEach(async () => {
   client = createClient({ url: ':memory:' })
   db = drizzle(client)
   await client.execute(
-    'create table hosting_one_off_payments (id integer primary key, status text, stripe_checkout_session_id text, updated_at text)',
+    'create table hosting_one_off_payments (id integer primary key, status text, stripe_checkout_session_id text, updated_at text, token_hash text, expires_at text, send_attempts numeric default 0)',
   )
   await client.execute(
-    "insert into hosting_one_off_payments values (1, 'active', null, null), (2, 'checkout_pending', 'cs_old', null), (3, 'paid', 'cs_paid', null), (4, 'revoked', null, null)",
+    "insert into hosting_one_off_payments (id, status, stripe_checkout_session_id) values (1, 'active', null), (2, 'checkout_pending', 'cs_old'), (3, 'paid', 'cs_paid'), (4, 'revoked', null), (5, 'scheduled', null)",
   )
 })
 
@@ -89,5 +93,79 @@ describe('moveFromPayable', () => {
     ).toBe(false)
     expect(await moveFromPayable(db, { id, status: 'revoked', now: NOW })).toBe(false)
     expect((await row(id))?.status).toBe(status)
+  })
+
+  it('cancels a link that is still waiting for its scheduled email', async () => {
+    expect(await moveFromPayable(db, { id: 5, status: 'revoked', now: NOW })).toBe(true)
+    expect((await row(5))?.status).toBe('revoked')
+  })
+
+  it('never opens a checkout on a link whose email has not gone out', async () => {
+    expect(
+      await moveFromPayable(db, {
+        id: 5,
+        status: 'checkout_pending',
+        stripeCheckoutSessionId: 'cs_early',
+        now: NOW,
+      }),
+    ).toBe(false)
+    expect(await row(5)).toMatchObject({ status: 'scheduled', session: null })
+  })
+})
+
+describe('sending a scheduled link', () => {
+  const sendRow = async (id: number) =>
+    (
+      await client.execute({
+        sql: 'select status, token_hash as tokenHash, expires_at as expiresAt, send_attempts as attempts from hosting_one_off_payments where id = ?',
+        args: [id],
+      })
+    ).rows[0]
+  const claim = (id: number, tokenHash = 'hash_sent') =>
+    claimScheduledForSend(db, { id, tokenHash, expiresAt: '2026-10-16T00:00:00.000Z', now: NOW })
+
+  it('makes the link payable with the emailed token and a fresh expiry', async () => {
+    expect(await claim(5)).toBe(true)
+    expect(await sendRow(5)).toMatchObject({
+      status: 'active',
+      tokenHash: 'hash_sent',
+      expiresAt: '2026-10-16T00:00:00.000Z',
+    })
+  })
+
+  it('lets only one overlapping run send it', async () => {
+    expect(await claim(5, 'hash_a')).toBe(true)
+    expect(await claim(5, 'hash_b')).toBe(false)
+    expect((await sendRow(5))?.tokenHash).toBe('hash_a')
+  })
+
+  it('never sends a link that was cancelled first', async () => {
+    await moveFromPayable(db, { id: 5, status: 'revoked', now: NOW })
+
+    expect(await claim(5)).toBe(false)
+    expect((await sendRow(5))?.status).toBe('revoked')
+  })
+
+  it.each([1, 2, 3, 4])('never claims link %s, which is not scheduled', async (id) => {
+    expect(await claim(id)).toBe(false)
+  })
+
+  it('puts a failed send back on the schedule with a retired token and counts the attempt', async () => {
+    await claim(5)
+
+    expect(await returnToSchedule(db, { id: 5, tokenHash: 'hash_retired', now: NOW })).toBe(true)
+    expect(await sendRow(5)).toMatchObject({
+      status: 'scheduled',
+      tokenHash: 'hash_retired',
+      attempts: 1,
+    })
+  })
+
+  it('does not reschedule a link cancelled while its email was failing', async () => {
+    await claim(5)
+    await moveFromPayable(db, { id: 5, status: 'revoked', now: NOW })
+
+    expect(await returnToSchedule(db, { id: 5, tokenHash: 'hash_retired', now: NOW })).toBe(false)
+    expect((await sendRow(5))?.status).toBe('revoked')
   })
 })

@@ -27,6 +27,8 @@ const sendBrevoEmail = vi.fn()
 // The real conditional UPDATE is covered against SQLite in
 // tests/hosting-one-off-payment-status.test.ts; here it decides who won a race.
 const moveFromPayable = vi.fn()
+const claimScheduledForSend = vi.fn()
+const returnToSchedule = vi.fn()
 const missing = Object.assign(new Error('No such checkout.session'), { code: 'resource_missing' })
 
 vi.mock('payload', () => ({ getPayload: vi.fn(async () => payload) }))
@@ -41,6 +43,8 @@ vi.mock('@/lib/brevo-email', () => ({
 vi.mock('@/lib/hosting-one-off-payment-status', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/hosting-one-off-payment-status')>()),
   moveFromPayable: (...args: unknown[]) => moveFromPayable(...args),
+  claimScheduledForSend: (...args: unknown[]) => claimScheduledForSend(...args),
+  returnToSchedule: (...args: unknown[]) => returnToSchedule(...args),
 }))
 vi.mock('@/lib/stripe', async (importOriginal) => ({
   ...stripe,
@@ -168,7 +172,39 @@ describe('issuing a one-off payment link', () => {
     expect(sent.replyTo).toEqual({ email: 'accounts-replies@optimisedigital.online' })
     expect(sent.to).toEqual([{ email: 'billing@example.com', name: 'Sam' }])
     expect(sent.textContent).toContain(body.url)
+    expect(sent.subject).toBe('Payment request: Backdated hosting, July to September 2026')
+    expect(sent.textContent.startsWith('Hi Sam,')).toBe(true)
     expect(body.emailSent).toBe(true)
+  })
+
+  it("greets the client's main contact by first name when no billing name is set", async () => {
+    payload.findByID.mockResolvedValue({
+      id: 8,
+      name: 'We Can Quit',
+      contactName: 'Jordan Smith',
+      hostingSubscription: { recipientEmail: 'billing@example.com', recipientName: '' },
+    })
+
+    await issue({ description: 'Backdated hosting', amount: 297 })
+
+    const created = payload.create.mock.calls[0]?.[0] as { data: Record<string, any> }
+    expect(created.data.snapshot.recipientName).toBe('Jordan Smith')
+    const sent = sendBrevoEmail.mock.calls[0]?.[0]
+    expect(sent.to).toEqual([{ email: 'billing@example.com', name: 'Jordan Smith' }])
+    expect(sent.textContent.startsWith('Hi Jordan,')).toBe(true)
+  })
+
+  it('uses the billing name set in the hosting section over the main contact', async () => {
+    payload.findByID.mockResolvedValue({
+      id: 8,
+      name: 'We Can Quit',
+      contactName: 'Jordan Smith',
+      hostingSubscription: { recipientEmail: 'billing@example.com', recipientName: 'Priya Rao' },
+    })
+
+    await issue({ description: 'Backdated hosting', amount: 297 })
+
+    expect(sendBrevoEmail.mock.calls[0]?.[0].textContent.startsWith('Hi Priya,')).toBe(true)
   })
 
   it('still returns the link when the email fails', async () => {
@@ -181,6 +217,150 @@ describe('issuing a one-off payment link', () => {
     expect(response.status).toBe(200)
     expect(body.emailSent).toBe(false)
     expect(body.url).toMatch(/^https:\/\/cms\.test\/hosting-pay\/once\//)
+  })
+
+  it('schedules the email for 9am Sydney on the chosen day without sending anything now', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T02:00:00.000Z'))
+    try {
+      const response = await issue({
+        description: 'Backdated hosting',
+        amount: 297,
+        sendOn: '2026-10-10',
+      })
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      const created = payload.create.mock.calls[0]?.[0] as { data: Record<string, any> }
+      expect(created.data.status).toBe('scheduled')
+      expect(created.data.scheduledSendAt).toBe('2026-10-09T22:00:00.000Z')
+      expect(sendBrevoEmail).not.toHaveBeenCalled()
+      // The link is made when the email goes out, so there is nothing to copy yet.
+      expect(body.url).toBeUndefined()
+      expect(body.emailSent).toBe(false)
+      expect(body.payment).toMatchObject({
+        status: 'scheduled',
+        scheduledSendAt: '2026-10-09T22:00:00.000Z',
+        emailSentAt: null,
+        sendFailed: false,
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects a send date that is not after today', async () => {
+    const response = await issue({
+      description: 'Backdated hosting',
+      amount: 297,
+      sendOn: '2020-01-01',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe(
+      'Pick a send date after today, or leave it blank to send now.',
+    )
+    expect(payload.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('sending scheduled one-off payment emails', () => {
+  const NOW = new Date('2026-10-10T00:00:00.000Z')
+  const run = async () => {
+    const { sendDueScheduledOneOffPayments } = await import('@/lib/hosting-one-off-issue')
+    return sendDueScheduledOneOffPayments(payload as any, NOW)
+  }
+  const cron = async (authorization?: string) => {
+    const { GET } = await import('@/app/(frontend)/api/hosting-pay/once/send-scheduled/route')
+    return GET(
+      new NextRequest('http://localhost/api/hosting-pay/once/send-scheduled', {
+        headers: authorization ? { authorization } : {},
+      }),
+    )
+  }
+
+  beforeEach(() => {
+    payload.find.mockResolvedValue({
+      docs: [
+        payment({
+          status: 'scheduled',
+          scheduledSendAt: '2026-10-09T22:00:00.000Z',
+          sendAttempts: 0,
+        }),
+      ],
+    })
+    payload.findByID.mockResolvedValue({ id: 8, name: 'We Can Quit' })
+    claimScheduledForSend.mockResolvedValue(true)
+    returnToSchedule.mockResolvedValue(true)
+  })
+
+  it('only picks up scheduled links that are due and still retrying', async () => {
+    await run()
+
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'hosting-one-off-payments',
+        where: {
+          and: [
+            { status: { equals: 'scheduled' } },
+            { scheduledSendAt: { less_than_equal: NOW.toISOString() } },
+            { sendAttempts: { less_than: 5 } },
+          ],
+        },
+      }),
+    )
+  })
+
+  it('emails a fresh payable link valid for 14 days from the send date', async () => {
+    const summary = await run()
+
+    expect(summary).toEqual({ due: 1, sent: 1, failed: 0, skipped: 0 })
+    const claim = claimScheduledForSend.mock.calls[0]?.[1] as Record<string, any>
+    expect(claim).toMatchObject({ id: 31, expiresAt: '2026-10-24T00:00:00.000Z' })
+    const sent = sendBrevoEmail.mock.calls[0]?.[0]
+    const url = /https:\/\/cms\.test\/hosting-pay\/once\/[\w-]{43}/.exec(sent.textContent)?.[0]
+    expect(url).toBeDefined()
+    // The emailed token is the one the claim made payable.
+    const { hashOfferToken } = await import('@/lib/hosting-billing')
+    expect(hashOfferToken(String(url).split('/').pop() ?? '')).toBe(claim.tokenHash)
+    expect(sent.to).toEqual([{ email: 'billing@example.com', name: 'Sam' }])
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 31, data: { emailSentAt: NOW.toISOString() } }),
+    )
+  })
+
+  it('skips a link another run or a cancel got to first, without emailing', async () => {
+    claimScheduledForSend.mockResolvedValue(false)
+
+    expect(await run()).toEqual({ due: 1, sent: 0, failed: 0, skipped: 1 })
+    expect(sendBrevoEmail).not.toHaveBeenCalled()
+  })
+
+  it('puts the link back on the schedule with a different, unsent token when the email fails', async () => {
+    sendBrevoEmail.mockResolvedValue({ ok: false, code: 'brevo-error', status: 500 })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(await run()).toEqual({ due: 1, sent: 0, failed: 1, skipped: 0 })
+    const claimed = (claimScheduledForSend.mock.calls[0]?.[1] as Record<string, any>).tokenHash
+    const retired = (returnToSchedule.mock.calls[0]?.[1] as Record<string, any>).tokenHash
+    expect(retired).not.toBe(claimed)
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it('only runs for Vercel Cron', async () => {
+    process.env.CRON_SECRET = 'cron-secret'
+    try {
+      expect((await cron()).status).toBe(401)
+      expect((await cron('Bearer wrong-secret')).status).toBe(401)
+      expect(payload.find).not.toHaveBeenCalled()
+
+      vi.spyOn(console, 'info').mockImplementation(() => {})
+      const response = await cron('Bearer cron-secret')
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ due: 1, sent: 1, failed: 0, skipped: 0 })
+    } finally {
+      delete process.env.CRON_SECRET
+    }
   })
 })
 
@@ -636,5 +816,96 @@ describe('cancelling a one-off payment link', () => {
 
     expect(response.status).toBe(404)
     expect(moveFromPayable).not.toHaveBeenCalled()
+  })
+})
+
+describe('removing a cancelled one-off payment link from the list', () => {
+  const hide = async (paymentId = '31', clientId = '8') => {
+    const { POST } =
+      await import('@/app/(frontend)/api/clients/[id]/hosting-one-off-payments/[paymentId]/hide/route')
+    return POST(
+      new NextRequest(
+        `http://localhost/api/clients/${clientId}/hosting-one-off-payments/${paymentId}/hide`,
+        { method: 'POST' },
+      ),
+      { params: Promise.resolve({ id: clientId, paymentId }) },
+    )
+  }
+
+  it('hides a cancelled link but keeps the record', async () => {
+    payload.findByID.mockResolvedValue(payment({ status: 'revoked' }))
+
+    const response = await hide()
+
+    expect(response.status).toBe(200)
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'hosting-one-off-payments',
+        id: 31,
+        data: { hiddenAt: expect.any(String) },
+      }),
+    )
+    // Only the hidden flag changes; the status and history stay as they were.
+    expect(payload.update).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['active', 'checkout_pending', 'scheduled', 'paid'])(
+    'refuses to remove a %s link',
+    async (status) => {
+      payload.findByID.mockResolvedValue(payment({ status }))
+
+      const response = await hide()
+
+      expect(response.status).toBe(409)
+      expect((await response.json()).error).toBe(
+        'Only cancelled payment links can be removed. Cancel it first.',
+      )
+      expect(payload.update).not.toHaveBeenCalled()
+    },
+  )
+
+  it('keeps a cancelled link visible while its Stripe checkout is still open', async () => {
+    payload.findByID.mockResolvedValue(
+      payment({ status: 'revoked', stripeCheckoutSessionId: 'cs_open' }),
+    )
+    stripe.getHostingCheckoutSession.mockResolvedValue({ id: 'cs_open', status: 'open' })
+
+    const response = await hide()
+
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toContain('Click Cancel link again')
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it('removes a cancelled link whose checkout is closed or gone', async () => {
+    payload.findByID.mockResolvedValue(
+      payment({ status: 'revoked', stripeCheckoutSessionId: 'cs_gone' }),
+    )
+    stripe.getHostingCheckoutSession.mockRejectedValue(missing)
+
+    expect((await hide()).status).toBe(200)
+    expect(payload.update).toHaveBeenCalled()
+  })
+
+  it("treats another client's link as not found", async () => {
+    payload.findByID.mockResolvedValue(payment({ status: 'revoked', client: 99 }))
+
+    expect((await hide()).status).toBe(404)
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it('leaves removed links out of the client page list', async () => {
+    const { GET } = await import('@/app/(frontend)/api/clients/[id]/hosting-one-off-payments/route')
+    payload.find.mockResolvedValue({ docs: [] })
+
+    await GET(new NextRequest('http://localhost/api/clients/8/hosting-one-off-payments'), {
+      params: Promise.resolve({ id: '8' }),
+    })
+
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { and: [{ client: { equals: 8 } }, { hiddenAt: { exists: false } }] },
+      }),
+    )
   })
 })

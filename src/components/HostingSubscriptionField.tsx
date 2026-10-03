@@ -51,7 +51,11 @@ const STATUS_LABELS: Record<string, string> = {
 
 const formatDate = (value?: string | null) =>
   value
-    ? new Date(value).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(value).toLocaleDateString('en-AU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
     : ''
 
 const STOP_CONFIRMATIONS: Record<StopAction, (endDate: string) => string> = {
@@ -66,6 +70,10 @@ export default function HostingSubscriptionField() {
   const { id } = useDocumentInfo()
   const { submit } = useForm()
   const { value: clientEmail } = useField<string>({ path: 'contactEmail' })
+  const { value: clientContactName } = useField<string>({ path: 'contactName' })
+  const { value: recipientName, setValue: setRecipientName } = useField<string>({
+    path: 'hostingSubscription.recipientName',
+  })
   const { value: planName, setValue: setPlanName } = useField<string>({
     path: 'hostingSubscription.planName',
   })
@@ -117,7 +125,8 @@ export default function HostingSubscriptionField() {
       )
       .then((settings) => {
         setPlans((settings.plans || []).filter((plan: HostingPlan) => plan.active !== false))
-        if (typeof settings.currency === 'string' && settings.currency) setCurrency(settings.currency)
+        if (typeof settings.currency === 'string' && settings.currency)
+          setCurrency(settings.currency)
       })
       .catch(() =>
         setMessage('Standard plans could not be loaded. You can still enter a custom plan.'),
@@ -130,6 +139,9 @@ export default function HostingSubscriptionField() {
   useEffect(() => {
     if (!recipientEmail && clientEmail) setRecipientEmail(clientEmail)
   }, [clientEmail, recipientEmail, setRecipientEmail])
+  useEffect(() => {
+    if (!recipientName && clientContactName) setRecipientName(clientContactName)
+  }, [clientContactName, recipientName, setRecipientName])
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.name === planName),
@@ -305,6 +317,19 @@ export default function HostingSubscriptionField() {
           {annualSummary && <span id="hosting-annual-help">{annualSummary}</span>}
         </div>
         <div className="hosting-subscription-field__control">
+          <label htmlFor="hosting-recipient-name">Recipient name</label>
+          <input
+            id="hosting-recipient-name"
+            value={recipientName || ''}
+            maxLength={120}
+            onChange={(event) => setRecipientName(event.target.value)}
+            aria-describedby="hosting-recipient-name-help"
+          />
+          <span id="hosting-recipient-name-help">
+            Starts with the client contact name. Billing emails greet them by first name.
+          </span>
+        </div>
+        <div className="hosting-subscription-field__control">
           <label htmlFor="hosting-recipient-email">Recipient email</label>
           <input
             id="hosting-recipient-email"
@@ -314,7 +339,8 @@ export default function HostingSubscriptionField() {
             aria-describedby="hosting-recipient-help"
           />
           <span id="hosting-recipient-help">
-            Starts with the client contact email. Change it to send this billing link to another recipient.
+            Starts with the client contact email. Change it to send this billing link to another
+            recipient.
           </span>
         </div>
         <div className="hosting-subscription-field__control">

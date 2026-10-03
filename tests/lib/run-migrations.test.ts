@@ -195,11 +195,17 @@ describe("runMigrations", () => {
       "hosting_one_off_payments",
       "hosting_one_off_payments_client_idx",
       "locked_docs_rels.hosting_one_off_payments_id",
+      "hosting_one_off_payments.scheduled_send_at",
+      "hosting_one_off_payments.email_sent_at",
+      "hosting_one_off_payments.send_attempts",
+      "hosting_one_off_payments.hidden_at",
+      "hosting_one_off_payments_scheduled_send_at_idx",
     ]) {
       expect(results).toContainEqual({ label, status: "ok" });
     }
     expect(statements).toContain("ALTER TABLE `clients` ADD `hosting_subscription_billing_start_date` text");
     expect(statements).toContain("ALTER TABLE `hosting_billing_settings` ADD COLUMN `renewal_note` text");
+    expect(statements).toContain("ALTER TABLE `hosting_one_off_payments` ADD `scheduled_send_at` text");
   });
 
   it("adds every client email copy column so saving OptiMate Settings works", async () => {

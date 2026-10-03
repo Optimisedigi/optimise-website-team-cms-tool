@@ -7196,8 +7196,12 @@ export interface HostingOneOffPayment {
   id: number;
   client: number | Client;
   tokenHash: string;
-  status: 'active' | 'checkout_pending' | 'paid' | 'revoked';
+  status: 'scheduled' | 'active' | 'checkout_pending' | 'paid' | 'revoked';
   expiresAt: string;
+  scheduledSendAt?: string | null;
+  emailSentAt?: string | null;
+  sendAttempts?: number | null;
+  hiddenAt?: string | null;
   stripeCheckoutSessionId?: string | null;
   paidAt?: string | null;
   /**
@@ -12482,6 +12486,10 @@ export interface HostingOneOffPaymentsSelect<T extends boolean = true> {
   tokenHash?: T;
   status?: T;
   expiresAt?: T;
+  scheduledSendAt?: T;
+  emailSentAt?: T;
+  sendAttempts?: T;
+  hiddenAt?: T;
   stripeCheckoutSessionId?: T;
   paidAt?: T;
   snapshot?: T;

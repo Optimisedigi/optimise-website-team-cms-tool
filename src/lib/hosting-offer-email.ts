@@ -5,6 +5,7 @@ import {
   type HostingQuote,
 } from './hosting-billing'
 import { formatBillingDate, planBillingStart } from './hosting-billing-schedule'
+import { firstName } from './hosting-one-off-payment'
 
 export type HostingOfferEmail = { subject: string; htmlContent: string; textContent: string }
 
@@ -44,7 +45,9 @@ export function buildHostingOfferEmail(input: {
 }): HostingOfferEmail {
   const { monthly, annual, signOff } = input
   const annualOnly = input.defaultInterval === 'year'
-  const greeting = input.recipientName?.trim() ? `Hi ${input.recipientName.trim()},` : 'Hi,'
+  // The recipient name is editable in the hosting section; greet by first name.
+  const name = firstName(input.recipientName)
+  const greeting = name ? `Hi ${name},` : 'Hi,'
   const expires = new Date(input.expiresAt).toLocaleDateString('en-AU', {
     timeZone: 'Australia/Sydney',
     day: 'numeric',

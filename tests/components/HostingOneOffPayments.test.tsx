@@ -24,6 +24,9 @@ const sent = {
   createdAt: '2026-10-02T00:00:00.000Z',
   expiresAt: '2099-01-01T00:00:00.000Z',
   paidAt: null,
+  scheduledSendAt: null,
+  emailSentAt: '2026-10-02T00:00:00.000Z',
+  sendFailed: false,
 }
 const fetchMock = vi.fn()
 const saveClient = vi.fn()
@@ -115,9 +118,45 @@ describe('HostingOneOffPayments', () => {
     )[1] as HTMLElement
     expect(row).toHaveTextContent('Cancelled')
     expect(within(row).getByRole('button', { name: 'Cancel link' })).toBeInTheDocument()
+    // Not removable until the cancel has fully gone through.
+    expect(within(row).queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument()
     expect(screen.getByRole('status', { name: 'One-off payment status' })).toHaveTextContent(
       'could not reach Stripe',
     )
+  })
+
+  it('removes a cancelled link from the list', async () => {
+    const cancelled = { ...sent, status: 'revoked' }
+    fetchMock.mockResolvedValueOnce(json({ payments: [cancelled, { ...sent, id: 32 }] }))
+    await renderSection()
+    fetchMock
+      .mockResolvedValueOnce(json({ hidden: true }))
+      .mockResolvedValueOnce(json({ payments: [{ ...sent, id: 32 }] }))
+
+    const table = await screen.findByRole('table', { name: 'Payment links sent' })
+    const [, cancelledRow, openRow] = within(table).getAllByRole('row') as HTMLElement[]
+    // Only cancelled links can be removed.
+    expect(
+      within(openRow as HTMLElement).queryByRole('button', { name: /Remove/ }),
+    ).not.toBeInTheDocument()
+    await act(async () =>
+      fireEvent.click(
+        within(cancelledRow as HTMLElement).getByRole('button', {
+          name: 'Remove cancelled link for Backdated hosting, July to September',
+        }),
+      ),
+    )
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/clients/8/hosting-one-off-payments/31/hide', {
+      method: 'POST',
+      credentials: 'include',
+    })
+    expect(screen.getByRole('status', { name: 'One-off payment status' })).toHaveTextContent(
+      'Cancelled payment link removed from the list.',
+    )
+    expect(
+      within(screen.getByRole('table', { name: 'Payment links sent' })).getAllByRole('row'),
+    ).toHaveLength(2)
   })
 
   it('lists earlier links with their status and lets an open one be cancelled', async () => {
@@ -194,6 +233,72 @@ describe('HostingOneOffPayments', () => {
       'Payment link for $302.60 emailed to billing@example.com.',
     )
     expect(screen.getByRole('button', { name: 'Copy payment link' })).toBeInTheDocument()
+  })
+
+  it('schedules the email for a chosen date and says when it will go out', async () => {
+    const scheduled = {
+      ...sent,
+      status: 'scheduled',
+      scheduledSendAt: '2026-10-09T22:00:00.000Z',
+      emailSentAt: null,
+    }
+    fetchMock.mockResolvedValueOnce(json({ payments: [] }))
+    await renderSection()
+    fetchMock
+      .mockResolvedValueOnce(json({ payment: scheduled, emailSent: false }))
+      .mockResolvedValueOnce(json({ payments: [scheduled] }))
+
+    fireEvent.change(screen.getByLabelText("What it's for"), { target: { value: 'Hosting' } })
+    fireEvent.change(screen.getByLabelText('Amount before surcharge (AUD)'), {
+      target: { value: '297' },
+    })
+    fireEvent.change(screen.getByLabelText('Send email on (optional)'), {
+      target: { value: '2026-10-10' },
+    })
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Schedule payment email' })),
+    )
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Save this client and schedule a one-off payment link for $297.00 plus any card surcharge, emailed to billing@example.com at 9am on 10 Oct 2026?',
+    )
+    expect(fetchMock).toHaveBeenCalledWith('/api/clients/8/hosting-one-off-payments', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: 'Hosting', amount: 297, sendOn: '2026-10-10' }),
+    })
+    expect(await screen.findByRole('status', { name: 'One-off payment status' })).toHaveTextContent(
+      'Payment link for $302.60 will be emailed to billing@example.com at 9am on 10 Oct 2026.',
+    )
+    // No link exists until the email goes out, so there is nothing to copy.
+    expect(screen.queryByRole('button', { name: 'Copy payment link' })).not.toBeInTheDocument()
+    const table = await screen.findByRole('table', { name: 'Payment links sent' })
+    const row = within(table).getAllByRole('row')[1] as HTMLElement
+    expect(row).toHaveTextContent('Email scheduled for 10 Oct 2026')
+    expect(row).toHaveTextContent('Not yet')
+    expect(within(row).getByRole('button', { name: 'Cancel link' })).toBeInTheDocument()
+  })
+
+  it('tells the admin when a scheduled email stopped retrying', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        payments: [
+          {
+            ...sent,
+            status: 'scheduled',
+            scheduledSendAt: '2026-10-09T22:00:00.000Z',
+            emailSentAt: null,
+            sendFailed: true,
+          },
+        ],
+      }),
+    )
+    await renderSection()
+
+    expect(await screen.findByRole('table', { name: 'Payment links sent' })).toHaveTextContent(
+      'Scheduled email failed to send. Cancel it and send a new link.',
+    )
   })
 
   it('shows the server error when the link cannot be created', async () => {

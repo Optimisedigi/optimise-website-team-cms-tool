@@ -67,6 +67,28 @@ describe('HostingSubscriptionField billing recipient', () => {
     expect(screen.getByLabelText('Recipient email')).toHaveValue('contact@example.com')
   })
 
+  it('defaults the recipient name to the client contact name and lets it be changed', async () => {
+    setField('contactName', 'Jordan Smith')
+    setField('hostingSubscription.recipientName', '')
+    await renderPanel()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Recipient name')).toHaveValue('Jordan Smith'),
+    )
+    fireEvent.change(screen.getByLabelText('Recipient name'), { target: { value: 'Priya Rao' } })
+
+    expect(fields['hostingSubscription.recipientName'].value).toBe('Priya Rao')
+  })
+
+  it('keeps a recipient name the admin already set', async () => {
+    setField('contactName', 'Jordan Smith')
+    setField('hostingSubscription.recipientName', 'Priya Rao')
+    await renderPanel()
+
+    expect(screen.getByLabelText('Recipient name')).toHaveValue('Priya Rao')
+    expect(fields['hostingSubscription.recipientName'].setValue).not.toHaveBeenCalled()
+  })
+
   it('keeps a manually entered billing recipient when the client contact changes', async () => {
     const view = await renderPanel()
     const input = screen.getByLabelText('Recipient email')

@@ -37,9 +37,16 @@ export const HostingOneOffPayments: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'active',
-      options: ['active', 'checkout_pending', 'paid', 'revoked'],
+      // 'scheduled' links are not payable until their email is sent.
+      options: ['scheduled', 'active', 'checkout_pending', 'paid', 'revoked'],
     },
     { name: 'expiresAt', type: 'date', required: true },
+    { name: 'scheduledSendAt', type: 'date', index: true },
+    { name: 'emailSentAt', type: 'date' },
+    { name: 'sendAttempts', type: 'number', defaultValue: 0 },
+    // Set when the admin removes a cancelled link from the client page list.
+    // The record is kept so the history can still be checked here.
+    { name: 'hiddenAt', type: 'date' },
     { name: 'stripeCheckoutSessionId', type: 'text' },
     { name: 'paidAt', type: 'date' },
     {

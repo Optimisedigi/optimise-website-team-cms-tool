@@ -5,7 +5,7 @@ import { Button } from '@payloadcms/ui'
 
 type OneOffPayment = {
   id: number
-  status: 'active' | 'checkout_pending' | 'paid' | 'revoked'
+  status: 'scheduled' | 'active' | 'checkout_pending' | 'paid' | 'revoked'
   description: string
   totalCents: number
   currency: string
@@ -13,11 +13,15 @@ type OneOffPayment = {
   createdAt: string
   expiresAt: string
   paidAt: string | null
+  scheduledSendAt: string | null
+  emailSentAt: string | null
+  sendFailed: boolean
 }
 
 type CreateResult = {
   payment: OneOffPayment
-  url: string
+  /** Absent for a scheduled email: the link is made when it is sent. */
+  url?: string
   emailSent: boolean
   emailedTo?: string
   error?: string
@@ -29,13 +33,28 @@ const money = (cents: number, currency: string) =>
 const date = (value: string | null) =>
   value
     ? new Date(value).toLocaleDateString('en-AU', {
+        timeZone: 'Australia/Sydney',
         day: 'numeric',
         month: 'short',
         year: 'numeric',
       })
     : ''
 
+/** Tomorrow's date (YYYY-MM-DD) in Sydney, the earliest send date allowed. */
+function tomorrowInSydney(): string {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(
+    new Date(),
+  )
+  const next = new Date(`${today}T00:00:00Z`)
+  next.setUTCDate(next.getUTCDate() + 1)
+  return next.toISOString().slice(0, 10)
+}
+
 function statusLabel(payment: OneOffPayment): string {
+  if (payment.status === 'scheduled')
+    return payment.sendFailed
+      ? 'Scheduled email failed to send. Cancel it and send a new link.'
+      : `Email scheduled for ${date(payment.scheduledSendAt)}`
   if (payment.status === 'paid') return `Paid ${date(payment.paidAt)}`
   if (payment.status === 'revoked') return 'Cancelled'
   if (new Date(payment.expiresAt) <= new Date()) return 'Expired'
@@ -66,6 +85,7 @@ export function HostingOneOffPayments({
   const [payments, setPayments] = useState<OneOffPayment[]>([])
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
+  const [sendOn, setSendOn] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [link, setLink] = useState('')
@@ -87,9 +107,13 @@ export function HostingOneOffPayments({
 
   const create = async () => {
     const dollars = Number(amount)
+    const price = `${money(Math.round(dollars * 100), currency)} plus any card surcharge`
+    const scheduledFor = sendOn ? date(`${sendOn}T12:00:00Z`) : ''
     if (
       !window.confirm(
-        `Save this client and email a one-off payment link to ${recipientEmail} for ${money(Math.round(dollars * 100), currency)} plus any card surcharge?`,
+        sendOn
+          ? `Save this client and schedule a one-off payment link for ${price}, emailed to ${recipientEmail} at 9am on ${scheduledFor}?`
+          : `Save this client and email a one-off payment link to ${recipientEmail} for ${price}?`,
       )
     )
       return
@@ -102,19 +126,23 @@ export function HostingOneOffPayments({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description, amount: dollars }),
+        body: JSON.stringify({ description, amount: dollars, ...(sendOn ? { sendOn } : {}) }),
       })
       const result = (await response.json().catch(() => ({}))) as Partial<CreateResult>
-      if (!response.ok || !result.url || !result.payment)
+      if (!response.ok || !result.payment || (!sendOn && !result.url))
         throw new Error(result.error || 'Could not create the payment link.')
-      setLink(result.url)
+      const total = money(result.payment.totalCents, result.payment.currency)
+      setLink(result.url ?? '')
       setCopied(false)
       setDescription('')
       setAmount('')
+      setSendOn('')
       setMessage(
-        result.emailSent
-          ? `Payment link for ${money(result.payment.totalCents, result.payment.currency)} emailed to ${result.emailedTo}.`
-          : 'Payment link created, but the email could not be sent. Use Copy payment link and send it to the client yourself.',
+        result.payment.status === 'scheduled'
+          ? `Payment link for ${total} will be emailed to ${result.payment.recipientEmail} at 9am on ${date(result.payment.scheduledSendAt)}.`
+          : result.emailSent
+            ? `Payment link for ${total} emailed to ${result.emailedTo}.`
+            : 'Payment link created, but the email could not be sent. Use Copy payment link and send it to the client yourself.',
       )
       await load()
     } catch (error) {
@@ -153,6 +181,25 @@ export function HostingOneOffPayments({
       setMessage('Payment link cancelled.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not cancel the payment link.')
+    } finally {
+      await load().catch(() => undefined)
+      setBusy(false)
+    }
+  }
+
+  // Hides a cancelled link from this list; the record itself is kept.
+  const hide = async (payment: OneOffPayment) => {
+    setBusy(true)
+    try {
+      const response = await fetch(
+        `/api/clients/${clientId}/hosting-one-off-payments/${payment.id}/hide`,
+        { method: 'POST', credentials: 'include' },
+      )
+      const result = (await response.json().catch(() => ({}))) as { error?: string }
+      if (!response.ok) throw new Error(result.error || 'Could not remove the payment link.')
+      setMessage('Cancelled payment link removed from the list.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not remove the payment link.')
     } finally {
       await load().catch(() => undefined)
       setBusy(false)
@@ -200,6 +247,20 @@ export function HostingOneOffPayments({
             onChange={(event) => setAmount(event.target.value)}
           />
         </div>
+        <div className="hosting-subscription-field__control">
+          <label htmlFor="one-off-send-on">Send email on (optional)</label>
+          <input
+            id="one-off-send-on"
+            type="date"
+            min={tomorrowInSydney()}
+            value={sendOn}
+            aria-describedby="one-off-send-on-hint"
+            onChange={(event) => setSendOn(event.target.value)}
+          />
+          <small id="one-off-send-on-hint">
+            Leave blank to send now. Scheduled emails go out at 9am Sydney time.
+          </small>
+        </div>
       </div>
       <div className="hosting-subscription-field__actions">
         {!recipientEmail && <p>Add a billing email above first.</p>}
@@ -209,7 +270,7 @@ export function HostingOneOffPayments({
           disabled={busy || !recipientEmail || !description.trim() || !amountValid}
           onClick={create}
         >
-          {busy ? 'Working…' : 'Email payment link'}
+          {busy ? 'Working…' : sendOn ? 'Schedule payment email' : 'Email payment link'}
         </Button>
         {link && (
           <>
@@ -242,6 +303,7 @@ export function HostingOneOffPayments({
           <tbody>
             {payments.map((payment) => {
               const open =
+                payment.status === 'scheduled' ||
                 ((payment.status === 'active' || payment.status === 'checkout_pending') &&
                   new Date(payment.expiresAt) > new Date()) ||
                 (payment.status === 'revoked' && retryCancel.has(payment.id))
@@ -249,7 +311,11 @@ export function HostingOneOffPayments({
                 <tr key={payment.id}>
                   <td>{payment.description}</td>
                   <td>{money(payment.totalCents, payment.currency)}</td>
-                  <td>{date(payment.createdAt)}</td>
+                  <td>
+                    {payment.status === 'scheduled'
+                      ? 'Not yet'
+                      : date(payment.emailSentAt ?? payment.createdAt)}
+                  </td>
                   <td>{statusLabel(payment)}</td>
                   <td>
                     {open && (
@@ -261,6 +327,18 @@ export function HostingOneOffPayments({
                         onClick={() => revoke(payment)}
                       >
                         Cancel link
+                      </Button>
+                    )}
+                    {payment.status === 'revoked' && !retryCancel.has(payment.id) && (
+                      <Button
+                        type="button"
+                        size="small"
+                        buttonStyle="secondary"
+                        disabled={busy}
+                        aria-label={`Remove cancelled link for ${payment.description}`}
+                        onClick={() => hide(payment)}
+                      >
+                        Remove
                       </Button>
                     )}
                   </td>

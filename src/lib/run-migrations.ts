@@ -43,6 +43,18 @@ const HOSTING_ONE_OFF_PAYMENTS_CLIENT_IDX =
   "CREATE INDEX IF NOT EXISTS `hosting_one_off_payments_client_idx` ON `hosting_one_off_payments` (`client_id`)";
 const HOSTING_ONE_OFF_PAYMENTS_LOCK_REL =
   "ALTER TABLE `payload_locked_documents_rels` ADD `hosting_one_off_payments_id` integer REFERENCES `hosting_one_off_payments`(`id`) ON DELETE cascade";
+// 2026-10-04: scheduled payment-link emails. Keep in sync with
+// src/migrations/20261004_120000_hosting_one_off_scheduled_send.ts.
+const HOSTING_ONE_OFF_SCHEDULED_SEND: Array<[string, string]> = [
+  ["hosting_one_off_payments.scheduled_send_at", "ALTER TABLE `hosting_one_off_payments` ADD `scheduled_send_at` text"],
+  ["hosting_one_off_payments.email_sent_at", "ALTER TABLE `hosting_one_off_payments` ADD `email_sent_at` text"],
+  ["hosting_one_off_payments.send_attempts", "ALTER TABLE `hosting_one_off_payments` ADD `send_attempts` numeric DEFAULT 0"],
+  ["hosting_one_off_payments.hidden_at", "ALTER TABLE `hosting_one_off_payments` ADD `hidden_at` text"],
+  [
+    "hosting_one_off_payments_scheduled_send_at_idx",
+    "CREATE INDEX IF NOT EXISTS `hosting_one_off_payments_scheduled_send_at_idx` ON `hosting_one_off_payments` (`scheduled_send_at`)",
+  ],
+];
 
 export async function runMigrations(
   payload: Payload,
@@ -702,6 +714,7 @@ export async function runMigrations(
     await run("hosting_one_off_payments", HOSTING_ONE_OFF_PAYMENTS_TABLE);
     await run("hosting_one_off_payments_client_idx", HOSTING_ONE_OFF_PAYMENTS_CLIENT_IDX);
     await run("locked_docs_rels.hosting_one_off_payments_id", HOSTING_ONE_OFF_PAYMENTS_LOCK_REL);
+    for (const [label, statement] of HOSTING_ONE_OFF_SCHEDULED_SEND) await run(label, statement);
   }
 
   async function addInThePictureSchema(): Promise<void> {
@@ -6310,6 +6323,7 @@ export async function runMigrations(
     await run("hosting_one_off_payments", HOSTING_ONE_OFF_PAYMENTS_TABLE);
     await run("hosting_one_off_payments_client_idx", HOSTING_ONE_OFF_PAYMENTS_CLIENT_IDX);
     await run("locked_docs_rels.hosting_one_off_payments_id", HOSTING_ONE_OFF_PAYMENTS_LOCK_REL);
+    for (const [label, statement] of HOSTING_ONE_OFF_SCHEDULED_SEND) await run(label, statement);
 
     await run("clients_hosting_subscription_price_changes", `CREATE TABLE IF NOT EXISTS \`clients_hosting_subscription_price_changes\` (
       \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL, \`id\` text PRIMARY KEY NOT NULL,

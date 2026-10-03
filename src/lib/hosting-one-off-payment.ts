@@ -1,5 +1,4 @@
 import { calculateCardSurcharge, formatMoney, type SurchargeConfig } from './hosting-billing'
-import type { AccountsSignOff } from './hosting-offer-email'
 
 /**
  * One-off hosting payments: a single card charge (for example, backdated
@@ -27,13 +26,81 @@ export type OneOffSnapshot = Readonly<{
   recipientName: string
 }>
 
-export type OneOffRequest = Readonly<{ description: string; baseCents: number }>
+export type OneOffRequest = Readonly<{
+  description: string
+  baseCents: number
+  /** When the email goes out (ISO); null sends it straight away. */
+  scheduledSendAt: string | null
+}>
 
 export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E }
 
-/** Validates the admin's description and dollar amount. */
-export function parseOneOffRequest(body: unknown): Result<OneOffRequest, string> {
-  const { description, amount } = (body ?? {}) as { description?: unknown; amount?: unknown }
+/** Scheduled payment emails go out at this local time on the chosen day. */
+export const SCHEDULED_SEND_HOUR = 9
+export const SCHEDULE_TIME_ZONE = 'Australia/Sydney'
+const MAX_SCHEDULE_DAYS = 365
+
+/** The local calendar date (YYYY-MM-DD) in Sydney for an instant. */
+export function sydneyDate(at: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: SCHEDULE_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(at)
+}
+
+/** The instant it is `hour`:00 in Sydney on a YYYY-MM-DD date (daylight-saving aware). */
+export function sydneyTimeOn(ymd: string, hour: number): Date {
+  const [y = 0, m = 1, d = 1] = ymd.split('-').map(Number)
+  const guess = Date.UTC(y, m - 1, d, hour)
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: SCHEDULE_TIME_ZONE,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+    })
+      .formatToParts(new Date(guess))
+      .map((part) => [part.type, Number(part.value)]),
+  )
+  const wall = Date.UTC(parts.year ?? y, (parts.month ?? m) - 1, parts.day ?? d, parts.hour ?? hour)
+  return new Date(guess - (wall - guess))
+}
+
+/**
+ * Validates an optional send date (YYYY-MM-DD, Sydney). Blank means send now;
+ * otherwise it must be a real date after today and within a year.
+ */
+export function parseSendOn(value: unknown, now: Date): Result<string | null, string> {
+  if (value === undefined || value === null || value === '') return { ok: true, value: null }
+  const text = typeof value === 'string' ? value.trim() : ''
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
+  const real =
+    match &&
+    new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) === text &&
+    Number(match[1]) >= 2000
+  if (!real) return { ok: false, error: 'Enter the send date as a calendar date.' }
+  if (text <= sydneyDate(now))
+    return { ok: false, error: 'Pick a send date after today, or leave it blank to send now.' }
+  const sendAt = sydneyTimeOn(text, SCHEDULED_SEND_HOUR)
+  if (sendAt.getTime() - now.getTime() > MAX_SCHEDULE_DAYS * 86_400_000)
+    return { ok: false, error: 'Schedule the email within the next 12 months.' }
+  return { ok: true, value: sendAt.toISOString() }
+}
+
+/** Validates the admin's description, dollar amount and optional send date. */
+export function parseOneOffRequest(
+  body: unknown,
+  now: Date = new Date(),
+): Result<OneOffRequest, string> {
+  const { description, amount, sendOn } = (body ?? {}) as {
+    description?: unknown
+    amount?: unknown
+    sendOn?: unknown
+  }
   const text = typeof description === 'string' ? description.trim() : ''
   if (!text) return { ok: false, error: 'Describe what the payment is for.' }
   if (text.length > MAX_DESCRIPTION_LENGTH)
@@ -47,7 +114,9 @@ export function parseOneOffRequest(body: unknown): Result<OneOffRequest, string>
     return { ok: false, error: 'Use at most two decimal places for the amount.' }
   if (baseCents > MAX_AMOUNT_CENTS)
     return { ok: false, error: `One-off payments are limited to ${formatMoney(MAX_AMOUNT_CENTS)}.` }
-  return { ok: true, value: { description: text, baseCents } }
+  const schedule = parseSendOn(sendOn, now)
+  if (!schedule.ok) return schedule
+  return { ok: true, value: { description: text, baseCents, scheduledSendAt: schedule.value } }
 }
 
 export function createOneOffQuote(
@@ -75,22 +144,27 @@ function escapeHtml(value: string): string {
 
 const MONO = 'font-family:Menlo,Consolas,monospace;'
 
+/** The first name from a contact name ("Sam Lee" -> "Sam"), or '' when blank. */
+export function firstName(name: string | null | undefined): string {
+  return (name ?? '').trim().split(/\s+/)[0] ?? ''
+}
+
 /**
  * The email that delivers a one-off payment link. Layout follows the approved
- * design (export 3/email.html). The signature HTML is supplied by the caller.
+ * design (export 3/email.html), without a sign-off or signature.
  */
 export function buildOneOffPaymentEmail(input: {
   clientName: string
   snapshot: OneOffSnapshot
   url: string
   expiresAt: string
-  signOff: AccountsSignOff
   /** Absolute URL of the Optimise Digital logo for the email header. */
   logoUrl: string
 }): { subject: string; htmlContent: string; textContent: string } {
-  const { snapshot, signOff } = input
+  const { snapshot } = input
   const { quote } = snapshot
-  const greeting = snapshot.recipientName.trim() ? `Hi ${snapshot.recipientName.trim()},` : 'Hi,'
+  const name = firstName(snapshot.recipientName)
+  const greeting = name ? `Hi ${name},` : 'Hi,'
   const expires = new Date(input.expiresAt).toLocaleDateString('en-AU', {
     timeZone: 'Australia/Sydney',
     day: 'numeric',
@@ -111,7 +185,7 @@ export function buildOneOffPaymentEmail(input: {
     ['Total', total],
   ]
 
-  const subject = `Payment request from Optimise Digital: ${snapshot.description}`
+  const subject = `Payment request: ${snapshot.description}`
   const intro = `Please use the secure link below to pay ${total} for ${input.clientName}. This is a one-off card payment; it does not set up any recurring charge.`
   const footer = `This link expires on ${expires}. Payments are processed securely by Stripe; we never see or store your card details.`
 
@@ -125,7 +199,6 @@ export function buildOneOffPaymentEmail(input: {
     `${payLabel}: ${input.url}`,
     methods,
     footer,
-    `${signOff.signOff}\n${signOff.senderName}`,
   ].join('\n\n')
 
   const url = escapeHtml(input.url)
@@ -142,8 +215,7 @@ export function buildOneOffPaymentEmail(input: {
     })
     .join('\n')
 
-  // Table layout keeps the design intact in Outlook and Gmail. The signature is
-  // trusted HTML supplied by the route (the design's signature image).
+  // Table layout keeps the design intact in Outlook and Gmail.
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -160,7 +232,7 @@ export function buildOneOffPaymentEmail(input: {
 <tr><td style="padding:28px 40px;border-bottom:1px solid #eeece8;">
 <img src="${escapeHtml(input.logoUrl)}" alt="Optimise Digital" height="26" style="display:block;height:26px;border:0;">
 </td></tr>
-<tr><td style="padding:40px 40px 0;font-size:16px;line-height:1.6;color:#2a2926;">
+<tr><td style="padding:24px 40px 0;font-size:16px;line-height:1.6;color:#2a2926;">
 <p style="margin:0 0 12px;">${escapeHtml(greeting)}</p>
 <p style="margin:0;">${escapeHtml(intro)}</p>
 </td></tr>
@@ -183,11 +255,6 @@ ${tableRows}
 <a href="${url}" style="color:#141414;word-break:break-all;">${url}</a></p>
 </td></tr>
 </table>
-</td></tr>
-<tr><td style="padding:24px 8px 0;font-size:16px;line-height:1.6;color:#2a2926;">
-<p style="margin:0;">${escapeHtml(signOff.signOff)}</p>
-<p style="margin:0 0 14px;">${escapeHtml(signOff.senderName)}</p>
-<div>${signOff.signatureHtml}</div>
 </td></tr>
 </table>
 </td></tr>

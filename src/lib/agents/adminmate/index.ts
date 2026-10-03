@@ -24,6 +24,11 @@ import { createClientDetailsTool, type ClientDetailsReader } from "./client-deta
 import { createClientLinksTool, type ClientLink } from "./client-links";
 import type { ClientLinkSourcesReader } from "./client-link-sources";
 import { MAX_CLIENT_LINKS, toSafeClientLink } from "./client-link-href";
+import {
+  createOneOffPaymentTool,
+  validateStagedOneOffPayment,
+  type StagedOneOffPayment,
+} from "./one-off-payment-tool";
 
 export type { AdminMateClient, StagedClient } from "./tools";
 export { createAdminMateTools, findSimilarClients, toClientSlug, validateStagedClient } from "./tools";
@@ -71,6 +76,8 @@ export interface RunAdminMateChatTurnResult {
   gmailDraft?: { gmailUrl: string; subject: string; to: string };
   /** Same-origin CMS links from get_client_links this turn, shown as buttons. */
   links?: ClientLink[];
+  /** A one-off card payment request awaiting the admin's confirmation. */
+  stagedOneOffPayment?: StagedOneOffPayment;
 }
 
 const systemPrompt = buildSystemPrompt({
@@ -91,11 +98,12 @@ const systemPrompt = buildSystemPrompt({
     "Contract flow, step 3 — details: before calling stage_contract, make sure you know the monthly retainer, the one-time setup fee (or that there is none), the engagement start date, the client's business address, and the signer's contact name and email. Ask for every missing one in a single short numbered list; accept 'none', 'skip' or 'not yet' as an answer and leave that field blank (setupFee 0 for 'no setup fee'). Also ask, once, whether there are any one-off projects (website build, audit) to add as additionalWork. Do not ask about fields the admin already gave or that the template supplies.",
     "Contract flow, step 4 — stage: call stage_contract with everything collected. Use the template's own retainer/setup fee/currency only when the admin says to keep the template pricing. Dates must be YYYY-MM-DD; resolve relative dates such as 'next Monday' or '1 October' against today's date and state the resolved date in your reply. Re-call stage_contract after each requested revision.",
     "monthlyRetainer is recurring monthly revenue only. A one-off setup, onboarding, or build fee goes in setupFee (or additionalWork), never monthlyRetainer.",
+    "One-off payment flow: when the admin asks to send, request or schedule a one-off payment, payment link or backdated hosting charge for a client, call find_clients to resolve the client (ask if several match), then call stage_one_off_payment with what it is for and the amount in dollars before the card surcharge. Ask only for what is missing. If the admin names a send date ('on the 1st', 'next Monday'), resolve it to YYYY-MM-DD after today and pass it as sendOn; otherwise omit sendOn so it sends when they confirm. Never add the surcharge yourself and never claim the email was sent — the admin confirms the card first.",
   ],
   toolInventory:
-    "find_similar_clients — read existing clients matching a name, slug or website (duplicate check).\nstage_client — stage a validated new client for review with no side effects.\nlist_contract_templates — read the contract templates the admin can choose from.\nfind_clients — search active and inactive clients and read their contact/pricing details.\nget_client_details — read one client's account timeline, notes, discovery briefing, business, tracking (Google Ads ID), Google Ads budget, commercial dates, contacts, contract terms and pricing (incl. hosting) or PIN, on demand and by section.\nget_client_links — get clickable links for one client (CMS record, client hub, contracts and PDFs, proposals, discovery briefings, audits and reports, decks, saved hub links); shown to the admin as buttons.\nstage_contract — stage a validated draft contract (from a template, for an existing or new client) for review with no side effects.\ncreate_gmail_draft — create, but never send, a one-off draft in the authenticated admin's connected Gmail account and return its Gmail URL.",
+    "find_similar_clients — read existing clients matching a name, slug or website (duplicate check).\nstage_client — stage a validated new client for review with no side effects.\nlist_contract_templates — read the contract templates the admin can choose from.\nfind_clients — search active and inactive clients and read their contact/pricing details.\nget_client_details — read one client's account timeline, notes, discovery briefing, business, tracking (Google Ads ID), Google Ads budget, commercial dates, contacts, contract terms and pricing (incl. hosting) or PIN, on demand and by section.\nget_client_links — get clickable links for one client (CMS record, client hub, contracts and PDFs, proposals, discovery briefings, audits and reports, decks, saved hub links); shown to the admin as buttons.\nstage_contract — stage a validated draft contract (from a template, for an existing or new client) for review with no side effects.\nstage_one_off_payment — stage a one-off card payment link for an existing client (sent now or on a scheduled date) for review with no side effects.\ncreate_gmail_draft — create, but never send, a one-off draft in the authenticated admin's connected Gmail account and return its Gmail URL.",
   outputFormat:
-    "Be brief and conversational. When answering a client question, lead with the answer and cite the record it came from in the form 'Account Timeline, <date>: <description>' (or 'Contract <title> (<status>)' for contract answers) using only values returned by get_client_details. After stage_client or stage_contract succeeds, say which fields you filled and which are still empty, and tell the admin to review and confirm the card. Never claim the client or contract was created.",
+    "Be brief and conversational. When answering a client question, lead with the answer and cite the record it came from in the form 'Account Timeline, <date>: <description>' (or 'Contract <title> (<status>)' for contract answers) using only values returned by get_client_details. After stage_client, stage_contract or stage_one_off_payment succeeds, say which fields you filled and which are still empty, and tell the admin to review and confirm the card. Never claim the client or contract was created.",
 });
 
 const MAX_TOKENS = 8192;
@@ -107,6 +115,7 @@ export async function runAdminMateChatTurn(input: RunAdminMateChatTurnInput): Pr
   const tools = [
     ...createAdminMateTools(input.existingClients),
     ...createAdminMateContractTools(input.existingClients, templates),
+    createOneOffPaymentTool(input.existingClients) as unknown as CanonicalTool<unknown>,
     ...(input.clientDetails
       ? [
         createClientDetailsTool(input.existingClients, input.clientDetails),
@@ -142,7 +151,15 @@ export async function runAdminMateChatTurn(input: RunAdminMateChatTurnInput): Pr
   const intent = latestUserIntent(input.messages);
   // A read of an existing client means the admin asked a question (e.g. "is the
   // Google Ads ID set up for client X?"), not a create request, so no correction.
-  if (!stagedClient && !stagedContract && intent === "client" && !usedTool(result.steps, "get_client_details")) {
+  // A staged payment for an existing client ("add a one-off payment for client
+  // X") is not a create-client request either.
+  if (
+    !stagedClient &&
+    !stagedContract &&
+    intent === "client" &&
+    !usedTool(result.steps, "get_client_details") &&
+    !usedTool(result.steps, "stage_one_off_payment")
+  ) {
     result = await run([
       ...input.messages,
       result.finalMessage,
@@ -180,6 +197,7 @@ export async function runAdminMateChatTurn(input: RunAdminMateChatTurnInput): Pr
   const templateChoices = usedTool(result.steps, "list_contract_templates") && !stagedContract ? templates : undefined;
   const clientChoices = !stagedContract ? extractClientChoices(result.steps) : undefined;
   const links = extractClientLinks(result.steps);
+  const stagedOneOffPayment = extractLatestStagedOneOffPayment(result.steps, input.existingClients);
 
   return {
     reply: result.finalMessage.content
@@ -199,7 +217,26 @@ export async function runAdminMateChatTurn(input: RunAdminMateChatTurnInput): Pr
     clientChoices: clientChoices && clientChoices.length > 0 ? clientChoices : undefined,
     links: links.length > 0 ? links : undefined,
     gmailDraft,
+    stagedOneOffPayment,
   };
+}
+
+export function extractLatestStagedOneOffPayment(
+  steps: AgentStep[],
+  existing: AdminMateClient[],
+): StagedOneOffPayment | undefined {
+  let latest: StagedOneOffPayment | undefined;
+  for (const step of steps) {
+    if (step.type !== "tool-call" || step.toolName !== "stage_one_off_payment") continue;
+    const data = toolOutputData(step.output);
+    if (!data) continue;
+    try {
+      latest = validateStagedOneOffPayment(data.staged ?? data, existing);
+    } catch {
+      // Ignore malformed model output; only validated proposals reach the UI.
+    }
+  }
+  return latest;
 }
 
 export function extractLatestStagedClient(steps: AgentStep[]): StagedClient | undefined {

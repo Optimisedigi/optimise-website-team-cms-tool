@@ -9,6 +9,7 @@ import { listExistingClients } from "@/lib/agents/adminmate/list-clients";
 import { createPayloadClientDetailsReader } from "@/lib/agents/adminmate/client-details";
 import { parseAdminMateImageAttachments } from "@/lib/agents/adminmate/image-attachments";
 import { createPayloadClientLinkSourcesReader } from "@/lib/agents/adminmate/client-link-sources";
+import { loadOneOffPaymentPreview } from "@/lib/agents/adminmate/one-off-payment-tool";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { listContractTemplates } from "@/lib/contract-from-template";
 import { fetchMessageBody } from "@/lib/gmail-search";
@@ -147,8 +148,13 @@ export async function POST(request: Request) {
       gmailReplyContext,
       modelOverride: settings.defaultChatModel,
     });
+    const oneOffPaymentPreview = result.stagedOneOffPayment
+      ? await loadOneOffPaymentPreview(payload, result.stagedOneOffPayment.clientId).catch(() => undefined)
+      : undefined;
     return NextResponse.json({
       reply: result.reply,
+      stagedOneOffPayment: result.stagedOneOffPayment,
+      oneOffPaymentPreview,
       stagedClient: result.stagedClient,
       similarClients: result.similarClients,
       stagedContract: result.stagedContract,

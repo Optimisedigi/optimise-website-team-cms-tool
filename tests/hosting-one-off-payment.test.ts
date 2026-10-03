@@ -3,6 +3,8 @@ import {
   buildOneOffPaymentEmail,
   createOneOffQuote,
   parseOneOffRequest,
+  parseSendOn,
+  sydneyTimeOn,
   type OneOffSnapshot,
 } from '@/lib/hosting-one-off-payment'
 import { createHostingOneOffCheckout, getStripePublishableKey } from '@/lib/stripe'
@@ -26,11 +28,14 @@ describe('parseOneOffRequest', () => {
   it.each([
     [
       { description: '  Backdated hosting  ', amount: 297 },
-      { ok: true, value: { description: 'Backdated hosting', baseCents: 29700 } },
+      {
+        ok: true,
+        value: { description: 'Backdated hosting', baseCents: 29700, scheduledSendAt: null },
+      },
     ],
     [
       { description: 'Hosting', amount: '99.95' },
-      { ok: true, value: { description: 'Hosting', baseCents: 9995 } },
+      { ok: true, value: { description: 'Hosting', baseCents: 9995, scheduledSendAt: null } },
     ],
     [
       { description: '', amount: 10 },
@@ -64,6 +69,66 @@ describe('parseOneOffRequest', () => {
   ])('%j', (body, expected) => {
     expect(parseOneOffRequest(body)).toEqual(expected)
   })
+
+  it('schedules the email for 9am Sydney on the chosen day', () => {
+    const now = new Date('2026-10-03T02:00:00.000Z') // 12pm, 3 Oct in Sydney (AEST)
+
+    expect(
+      parseOneOffRequest({ description: 'Hosting', amount: 10, sendOn: '2026-10-05' }, now),
+    ).toEqual({
+      ok: true,
+      // 5 Oct is after daylight saving starts (4 Oct), so 9am AEDT is 22:00 UTC the day before.
+      value: {
+        description: 'Hosting',
+        baseCents: 1000,
+        scheduledSendAt: '2026-10-04T22:00:00.000Z',
+      },
+    })
+  })
+})
+
+describe('parseSendOn', () => {
+  // 11:30pm on 3 Oct in Sydney, which is still 3 Oct in UTC too.
+  const now = new Date('2026-10-03T13:30:00.000Z')
+
+  it.each([
+    [undefined, { ok: true, value: null }],
+    ['', { ok: true, value: null }],
+    [null, { ok: true, value: null }],
+    [
+      '2026-10-03',
+      { ok: false, error: 'Pick a send date after today, or leave it blank to send now.' },
+    ],
+    [
+      '2026-09-30',
+      { ok: false, error: 'Pick a send date after today, or leave it blank to send now.' },
+    ],
+    ['2026-02-30', { ok: false, error: 'Enter the send date as a calendar date.' }],
+    ['3/10/2026', { ok: false, error: 'Enter the send date as a calendar date.' }],
+    [20261004, { ok: false, error: 'Enter the send date as a calendar date.' }],
+    ['2027-12-01', { ok: false, error: 'Schedule the email within the next 12 months.' }],
+  ])('%j', (value, expected) => {
+    expect(parseSendOn(value, now)).toEqual(expected)
+  })
+
+  it('uses the Sydney date, so tomorrow in Sydney is allowed even when UTC is still today', () => {
+    // 1am on 4 Oct in Sydney is 3 Oct 15:00 UTC.
+    const sydneyEarlyMorning = new Date('2026-10-03T15:00:00.000Z')
+    expect(parseSendOn('2026-10-04', sydneyEarlyMorning)).toEqual({
+      ok: false,
+      error: 'Pick a send date after today, or leave it blank to send now.',
+    })
+    expect(parseSendOn('2026-10-05', sydneyEarlyMorning).ok).toBe(true)
+  })
+})
+
+describe('sydneyTimeOn', () => {
+  it.each([
+    ['2026-07-01', '2026-06-30T23:00:00.000Z'], // AEST, UTC+10
+    ['2026-12-01', '2026-11-30T22:00:00.000Z'], // AEDT, UTC+11
+  ])('9am on %s is %s', (ymd, iso) => {
+    expect(sydneyTimeOn(ymd, 9).toISOString()).toBe(iso)
+  })
 })
 
 describe('createOneOffQuote', () => {
@@ -83,7 +148,7 @@ describe('buildOneOffPaymentEmail', () => {
     description: 'Backdated hosting <July–Sept>',
     quote: { currency: 'aud', baseCents: 29700, surchargeCents: 560, totalCents: 30260 },
     recipientEmail: 'billing@example.com',
-    recipientName: 'Sam',
+    recipientName: 'Sam Lee',
   }
   const build = (overrides: Partial<OneOffSnapshot> = {}) =>
     buildOneOffPaymentEmail({
@@ -92,13 +157,12 @@ describe('buildOneOffPaymentEmail', () => {
       url: 'https://cms.test/hosting-pay/once/abc',
       expiresAt: '2026-10-16T00:00:00.000Z',
       logoUrl: 'https://cms.test/brand/optimise-digital-logo.png',
-      signOff: { signOff: 'Thanks,', senderName: 'Accounts', signatureHtml: '<b>OD</b>' },
     })
 
   it('itemises the amount, surcharge and total, and says it is not recurring', () => {
     const { subject, textContent } = build()
 
-    expect(subject).toBe('Payment request from Optimise Digital: Backdated hosting <July–Sept>')
+    expect(subject).toBe('Payment request: Backdated hosting <July–Sept>')
     expect(textContent).toContain('Backdated hosting <July–Sept>: $297.00')
     expect(textContent).toContain('Card processing surcharge: $5.60')
     expect(textContent).toContain('Total: $302.60')
@@ -106,10 +170,32 @@ describe('buildOneOffPaymentEmail', () => {
     expect(textContent).toContain('Pay $302.60 securely: https://cms.test/hosting-pay/once/abc')
     expect(textContent).toContain('One-off payment · Card, Apple Pay, Google Pay')
     expect(textContent).toContain('16 October 2026')
-    expect(textContent).toContain('Thanks,\nAccounts')
   })
 
-  it('follows the approved design: logo header, pay button, fallback link and sign-off', () => {
+  it.each([
+    ['Sam Lee', 'Hi Sam,'],
+    ['  Sam  ', 'Hi Sam,'],
+    ['', 'Hi,'],
+  ])('greets %j by first name as %j', (recipientName, greeting) => {
+    const { htmlContent, textContent } = build({ recipientName })
+
+    expect(textContent.startsWith(`${greeting}\n\n`)).toBe(true)
+    expect(htmlContent).toContain(`<p style="margin:0 0 12px;">${greeting}</p>`)
+  })
+
+  it('has no sign-off or signature, and less space above the greeting', () => {
+    const { htmlContent, textContent } = build()
+
+    expect(textContent).not.toContain('Thanks')
+    expect(textContent).not.toContain('Accounts')
+    expect(htmlContent).not.toContain('Thanks')
+    expect(htmlContent).not.toContain('email-signature')
+    expect(htmlContent).toContain('<tr><td style="padding:24px 40px 0;font-size:16px;')
+    // The email ends with the expiry note and fallback link inside the card.
+    expect(textContent.trimEnd().endsWith('we never see or store your card details.')).toBe(true)
+  })
+
+  it('follows the approved design: logo header, pay button and fallback link', () => {
     const { htmlContent } = build()
 
     expect(htmlContent).toContain(
@@ -119,7 +205,6 @@ describe('buildOneOffPaymentEmail', () => {
     expect(htmlContent.match(/href="https:\/\/cms\.test\/hosting-pay\/once\/abc"/g)).toHaveLength(2)
     expect(htmlContent).toContain('>Pay $302.60 securely</a>')
     expect(htmlContent).toContain('background:#141414;border-radius:8px;')
-    expect(htmlContent).toContain('<p style="margin:0 0 14px;">Accounts</p>')
   })
 
   it('omits the surcharge line when there is no surcharge', () => {
@@ -131,12 +216,12 @@ describe('buildOneOffPaymentEmail', () => {
     expect(textContent).toContain('Total: $297.00')
   })
 
-  it('escapes the description in HTML and keeps the statement signature', () => {
-    const { htmlContent } = build()
+  it('escapes the description and the name in HTML', () => {
+    const { htmlContent } = build({ recipientName: '<Sam>' })
 
     expect(htmlContent).toContain('Backdated hosting &lt;July–Sept&gt;')
     expect(htmlContent).not.toContain('<July–Sept>')
-    expect(htmlContent).toContain('<b>OD</b>')
+    expect(htmlContent).toContain('Hi &lt;Sam&gt;,')
   })
 })
 
