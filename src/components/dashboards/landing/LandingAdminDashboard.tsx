@@ -79,7 +79,10 @@ export function LandingAdminDashboard() {
 
   useEffect(() => {
     if (!selectedClientId && overview?.clients.length) {
-      setSelectedClientId(String(overview.clients[0].id));
+      // Only fills an empty selection: a client picked before this effect
+      // runs must not be overwritten by the default.
+      const firstId = String(overview.clients[0].id);
+      setSelectedClientId((current) => current ?? firstId);
     }
   }, [overview, selectedClientId]);
 
