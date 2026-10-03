@@ -819,6 +819,120 @@ describe('cancelling a one-off payment link', () => {
   })
 })
 
+describe('resending a one-off payment link', () => {
+  const resend = async (paymentId = '31', clientId = '8') => {
+    const { POST } =
+      await import('@/app/(frontend)/api/clients/[id]/hosting-one-off-payments/[paymentId]/resend/route')
+    return POST(
+      new NextRequest(
+        `http://localhost/api/clients/${clientId}/hosting-one-off-payments/${paymentId}/resend`,
+        { method: 'POST' },
+      ),
+      { params: Promise.resolve({ id: clientId, paymentId }) },
+    )
+  }
+  // The reissue rule itself runs against real SQLite in hosting-one-off-payment-status.test.ts.
+  const run = payload.db.drizzle.run
+
+  beforeEach(() => {
+    run.mockResolvedValue({ rowsAffected: 1 })
+    payload.findByID.mockImplementation(async ({ collection }: { collection: string }) =>
+      collection === 'clients'
+        ? { id: 8, name: 'We Can Quit' }
+        : payment({ expiresAt: '2020-01-01T00:00:00.000Z' }),
+    )
+  })
+
+  it('emails a new link to the frozen recipient and returns it, even after the old one expired', async () => {
+    const response = await resend()
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.url).toMatch(/^https:\/\/cms\.test\/hosting-pay\/once\/[\w-]{43}$/)
+    expect(body).toMatchObject({ emailSent: true, emailedTo: 'billing@example.com' })
+    const sent = sendBrevoEmail.mock.calls[0]?.[0]
+    expect(sent.to).toEqual([{ email: 'billing@example.com', name: 'Sam' }])
+    expect(sent.subject).toBe('Payment request: Backdated hosting, July to September 2026')
+    expect(sent.textContent).toContain(body.url)
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 31, data: { emailSentAt: expect.any(String) } }),
+    )
+  })
+
+  it('closes a checkout left open on the old link before reissuing', async () => {
+    payload.findByID.mockImplementation(async ({ collection }: { collection: string }) =>
+      collection === 'clients'
+        ? { id: 8, name: 'We Can Quit' }
+        : payment({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_open' }),
+    )
+    stripe.getHostingCheckoutSession.mockResolvedValue({ id: 'cs_open', status: 'open' })
+
+    expect((await resend()).status).toBe(200)
+    expect(stripe.expireHostingCheckoutSession).toHaveBeenCalledWith('cs_open')
+  })
+
+  it('refuses when the client has just paid', async () => {
+    payload.findByID.mockResolvedValue(
+      payment({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_done' }),
+    )
+    stripe.getHostingCheckoutSession.mockResolvedValue({ id: 'cs_done', status: 'complete' })
+
+    const response = await resend()
+
+    expect(response.status).toBe(409)
+    expect(run).not.toHaveBeenCalled()
+    expect(sendBrevoEmail).not.toHaveBeenCalled()
+  })
+
+  it('does not email when a checkout started in the meantime', async () => {
+    run.mockResolvedValue({ rowsAffected: 0 })
+
+    const response = await resend()
+
+    expect(response.status).toBe(409)
+    expect(sendBrevoEmail).not.toHaveBeenCalled()
+  })
+
+  it('still returns the new link when the email fails', async () => {
+    sendBrevoEmail.mockResolvedValue({ ok: false, code: 'brevo-error' })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const body = await (await resend()).json()
+
+    expect(body.emailSent).toBe(false)
+    expect(body.url).toMatch(/^https:\/\/cms\.test\/hosting-pay\/once\//)
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['paid', 'This payment has already been made.'],
+    ['revoked', 'This link was cancelled. Send a new payment link instead.'],
+    ['scheduled', 'This link has not been emailed yet. It goes out on its scheduled date.'],
+  ])('refuses a %s link', async (status, error) => {
+    payload.findByID.mockResolvedValue(payment({ status }))
+
+    const response = await resend()
+
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe(error)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it("treats another client's link as not found", async () => {
+    payload.findByID.mockResolvedValue(payment({ client: 99 }))
+
+    expect((await resend()).status).toBe(404)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('is limited to staff with hosting billing access', async () => {
+    payload.auth.mockResolvedValue({ user: { id: 2, features: ['clients'] } })
+
+    expect((await resend()).status).toBe(403)
+    expect(run).not.toHaveBeenCalled()
+  })
+})
+
 describe('removing a cancelled one-off payment link from the list', () => {
   const hide = async (paymentId = '31', clientId = '8') => {
     const { POST } =

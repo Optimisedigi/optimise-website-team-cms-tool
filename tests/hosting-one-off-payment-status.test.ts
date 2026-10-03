@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   claimScheduledForSend,
   moveFromPayable,
+  reissuePayableLink,
   returnToSchedule,
 } from '@/lib/hosting-one-off-payment-status'
 
@@ -32,6 +33,53 @@ beforeEach(async () => {
   )
   await client.execute(
     "insert into hosting_one_off_payments (id, status, stripe_checkout_session_id) values (1, 'active', null), (2, 'checkout_pending', 'cs_old'), (3, 'paid', 'cs_paid'), (4, 'revoked', null), (5, 'scheduled', null)",
+  )
+})
+
+describe('reissuePayableLink', () => {
+  const reissue = (id: number, seenSessionId: string | null) =>
+    reissuePayableLink(db, {
+      id,
+      tokenHash: 'hash_new',
+      expiresAt: '2026-10-16T00:00:00.000Z',
+      seenSessionId,
+      now: NOW,
+    })
+  const tokenRow = async (id: number) =>
+    (
+      await client.execute({
+        sql: 'select status, token_hash as tokenHash, expires_at as expiresAt from hosting_one_off_payments where id = ?',
+        args: [id],
+      })
+    ).rows[0]
+
+  it('gives a sent link a new token and expiry', async () => {
+    expect(await reissue(1, null)).toBe(true)
+    expect(await tokenRow(1)).toMatchObject({
+      status: 'active',
+      tokenHash: 'hash_new',
+      expiresAt: '2026-10-16T00:00:00.000Z',
+    })
+  })
+
+  it('reopens a link whose checkout the caller closed, keeping the old session for a fresh Stripe key', async () => {
+    expect(await reissue(2, 'cs_old')).toBe(true)
+    expect(await row(2)).toMatchObject({ status: 'active', session: 'cs_old' })
+  })
+
+  it('does nothing if a checkout started after the caller looked', async () => {
+    expect(await reissue(2, null)).toBe(false)
+    expect(await reissue(1, 'cs_other')).toBe(false)
+    expect(await row(2)).toMatchObject({ status: 'checkout_pending', session: 'cs_old' })
+  })
+
+  it.each([3, 4, 5])(
+    'never reissues link %s, which is paid, cancelled or not yet sent',
+    async (id) => {
+      const before = await tokenRow(id)
+      expect(await reissue(id, id === 3 ? 'cs_paid' : null)).toBe(false)
+      expect(await tokenRow(id)).toEqual(before)
+    },
   )
 })
 

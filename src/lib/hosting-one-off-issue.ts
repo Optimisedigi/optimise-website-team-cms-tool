@@ -12,6 +12,7 @@ import {
 import {
   claimScheduledForSend,
   MAX_SCHEDULED_SEND_ATTEMPTS,
+  reissuePayableLink,
   returnToSchedule,
 } from './hosting-one-off-payment-status'
 import { sendBrevoEmail } from './brevo-email'
@@ -163,6 +164,57 @@ export async function issueOneOffPayment(
       emailSent: email.ok,
       ...(email.ok ? { emailedTo: snapshot.recipientEmail } : {}),
     },
+  }
+}
+
+/**
+ * Emails a sent link again with a new token and a fresh 14 days. The link in
+ * the earlier email stops working. Fails (returns null) if a checkout was
+ * started since `seenSessionId` was read, so a client paying right now is
+ * never cut off. The amount and recipient stay as they were frozen.
+ */
+export async function resendOneOffPayment(
+  payload: Payload,
+  input: { payment: any; seenSessionId: string | null; now: Date },
+): Promise<{ url: string; emailSent: boolean; emailedTo?: string } | null> {
+  const { payment, now } = input
+  const token = newToken()
+  const expiresAt = linkExpiry(now)
+  const reissued = await reissuePayableLink((payload.db as any).drizzle, {
+    id: payment.id,
+    tokenHash: hashOfferToken(token),
+    expiresAt,
+    seenSessionId: input.seenSessionId,
+    now,
+  })
+  if (!reissued) return null
+
+  let clientName = ''
+  try {
+    const client: any = await payload.findByID({
+      collection: 'clients',
+      id: typeof payment.client === 'object' ? payment.client.id : payment.client,
+      depth: 0,
+      overrideAccess: true,
+    })
+    clientName = client.name || ''
+  } catch {
+    // The email still reads correctly without the client name.
+  }
+  const snapshot = payment.snapshot as OneOffSnapshot
+  const url = `${getCmsUrl()}/hosting-pay/once/${token}`
+  const email = await sendOneOffPaymentEmail(payload, { clientName, snapshot, url, expiresAt })
+  if (email.ok) await markEmailed(payload, payment.id, now)
+  else
+    console.error('[hosting-one-off-payments] resend email failed', {
+      paymentId: payment.id,
+      code: email.code,
+      status: email.status,
+    })
+  return {
+    url,
+    emailSent: email.ok,
+    ...(email.ok ? { emailedTo: snapshot.recipientEmail } : {}),
   }
 }
 

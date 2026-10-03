@@ -65,6 +65,36 @@ export async function claimScheduledForSend(
 }
 
 /**
+ * Gives a payable link a new token and a fresh expiry so it can be emailed
+ * again; the link in the earlier email stops working. Applies only if no
+ * checkout was started since the caller checked (same Stripe session), so a
+ * client who is paying right now is never cut off.
+ */
+export async function reissuePayableLink(
+  db: RunsSql,
+  input: {
+    id: number | string
+    tokenHash: string
+    expiresAt: string
+    /** The Stripe session the caller saw (and closed), or null if none. */
+    seenSessionId: string | null
+    now: Date
+  },
+): Promise<boolean> {
+  const result = await db.run(
+    sql`update hosting_one_off_payments
+        set status = 'active',
+            token_hash = ${input.tokenHash},
+            expires_at = ${input.expiresAt},
+            updated_at = ${input.now.toISOString()}
+        where id = ${Number(input.id)}
+          and status in (${statusList(PAYABLE_STATUSES)})
+          and coalesce(stripe_checkout_session_id, '') = ${input.seenSessionId ?? ''}`,
+  )
+  return Number(result.rowsAffected ?? 0) > 0
+}
+
+/**
  * Puts a claimed link back on the schedule after its email failed, with a
  * fresh unusable token so the link in the failed email can never be paid.
  * Nobody received that link, so nobody can have paid it in the meantime.

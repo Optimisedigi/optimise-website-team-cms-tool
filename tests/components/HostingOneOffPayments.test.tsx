@@ -82,6 +82,73 @@ describe('HostingOneOffPayments', () => {
     )
   })
 
+  it('resends a sent or expired link and offers the new link to copy', async () => {
+    const expired = { ...sent, id: 33, expiresAt: '2020-01-01T00:00:00.000Z' }
+    fetchMock.mockResolvedValueOnce(
+      json({
+        payments: [
+          expired,
+          { ...sent, id: 34, status: 'paid', paidAt: '2026-09-20T00:00:00.000Z' },
+          { ...sent, id: 35, status: 'revoked' },
+          { ...sent, id: 36, status: 'scheduled', scheduledSendAt: '2099-01-01T00:00:00.000Z' },
+        ],
+      }),
+    )
+    await renderSection()
+    fetchMock
+      .mockResolvedValueOnce(
+        json({
+          url: 'https://cms.test/hosting-pay/once/new',
+          emailSent: true,
+          emailedTo: 'billing@example.com',
+        }),
+      )
+      .mockResolvedValueOnce(json({ payments: [{ ...sent, id: 33 }] }))
+
+    const table = await screen.findByRole('table', { name: 'Payment links sent' })
+    // Only links that were sent and not paid or cancelled can be resent.
+    expect(within(table).getAllByRole('button', { name: /^Resend link/ })).toHaveLength(1)
+    await act(async () =>
+      fireEvent.click(
+        within(table).getByRole('button', {
+          name: 'Resend link for Backdated hosting, July to September',
+        }),
+      ),
+    )
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('the link in the earlier email stops working'),
+    )
+    expect(fetchMock).toHaveBeenCalledWith('/api/clients/8/hosting-one-off-payments/33/resend', {
+      method: 'POST',
+      credentials: 'include',
+    })
+    expect(screen.getByRole('status', { name: 'One-off payment status' })).toHaveTextContent(
+      'Payment link for $302.60 emailed again to billing@example.com.',
+    )
+    expect(screen.getByRole('link', { name: 'Open payment link' })).toHaveAttribute(
+      'href',
+      'https://cms.test/hosting-pay/once/new',
+    )
+  })
+
+  it('shows why a resend was refused', async () => {
+    fetchMock.mockResolvedValueOnce(json({ payments: [sent] }))
+    await renderSection()
+    fetchMock
+      .mockResolvedValueOnce(json({ error: 'This payment has already been made.' }, false, 409))
+      .mockResolvedValueOnce(json({ payments: [sent] }))
+
+    await act(async () =>
+      fireEvent.click(await screen.findByRole('button', { name: /^Resend link/ })),
+    )
+
+    expect(screen.getByRole('status', { name: 'One-off payment status' })).toHaveTextContent(
+      'This payment has already been made.',
+    )
+    expect(screen.queryByRole('link', { name: 'Open payment link' })).not.toBeInTheDocument()
+  })
+
   it('uses the Hosting Billing Settings currency in the label and the confirmation', async () => {
     fetchMock.mockResolvedValueOnce(json({ payments: [] }))
     await renderSection('billing@example.com', 'nzd')

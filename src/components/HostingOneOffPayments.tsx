@@ -187,6 +187,43 @@ export function HostingOneOffPayments({
     }
   }
 
+  // Emails the link again with a new link valid for 14 days; the old one stops working.
+  const resend = async (payment: OneOffPayment) => {
+    if (
+      !window.confirm(
+        `Email the payment link for "${payment.description}" to ${payment.recipientEmail} again? They get a new link valid for 14 days, and the link in the earlier email stops working.`,
+      )
+    )
+      return
+    setBusy(true)
+    try {
+      const response = await fetch(
+        `/api/clients/${clientId}/hosting-one-off-payments/${payment.id}/resend`,
+        { method: 'POST', credentials: 'include' },
+      )
+      const result = (await response.json().catch(() => ({}))) as {
+        url?: string
+        emailSent?: boolean
+        emailedTo?: string
+        error?: string
+      }
+      if (!response.ok || !result.url)
+        throw new Error(result.error || 'Could not resend the payment link.')
+      setLink(result.url)
+      setCopied(false)
+      setMessage(
+        result.emailSent
+          ? `Payment link for ${money(payment.totalCents, payment.currency)} emailed again to ${result.emailedTo}.`
+          : 'A new payment link was made, but the email could not be sent. Use Copy payment link and send it to the client yourself.',
+      )
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not resend the payment link.')
+    } finally {
+      await load().catch(() => undefined)
+      setBusy(false)
+    }
+  }
+
   // Hides a cancelled link from this list; the record itself is kept.
   const hide = async (payment: OneOffPayment) => {
     setBusy(true)
@@ -318,6 +355,18 @@ export function HostingOneOffPayments({
                   </td>
                   <td>{statusLabel(payment)}</td>
                   <td>
+                    {(payment.status === 'active' || payment.status === 'checkout_pending') && (
+                      <Button
+                        type="button"
+                        size="small"
+                        buttonStyle="secondary"
+                        disabled={busy}
+                        aria-label={`Resend link for ${payment.description}`}
+                        onClick={() => resend(payment)}
+                      >
+                        Resend link
+                      </Button>
+                    )}
                     {open && (
                       <Button
                         type="button"
