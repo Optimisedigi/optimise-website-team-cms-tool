@@ -52,6 +52,9 @@ export function createHostingQuote(input: {
   }
 }
 
+/** How long a hosting sign-up link works (same as one-off payment links). */
+export const HOSTING_OFFER_LINK_DAYS = 14
+
 /** Default client-facing renewal note (Hosting Billing Settings → Client terms). */
 export const HOSTING_RENEWAL_NOTE_DEFAULT =
   'Your hosting renews automatically and is paid from your card for the next period. If you want to stop renting your website, just let us know and we can cancel straight away.'

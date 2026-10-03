@@ -126,7 +126,7 @@ describe('HostingSubscriptionField billing recipient', () => {
     await act(async () => fireEvent.click(create))
 
     expect(globalThis.confirm).toHaveBeenCalledWith(
-      'Create a seven-day hosting payment offer and email the payment link to billing@example.com? This revokes any current offer.',
+      'Email a hosting sign-up link to billing@example.com? The link works for 14 days. Billing follows the option the client picks (monthly or annual). This replaces any current offer.',
     )
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith(
       '/api/clients/42/hosting-offers',

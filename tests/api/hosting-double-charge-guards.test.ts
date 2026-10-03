@@ -119,6 +119,25 @@ describe('issuing a new payment link', () => {
     expect(response.status).toBe(200)
   })
 
+  it('makes the sign-up link work for 14 days', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T12:00:00.000Z'))
+    try {
+      payload.findByID.mockImplementation(async (args: { collection: string }) =>
+        clientWith({})(args),
+      )
+
+      expect((await issue()).status).toBe(200)
+
+      const offer = payload.create.mock.calls.find(
+        ([args]: [{ collection: string }]) => args.collection === 'hosting-payment-offers',
+      )?.[0] as { data: { expiresAt: string } }
+      expect(offer.data.expiresAt).toBe('2026-10-17T12:00:00.000Z')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('closes the old Stripe payment page before revoking the old link', async () => {
     payload.findByID.mockImplementation(async (args: { collection: string }) =>
       args.collection === 'hosting-payment-offers'

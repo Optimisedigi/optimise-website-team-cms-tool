@@ -2,6 +2,7 @@
 
 import { Button, useAuth, useDocumentInfo, useField, useForm } from '@payloadcms/ui'
 import { userHasFeature } from '@/lib/access'
+import { HOSTING_OFFER_LINK_DAYS } from '@/lib/hosting-billing'
 import { HostingOneOffPayments } from './HostingOneOffPayments'
 import { useEffect, useMemo, useState } from 'react'
 import './HostingSubscriptionField.css'
@@ -187,7 +188,7 @@ export default function HostingSubscriptionField() {
     if (
       !id ||
       !window.confirm(
-        `Create a seven-day hosting payment offer and email the payment link to ${recipientEmail}? This revokes any current offer.`,
+        `Email a hosting sign-up link to ${recipientEmail}? The link works for ${HOSTING_OFFER_LINK_DAYS} days. Billing follows the option the client picks (monthly or annual). This replaces any current offer.`,
       )
     )
       return

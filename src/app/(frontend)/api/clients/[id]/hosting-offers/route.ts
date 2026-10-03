@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
-import { createHostingQuote, hashOfferToken, hasLiveHostingSubscription, HOSTING_RENEWAL_NOTE_DEFAULT } from "@/lib/hosting-billing";
+import { createHostingQuote, hashOfferToken, hasLiveHostingSubscription, HOSTING_OFFER_LINK_DAYS, HOSTING_RENEWAL_NOTE_DEFAULT } from "@/lib/hosting-billing";
 import { parseBillingStartDate } from "@/lib/hosting-billing-schedule";
 import { expireHostingCheckoutSession, getCmsUrl, getHostingCheckoutSession, isStripeMissingResource } from "@/lib/stripe";
 import { sendBrevoEmail } from "@/lib/brevo-email";
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
  const snapshot = { monthly: createHostingQuote({ ...base, baseCents: Number(hosting.monthlyBaseCents), interval: "month" }), annual: createHostingQuote({ ...base, baseCents: Number(hosting.annualBaseCents), interval: "year" }), selectedInterval: hosting.billingInterval, recipientEmail: hosting.recipientEmail, recipientName: billingRecipientName(client), billingStartDate: parseBillingStartDate(hosting.billingStartDate), renewalNote: String(settings.renewalNote || "").trim() || HOSTING_RENEWAL_NOTE_DEFAULT };
  if (hasLiveHostingSubscription(hosting)) return NextResponse.json({ error: "This client already has an active hosting subscription. Stop it before sending a new payment link, or use a price change to adjust it." }, { status: 409 });
  const retireError = await retirePreviousOffer(payload, hosting.activeOffer); if (retireError) return NextResponse.json({ error: retireError }, { status: 409 });
- const token = crypto.randomBytes(32).toString("base64url"); const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString(); const offer: any = await (payload as any).create({ collection: "hosting-payment-offers", data: { client: Number(id), tokenHash: hashOfferToken(token), expiresAt, snapshot }, overrideAccess: true });
+ const token = crypto.randomBytes(32).toString("base64url"); const expiresAt = new Date(Date.now() + HOSTING_OFFER_LINK_DAYS * 86400000).toISOString(); const offer: any = await (payload as any).create({ collection: "hosting-payment-offers", data: { client: Number(id), tokenHash: hashOfferToken(token), expiresAt, snapshot }, overrideAccess: true });
  await payload.update({ collection: "clients", id, data: { hostingSubscription: { ...hosting, activeOffer: offer.id, offerCreatedAt: new Date().toISOString(), offerExpiresAt: expiresAt } }, overrideAccess: true });
  const url = `${getCmsUrl()}/hosting-pay/${token}`;
  // The offer is already live, so a failed email must not hide the link: the
