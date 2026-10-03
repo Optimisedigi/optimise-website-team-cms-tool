@@ -42,8 +42,9 @@ vi.mock('@/lib/hosting-one-off-payment-status', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/hosting-one-off-payment-status')>()),
   moveFromPayable: (...args: unknown[]) => moveFromPayable(...args),
 }))
-vi.mock('@/lib/stripe', () => ({
+vi.mock('@/lib/stripe', async (importOriginal) => ({
   ...stripe,
+  checkoutSessionUi: (await importOriginal<typeof import('@/lib/stripe')>()).checkoutSessionUi,
   getCmsUrl: () => 'https://cms.test',
   getStripe: vi.fn(),
   isStripeMissingResource: (error: { code?: string }) => error?.code === 'resource_missing',
@@ -184,11 +185,14 @@ describe('issuing a one-off payment link', () => {
 })
 
 describe('paying a one-off payment link', () => {
-  const pay = async (token: string) => {
+  const pay = async (token: string, ui: 'hosted' | 'embedded' | 'elements' = 'hosted') => {
     const { POST } = await import('@/app/(frontend)/api/hosting-pay/once/[token]/checkout/route')
     return POST(
       new NextRequest(`http://localhost/api/hosting-pay/once/${token}/checkout`, {
         method: 'POST',
+        ...(ui !== 'hosted'
+          ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ui }) }
+          : {}),
       }),
       {
         params: Promise.resolve({ token }),
@@ -235,8 +239,9 @@ describe('paying a one-off payment link', () => {
       description: 'Backdated hosting, July to September 2026',
       currency: 'aud',
       totalCents: 30260,
-      idempotencyKey: 'hosting-one-off-v1-31',
+      idempotencyKey: 'hosting-one-off-v2-31',
       returnToPaymentLink: '/hosting-pay/once/token-new',
+      ui: 'hosted',
     })
     expect(moveFromPayable).toHaveBeenCalledWith(payload.db.drizzle, {
       id: 31,
@@ -295,8 +300,128 @@ describe('paying a one-off payment link', () => {
     await pay('token-retry')
 
     expect(stripe.createHostingOneOffCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ idempotencyKey: 'hosting-one-off-v1-31-cs_old' }),
+      expect.objectContaining({ idempotencyKey: 'hosting-one-off-v2-31-cs_old' }),
     )
+  })
+
+  it("returns the in-page payment session secret for the design's own card form", async () => {
+    payload.find.mockResolvedValue({ docs: [payment()] })
+    stripe.createHostingOneOffCheckout.mockResolvedValue({
+      id: 'cs_el',
+      url: null,
+      client_secret: 'cs_el_secret',
+    })
+
+    const response = await pay('token-elements', 'elements')
+
+    expect(await response.json()).toEqual({ clientSecret: 'cs_el_secret' })
+    expect(stripe.createHostingOneOffCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ ui: 'elements' }),
+    )
+  })
+
+  it('reopens the same in-page payment session on refresh instead of starting another', async () => {
+    payload.find.mockResolvedValue({
+      docs: [payment({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_el' })],
+    })
+    stripe.getHostingCheckoutSession.mockResolvedValue({
+      id: 'cs_el',
+      status: 'open',
+      ui_mode: 'elements',
+      client_secret: 'cs_el_secret',
+    })
+
+    const response = await pay('token-elements-refresh', 'elements')
+
+    expect(await response.json()).toEqual({ clientSecret: 'cs_el_secret' })
+    expect(stripe.createHostingOneOffCheckout).not.toHaveBeenCalled()
+    expect(stripe.expireHostingCheckoutSession).not.toHaveBeenCalled()
+  })
+
+  it('returns the card form secret instead of redirecting when the page embeds the form', async () => {
+    payload.find.mockResolvedValue({ docs: [payment()] })
+    stripe.createHostingOneOffCheckout.mockResolvedValue({
+      id: 'cs_embed',
+      url: null,
+      client_secret: 'cs_embed_secret',
+    })
+
+    const response = await pay('token-embed', 'embedded')
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('location')).toBeNull()
+    expect(await response.json()).toEqual({ clientSecret: 'cs_embed_secret' })
+    expect(stripe.createHostingOneOffCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ ui: 'embedded', idempotencyKey: 'hosting-one-off-v2-31' }),
+    )
+    expect(moveFromPayable).toHaveBeenCalledWith(
+      payload.db.drizzle,
+      expect.objectContaining({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_embed' }),
+    )
+  })
+
+  it('reopens the same embedded card form instead of starting a second payment', async () => {
+    payload.find.mockResolvedValue({
+      docs: [payment({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_embed' })],
+    })
+    stripe.getHostingCheckoutSession.mockResolvedValue({
+      id: 'cs_embed',
+      status: 'open',
+      ui_mode: 'embedded_page',
+      url: null,
+      client_secret: 'cs_embed_secret',
+    })
+
+    const response = await pay('token-embed-again', 'embedded')
+
+    expect(await response.json()).toEqual({ clientSecret: 'cs_embed_secret' })
+    expect(stripe.createHostingOneOffCheckout).not.toHaveBeenCalled()
+    expect(stripe.expireHostingCheckoutSession).not.toHaveBeenCalled()
+  })
+
+  it('closes an open Stripe-page checkout before opening the card form, so only one can be paid', async () => {
+    payload.find.mockResolvedValue({
+      docs: [payment({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_hosted' })],
+    })
+    stripe.getHostingCheckoutSession.mockResolvedValue({
+      id: 'cs_hosted',
+      status: 'open',
+      ui_mode: 'hosted_page',
+      url: 'https://checkout.stripe.test/hosted',
+    })
+    stripe.createHostingOneOffCheckout.mockResolvedValue({
+      id: 'cs_embed',
+      url: null,
+      client_secret: 'cs_embed_secret',
+    })
+
+    const response = await pay('token-switch', 'embedded')
+
+    expect(stripe.expireHostingCheckoutSession).toHaveBeenCalledWith('cs_hosted')
+    expect(stripe.createHostingOneOffCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ui: 'embedded',
+        idempotencyKey: 'hosting-one-off-v2-31-cs_hosted',
+      }),
+    )
+    expect(await response.json()).toEqual({ clientSecret: 'cs_embed_secret' })
+  })
+
+  it('does not open the card form if Stripe will not close the earlier checkout', async () => {
+    payload.find.mockResolvedValue({
+      docs: [payment({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_hosted' })],
+    })
+    stripe.getHostingCheckoutSession.mockResolvedValue({
+      id: 'cs_hosted',
+      status: 'open',
+      ui_mode: 'hosted_page',
+    })
+    stripe.expireHostingCheckoutSession.mockRejectedValueOnce(new Error('already completed'))
+
+    const response = await pay('token-switch-refused', 'embedded')
+
+    expect(response.status).toBe(409)
+    expect(stripe.createHostingOneOffCheckout).not.toHaveBeenCalled()
   })
 
   it('stops when Stripe cannot confirm the earlier checkout', async () => {

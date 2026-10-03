@@ -73,13 +73,20 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#039;')
 }
 
-/** The email that delivers a one-off payment link, signed like the invoice statements. */
+const MONO = 'font-family:Menlo,Consolas,monospace;'
+
+/**
+ * The email that delivers a one-off payment link. Layout follows the approved
+ * design (export 3/email.html). The signature HTML is supplied by the caller.
+ */
 export function buildOneOffPaymentEmail(input: {
   clientName: string
   snapshot: OneOffSnapshot
   url: string
   expiresAt: string
   signOff: AccountsSignOff
+  /** Absolute URL of the Optimise Digital logo for the email header. */
+  logoUrl: string
 }): { subject: string; htmlContent: string; textContent: string } {
   const { snapshot, signOff } = input
   const { quote } = snapshot
@@ -108,36 +115,85 @@ export function buildOneOffPaymentEmail(input: {
   const intro = `Please use the secure link below to pay ${total} for ${input.clientName}. This is a one-off card payment; it does not set up any recurring charge.`
   const footer = `This link expires on ${expires}. Payments are processed securely by Stripe; we never see or store your card details.`
 
+  const payLabel = `Pay ${total} securely`
+  const methods = 'One-off payment · Card, Apple Pay, Google Pay'
+
   const textContent = [
     greeting,
     intro,
     rows.map(([label, value]) => `${label}: ${value}`).join('\n'),
-    `Pay now: ${input.url}`,
+    `${payLabel}: ${input.url}`,
+    methods,
     footer,
     `${signOff.signOff}\n${signOff.senderName}`,
   ].join('\n\n')
 
+  const url = escapeHtml(input.url)
   const tableRows = rows
-    .map(
-      ([label, value], index) =>
-        `<tr><td style="padding:4px 16px 4px 0;${index === rows.length - 1 ? 'font-weight:600;' : ''}">${escapeHtml(label)}</td>` +
-        `<td style="padding:4px 0;text-align:right;${index === rows.length - 1 ? 'font-weight:600;' : ''}">${escapeHtml(value)}</td></tr>`,
-    )
-    .join('')
+    .map(([label, value], index) => {
+      const isTotal = index === rows.length - 1
+      const cell = isTotal
+        ? 'padding:14px 18px;font-weight:bold;background:#faf9f7;'
+        : 'padding:14px 18px;border-bottom:1px solid #eeece8;'
+      return (
+        `<tr><td style="${cell}${isTotal ? '' : 'color:#55534e;'}">${escapeHtml(label)}</td>` +
+        `<td align="right" style="${cell}${MONO}">${escapeHtml(value)}</td></tr>`
+      )
+    })
+    .join('\n')
 
-  // Sign-off markup matches the invoice statement email. The signature is
-  // admin-authored HTML from Email Templates, inserted as-is like the statement.
-  const htmlContent = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1f2933;max-width:560px;">
-<p>${escapeHtml(greeting)}</p>
-<p>${escapeHtml(intro)}</p>
-<table role="presentation" style="border-collapse:collapse;margin:16px 0;">${tableRows}</table>
-<p style="margin:24px 0;"><a href="${escapeHtml(input.url)}" style="background:#1f6feb;color:#ffffff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block;">Pay now</a></p>
-<p style="font-size:13px;color:#52606d;">${escapeHtml(footer)}</p>
-<p style="font-size:13px;color:#52606d;">If the button doesn't work, copy this link into your browser:<br>${escapeHtml(input.url)}</p>
-<p style="margin:20px 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;">${escapeHtml(signOff.signOff)}</p>
-<p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;">${escapeHtml(signOff.senderName)}</p>
-<div style="margin-top:8px;">${signOff.signatureHtml}</div>
-</div>`
+  // Table layout keeps the design intact in Outlook and Gmail. The signature is
+  // trusted HTML supplied by the route (the design's signature image).
+  const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f3f0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f3f0;">
+<tr><td align="center" style="padding:40px 16px;">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;font-family:Helvetica,Arial,sans-serif;color:#141414;">
+<tr><td style="background:#ffffff;border:1px solid #e4e2dd;border-radius:12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding:28px 40px;border-bottom:1px solid #eeece8;">
+<img src="${escapeHtml(input.logoUrl)}" alt="Optimise Digital" height="26" style="display:block;height:26px;border:0;">
+</td></tr>
+<tr><td style="padding:40px 40px 0;font-size:16px;line-height:1.6;color:#2a2926;">
+<p style="margin:0 0 12px;">${escapeHtml(greeting)}</p>
+<p style="margin:0;">${escapeHtml(intro)}</p>
+</td></tr>
+<tr><td style="padding:28px 40px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #eeece8;border-radius:8px;font-size:15px;">
+${tableRows}
+</table>
+</td></tr>
+<tr><td style="padding:28px 40px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td align="center" style="background:#141414;border-radius:8px;">
+<a href="${url}" style="display:block;padding:16px;color:#ffffff;text-decoration:none;font-size:16px;font-weight:bold;">${escapeHtml(payLabel)}</a>
+</td></tr>
+</table>
+<p style="margin:12px 0 0;text-align:center;font-size:13px;color:#77756f;">${escapeHtml(methods)}</p>
+</td></tr>
+<tr><td style="padding:28px 40px 36px;font-size:13px;line-height:1.6;color:#77756f;">
+<p style="margin:0 0 10px;">${escapeHtml(footer)}</p>
+<p style="margin:0;">If the button doesn't work, copy this link into your browser:<br>
+<a href="${url}" style="color:#141414;word-break:break-all;">${url}</a></p>
+</td></tr>
+</table>
+</td></tr>
+<tr><td style="padding:24px 8px 0;font-size:16px;line-height:1.6;color:#2a2926;">
+<p style="margin:0;">${escapeHtml(signOff.signOff)}</p>
+<p style="margin:0 0 14px;">${escapeHtml(signOff.senderName)}</p>
+<div>${signOff.signatureHtml}</div>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`
 
   return { subject, htmlContent, textContent }
 }

@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import {
+  checkoutSessionUi,
   createHostingCheckout,
   expireHostingCheckoutSession,
   getHostingCheckoutSession,
   isStripeIdempotencyConflict,
   isStripeMissingResource,
+  type CheckoutUi,
 } from '@/lib/stripe'
 import {
   hashOfferToken,
@@ -17,6 +19,19 @@ import { planBillingStart, stripeBillingStartParams } from '@/lib/hosting-billin
 import { createTokenRateLimiter } from '@/lib/hosting-pay-rate-limit'
 
 const isRateLimited = createTokenRateLimiter()
+
+/**
+ * The payment page posts a plain form (hosted Stripe page) or, when the card
+ * form is embedded, JSON asking for the session's client secret.
+ */
+async function readCheckoutRequest(req: NextRequest): Promise<{ interval: unknown; ui: CheckoutUi }> {
+  if (req.headers.get('content-type')?.includes('application/json')) {
+    const body = (await req.json().catch(() => null)) as { interval?: unknown; ui?: unknown } | null
+    return { interval: body?.interval, ui: body?.ui === 'embedded' ? 'embedded' : 'hosted' }
+  }
+  const data = await req.formData()
+  return { interval: data.get('interval'), ui: 'hosted' }
+}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -40,8 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: 'This payment link is unavailable.' }, { status: 410 })
   }
 
-  const data = await req.formData()
-  const interval = data.get('interval')
+  const { interval, ui } = await readCheckoutRequest(req)
   if (interval !== 'month' && interval !== 'year') {
     return NextResponse.json({ error: 'Choose a billing frequency.' }, { status: 400 })
   }
@@ -77,12 +91,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       )
     }
     if (existingSession?.status === 'open') {
-      if (offer.selectedInterval === interval && existingSession.url) {
-        return NextResponse.redirect(existingSession.url, 303)
+      if (offer.selectedInterval === interval && checkoutSessionUi(existingSession) === ui) {
+        if (ui === 'embedded' && existingSession.client_secret)
+          return NextResponse.json({ clientSecret: existingSession.client_secret })
+        if (ui === 'hosted' && existingSession.url) return NextResponse.redirect(existingSession.url, 303)
       }
-      // The client switched frequency: close the old session first so only one
-      // subscription can ever be paid from this link. If Stripe refuses (for
-      // example, it completed meanwhile), stop rather than open a second one.
+      // The client switched frequency (or payment page style): close the old
+      // session first so only one subscription can ever be paid from this link.
+      // If Stripe refuses (for example, it completed meanwhile), stop rather
+      // than open a second one.
       try {
         await expireHostingCheckoutSession(existingSession.id)
       } catch {
@@ -122,14 +139,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       email: snapshot.recipientEmail,
       quote,
       billingStart,
-      // One key per checkout attempt, deliberately not per interval: two
-      // simultaneous requests (say monthly and annual) share it, so Stripe
-      // opens at most one session and refuses the other. Switching frequency
-      // later gets a fresh key via the expired session's ID. v4 bills from the
-      // client's start date; versioning avoids colliding with sessions
-      // created by earlier request shapes.
-      idempotencyKey: `hosting-checkout-v4-${offer.id}${retrySuffix}`,
+      // One key per checkout attempt, deliberately not per interval or page
+      // style: two simultaneous requests share it, so Stripe opens at most one
+      // session and refuses the other. Switching later gets a fresh key via the
+      // expired session's ID. v5 adds the embedded card form; versioning avoids
+      // colliding with sessions created by earlier request shapes.
+      idempotencyKey: `hosting-checkout-v5-${offer.id}${retrySuffix}`,
       returnToPaymentLink: `/hosting-pay/${token}`,
+      ui,
     })
   } catch (error) {
     if (!isStripeIdempotencyConflict(error)) throw error
@@ -149,5 +166,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     },
     overrideAccess: true,
   })
+  if (ui === 'embedded') {
+    if (!session.client_secret)
+      return NextResponse.json({ error: 'Stripe did not return a payment form.' }, { status: 502 })
+    return NextResponse.json({ clientSecret: session.client_secret })
+  }
   return NextResponse.redirect(session.url!, 303)
 }

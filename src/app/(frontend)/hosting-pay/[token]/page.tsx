@@ -10,6 +10,7 @@ import {
 } from '@/lib/hosting-billing'
 import { describeBillingStart, planBillingStart } from '@/lib/hosting-billing-schedule'
 import { parseHostingAllowance } from '@/lib/hosting-allowance'
+import { getStripePublishableKey } from '@/lib/stripe'
 import { HostingIntervalChooser, type IntervalOption } from './HostingIntervalChooser'
 import styles from './hosting-pay.module.css'
 
@@ -123,6 +124,7 @@ export default async function HostingPay({ params }: { params: Promise<{ token: 
               token={token}
               options={options}
               defaultInterval={snapshot.selectedInterval ?? 'month'}
+              publishableKey={getStripePublishableKey()}
             />
           </article>
         </section>

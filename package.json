@@ -45,6 +45,7 @@
     "@payloadcms/ui": "^3.86.0",
     "@react-pdf/renderer": "^4.3.2",
     "@sendgrid/mail": "^8.1.6",
+    "@stripe/stripe-js": "10.0.0",
     "@vercel/blob": "^2.3.0",
     "3d-force-graph": "1.80.0",
     "border-beam": "1.3.0",

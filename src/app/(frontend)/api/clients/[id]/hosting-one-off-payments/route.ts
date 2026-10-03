@@ -120,10 +120,13 @@ export async function POST(req: NextRequest, { params }: Params) {
         snapshot,
         url,
         expiresAt,
+        logoUrl: `${getCmsUrl()}/brand/optimise-digital-logo.png`,
+        // Statement sign-off; name and signature image follow the approved
+        // design (transparent PNG, so it sits cleanly on the email background).
         signOff: {
           signOff: accounts.templates.signOff,
-          senderName: accounts.templates.senderName,
-          signatureHtml: accounts.signatureHtml,
+          senderName: 'Accounts',
+          signatureHtml: `<img src="${getCmsUrl()}/brand/optimise-digital-email-signature.png" alt="Optimise Digital — Growth that compounds" width="300" style="display:block;width:300px;border:0;">`,
         },
       }),
     })

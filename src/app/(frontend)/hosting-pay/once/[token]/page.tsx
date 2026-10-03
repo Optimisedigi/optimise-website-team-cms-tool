@@ -1,31 +1,51 @@
+import type { ReactNode } from 'react'
+import { Geist, Geist_Mono } from 'next/font/google'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { formatMoney, hashOfferToken } from '@/lib/hosting-billing'
 import type { OneOffSnapshot } from '@/lib/hosting-one-off-payment'
-import styles from '../../[token]/hosting-pay.module.css'
+import { getStripePublishableKey } from '@/lib/stripe'
+import { OneOffPaymentForm } from './OneOffPaymentForm'
+import styles from './one-off-pay.module.css'
 
-export const metadata = { robots: { index: false, follow: false }, title: 'Hosting payment' }
+export const metadata = { robots: { index: false, follow: false }, title: 'Pay Optimise Digital' }
 
-function Brand() {
+const sans = Geist({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--od-pay-sans',
+})
+const mono = Geist_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--od-pay-mono' })
+const ACCOUNTS_EMAIL = 'accounts@optimisedigital.online'
+
+function Shell({ children }: { children: ReactNode }) {
   return (
-    <a className={styles.brand} href="https://optimisedigital.com.au" aria-label="Optimise Digital">
-      <img
-        src="/Optimise-Digital-Logo-rocket-animation%20(larger%20file).gif"
-        alt="Optimise Digital"
-      />
-    </a>
+    <div className={`${styles.page} ${sans.variable} ${mono.variable}`}>
+      <header className={styles.topbar}>
+        <img
+          src="/brand/optimise-digital-logo.png"
+          alt="Optimise Digital"
+          width={219}
+          height={29}
+        />
+        <div className={styles.secure}>
+          <span className={styles.dot} aria-hidden="true" />
+          Secure checkout
+        </div>
+      </header>
+      {children}
+    </div>
   )
 }
 
-function Notice({ title, children }: { title: string; children: string }) {
+function Notice({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <main className={styles.page}>
-      <div className={`${styles.shell} ${styles.unavailable}`}>
-        <Brand />
-        <h1 className={styles.title}>{title}</h1>
-        <p className={styles.introduction}>{children}</p>
-      </div>
-    </main>
+    <Shell>
+      <main className={styles.notice}>
+        <h1>{title}</h1>
+        <p>{children}</p>
+      </main>
+    </Shell>
   )
 }
 
@@ -53,8 +73,8 @@ export default async function OneOffPayment({ params }: { params: Promise<{ toke
   )
     return (
       <Notice title="Payment link unavailable">
-        This payment link has expired or is no longer available. Please contact your Optimise
-        Digital representative.
+        This payment link has expired or is no longer available. Please contact{' '}
+        <a href={`mailto:${ACCOUNTS_EMAIL}`}>{ACCOUNTS_EMAIL}</a>.
       </Notice>
     )
 
@@ -64,56 +84,88 @@ export default async function OneOffPayment({ params }: { params: Promise<{ toke
     typeof payment.client === 'object' && payment.client?.name
       ? payment.client.name
       : snapshot.recipientName || 'your business'
+  const total = formatMoney(quote.totalCents, quote.currency)
+  const expires = new Date(payment.expiresAt).toLocaleDateString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+  const checkoutUrl = `/api/hosting-pay/once/${token}/checkout`
+  // Without a publishable key the card can't be taken on this page, so the
+  // button posts to Stripe's own hosted page instead.
+  const publishableKey = getStripePublishableKey()
 
   return (
-    <main className={styles.page}>
-      <div className={styles.shell}>
-        <Brand />
-        <section aria-label="Hosting payment">
-          <article className={styles.reviewCard}>
-            <header className={styles.plan}>
-              <p className={styles.clientName}>{clientName}</p>
-              <h2 className={styles.planName}>{snapshot.description}</h2>
-            </header>
-            <form action={`/api/hosting-pay/once/${token}/checkout`} method="post">
-              <dl className={styles.pricing}>
-                <div className={styles.priceRow}>
-                  <dt>Amount</dt>
-                  <dd>{formatMoney(quote.baseCents, quote.currency)}</dd>
-                </div>
-                {quote.surchargeCents > 0 && (
-                  <div className={styles.priceRow}>
-                    <dt>Card processing surcharge</dt>
-                    <dd>{formatMoney(quote.surchargeCents, quote.currency)}</dd>
-                  </div>
-                )}
-                <div className={`${styles.priceRow} ${styles.totalRow}`}>
-                  <dt>Total to pay</dt>
-                  <dd>{formatMoney(quote.totalCents, quote.currency)}</dd>
-                </div>
-              </dl>
-              <div className={styles.actionArea}>
-                <div className={styles.debitNotice} role="note">
-                  <p>
-                    <strong>This is a one-off payment.</strong>
-                  </p>
-                  <p>Your card is charged once. It does not set up any recurring charge.</p>
-                </div>
-                <button type="submit">
-                  Continue securely to Stripe
-                  <svg aria-hidden="true" viewBox="0 0 24 24">
-                    <rect x="5" y="10" width="14" height="10" rx="2" />
-                    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-                  </svg>
-                </button>
-                <p className={styles.securityNote}>
-                  Payment details are entered securely on Stripe.
-                </p>
+    <Shell>
+      <main className={styles.wrap}>
+        <section className={styles.summary} aria-label="Payment summary">
+          <div>
+            <h1 className={styles.client}>{clientName}</h1>
+            <div className={styles.item}>{snapshot.description}</div>
+            <div className={styles.amount}>{total}</div>
+          </div>
+          <dl className={styles.lines}>
+            <div className={styles.line}>
+              <dt>{snapshot.description}</dt>
+              <dd className={styles.mono}>{formatMoney(quote.baseCents, quote.currency)}</dd>
+            </div>
+            {quote.surchargeCents > 0 && (
+              <div className={styles.line}>
+                <dt>Card processing surcharge</dt>
+                <dd className={styles.mono}>{formatMoney(quote.surchargeCents, quote.currency)}</dd>
               </div>
-            </form>
-          </article>
+            )}
+            <div className={`${styles.line} ${styles.totalLine}`}>
+              <dt>Total to pay</dt>
+              <dd className={styles.mono}>{total}</dd>
+            </div>
+          </dl>
+          <ul className={styles.notes}>
+            <li className={styles.note}>
+              <span className={styles.badge} aria-hidden="true">
+                1
+              </span>
+              <span>
+                <strong>One-off payment.</strong> Your card is charged once. It does not set up any
+                recurring charge.
+              </span>
+            </li>
+            <li className={styles.note}>
+              <span className={styles.badge} aria-hidden="true">
+                ✓
+              </span>
+              <span>Processed by Stripe. We never see or store your card details.</span>
+            </li>
+          </ul>
+          <p className={styles.contact}>
+            Questions about this payment? <a href={`mailto:${ACCOUNTS_EMAIL}`}>{ACCOUNTS_EMAIL}</a>
+          </p>
         </section>
-      </div>
-    </main>
+
+        <section className={styles.card} aria-label="Payment details">
+          {publishableKey ? (
+            <OneOffPaymentForm
+              publishableKey={publishableKey}
+              checkoutUrl={checkoutUrl}
+              total={total}
+              description={snapshot.description}
+              expires={expires}
+              receiptEmail={snapshot.recipientEmail}
+            />
+          ) : (
+            <form className={styles.form} action={checkoutUrl} method="post">
+              <h2 className={styles.heading}>Payment details</h2>
+              <button type="submit" className={styles.pay}>
+                Pay {total}
+              </button>
+              <p className={styles.fine}>
+                One-off charge · Powered by Stripe · Link expires {expires}
+              </p>
+            </form>
+          )}
+        </section>
+      </main>
+    </Shell>
   )
 }

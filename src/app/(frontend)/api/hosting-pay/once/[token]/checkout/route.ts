@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import {
+  checkoutSessionUi,
   createHostingOneOffCheckout,
   expireHostingCheckoutSession,
   getHostingCheckoutSession,
   isStripeIdempotencyConflict,
   isStripeMissingResource,
+  type CheckoutUi,
 } from '@/lib/stripe'
 import { hashOfferToken } from '@/lib/hosting-billing'
 import type { OneOffSnapshot } from '@/lib/hosting-one-off-payment'
@@ -15,7 +17,14 @@ import { moveFromPayable, PAYABLE_STATUSES } from '@/lib/hosting-one-off-payment
 
 const isRateLimited = createTokenRateLimiter()
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+/** A plain form post opens Stripe's page; the in-page payment form asks for JSON. */
+async function requestedUi(req: NextRequest): Promise<CheckoutUi> {
+  if (!req.headers.get('content-type')?.includes('application/json')) return 'hosted'
+  const body = (await req.json().catch(() => null)) as { ui?: unknown } | null
+  return body?.ui === 'embedded' || body?.ui === 'elements' ? body.ui : 'hosted'
+}
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   if (isRateLimited(token))
     return NextResponse.json({ error: 'Too many attempts. Try again shortly.' }, { status: 429 })
@@ -35,6 +44,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ to
     new Date(payment.expiresAt) <= new Date()
   )
     return NextResponse.json({ error: 'This payment link is unavailable.' }, { status: 410 })
+  const ui = await requestedUi(req)
 
   // One link pays once. Reuse an open checkout rather than opening a second.
   if (payment.status === 'checkout_pending' && payment.stripeCheckoutSessionId) {
@@ -50,7 +60,24 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ to
     }
     if (existing?.status === 'complete')
       return NextResponse.json({ error: 'This payment has already been made.' }, { status: 410 })
-    if (existing?.status === 'open' && existing.url) return NextResponse.redirect(existing.url, 303)
+    if (existing?.status === 'open') {
+      if (checkoutSessionUi(existing) === ui) {
+        if (ui !== 'hosted' && existing.client_secret)
+          return NextResponse.json({ clientSecret: existing.client_secret })
+        if (ui === 'hosted' && existing.url) return NextResponse.redirect(existing.url, 303)
+      }
+      // Different page style: close the old session before opening another, so
+      // two payable sessions never exist for one link. If Stripe refuses (it
+      // may have just completed), stop rather than risk a second charge.
+      try {
+        await expireHostingCheckoutSession(existing.id)
+      } catch {
+        return NextResponse.json(
+          { error: 'This payment is already in progress. Please refresh and try again.' },
+          { status: 409 },
+        )
+      }
+    }
   }
 
   const snapshot = payment.snapshot as OneOffSnapshot
@@ -71,10 +98,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ to
       description: snapshot.description,
       currency: snapshot.quote.currency,
       totalCents: snapshot.quote.totalCents,
-      // One key per attempt: two simultaneous clicks share it, so Stripe opens
-      // one session. An expired session gives the next attempt a fresh key.
-      idempotencyKey: `hosting-one-off-v1-${payment.id}${retrySuffix}`,
+      // One key per attempt, not per page style: two simultaneous clicks share
+      // it, so Stripe opens one session. An expired session gives the next
+      // attempt a fresh key. v2 adds the embedded card form.
+      idempotencyKey: `hosting-one-off-v2-${payment.id}${retrySuffix}`,
       returnToPaymentLink: `/hosting-pay/once/${token}`,
+      ui,
     })
   } catch (error) {
     if (!isStripeIdempotencyConflict(error)) throw error
@@ -102,6 +131,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ to
         })
     })
     return NextResponse.json({ error: 'This payment link is unavailable.' }, { status: 410 })
+  }
+  if (ui !== 'hosted') {
+    if (!session.client_secret)
+      return NextResponse.json({ error: 'Stripe did not return a payment form.' }, { status: 502 })
+    return NextResponse.json({ clientSecret: session.client_secret })
   }
   if (!session.url)
     return NextResponse.json({ error: 'Stripe did not return a checkout page.' }, { status: 502 })

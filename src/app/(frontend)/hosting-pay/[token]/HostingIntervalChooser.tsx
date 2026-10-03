@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { EmbeddedCardPayment } from '../EmbeddedCardPayment'
 import styles from './hosting-pay.module.css'
 
 type Interval = 'month' | 'year'
@@ -20,6 +21,8 @@ type Props = Readonly<{
   token: string
   options: readonly IntervalOption[]
   defaultInterval: Interval
+  /** When set, the card form opens on this page instead of Stripe's own page. */
+  publishableKey?: string | null
 }>
 
 const LABELS: Record<Interval, { title: string; per: string }> = {
@@ -27,18 +30,21 @@ const LABELS: Record<Interval, { title: string; per: string }> = {
   year: { title: 'Annual', per: 'year' },
 }
 
-export function HostingIntervalChooser({ token, options, defaultInterval }: Props) {
+export function HostingIntervalChooser({ token, options, defaultInterval, publishableKey }: Props) {
   const [interval, setInterval] = useState<Interval>(
     options.some((option) => option.interval === defaultInterval)
       ? defaultInterval
       : (options[0]?.interval ?? 'month'),
   )
+  // The checkout session is created for one interval, so the choice is locked
+  // while the card form is open. "Back" unlocks it.
+  const [paying, setPaying] = useState(false)
   const selected = options.find((option) => option.interval === interval) ?? options[0]
   if (!selected) return null
 
-  return (
-    <form action={`/api/hosting-pay/${token}/checkout`} method="post">
-      <fieldset className={styles.chooser}>
+  const content = (
+    <>
+      <fieldset className={styles.chooser} disabled={paying}>
         <legend className={styles.chooserLegend}>Choose how you'd like to pay</legend>
         <div className={styles.chooserOptions}>
           {options.map((option) => (
@@ -83,15 +89,39 @@ export function HostingIntervalChooser({ token, options, defaultInterval }: Prop
           </p>
           <p>{selected.schedule.detail}</p>
         </div>
-        <button type="submit">
-          Continue securely to Stripe
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <rect x="5" y="10" width="14" height="10" rx="2" />
-            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-          </svg>
-        </button>
-        <p className={styles.securityNote}>Payment details are entered securely on Stripe.</p>
+        {publishableKey ? (
+          <EmbeddedCardPayment
+            publishableKey={publishableKey}
+            checkoutUrl={`/api/hosting-pay/${token}/checkout`}
+            request={{ interval: selected.interval }}
+            payLabel="Set up card payment"
+            successTitle="Hosting payments set up"
+            successDetail="Thank you. Stripe will email your receipt, and payments continue automatically on the schedule above."
+            onOpenChange={setPaying}
+          />
+        ) : (
+          <button type="submit">
+            Continue securely to Stripe
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <rect x="5" y="10" width="14" height="10" rx="2" />
+              <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            </svg>
+          </button>
+        )}
+        <p className={styles.securityNote}>
+          {publishableKey
+            ? 'Card details go straight to Stripe and are never stored by us.'
+            : 'Payment details are entered securely on Stripe.'}
+        </p>
       </div>
+    </>
+  )
+
+  return publishableKey ? (
+    <div>{content}</div>
+  ) : (
+    <form action={`/api/hosting-pay/${token}/checkout`} method="post">
+      {content}
     </form>
   )
 }

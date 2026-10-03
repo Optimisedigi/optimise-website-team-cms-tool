@@ -44,6 +44,55 @@ export async function getHostingSubscriptionItems(subscriptionId: string): Promi
   }
 }
 
+/**
+ * How the client pays:
+ * - `hosted`: on Stripe's own page.
+ * - `embedded`: Stripe's whole checkout page embedded in the CMS page.
+ * - `elements`: only Stripe's card and wallet fields, inside the CMS page's
+ *   own layout. Card details still go straight to Stripe in its frames.
+ * Embedded and elements sessions only redirect when a payment method needs it
+ * (cards don't); the CMS page shows its own success message.
+ */
+export type CheckoutUi = 'hosted' | 'embedded' | 'elements'
+
+function checkoutUiParams(
+  ui: CheckoutUi,
+  successUrl: string,
+  cancelUrl: string,
+  returnUrl: string,
+) {
+  if (ui === 'embedded')
+    return { ui_mode: 'embedded_page' as const, redirect_on_completion: 'never' as const }
+  if (ui === 'elements') return { ui_mode: 'elements' as const, return_url: returnUrl }
+  return { success_url: successUrl, cancel_url: cancelUrl }
+}
+
+/** Which UI an existing session was opened with. */
+export function checkoutSessionUi(session: { ui_mode?: string | null }): CheckoutUi {
+  if (session.ui_mode === 'embedded_page') return 'embedded'
+  if (session.ui_mode === 'elements') return 'elements'
+  return 'hosted'
+}
+
+/**
+ * The publishable key for the embedded card form, or null to keep using
+ * Stripe's hosted page. Read at request time (not inlined into the bundle).
+ * A key from the other mode (test vs live) would fail to load the form, so it
+ * is ignored rather than leaving the client with a broken payment page.
+ */
+export function getStripePublishableKey(): string | null {
+  const key = process.env.STRIPE_PUBLISHABLE_KEY?.trim()
+  const secret = process.env.STRIPE_SECRET_KEY?.trim() ?? ''
+  if (!key || !/^pk_(live|test)_\w+$/.test(key)) return null
+  const keyMode = key.startsWith('pk_live_') ? 'live' : 'test'
+  const secretMode = /^(sk|rk)_live_/.test(secret)
+    ? 'live'
+    : /^(sk|rk)_test_/.test(secret)
+      ? 'test'
+      : null
+  return secretMode === keyMode ? key : null
+}
+
 export async function getHostingCheckoutSession(sessionId: string) {
   return getStripe().checkout.sessions.retrieve(sessionId)
 }
@@ -90,6 +139,7 @@ export async function createHostingCheckout(input: {
   billingStart: StripeBillingStartParams
   idempotencyKey: string
   returnToPaymentLink?: string
+  ui?: CheckoutUi
 }) {
   const stripe = getStripe()
   const site = getCmsUrl()
@@ -116,10 +166,14 @@ export async function createHostingCheckout(input: {
         // Renewals fall on the client's billing start date each month or year.
         ...input.billingStart,
       },
-      success_url: `${site}/hosting-pay/success`,
-      cancel_url: input.returnToPaymentLink
-        ? `${site}/hosting-pay/cancel?return_to=${encodeURIComponent(input.returnToPaymentLink)}`
-        : `${site}/hosting-pay/cancel`,
+      ...checkoutUiParams(
+        input.ui ?? 'hosted',
+        `${site}/hosting-pay/success`,
+        input.returnToPaymentLink
+          ? `${site}/hosting-pay/cancel?return_to=${encodeURIComponent(input.returnToPaymentLink)}`
+          : `${site}/hosting-pay/cancel`,
+        `${site}${input.returnToPaymentLink ?? '/hosting-pay/success'}`,
+      ),
       // Checkout's subscription summary collapses multiple recurring line items
       // into “and 1 more”. The payment-review page already itemises the disclosed
       // surcharge, so send Stripe one recurring total for a clearer client hand-off.
@@ -154,6 +208,7 @@ export async function createHostingOneOffCheckout(input: {
   totalCents: number
   idempotencyKey: string
   returnToPaymentLink: string
+  ui?: CheckoutUi
 }) {
   const site = getCmsUrl()
   const metadata = { cmsClientId: input.clientId, hostingOneOffPaymentId: input.paymentId }
@@ -165,8 +220,14 @@ export async function createHostingOneOffCheckout(input: {
       client_reference_id: input.clientId,
       metadata,
       payment_intent_data: { metadata, receipt_email: input.email },
-      success_url: `${site}/hosting-pay/once/paid`,
-      cancel_url: `${site}/hosting-pay/cancel?return_to=${encodeURIComponent(input.returnToPaymentLink)}`,
+      ...checkoutUiParams(
+        input.ui ?? 'hosted',
+        `${site}/hosting-pay/once/paid`,
+        `${site}/hosting-pay/cancel?return_to=${encodeURIComponent(input.returnToPaymentLink)}`,
+        // Only used if a payment method needs a redirect; the page then shows
+        // the paid state once Stripe's webhook has confirmed the payment.
+        `${site}${input.returnToPaymentLink}`,
+      ),
       // One line for the surcharge-inclusive total; the payment page itemises it.
       line_items: [
         {

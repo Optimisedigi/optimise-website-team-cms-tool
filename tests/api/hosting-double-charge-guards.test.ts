@@ -29,7 +29,8 @@ vi.mock('@/payload.config', () => ({ default: Promise.resolve({}) }))
 vi.mock('@/lib/access', () => ({ userHasFeature: () => true }))
 // Issuing a link emails it; never let these tests reach Brevo.
 vi.mock('@/lib/brevo-email', () => ({ sendBrevoEmail: vi.fn(async () => ({ ok: true })) }))
-vi.mock('@/lib/stripe', () => ({
+vi.mock('@/lib/stripe', async (importOriginal) => ({
+  checkoutSessionUi: (await importOriginal<typeof import('@/lib/stripe')>()).checkoutSessionUi,
   getCmsUrl: () => 'https://cms.test',
   isStripeMissingResource: (error: unknown) =>
     (error as { code?: string } | null)?.code === 'resource_missing',
@@ -312,6 +313,69 @@ describe('paying a link', () => {
 
     expect(response.status).toBe(409)
     expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  const payEmbedded = async (token: string, interval: 'month' | 'year') => {
+    const { POST } = await import('@/app/(frontend)/api/hosting-pay/[token]/checkout/route')
+    return POST(
+      new NextRequest(`http://localhost/api/hosting-pay/${token}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval, ui: 'embedded' }),
+      }),
+      { params: Promise.resolve({ token }) },
+    )
+  }
+
+  it('returns the card form secret for the chosen frequency when the form is embedded', async () => {
+    payload.find.mockResolvedValue({ docs: [{ ...offer, status: 'active', stripeCheckoutSessionId: null }] })
+    stripe.createHostingCheckout.mockResolvedValue({ id: 'cs_embed', url: null, client_secret: 'cs_embed_secret' })
+
+    const response = await payEmbedded('token-embed', 'year')
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ clientSecret: 'cs_embed_secret' })
+    expect(stripe.createHostingCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ ui: 'embedded', quote: offer.snapshot.annual }),
+    )
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: 'checkout_pending', selectedInterval: 'year', stripeCheckoutSessionId: 'cs_embed' },
+      }),
+    )
+  })
+
+  it('reopens the same embedded form for the same frequency instead of a second checkout', async () => {
+    stripe.getHostingCheckoutSession.mockResolvedValue({
+      id: 'cs_old',
+      status: 'open',
+      ui_mode: 'embedded_page',
+      client_secret: 'cs_old_secret',
+    })
+
+    const response = await payEmbedded('token-embed-again', 'month')
+
+    expect(await response.json()).toEqual({ clientSecret: 'cs_old_secret' })
+    expect(stripe.createHostingCheckout).not.toHaveBeenCalled()
+    expect(stripe.expireHostingCheckoutSession).not.toHaveBeenCalled()
+  })
+
+  it('closes an open Stripe-page checkout before opening the embedded form', async () => {
+    stripe.getHostingCheckoutSession.mockResolvedValue({
+      id: 'cs_old',
+      status: 'open',
+      ui_mode: 'hosted_page',
+      url: 'https://checkout.stripe.test/old',
+    })
+    stripe.createHostingCheckout.mockResolvedValue({ id: 'cs_embed', url: null, client_secret: 'cs_embed_secret' })
+
+    const response = await payEmbedded('token-embed-switch', 'month')
+
+    expect(stripe.expireHostingCheckoutSession).toHaveBeenCalledWith('cs_old')
+    expect(stripe.createHostingCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ ui: 'embedded', idempotencyKey: 'hosting-checkout-v5-99-cs_old' }),
+    )
+    expect(await response.json()).toEqual({ clientSecret: 'cs_embed_secret' })
   })
 })
 

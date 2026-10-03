@@ -5,7 +5,7 @@ import {
   parseOneOffRequest,
   type OneOffSnapshot,
 } from '@/lib/hosting-one-off-payment'
-import { createHostingOneOffCheckout } from '@/lib/stripe'
+import { createHostingOneOffCheckout, getStripePublishableKey } from '@/lib/stripe'
 
 const createSession = vi.fn()
 
@@ -91,7 +91,8 @@ describe('buildOneOffPaymentEmail', () => {
       snapshot: { ...snapshot, ...overrides },
       url: 'https://cms.test/hosting-pay/once/abc',
       expiresAt: '2026-10-16T00:00:00.000Z',
-      signOff: { signOff: 'Thanks,', senderName: 'Maria', signatureHtml: '<b>OD</b>' },
+      logoUrl: 'https://cms.test/brand/optimise-digital-logo.png',
+      signOff: { signOff: 'Thanks,', senderName: 'Accounts', signatureHtml: '<b>OD</b>' },
     })
 
   it('itemises the amount, surcharge and total, and says it is not recurring', () => {
@@ -102,9 +103,23 @@ describe('buildOneOffPaymentEmail', () => {
     expect(textContent).toContain('Card processing surcharge: $5.60')
     expect(textContent).toContain('Total: $302.60')
     expect(textContent).toContain('does not set up any recurring charge')
-    expect(textContent).toContain('Pay now: https://cms.test/hosting-pay/once/abc')
+    expect(textContent).toContain('Pay $302.60 securely: https://cms.test/hosting-pay/once/abc')
+    expect(textContent).toContain('One-off payment · Card, Apple Pay, Google Pay')
     expect(textContent).toContain('16 October 2026')
-    expect(textContent).toContain('Thanks,\nMaria')
+    expect(textContent).toContain('Thanks,\nAccounts')
+  })
+
+  it('follows the approved design: logo header, pay button, fallback link and sign-off', () => {
+    const { htmlContent } = build()
+
+    expect(htmlContent).toContain(
+      '<img src="https://cms.test/brand/optimise-digital-logo.png" alt="Optimise Digital" height="26"',
+    )
+    // Two links to the payment page: the button and the copyable fallback.
+    expect(htmlContent.match(/href="https:\/\/cms\.test\/hosting-pay\/once\/abc"/g)).toHaveLength(2)
+    expect(htmlContent).toContain('>Pay $302.60 securely</a>')
+    expect(htmlContent).toContain('background:#141414;border-radius:8px;')
+    expect(htmlContent).toContain('<p style="margin:0 0 14px;">Accounts</p>')
   })
 
   it('omits the surcharge line when there is no surcharge', () => {
@@ -174,5 +189,50 @@ describe('createHostingOneOffCheckout', () => {
     const [params] = createSession.mock.calls[0] ?? []
     expect(params.customer).toBe('cus_existing')
     expect(params).not.toHaveProperty('customer_email')
+  })
+
+  it('opens an embedded card form that never redirects away from the payment page', async () => {
+    await createHostingOneOffCheckout({ ...base, ui: 'embedded' })
+
+    const [params] = createSession.mock.calls[0] ?? []
+    expect(params.mode).toBe('payment')
+    expect(params.ui_mode).toBe('embedded_page')
+    expect(params.redirect_on_completion).toBe('never')
+    expect(params).not.toHaveProperty('success_url')
+    expect(params).not.toHaveProperty('cancel_url')
+    expect(params.metadata).toEqual({ cmsClientId: '8', hostingOneOffPaymentId: '31' })
+  })
+
+  it('opens an in-page card session that returns to the payment link only if a method needs it', async () => {
+    await createHostingOneOffCheckout({ ...base, ui: 'elements' })
+
+    const [params] = createSession.mock.calls[0] ?? []
+    expect(params.mode).toBe('payment')
+    expect(params.ui_mode).toBe('elements')
+    expect(params.return_url).toBe('http://localhost:3004/hosting-pay/once/tok')
+    expect(params).not.toHaveProperty('success_url')
+    expect(params).not.toHaveProperty('cancel_url')
+    expect(params).not.toHaveProperty('redirect_on_completion')
+  })
+})
+
+describe('getStripePublishableKey', () => {
+  const withEnv = (publishable: string | undefined, secret: string) => {
+    if (publishable === undefined) delete process.env.STRIPE_PUBLISHABLE_KEY
+    else process.env.STRIPE_PUBLISHABLE_KEY = publishable
+    process.env.STRIPE_SECRET_KEY = secret
+    return getStripePublishableKey()
+  }
+
+  it.each([
+    ['matching live keys', 'pk_live_abc123', 'sk_live_xyz', 'pk_live_abc123'],
+    ['matching test keys', ' pk_test_abc123 ', 'sk_test_xyz', 'pk_test_abc123'],
+    ['a restricted live secret', 'pk_live_abc123', 'rk_live_xyz', 'pk_live_abc123'],
+    ['no publishable key (keeps the Stripe page)', undefined, 'sk_live_xyz', null],
+    ['a test key against a live secret', 'pk_test_abc123', 'sk_live_xyz', null],
+    ['a live key against a test secret', 'pk_live_abc123', 'sk_test_xyz', null],
+    ['a secret key pasted by mistake', 'sk_live_abc123', 'sk_live_xyz', null],
+  ])('%s', (_label, publishable, secret, expected) => {
+    expect(withEnv(publishable, secret)).toBe(expected)
   })
 })

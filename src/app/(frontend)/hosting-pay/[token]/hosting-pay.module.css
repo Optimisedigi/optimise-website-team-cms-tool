@@ -322,6 +322,26 @@
   stroke-width: 1.8;
 }
 
+/* Stripe's embedded card form mounts here (its own secure frame). */
+.embeddedCheckout {
+  min-height: 320px;
+  margin: 0 -4px;
+}
+
+.actionArea .secondaryButton {
+  min-height: 44px;
+  margin-top: 12px;
+  color: #14202b;
+  background: transparent;
+  border-color: #b8c2cb;
+  font-size: 15px;
+}
+
+.actionArea .secondaryButton:hover {
+  background: #e8ecef;
+  border-color: #8a96a1;
+}
+
 .securityNote {
   margin: 14px 0 0;
   color: #66737f;
