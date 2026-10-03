@@ -5,6 +5,7 @@ import {
   claimScheduledForSend,
   moveFromPayable,
   reissuePayableLink,
+  restorePreviousLink,
   returnToSchedule,
 } from '@/lib/hosting-one-off-payment-status'
 
@@ -81,6 +82,65 @@ describe('reissuePayableLink', () => {
       expect(await tokenRow(id)).toEqual(before)
     },
   )
+})
+
+describe('restorePreviousLink', () => {
+  const tokenRow = async (id: number) =>
+    (
+      await client.execute({
+        sql: 'select status, token_hash as tokenHash, expires_at as expiresAt from hosting_one_off_payments where id = ?',
+        args: [id],
+      })
+    ).rows[0]
+  const restore = (id: number, unsentTokenHash = 'hash_unsent') =>
+    restorePreviousLink(db, {
+      id,
+      unsentTokenHash,
+      tokenHash: 'hash_old',
+      expiresAt: '2026-10-08T00:00:00.000Z',
+      now: NOW,
+    })
+
+  beforeEach(async () => {
+    await client.execute(
+      "update hosting_one_off_payments set token_hash = 'hash_old', expires_at = '2026-10-08T00:00:00.000Z'",
+    )
+  })
+
+  it('puts the old link back after a resend email fails', async () => {
+    await reissuePayableLink(db, {
+      id: 1,
+      tokenHash: 'hash_unsent',
+      expiresAt: '2026-10-16T00:00:00.000Z',
+      seenSessionId: null,
+      now: NOW,
+    })
+
+    expect(await restore(1)).toBe(true)
+    expect(await tokenRow(1)).toMatchObject({
+      status: 'active',
+      tokenHash: 'hash_old',
+      expiresAt: '2026-10-08T00:00:00.000Z',
+    })
+  })
+
+  it('does not overwrite a link that changed since (another resend)', async () => {
+    await client.execute(
+      "update hosting_one_off_payments set token_hash = 'hash_other' where id = 1",
+    )
+
+    expect(await restore(1)).toBe(false)
+    expect((await tokenRow(1))?.tokenHash).toBe('hash_other')
+  })
+
+  it('does not revive a link that was cancelled meanwhile', async () => {
+    await client.execute(
+      "update hosting_one_off_payments set token_hash = 'hash_unsent', status = 'revoked' where id = 1",
+    )
+
+    expect(await restore(1)).toBe(false)
+    expect(await tokenRow(1)).toMatchObject({ status: 'revoked', tokenHash: 'hash_unsent' })
+  })
 })
 
 describe('moveFromPayable', () => {

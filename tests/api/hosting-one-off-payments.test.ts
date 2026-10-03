@@ -388,9 +388,23 @@ describe('sending scheduled one-off payment emails', () => {
   })
 
   describe('scheduled resends', () => {
+    // The link the client already has: its token and expiry.
+    const due = (overrides: Record<string, unknown> = {}) =>
+      payment({
+        tokenHash: 'hash_old',
+        expiresAt: '2026-10-12T00:00:00.000Z',
+        resendAt: '2026-10-09T22:00:00.000Z',
+        sendAttempts: 0,
+        ...overrides,
+      })
+    const sqlCalls = () =>
+      payload.db.drizzle.run.mock.calls.map(([query]: [{ queryChunks: unknown[] }]) =>
+        JSON.stringify(query.queryChunks),
+      )
+
     beforeEach(() => {
       firstSends = []
-      resends = [payment({ resendAt: '2026-10-09T22:00:00.000Z', sendAttempts: 0 })]
+      resends = [due()]
     })
 
     it('only picks up unpaid, uncancelled links whose resend is due', async () => {
@@ -423,28 +437,27 @@ describe('sending scheduled one-off payment emails', () => {
       )
     })
 
-    it('closes a checkout left open on the old link first', async () => {
-      resends = [
-        payment({
-          status: 'checkout_pending',
-          stripeCheckoutSessionId: 'cs_open',
-          resendAt: '2026-10-09T22:00:00.000Z',
-        }),
-      ]
+    it('leaves a client who is paying right now alone and tries again next run', async () => {
+      resends = [due({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_open' })]
       stripe.getHostingCheckoutSession.mockResolvedValue({ id: 'cs_open', status: 'open' })
 
+      expect(await run()).toMatchObject({ sent: 0, skipped: 1 })
+      expect(stripe.expireHostingCheckoutSession).not.toHaveBeenCalled()
+      expect(payload.db.drizzle.run).not.toHaveBeenCalled()
+      expect(sendBrevoEmail).not.toHaveBeenCalled()
+      expect(payload.update).not.toHaveBeenCalled()
+    })
+
+    it('resends once an abandoned checkout has expired', async () => {
+      resends = [due({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_old' })]
+      stripe.getHostingCheckoutSession.mockResolvedValue({ id: 'cs_old', status: 'expired' })
+
       expect(await run()).toMatchObject({ sent: 1 })
-      expect(stripe.expireHostingCheckoutSession).toHaveBeenCalledWith('cs_open')
+      expect(stripe.expireHostingCheckoutSession).not.toHaveBeenCalled()
     })
 
     it('drops the resend without emailing when the client has just paid', async () => {
-      resends = [
-        payment({
-          status: 'checkout_pending',
-          stripeCheckoutSessionId: 'cs_done',
-          resendAt: '2026-10-09T22:00:00.000Z',
-        }),
-      ]
+      resends = [due({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_done' })]
       stripe.getHostingCheckoutSession.mockResolvedValue({ id: 'cs_done', status: 'complete' })
 
       expect(await run()).toMatchObject({ sent: 0, skipped: 1 })
@@ -455,13 +468,7 @@ describe('sending scheduled one-off payment emails', () => {
     })
 
     it('tries again next run when Stripe cannot be reached', async () => {
-      resends = [
-        payment({
-          status: 'checkout_pending',
-          stripeCheckoutSessionId: 'cs_x',
-          resendAt: '2026-10-09T22:00:00.000Z',
-        }),
-      ]
+      resends = [due({ status: 'checkout_pending', stripeCheckoutSessionId: 'cs_x' })]
       stripe.getHostingCheckoutSession.mockRejectedValue(new Error('network'))
 
       expect(await run()).toMatchObject({ sent: 0, skipped: 1 })
@@ -469,14 +476,30 @@ describe('sending scheduled one-off payment emails', () => {
       expect(payload.update).not.toHaveBeenCalled()
     })
 
-    it('counts a failed email so it stops retrying after five tries', async () => {
+    it('puts the old link back when the email fails, so the client can still pay', async () => {
       sendBrevoEmail.mockResolvedValue({ ok: false, code: 'brevo-error' })
       vi.spyOn(console, 'error').mockImplementation(() => {})
 
       expect(await run()).toMatchObject({ sent: 0, failed: 1 })
+
+      const [reissue, restore] = sqlCalls()
+      expect(sqlCalls()).toHaveLength(2)
+      expect(reissue).toContain('set status = ')
+      // Restores the old token and expiry, only while the unsent token is still on the link.
+      expect(restore).toContain('"hash_old"')
+      expect(restore).toContain('"2026-10-12T00:00:00.000Z"')
+      expect(restore).toContain('and token_hash = ')
       expect(payload.update).toHaveBeenCalledWith(
         expect.objectContaining({ id: 31, data: { sendAttempts: 1 } }),
       )
+    })
+
+    it('never replaces a link it could not put back', async () => {
+      resends = [due({ tokenHash: undefined })]
+
+      expect(await run()).toMatchObject({ sent: 0, skipped: 1 })
+      expect(payload.db.drizzle.run).not.toHaveBeenCalled()
+      expect(sendBrevoEmail).not.toHaveBeenCalled()
     })
   })
 })

@@ -14,6 +14,7 @@ import {
   claimScheduledForSend,
   MAX_SCHEDULED_SEND_ATTEMPTS,
   reissuePayableLink,
+  restorePreviousLink,
   returnToSchedule,
 } from './hosting-one-off-payment-status'
 import { sendBrevoEmail } from './brevo-email'
@@ -198,18 +199,27 @@ export async function issueOneOffPayment(
 }
 
 /**
- * Before a link is reissued, closes any Stripe checkout the client left open
- * on the old link, so only the new link can be paid. 'paid' means the client
- * has just paid (nothing to resend); 'unreachable' means Stripe could not be
- * checked, so nothing should change yet.
+ * Before a link is reissued, checks for a Stripe checkout the client started
+ * on the old link. 'paid' means the client has just paid (nothing to resend);
+ * 'unreachable' means Stripe could not be checked, so nothing should change
+ * yet. An open checkout is closed when an admin resends by hand (so only the
+ * new link can be paid); with `closeOpen: false` it is left alone and
+ * reported as 'open', so an unattended resend never cuts off a client who is
+ * paying right now.
  */
-export async function closeOldCheckout(payment: any): Promise<'ok' | 'paid' | 'unreachable'> {
+export async function closeOldCheckout(
+  payment: any,
+  options: { closeOpen?: boolean } = {},
+): Promise<'ok' | 'open' | 'paid' | 'unreachable'> {
   const sessionId: string | null = payment.stripeCheckoutSessionId || null
   if (payment.status !== 'checkout_pending' || !sessionId) return 'ok'
   try {
     const session = await getHostingCheckoutSession(sessionId)
     if (session.status === 'complete') return 'paid'
-    if (session.status === 'open') await expireHostingCheckoutSession(session.id)
+    if (session.status === 'open') {
+      if (options.closeOpen === false) return 'open'
+      await expireHostingCheckoutSession(session.id)
+    }
     return 'ok'
   } catch (error) {
     return isStripeMissingResource(error) ? 'ok' : 'unreachable'
@@ -221,17 +231,36 @@ export async function closeOldCheckout(payment: any): Promise<'ok' | 'paid' | 'u
  * the earlier email stops working. Fails (returns null) if a checkout was
  * started since `seenSessionId` was read, so a client paying right now is
  * never cut off. The amount and recipient stay as they were frozen.
+ *
+ * With `keepOldLinkIfEmailFails` (unattended resends, where nobody sees the
+ * new link), a failed email puts the previous link back, so the client is
+ * never left with a dead link and no email. A manual resend shows the new
+ * link to the admin instead, who can send it by hand.
  */
 export async function resendOneOffPayment(
   payload: Payload,
-  input: { payment: any; seenSessionId: string | null; now: Date },
-): Promise<{ url: string; emailSent: boolean; emailedTo?: string } | null> {
+  input: {
+    payment: any
+    seenSessionId: string | null
+    now: Date
+    keepOldLinkIfEmailFails?: boolean
+  },
+): Promise<{ url: string; emailSent: boolean; emailedTo?: string; restored?: boolean } | null> {
   const { payment, now } = input
+  const db = (payload.db as any).drizzle
+  const previous =
+    typeof payment.tokenHash === 'string' && typeof payment.expiresAt === 'string'
+      ? { tokenHash: payment.tokenHash, expiresAt: payment.expiresAt }
+      : null
+  // Without the previous link on record it could not be put back, so an
+  // unattended resend must not replace it.
+  if (input.keepOldLinkIfEmailFails && !previous) return null
   const token = newToken()
+  const tokenHash = hashOfferToken(token)
   const expiresAt = linkExpiry(now)
-  const reissued = await reissuePayableLink((payload.db as any).drizzle, {
+  const reissued = await reissuePayableLink(db, {
     id: payment.id,
-    tokenHash: hashOfferToken(token),
+    tokenHash,
     expiresAt,
     seenSessionId: input.seenSessionId,
     now,
@@ -255,10 +284,21 @@ export async function resendOneOffPayment(
       code: email.code,
       status: email.status,
     })
+  const restored =
+    !email.ok && input.keepOldLinkIfEmailFails && previous
+      ? await restorePreviousLink(db, {
+          id: payment.id,
+          unsentTokenHash: tokenHash,
+          tokenHash: previous.tokenHash,
+          expiresAt: previous.expiresAt,
+          now,
+        })
+      : false
   return {
     url,
     emailSent: email.ok,
     ...(email.ok ? { emailedTo: snapshot.recipientEmail } : {}),
+    ...(restored ? { restored } : {}),
   }
 }
 
@@ -341,9 +381,11 @@ export async function sendDueScheduledOneOffPayments(
 }
 
 /**
- * Resends unpaid links whose scheduled resend date has passed, exactly like
- * the Resend link button: the client gets a new link valid for 14 days and
- * the old one stops working. The old link keeps working until then. Paid and
+ * Resends unpaid links whose scheduled resend date has passed: the client
+ * gets a new link valid for 14 days and the old one stops working. Unlike the
+ * Resend link button nobody is watching, so it is more careful: a client who
+ * is paying right now is left alone (tried again next run), and if the email
+ * fails the old link is put back so the client can still pay. Paid and
  * cancelled links are never picked up, so paying or cancelling stops it.
  */
 async function sendDueScheduledResends(payload: Payload, now: Date): Promise<ScheduledSendSummary> {
@@ -364,7 +406,7 @@ async function sendDueScheduledResends(payload: Payload, now: Date): Promise<Sch
   const summary: ScheduledSendSummary = { due: due.docs.length, sent: 0, failed: 0, skipped: 0 }
 
   for (const payment of due.docs as any[]) {
-    const checkout = await closeOldCheckout(payment)
+    const checkout = await closeOldCheckout(payment, { closeOpen: false })
     if (checkout === 'paid') {
       // Stripe's webhook will mark it paid; nothing to resend.
       await payload.update({
@@ -376,7 +418,7 @@ async function sendDueScheduledResends(payload: Payload, now: Date): Promise<Sch
       summary.skipped += 1
       continue
     }
-    if (checkout === 'unreachable') {
+    if (checkout === 'unreachable' || checkout === 'open') {
       summary.skipped += 1
       continue
     }
@@ -384,6 +426,7 @@ async function sendDueScheduledResends(payload: Payload, now: Date): Promise<Sch
       payment,
       seenSessionId: payment.stripeCheckoutSessionId || null,
       now,
+      keepOldLinkIfEmailFails: true,
     })
     if (!resent) {
       // The link changed since it was read (paid, cancelled or a new checkout); retry next run.

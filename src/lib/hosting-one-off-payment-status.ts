@@ -95,6 +95,35 @@ export async function reissuePayableLink(
 }
 
 /**
+ * Undoes a reissue whose email failed: the link the client already has works
+ * again, with its old expiry. Applies only while the link still carries the
+ * unsent token, so nothing that happened since (a cancel, a payment, another
+ * resend) is overwritten. Nobody received the unsent token, so nobody can have
+ * started paying with it.
+ */
+export async function restorePreviousLink(
+  db: RunsSql,
+  input: {
+    id: number | string
+    unsentTokenHash: string
+    tokenHash: string
+    expiresAt: string
+    now: Date
+  },
+): Promise<boolean> {
+  const result = await db.run(
+    sql`update hosting_one_off_payments
+        set token_hash = ${input.tokenHash},
+            expires_at = ${input.expiresAt},
+            updated_at = ${input.now.toISOString()}
+        where id = ${Number(input.id)}
+          and token_hash = ${input.unsentTokenHash}
+          and status in (${statusList(PAYABLE_STATUSES)})`,
+  )
+  return Number(result.rowsAffected ?? 0) > 0
+}
+
+/**
  * Puts a claimed link back on the schedule after its email failed, with a
  * fresh unusable token so the link in the failed email can never be paid.
  * Nobody received that link, so nobody can have paid it in the meantime.
