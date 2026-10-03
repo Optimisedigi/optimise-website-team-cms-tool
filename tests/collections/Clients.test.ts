@@ -37,7 +37,8 @@ function getAfterChangeHooks() {
 }
 
 /**
- * Find a field by name, searching inside tabs / rows / collapsibles recursively.
+ * Find a field by name, searching inside tabs / rows / collapsibles and
+ * unnamed (presentational) groups recursively — none of these namespace data.
  */
 function findField(fields: any[], name: string): any {
   for (const f of fields) {
@@ -48,7 +49,8 @@ function findField(fields: any[], name: string): any {
         if (found) return found;
       }
     }
-    if ("fields" in f && (f.type === "row" || f.type === "collapsible")) {
+    const isUnnamedGroup = f.type === "group" && !f.name;
+    if ("fields" in f && (f.type === "row" || f.type === "collapsible" || isUnnamedGroup)) {
       const found = findField(f.fields, name);
       if (found) return found;
     }
@@ -88,8 +90,8 @@ describe("Clients Collection", () => {
     const contractStartDate = findField(Clients.fields, "clientStartDate");
     const campaignStartDate = findField(Clients.fields, "campaignStartDate");
 
-    expect(contractStartDate).toMatchObject({ type: "date", label: "Contract Start Date" });
-    expect(campaignStartDate).toMatchObject({ type: "date", label: "Campaign Start Date" });
+    expect(contractStartDate).toMatchObject({ type: "date", label: "Contract start" });
+    expect(campaignStartDate).toMatchObject({ type: "date", label: "Campaign start" });
   });
 
   it("should have apiKey field with auto-generation hook", () => {

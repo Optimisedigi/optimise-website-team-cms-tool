@@ -503,570 +503,329 @@ export const Clients: CollectionConfig = {
         {
           label: "Business",
           fields: [
-            // ══ Business Identity & Status collapsible ══════════════
-            // Wraps the core naming, logo, services, PIN/website-type and the
-            // active/locations toggles into the mockup's first "section aside +
-            // field card" block. `isAgency` (position: sidebar) auto-extracts to
-            // the document sidebar regardless of nesting here.
+            // ══ Business tab: section cards (design handoff "Client Business tab") ══
+            // Every wrapper below is an UNNAMED group, so it is presentation only:
+            // field paths and stored data are unchanged. BusinessSection renders the
+            // card + "On this tab" menu entry; BusinessSubPanel / BusinessBlock lay
+            // out sub-tabs and column blocks inside a card.
             {
-              type: "collapsible",
-              label: "Business Identity",
+              name: "businessSectionMenu",
+              type: "ui",
+              admin: { components: { Field: "./components/client-business/BusinessSectionMenu" } },
+            },
+            {
+              type: "group",
+              label: "Business identity",
               admin: {
-                initCollapsed: false,
-                description:
-                  "Core naming, logo and the public-facing URL used across proposals, audits and the client hub, plus publishing status and physical-location settings.",
-              },
-              fields: [
-            // ── Identity row (3-col) ──────────────────────────────
-            // Most-used fields kept at the top so the team can scan a client
-            // record without scrolling. Layout-only — the field bodies are
-            // identical to the previous full-width declarations.
-            {
-              type: "row",
-              fields: [
-                {
-                  name: "name",
-                  type: "text",
-                  required: true,
-                  admin: {
-                    description: "Client/business name (e.g., 'Acme Corp')",
-                    width: "33%",
-                    components: {
-                      Cell: "./components/clients-list/NameAvatarCell",
-                    },
-                  },
-                },
-                {
-                  name: "tradingName",
-                  type: "text",
-                  admin: {
-                    description: "Operating name if different from the legal entity",
-                    width: "33%",
-                  },
-                },
-                {
-                  name: "slug",
-                  type: "text",
-                  required: true,
-                  unique: true,
-                  admin: {
-                    description: "URL-friendly identifier (e.g., 'acme-corp')",
-                    width: "33%",
-                    components: {
-                      Cell: "./components/clients-list/SlugCell",
-                    },
-                  },
-                  // Catch a duplicate slug here so the admin shows which client
-                  // already owns it. Without this the unique index rejects the
-                  // insert at the database level, which surfaces as a generic
-                  // 500 "Something went wrong." with no indication of the field
-                  // or the conflict. Mirrors the clientPin validator below.
-                  validate: async (value: string | null | undefined, { req, id }: any) => {
-                    if (!value) return true;
-                    try {
-                      const existing = await req.payload.find({
-                        collection: "clients",
-                        where: {
-                          slug: { equals: value },
-                          ...(id ? { id: { not_equals: id } } : {}),
-                        },
-                        limit: 1,
-                      });
-                      if (existing.totalDocs > 0) {
-                        return `Slug "${value}" is already in use by another client (${existing.docs[0].name}). Try a different slug.`;
-                      }
-                    } catch { /* skip check if payload not available */ }
-                    return true;
-                  },
-                },
-              ],
-            },
-            // Client logo — shown in the Clients list avatar when set, falling
-            // back to a coloured initial. Stored in the media collection.
-            {
-              name: "logo",
-              type: "upload",
-              relationTo: "media",
-              admin: {
-                description:
-                  "Client logo (square works best). Shown as the avatar in the Clients list; falls back to a coloured initial when empty.",
-              },
-            },
-            // Services this client is engaged for. Drives the service pills in
-            // the client edit header (see ClientRecordHeader) and is available
-            // for future filtering/reporting. Multi-select so a client can buy
-            // any combination of offerings.
-            {
-              name: "services",
-              type: "select",
-              hasMany: true,
-              admin: {
-                description:
-                  "Which services Optimise delivers for this client. Shown as pills in the client header.",
-              },
-              options: [...CLIENT_SERVICE_OPTIONS],
-            },
-            // ── Site identity row (3-col) ─────────────────────────────
-            // Matches the mockup's second Business Identity row:
-            // Website URL · Client PIN · Website Type. externalCms follows
-            // conditionally below when Website Type is "External CMS".
-            {
-              type: "row",
-              fields: [
-                {
-                  name: "websiteUrl",
-                  type: "text",
-                  admin: {
-                    description: "Client website URL (e.g., 'https://acmecorp.com')",
-                    width: "33%",
-                  },
-                },
-                {
-                  name: "clientPin",
-                  type: "text",
-                  unique: true,
-                  admin: {
-                    description:
-                      "4-digit PIN for client hub access (auto-generated)",
-                    width: "33%",
-                    components: {
-                      Cell: "./components/clients-list/PinCell",
-                    },
-                  },
-                  validate: async (value: string | null | undefined, { req, id }: any) => {
-                    if (!value) return true;
-                    if (!/^\d{4}$/.test(value))
-                      return "PIN must be exactly 4 digits";
-                    try {
-                      const existing = await req.payload.find({
-                        collection: "clients",
-                        where: {
-                          clientPin: { equals: value },
-                          ...(id ? { id: { not_equals: id } } : {}),
-                        },
-                        limit: 1,
-                      });
-                      if (existing.totalDocs > 0) {
-                        return `PIN "${value}" is already in use by another client (${existing.docs[0].name}).`;
-                      }
-                    } catch { /* skip check if payload not available */ }
-                    return true;
-                  },
-                  hooks: {
-                    beforeChange: [
-                      ({ value, operation }) => {
-                        if (operation === "create" && !value) {
-                          return String(
-                            Math.floor(1000 + Math.random() * 9000)
-                          );
-                        }
-                        return value;
-                      },
-                    ],
-                  },
-                },
-                {
-                  // Single dropdown covering both "who built it" and "which
-                  // platform": "Built by Us" plus each external CMS. The legacy
-                  // `externalCms` field is kept in sync from this value by a
-                  // beforeChange hook (deriveWebsiteTypeFields) so the tag-setup
-                  // checker, GSC monitor, OptiMate and the UI keep reading
-                  // `websiteType === "built_by_us"` and `externalCms` (the
-                  // platform) exactly as before — no consumer changes needed.
-                  name: "websiteType",
-                  type: "select",
-                  admin: {
-                    description:
-                      "How the website is built — drives tag-setup fix guidance",
-                    width: "33%",
-                  },
-                  options: [
-                    { label: "Built by Us", value: "built_by_us" },
-                    { label: "WordPress", value: "wordpress" },
-                    { label: "Shopify", value: "shopify" },
-                    { label: "Squarespace", value: "squarespace" },
-                    { label: "Wix", value: "wix" },
-                    { label: "Webflow", value: "webflow" },
-                    { label: "Other", value: "other" },
-                  ],
-                },
-                {
-                  // Hidden legacy field, derived from websiteType by
-                  // deriveWebsiteTypeFields. Retained so downstream code that
-                  // reads `client.externalCms` (tag-setup platform switch) keeps
-                  // working without changes. Not shown in the form.
-                  name: "externalCms",
-                  type: "text",
-                  admin: {
-                    hidden: true,
-                  },
-                },
-              ],
-            },
-            // ── Toggles: compact 2-per-row grid (mockup's 2×2 toggle box) ──
-            // isAgency (moved off the sidebar), isActive, hasPhysicalLocations
-            // and numberOfLocations laid out two columns wide instead of one
-            // toggle per row — the compact framework applied across the CMS.
-            // numberOfLocations is conditional (only when hasPhysicalLocations).
-            {
-              type: "row",
-              fields: [
-                {
-                  name: "isActive",
-                  type: "checkbox",
-                  defaultValue: true,
-                  admin: {
-                    description: "Enable/disable content publishing for this client",
-                    width: "50%",
-                    components: {
-                      Cell: "./components/clients-list/StatusCell",
-                    },
-                  },
-                },
-                {
-                  name: "isAgency",
-                  type: "checkbox",
-                  defaultValue: false,
-                  validate: async (value, { id, req }) => {
-                    if (!value) return true;
-                    const existingAgencyClients = await req.payload.find({
-                      collection: "clients",
-                      where: {
-                        and: [
-                          { isAgency: { equals: true } },
-                          ...(id ? [{ id: { not_equals: id } }] : []),
-                        ],
-                      },
-                      limit: 1,
-                      depth: 0,
-                      overrideAccess: true,
-                    });
-
-                    const existingAgencyClient = existingAgencyClients.docs[0];
-                    if (!existingAgencyClient) return true;
-                    return `Agency client is already set to ${(existingAgencyClient as { name?: string }).name || `client #${existingAgencyClient.id}`}.`;
-                  },
-                  admin: {
-                    description: "Check if this is the agency itself. Hidden on other clients once an agency client is already selected.",
-                    width: "50%",
-                    components: {
-                      Field: "./components/AgencyClientToggleField",
-                    },
-                  },
-                },
-              ],
-            },
-            {
-              type: "row",
-              fields: [
-                {
-                  name: "hasPhysicalLocations",
-                  type: "checkbox",
-                  defaultValue: false,
-                  admin: {
-                    description: "Does this business have physical locations?",
-                    width: "50%",
-                  },
-                },
-                {
-                  name: "numberOfLocations",
-                  type: "number",
-                  min: 1,
-                  admin: {
-                    description: "Number of physical locations",
-                    condition: (data: any) => data?.hasPhysicalLocations,
-                    width: "50%",
-                  },
-                },
-              ],
-            },
-            // ── Conversion goals ──
-            // The Google Ads customer ID used to live here; it now sits with the
-            // GA4 and Meta Ads IDs on the Integrations tab, so every platform
-            // account ID has one home next to the Test connection controls.
-            {
-              type: "row",
-              fields: [
-                {
-                  name: "conversionGoal",
-                  type: "select",
-                  admin: {
-                    description: "Primary conversion goal. Shown on client reports.",
-                    width: "50%",
-                  },
-                  options: [
-                    { label: "Lead Generation", value: "lead generation" },
-                    { label: "Phone Calls", value: "phone calls" },
-                    { label: "Form Submissions", value: "form submissions" },
-                    { label: "E-commerce Sales", value: "e-commerce" },
-                    { label: "Bookings / Appointments", value: "bookings" },
-                    { label: "Quote Requests", value: "quote requests" },
-                    { label: "Email Sign-ups", value: "email sign-ups" },
-                    { label: "Free Trial Sign-ups", value: "free trial" },
-                    { label: "Content Downloads", value: "content downloads" },
-                    { label: "Brand Awareness", value: "brand awareness" },
-                  ],
-                },
-                {
-                  name: "secondaryConversionGoal",
-                  type: "select",
-                  admin: {
-                    description: "Secondary conversion goal",
-                    width: "50%",
-                  },
-                  options: [
-                    { label: "Lead Generation", value: "lead generation" },
-                    { label: "Phone Calls", value: "phone calls" },
-                    { label: "Form Submissions", value: "form submissions" },
-                    { label: "E-commerce Sales", value: "e-commerce" },
-                    { label: "Bookings / Appointments", value: "bookings" },
-                    { label: "Quote Requests", value: "quote requests" },
-                    { label: "Email Sign-ups", value: "email sign-ups" },
-                    { label: "Free Trial Sign-ups", value: "free trial" },
-                    { label: "Content Downloads", value: "content downloads" },
-                    { label: "Brand Awareness", value: "brand awareness" },
-                  ],
-                },
-              ],
-            },
-            {
-              type: "collapsible",
-              label: "Client Pulse",
-              admin: {
-                initCollapsed: true,
-                description:
-                  "Internal leadership heartbeat settings: opt-in, targets, services tracked, priority and neglect thresholds.",
+                description: "Naming, website and status used across proposals, audits and the client hub.",
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: { odSection: { id: "identity", menuLabel: "Identity" } },
               },
               fields: [
                 {
-                  name: "clientPulse",
                   type: "group",
-                  label: "Client Pulse",
+                  admin: {
+                    components: { Field: "./components/client-business/BusinessBlock" },
+                    custom: { odBlock: "grid" },
+                  },
                   fields: [
                     {
-                      type: "row",
-                      fields: [
-                        {
-                          name: "enabled",
-                          type: "checkbox",
-                          defaultValue: false,
-                          admin: {
-                            description: "Show this client on the Client Pulse page. Only active clients with this toggled on appear.",
-                            width: "25%",
-                          },
-                        },
-                        {
-                          name: "priority",
-                          type: "select",
-                          defaultValue: "normal",
-                          admin: { width: "25%" },
-                          options: [
-                            { label: "Watch", value: "watch" },
-                            { label: "Normal", value: "normal" },
-                            { label: "High", value: "high" },
-                            { label: "Critical", value: "critical" },
-                          ],
-                        },
-                        {
-                          name: "comparisonWindow",
-                          type: "select",
-                          defaultValue: "last_90_days",
-                          admin: { width: "25%" },
-                          options: [
-                            { label: "Last month", value: "last_month" },
-                            { label: "Last year", value: "last_year" },
-                            { label: "Last 90 days", value: "last_90_days" },
-                          ],
-                        },
-                        {
-                          name: "primaryTarget",
-                          type: "select",
-                          defaultValue: "traffic",
-                          admin: { width: "25%" },
-                          options: [
-                            { label: "CPA", value: "cpa" },
-                            { label: "ROAS", value: "roas" },
-                            { label: "Traffic", value: "traffic" },
-                            { label: "Conversions", value: "conversions" },
-                            { label: "Organic clicks", value: "organic_clicks" },
-                            { label: "Paid conversions", value: "paid_conversions" },
-                            { label: "Revenue", value: "revenue" },
-                            { label: "Assessments (WeCanQuit)", value: "assessments" },
-                            { label: "Custom", value: "custom" },
-                          ],
-                        },
-                      ],
-                    },
-                    {
-                      type: "row",
-                      fields: [
-                        {
-                          name: "targetLabel",
-                          type: "text",
-                          admin: {
-                            description: "Display label, especially for custom targets.",
-                            width: "30%",
-                          },
-                        },
-                        {
-                          name: "targetValue",
-                          type: "number",
-                          admin: { width: "20%" },
-                        },
-                        {
-                          name: "targetUnit",
-                          type: "select",
-                          defaultValue: "custom",
-                          admin: { width: "25%" },
-                          options: [
-                            { label: "AUD", value: "aud" },
-                            { label: "Percent", value: "percent" },
-                            { label: "Clicks", value: "clicks" },
-                            { label: "Conversions", value: "conversions" },
-                            { label: "Revenue", value: "revenue" },
-                            { label: "Ratio", value: "ratio" },
-                            { label: "Score", value: "score" },
-                            { label: "Custom", value: "custom" },
-                          ],
-                        },
-                        {
-                          name: "targetDirection",
-                          type: "select",
-                          defaultValue: "increase",
-                          admin: { width: "25%" },
-                          options: [
-                            { label: "Increase", value: "increase" },
-                            { label: "Decrease", value: "decrease" },
-                            { label: "Maintain", value: "maintain" },
-                          ],
-                        },
-                      ],
-                    },
-                    {
-                      name: "servicesTracked",
-                      type: "select",
-                      hasMany: true,
+                      name: "name",
+                      type: "text",
+                      required: true,
                       admin: {
-                        description: "Services included in leadership Client Pulse scoring and filters.",
+                        width: "33%",
+                        components: {
+                          Cell: "./components/clients-list/NameAvatarCell",
+                        },
                       },
-                      // `organic` is the one SEO option. A separate `seo` value
-                      // used to exist and both rendered as the same "SEO" pill on
-                      // the Client Pulse card, so a client with both ticked showed
-                      // it twice. Legacy `seo` rows are folded into `organic` by
-                      // 20260918_140000_merge_client_pulse_seo_service.
-                      options: [
-                        { label: "SEO", value: "organic" },
-                        { label: "Paid Search", value: "paid_search" },
-                        { label: "Paid Social", value: "paid_social" },
-                        { label: "Content", value: "content" },
-                        { label: "CRO", value: "cro" },
-                        { label: "Automations", value: "automations" },
-                        { label: "Client Comms", value: "client_comms" },
-                      ],
                     },
                     {
-                      name: "dashboardMetrics",
-                      type: "array",
+                      name: "tradingName",
+                      label: "Trading name",
+                      type: "text",
                       admin: {
-                        description: "The first three enabled rows appear on the Client Pulse card in this order. A label can rename a metric for this client.",
+                        width: "33%",
                       },
-                      fields: [
-                        {
-                          name: "metric",
-                          type: "select",
-                          required: true,
-                          options: [
-                            { label: "Google Ads cost per lead", value: "google_ads_cost_per_lead" },
-                            { label: "Google Ads spend", value: "google_ads_spend" },
-                            { label: "Google Ads conversions", value: "google_ads_conversions" },
-                            { label: "GA4 sessions", value: "ga4_sessions" },
-                            { label: "GA4 key events", value: "ga4_key_events" },
-                            { label: "Organic clicks", value: "organic_clicks" },
-                            { label: "WeCanQuit assessments", value: "assessments" },
-                          ],
-                        },
-                        { name: "label", type: "text", admin: { description: "Optional dashboard label." } },
-                        { name: "enabled", type: "checkbox", defaultValue: true },
-                      ],
                     },
                     {
-                      name: "analyticsMetrics",
-                      type: "select",
-                      hasMany: true,
-                      defaultValue: ["traffic", "conversions", "cpa"],
+                      name: "slug",
+                      type: "text",
+                      required: true,
+                      unique: true,
                       admin: {
-                        description: "Legacy Client Pulse metric selection. Existing records continue to use it until dashboard metrics are configured.",
+                        width: "33%",
+                        components: {
+                          Cell: "./components/clients-list/SlugCell",
+                        },
+                      },
+                      // Catch a duplicate slug here so the admin shows which client
+                      // already owns it. Without this the unique index rejects the
+                      // insert at the database level, which surfaces as a generic
+                      // 500 "Something went wrong." with no indication of the field
+                      // or the conflict. Mirrors the clientPin validator below.
+                      validate: async (value: string | null | undefined, { req, id }: any) => {
+                        if (!value) return true;
+                        try {
+                          const existing = await req.payload.find({
+                            collection: "clients",
+                            where: {
+                              slug: { equals: value },
+                              ...(id ? { id: { not_equals: id } } : {}),
+                            },
+                            limit: 1,
+                          });
+                          if (existing.totalDocs > 0) {
+                            return `Slug "${value}" is already in use by another client (${existing.docs[0].name}). Try a different slug.`;
+                          }
+                        } catch { /* skip check if payload not available */ }
+                        return true;
+                      },
+                    },
+                    {
+                      name: "websiteUrl",
+                      label: "Website URL",
+                      type: "text",
+                      admin: {
+                        width: "33%",
+                      },
+                    },
+                    {
+                      name: "clientPin",
+                      label: "Client PIN",
+                      type: "text",
+                      unique: true,
+                      admin: {
+                        description:
+                          "4-digit client hub code. Auto-generated.",
+                        width: "33%",
+                        components: {
+                          Cell: "./components/clients-list/PinCell",
+                        },
+                      },
+                      validate: async (value: string | null | undefined, { req, id }: any) => {
+                        if (!value) return true;
+                        if (!/^\d{4}$/.test(value))
+                          return "PIN must be exactly 4 digits";
+                        try {
+                          const existing = await req.payload.find({
+                            collection: "clients",
+                            where: {
+                              clientPin: { equals: value },
+                              ...(id ? { id: { not_equals: id } } : {}),
+                            },
+                            limit: 1,
+                          });
+                          if (existing.totalDocs > 0) {
+                            return `PIN "${value}" is already in use by another client (${existing.docs[0].name}).`;
+                          }
+                        } catch { /* skip check if payload not available */ }
+                        return true;
+                      },
+                      hooks: {
+                        beforeChange: [
+                          ({ value, operation }) => {
+                            if (operation === "create" && !value) {
+                              return String(
+                                Math.floor(1000 + Math.random() * 9000)
+                              );
+                            }
+                            return value;
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      // Single dropdown covering both "who built it" and "which
+                      // platform": "Built by Us" plus each external CMS. The legacy
+                      // `externalCms` field is kept in sync from this value by a
+                      // beforeChange hook (deriveWebsiteTypeFields) so the tag-setup
+                      // checker, GSC monitor, OptiMate and the UI keep reading
+                      // `websiteType === "built_by_us"` and `externalCms` (the
+                      // platform) exactly as before — no consumer changes needed.
+                      name: "websiteType",
+                      label: "Website type",
+                      type: "select",
+                      admin: {
+                        description:
+                          "Drives tag-setup fix guidance.",
+                        width: "33%",
                       },
                       options: [
-                        { label: "Traffic", value: "traffic" }, { label: "Conversions", value: "conversions" }, { label: "Cost per acquisition", value: "cpa" }, { label: "Revenue", value: "revenue" }, { label: "ROAS", value: "roas" }, { label: "Organic clicks", value: "organic_clicks" }, { label: "Paid conversions", value: "paid_conversions" },
+                        { label: "Built by Us", value: "built_by_us" },
+                        { label: "WordPress", value: "wordpress" },
+                        { label: "Shopify", value: "shopify" },
+                        { label: "Squarespace", value: "squarespace" },
+                        { label: "Wix", value: "wix" },
+                        { label: "Webflow", value: "webflow" },
+                        { label: "Other", value: "other" },
                       ],
                     },
                     {
-                      type: "row",
-                      fields: [
-                        {
-                          name: "neglectWarningDays",
-                          type: "number",
-                          defaultValue: 14,
-                          admin: { width: "50%" },
-                        },
-                        {
-                          name: "neglectCriticalDays",
-                          type: "number",
-                          defaultValue: 30,
-                          admin: { width: "50%" },
-                        },
-                      ],
-                    },
-                    {
-                      name: "notes",
-                      type: "textarea",
+                      // Hidden legacy field, derived from websiteType by
+                      // deriveWebsiteTypeFields. Retained so downstream code that
+                      // reads `client.externalCms` (tag-setup platform switch) keeps
+                      // working without changes. Not shown in the form.
+                      name: "externalCms",
+                      type: "text",
                       admin: {
-                        description: "Internal leadership notes shown in Client Pulse details.",
+                        hidden: true,
+                      },
+                    },
+                    {
+                      name: "conversionGoal",
+                      label: "Primary goal",
+                      type: "select",
+                      admin: {
+                        description: "Shown on client reports.",
+                        width: "50%",
+                      },
+                      options: [
+                        { label: "Lead Generation", value: "lead generation" },
+                        { label: "Phone Calls", value: "phone calls" },
+                        { label: "Form Submissions", value: "form submissions" },
+                        { label: "E-commerce Sales", value: "e-commerce" },
+                        { label: "Bookings / Appointments", value: "bookings" },
+                        { label: "Quote Requests", value: "quote requests" },
+                        { label: "Email Sign-ups", value: "email sign-ups" },
+                        { label: "Free Trial Sign-ups", value: "free trial" },
+                        { label: "Content Downloads", value: "content downloads" },
+                        { label: "Brand Awareness", value: "brand awareness" },
+                      ],
+                    },
+                    {
+                      name: "secondaryConversionGoal",
+                      label: "Secondary goal",
+                      type: "select",
+                      admin: {
+                        width: "50%",
+                      },
+                      options: [
+                        { label: "Lead Generation", value: "lead generation" },
+                        { label: "Phone Calls", value: "phone calls" },
+                        { label: "Form Submissions", value: "form submissions" },
+                        { label: "E-commerce Sales", value: "e-commerce" },
+                        { label: "Bookings / Appointments", value: "bookings" },
+                        { label: "Quote Requests", value: "quote requests" },
+                        { label: "Email Sign-ups", value: "email sign-ups" },
+                        { label: "Free Trial Sign-ups", value: "free trial" },
+                        { label: "Content Downloads", value: "content downloads" },
+                        { label: "Brand Awareness", value: "brand awareness" },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: "group",
+                  admin: {
+                    components: { Field: "./components/client-business/BusinessBlock" },
+                    custom: { odBlock: "toggles" },
+                  },
+                  fields: [
+                    {
+                      name: "isActive",
+                      label: "Active",
+                      type: "checkbox",
+                      defaultValue: true,
+                      admin: {
+                        description: "Enable content publishing for this client",
+                        width: "50%",
+                        components: {
+                          Field: "./components/client-business/ToggleRowField",
+                          Cell: "./components/clients-list/StatusCell",
+                        },
+                      },
+                    },
+                    {
+                      name: "isAgency",
+                      label: "Agency account",
+                      type: "checkbox",
+                      defaultValue: false,
+                      validate: async (value, { id, req }) => {
+                        if (!value) return true;
+                        const existingAgencyClients = await req.payload.find({
+                          collection: "clients",
+                          where: {
+                            and: [
+                              { isAgency: { equals: true } },
+                              ...(id ? [{ id: { not_equals: id } }] : []),
+                            ],
+                          },
+                          limit: 1,
+                          depth: 0,
+                          overrideAccess: true,
+                        });
+                    
+                        const existingAgencyClient = existingAgencyClients.docs[0];
+                        if (!existingAgencyClient) return true;
+                        return `Agency client is already set to ${(existingAgencyClient as { name?: string }).name || `client #${existingAgencyClient.id}`}.`;
+                      },
+                      admin: {
+                        description: "This record is Optimise itself. Hides billing and revenue.",
+                        width: "50%",
+                        components: {
+                          Field: "./components/AgencyClientToggleField",
+                        },
                       },
                     },
                   ],
                 },
+                // Client logo — shown in the Clients list avatar when set, falling
+                // back to a coloured initial. Stored in the media collection.
+                {
+                  name: "logo",
+                  type: "upload",
+                  relationTo: "media",
+                  admin: {
+                    description:
+                      "Client logo (square works best). Shown as the avatar in the Clients list; falls back to a coloured initial when empty.",
+                  },
+                },
+                // Services this client is engaged for. Drives the service pills in
+                // the client edit header (see ClientRecordHeader) and is available
+                // for future filtering/reporting. Multi-select so a client can buy
+                // any combination of offerings.
+                {
+                  name: "services",
+                  type: "select",
+                  hasMany: true,
+                  admin: {
+                    description:
+                      "Which services Optimise delivers for this client. Shown as pills in the client header.",
+                  },
+                  options: [...CLIENT_SERVICE_OPTIONS],
+                },
               ],
             },
-            ],
-            },
             {
-              type: "collapsible",
-              label: "WeCanQuit Metrics",
+              type: "group",
+              label: "WeCanQuit metrics",
               admin: {
-                initCollapsed: false,
+                description: "Aggregate counters pushed from WeCanQuit. Counts only, no patient or prescription details.",
                 condition: (data: any) => data?.slug === "we-can-quit",
-                description:
-                  "Aggregate-only healthcare counters pushed from WeCanQuit. These fields intentionally store counts only — no patient or prescription details.",
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: { odSection: { id: "wecanquit", hideFromMenu: true, headerSlot: "wcqSynced" } },
               },
               fields: [
                 {
-                  type: "row",
+                  type: "group",
+                  admin: {
+                    components: { Field: "./components/client-business/BusinessBlock" },
+                    custom: { odBlock: "grid" },
+                  },
                   fields: [
                     {
                       name: "wcqTrackingStartDate",
-                      label: "Tracking Start Date",
+                      label: "Tracking start date",
                       type: "text",
                       defaultValue: "2026-05-01",
                       admin: {
-                        description: "Inclusive start date for the 500 patient / prescription goals (YYYY-MM-DD).",
                         width: "25%",
-                      },
-                    },
-                    {
-                      name: "wcqMetricsLastSyncedAt",
-                      label: "Last Synced At",
-                      type: "date",
-                      admin: {
-                        readOnly: true,
-                        width: "25%",
-                        date: { pickerAppearance: "dayAndTime" },
                       },
                     },
                     {
                       name: "wcqAssessmentTarget",
-                      label: "Assessment Target",
+                      label: "Assessment target",
                       type: "number",
                       defaultValue: 500,
                       min: 0,
@@ -1074,7 +833,7 @@ export const Clients: CollectionConfig = {
                     },
                     {
                       name: "wcqPrescriptionTarget",
-                      label: "Prescription Target",
+                      label: "Prescription target",
                       type: "number",
                       defaultValue: 500,
                       min: 0,
@@ -1083,416 +842,942 @@ export const Clients: CollectionConfig = {
                   ],
                 },
                 {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "wcqAssessmentsCompleted",
-                      label: "Assessments (paid + completed)",
-                      type: "number",
-                      defaultValue: 0,
-                      min: 0,
-                      admin: {
-                        readOnly: true,
-                        description: "Aggregate count of paid, completed assessments only. No patient records are stored in this CMS.",
-                        width: "50%",
-                      },
-                    },
-                    {
-                      name: "wcqPrescriptionCount",
-                      label: "Prescriptions",
-                      type: "number",
-                      defaultValue: 0,
-                      min: 0,
-                      admin: {
-                        readOnly: true,
-                        description: "Aggregate count of issued/sent/collected prescriptions only.",
-                        width: "50%",
-                      },
-                    },
-                  ],
+                  name: "wcqStats",
+                  type: "ui",
+                  admin: { components: { Field: "./components/client-business/WeCanQuitStatsField" } },
                 },
-              ],
-            },
-            // ══ Contacts & Managers collapsible ═════════════════════
-            // Contact info, account managers, locations, conversion goals —
-            // all in one scrollable section, expanded by default.
-            {
-              type: "collapsible",
-              label: "Contacts & Managers",
-              admin: {
-                initCollapsed: false,
-                description:
-                  "Primary contact, additional stakeholders, and the Optimise account managers assigned to this client.",
-              },
-              fields: [
-            {
-              type: "row",
-              fields: [
                 {
-                  name: "contactName",
-                  type: "text",
+                  name: "wcqMetricsLastSyncedAt",
+                  label: "Last Synced At",
+                  type: "date",
                   admin: {
-                    description: "Primary contact name",
-                    width: "33%",
+                    hidden: true,
+                    readOnly: true,
+                    width: "25%",
+                    date: { pickerAppearance: "dayAndTime" },
                   },
                 },
                 {
-                  name: "contactEmail",
-                  type: "email",
+                  name: "wcqAssessmentsCompleted",
+                  label: "Assessments (paid + completed)",
+                  type: "number",
+                  defaultValue: 0,
+                  min: 0,
                   admin: {
-                    description: "Primary contact email",
-                    width: "33%",
+                    hidden: true,
+                    readOnly: true,
+                    description: "Aggregate count of paid, completed assessments only. No patient records are stored in this CMS.",
+                    width: "50%",
                   },
                 },
                 {
-                  name: "contactPhone",
-                  type: "text",
+                  name: "wcqPrescriptionCount",
+                  label: "Prescriptions",
+                  type: "number",
+                  defaultValue: 0,
+                  min: 0,
                   admin: {
-                    description: "Primary contact phone",
-                    width: "33%",
+                    hidden: true,
+                    readOnly: true,
+                    description: "Aggregate count of issued/sent/collected prescriptions only.",
+                    width: "50%",
                   },
                 },
               ],
             },
             {
-              name: "additionalContacts",
-              type: "array",
+              type: "group",
+              label: "Contacts & managers",
               admin: {
-                description:
-                  "Secondary client-side contacts (e.g. marketing director, owner). Internal team members go in Account Managers below.",
+                description: "Client-side people, and the Optimise team members who get approval and audit notifications.",
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: { odSection: { id: "contacts", menuLabel: "Contacts" } },
               },
               fields: [
-                // Single compact row: Name · Job Title · Email · Phone.
                 {
-                  type: "row",
+                  name: "primaryContactHeading",
+                  type: "ui",
+                  label: "Primary contact",
+                  admin: { components: { Field: "./components/client-business/BusinessEyebrow" } },
+                },
+                {
+                  type: "group",
+                  admin: {
+                    components: { Field: "./components/client-business/BusinessBlock" },
+                    custom: { odBlock: "grid" },
+                  },
                   fields: [
                     {
-                      name: "name",
-                      type: "text",
-                      required: true,
-                      admin: { description: "Contact name", width: "25%" },
-                    },
-                    {
-                      name: "jobTitle",
+                      name: "contactName",
+                      label: "Name",
                       type: "text",
                       admin: {
-                        description: "e.g. Marketing Director, Owner",
-                        width: "25%",
+                        width: "33%",
                       },
                     },
                     {
-                      name: "email",
+                      name: "contactEmail",
+                      label: "Email",
                       type: "email",
-                      required: true,
-                      admin: { description: "Contact email", width: "25%" },
+                      admin: {
+                        width: "33%",
+                      },
                     },
                     {
-                      name: "phone",
+                      name: "contactPhone",
+                      label: "Phone",
                       type: "text",
-                      admin: { description: "Contact phone", width: "25%" },
+                      admin: {
+                        width: "33%",
+                      },
                     },
                   ],
                 },
                 {
-                  name: "responsibilities",
-                  type: "textarea",
+                  name: "additionalContacts",
+                  type: "array",
                   admin: {
+                    components: { Field: "./components/client-business/AdditionalContactsField" },
                     description:
-                      "What this contact owns, when to loop them in — free text.",
+                      "Secondary client-side contacts (e.g. marketing director, owner). Internal team members go in Account Managers below.",
                   },
-                },
-              ],
-            },
-            {
-              name: "accountManagers",
-              type: "array",
-              admin: {
-                description: "Team members managing this client. They receive notifications for ad copy approvals, audits, etc.",
-                components: {
-                  Cell: "./components/clients-list/AccountManagerCell",
-                  Field: "./components/AccountManagersField#default",
-                },
-              },
-              fields: [
-                {
-                  type: "row",
                   fields: [
+                    // Single compact row: Name · Job Title · Email · Phone.
                     {
-                      name: "name",
-                      type: "text",
-                      required: true,
-                      admin: { description: "Account manager name" },
+                      type: "row",
+                      fields: [
+                        {
+                          name: "name",
+                          type: "text",
+                          required: true,
+                          admin: { description: "Contact name", width: "25%" },
+                        },
+                        {
+                          name: "jobTitle",
+                          type: "text",
+                          admin: {
+                            description: "e.g. Marketing Director, Owner",
+                            width: "25%",
+                          },
+                        },
+                        {
+                          name: "email",
+                          type: "email",
+                          required: true,
+                          admin: { description: "Contact email", width: "25%" },
+                        },
+                        {
+                          name: "phone",
+                          type: "text",
+                          admin: { description: "Contact phone", width: "25%" },
+                        },
+                      ],
                     },
                     {
-                      name: "email",
-                      type: "email",
-                      required: true,
-                      admin: { description: "Account manager email" },
+                      name: "responsibilities",
+                      type: "textarea",
+                      admin: {
+                        description:
+                          "What this contact owns, when to loop them in — free text.",
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "accountManagers",
+                  type: "array",
+                  admin: {
+                    components: {
+                      Cell: "./components/clients-list/AccountManagerCell",
+                      Field: "./components/AccountManagersField#default",
+                    },
+                  },
+                  fields: [
+                    {
+                      type: "row",
+                      fields: [
+                        {
+                          name: "name",
+                          type: "text",
+                          required: true,
+                          admin: { description: "Account manager name" },
+                        },
+                        {
+                          name: "email",
+                          type: "email",
+                          required: true,
+                          admin: { description: "Account manager email" },
+                        },
+                      ],
                     },
                   ],
                 },
               ],
             },
             {
-              name: "googleMapsUrls",
-              type: "array",
-              maxRows: 10,
+              type: "group",
+              label: "Physical locations",
               admin: {
-                description: "Google Maps listing URLs for GBP analysis",
-                condition: (data: any) => data?.hasPhysicalLocations,
+                description: "Turn on for businesses with premises. Maps listings feed the Google Business Profile analysis.",
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: {
+                  odSection: {
+                    id: "locations",
+                    menuLabel: "Locations",
+                    switchPath: "hasPhysicalLocations",
+                    switchLabel: "Has physical locations",
+                    hideBodyWhenOff: true,
+                  },
+                },
               },
               fields: [
                 {
-                  name: "url",
-                  type: "text",
-                  required: true,
+                  name: "hasPhysicalLocations",
+                  type: "checkbox",
+                  defaultValue: false,
                   admin: {
-                    description: "Google Maps listing URL",
+                    hidden: true,
+                    description: "Does this business have physical locations?",
+                    width: "50%",
                   },
                 },
                 {
-                  name: "label",
-                  type: "text",
+                  name: "numberOfLocations",
+                  label: "Number of locations",
+                  type: "number",
+                  min: 1,
                   admin: {
-                    description: "Location label (e.g. 'Head Office', 'Sydney Branch')",
+                    condition: (data: any) => data?.hasPhysicalLocations,
+                    width: "50%",
                   },
+                },
+                {
+                  name: "googleMapsUrls",
+                  type: "array",
+                  maxRows: 10,
+                  admin: {
+                    components: { Field: "./components/client-business/MapsListingsField" },
+                    condition: (data: any) => data?.hasPhysicalLocations,
+                  },
+                  fields: [
+                    {
+                      name: "url",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        description: "Google Maps listing URL",
+                      },
+                    },
+                    {
+                      name: "label",
+                      type: "text",
+                      admin: {
+                        description: "Location label (e.g. 'Head Office', 'Sydney Branch')",
+                      },
+                    },
+                  ],
                 },
               ],
             },
-              ],
-            },
-            // ══ Acquisition collapsible ══════════════════════════════════
-            // Where did this client come from, and who referred them?
-            // `referredBy` is always recorded for word-of-mouth referrals
-            // — even when no commission is paid (see referralCommissions
-            // below for the formal commission rows).
             {
-              type: "collapsible",
+              type: "group",
               label: "Acquisition",
               admin: {
-                initCollapsed: false,
-                description:
-                  "Where this client came from and who referred them — used for attribution and partner reporting.",
+                description: "Where this client came from. Record referrers even when no commission is paid.",
+                condition: (data: any) => !data?.isAgency,
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: { odSection: { id: "acquisition" } },
               },
               fields: [
-            {
-              type: "row",
-              fields: [
                 {
-                  name: "acquisitionChannel",
-                  type: "select",
-                  access: sensitiveFieldAccess("clients"),
+                  type: "group",
                   admin: {
-                    description: "How this client was acquired",
-                    width: "50%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
+                    components: { Field: "./components/client-business/BusinessBlock" },
+                    custom: { odBlock: "grid" },
                   },
-                  options: [...LEAD_CHANNEL_OPTIONS],
-                },
-                {
-                  name: "acquisitionDetail",
-                  type: "text",
-                  access: sensitiveFieldAccess("clients"),
-                  admin: {
-                    description:
-                      "Extra detail (e.g. ad campaign name, BNI chapter)",
-                    width: "50%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
-                  },
+                  fields: [
+                    {
+                      name: "acquisitionChannel",
+                      label: "Channel",
+                      type: "select",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        width: "50%",
+                        condition: conditionRequiresFeature(
+                          "clients",
+                          (data: any) => !data?.isAgency,
+                        ),
+                      },
+                      options: [...LEAD_CHANNEL_OPTIONS],
+                    },
+                    {
+                      name: "acquisitionDetail",
+                      label: "Detail",
+                      type: "text",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        width: "50%",
+                        condition: conditionRequiresFeature(
+                          "clients",
+                          (data: any) => !data?.isAgency,
+                        ),
+                      },
+                    },
+                    {
+                      name: "referredBy",
+                      label: "Referred by",
+                      type: "text",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        width: "50%",
+                        condition: conditionRequiresFeature(
+                          "clients",
+                          (data: any) => !data?.isAgency,
+                        ),
+                      },
+                    },
+                    {
+                      name: "referredByContact",
+                      label: "Referrer contact",
+                      type: "text",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        width: "50%",
+                        condition: conditionRequiresFeature(
+                          "clients",
+                          (data: any) => !data?.isAgency,
+                        ),
+                      },
+                    },
+                  ],
                 },
               ],
             },
             {
-              type: "row",
-              fields: [
-                {
-                  name: "referredBy",
-                  type: "text",
-                  access: sensitiveFieldAccess("clients"),
-                  admin: {
-                    description:
-                      "Person or business who referred this client (record even for free word-of-mouth referrals)",
-                    width: "50%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
-                  },
-                },
-                {
-                  name: "referredByContact",
-                  type: "text",
-                  access: sensitiveFieldAccess("clients"),
-                  admin: {
-                    description: "Optional contact for the referrer (email/phone)",
-                    width: "50%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
-                  },
-                },
-              ],
-            },
-              ],
-            },
-            // ══ Billing collapsible ════════════════════════════════════
-            // Revenue, retainer, projects, historical, contracts.
-            {
-              type: "collapsible",
+              type: "group",
               label: "Billing",
               admin: {
-                initCollapsed: false,
-                description:
-                  "Retainer, setup fee, revenue share, one-off projects, commissions and historical revenue.",
+                description: "Agency revenue for this client. Hosting is billed separately below.",
+                condition: (data: any) => !data?.isAgency,
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: { odSection: { id: "billing", panels: true } },
               },
               fields: [
-            {
-              type: "row",
-              fields: [
                 {
-                  name: "clientType",
-                  type: "select",
-                  defaultValue: "recurring",
-                  access: sensitiveFieldAccess("clients"),
+                  type: "group",
                   admin: {
-                    description: "Client billing type",
-                    width: "25%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
+                    components: { Field: "./components/client-business/BusinessSubPanel" },
+                    custom: { odPanel: { id: "retainer", label: "Retainer" } },
                   },
-                  options: [...CLIENT_TYPE_OPTIONS],
-                },
-                {
-                  name: "clientStartDate",
-                  label: "Contract Start Date",
-                  type: "date",
-                  access: sensitiveFieldAccess("clients"),
-                  admin: {
-                    description: "The date the client contract began",
-                    width: "25%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
-                  },
-                },
-                {
-                  name: "campaignStartDate",
-                  label: "Campaign Start Date",
-                  type: "date",
-                  access: sensitiveFieldAccess("clients"),
-                  admin: {
-                    description:
-                      "The date campaign delivery began; used for Client Pulse tenure and audit cadence",
-                    width: "25%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
-                  },
-                },
-                {
-                  name: "retainerStartDate",
-                  type: "date",
-                  access: sensitiveFieldAccess("clients"),
-                  admin: {
-                    description:
-                      "When the retainer billing begins. Drives the pro-rated first month and setup-fee timing. Defaults to client start date when empty.",
-                    width: "25%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
-                  },
-                },
-              ],
-            },
-            {
-              type: "row",
-              fields: [
-                {
-                  name: "monthlyRetainer",
-                  type: "number",
-                  min: 0,
-                  access: sensitiveFieldAccess("clients"),
-                  admin: {
-                    description: "Net monthly revenue ($)",
-                    step: 1,
-                    width: "33%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
-                    components: {
-                      Cell: "./components/MonthlyRetainerCell",
+                  fields: [
+                    {
+                      type: "group",
+                      label: "Contract",
+                      admin: {
+                        components: { Field: "./components/client-business/BusinessBlock" },
+                        custom: { odBlock: "pair" },
+                      },
+                      fields: [
+                        {
+                          name: "clientType",
+                          label: "Client type",
+                          type: "select",
+                          defaultValue: "recurring",
+                          access: sensitiveFieldAccess("clients"),
+                          admin: {
+                            width: "25%",
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                          },
+                          options: [...CLIENT_TYPE_OPTIONS],
+                        },
+                        {
+                          name: "clientStartDate",
+                          label: "Contract start",
+                          type: "date",
+                          access: sensitiveFieldAccess("clients"),
+                          admin: {
+                            width: "25%",
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                          },
+                        },
+                        {
+                          name: "campaignStartDate",
+                          label: "Campaign start",
+                          type: "date",
+                          access: sensitiveFieldAccess("clients"),
+                          admin: {
+                            description:
+                              "Used for Pulse tenure",
+                            width: "25%",
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                          },
+                        },
+                        {
+                          name: "retainerStartDate",
+                          label: "Retainer start",
+                          type: "date",
+                          access: sensitiveFieldAccess("clients"),
+                          admin: {
+                            description:
+                              "Blank = contract start",
+                            width: "25%",
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                          },
+                        },
+                      ],
                     },
-                  },
+                    {
+                      type: "group",
+                      label: "Amounts",
+                      admin: {
+                        components: { Field: "./components/client-business/BusinessBlock" },
+                        custom: { odBlock: "pair" },
+                      },
+                      fields: [
+                        {
+                          name: "monthlyRetainer",
+                          label: "Monthly retainer",
+                          type: "number",
+                          min: 0,
+                          access: sensitiveFieldAccess("clients"),
+                          admin: {
+                            description: "Net, per month",
+                            step: 1,
+                            width: "33%",
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                            components: {
+                              Cell: "./components/MonthlyRetainerCell",
+                            },
+                          },
+                        },
+                        {
+                          name: "setupFee",
+                          label: "Setup fee",
+                          type: "number",
+                          min: 0,
+                          access: sensitiveFieldAccess("clients"),
+                          admin: {
+                            description: "Charged once",
+                            step: 1,
+                            width: "33%",
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                          },
+                        },
+                        {
+                          name: "revenueSharePercent",
+                          label: "Revenue share",
+                          type: "number",
+                          defaultValue: 100,
+                          min: 1,
+                          max: 100,
+                          access: sensitiveFieldAccess("clients"),
+                          admin: {
+                            description: "50 = partner split",
+                            step: 1,
+                            width: "33%",
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                          },
+                        },
+                        {
+                          name: "firstMonthRetainerDisplay",
+                          type: "ui",
+                          admin: {
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                            components: {
+                              Field: "./components/FirstMonthRetainerField",
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  ],
                 },
                 {
-                  name: "setupFee",
-                  type: "number",
-                  min: 0,
-                  access: sensitiveFieldAccess("clients"),
+                  type: "group",
                   admin: {
-                    description: "Setup fee; one-off clients appear under One-Off Projects YTD",
-                    step: 1,
-                    width: "33%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
+                    components: { Field: "./components/client-business/BusinessSubPanel" },
+                    custom: { odPanel: { id: "projects", label: "Projects", countPath: "oneOffProjects" } },
                   },
+                  fields: [
+                    {
+                      name: "oneOffProjects",
+                      type: "array",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        components: { Field: "./components/client-business/OneOffProjectsField" },
+                        description: "One-off projects (website builds, audits, etc.)",
+                        condition: conditionRequiresFeature(
+                          "clients",
+                          (data: any) => !data?.isAgency,
+                        ),
+                      },
+                      fields: [
+                        {
+                          type: "row",
+                          fields: [
+                            {
+                              name: "projectName",
+                              type: "text",
+                              required: true,
+                              admin: {
+                                description: "Project name",
+                                width: "35%",
+                              },
+                            },
+                            {
+                              name: "amount",
+                              type: "number",
+                              required: true,
+                              min: 0,
+                              admin: {
+                                description: "Project amount ($)",
+                                step: 1,
+                                width: "25%",
+                              },
+                            },
+                            {
+                              name: "date",
+                              type: "date",
+                              required: true,
+                              admin: {
+                                description: "Project date",
+                                width: "40%",
+                              },
+                            },
+                          ],
+                        },
+                        {
+                          name: "countTowardsRetainer",
+                          type: "checkbox",
+                          defaultValue: false,
+                          admin: {
+                            description:
+                              "Toggle ON if this fee is part of the managing retainer (e.g. setup, custom build accompanying retainer). Counts toward Retainer YTD instead of One-Off YTD.",
+                          },
+                        },
+                      ],
+                    },
+                  ],
                 },
                 {
-                  name: "revenueSharePercent",
-                  type: "number",
-                  defaultValue: 100,
-                  min: 1,
-                  max: 100,
-                  access: sensitiveFieldAccess("clients"),
+                  type: "group",
                   admin: {
-                    description: "e.g. 50 for a 50/50 partner split",
-                    step: 1,
-                    width: "33%",
-                    condition: conditionRequiresFeature(
-                      "clients",
-                      (data: any) => !data?.isAgency,
-                    ),
+                    components: { Field: "./components/client-business/BusinessSubPanel" },
+                    custom: { odPanel: { id: "commissions", label: "Commissions", countPath: "referralCommissions" } },
                   },
+                  fields: [
+                    {
+                      name: "referralCommissions",
+                      type: "array",
+                      dbName: "clients_referral_commissions",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        components: { Field: "./components/client-business/ReferralCommissionsField" },
+                        description:
+                          "People we pay a commission to for this client. Monthly commissions are deducted from the retainer in all revenue calculations.",
+                        condition: conditionRequiresFeature(
+                          "clients",
+                          (data: any) => !data?.isAgency,
+                        ),
+                        initCollapsed: true,
+                      },
+                      validate: ((value: unknown) => {
+                        if (!Array.isArray(value)) return true;
+                        for (let i = 0; i < value.length; i++) {
+                          const row = value[i] as Record<string, unknown> | null;
+                          if (!row) continue;
+                          if (row.frequency === "monthly" && !row.endDate) {
+                            return `Row ${i + 1}: End date is required for monthly commissions.`;
+                          }
+                        }
+                        return true;
+                      }) as any,
+                      fields: [
+                        {
+                          type: "row",
+                          fields: [
+                            {
+                              name: "payeeName",
+                              type: "text",
+                              required: true,
+                              admin: { description: "Who we pay", width: "50%" },
+                            },
+                            {
+                              name: "payeeContact",
+                              type: "text",
+                              admin: {
+                                description: "Email or phone (internal reference)",
+                                width: "50%",
+                              },
+                            },
+                          ],
+                        },
+                        {
+                          type: "row",
+                          fields: [
+                            {
+                              name: "frequency",
+                              type: "select",
+                              required: true,
+                              defaultValue: "monthly",
+                              options: [
+                                { label: "Monthly (ongoing)", value: "monthly" },
+                                { label: "One-off", value: "one_off" },
+                              ],
+                              admin: { width: "33%" },
+                            },
+                            {
+                              name: "commissionType",
+                              type: "select",
+                              defaultValue: "percentage",
+                              options: [
+                                { label: "% of retainer", value: "percentage" },
+                                { label: "Fixed $", value: "fixed" },
+                              ],
+                              admin: {
+                                width: "33%",
+                                description: "Only used when frequency is monthly",
+                                condition: (_data: any, siblingData: any) =>
+                                  siblingData?.frequency === "monthly",
+                              },
+                            },
+                          ],
+                        },
+                        {
+                          type: "row",
+                          fields: [
+                            {
+                              name: "percentage",
+                              type: "number",
+                              min: 0,
+                              max: 100,
+                              admin: {
+                                description: "e.g. 8 = 8% of monthly retainer",
+                                step: 0.1,
+                                width: "33%",
+                                condition: (_data: any, siblingData: any) =>
+                                  siblingData?.frequency === "monthly" &&
+                                  (siblingData?.commissionType ?? "percentage") === "percentage",
+                              },
+                            },
+                            {
+                              name: "monthlyAmount",
+                              type: "number",
+                              min: 0,
+                              admin: {
+                                description: "Fixed $/month",
+                                step: 1,
+                                width: "33%",
+                                condition: (_data: any, siblingData: any) =>
+                                  siblingData?.frequency === "monthly" &&
+                                  siblingData?.commissionType === "fixed",
+                              },
+                            },
+                            {
+                              name: "oneOffAmount",
+                              type: "number",
+                              min: 0,
+                              admin: {
+                                description: "One-off $ amount",
+                                step: 1,
+                                width: "33%",
+                                condition: (_data: any, siblingData: any) =>
+                                  siblingData?.frequency === "one_off",
+                              },
+                            },
+                          ],
+                        },
+                        {
+                          type: "row",
+                          fields: [
+                            {
+                              name: "startDate",
+                              type: "date",
+                              required: true,
+                              admin: {
+                                description: "When commission begins",
+                                width: "50%",
+                                date: {
+                                  pickerAppearance: "dayOnly",
+                                  displayFormat: "d MMM yyyy",
+                                },
+                              },
+                            },
+                            {
+                              name: "endDate",
+                              type: "date",
+                              admin: {
+                                description:
+                                  "When monthly commission ends (required for monthly). After this date no longer deducted.",
+                                width: "50%",
+                                date: {
+                                  pickerAppearance: "dayOnly",
+                                  displayFormat: "d MMM yyyy",
+                                },
+                                condition: (_data: any, siblingData: any) =>
+                                  siblingData?.frequency === "monthly",
+                              },
+                            },
+                          ],
+                        },
+                        {
+                          name: "notes",
+                          type: "textarea",
+                          admin: { description: "Free-form notes" },
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: "group",
+                  admin: {
+                    components: { Field: "./components/client-business/BusinessSubPanel" },
+                    custom: { odPanel: { id: "history", label: "History & targets" } },
+                  },
+                  fields: [
+                    {
+                      type: "group",
+                      admin: {
+                        components: { Field: "./components/client-business/BusinessBlock" },
+                        custom: { odBlock: "split" },
+                      },
+                      fields: [
+                        {
+                          name: "historicalRevenueByYear",
+                          type: "array",
+                          dbName: "clients_historical_revenue_by_year",
+                          access: sensitiveFieldAccess("clients"),
+                          admin: {
+                            components: { Field: "./components/client-business/HistoricalRevenueField" },
+                            description:
+                              "Pre-CMS revenue, broken out by calendar year. Sum is added to the lifetime billing total.",
+                            initCollapsed: true,
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                          },
+                          validate: ((value: unknown) => {
+                            if (!Array.isArray(value)) return true;
+                            const seen = new Set<number>();
+                            for (let i = 0; i < value.length; i++) {
+                              const row = value[i] as Record<string, unknown> | null;
+                              if (!row) continue;
+                              const year = Number(row.year);
+                              if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+                                return `Row ${i + 1}: Year must be between 2000 and 2100.`;
+                              }
+                              if (seen.has(year)) {
+                                return `Row ${i + 1}: Year ${year} appears more than once.`;
+                              }
+                              seen.add(year);
+                            }
+                            return true;
+                          }) as any,
+                          fields: [
+                            {
+                              type: "row",
+                              fields: [
+                                {
+                                  name: "year",
+                                  type: "number",
+                                  required: true,
+                                  min: 2000,
+                                  max: 2100,
+                                  admin: {
+                                    description: "Calendar year (e.g. 2024)",
+                                    step: 1,
+                                    width: "40%",
+                                  },
+                                },
+                                {
+                                  name: "amount",
+                                  type: "number",
+                                  required: true,
+                                  min: 0,
+                                  admin: {
+                                    description: "Revenue for that year ($)",
+                                    step: 1,
+                                    width: "60%",
+                                  },
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                        {
+                          name: "yearlyTargets",
+                          type: "array",
+                          dbName: "clients_yearly_targets",
+                          access: sensitiveFieldAccess("clients"),
+                          admin: {
+                            components: { Field: "./components/client-business/YearlyTargetsField" },
+                            description:
+                              "Yearly sales targets by calendar year. For the agency client, the row matching the current year drives the Yearly Sales Target progress bar on the dashboard. For ordinary clients this is a tracking number only.",
+                            initCollapsed: true,
+                          },
+                          validate: ((value: unknown) => {
+                            if (!Array.isArray(value)) return true;
+                            const seen = new Set<number>();
+                            for (let i = 0; i < value.length; i++) {
+                              const row = value[i] as Record<string, unknown> | null;
+                              if (!row) continue;
+                              const year = Number(row.year);
+                              if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+                                return `Row ${i + 1}: Year must be between 2000 and 2100.`;
+                              }
+                              if (seen.has(year)) {
+                                return `Row ${i + 1}: Year ${year} appears more than once.`;
+                              }
+                              seen.add(year);
+                            }
+                            return true;
+                          }) as any,
+                          fields: [
+                            {
+                              type: "row",
+                              fields: [
+                                {
+                                  name: "year",
+                                  type: "number",
+                                  required: true,
+                                  min: 2000,
+                                  max: 2100,
+                                  admin: {
+                                    description: "Calendar year (e.g. 2026)",
+                                    step: 1,
+                                    width: "40%",
+                                  },
+                                },
+                                {
+                                  name: "target",
+                                  type: "number",
+                                  required: true,
+                                  min: 0,
+                                  admin: {
+                                    description: "Sales target for that year ($)",
+                                    step: 1,
+                                    width: "60%",
+                                  },
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
                 },
               ],
             },
             {
-              name: "firstMonthRetainerDisplay",
-              type: "ui",
+              type: "group",
+              label: "Contracts",
               admin: {
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-                components: {
-                  Field: "./components/FirstMonthRetainerField",
-                },
+                description: "Signed agreements for this client, plus any legacy uploads.",
+                condition: (data: any) => !data?.isAgency,
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: { odSection: { id: "contracts" } },
               },
+              fields: [
+                {
+                  name: "signedContractButton",
+                  label: "Contracts",
+                  type: "ui",
+                  admin: {
+                    components: {
+                      Field: "./components/ClientSignedContractButton",
+                    },
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+                {
+                  name: "signedContractUrl",
+                  type: "text",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    hidden: true,
+                    readOnly: true,
+                    description: "URL of the signed contract PDF (from e-signature flow)",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+                {
+                  type: "collapsible",
+                  label: "Legacy contract attachment",
+                  admin: {
+                    initCollapsed: true,
+                    description:
+                      "Legacy upload/link fields. Most clients use virtual signed contracts, so this can usually stay collapsed.",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                  fields: [
+                    {
+                      name: "contract",
+                      label: "Contract document",
+                      type: "upload",
+                      relationTo: "media",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                      },
+                    },
+                    {
+                      name: "signedContract",
+                      label: "Linked signed contract",
+                      type: "relationship",
+                      relationTo: "contracts",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        readOnly: true,
+                      },
+                    },
+                  ],
+                },
+              ],
             },
-            // ══ Hosting subscription ══════════════════════════════════════
-            // Keep hosting after the retainer fields: it is a separate service
-            // with its own client-facing payment flow, not part of the agency retainer.
+            // Hosting is a separate service with its own client-facing payment flow,
+            // not part of the agency retainer, so it is its own card after Contracts.
             {
-              type: "collapsible",
+              type: "group",
               label: "Hosting subscription",
               admin: {
-                initCollapsed: false,
-                description: "Configure hosting separately from the client's agency retainer, then issue a payment link.",
+                description: "Billed separately from the retainer, paid by the client through a payment link.",
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: { odSection: { id: "hosting", menuLabel: "Hosting" } },
               },
               fields: [
                 // Keep the interactive panel at this level. At mobile widths,
@@ -1540,477 +1825,299 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
-              name: "yearlyTargets",
-              type: "array",
-              dbName: "clients_yearly_targets",
-              access: sensitiveFieldAccess("clients"),
+              type: "group",
+              label: "Client Pulse",
               admin: {
-                description:
-                  "Yearly sales targets by calendar year. For the agency client, the row matching the current year drives the Yearly Sales Target progress bar on the dashboard. For ordinary clients this is a tracking number only.",
-                initCollapsed: true,
-              },
-              validate: ((value: unknown) => {
-                if (!Array.isArray(value)) return true;
-                const seen = new Set<number>();
-                for (let i = 0; i < value.length; i++) {
-                  const row = value[i] as Record<string, unknown> | null;
-                  if (!row) continue;
-                  const year = Number(row.year);
-                  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
-                    return `Row ${i + 1}: Year must be between 2000 and 2100.`;
-                  }
-                  if (seen.has(year)) {
-                    return `Row ${i + 1}: Year ${year} appears more than once.`;
-                  }
-                  seen.add(year);
-                }
-                return true;
-              }) as any,
-              fields: [
-                {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "year",
-                      type: "number",
-                      required: true,
-                      min: 2000,
-                      max: 2100,
-                      admin: {
-                        description: "Calendar year (e.g. 2026)",
-                        step: 1,
-                        width: "40%",
-                      },
-                    },
-                    {
-                      name: "target",
-                      type: "number",
-                      required: true,
-                      min: 0,
-                      admin: {
-                        description: "Sales target for that year ($)",
-                        step: 1,
-                        width: "60%",
-                      },
-                    },
-                  ],
-                },
-              ],
-            },
-            {
-              name: "oneOffProjects",
-              type: "array",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description: "One-off projects (website builds, audits, etc.)",
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-              },
-              fields: [
-                {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "projectName",
-                      type: "text",
-                      required: true,
-                      admin: {
-                        description: "Project name",
-                        width: "35%",
-                      },
-                    },
-                    {
-                      name: "amount",
-                      type: "number",
-                      required: true,
-                      min: 0,
-                      admin: {
-                        description: "Project amount ($)",
-                        step: 1,
-                        width: "25%",
-                      },
-                    },
-                    {
-                      name: "date",
-                      type: "date",
-                      required: true,
-                      admin: {
-                        description: "Project date",
-                        width: "40%",
-                      },
-                    },
-                  ],
-                },
-                {
-                  name: "countTowardsRetainer",
-                  type: "checkbox",
-                  defaultValue: false,
-                  admin: {
-                    description:
-                      "Toggle ON if this fee is part of the managing retainer (e.g. setup, custom build accompanying retainer). Counts toward Retainer YTD instead of One-Off YTD.",
+                description: "Show this client on the leadership heartbeat page, with its targets and neglect thresholds.",
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: {
+                  odSection: {
+                    id: "pulse",
+                    switchPath: "clientPulse.enabled",
+                    switchLabel: "Show on Client Pulse",
+                    switchStateLabel: true,
+                    collapsible: "caret",
                   },
                 },
-              ],
-            },
-            {
-              name: "referralCommissions",
-              type: "array",
-              dbName: "clients_referral_commissions",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description:
-                  "People we pay a commission to for this client. Monthly commissions are deducted from the retainer in all revenue calculations.",
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-                initCollapsed: true,
               },
-              validate: ((value: unknown) => {
-                if (!Array.isArray(value)) return true;
-                for (let i = 0; i < value.length; i++) {
-                  const row = value[i] as Record<string, unknown> | null;
-                  if (!row) continue;
-                  if (row.frequency === "monthly" && !row.endDate) {
-                    return `Row ${i + 1}: End date is required for monthly commissions.`;
-                  }
-                }
-                return true;
-              }) as any,
               fields: [
                 {
-                  type: "row",
+                  name: "clientPulse",
+                  type: "group",
+                  label: "Client Pulse",
                   fields: [
                     {
-                      name: "payeeName",
-                      type: "text",
-                      required: true,
-                      admin: { description: "Who we pay", width: "50%" },
-                    },
-                    {
-                      name: "payeeContact",
-                      type: "text",
-                      admin: {
-                        description: "Email or phone (internal reference)",
-                        width: "50%",
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "frequency",
-                      type: "select",
-                      required: true,
-                      defaultValue: "monthly",
-                      options: [
-                        { label: "Monthly (ongoing)", value: "monthly" },
-                        { label: "One-off", value: "one_off" },
-                      ],
-                      admin: { width: "33%" },
-                    },
-                    {
-                      name: "commissionType",
-                      type: "select",
-                      defaultValue: "percentage",
-                      options: [
-                        { label: "% of retainer", value: "percentage" },
-                        { label: "Fixed $", value: "fixed" },
-                      ],
-                      admin: {
-                        width: "33%",
-                        description: "Only used when frequency is monthly",
-                        condition: (_data: any, siblingData: any) =>
-                          siblingData?.frequency === "monthly",
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "percentage",
-                      type: "number",
-                      min: 0,
-                      max: 100,
-                      admin: {
-                        description: "e.g. 8 = 8% of monthly retainer",
-                        step: 0.1,
-                        width: "33%",
-                        condition: (_data: any, siblingData: any) =>
-                          siblingData?.frequency === "monthly" &&
-                          (siblingData?.commissionType ?? "percentage") === "percentage",
-                      },
-                    },
-                    {
-                      name: "monthlyAmount",
-                      type: "number",
-                      min: 0,
-                      admin: {
-                        description: "Fixed $/month",
-                        step: 1,
-                        width: "33%",
-                        condition: (_data: any, siblingData: any) =>
-                          siblingData?.frequency === "monthly" &&
-                          siblingData?.commissionType === "fixed",
-                      },
-                    },
-                    {
-                      name: "oneOffAmount",
-                      type: "number",
-                      min: 0,
-                      admin: {
-                        description: "One-off $ amount",
-                        step: 1,
-                        width: "33%",
-                        condition: (_data: any, siblingData: any) =>
-                          siblingData?.frequency === "one_off",
-                      },
-                    },
-                  ],
-                },
-                {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "startDate",
-                      type: "date",
-                      required: true,
-                      admin: {
-                        description: "When commission begins",
-                        width: "50%",
-                        date: {
-                          pickerAppearance: "dayOnly",
-                          displayFormat: "d MMM yyyy",
+                      type: "row",
+                      fields: [
+                        {
+                          name: "enabled",
+                          type: "checkbox",
+                          defaultValue: false,
+                          admin: {
+                            hidden: true,
+                            description: "Show this client on the Client Pulse page. Only active clients with this toggled on appear.",
+                            width: "25%",
+                          },
                         },
-                      },
-                    },
-                    {
-                      name: "endDate",
-                      type: "date",
-                      admin: {
-                        description:
-                          "When monthly commission ends (required for monthly). After this date no longer deducted.",
-                        width: "50%",
-                        date: {
-                          pickerAppearance: "dayOnly",
-                          displayFormat: "d MMM yyyy",
+                        {
+                          name: "priority",
+                          type: "select",
+                          defaultValue: "normal",
+                          admin: { width: "25%", components: { Field: "./components/client-business/PulsePriorityField" } },
+                          options: [
+                            { label: "Watch", value: "watch" },
+                            { label: "Normal", value: "normal" },
+                            { label: "High", value: "high" },
+                            { label: "Critical", value: "critical" },
+                          ],
                         },
-                        condition: (_data: any, siblingData: any) =>
-                          siblingData?.frequency === "monthly",
+                        {
+                          name: "comparisonWindow",
+                          label: "Comparison window",
+                          type: "select",
+                          defaultValue: "last_90_days",
+                          admin: { width: "25%" },
+                          options: [
+                            { label: "Last month", value: "last_month" },
+                            { label: "Last year", value: "last_year" },
+                            { label: "Last 90 days", value: "last_90_days" },
+                          ],
+                        },
+                        {
+                          name: "primaryTarget",
+                          label: "Primary target",
+                          type: "select",
+                          defaultValue: "traffic",
+                          admin: { width: "25%" },
+                          options: [
+                            { label: "CPA", value: "cpa" },
+                            { label: "ROAS", value: "roas" },
+                            { label: "Traffic", value: "traffic" },
+                            { label: "Conversions", value: "conversions" },
+                            { label: "Organic clicks", value: "organic_clicks" },
+                            { label: "Paid conversions", value: "paid_conversions" },
+                            { label: "Revenue", value: "revenue" },
+                            { label: "Assessments (WeCanQuit)", value: "assessments" },
+                            { label: "Custom", value: "custom" },
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      type: "row",
+                      fields: [
+                        {
+                          name: "targetLabel",
+                          label: "Target label",
+                          type: "text",
+                          admin: {
+                            width: "30%",
+                          },
+                        },
+                        {
+                          name: "targetValue",
+                          label: "Target value",
+                          type: "number",
+                          admin: { width: "20%" },
+                        },
+                        {
+                          name: "targetUnit",
+                          label: "Unit",
+                          type: "select",
+                          defaultValue: "custom",
+                          admin: { width: "25%" },
+                          options: [
+                            { label: "AUD", value: "aud" },
+                            { label: "Percent", value: "percent" },
+                            { label: "Clicks", value: "clicks" },
+                            { label: "Conversions", value: "conversions" },
+                            { label: "Revenue", value: "revenue" },
+                            { label: "Ratio", value: "ratio" },
+                            { label: "Score", value: "score" },
+                            { label: "Custom", value: "custom" },
+                          ],
+                        },
+                        {
+                          name: "targetDirection",
+                          label: "Direction",
+                          type: "select",
+                          defaultValue: "increase",
+                          admin: { width: "25%" },
+                          options: [
+                            { label: "Increase", value: "increase" },
+                            { label: "Decrease", value: "decrease" },
+                            { label: "Maintain", value: "maintain" },
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      name: "servicesTracked",
+                      label: "Services tracked",
+                      type: "select",
+                      hasMany: true,
+                      admin: {
+                        components: { Field: "./components/client-business/ServicesTrackedField" },
+                      },
+                      // `organic` is the one SEO option. A separate `seo` value
+                      // used to exist and both rendered as the same "SEO" pill on
+                      // the Client Pulse card, so a client with both ticked showed
+                      // it twice. Legacy `seo` rows are folded into `organic` by
+                      // 20260918_140000_merge_client_pulse_seo_service.
+                      options: [
+                        { label: "SEO", value: "organic" },
+                        { label: "Paid Search", value: "paid_search" },
+                        { label: "Paid Social", value: "paid_social" },
+                        { label: "Content", value: "content" },
+                        { label: "CRO", value: "cro" },
+                        { label: "Automations", value: "automations" },
+                        { label: "Client Comms", value: "client_comms" },
+                      ],
+                    },
+                    {
+                      name: "dashboardMetrics",
+                      type: "array",
+                      admin: {
+                        components: { Field: "./components/client-business/DashboardMetricsField" },
+                      },
+                      fields: [
+                        {
+                          name: "metric",
+                          type: "select",
+                          required: true,
+                          options: [
+                            { label: "Google Ads cost per lead", value: "google_ads_cost_per_lead" },
+                            { label: "Google Ads spend", value: "google_ads_spend" },
+                            { label: "Google Ads conversions", value: "google_ads_conversions" },
+                            { label: "GA4 sessions", value: "ga4_sessions" },
+                            { label: "GA4 key events", value: "ga4_key_events" },
+                            { label: "Organic clicks", value: "organic_clicks" },
+                            { label: "WeCanQuit assessments", value: "assessments" },
+                          ],
+                        },
+                        { name: "label", type: "text", admin: { description: "Optional dashboard label." } },
+                        { name: "enabled", type: "checkbox", defaultValue: true },
+                      ],
+                    },
+                    {
+                      name: "analyticsMetrics",
+                      type: "select",
+                      hasMany: true,
+                      defaultValue: ["traffic", "conversions", "cpa"],
+                      admin: {
+                        components: { Field: "./components/client-business/AnalyticsMetricsNoteField" },
+                      },
+                      options: [
+                        { label: "Traffic", value: "traffic" }, { label: "Conversions", value: "conversions" }, { label: "Cost per acquisition", value: "cpa" }, { label: "Revenue", value: "revenue" }, { label: "ROAS", value: "roas" }, { label: "Organic clicks", value: "organic_clicks" }, { label: "Paid conversions", value: "paid_conversions" },
+                      ],
+                    },
+                    {
+                      type: "row",
+                      fields: [
+                        {
+                          name: "neglectWarningDays",
+                          label: "Neglect warning",
+                          type: "number",
+                          defaultValue: 14,
+                          admin: { width: "50%", components: { Field: "./components/client-business/NeglectDaysField" } },
+                        },
+                        {
+                          name: "neglectCriticalDays",
+                          label: "Neglect critical",
+                          type: "number",
+                          defaultValue: 30,
+                          admin: { width: "50%", components: { Field: "./components/client-business/NeglectDaysField" } },
+                        },
+                      ],
+                    },
+                    {
+                      name: "notes",
+                      label: "Leadership notes",
+                      type: "textarea",
+                      admin: {
                       },
                     },
                   ],
                 },
-                {
-                  name: "notes",
-                  type: "textarea",
-                  admin: { description: "Free-form notes" },
-                },
               ],
             },
             {
-              name: "historicalRevenueByYear",
-              type: "array",
-              dbName: "clients_historical_revenue_by_year",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description:
-                  "Pre-CMS revenue, broken out by calendar year. Sum is added to the lifetime billing total.",
-                initCollapsed: true,
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-              },
-              validate: ((value: unknown) => {
-                if (!Array.isArray(value)) return true;
-                const seen = new Set<number>();
-                for (let i = 0; i < value.length; i++) {
-                  const row = value[i] as Record<string, unknown> | null;
-                  if (!row) continue;
-                  const year = Number(row.year);
-                  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
-                    return `Row ${i + 1}: Year must be between 2000 and 2100.`;
-                  }
-                  if (seen.has(year)) {
-                    return `Row ${i + 1}: Year ${year} appears more than once.`;
-                  }
-                  seen.add(year);
-                }
-                return true;
-              }) as any,
-              fields: [
-                {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "year",
-                      type: "number",
-                      required: true,
-                      min: 2000,
-                      max: 2100,
-                      admin: {
-                        description: "Calendar year (e.g. 2024)",
-                        step: 1,
-                        width: "40%",
-                      },
-                    },
-                    {
-                      name: "amount",
-                      type: "number",
-                      required: true,
-                      min: 0,
-                      admin: {
-                        description: "Revenue for that year ($)",
-                        step: 1,
-                        width: "60%",
-                      },
-                    },
-                  ],
-                },
-              ],
-            },
-            {
-              name: "signedContractButton",
-              label: "Contracts",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/ClientSignedContractButton",
-                },
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-              },
-            },
-            {
-              name: "signedContractUrl",
-              type: "text",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                hidden: true,
-                readOnly: true,
-                description: "URL of the signed contract PDF (from e-signature flow)",
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-              },
-            },
-            {
-              type: "collapsible",
-              label: "Legacy Contract Attachment",
-              admin: {
-                initCollapsed: true,
-                description:
-                  "Legacy upload/link fields. Most clients use virtual signed contracts, so this can usually stay collapsed.",
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-              },
-              fields: [
-                {
-                  name: "contract",
-                  type: "upload",
-                  relationTo: "media",
-                  access: sensitiveFieldAccess("clients"),
-                  admin: {
-                    description: "Client contract document (legacy upload)",
-                  },
-                },
-                {
-                  name: "signedContract",
-                  type: "relationship",
-                  relationTo: "contracts",
-                  access: sensitiveFieldAccess("clients"),
-                  admin: {
-                    readOnly: true,
-                    description: "Linked signed contract record",
-                  },
-                },
-              ],
-            },
-              ],
-            },
-            // ══ Advanced collapsible ═══════════════════════════════════
-            // Rarely-touched system fields. Collapsed by default per the
-            // request — noisy stuff (auto-generated API key, legacy hidden
-            // textarea, read-only retainer log) lives here so the rest of
-            // the tab stays clean.
-            {
-              type: "collapsible",
+              type: "group",
               label: "Advanced",
               admin: {
-                initCollapsed: true,
-                description:
-                  "API access keys and other low-level settings. Most users never need to touch these.",
+                description: "API key and the automatic retainer change log.",
+                components: { Field: "./components/client-business/BusinessSection" },
+                custom: { odSection: { id: "advanced", collapsible: "text" } },
               },
               fields: [
-            {
-              name: "apiKey",
-              type: "text",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description: "API key for this client (auto-generated)",
-                readOnly: true,
-                condition: conditionRequiresFeature("clients"),
-              },
-              hooks: {
-                beforeChange: [
-                  ({ value, operation }) => {
-                    if (operation === "create" && !value) {
-                      return `key_${crypto.randomBytes(24).toString("hex")}`;
-                    }
-                    return value;
+                {
+                  name: "apiKey",
+                  type: "text",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    components: { Field: "./components/client-business/ApiKeyField" },
+                    readOnly: true,
+                    condition: conditionRequiresFeature("clients"),
                   },
-                ],
-              },
+                  hooks: {
+                    beforeChange: [
+                      ({ value, operation }) => {
+                        if (operation === "create" && !value) {
+                          return `key_${crypto.randomBytes(24).toString("hex")}`;
+                        }
+                        return value;
+                      },
+                    ],
+                  },
+                },
+                {
+                  name: "legacyNotes",
+                  type: "textarea",
+                  admin: {
+                    // Hidden — superseded by the Notes tab. Existing content was
+                    // migrated into clientNotes by scripts/migrate-legacy-notes.ts.
+                    // Kept in schema for back-compat / safety.
+                    hidden: true,
+                  },
+                },
+                {
+                  name: "retainerHistory",
+                  type: "array",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    components: { Field: "./components/client-business/RetainerHistoryField" },
+                    readOnly: true,
+                    condition: conditionRequiresFeature("clients"),
+                  },
+                  fields: [
+                    { name: "amount", type: "number" },
+                    { name: "previousAmount", type: "number" },
+                    { name: "effectiveDate", type: "date" },
+                    { name: "changedBy", type: "text" },
+                  ],
+                },
+              ],
             },
+            // Edited from the header "Who is this client?" popover; this wrapper
+            // portals the real Lexical field into it (no body UI of its own).
             {
-              name: "legacyNotes",
-              type: "textarea",
+              type: "group",
               admin: {
-                // Hidden — superseded by the Notes tab. Existing content was
-                // migrated into clientNotes by scripts/migrate-legacy-notes.ts.
-                // Kept in schema for back-compat / safety.
-                hidden: true,
-              },
-            },
-            {
-              name: "retainerHistory",
-              type: "array",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                readOnly: true,
-                description: "Automatic log of revenue changes",
-                condition: conditionRequiresFeature("clients"),
+                components: { Field: "./components/client-business/ClientOverviewEditorPortal" },
+                custom: {},
               },
               fields: [
-                { name: "amount", type: "number" },
-                { name: "previousAmount", type: "number" },
-                { name: "effectiveDate", type: "date" },
-                { name: "changedBy", type: "text" },
+                {
+                  name: "clientOverview",
+                  label: "Who is this client?",
+                  type: "richText",
+                  admin: {
+                    className: "od-client-overview-field",
+                    description:
+                      "Internal onboarding summary. Use bold, bullets and pasted markdown-style notes; it appears behind the ? icon in the client and Google Ads headers.",
+                  },
+                },
               ],
-            },
-              ],
-            },
-            {
-              name: "clientOverview",
-              label: "Who is this client?",
-              type: "richText",
-              admin: {
-                className: "od-client-overview-field",
-                description:
-                  "Internal onboarding summary. Use bold, bullets and pasted markdown-style notes; it appears behind the ? icon in the client and Google Ads headers.",
-              },
             },
           ],
         },

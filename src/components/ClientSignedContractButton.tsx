@@ -2,6 +2,7 @@
 
 import { useDocumentInfo, useFormFields } from '@payloadcms/ui'
 import { useCallback, useEffect, useState } from 'react'
+import type React from 'react'
 
 /**
  * Contracts panel on the client Business tab.
@@ -23,10 +24,10 @@ type ContractRow = {
 
 type Template = { id: string | number; contractTitle: string; templateLabel?: string | null }
 
-const STATUS_LABEL: Record<string, { text: string; bg: string; fg: string }> = {
-  draft: { text: 'Draft', bg: '#f3f4f6', fg: '#374151' },
-  sent: { text: 'Sent to client', bg: '#fef3c7', fg: '#92400e' },
-  completed: { text: 'Signed', bg: '#dcfce7', fg: '#166534' },
+const STATUS_LABEL: Record<string, { text: string; pill: string }> = {
+  draft: { text: 'Draft', pill: 'od-biz-pill' },
+  sent: { text: 'Sent', pill: 'od-biz-pill od-biz-pill--accent' },
+  completed: { text: 'Signed', pill: 'od-biz-pill od-biz-pill--green' },
 }
 
 const templateLabel = (t: Template): string =>
@@ -38,7 +39,7 @@ const formatDate = (value?: string | null): string => {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-const ClientSignedContractButton = () => {
+const ClientSignedContractButton = (): React.ReactElement => {
   const { id: clientId } = useDocumentInfo()
   const signedContractUrl = useFormFields(([fields]) => {
     const value = fields?.signedContractUrl?.value
@@ -108,63 +109,65 @@ const ClientSignedContractButton = () => {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to create contract')
       window.location.href = `/admin/collections/contracts/${data.id}`
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to create contract')
       setCreating(null)
     }
   }
 
   if (!clientId) {
-    return <div style={hintStyle}>Save the client first to link or create contracts.</div>
+    return <p className="od-biz-empty">Save the client first to link or create contracts.</p>
   }
 
+  // The legacy `signedContractUrl` only gets its own row when no linked
+  // contract already carries a signed PDF.
+  const showLegacySigned =
+    Boolean(signedContractUrl) && !contracts.some((c) => c.status === 'completed' && c.signedPdfUrl)
+
   return (
-    <div style={{ display: 'grid', gap: 10, paddingTop: 4, paddingBottom: 6 }}>
-      {signedContractUrl && (
-        <div>
-          <button type="button" onClick={handleOpenSigned} style={primaryButtonStyle}>
-            Open Signed Contract ↗
+    <div className="od-biz-contracts">
+      {showLegacySigned && (
+        <div className="od-biz-contract-row">
+          <span className="od-biz-pill od-biz-pill--green">Signed</span>
+          <span className="od-biz-contract-row__name">
+            <b>Signed contract</b>
+          </span>
+          <button type="button" className="od-biz-btn" onClick={handleOpenSigned}>
+            View signed contract
           </button>
         </div>
       )}
 
-      {!loaded && <div style={hintStyle}>Loading contracts…</div>}
+      {!loaded && <p className="od-biz-empty">Loading contracts…</p>}
 
       {loaded && contracts.length === 0 && !signedContractUrl && (
-        <div style={hintStyle}>No contracts linked to this client yet.</div>
+        <p className="od-biz-empty">No contracts linked to this client yet.</p>
       )}
 
       {contracts.length > 0 && (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
+        <ul className="od-biz-contracts__list">
           {contracts.map((contract) => {
             const status = STATUS_LABEL[contract.status ?? 'draft'] ?? STATUS_LABEL.draft
+            const signed = contract.status === 'completed'
+            const date = formatDate(signed ? contract.clientSignedAt || contract.contractDate : contract.contractDate)
+            const title = contract.contractTitle || 'Untitled contract'
+            const signedUrl = contract.signedPdfUrl || (signed ? signedContractUrl : '')
             return (
-              <li
-                key={String(contract.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '8px 10px',
-                  border: '1px solid var(--theme-elevation-150)',
-                  borderRadius: 8,
-                  background: 'var(--theme-elevation-50)',
-                  fontSize: 13,
-                }}
-              >
-                <a
-                  href={`/admin/collections/contracts/${contract.id}`}
-                  style={{ fontWeight: 700, color: 'var(--theme-text)', textDecoration: 'none', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                >
-                  {contract.contractTitle || 'Untitled contract'}
-                </a>
-                <span style={{ color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap' }}>{formatDate(contract.contractDate)}</span>
-                <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: status.bg, color: status.fg, whiteSpace: 'nowrap' }}>
-                  {status.text}
+              <li key={String(contract.id)} className="od-biz-contract-row">
+                <span className={status.pill}>{status.text}</span>
+                <span className="od-biz-contract-row__name">
+                  <a href={`/admin/collections/contracts/${contract.id}`}>
+                    <b>{title}</b>
+                  </a>
+                  {date && <span className="od-biz-contract-row__meta"> · {signed ? 'signed' : 'dated'} {date}</span>}
                 </span>
-                {contract.signedPdfUrl && (
-                  <a href={contract.signedPdfUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap' }}>
-                    PDF ↗
+                {signed && signedUrl ? (
+                  <a className="od-biz-btn" href={signedUrl} target="_blank" rel="noopener noreferrer">
+                    View signed contract
+                  </a>
+                ) : (
+                  <a className="od-biz-btn" href={`/admin/collections/contracts/${contract.id}`} aria-label={`Open ${title}`}>
+                    Open
                   </a>
                 )}
               </li>
@@ -174,25 +177,16 @@ const ClientSignedContractButton = () => {
       )}
 
       {templates.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>New contract from template:</span>
+        <div className="od-biz-contracts__templates">
+          <span className="od-biz-label">New contract from template</span>
           {templates.map((template) => (
             <button
               key={String(template.id)}
               type="button"
+              className="od-biz-btn"
               onClick={() => void handleCreate(template)}
               disabled={creating !== null}
-              style={{
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 700,
-                border: 'none',
-                borderRadius: 6,
-                background: '#7c3aed',
-                color: '#fff',
-                cursor: creating ? 'wait' : 'pointer',
-                opacity: creating && creating !== String(template.id) ? 0.5 : 1,
-              }}
+              aria-busy={creating === String(template.id) || undefined}
             >
               {creating === String(template.id) ? 'Creating…' : templateLabel(template)}
             </button>
@@ -200,35 +194,9 @@ const ClientSignedContractButton = () => {
         </div>
       )}
 
-      {error && <p style={{ margin: 0, fontSize: 13, color: '#dc2626' }}>{error}</p>}
+      {error && <p className="od-biz-error" role="alert">{error}</p>}
     </div>
   )
-}
-
-const hintStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  minHeight: 38,
-  fontSize: 13,
-  color: 'var(--theme-elevation-500, #888)',
-  fontStyle: 'italic',
-}
-
-const primaryButtonStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '12px 18px',
-  background: '#2563eb',
-  color: 'white',
-  border: '1px solid rgba(37, 99, 235, 0.35)',
-  borderRadius: 10,
-  boxShadow: '0 10px 22px rgba(37, 99, 235, 0.26)',
-  fontSize: 13.5,
-  fontWeight: 800,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-  lineHeight: 1.2,
 }
 
 export default ClientSignedContractButton

@@ -355,57 +355,21 @@ export interface Client {
   billingSummary?: number | null;
   monthsActive?: number | null;
   logoThumbUrl?: string | null;
-  /**
-   * Client/business name (e.g., 'Acme Corp')
-   */
   name: string;
-  /**
-   * Operating name if different from the legal entity
-   */
   tradingName?: string | null;
-  /**
-   * URL-friendly identifier (e.g., 'acme-corp')
-   */
   slug: string;
-  /**
-   * Client logo (square works best). Shown as the avatar in the Clients list; falls back to a coloured initial when empty.
-   */
-  logo?: (number | null) | Media;
-  /**
-   * Which services Optimise delivers for this client. Shown as pills in the client header.
-   */
-  services?: ('google_ads' | 'seo' | 'paid_social' | 'website_build' | 'automations')[] | null;
-  /**
-   * Client website URL (e.g., 'https://acmecorp.com')
-   */
   websiteUrl?: string | null;
   /**
-   * 4-digit PIN for client hub access (auto-generated)
+   * 4-digit client hub code. Auto-generated.
    */
   clientPin?: string | null;
   /**
-   * How the website is built — drives tag-setup fix guidance
+   * Drives tag-setup fix guidance.
    */
   websiteType?: ('built_by_us' | 'wordpress' | 'shopify' | 'squarespace' | 'wix' | 'webflow' | 'other') | null;
   externalCms?: string | null;
   /**
-   * Enable/disable content publishing for this client
-   */
-  isActive?: boolean | null;
-  /**
-   * Check if this is the agency itself. Hidden on other clients once an agency client is already selected.
-   */
-  isAgency?: boolean | null;
-  /**
-   * Does this business have physical locations?
-   */
-  hasPhysicalLocations?: boolean | null;
-  /**
-   * Number of physical locations
-   */
-  numberOfLocations?: number | null;
-  /**
-   * Primary conversion goal. Shown on client reports.
+   * Shown on client reports.
    */
   conversionGoal?:
     | (
@@ -421,9 +385,6 @@ export interface Client {
         | 'brand awareness'
       )
     | null;
-  /**
-   * Secondary conversion goal
-   */
   secondaryConversionGoal?:
     | (
         | 'lead generation'
@@ -438,78 +399,26 @@ export interface Client {
         | 'brand awareness'
       )
     | null;
-  clientPulse?: {
-    /**
-     * Show this client on the Client Pulse page. Only active clients with this toggled on appear.
-     */
-    enabled?: boolean | null;
-    priority?: ('watch' | 'normal' | 'high' | 'critical') | null;
-    comparisonWindow?: ('last_month' | 'last_year' | 'last_90_days') | null;
-    primaryTarget?:
-      | (
-          | 'cpa'
-          | 'roas'
-          | 'traffic'
-          | 'conversions'
-          | 'organic_clicks'
-          | 'paid_conversions'
-          | 'revenue'
-          | 'assessments'
-          | 'custom'
-        )
-      | null;
-    /**
-     * Display label, especially for custom targets.
-     */
-    targetLabel?: string | null;
-    targetValue?: number | null;
-    targetUnit?: ('aud' | 'percent' | 'clicks' | 'conversions' | 'revenue' | 'ratio' | 'score' | 'custom') | null;
-    targetDirection?: ('increase' | 'decrease' | 'maintain') | null;
-    /**
-     * Services included in leadership Client Pulse scoring and filters.
-     */
-    servicesTracked?:
-      ('organic' | 'paid_search' | 'paid_social' | 'content' | 'cro' | 'automations' | 'client_comms')[] | null;
-    /**
-     * The first three enabled rows appear on the Client Pulse card in this order. A label can rename a metric for this client.
-     */
-    dashboardMetrics?:
-      | {
-          metric:
-            | 'google_ads_cost_per_lead'
-            | 'google_ads_spend'
-            | 'google_ads_conversions'
-            | 'ga4_sessions'
-            | 'ga4_key_events'
-            | 'organic_clicks'
-            | 'assessments';
-          /**
-           * Optional dashboard label.
-           */
-          label?: string | null;
-          enabled?: boolean | null;
-          id?: string | null;
-        }[]
-      | null;
-    /**
-     * Legacy Client Pulse metric selection. Existing records continue to use it until dashboard metrics are configured.
-     */
-    analyticsMetrics?:
-      ('traffic' | 'conversions' | 'cpa' | 'revenue' | 'roas' | 'organic_clicks' | 'paid_conversions')[] | null;
-    neglectWarningDays?: number | null;
-    neglectCriticalDays?: number | null;
-    /**
-     * Internal leadership notes shown in Client Pulse details.
-     */
-    notes?: string | null;
-  };
   /**
-   * Inclusive start date for the 500 patient / prescription goals (YYYY-MM-DD).
+   * Enable content publishing for this client
    */
+  isActive?: boolean | null;
+  /**
+   * This record is Optimise itself. Hides billing and revenue.
+   */
+  isAgency?: boolean | null;
+  /**
+   * Client logo (square works best). Shown as the avatar in the Clients list; falls back to a coloured initial when empty.
+   */
+  logo?: (number | null) | Media;
+  /**
+   * Which services Optimise delivers for this client. Shown as pills in the client header.
+   */
+  services?: ('google_ads' | 'seo' | 'paid_social' | 'website_build' | 'automations')[] | null;
   wcqTrackingStartDate?: string | null;
-  wcqMetricsLastSyncedAt?: string | null;
   wcqAssessmentTarget?: number | null;
   wcqPrescriptionTarget?: number | null;
+  wcqMetricsLastSyncedAt?: string | null;
   /**
    * Aggregate count of paid, completed assessments only. No patient records are stored in this CMS.
    */
@@ -518,17 +427,8 @@ export interface Client {
    * Aggregate count of issued/sent/collected prescriptions only.
    */
   wcqPrescriptionCount?: number | null;
-  /**
-   * Primary contact name
-   */
   contactName?: string | null;
-  /**
-   * Primary contact email
-   */
   contactEmail?: string | null;
-  /**
-   * Primary contact phone
-   */
   contactPhone?: string | null;
   /**
    * Secondary client-side contacts (e.g. marketing director, owner). Internal team members go in Account Managers below.
@@ -558,9 +458,6 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
-  /**
-   * Team members managing this client. They receive notifications for ad copy approvals, audits, etc.
-   */
   accountManagers?:
     | {
         /**
@@ -575,8 +472,10 @@ export interface Client {
       }[]
     | null;
   /**
-   * Google Maps listing URLs for GBP analysis
+   * Does this business have physical locations?
    */
+  hasPhysicalLocations?: boolean | null;
+  numberOfLocations?: number | null;
   googleMapsUrls?:
     | {
         /**
@@ -590,9 +489,6 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
-  /**
-   * How this client was acquired
-   */
   acquisitionChannel?:
     | (
         | 'organic_search'
@@ -607,119 +503,31 @@ export interface Client {
         | 'cold_outreach'
       )
     | null;
-  /**
-   * Extra detail (e.g. ad campaign name, BNI chapter)
-   */
   acquisitionDetail?: string | null;
-  /**
-   * Person or business who referred this client (record even for free word-of-mouth referrals)
-   */
   referredBy?: string | null;
-  /**
-   * Optional contact for the referrer (email/phone)
-   */
   referredByContact?: string | null;
-  /**
-   * Client billing type
-   */
   clientType?: ('recurring' | 'one_off' | 'paused') | null;
-  /**
-   * The date the client contract began
-   */
   clientStartDate?: string | null;
   /**
-   * The date campaign delivery began; used for Client Pulse tenure and audit cadence
+   * Used for Pulse tenure
    */
   campaignStartDate?: string | null;
   /**
-   * When the retainer billing begins. Drives the pro-rated first month and setup-fee timing. Defaults to client start date when empty.
+   * Blank = contract start
    */
   retainerStartDate?: string | null;
   /**
-   * Net monthly revenue ($)
+   * Net, per month
    */
   monthlyRetainer?: number | null;
   /**
-   * Setup fee; one-off clients appear under One-Off Projects YTD
+   * Charged once
    */
   setupFee?: number | null;
   /**
-   * e.g. 50 for a 50/50 partner split
+   * 50 = partner split
    */
   revenueSharePercent?: number | null;
-  hostingSubscription?: {
-    planName?: string | null;
-    allowance?: string | null;
-    capacityClause?: string | null;
-    monthlyBaseCents?: number | null;
-    annualBaseCents?: number | null;
-    recipientName?: string | null;
-    recipientEmail?: string | null;
-    billingInterval?: ('month' | 'year') | null;
-    billingStartDate?: string | null;
-    stripeCustomerId?: string | null;
-    stripeSubscriptionId?: string | null;
-    stripeHostingItemId?: string | null;
-    stripeSurchargeItemId?: string | null;
-    stripeLatestInvoiceId?: string | null;
-    subscriptionStatus?: string | null;
-    currentPeriodEnd?: string | null;
-    cancelAtPeriodEnd?: boolean | null;
-    providerEventCreatedAt?: string | null;
-    providerEventId?: string | null;
-    activeOffer?: (number | null) | HostingPaymentOffer;
-    offerCreatedAt?: string | null;
-    offerExpiresAt?: string | null;
-    offerCompletedAt?: string | null;
-    priceChanges?:
-      | {
-          status?: ('pending' | 'canceled' | 'applied' | 'failed') | null;
-          reason?: string | null;
-          effectiveAt?: string | null;
-          oldQuote?:
-            | {
-                [k: string]: unknown;
-              }
-            | unknown[]
-            | string
-            | number
-            | boolean
-            | null;
-          newQuote?:
-            | {
-                [k: string]: unknown;
-              }
-            | unknown[]
-            | string
-            | number
-            | boolean
-            | null;
-          noticeSentAt?: string | null;
-          noticeMessageId?: string | null;
-          appliedAt?: string | null;
-          stripeReference?: string | null;
-          lastError?: string | null;
-          retryCount?: number | null;
-          id?: string | null;
-        }[]
-      | null;
-  };
-  /**
-   * Yearly sales targets by calendar year. For the agency client, the row matching the current year drives the Yearly Sales Target progress bar on the dashboard. For ordinary clients this is a tracking number only.
-   */
-  yearlyTargets?:
-    | {
-        /**
-         * Calendar year (e.g. 2026)
-         */
-        year: number;
-        /**
-         * Sales target for that year ($)
-         */
-        target: number;
-        id?: string | null;
-      }[]
-    | null;
   /**
    * One-off projects (website builds, audits, etc.)
    */
@@ -806,25 +614,136 @@ export interface Client {
       }[]
     | null;
   /**
+   * Yearly sales targets by calendar year. For the agency client, the row matching the current year drives the Yearly Sales Target progress bar on the dashboard. For ordinary clients this is a tracking number only.
+   */
+  yearlyTargets?:
+    | {
+        /**
+         * Calendar year (e.g. 2026)
+         */
+        year: number;
+        /**
+         * Sales target for that year ($)
+         */
+        target: number;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * URL of the signed contract PDF (from e-signature flow)
    */
   signedContractUrl?: string | null;
-  /**
-   * Client contract document (legacy upload)
-   */
   contract?: (number | null) | Media;
-  /**
-   * Linked signed contract record
-   */
   signedContract?: (number | null) | Contract;
-  /**
-   * API key for this client (auto-generated)
-   */
+  hostingSubscription?: {
+    planName?: string | null;
+    allowance?: string | null;
+    capacityClause?: string | null;
+    monthlyBaseCents?: number | null;
+    annualBaseCents?: number | null;
+    recipientName?: string | null;
+    recipientEmail?: string | null;
+    billingInterval?: ('month' | 'year') | null;
+    billingStartDate?: string | null;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
+    stripeHostingItemId?: string | null;
+    stripeSurchargeItemId?: string | null;
+    stripeLatestInvoiceId?: string | null;
+    subscriptionStatus?: string | null;
+    currentPeriodEnd?: string | null;
+    cancelAtPeriodEnd?: boolean | null;
+    providerEventCreatedAt?: string | null;
+    providerEventId?: string | null;
+    activeOffer?: (number | null) | HostingPaymentOffer;
+    offerCreatedAt?: string | null;
+    offerExpiresAt?: string | null;
+    offerCompletedAt?: string | null;
+    priceChanges?:
+      | {
+          status?: ('pending' | 'canceled' | 'applied' | 'failed') | null;
+          reason?: string | null;
+          effectiveAt?: string | null;
+          oldQuote?:
+            | {
+                [k: string]: unknown;
+              }
+            | unknown[]
+            | string
+            | number
+            | boolean
+            | null;
+          newQuote?:
+            | {
+                [k: string]: unknown;
+              }
+            | unknown[]
+            | string
+            | number
+            | boolean
+            | null;
+          noticeSentAt?: string | null;
+          noticeMessageId?: string | null;
+          appliedAt?: string | null;
+          stripeReference?: string | null;
+          lastError?: string | null;
+          retryCount?: number | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  clientPulse?: {
+    /**
+     * Show this client on the Client Pulse page. Only active clients with this toggled on appear.
+     */
+    enabled?: boolean | null;
+    priority?: ('watch' | 'normal' | 'high' | 'critical') | null;
+    comparisonWindow?: ('last_month' | 'last_year' | 'last_90_days') | null;
+    primaryTarget?:
+      | (
+          | 'cpa'
+          | 'roas'
+          | 'traffic'
+          | 'conversions'
+          | 'organic_clicks'
+          | 'paid_conversions'
+          | 'revenue'
+          | 'assessments'
+          | 'custom'
+        )
+      | null;
+    targetLabel?: string | null;
+    targetValue?: number | null;
+    targetUnit?: ('aud' | 'percent' | 'clicks' | 'conversions' | 'revenue' | 'ratio' | 'score' | 'custom') | null;
+    targetDirection?: ('increase' | 'decrease' | 'maintain') | null;
+    servicesTracked?:
+      ('organic' | 'paid_search' | 'paid_social' | 'content' | 'cro' | 'automations' | 'client_comms')[] | null;
+    dashboardMetrics?:
+      | {
+          metric:
+            | 'google_ads_cost_per_lead'
+            | 'google_ads_spend'
+            | 'google_ads_conversions'
+            | 'ga4_sessions'
+            | 'ga4_key_events'
+            | 'organic_clicks'
+            | 'assessments';
+          /**
+           * Optional dashboard label.
+           */
+          label?: string | null;
+          enabled?: boolean | null;
+          id?: string | null;
+        }[]
+      | null;
+    analyticsMetrics?:
+      ('traffic' | 'conversions' | 'cpa' | 'revenue' | 'roas' | 'organic_clicks' | 'paid_conversions')[] | null;
+    neglectWarningDays?: number | null;
+    neglectCriticalDays?: number | null;
+    notes?: string | null;
+  };
   apiKey?: string | null;
   legacyNotes?: string | null;
-  /**
-   * Automatic log of revenue changes
-   */
   retainerHistory?:
     | {
         amount?: number | null;
@@ -1727,33 +1646,6 @@ export interface Media {
       filename?: string | null;
     };
   };
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "hosting-payment-offers".
- */
-export interface HostingPaymentOffer {
-  id: number;
-  client: number | Client;
-  tokenHash: string;
-  status: 'active' | 'checkout_pending' | 'completed' | 'revoked' | 'expired';
-  expiresAt: string;
-  selectedInterval?: ('month' | 'year') | null;
-  stripeCheckoutSessionId?: string | null;
-  /**
-   * Immutable plan, fee, quote and contractual-term snapshot.
-   */
-  snapshot:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  updatedAt: string;
-  createdAt: string;
 }
 /**
  * Service contracts linked to client proposals
@@ -6486,6 +6378,33 @@ export interface PermissionProfile {
       )[]
     | null;
   featuresCount?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "hosting-payment-offers".
+ */
+export interface HostingPaymentOffer {
+  id: number;
+  client: number | Client;
+  tokenHash: string;
+  status: 'active' | 'checkout_pending' | 'completed' | 'revoked' | 'expired';
+  expiresAt: string;
+  selectedInterval?: ('month' | 'year') | null;
+  stripeCheckoutSessionId?: string | null;
+  /**
+   * Immutable plan, fee, quote and contractual-term snapshot.
+   */
+  snapshot:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -11980,47 +11899,20 @@ export interface ClientsSelect<T extends boolean = true> {
   name?: T;
   tradingName?: T;
   slug?: T;
-  logo?: T;
-  services?: T;
   websiteUrl?: T;
   clientPin?: T;
   websiteType?: T;
   externalCms?: T;
-  isActive?: T;
-  isAgency?: T;
-  hasPhysicalLocations?: T;
-  numberOfLocations?: T;
   conversionGoal?: T;
   secondaryConversionGoal?: T;
-  clientPulse?:
-    | T
-    | {
-        enabled?: T;
-        priority?: T;
-        comparisonWindow?: T;
-        primaryTarget?: T;
-        targetLabel?: T;
-        targetValue?: T;
-        targetUnit?: T;
-        targetDirection?: T;
-        servicesTracked?: T;
-        dashboardMetrics?:
-          | T
-          | {
-              metric?: T;
-              label?: T;
-              enabled?: T;
-              id?: T;
-            };
-        analyticsMetrics?: T;
-        neglectWarningDays?: T;
-        neglectCriticalDays?: T;
-        notes?: T;
-      };
+  isActive?: T;
+  isAgency?: T;
+  logo?: T;
+  services?: T;
   wcqTrackingStartDate?: T;
-  wcqMetricsLastSyncedAt?: T;
   wcqAssessmentTarget?: T;
   wcqPrescriptionTarget?: T;
+  wcqMetricsLastSyncedAt?: T;
   wcqAssessmentsCompleted?: T;
   wcqPrescriptionCount?: T;
   contactName?: T;
@@ -12043,6 +11935,8 @@ export interface ClientsSelect<T extends boolean = true> {
         email?: T;
         id?: T;
       };
+  hasPhysicalLocations?: T;
+  numberOfLocations?: T;
   googleMapsUrls?:
     | T
     | {
@@ -12061,6 +11955,47 @@ export interface ClientsSelect<T extends boolean = true> {
   monthlyRetainer?: T;
   setupFee?: T;
   revenueSharePercent?: T;
+  oneOffProjects?:
+    | T
+    | {
+        projectName?: T;
+        amount?: T;
+        date?: T;
+        countTowardsRetainer?: T;
+        id?: T;
+      };
+  referralCommissions?:
+    | T
+    | {
+        payeeName?: T;
+        payeeContact?: T;
+        frequency?: T;
+        commissionType?: T;
+        percentage?: T;
+        monthlyAmount?: T;
+        oneOffAmount?: T;
+        startDate?: T;
+        endDate?: T;
+        notes?: T;
+        id?: T;
+      };
+  historicalRevenueByYear?:
+    | T
+    | {
+        year?: T;
+        amount?: T;
+        id?: T;
+      };
+  yearlyTargets?:
+    | T
+    | {
+        year?: T;
+        target?: T;
+        id?: T;
+      };
+  signedContractUrl?: T;
+  contract?: T;
+  signedContract?: T;
   hostingSubscription?:
     | T
     | {
@@ -12104,47 +12039,31 @@ export interface ClientsSelect<T extends boolean = true> {
               id?: T;
             };
       };
-  yearlyTargets?:
+  clientPulse?:
     | T
     | {
-        year?: T;
-        target?: T;
-        id?: T;
-      };
-  oneOffProjects?:
-    | T
-    | {
-        projectName?: T;
-        amount?: T;
-        date?: T;
-        countTowardsRetainer?: T;
-        id?: T;
-      };
-  referralCommissions?:
-    | T
-    | {
-        payeeName?: T;
-        payeeContact?: T;
-        frequency?: T;
-        commissionType?: T;
-        percentage?: T;
-        monthlyAmount?: T;
-        oneOffAmount?: T;
-        startDate?: T;
-        endDate?: T;
+        enabled?: T;
+        priority?: T;
+        comparisonWindow?: T;
+        primaryTarget?: T;
+        targetLabel?: T;
+        targetValue?: T;
+        targetUnit?: T;
+        targetDirection?: T;
+        servicesTracked?: T;
+        dashboardMetrics?:
+          | T
+          | {
+              metric?: T;
+              label?: T;
+              enabled?: T;
+              id?: T;
+            };
+        analyticsMetrics?: T;
+        neglectWarningDays?: T;
+        neglectCriticalDays?: T;
         notes?: T;
-        id?: T;
       };
-  historicalRevenueByYear?:
-    | T
-    | {
-        year?: T;
-        amount?: T;
-        id?: T;
-      };
-  signedContractUrl?: T;
-  contract?: T;
-  signedContract?: T;
   apiKey?: T;
   legacyNotes?: T;
   retainerHistory?:

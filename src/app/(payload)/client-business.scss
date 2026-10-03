@@ -1,0 +1,981 @@
+// ============================================================
+// Client record · Business tab — layout (design handoff)
+// ============================================================
+// Two-column tab body (sticky "On this tab" menu + stacked section cards),
+// the shared section-card pattern, sub-tabs, field grids, and Payload's own
+// inputs restyled to the handoff spec. Component-specific styles live in the
+// sibling client-business-*.scss partials; shared primitives (buttons, pills,
+// switch, tables) in client-business-primitives.scss.
+//
+// Scope: the tab whose fields start with the Business section menu, so none of
+// this reaches the other client tabs. (Payload's per-tab label class is not
+// emitted for this tabs field, so it cannot be used as the hook.)
+
+.collection-edit--clients .tabs-field__tab:has(> .render-fields > .od-biz-menu) {
+  // ── Tab body: menu + sections ──
+  > .render-fields {
+    display: grid;
+    grid-template-columns: 168px minmax(0, 1fr);
+    grid-auto-flow: row dense;
+    column-gap: 18px;
+    row-gap: 16px;
+    align-items: start;
+
+    // Payload's per-field bottom margin is replaced by the grid gap.
+    > .field-type,
+    > * {
+      margin: 0;
+    }
+
+    > * {
+      grid-column: 2;
+      min-width: 0;
+    }
+  }
+
+  // ── Section menu ──
+  .od-biz-menu {
+    grid-column: 1;
+    grid-row: 1 / span 40;
+    position: sticky;
+    top: 80px;
+    align-self: start;
+  }
+
+  .od-biz-menu__eyebrow {
+    padding: 0 8px 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--odb-t3);
+  }
+
+  .od-biz-menu__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .od-biz-menu__item {
+    display: block;
+    padding: 5px 8px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--odb-t2);
+    text-decoration: none;
+    transition:
+      background-color var(--odb-ease),
+      color var(--odb-ease);
+
+    &:hover {
+      background: var(--odb-border-soft);
+      color: var(--odb-t1);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--odb-accent);
+      outline-offset: 1px;
+    }
+
+    &[aria-current='location'] {
+      background: var(--odb-accent-tint);
+      color: var(--odb-accent-strong);
+      font-weight: 600;
+    }
+  }
+
+  @media (max-width: 900px) {
+    > .render-fields {
+      grid-template-columns: minmax(0, 1fr);
+
+      > * {
+        grid-column: 1;
+      }
+    }
+
+    .od-biz-menu {
+      display: none;
+    }
+  }
+
+  // ── Section card ──
+  .od-biz-section {
+    background: var(--odb-card);
+    border: 1px solid var(--odb-border);
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    scroll-margin-top: 80px;
+
+    &:focus {
+      outline: none;
+    }
+  }
+
+  .od-biz-section__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--odb-border-soft);
+  }
+
+  // Collapsed sections drop the header divider (nothing below it).
+  .od-biz-section:has(> .od-biz-section__body[hidden]) > .od-biz-section__header {
+    border-bottom-color: transparent;
+  }
+
+  // Billing: the sub-tab strip carries its own inset divider.
+  .od-biz-section__header--tabs {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .od-biz-section__header-row {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .od-biz-section__titles {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: start;
+  }
+
+  .od-biz-section__title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: normal;
+    color: var(--odb-t1);
+  }
+
+  .od-biz-section__desc {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    font-weight: 400;
+    line-height: 1.45;
+    color: var(--odb-t2);
+  }
+
+  .od-biz-section__state {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--odb-t2);
+  }
+
+  // Header that is itself the expand button (Pulse caret, Advanced Show/Hide).
+  .od-biz-section__toggle {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    margin: -4px -6px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--odb-accent);
+      outline-offset: 2px;
+    }
+  }
+
+  .od-biz-section__caret {
+    flex: 0 0 auto;
+    width: 10px;
+    height: 10px;
+    color: var(--odb-t2);
+    transition: transform 0.15s ease;
+
+    &[data-open='true'] {
+      transform: rotate(90deg);
+    }
+  }
+
+  .od-biz-section__toggle-text {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--odb-t2);
+  }
+
+  .od-biz-section__body {
+    padding: 20px;
+
+    &[hidden] {
+      display: none;
+    }
+
+    // Stack the section's direct children with an 18px rhythm.
+    > .render-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+
+      > * {
+        margin: 0;
+      }
+    }
+  }
+
+  // Header action rendered inside the Hosting body, pinned to the header.
+  .od-biz-section--hosting {
+    position: relative;
+
+    > .od-biz-section__header {
+      padding-inline-end: 180px;
+    }
+
+    .od-hosting__header-action {
+      position: absolute;
+      top: 16px;
+      inset-inline-end: 20px;
+    }
+  }
+
+  // ── Sub-tabs (Billing) ──
+  .od-biz-subtabs {
+    display: flex;
+    gap: 2px;
+    margin: 14px 0 0;
+    border-bottom: 1px solid var(--odb-border-soft);
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .od-biz-subtabs__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 9px 12px;
+    margin-bottom: -1px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--odb-t2);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color var(--odb-ease),
+      border-color var(--odb-ease);
+
+    &:hover {
+      color: var(--odb-t1);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--odb-accent);
+      outline-offset: -2px;
+      border-radius: 6px 6px 0 0;
+    }
+
+    &[aria-selected='true'] {
+      color: var(--odb-accent-strong);
+      border-bottom-color: var(--odb-accent);
+    }
+  }
+
+  .od-biz-subtabs__count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 18px;
+    background: var(--odb-border-soft);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--odb-t2);
+  }
+
+  .od-biz-subtabs__tab[aria-selected='true'] .od-biz-subtabs__count {
+    background: var(--odb-accent-tint);
+    color: var(--odb-accent-strong);
+  }
+
+  .od-biz-subpanel {
+    &[hidden] {
+      display: none;
+    }
+
+    > .render-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+
+      > * {
+        margin: 0;
+      }
+    }
+  }
+
+  // Retainer: two columns (Contract | Amounts), each a 2×2 grid.
+  .od-biz-subpanel--retainer > .render-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+  }
+
+  // ── Blocks ──
+  .od-biz-block > .od-biz-subhead {
+    margin-bottom: 12px;
+  }
+
+  .od-biz-block--grid > .render-fields,
+  .od-biz-block--pair > .render-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 16px 18px;
+
+    > .field-type,
+    > * {
+      width: auto !important;
+      min-width: 0;
+      margin: 0;
+    }
+  }
+
+  .od-biz-block--pair > .render-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .od-biz-block--split > .render-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    align-items: start;
+
+    > * {
+      margin: 0;
+      min-width: 0;
+    }
+  }
+
+  // Identity toggle box: 2-up cells with a divider.
+  .od-biz-block--toggles > .render-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    border: 1px solid var(--odb-border-soft);
+    border-radius: 10px;
+    overflow: hidden;
+
+    > * {
+      margin: 0;
+      min-width: 0;
+      width: auto !important;
+    }
+
+    > * + * {
+      border-inline-start: 1px solid var(--odb-border-soft);
+    }
+  }
+
+  .od-biz-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .od-biz-toggle-row__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .od-biz-toggle-row__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--odb-t1);
+  }
+
+  .od-biz-toggle-row__desc {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--odb-t2);
+  }
+
+  // ── Payload fields restyled to the handoff spec ──
+  .field-label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--odb-t1);
+  }
+
+  .field-description {
+    margin: 6px 0 0;
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: var(--odb-t3);
+  }
+
+  .field-type.text input[type='text'],
+  .field-type.email input,
+  .field-type.number input,
+  .field-type.date-time-field .react-datepicker__input-container input {
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--odb-border);
+    border-radius: 9px;
+    background: var(--odb-card);
+    box-shadow: none;
+    font-size: 13px;
+    color: var(--odb-t1);
+  }
+
+  .field-type.textarea textarea {
+    padding: 9px 12px;
+    border: 1px solid var(--odb-border);
+    border-radius: 9px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .field-type.select .rs__control,
+  .field-type.relationship .rs__control {
+    min-height: 36px;
+    height: 36px;
+    padding: 0 4px 0 10px;
+    border: 1px solid var(--odb-border);
+    border-radius: 9px;
+    box-shadow: none;
+    font-size: 13px;
+  }
+
+  .field-type.select .rs__value-container,
+  .field-type.relationship .rs__value-container {
+    padding: 0;
+  }
+
+  .field-type.select .rs__indicators,
+  .field-type.relationship .rs__indicators {
+    padding-inline-end: 4px;
+  }
+
+  .field-type.text input[type='text']:focus,
+  .field-type.email input:focus,
+  .field-type.number input:focus,
+  .field-type.textarea textarea:focus,
+  .field-type.date-time-field .react-datepicker__input-container input:focus,
+  .field-type.select .rs__control--is-focused,
+  .field-type.relationship .rs__control--is-focused {
+    border-color: var(--odb-accent);
+    box-shadow: var(--odb-focus-ring);
+    outline: none;
+  }
+
+  .field-type.text input[readonly],
+  .field-type.number input[readonly] {
+    background: var(--odb-card-2);
+    color: var(--odb-t2);
+  }
+
+  // Monospace identifiers.
+  input#field-slug,
+  input#field-clientPin {
+    font-family: var(--odb-mono);
+    font-size: 12.5px;
+  }
+
+  input#field-clientPin {
+    letter-spacing: 0.12em;
+  }
+
+  // $ prefix / % suffix on the Amounts fields (CSS-only; Payload input kept).
+  // Payload puts the field id on the <input>, so the wrapper is found via :has.
+  .field-type__wrap:has(#field-monthlyRetainer),
+  .field-type__wrap:has(#field-setupFee),
+  .field-type__wrap:has(#field-revenueSharePercent) {
+    position: relative;
+
+    &::before {
+      position: absolute;
+      top: 0;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      font-size: 13px;
+      color: var(--odb-t3);
+      pointer-events: none;
+      z-index: 1;
+    }
+  }
+
+  .field-type__wrap:has(#field-monthlyRetainer)::before,
+  .field-type__wrap:has(#field-setupFee)::before {
+    content: '$';
+    inset-inline-start: 12px;
+  }
+
+  input#field-monthlyRetainer,
+  input#field-setupFee {
+    padding-inline-start: 24px;
+  }
+
+  .field-type__wrap:has(#field-revenueSharePercent)::before {
+    content: '%';
+    inset-inline-end: 12px;
+  }
+
+  input#field-revenueSharePercent {
+    padding-inline-end: 28px;
+  }
+
+  // Locations: compact count input.
+  .field-type:has(#field-numberOfLocations) {
+    max-width: 200px;
+  }
+
+  // Client Pulse: the named `clientPulse` group sits inside the card, so its
+  // own fieldset chrome and heading are redundant.
+  .od-biz-section--pulse {
+    .group-field {
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    .group-field__header {
+      display: none;
+    }
+
+    .group-field__wrap > .render-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+
+      > * {
+        margin: 0;
+      }
+    }
+  }
+
+  // Payload rows inside a section (Pulse target rows, neglect days): an even
+  // grid with the handoff gaps instead of Payload's flex + negative margins.
+  .od-biz-section .field-type.row > .row__fields {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 16px 18px;
+    margin: 0;
+
+    > * {
+      width: auto !important;
+      min-width: 0;
+      margin: 0;
+    }
+
+    // Hidden inputs (e.g. clientPulse.enabled) take no grid cell.
+    > input[type='hidden'],
+    > input:not([type]) {
+      display: none;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .od-biz-section .field-type.row > .row__fields {
+      grid-auto-flow: row;
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  // Hosting: the hidden `hostingSubscription` group must not leave a gap.
+  .od-biz-section--hosting .group-field:empty {
+    display: none;
+  }
+
+  // Contracts: the legacy attachment is a plain disclosure inside the card
+  // (caret + muted label), not the page-level "aside + card" collapsible used
+  // on other tabs.
+  .od-biz-section .collapsible-field {
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--odb-border);
+    border-radius: 10px;
+    background: var(--odb-card-2);
+
+    > .field-description {
+      display: none;
+    }
+
+    > .collapsible-field__collapsible {
+      display: block;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+    }
+
+    .collapsible__toggle-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 0;
+      padding: 9px 14px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+    }
+
+    // Payload's full-size toggle button sits over the row; keep its focus
+    // ring visible on the row itself.
+    .collapsible__toggle:focus-visible {
+      outline: 2px solid var(--odb-accent);
+      outline-offset: -2px;
+      border-radius: 10px;
+    }
+
+    .collapsible__actions-wrap {
+      order: -1;
+      display: flex;
+      margin: 0;
+      padding: 0;
+    }
+
+    .collapsible__indicator {
+      display: grid;
+      place-items: center;
+      width: 12px;
+      height: 12px;
+      color: var(--odb-t2);
+      transition: transform 0.15s ease;
+
+      svg {
+        width: 12px;
+        height: 12px;
+      }
+    }
+
+    .collapsible--collapsed .collapsible__indicator {
+      transform: rotate(-90deg);
+    }
+
+    .collapsible-field__row-label-wrap,
+    .collapsible-field__row-label-wrap .row-label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--odb-t2);
+    }
+
+    .collapsible__header-wrap {
+      padding: 0;
+    }
+
+    > .collapsible-field__collapsible > .rah-static,
+    > .collapsible-field__collapsible > [class*='rah-'] {
+      border: 0;
+      border-top: 1px solid var(--odb-border-soft);
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    > .collapsible-field__collapsible > [class*='rah-'][aria-hidden='true'] {
+      border-top: 0;
+    }
+
+    .collapsible__content {
+      padding: 14px;
+    }
+
+    .collapsible__content > .render-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px 18px;
+
+      > * {
+        margin: 0;
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .od-biz-menu__item,
+    .od-biz-subtabs__tab,
+    .od-biz-section__caret,
+    .od-biz-section .collapsible-field .collapsible__indicator {
+      transition: none;
+    }
+  }
+}
+
+// The overview field is edited from the header popover; its body host is
+// kept mounted (so the value submits) but takes no space.
+.collection-edit--clients .od-overview-host {
+  display: none;
+}
+
+// ── Header: "Who is this client?" pill + popover ──
+.collection-edit--clients,
+.collection-edit--google-ads-audits {
+  .od-overview {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  .od-overview__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px 0 4px;
+    border: 1px solid #e7e9ee;
+    border-radius: 20px;
+    background: #fbfbfc;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    color: #5b6573;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      border-color 0.12s ease,
+      color 0.12s ease;
+
+    &:hover,
+    &[aria-pressed='true'] {
+      border-color: #cfd5dd;
+      color: #111827;
+    }
+
+    &:focus-visible {
+      outline: none;
+      border-color: #2c97c9;
+      box-shadow: 0 0 0 3px rgba(44, 151, 201, 0.14);
+    }
+  }
+
+  .od-overview__icon {
+    display: inline-grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #2c97c9;
+    font-size: 10.5px;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  .od-overview__popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    inset-inline-start: 0;
+    z-index: 30;
+    width: 380px;
+    max-width: 80vw;
+    padding: 14px 16px;
+    border: 1px solid #e7e9ee;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow:
+      0 6px 20px rgba(16, 24, 40, 0.12),
+      0 2px 6px rgba(16, 24, 40, 0.06);
+    font-size: 12.5px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: #374151;
+    text-align: start;
+    white-space: normal;
+
+    &[hidden] {
+      display: none;
+    }
+
+    // Hover bridge across the 8px gap so the popover doesn't close in transit.
+    &::before {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      top: -9px;
+      height: 9px;
+    }
+  }
+
+  .od-overview__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .od-overview__title {
+    flex: 1 1 auto;
+    font-size: 13px;
+    font-weight: 700;
+    color: #111827;
+  }
+
+  .od-overview__body {
+    p,
+    ul,
+    ol {
+      margin: 0 0 8px;
+    }
+
+    ul,
+    ol {
+      padding-inline-start: 18px;
+    }
+
+    li {
+      margin-bottom: 4px;
+    }
+
+    > :last-child,
+    li:last-child {
+      margin-bottom: 0;
+    }
+
+    strong {
+      color: #111827;
+    }
+  }
+
+  .od-overview__empty {
+    color: #5b6573;
+  }
+
+  .od-overview__editor {
+    max-height: 50vh;
+    overflow-y: auto;
+
+    .field-type {
+      margin: 0;
+    }
+
+    // The popover already titles and explains the field.
+    .field-label,
+    .field-description {
+      display: none;
+    }
+
+    // Payload's Lexical field ships editorial chrome (serif, gutter, big
+    // padding); match the popover's 13px body text instead.
+    .rich-text-lexical .editor-container,
+    .rich-text-lexical .editor-scroller,
+    .rich-text-lexical .editor {
+      min-height: 0;
+    }
+
+    // The field wrapper's own card chrome would nest a box in a box.
+    .field-type.rich-text-lexical {
+      padding: 0;
+      border: 0;
+      background: none;
+      box-shadow: none;
+    }
+
+    .rich-text-lexical .editor-container {
+      border: 1px solid var(--odb-border);
+      border-radius: 9px;
+      background: var(--odb-card);
+    }
+
+    .rich-text-lexical .editor-container,
+    .rich-text-lexical .editor-container * {
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    .rich-text-lexical .editor-container:focus-within {
+      border-color: var(--odb-accent);
+      box-shadow: var(--odb-focus-ring);
+    }
+
+    .rich-text-lexical .ContentEditable__root,
+    .rich-text-lexical [contenteditable='true'] {
+      min-height: 96px;
+      padding: 9px 12px;
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--odb-t1);
+      outline: none;
+    }
+
+    .rich-text-lexical .editor-placeholder {
+      top: 9px;
+      inset-inline-start: 12px;
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    .rich-text-lexical .editor-scroller::before,
+    .rich-text-lexical .editor::before {
+      display: none;
+    }
+  }
+
+  // Edit/Done controls inside the popover (Google Ads audits header is
+  // read-only, so these only render on the client edit view).
+  .od-overview .od-biz-link {
+    font-size: 12px;
+  }
+}
+
+// ── Header revenue strip: one row of five equal cells (wraps on phones) ──
+.collection-edit--clients .od-client-head__strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  width: 100%;
+  max-width: 760px;
+  gap: 1px;
+  background: #e7e9ee;
+  border-color: #e7e9ee;
+
+  @media (max-width: 560px) {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  }
+}
+
+.collection-edit--clients .od-client-head__stat {
+  min-width: 0;
+  padding: 8px 12px;
+}
+
+// ── Collection tabs bar: scroll without a visible scrollbar ──
+.collection-edit--clients .tabs-field__tabs-wrap,
+.collection-edit--clients .tabs-field__tabs {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

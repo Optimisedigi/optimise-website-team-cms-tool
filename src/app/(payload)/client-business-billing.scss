@@ -1,0 +1,222 @@
+// ============================================================
+// Client record · Business tab — Billing custom fields
+// (OneOffProjectsField, ReferralCommissionsField, HistoricalRevenueField,
+//  YearlyTargetsField, FirstMonthRetainerField). Builds on
+// client-business-primitives.scss; everything scoped to the clients edit view.
+// ============================================================
+
+.collection-edit--clients {
+  .od-biz-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .od-biz-billing-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+
+    .od-biz-subhead {
+      margin: 0;
+    }
+  }
+
+  // ── Table tweaks (projects / years) ──
+  .od-biz-table {
+    .od-biz-cell-input--strong {
+      font-weight: 600;
+    }
+
+    .od-biz-cell-input--muted {
+      color: var(--odb-t2);
+    }
+
+    td .od-biz-error {
+      margin-block-start: 2px;
+      font-size: 11.5px;
+    }
+  }
+
+  .od-biz-projects-table {
+    th:nth-child(1) {
+      inline-size: 40%;
+    }
+  }
+
+  .od-biz-table-foot {
+    .od-biz-link {
+      font-size: 12.5px;
+    }
+
+    strong {
+      margin-inline-start: 6px;
+    }
+  }
+
+  // Counts-toward toggle pill (default = One-off #eef0f3/#5b6573, teal = Retainer)
+  .od-biz-pill-toggle {
+    border: 0;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: box-shadow var(--odb-ease);
+
+    &:hover {
+      box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.12);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--odb-accent);
+      outline-offset: 2px;
+    }
+  }
+
+  // ── Referral commissions ──
+  .od-biz-commissions {
+    gap: 12px;
+
+    .od-biz-commissions__intro {
+      margin: 0;
+    }
+
+    .od-biz-commissions__add {
+      min-height: 40px;
+    }
+  }
+
+  .od-biz-commission {
+    border: 1px solid var(--odb-border);
+    border-radius: 10px;
+    background: var(--odb-card-2);
+    padding: 14px;
+
+    &.has-error {
+      border-color: var(--odb-red);
+    }
+  }
+
+  .od-biz-commission__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .od-biz-commission__main {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+
+  .od-biz-commission__payee {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--odb-t1);
+    overflow-wrap: anywhere;
+  }
+
+  .od-biz-commission__contact {
+    font-weight: 500;
+    color: var(--odb-t3);
+  }
+
+  .od-biz-commission__sentence {
+    margin-block-start: 4px;
+    font-size: 12.5px;
+    color: var(--odb-t2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .od-biz-commission__notes {
+    margin-block-start: 6px;
+    font-size: 12px;
+    color: var(--odb-t3);
+    white-space: pre-line;
+  }
+
+  .od-biz-commission__amount {
+    text-align: end;
+  }
+
+  .od-biz-commission__value {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--odb-t1);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .od-biz-commission__unit {
+    font-size: 11px;
+    color: var(--odb-t3);
+  }
+
+  .od-biz-commission-form {
+    margin-block-start: 14px;
+    background: var(--odb-card);
+  }
+
+  .od-biz-commission-form__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 16px 18px;
+  }
+
+  .od-biz-commission-form__field {
+    min-width: 0;
+
+    &.is-wide {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .od-biz-commission-form__error {
+    margin: 6px 0 0;
+  }
+
+  .od-biz-input--prefix {
+    padding-inline-start: 24px;
+  }
+
+  .od-biz-input--suffix {
+    padding-inline-end: 28px;
+  }
+
+  .od-biz-input[aria-invalid='true'] {
+    border-color: var(--odb-red);
+  }
+
+  .od-biz-commission-form__actions {
+    display: flex;
+    gap: 8px;
+    margin-block-start: 14px;
+  }
+
+  // ── First month (read-only computed value) ──
+  .od-biz-first-month__value {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 9px;
+    background: #e6f4fb;
+    color: #1f7fad;
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .od-biz-pill-toggle {
+      transition: none;
+    }
+  }
+}

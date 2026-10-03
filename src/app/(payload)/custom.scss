@@ -6872,30 +6872,6 @@ body:has(
     }
   }
 
-  // Hosting is a standalone client-billing workflow, not a supporting setting.
-  // It intentionally spans the full content rail below the retainer fields.
-  .collapsible-field:has(
-    > .collapsible-field__collapsible
-      > [class*='rah-']
-      > div
-      > .collapsible__content
-      > .render-fields
-      > .hosting-subscription-field
-  ) {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-    row-gap: 8px;
-    padding-top: 20px;
-
-    .collapsible__toggle-wrap,
-    > .field-description,
-    > .collapsible-field__collapsible > .rah-static,
-    > .collapsible-field__collapsible > [class*='rah-'] {
-      grid-column: 1;
-      grid-row: auto;
-    }
-  }
-
   // Single-column fallback on narrow viewports — stack aside above the card.
   @media (max-width: 1024px) {
     .collapsible-field {
@@ -10184,3 +10160,13 @@ body.od-client-record {
     list-style: inherit;
   }
 }
+
+// ── Client record · Business tab (design handoff) ──
+// Imported last so the handoff spec wins over the generic client-record
+// styles above on the Business tab only.
+@import './client-business-primitives.scss';
+@import './client-business.scss';
+@import './client-business-contacts.scss';
+@import './client-business-billing.scss';
+@import './client-business-pulse.scss';
+@import './client-business-hosting.scss';

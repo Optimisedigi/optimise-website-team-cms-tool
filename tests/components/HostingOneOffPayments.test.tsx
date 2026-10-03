@@ -60,6 +60,8 @@ async function renderSection(recipientEmail = 'billing@example.com', currency = 
       credentials: 'include',
     }),
   )
+  // The request form is collapsed behind the header button, as in the design.
+  fireEvent.click(screen.getByRole('button', { name: '+ Request payment' }))
 }
 
 describe('HostingOneOffPayments', () => {

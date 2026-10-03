@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Button } from '@payloadcms/ui'
 
 type OneOffPayment = {
   id: number
@@ -71,6 +70,14 @@ function statusLabel(payment: OneOffPayment): string {
     : `${current}. Resend scheduled for ${date(payment.resendAt)}`
 }
 
+function pillTone(payment: OneOffPayment): 'paid' | 'warn' | 'bad' | 'off' {
+  if (payment.status === 'paid') return 'paid'
+  if (payment.status === 'revoked') return 'off'
+  if (payment.sendFailed) return 'bad'
+  if (payment.status !== 'scheduled' && new Date(payment.expiresAt) <= new Date()) return 'off'
+  return 'warn'
+}
+
 /**
  * One-off payment links for a client (for example, backdated hosting). The
  * amount is charged once by card; it never touches the hosting subscription.
@@ -104,6 +111,7 @@ export function HostingOneOffPayments({
   // The row whose resend options are open, and the optional date chosen there.
   const [resendFor, setResendFor] = useState<number | null>(null)
   const [resendOn, setResendOn] = useState('')
+  const [formOpen, setFormOpen] = useState(false)
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/clients/${clientId}/hosting-one-off-payments`, {
@@ -295,15 +303,30 @@ export function HostingOneOffPayments({
 
   const amountValid = Number(amount) > 0
   return (
-    <div className="hosting-subscription-field__subscription">
-      <h3>One-off payment</h3>
-      <p>
+    <section className="od-hosting__group" aria-labelledby="od-hosting-oneoff-title">
+      <div className="od-hosting__group-head">
+        <h3 id="od-hosting-oneoff-title" className="od-hosting__group-title">
+          One-off hosting payments
+        </h3>
+        <button
+          type="button"
+          className="od-hosting__btn"
+          aria-expanded={formOpen}
+          aria-controls="od-hosting-oneoff-form"
+          onClick={() => setFormOpen((value) => !value)}
+        >
+          {formOpen ? 'Close' : '+ Request payment'}
+        </button>
+      </div>
+      {formOpen && (
+      <div className="od-hosting__inline-panel" id="od-hosting-oneoff-form">
+      <p className="od-hosting__hint">
         Ask the client for a single card payment, for example backdated hosting. The card surcharge
         from Hosting Billing Settings is added, and the link is emailed from accounts. It does not
         change their subscription.
       </p>
-      <div className="hosting-subscription-field__grid">
-        <div className="hosting-subscription-field__control">
+      <div className="od-hosting__fields">
+        <div className="od-hosting__field">
           <label htmlFor="one-off-description">What it's for</label>
           <input
             id="one-off-description"
@@ -313,7 +336,7 @@ export function HostingOneOffPayments({
             onChange={(event) => setDescription(event.target.value)}
           />
         </div>
-        <div className="hosting-subscription-field__control">
+        <div className="od-hosting__field">
           <label htmlFor="one-off-amount">Amount before surcharge ({currency.toUpperCase()})</label>
           <input
             id="one-off-amount"
@@ -325,7 +348,7 @@ export function HostingOneOffPayments({
             onChange={(event) => setAmount(event.target.value)}
           />
         </div>
-        <div className="hosting-subscription-field__control">
+        <div className="od-hosting__field">
           <label htmlFor="one-off-send-on">Send email on (optional)</label>
           <input
             id="one-off-send-on"
@@ -340,39 +363,50 @@ export function HostingOneOffPayments({
           </small>
         </div>
       </div>
-      <div className="hosting-subscription-field__actions">
+      <div className="od-hosting__offer-actions">
         {!recipientEmail && <p>Add a billing email above first.</p>}
-        <Button
+        <button
           type="button"
-          size="small"
+          className="od-hosting__btn od-hosting__btn--primary"
           disabled={busy || !recipientEmail || !description.trim() || !amountValid}
           onClick={create}
         >
           {busy ? 'Working…' : sendOn ? 'Schedule payment email' : 'Email payment link'}
-        </Button>
-        {link && (
-          <>
-            <a href={link} target="_blank" rel="noreferrer">
+        </button>
+      </div>
+      </div>
+      )}
+      {link && (
+        <div className="od-hosting__offer-actions">
+            <a className="od-hosting__link" href={link} target="_blank" rel="noreferrer">
               Open payment link
             </a>
-            <Button type="button" size="small" buttonStyle="secondary" onClick={copy}>
+            <button type="button" className="od-hosting__btn" onClick={copy}>
               {copied ? 'Link copied' : 'Copy payment link'}
-            </Button>
-          </>
-        )}
-      </div>
-      <p role="status" aria-live="polite" aria-label="One-off payment status">
+            </button>
+        </div>
+      )}
+      <p
+        className="od-hosting__status-msg"
+        role="status"
+        aria-live="polite"
+        aria-label="One-off payment status"
+      >
         {message}
       </p>
-      {payments.length > 0 && (
-        <table className="hosting-subscription-field__one-off-table">
-          <caption>Payment links sent</caption>
-          <thead>
+      {payments.length === 0 ? (
+        <div className="od-hosting__table">
+          <p className="od-hosting__table-note">No one-off payments yet</p>
+        </div>
+      ) : (
+        <table className="od-hosting__table od-hosting__oneoff-table">
+          <caption className="od-hosting__sr-only">Payment links sent</caption>
+          <thead className="od-hosting__sr-only">
             <tr>
               <th scope="col">For</th>
-              <th scope="col">Total</th>
               <th scope="col">Sent</th>
               <th scope="col">Status</th>
+              <th scope="col">Total</th>
               <th scope="col">
                 <span className="sr-only">Actions</span>
               </th>
@@ -387,19 +421,23 @@ export function HostingOneOffPayments({
                 (payment.status === 'revoked' && retryCancel.has(payment.id))
               return (
                 <tr key={payment.id}>
-                  <td>{payment.description}</td>
-                  <td>{money(payment.totalCents, payment.currency)}</td>
-                  <td>
+                  <td className="od-hosting__strong">{payment.description}</td>
+                  <td className="od-hosting__soft">
                     {payment.status === 'scheduled'
                       ? 'Not yet'
-                      : date(payment.emailSentAt ?? payment.createdAt)}
+                      : date(payment.paidAt ?? payment.emailSentAt ?? payment.createdAt)}
                   </td>
-                  <td>{statusLabel(payment)}</td>
                   <td>
+                    <span className={`od-hosting__pill od-hosting__pill--${pillTone(payment)}`}>
+                      {statusLabel(payment)}
+                    </span>
+                  </td>
+                  <td className="od-hosting__num">{money(payment.totalCents, payment.currency)}</td>
+                  <td className="od-hosting__row-actions">
                     {(payment.status === 'active' || payment.status === 'checkout_pending') &&
                       (resendFor === payment.id ? (
                         <div
-                          className="hosting-subscription-field__resend"
+                          className="od-hosting__resend"
                           role="group"
                           aria-label={`Resend options for ${payment.description}`}
                         >
@@ -411,18 +449,17 @@ export function HostingOneOffPayments({
                             value={resendOn}
                             onChange={(event) => setResendOn(event.target.value)}
                           />
-                          <Button
+                          <button
                             type="button"
-                            size="small"
+                            className="od-hosting__btn od-hosting__btn--primary"
                             disabled={busy}
                             onClick={() => resend(payment, resendOn ? { sendOn: resendOn } : {})}
                           >
                             {resendOn ? 'Schedule resend' : 'Resend now'}
-                          </Button>
-                          <Button
+                          </button>
+                          <button
                             type="button"
-                            size="small"
-                            buttonStyle="secondary"
+                            className="od-hosting__btn"
                             disabled={busy}
                             onClick={() => {
                               setResendFor(null)
@@ -430,14 +467,13 @@ export function HostingOneOffPayments({
                             }}
                           >
                             Back
-                          </Button>
+                          </button>
                         </div>
                       ) : (
                         <>
-                          <Button
+                          <button
                             type="button"
-                            size="small"
-                            buttonStyle="secondary"
+                            className="od-hosting__btn"
                             disabled={busy}
                             aria-label={`Resend link for ${payment.description}`}
                             onClick={() => {
@@ -446,43 +482,40 @@ export function HostingOneOffPayments({
                             }}
                           >
                             Resend link
-                          </Button>
+                          </button>
                           {payment.resendAt && (
-                            <Button
+                            <button
                               type="button"
-                              size="small"
-                              buttonStyle="secondary"
+                              className="od-hosting__btn"
                               disabled={busy}
                               aria-label={`Cancel scheduled resend for ${payment.description}`}
                               onClick={() => resend(payment, { cancelSchedule: true })}
                             >
                               Cancel resend
-                            </Button>
+                            </button>
                           )}
                         </>
                       ))}
                     {open && (
-                      <Button
+                      <button
                         type="button"
-                        size="small"
-                        buttonStyle="secondary"
+                        className="od-hosting__btn"
                         disabled={busy}
                         onClick={() => revoke(payment)}
                       >
                         Cancel link
-                      </Button>
+                      </button>
                     )}
                     {payment.status === 'revoked' && !retryCancel.has(payment.id) && (
-                      <Button
+                      <button
                         type="button"
-                        size="small"
-                        buttonStyle="secondary"
+                        className="od-hosting__btn"
                         disabled={busy}
                         aria-label={`Remove cancelled link for ${payment.description}`}
                         onClick={() => hide(payment)}
                       >
                         Remove
-                      </Button>
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -491,6 +524,6 @@ export function HostingOneOffPayments({
           </tbody>
         </table>
       )}
-    </div>
+    </section>
   )
 }

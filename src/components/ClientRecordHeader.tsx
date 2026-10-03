@@ -4,6 +4,7 @@ import { useAllFormFields, useDocumentInfo, useField, useFormFields } from '@pay
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import ClientBreadcrumbSwitcher from './ClientBreadcrumbSwitcher'
 import GoogleAdsClientSwitcher from './GoogleAdsClientSwitcher'
+import ClientOverviewPill from './client-business/ClientOverviewPill'
 import {
   firstMonthProrationFactor,
   historicalRevenueTotal,
@@ -353,6 +354,8 @@ function ClientRecordHeaderForClient() {
   })
   // Read live from form state so toggling Is Agency immediately hides revenue stats.
   const isAgency = useFormFields(([fields]) => !!fields.isAgency?.value)
+  // Live overview so the popover read view reflects edits before saving.
+  const liveOverview = useFormFields(([fields]) => fields.clientOverview?.value)
 
   // Only tag <body> once the record exists. The scoped `od-client-record` CSS
   // visually hides the in-body Logo and Services fields because the header card
@@ -427,6 +430,8 @@ function ClientRecordHeaderForClient() {
         showGoogleAdsClientSwitcher={data.services.includes('google_ads')}
         onLogoClick={openLogoPicker}
         onServiceToggle={toggleService}
+        overviewEditable
+        liveOverview={liveOverview}
       />
     </>
   )
@@ -442,6 +447,8 @@ function ClientHeaderCard({
   clientProfileHref,
   googleAdsClientId,
   showGoogleAdsClientSwitcher = false,
+  overviewEditable = false,
+  liveOverview,
 }: {
   data: SavedData
   selectedServices: Set<ServiceValue>
@@ -452,10 +459,16 @@ function ClientHeaderCard({
   clientProfileHref?: string
   googleAdsClientId?: string | number
   showGoogleAdsClientSwitcher?: boolean
+  /** Client edit view: the popover can edit `clientOverview` in place. */
+  overviewEditable?: boolean
+  /** Live (unsaved) overview from form state; falls back to saved data. */
+  liveOverview?: unknown
 }) {
   const { name, websiteUrl, slug, isActive, logoThumbUrl } = data
   const domain = displayDomain(websiteUrl)
-  const clientOverview = renderClientOverview(data.clientOverview)
+  const clientOverview = renderClientOverview(
+    liveOverview !== undefined ? liveOverview : data.clientOverview,
+  )
   const isRecurring = isActive && data.monthlyRetainer > 0
   const revenue = computeRevenue(data)
   const clientSinceLabel = revenue.clientSince
@@ -527,17 +540,7 @@ function ClientHeaderCard({
             >
               {isActive ? 'Active' : 'Inactive'}
             </span>
-            <span className="od-client-head__overview" tabIndex={0} aria-label="Who is this client?">
-              <span className="od-client-head__overview-icon" aria-hidden>
-                ?
-              </span>
-              <span className="od-client-head__overview-popover" role="tooltip">
-                <strong>Who is this client?</strong>
-                <span>
-                  {clientOverview ?? 'No client overview added yet. Add it in the Business tab under “Who is this client?”.'}
-                </span>
-              </span>
-            </span>
+            <ClientOverviewPill content={clientOverview} editable={overviewEditable} />
             {data.isAgency && (
               <span className="od-client-head__pill od-client-head__pill--agency">
                 Agency

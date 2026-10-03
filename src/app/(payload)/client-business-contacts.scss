@@ -1,0 +1,238 @@
+// Client record · Business tab — Contacts + Locations components
+// (AdditionalContactsField, AccountManagersField, MapsListingsField).
+// Builds on client-business-primitives.scss.
+
+.collection-edit--clients {
+  .od-biz-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  // ── Additional contacts ──
+  .od-biz-contacts {
+    margin-block-end: 20px;
+  }
+
+  .od-biz-contacts__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  .od-biz-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--odb-border);
+    border-radius: 10px;
+    background: var(--odb-card-2);
+  }
+
+  .od-biz-contact__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .od-biz-contact__avatar {
+    display: grid;
+    place-items: center;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e4f4f2;
+    font-size: 12px;
+    font-weight: 700;
+    color: #2a706d;
+  }
+
+  .od-biz-contact__who {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .od-biz-contact__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--odb-t1);
+    overflow-wrap: anywhere;
+  }
+
+  .od-biz-contact__title {
+    font-size: 12px;
+    color: var(--odb-t2);
+  }
+
+  .od-biz-contact__meta {
+    font-size: 12px;
+    color: var(--odb-t2);
+    overflow-wrap: anywhere;
+
+    a {
+      color: var(--odb-accent-strong);
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--odb-accent);
+        outline-offset: 2px;
+        border-radius: 3px;
+      }
+    }
+  }
+
+  .od-biz-contact__resp {
+    padding-block-start: 8px;
+    border-block-start: 1px solid var(--odb-border-soft);
+    font-size: 12px;
+    color: var(--odb-t2);
+    white-space: pre-wrap;
+  }
+
+  .od-biz-contact__form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .od-biz-contact__inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+
+  .od-biz-contact__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .od-biz-contacts__add {
+    min-height: 110px;
+    font-size: 13px;
+  }
+
+  // ── Account managers ──
+  .od-biz-managers {
+    margin-block-end: 20px;
+  }
+
+  .od-biz-managers__list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .od-biz-manager-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 36px;
+    padding-block: 0;
+    padding-inline: 4px 6px;
+    border: 1px solid var(--odb-border);
+    border-radius: 20px;
+    background: var(--odb-card);
+    max-width: 100%;
+  }
+
+  .od-biz-manager-chip__main {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 0;
+    padding-inline-end: 2px;
+    border: 0;
+    border-radius: 20px;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--odb-accent);
+      outline-offset: 2px;
+    }
+  }
+
+  .od-biz-manager-chip__avatar {
+    display: grid;
+    place-items: center;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2c97c9, #6366f1);
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .od-biz-manager-chip__name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--odb-t1);
+    white-space: nowrap;
+  }
+
+  .od-biz-manager-chip__email {
+    font-size: 12px;
+    color: #6b7380; // var(--odb-t3) fails AA on white at 12px
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .od-biz-manager-chip .od-biz-remove {
+    border-radius: 50%;
+  }
+
+  .od-biz-managers__add {
+    height: 36px;
+    border-radius: 20px;
+  }
+
+  .od-biz-managers__picker {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(140px, 1fr) minmax(160px, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 100%;
+    padding: 10px;
+  }
+
+  // ── Maps listings ──
+  .od-biz-maps {
+    margin-block-end: 0;
+  }
+
+  .od-biz-maps__label-col {
+    inline-size: 32%;
+  }
+
+  .od-biz-maps__x-col {
+    inline-size: 40px;
+  }
+
+  .od-biz-maps__url {
+    font-size: 12.5px;
+  }
+
+  .od-biz-maps .od-biz-table-foot {
+    justify-content: flex-start;
+  }
+}

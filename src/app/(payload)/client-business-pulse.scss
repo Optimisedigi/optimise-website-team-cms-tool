@@ -1,0 +1,393 @@
+// ============================================================
+// Client record · Business tab — Pulse, WeCanQuit, Contracts, Advanced
+// ============================================================
+// Component styles for src/components/client-business/* and
+// ClientSignedContractButton. Builds on client-business-primitives.scss
+// (--odb-* vars, .od-biz-* primitives). Scoped to the client edit view.
+
+.collection-edit--clients {
+  .od-biz-field {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .od-biz-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  // ── Priority segmented control (36px tall overall) ──
+  .od-biz-segmented {
+    display: flex;
+    gap: 2px;
+    box-sizing: border-box;
+    height: 36px;
+    padding: 3px;
+    border: 1px solid var(--odb-border);
+    border-radius: 9px;
+    background: var(--odb-card-2);
+  }
+
+  .od-biz-segmented__item {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--odb-t2);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--odb-ease),
+      color var(--odb-ease),
+      box-shadow var(--odb-ease);
+
+    &:hover {
+      color: var(--odb-t1);
+    }
+
+    &.is-active {
+      background: var(--odb-card);
+      color: var(--odb-t1);
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--odb-accent);
+      outline-offset: 1px;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+
+  // ── Services tracked chips ──
+  .od-biz-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .od-biz-chip {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    height: 28px;
+    padding: 0 12px;
+    border: 1px solid var(--odb-border);
+    border-radius: 20px;
+    background: var(--odb-card);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--odb-t2);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--odb-ease),
+      border-color var(--odb-ease),
+      color var(--odb-ease);
+
+    &:hover {
+      border-color: #d5d9e0;
+      color: var(--odb-t1);
+    }
+
+    &.is-on {
+      border-color: rgba(56, 189, 248, 0.4);
+      background: rgba(56, 189, 248, 0.14);
+      color: var(--odb-accent-strong);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--odb-accent);
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+  }
+
+  // ── Card metrics ordered list ──
+  .od-biz-metrics__box {
+    border: 1px solid var(--odb-border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--odb-card);
+  }
+
+  .od-biz-metrics__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .od-biz-metrics__row {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1.4fr) minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 12px;
+    border-block-end: 1px solid var(--odb-border-soft);
+    font-size: 13px;
+  }
+
+  .od-biz-metrics__index {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--odb-t3);
+  }
+
+  .od-biz-metrics__state {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 66px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--odb-t2);
+  }
+
+  .od-biz-metrics__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .od-biz-metrics__move {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--odb-t2);
+    cursor: pointer;
+    transition:
+      background-color var(--odb-ease),
+      color var(--odb-ease);
+
+    &:hover:not(:disabled) {
+      background: var(--odb-border-soft);
+      color: var(--odb-t1);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--odb-accent);
+      outline-offset: 1px;
+    }
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+  }
+
+  .od-biz-metrics__add {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 9px 12px;
+    font-size: 13px;
+    border-radius: 0;
+
+    &:focus-visible {
+      outline-offset: -2px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .od-biz-metrics__row {
+      grid-template-columns: 20px minmax(0, 1fr) auto;
+    }
+  }
+
+  // ── Legacy analytics metrics line ──
+  .od-biz-muted-line {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--odb-t3);
+  }
+
+  // ── Neglect days suffix ──
+  .od-biz-input--suffix {
+    padding-inline-end: 44px;
+  }
+
+  // ── WeCanQuit stats ──
+  .od-biz-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px 18px;
+  }
+
+  .od-biz-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .od-biz-stat__label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--odb-t1);
+  }
+
+  .od-biz-stat__value {
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.2;
+    color: var(--odb-t1);
+  }
+
+  .od-biz-stat__target {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--odb-t3);
+  }
+
+  .od-biz-synced {
+    font-size: 12px;
+    color: var(--odb-t3);
+    white-space: nowrap;
+  }
+
+  // ── API key ──
+  .od-biz-apikey__row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .od-biz-apikey__value {
+    flex: 1 1 auto;
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+  }
+
+  .od-biz-apikey__copy {
+    height: 36px;
+    border-radius: 9px;
+  }
+
+  .od-biz-apikey .od-biz-error {
+    margin: 6px 0 0;
+  }
+
+  // ── Retainer history ──
+  .od-biz-retainer__change {
+    font-weight: 600;
+  }
+
+  .od-biz-retainer__date {
+    color: var(--odb-t2);
+  }
+
+  .od-biz-retainer__by {
+    color: var(--odb-t3);
+  }
+
+  // ── Contracts ──
+  .od-biz-contracts {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .od-biz-contracts__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .od-biz-contract-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--odb-border);
+    border-radius: 10px;
+    background: var(--odb-card);
+    font-size: 13px;
+
+    .od-biz-pill {
+      height: 22px;
+      padding: 0 9px;
+    }
+  }
+
+  .od-biz-contract-row__name {
+    flex: 1 1 180px;
+    min-width: 0;
+    color: var(--odb-t1);
+
+    b {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+      border-radius: 4px;
+
+      &:hover {
+        text-decoration: underline;
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--odb-accent);
+        outline-offset: 2px;
+      }
+    }
+  }
+
+  .od-biz-contract-row__meta {
+    font-size: 12.5px;
+    color: var(--odb-t2);
+  }
+
+  .od-biz-contracts__templates {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+
+    .od-biz-label {
+      margin: 0;
+      white-space: nowrap;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .od-biz-segmented__item,
+    .od-biz-chip,
+    .od-biz-metrics__move {
+      transition: none;
+    }
+  }
+}

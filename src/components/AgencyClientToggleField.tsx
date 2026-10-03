@@ -1,8 +1,9 @@
 'use client'
 
-import { CheckboxInput, FieldDescription, FieldError, useDocumentInfo, useEditDepth, useField } from '@payloadcms/ui'
-import { useEffect, useMemo, useState } from 'react'
+import { FieldError, useDocumentInfo, useField } from '@payloadcms/ui'
+import { useEffect, useState } from 'react'
 import type { CheckboxFieldClientComponent } from 'payload'
+import { ToggleRow } from './client-business/ToggleRowField'
 
 type AgencyClient = {
   id: number | string
@@ -11,18 +12,14 @@ type AgencyClient = {
 
 const AgencyClientToggleField: CheckboxFieldClientComponent = (props) => {
   const {
-    id,
-    field,
     field: {
       admin: { description } = {},
       label,
-      required,
     } = {},
     path: pathFromProps,
     readOnly,
   } = props
   const { id: documentId } = useDocumentInfo()
-  const editDepth = useEditDepth()
   const [agencyClient, setAgencyClient] = useState<AgencyClient | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -57,38 +54,34 @@ const AgencyClientToggleField: CheckboxFieldClientComponent = (props) => {
   const currentId = documentId !== undefined && documentId !== null ? String(documentId) : null
   const anotherClientIsAgency = Boolean(agencyId && currentId && agencyId !== currentId)
   const hideToggle = anotherClientIsAgency && !value
-  const fieldID = id || `${path}-${editDepth}`
-
-  const styles = useMemo(() => {
-    return field?.admin?.style ?? undefined
-  }, [field])
-
   if (hideToggle) {
     return (
-      <div className="field-type checkbox" style={styles}>
-        <p style={{ color: '#6b7280', fontSize: 12, margin: 0 }}>
-          Agency client is already set to <strong>{agencyClient?.name || `client #${agencyClient?.id}`}</strong>.
-        </p>
+      <div className="field-type checkbox od-biz-toggle-field">
+        <div className="od-biz-toggle-row">
+          <div className="od-biz-toggle-row__text">
+            <span className="od-biz-toggle-row__label">{typeof label === 'string' ? label : 'Agency account'}</span>
+            <span className="od-biz-toggle-row__desc">
+              Agency client is already set to <strong>{agencyClient?.name || `client #${agencyClient?.id}`}</strong>.
+            </span>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className={`field-type checkbox${value ? ' checkbox--checked' : ''}`} style={styles}>
-      <FieldError path={path} showError={showError} />
-      <CheckboxInput
+    <div className="field-type checkbox od-biz-toggle-field">
+      <ToggleRow
+        label={typeof label === 'string' ? label : 'Agency account'}
+        description={typeof description === 'string' ? description : undefined}
         checked={Boolean(value)}
-        id={fieldID}
-        label={label}
-        name={path}
+        disabled={Boolean(readOnly) || loading}
         onToggle={() => {
           if (readOnly || loading) return
           setValue(!value)
         }}
-        readOnly={readOnly || loading}
-        required={required}
+        error={<FieldError path={path} showError={showError} />}
       />
-      <FieldDescription description={description} path={path} />
     </div>
   )
 }

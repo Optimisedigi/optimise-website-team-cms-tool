@@ -45,14 +45,12 @@ function extractRows(fields: Record<string, { value?: unknown }>, basePath: stri
   return rows
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  fontSize: 13,
-  border: '1px solid var(--theme-elevation-150, #ccc)',
-  borderRadius: 4,
-  background: 'var(--theme-input-bg, #fff)',
-  color: 'var(--theme-text, #333)',
+export function managerInitials(name: string, email: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return (email[0] ?? '?').toUpperCase()
+  const first = parts[0]?.[0] ?? ''
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''
+  return (first + last).toUpperCase()
 }
 
 function AccountManagersField(props: {
@@ -66,6 +64,8 @@ function AccountManagersField(props: {
   const { addFieldRow, removeFieldRow } = useForm()
 
   const [managers, setManagers] = useState<ManagerOption[]>([])
+  // Row currently open in the picker (freshly added rows open automatically).
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
 
   useEffect(() => {
     let active = true
@@ -122,108 +122,119 @@ function AccountManagersField(props: {
 
   const handleAdd = useCallback(() => {
     addFieldRow({ path, schemaPath, rowIndex: rows.length })
+    setEditingIndex(rows.length)
   }, [addFieldRow, path, schemaPath, rows.length])
 
   const handleRemove = useCallback(
     (index: number) => {
       removeFieldRow({ path, rowIndex: index })
+      setEditingIndex(null)
     },
     [removeFieldRow, path],
   )
 
   const label =
     typeof props?.field?.label === 'string' ? props.field.label : 'Account Managers'
-  const description =
-    props?.field?.admin?.description ||
-    'Team members managing this client. They receive notifications for ad copy approvals, audits, etc.'
+  // Optional hint from the schema; the Business tab design shows none.
+  const description = props?.field?.admin?.description
 
   return (
-    <div className="field-type" style={{ marginBottom: 20 }}>
-      <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>{label}</label>
-      <p style={{ color: '#888', fontSize: 12, marginTop: 0, marginBottom: 10 }}>{description}</p>
+    <div className="field-type od-biz-managers">
+      <h3 className="od-biz-eyebrow">Account managers</h3>
+      {/* Field label kept for screen readers. */}
+      <span className="od-biz-sr-only">{label}</span>
 
-      {rows.length === 0 && (
-        <p style={{ color: '#888', fontSize: 13, marginBottom: 10 }}>
-          No account managers assigned yet.
-        </p>
-      )}
+      <div className="od-biz-managers__list">
+        {rows.map((row, index) => {
+          const displayName = row.name || row.email || 'New manager'
+          const isEditing = editingIndex === index || (!row.name && !row.email)
+          if (isEditing) {
+            return (
+              <div className="od-biz-panel od-biz-managers__picker" key={index}>
+                <select
+                  aria-label="Select CMS user as account manager"
+                  className="od-biz-select"
+                  value={managers.some((m) => m.email === row.email) ? row.email : ''}
+                  onChange={(e) => handleUserSelect(index, e.target.value)}
+                >
+                  <option value="">Choose CMS user…</option>
+                  {managers.map((m) => (
+                    <option key={m.email} value={m.email}>
+                      {m.name} ({m.email})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  className="od-biz-input"
+                  aria-label="Account manager name"
+                  placeholder="Or type a name…"
+                  value={row.name}
+                  onChange={(e) => handleNameChange(index, e.target.value)}
+                />
+                <input
+                  type="email"
+                  className="od-biz-input"
+                  aria-label="Account manager email"
+                  placeholder="email@example.com"
+                  value={row.email}
+                  onChange={(e) => handleEmailChange(index, e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="od-biz-btn od-biz-btn--sm od-biz-btn--primary"
+                  onClick={() => setEditingIndex(null)}
+                >
+                  Done
+                </button>
+                <button
+                  type="button"
+                  className="od-biz-remove"
+                  onClick={() => handleRemove(index)}
+                  aria-label={`Remove ${row.name || 'account manager'}`}
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            )
+          }
+          return (
+            <span className="od-biz-manager-chip" key={index} data-testid="manager-chip">
+              <button
+                type="button"
+                className="od-biz-manager-chip__main"
+                aria-label={`Edit ${displayName}`}
+                onClick={() => setEditingIndex(index)}
+              >
+                <span className="od-biz-manager-chip__avatar" aria-hidden="true">
+                  {managerInitials(row.name, row.email)}
+                </span>
+                <span className="od-biz-manager-chip__name">{displayName}</span>
+                {row.email && <span className="od-biz-manager-chip__email">{row.email}</span>}
+              </button>
+              <button
+                type="button"
+                className="od-biz-remove"
+                onClick={() => handleRemove(index)}
+                aria-label={`Remove ${displayName}`}
+                title="Remove"
+              >
+                ×
+              </button>
+            </span>
+          )
+        })}
 
-      {rows.map((row, index) => (
-        <div
-          key={index}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(180px, 0.9fr) 1fr 1fr 36px',
-            gap: 8,
-            alignItems: 'center',
-            marginBottom: 8,
-          }}
+        <button
+          type="button"
+          className="od-biz-add-dashed od-biz-managers__add"
+          onClick={handleAdd}
         >
-          <select
-            aria-label="Select CMS user as account manager"
-            value={managers.some((m) => m.email === row.email) ? row.email : ''}
-            onChange={(e) => handleUserSelect(index, e.target.value)}
-            style={inputStyle}
-          >
-            <option value="">Choose CMS user…</option>
-            {managers.map((m) => (
-              <option key={m.email} value={m.email}>
-                {m.name} ({m.email})
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="Or type a name…"
-            value={row.name}
-            onChange={(e) => handleNameChange(index, e.target.value)}
-            style={inputStyle}
-          />
-          <input
-            type="email"
-            placeholder="email@example.com"
-            value={row.email}
-            onChange={(e) => handleEmailChange(index, e.target.value)}
-            style={inputStyle}
-          />
-          <button
-            type="button"
-            onClick={() => handleRemove(index)}
-            aria-label="Remove account manager"
-            title="Remove"
-            style={{
-              border: '1px solid var(--theme-elevation-150, #ccc)',
-              background: 'var(--theme-input-bg, #fff)',
-              color: '#b91c1c',
-              borderRadius: 4,
-              height: 34,
-              cursor: 'pointer',
-              fontSize: 16,
-              lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        </div>
-      ))}
-
-      <button
-        type="button"
-        onClick={handleAdd}
-        style={{
-          marginTop: 4,
-          padding: '7px 14px',
-          fontSize: 13,
-          fontWeight: 600,
-          border: '1px solid var(--theme-elevation-150, #ccc)',
-          background: 'var(--theme-elevation-50, #f3f4f6)',
-          color: 'var(--theme-text, #333)',
-          borderRadius: 4,
-          cursor: 'pointer',
-        }}
-      >
-        + Add account manager
-      </button>
+          + Add manager
+        </button>
+      </div>
+      {description && <p className="od-biz-hint">{description}</p>}
     </div>
   )
 }

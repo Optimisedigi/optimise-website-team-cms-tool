@@ -2,17 +2,37 @@ import { default as default_5164bc2f3a3226d7b1d82146ff4ed3f0 } from '../../../co
 import { default as default_4aab2fbdea9dfe40f4fe8faf27c0b0d1 } from '../../../components/clients-list/MonthsActiveCell'
 import { default as default_5309cef183be6bdf16bb392cf8fd6f3b } from '../../../components/ClientRecordHeader'
 import { default as default_3d79dbcfcaa26d85aa8754377a3675dd } from '../../../components/AgencyBadge'
+import { default as default_1dc5ebb33b3e4aea8a43b65a3d62ab39 } from '../../../components/client-business/BusinessSectionMenu'
 import { default as default_50b91e94cbd399a9e8db44292fbb507f } from '../../../components/clients-list/NameAvatarCell'
 import { default as default_71c8c06dc8caa5debc23ed3566764a63 } from '../../../components/clients-list/SlugCell'
 import { default as default_a04d3e5e4f63cb4971cc6756d558eb31 } from '../../../components/clients-list/PinCell'
+import { default as default_e5bf6af1a5574cfb02b272739398fc9f } from '../../../components/client-business/BusinessBlock'
 import { default as default_4688024c692ee599e6afafd55990ce14 } from '../../../components/clients-list/StatusCell'
+import { default as default_88a5701f5ae792af19139cfc3edd69f8 } from '../../../components/client-business/ToggleRowField'
 import { default as default_3bdd599103664c7cbba890063d6642e9 } from '../../../components/AgencyClientToggleField'
+import { default as default_08a81337f1bbd6b7057882481ad5017c } from '../../../components/client-business/BusinessSection'
+import { default as default_cf8d5715056457ba1b90c8b1b5818f78 } from '../../../components/client-business/WeCanQuitStatsField'
+import { default as default_7d4a061d82208b5427e356d5d6f4265e } from '../../../components/client-business/BusinessEyebrow'
+import { default as default_0fbc75c2395361561b8d8e82434e8090 } from '../../../components/client-business/AdditionalContactsField'
 import { default as default_a9f880a6de06ab5f693a05644fa1793e } from '../../../components/clients-list/AccountManagerCell'
 import { default as default_b01924fac7c8fdeb53e1e3279533a6b2 } from '../../../components/AccountManagersField'
+import { default as default_99ec22b9203bb1fd2ce0198a9be30c58 } from '../../../components/client-business/MapsListingsField'
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
 import { default as default_6a5b1e7effb81eb770bec93b1614e740 } from '../../../components/FirstMonthRetainerField'
-import { default as default_129becbc8aaa64d8e1f9829187e647cb } from '../../../components/HostingSubscriptionField'
+import { default as default_7b52b566902f68eced5467b59ecb7c18 } from '../../../components/client-business/BusinessSubPanel'
+import { default as default_0df8d8833217bdb649d3a86b7ef34d1c } from '../../../components/client-business/OneOffProjectsField'
+import { default as default_ea0e89bf94093d6c50f986bf704ea45b } from '../../../components/client-business/ReferralCommissionsField'
+import { default as default_cb0cf2d5164be04ea91c49e8fd45bb34 } from '../../../components/client-business/HistoricalRevenueField'
+import { default as default_64cce19e794eb4d0d9e6f1da222d4882 } from '../../../components/client-business/YearlyTargetsField'
 import { default as default_c5ea9fe7cd59f6fed2f187082f64a9ed } from '../../../components/ClientSignedContractButton'
+import { default as default_129becbc8aaa64d8e1f9829187e647cb } from '../../../components/HostingSubscriptionField'
+import { default as default_75b31c18f2b226fe01c580342c8cbeaa } from '../../../components/client-business/PulsePriorityField'
+import { default as default_4c7ef172e6145a22decf0c59d3014768 } from '../../../components/client-business/ServicesTrackedField'
+import { default as default_65452fc119d6baf48b3805cef1fce51a } from '../../../components/client-business/DashboardMetricsField'
+import { default as default_241a13dac31d10075d2103f6096af0bb } from '../../../components/client-business/AnalyticsMetricsNoteField'
+import { default as default_5f56748e25bd61600972b5d6b67f5273 } from '../../../components/client-business/NeglectDaysField'
+import { default as default_89c87923829858211ee10d9a1c6c4c16 } from '../../../components/client-business/ApiKeyField'
+import { default as default_2108cb5c08308bc6aa19c7a7f23381a6 } from '../../../components/client-business/RetainerHistoryField'
 import { RscEntryLexicalCell as RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { RscEntryLexicalField as RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { LexicalDiffComponent as LexicalDiffComponent_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
@@ -37,6 +57,7 @@ import { StrikethroughFeatureClient as StrikethroughFeatureClient_e70f5e05f09f93
 import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { default as default_4154adf929c45005b5e82bbfec0e76b5 } from '../../../components/client-business/ClientOverviewEditorPortal'
 import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
 import { default as default_9ac394c54993eebab40c6ee07594e90a } from '../../../components/admin/DiscoveryBriefingPanel'
 import { default as default_30019ca76d88f22be3a9fab3c840976c } from '../../../components/AccountTimelineTable'
@@ -223,17 +244,37 @@ export const importMap = {
   "./components/clients-list/MonthsActiveCell#default": default_4aab2fbdea9dfe40f4fe8faf27c0b0d1,
   "./components/ClientRecordHeader#default": default_5309cef183be6bdf16bb392cf8fd6f3b,
   "./components/AgencyBadge#default": default_3d79dbcfcaa26d85aa8754377a3675dd,
+  "./components/client-business/BusinessSectionMenu#default": default_1dc5ebb33b3e4aea8a43b65a3d62ab39,
   "./components/clients-list/NameAvatarCell#default": default_50b91e94cbd399a9e8db44292fbb507f,
   "./components/clients-list/SlugCell#default": default_71c8c06dc8caa5debc23ed3566764a63,
   "./components/clients-list/PinCell#default": default_a04d3e5e4f63cb4971cc6756d558eb31,
+  "./components/client-business/BusinessBlock#default": default_e5bf6af1a5574cfb02b272739398fc9f,
   "./components/clients-list/StatusCell#default": default_4688024c692ee599e6afafd55990ce14,
+  "./components/client-business/ToggleRowField#default": default_88a5701f5ae792af19139cfc3edd69f8,
   "./components/AgencyClientToggleField#default": default_3bdd599103664c7cbba890063d6642e9,
+  "./components/client-business/BusinessSection#default": default_08a81337f1bbd6b7057882481ad5017c,
+  "./components/client-business/WeCanQuitStatsField#default": default_cf8d5715056457ba1b90c8b1b5818f78,
+  "./components/client-business/BusinessEyebrow#default": default_7d4a061d82208b5427e356d5d6f4265e,
+  "./components/client-business/AdditionalContactsField#default": default_0fbc75c2395361561b8d8e82434e8090,
   "./components/clients-list/AccountManagerCell#default": default_a9f880a6de06ab5f693a05644fa1793e,
   "./components/AccountManagersField#default": default_b01924fac7c8fdeb53e1e3279533a6b2,
+  "./components/client-business/MapsListingsField#default": default_99ec22b9203bb1fd2ce0198a9be30c58,
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
   "./components/FirstMonthRetainerField#default": default_6a5b1e7effb81eb770bec93b1614e740,
-  "./components/HostingSubscriptionField#default": default_129becbc8aaa64d8e1f9829187e647cb,
+  "./components/client-business/BusinessSubPanel#default": default_7b52b566902f68eced5467b59ecb7c18,
+  "./components/client-business/OneOffProjectsField#default": default_0df8d8833217bdb649d3a86b7ef34d1c,
+  "./components/client-business/ReferralCommissionsField#default": default_ea0e89bf94093d6c50f986bf704ea45b,
+  "./components/client-business/HistoricalRevenueField#default": default_cb0cf2d5164be04ea91c49e8fd45bb34,
+  "./components/client-business/YearlyTargetsField#default": default_64cce19e794eb4d0d9e6f1da222d4882,
   "./components/ClientSignedContractButton#default": default_c5ea9fe7cd59f6fed2f187082f64a9ed,
+  "./components/HostingSubscriptionField#default": default_129becbc8aaa64d8e1f9829187e647cb,
+  "./components/client-business/PulsePriorityField#default": default_75b31c18f2b226fe01c580342c8cbeaa,
+  "./components/client-business/ServicesTrackedField#default": default_4c7ef172e6145a22decf0c59d3014768,
+  "./components/client-business/DashboardMetricsField#default": default_65452fc119d6baf48b3805cef1fce51a,
+  "./components/client-business/AnalyticsMetricsNoteField#default": default_241a13dac31d10075d2103f6096af0bb,
+  "./components/client-business/NeglectDaysField#default": default_5f56748e25bd61600972b5d6b67f5273,
+  "./components/client-business/ApiKeyField#default": default_89c87923829858211ee10d9a1c6c4c16,
+  "./components/client-business/RetainerHistoryField#default": default_2108cb5c08308bc6aa19c7a7f23381a6,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalCell": RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalField": RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e,
   "@payloadcms/richtext-lexical/rsc#LexicalDiffComponent": LexicalDiffComponent_44fe37237e0ebf4470c9990d8cb7b07e,
@@ -258,6 +299,7 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UnderlineFeatureClient": UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#BoldFeatureClient": BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "./components/client-business/ClientOverviewEditorPortal#default": default_4154adf929c45005b5e82bbfec0e76b5,
   "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
   "./components/admin/DiscoveryBriefingPanel#default": default_9ac394c54993eebab40c6ee07594e90a,
   "./components/AccountTimelineTable#default": default_30019ca76d88f22be3a9fab3c840976c,

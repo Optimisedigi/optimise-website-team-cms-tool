@@ -1,6 +1,7 @@
 'use client'
 
 import { useFormFields } from '@payloadcms/ui'
+import type { ReactElement } from 'react'
 
 import { firstMonthRetainerAmount } from '../lib/client-revenue'
 
@@ -18,7 +19,7 @@ function asNumber(value: unknown): number {
  * user edits the retainer start date + monthly retainer. Mirrors the backend
  * `firstMonthRetainerAmount` math so the admin preview matches YTD rollups.
  */
-const FirstMonthRetainerField = () => {
+const FirstMonthRetainerField = (): ReactElement => {
   const { retainerStartDate, clientStartDate, monthlyRetainer } = useFormFields(
     ([fields]) => ({
       retainerStartDate: asString(fields?.retainerStartDate?.value),
@@ -30,60 +31,37 @@ const FirstMonthRetainerField = () => {
   const anchor = retainerStartDate ?? clientStartDate
   const amount = firstMonthRetainerAmount(monthlyRetainer, anchor)
 
-  if (!anchor || monthlyRetainer <= 0) {
-    return (
-      <div className="field-type" style={{ marginBottom: 0 }}>
-        <label className="field-label">First-month retainer</label>
-        <p style={{ color: 'var(--theme-elevation-400)', margin: '4px 0 0' }}>
-          Set a monthly retainer and start date to preview the pro-rated first month.
-        </p>
-      </div>
-    )
-  }
+  const computable = Boolean(anchor) && monthlyRetainer > 0
 
-  const start = new Date(anchor)
-  const daysInMonth = new Date(
-    start.getFullYear(),
-    start.getMonth() + 1,
-    0,
-  ).getDate()
-  const billedDays = daysInMonth - start.getDate() + 1
-  const isProrated = billedDays < daysInMonth
+  const formatted = computable
+    ? amount.toLocaleString('en-AU', {
+        style: 'currency',
+        currency: 'AUD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })
+    : '\u2014'
 
-  const formatted = amount.toLocaleString('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
+  const fromDate =
+    computable && anchor
+      ? new Date(anchor).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+      : null
 
   return (
-    <div className="field-type" style={{ marginBottom: 0 }}>
-      <label className="field-label">First-month retainer</label>
-      <p style={{ margin: '4px 0 0', fontWeight: 600 }}>
+    <div className="field-type od-biz-first-month" style={{ marginBottom: 0 }}>
+      <span className="od-biz-label" id="od-biz-first-month-label">
+        First month
+      </span>
+      <div
+        className="od-biz-first-month__value"
+        role="status"
+        aria-labelledby="od-biz-first-month-label"
+        data-testid="first-month-value"
+      >
         {formatted}
-        {isProrated && (
-          <span
-            style={{
-              marginLeft: 8,
-              fontWeight: 400,
-              color: 'var(--theme-elevation-500)',
-            }}
-          >
-            — pro-rated, {billedDays} of {daysInMonth} days
-          </span>
-        )}
-        {!isProrated && (
-          <span
-            style={{
-              marginLeft: 8,
-              fontWeight: 400,
-              color: 'var(--theme-elevation-500)',
-            }}
-          >
-            — full month
-          </span>
-        )}
+      </div>
+      <p className="od-biz-hint" data-testid="first-month-hint">
+        {fromDate ? `Pro-rated from ${fromDate}` : 'Set a retainer and start date'}
       </p>
     </div>
   )
