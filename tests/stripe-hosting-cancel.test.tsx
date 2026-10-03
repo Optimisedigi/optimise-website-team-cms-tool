@@ -57,10 +57,7 @@ describe('hosting Checkout cancellation', () => {
     { interval: 'month' as const, billingStart: {} },
     {
       interval: 'year' as const,
-      billingStart: {
-        billing_cycle_anchor_config: { day_of_month: 15, month: 11, hour: 2, minute: 0 as const, second: 0 as const },
-        proration_behavior: 'create_prorations' as const,
-      },
+      billingStart: { billing_cycle_anchor: 1_790_000_000, proration_behavior: 'none' as const },
     },
     { interval: 'month' as const, billingStart: { trial_end: 1_800_000_000 } },
   ])('passes the billing start schedule to Stripe unchanged ($interval)', async ({ interval, billingStart }) => {
@@ -87,6 +84,60 @@ describe('hosting Checkout cancellation', () => {
       metadata: { cmsClientId: '42', hostingOfferId: '99' },
       ...billingStart,
     })
+    // No first payment, so no note and a single plan line.
+    expect(createSession.mock.calls[0]?.[0]?.custom_text).toBeUndefined()
+    expect(createSession.mock.calls[0]?.[0]?.line_items).toHaveLength(1)
+  })
+
+  it('adds the full price for a past start date as a one-time charge, with the plan waiting until renewal', async () => {
+    await createHostingCheckout({
+      clientId: '42',
+      offerId: '99',
+      email: 'billing@example.com',
+      idempotencyKey: 'checkout-test',
+      billingStart: { trial_end: 1_820_000_000 },
+      firstPayment: { paidUntil: '14 September 2027' },
+      quote: {
+        currency: 'aud',
+        interval: 'year',
+        planName: 'Website Hosting',
+        allowance: '10GB',
+        clause: 'Terms',
+        baseCents: 39000,
+        surchargeCents: 0,
+        totalCents: 39000,
+      },
+    })
+
+    const params = createSession.mock.calls[0]?.[0]
+    const metadata = { cmsClientId: '42', hostingOfferId: '99' }
+    expect(params?.subscription_data).toEqual({ metadata, trial_end: 1_820_000_000 })
+    // Stripe calls the time before the first renewal a trial; the note says why.
+    expect(params?.custom_text).toEqual({
+      submit: {
+        message:
+          "You pay $390.00 today for hosting up to 14 September 2027. Your plan then renews at the same price on that date each year. Stripe shows the time until then as free because today's payment already covers it.",
+      },
+    })
+    expect(params?.line_items).toEqual([
+      {
+        quantity: 1,
+        price_data: {
+          currency: 'aud',
+          unit_amount: 39000,
+          product_data: { name: 'Website Hosting, renews 14 September 2027', metadata },
+          recurring: { interval: 'year' },
+        },
+      },
+      {
+        quantity: 1,
+        price_data: {
+          currency: 'aud',
+          unit_amount: 39000,
+          product_data: { name: 'Website Hosting, up to 14 September 2027', metadata },
+        },
+      },
+    ])
   })
 
   it('renders a return link only for an internal hosting payment path', async () => {

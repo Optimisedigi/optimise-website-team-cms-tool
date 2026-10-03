@@ -1,5 +1,5 @@
 import Stripe from 'stripe'
-import type { HostingQuote } from './hosting-billing'
+import { formatMoney, type HostingQuote } from './hosting-billing'
 import type { StripeBillingStartParams } from './hosting-billing-schedule'
 
 function required(name: 'STRIPE_SECRET_KEY' | 'STRIPE_WEBHOOK_SECRET' | 'CMS_URL'): string {
@@ -137,6 +137,12 @@ export async function createHostingCheckout(input: {
   quote: HostingQuote
   /** When the first charge and renewals fall; see stripeBillingStartParams. */
   billingStart: StripeBillingStartParams
+  /**
+   * A start date that has passed: the full price is charged today as a
+   * one-time item and the plan itself waits until the first renewal, so the
+   * client never pays a pro-rata amount.
+   */
+  firstPayment?: { paidUntil: string }
   idempotencyKey: string
   returnToPaymentLink?: string
   ui?: CheckoutUi
@@ -166,6 +172,18 @@ export async function createHostingCheckout(input: {
         // Renewals fall on the client's billing start date each month or year.
         ...input.billingStart,
       },
+      // Stripe labels the time before the plan's first charge as a free trial.
+      // When today's one-time payment covers that time, say so plainly by the
+      // pay button so the client is not misled.
+      ...(input.firstPayment
+        ? {
+            custom_text: {
+              submit: {
+                message: `You pay ${formatMoney(input.quote.totalCents, input.quote.currency)} today for hosting up to ${input.firstPayment.paidUntil}. Your plan then renews at the same price on that date each ${input.quote.interval}. Stripe shows the time until then as free because today's payment already covers it.`,
+              },
+            },
+          }
+        : {}),
       ...checkoutUiParams(
         input.ui ?? 'hosted',
         `${site}/hosting-pay/success`,
@@ -183,10 +201,30 @@ export async function createHostingCheckout(input: {
           price_data: {
             currency: input.quote.currency,
             unit_amount: input.quote.totalCents,
-            product_data: { name: input.quote.planName, metadata },
+            product_data: {
+              name: input.firstPayment
+                ? `${input.quote.planName}, renews ${input.firstPayment.paidUntil}`
+                : input.quote.planName,
+              metadata,
+            },
             recurring: { interval: input.quote.interval },
           },
         },
+        ...(input.firstPayment
+          ? [
+              {
+                quantity: 1,
+                price_data: {
+                  currency: input.quote.currency,
+                  unit_amount: input.quote.totalCents,
+                  product_data: {
+                    name: `${input.quote.planName}, up to ${input.firstPayment.paidUntil}`,
+                    metadata,
+                  },
+                },
+              },
+            ]
+          : []),
       ],
     },
     { idempotencyKey: input.idempotencyKey },

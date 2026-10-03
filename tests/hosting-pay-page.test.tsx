@@ -109,6 +109,17 @@ describe('HostingPay payment review', () => {
     expect(screen.getByText(/charged automatically on the 15th of each month/)).toBeInTheDocument()
   })
 
+  it('tells the client the full price is charged today when the start date has passed', async () => {
+    // Today is 2 Oct; the monthly plan started on 14 September and renews on the 14th.
+    snapshot.billingStartDate = '2026-09-14'
+    await renderOffer({ id: 42, name: 'Cipher Health' })
+
+    expect(
+      screen.getByText('Today you pay $111.31 for hosting up to 14 October 2026.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/pro-rata/)).not.toBeInTheDocument()
+  })
+
   it('shows the renewal and cancellation note from settings, or the standard wording', async () => {
     await renderOffer({ id: 42, name: 'Cipher Health' })
     expect(screen.getByText(/If you want to stop renting your website, just let us know/)).toBeInTheDocument()

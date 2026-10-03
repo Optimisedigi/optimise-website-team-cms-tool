@@ -279,11 +279,45 @@ describe('paying a link', () => {
 
       await pay('token-start-date')
 
-      const args = stripe.createHostingCheckout.mock.calls[0]?.[0] as { billingStart: unknown }
+      const args = stripe.createHostingCheckout.mock.calls[0]?.[0] as {
+        billingStart: unknown
+        firstPayment?: unknown
+      }
       expect(args.billingStart).toEqual({
         billing_cycle_anchor: Date.UTC(2026, 10, 15, 2) / 1000,
         proration_behavior: 'none',
       })
+      expect(args.firstPayment).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('charges the full price today for a start date that has passed, never pro-rata', async () => {
+    // 3 Oct 2026; the annual start date was 14 September.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T02:00:00.000Z'))
+    try {
+      payload.find.mockResolvedValue({
+        docs: [
+          {
+            ...offer,
+            status: 'active',
+            stripeCheckoutSessionId: null,
+            snapshot: { ...offer.snapshot, billingStartDate: '2026-09-14' },
+          },
+        ],
+      })
+
+      await pay('token-past-start')
+
+      const args = stripe.createHostingCheckout.mock.calls[0]?.[0] as {
+        billingStart: unknown
+        firstPayment: unknown
+      }
+      // The full annual price today, then the plan renews on 14 September.
+      expect(args.firstPayment).toEqual({ paidUntil: '14 September 2027' })
+      expect(args.billingStart).toEqual({ trial_end: Date.UTC(2027, 8, 14, 2) / 1000 })
     } finally {
       vi.useRealTimers()
     }
@@ -392,7 +426,7 @@ describe('paying a link', () => {
 
     expect(stripe.expireHostingCheckoutSession).toHaveBeenCalledWith('cs_old')
     expect(stripe.createHostingCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ ui: 'embedded', idempotencyKey: 'hosting-checkout-v5-99-cs_old' }),
+      expect.objectContaining({ ui: 'embedded', idempotencyKey: 'hosting-checkout-v6-99-cs_old' }),
     )
     expect(await response.json()).toEqual({ clientSecret: 'cs_embed_secret' })
   })

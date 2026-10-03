@@ -11,7 +11,11 @@ export type BillingStart =
   | { kind: 'today'; renewalDate: string }
   /** Start date is ahead: nothing charged until then, first full charge on it. */
   | { kind: 'future'; startDate: string }
-  /** Start date has passed: pro-rata now, full charge on the next anniversary. */
+  /**
+   * Start date has passed: the full price is charged today (never pro-rata),
+   * then the full price on `nextChargeDate` and every anniversary of the
+   * start date after it.
+   */
   | { kind: 'past'; startDate: string; nextChargeDate: string }
 
 const TIME_ZONE = 'Australia/Sydney'
@@ -21,6 +25,11 @@ const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
  * receipt fall on the same calendar day for Stripe (UTC) and the client.
  */
 const CHARGE_HOUR_UTC = 2
+/**
+ * Stripe only accepts a first renewal at least two days out (its free-period
+ * minimum); an hour's margin covers the time between page and payment.
+ */
+const MIN_FIRST_RENEWAL_MS = 49 * 3_600_000
 
 type YMD = { year: number; month: number; day: number }
 
@@ -110,27 +119,30 @@ export function planBillingStart(
   if (startKey > todayKey) return { kind: 'future', startDate: startKey }
   const today = toYmd(todayKey) as YMD
   if (isAnniversary(start, today, interval)) return { kind: 'today', renewalDate: todayKey }
-  return {
-    kind: 'past',
-    startDate: startKey,
-    nextChargeDate: fromYmd(nextAnniversary(start, today, interval)),
+  // The full price is charged once today; the plan renews on the next
+  // anniversary of the start date. That first renewal moves one period on
+  // (the amount today is unchanged) when it is under two days away, which
+  // Stripe cannot schedule, or when it falls on a shortened month-end, which
+  // would move every later monthly renewal off the start day for good.
+  // Yearly plans never move for a shortened day: that would give a whole year
+  // free. A 29 Feb yearly start renews on 28 February instead.
+  let next = nextAnniversary(start, today, interval)
+  for (
+    let moved = 0;
+    moved < 2 &&
+    (chargeTimestamp(fromYmd(next)) * 1000 - now.getTime() < MIN_FIRST_RENEWAL_MS ||
+      (interval === 'month' && next.day !== start.day));
+    moved += 1
+  ) {
+    next = nextAnniversary(start, next, interval)
   }
+  return { kind: 'past', startDate: startKey, nextChargeDate: fromYmd(next) }
 }
 
 export type StripeBillingStartParams =
   | Record<string, never>
   | { billing_cycle_anchor: number; proration_behavior: 'none' }
   | { trial_end: number }
-  | {
-      billing_cycle_anchor_config: {
-        day_of_month: number
-        month?: number
-        hour: number
-        minute: 0
-        second: 0
-      }
-      proration_behavior: 'create_prorations'
-    }
 
 function chargeTimestamp(date: string): number {
   const { year, month, day } = toYmd(date) as YMD
@@ -145,7 +157,9 @@ function chargeTimestamp(date: string): number {
  *   pro-rata, so nothing is charged until the start date.
  * - Further out: Stripe only lets an anchor sit within the first period, so
  *   use a free period (trial) that ends on the start date instead.
- * - Past start: anchor renewals to the start day and charge pro-rata today.
+ * - Past start: the plan's first charge is the next renewal (a free period
+ *   until then), and the full price is a separate one-time charge today.
+ *   Renewals keep the start day.
  */
 export function stripeBillingStartParams(
   start: BillingStart,
@@ -164,17 +178,7 @@ export function stripeBillingStartParams(
       ? { billing_cycle_anchor: anchor, proration_behavior: 'none' }
       : { trial_end: anchor }
   }
-  const { month, day } = toYmd(start.startDate) as YMD
-  return {
-    billing_cycle_anchor_config: {
-      day_of_month: day,
-      ...(interval === 'year' ? { month } : {}),
-      hour: CHARGE_HOUR_UTC,
-      minute: 0,
-      second: 0,
-    },
-    proration_behavior: 'create_prorations',
-  }
+  return { trial_end: chargeTimestamp(start.nextChargeDate) }
 }
 
 /** A YYYY-MM-DD billing date as "15 November 2026". */
@@ -206,7 +210,9 @@ function renewalPhrase(anchorDate: string, interval: HostingInterval): string {
     day: 'numeric',
     month: 'long',
   })
-  return `on ${dayMonth} each year`
+  return month === 2 && day === 29
+    ? `on ${dayMonth} each year (28 February in other years)`
+    : `on ${dayMonth} each year`
 }
 
 /** Plain-English payment schedule for the client: what happens today, and after. */
@@ -222,9 +228,12 @@ export function describeBillingStart(
     }
   }
   if (start.kind === 'past') {
+    // Stripe renews on the first renewal's date, so describe that date (it is
+    // 28 February, not 29 February, for a yearly 29 Feb start).
+    const renewsOn = interval === 'year' ? start.nextChargeDate : start.startDate
     return {
-      headline: `Today you pay for hosting up to ${formatBillingDate(start.nextChargeDate)}.`,
-      detail: `Stripe shows the exact amount before you confirm. From then on, ${total} is charged automatically ${renewalPhrase(start.startDate, interval)}, to the same card, until cancelled.`,
+      headline: `Today you pay ${total} for hosting up to ${formatBillingDate(start.nextChargeDate)}.`,
+      detail: `From then on, ${total} is charged automatically ${renewalPhrase(renewsOn, interval)}, to the same card, until cancelled.`,
     }
   }
   return {

@@ -70,6 +70,24 @@ describe('planBillingStart', () => {
       expected: { kind: 'past', startDate: '2026-03-10', nextChargeDate: '2027-03-10' },
     },
     {
+      name: 'a renewal under two days away moves to the next month (Stripe minimum)',
+      start: '2026-08-03',
+      interval: 'month',
+      expected: { kind: 'past', startDate: '2026-08-03', nextChargeDate: '2026-11-03' },
+    },
+    {
+      name: 'an annual renewal under two days away moves to the following year',
+      start: '2025-10-03',
+      interval: 'year',
+      expected: { kind: 'past', startDate: '2025-10-03', nextChargeDate: '2027-10-03' },
+    },
+    {
+      name: 'a renewal more than two days away stays on the next start day',
+      start: '2026-08-05',
+      interval: 'month',
+      expected: { kind: 'past', startDate: '2026-08-05', nextChargeDate: '2026-10-05' },
+    },
+    {
       name: 'past start whose renewal day is today bills today',
       start: '2026-07-02',
       interval: 'month',
@@ -92,7 +110,6 @@ describe('planBillingStart', () => {
       interval: 'month',
       now: '2026-11-30T00:00:00.000Z',
       nextChargeDate: '2026-12-31',
-      anchor: { day_of_month: 31, hour: 2, minute: 0, second: 0 },
     },
     {
       name: 'a 29 Feb annual start signed up on 28 Feb keeps 29 Feb',
@@ -100,24 +117,40 @@ describe('planBillingStart', () => {
       interval: 'year',
       now: '2027-02-28T00:00:00.000Z',
       nextChargeDate: '2028-02-29',
-      anchor: { day_of_month: 29, month: 2, hour: 2, minute: 0, second: 0 },
     },
-  ] as const)('$name', ({ start, interval, now, nextChargeDate, anchor }) => {
+  ] as const)('$name', ({ start, interval, now, nextChargeDate }) => {
     // Billing "today" here would anchor Stripe on the shortened day for good.
     const plan = planBillingStart(start, interval, new Date(now))
 
     expect(plan).toEqual({ kind: 'past', startDate: start, nextChargeDate })
     expect(stripeBillingStartParams(plan, interval, new Date(now))).toEqual({
-      billing_cycle_anchor_config: anchor,
-      proration_behavior: 'create_prorations',
+      trial_end: at2amUtc(nextChargeDate),
     })
   })
 
-  it('clamps a 31st start to 30 November', () => {
+  it.each([
+    // Moving a yearly renewal would give whole years free for one payment.
+    { now: '2026-10-03T02:00:00.000Z', nextChargeDate: '2027-02-28' },
+    { now: '2024-03-05T02:00:00.000Z', nextChargeDate: '2025-02-28' },
+  ])(
+    'renews a 29 Feb yearly start on 28 Feb without free years (today $now)',
+    ({ now, nextChargeDate }) => {
+      const plan = planBillingStart('2024-02-29', 'year', new Date(now))
+
+      expect(plan).toEqual({ kind: 'past', startDate: '2024-02-29', nextChargeDate })
+      expect(describeBillingStart(plan, 'year', '$390.00').detail).toBe(
+        'From then on, $390.00 is charged automatically on 28 February each year, to the same card, until cancelled.',
+      )
+    },
+  )
+
+  it('never makes a shortened month-end the first renewal, which would move the 31st for good', () => {
+    // 30 November is the 31st's renewal that month; Stripe would keep the 30th
+    // from then on, so the first renewal is 31 December instead.
     expect(planBillingStart('2026-08-31', 'month', new Date('2026-11-05T00:00:00.000Z'))).toEqual({
       kind: 'past',
       startDate: '2026-08-31',
-      nextChargeDate: '2026-11-30',
+      nextChargeDate: '2026-12-31',
     })
   })
 })
@@ -152,32 +185,37 @@ describe('stripeBillingStartParams', () => {
     })
   })
 
-  it('anchors renewals to the start day, and month for annual, with pro-rata today', () => {
+  it('starts the plan on the next renewal for a past start, never pro-rata', () => {
     expect(
       stripeBillingStartParams(
         { kind: 'past', startDate: '2026-08-20', nextChargeDate: '2026-10-20' },
         'month',
         NOW,
       ),
-    ).toEqual({
-      billing_cycle_anchor_config: { day_of_month: 20, hour: 2, minute: 0, second: 0 },
-      proration_behavior: 'create_prorations',
-    })
+    ).toEqual({ trial_end: at2amUtc('2026-10-20') })
     expect(
       stripeBillingStartParams(
         { kind: 'past', startDate: '2026-03-10', nextChargeDate: '2027-03-10' },
         'year',
         NOW,
       ),
-    ).toEqual({
-      billing_cycle_anchor_config: { day_of_month: 10, month: 3, hour: 2, minute: 0, second: 0 },
-      proration_behavior: 'create_prorations',
-    })
+    ).toEqual({ trial_end: at2amUtc('2027-03-10') })
+  })
+
+  it('keeps every first renewal at least two days out, as Stripe requires', () => {
+    // 03:00 UTC on 2 Oct: renewals on the 2nd to 6th fall 23 hours to 5 days away.
+    const now = new Date('2026-10-02T03:00:00.000Z')
+    for (const day of ['02', '03', '04', '05', '06']) {
+      const plan = planBillingStart(`2026-08-${day}`, 'month', now)
+      if (plan.kind !== 'past') continue
+      const params = stripeBillingStartParams(plan, 'month', now) as { trial_end: number }
+      expect(params.trial_end * 1000 - now.getTime()).toBeGreaterThanOrEqual(48 * 3_600_000)
+    }
   })
 })
 
 describe('describeBillingStart', () => {
-  it('tells a past-start client what today covers without calling it pro-rata', () => {
+  it('tells a past-start client the full price is charged today, not pro-rata', () => {
     expect(
       describeBillingStart(
         { kind: 'past', startDate: '2026-09-14', nextChargeDate: '2027-09-14' },
@@ -185,10 +223,28 @@ describe('describeBillingStart', () => {
         '$390.00',
       ),
     ).toEqual({
-      headline: 'Today you pay for hosting up to 14 September 2027.',
+      headline: 'Today you pay $390.00 for hosting up to 14 September 2027.',
       detail:
-        'Stripe shows the exact amount before you confirm. From then on, $390.00 is charged automatically on 14 September each year, to the same card, until cancelled.',
+        'From then on, $390.00 is charged automatically on 14 September each year, to the same card, until cancelled.',
     })
+  })
+
+  it('says when a 29 February yearly renewal falls in other years', () => {
+    expect(
+      describeBillingStart({ kind: 'future', startDate: '2028-02-29' }, 'year', '$390.00').detail,
+    ).toBe(
+      'After that, $390.00 is charged automatically on 29 February each year (28 February in other years), to the same card, until cancelled.',
+    )
+  })
+
+  it('charges the same single price when the first renewal had to move a month on', () => {
+    expect(
+      describeBillingStart(
+        { kind: 'past', startDate: '2026-08-03', nextChargeDate: '2026-11-03' },
+        'month',
+        '$59.00',
+      ).headline,
+    ).toBe('Today you pay $59.00 for hosting up to 3 November 2026.')
   })
 
   it('tells a future-start client nothing is charged until the start date', () => {

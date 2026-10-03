@@ -15,7 +15,11 @@ import {
   hasLiveHostingSubscription,
   type HostingQuote,
 } from '@/lib/hosting-billing'
-import { planBillingStart, stripeBillingStartParams } from '@/lib/hosting-billing-schedule'
+import {
+  formatBillingDate,
+  planBillingStart,
+  stripeBillingStartParams,
+} from '@/lib/hosting-billing-schedule'
 import { createTokenRateLimiter } from '@/lib/hosting-pay-rate-limit'
 
 const isRateLimited = createTokenRateLimiter()
@@ -124,11 +128,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   }
   const quote: HostingQuote = interval === 'month' ? snapshot.monthly : snapshot.annual
   const now = new Date()
-  const billingStart = stripeBillingStartParams(
-    planBillingStart(snapshot.billingStartDate, interval, now),
-    interval,
-    now,
-  )
+  const start = planBillingStart(snapshot.billingStartDate, interval, now)
+  const billingStart = stripeBillingStartParams(start, interval, now)
+  // A start date that has passed is charged the full price today, never pro-rata.
+  const firstPayment =
+    start.kind === 'past' ? { paidUntil: formatBillingDate(start.nextChargeDate) } : undefined
   const retrySuffix = offer.stripeCheckoutSessionId ? `-${offer.stripeCheckoutSessionId}` : ''
   let session: Awaited<ReturnType<typeof createHostingCheckout>>
   try {
@@ -139,12 +143,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       email: snapshot.recipientEmail,
       quote,
       billingStart,
+      ...(firstPayment ? { firstPayment } : {}),
       // One key per checkout attempt, deliberately not per interval or page
       // style: two simultaneous requests share it, so Stripe opens at most one
       // session and refuses the other. Switching later gets a fresh key via the
-      // expired session's ID. v5 adds the embedded card form; versioning avoids
-      // colliding with sessions created by earlier request shapes.
-      idempotencyKey: `hosting-checkout-v5-${offer.id}${retrySuffix}`,
+      // expired session's ID. v6 charges a past start date in full instead of
+      // pro-rata; versioning avoids colliding with sessions created by earlier
+      // request shapes.
+      idempotencyKey: `hosting-checkout-v6-${offer.id}${retrySuffix}`,
       returnToPaymentLink: `/hosting-pay/${token}`,
       ui,
     })
