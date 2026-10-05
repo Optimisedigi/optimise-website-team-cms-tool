@@ -48,6 +48,10 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   await db.run(sql.raw("CREATE INDEX IF NOT EXISTS `landing_conversion_uploads_updated_at_idx` ON `landing_conversion_uploads` (`updated_at`);"));
   await db.run(sql.raw("CREATE INDEX IF NOT EXISTS `landing_conversion_uploads_created_at_idx` ON `landing_conversion_uploads` (`created_at`);"));
   await addColumn(db, "ALTER TABLE `landing_properties` ADD COLUMN `google_ads_offline_conversion_action_id` text");
+  // Payload's document-lock join table needs one FK column per collection;
+  // without it every document save fails with "no such column".
+  await addColumn(db, "ALTER TABLE `payload_locked_documents_rels` ADD COLUMN `landing_conversion_uploads_id` integer REFERENCES `landing_conversion_uploads`(`id`) ON UPDATE no action ON DELETE cascade");
+  await db.run(sql.raw("CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_landing_conversion_uploads_id_idx` ON `payload_locked_documents_rels` (`landing_conversion_uploads_id`);"));
 }
 
 export async function down({ db }: MigrateDownArgs): Promise<void> {
