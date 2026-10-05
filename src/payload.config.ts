@@ -115,6 +115,7 @@ import { ClientAnalyticsSnapshots } from "./collections/ClientAnalyticsSnapshots
 import { LandingProperties } from "./collections/LandingProperties";
 import { LandingExperiments } from "./collections/LandingExperiments";
 import { LandingEvents } from "./collections/LandingEvents";
+import { LandingConversionUploads } from "./collections/LandingConversionUploads";
 import { LandingDomains } from "./collections/LandingDomains";
 
 
@@ -171,7 +172,7 @@ export default buildConfig({
     // Reports
     ForecastScenarios, AgencyKpiSnapshots, ClientMetricSnapshots, ClientAnalyticsSnapshots, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Landing experiments
-    LandingProperties, LandingExperiments, LandingEvents, LandingDomains,
+    LandingProperties, LandingExperiments, LandingEvents, LandingDomains, LandingConversionUploads,
     // Finance
     BusinessCosts, CostCategories, CostRules, InvoiceStatementDrafts,
     Contractors, ContractorTimeEntries, ContractorPayments,

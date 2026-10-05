@@ -108,6 +108,17 @@ export const LandingProperties: CollectionConfig = {
       admin: { description: "Bump to force re-consent across every deployment of this property." },
     },
     {
+      name: "googleAdsOfflineConversionActionId",
+      type: "text",
+      label: "Google Ads offline conversion action ID",
+      admin: {
+        description:
+          "Numeric ID of a Google Ads 'Website (Import from clicks)' conversion action. When set, the daily sync sends each accepted lead (one per ad click, click ID only) to it through the Data Manager API, so leads whose browser blocked the Google tag still count. Blank disables the sync for this property.",
+        placeholder: "7814286222",
+      },
+      validate: (value: unknown) => (!value || /^\d+$/.test(String(value).trim()) ? true : "Must be the numeric conversion action ID"),
+    },
+    {
       name: "retentionDays",
       type: "number",
       required: true,

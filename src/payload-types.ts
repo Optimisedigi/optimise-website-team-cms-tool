@@ -124,6 +124,7 @@ export interface Config {
     'landing-experiments': LandingExperiment;
     'landing-events': LandingEvent;
     'landing-domains': LandingDomain;
+    'landing-conversion-uploads': LandingConversionUpload;
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
@@ -244,6 +245,7 @@ export interface Config {
     'landing-experiments': LandingExperimentsSelect<false> | LandingExperimentsSelect<true>;
     'landing-events': LandingEventsSelect<false> | LandingEventsSelect<true>;
     'landing-domains': LandingDomainsSelect<false> | LandingDomainsSelect<true>;
+    'landing-conversion-uploads': LandingConversionUploadsSelect<false> | LandingConversionUploadsSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
@@ -9293,6 +9295,10 @@ export interface LandingProperty {
    */
   consentVersion: string;
   /**
+   * Numeric ID of a Google Ads 'Website (Import from clicks)' conversion action. When set, the daily sync sends each accepted lead (one per ad click, click ID only) to it through the Data Manager API, so leads whose browser blocked the Google tag still count. Blank disables the sync for this property.
+   */
+  googleAdsOfflineConversionActionId?: string | null;
+  /**
    * Days of landing events retained before pruning.
    */
   retentionDays: number;
@@ -9494,6 +9500,34 @@ export interface LandingDomain {
    * Appended automatically: when the domain went live and which origin was added.
    */
   auditLog?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Landing-page leads sent server-side to Google Ads, one per ad click. Written by the daily sync; read-only in practice.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-conversion-uploads".
+ */
+export interface LandingConversionUpload {
+  id: number;
+  property: number | LandingProperty;
+  client: number | Client;
+  customerId: string;
+  conversionActionId: string;
+  transactionId: string;
+  clickIdType: 'gclid' | 'gbraid' | 'wbraid' | 'none';
+  leadOccurredAt: string;
+  /**
+   * landing_events.event_id values collapsed into this upload, one per line.
+   */
+  eventIds?: string | null;
+  status: 'sent' | 'validated' | 'skipped' | 'failed';
+  detail?: string | null;
+  /**
+   * Data Manager request ID, for Google support.
+   */
+  requestId?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -11689,6 +11723,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'landing-domains';
         value: number | LandingDomain;
+      } | null)
+    | ({
+        relationTo: 'landing-conversion-uploads';
+        value: number | LandingConversionUpload;
       } | null)
     | ({
         relationTo: 'business-costs';
@@ -14359,6 +14397,7 @@ export interface LandingPropertiesSelect<T extends boolean = true> {
       };
   activeExperiment?: T;
   consentVersion?: T;
+  googleAdsOfflineConversionActionId?: T;
   retentionDays?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -14446,6 +14485,25 @@ export interface LandingDomainsSelect<T extends boolean = true> {
   lastCheckedAt?: T;
   pathHint?: T;
   auditLog?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "landing-conversion-uploads_select".
+ */
+export interface LandingConversionUploadsSelect<T extends boolean = true> {
+  property?: T;
+  client?: T;
+  customerId?: T;
+  conversionActionId?: T;
+  transactionId?: T;
+  clickIdType?: T;
+  leadOccurredAt?: T;
+  eventIds?: T;
+  status?: T;
+  detail?: T;
+  requestId?: T;
   updatedAt?: T;
   createdAt?: T;
 }

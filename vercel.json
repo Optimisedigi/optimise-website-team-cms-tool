@@ -70,6 +70,10 @@
       "schedule": "15 * * * *"
     },
     {
+      "path": "/api/landing-conversions/sync",
+      "schedule": "30 4 * * *"
+    },
+    {
       "path": "/api/google-ads-automation/cron",
       "schedule": "30 5 * * *"
     },
@@ -175,6 +179,9 @@
     },
     "src/app/(frontend)/api/google-ads-automation/cron/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/(frontend)/api/landing-conversions/sync/route.ts": {
+      "maxDuration": 120
     },
     "src/app/(frontend)/api/site-health/cron/route.ts": {
       "maxDuration": 300
