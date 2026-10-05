@@ -26,7 +26,16 @@ import { getPayload, type Payload } from "payload";
 import { sql } from "@payloadcms/db-sqlite";
 
 import config from "@/payload.config";
-import { LEAD_SQL_PREDICATE } from "@/lib/landing-experiment-report";
+import { CHAT_LEAD_SQL_PREDICATE, LEAD_SQL_PREDICATE } from "@/lib/landing-experiment-report";
+
+/**
+ * Same moments the browser "LP - Qualified lead" tag fires on: form accepted,
+ * booking complete, or the chatbot capturing an email. Chat is kept out of
+ * LEAD_SQL_PREDICATE on purpose (that number is the landing dashboard's own
+ * form/booking count), so it is OR-ed in here instead. One per ad click still
+ * applies, so a visitor who chats then books counts once.
+ */
+export const SYNC_LEAD_SQL_PREDICATE = `(${LEAD_SQL_PREDICATE} OR ${CHAT_LEAD_SQL_PREDICATE})`;
 
 export const WINDOW_DAYS = 7;
 export const MAX_LOOKBACK_DAYS = 90;
@@ -158,7 +167,7 @@ async function defaultReadLeads(payload: Payload, target: PropertyTarget, startI
       AND client_id = ${Number(target.clientId)}
       AND occurred_at >= '${startIso.replace(/'/g, "")}'
       AND occurred_at < '${endIso.replace(/'/g, "")}'
-      AND ${LEAD_SQL_PREDICATE}
+      AND ${SYNC_LEAD_SQL_PREDICATE}
     ORDER BY occurred_at ASC
   `))) as Array<Record<string, unknown>>;
   return rows.map((r) => ({

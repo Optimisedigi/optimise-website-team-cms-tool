@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  SYNC_LEAD_SQL_PREDICATE,
   collapseToClicks,
   pickClickId,
   runLandingConversionSync,
@@ -23,6 +24,27 @@ const row = (over: Partial<LeadEventRow> & { eventId: string }): LeadEventRow =>
   gbraid: null,
   wbraid: null,
   ...over,
+});
+
+describe("SYNC_LEAD_SQL_PREDICATE", () => {
+  it("matches the qualified-lead tag: form accepted, booking, or chat email", async () => {
+    const { createClient } = await import("@libsql/client");
+    const db = createClient({ url: "file::memory:" });
+    await db.execute("CREATE TABLE landing_events (event_type text, properties text)");
+    const rows: Array<[string, string]> = [
+      ["form_submit", JSON.stringify({ form_id: "qualification", result: "accepted" })],
+      ["form_submit", JSON.stringify({ form_id: "qualification", result: "deferred" })],
+      ["form_submit", JSON.stringify({ form_id: "readiness-checklist", result: "downloaded" })],
+      ["booking_complete", "{}"],
+      ["chat_identified", "{}"],
+      ["chat_start", "{}"],
+    ];
+    for (const [t, p] of rows) await db.execute({ sql: "INSERT INTO landing_events VALUES (?, ?)", args: [t, p] });
+    const hit = await db.execute(`SELECT event_type, properties FROM landing_events WHERE ${SYNC_LEAD_SQL_PREDICATE}`);
+    expect(hit.rows.map((r) => `${r.event_type}:${JSON.parse(String(r.properties)).result ?? ""}`).sort()).toEqual([
+      "booking_complete:", "chat_identified:", "form_submit:accepted",
+    ]);
+  });
 });
 
 describe("pickClickId", () => {
