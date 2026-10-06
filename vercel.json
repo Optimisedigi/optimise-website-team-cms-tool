@@ -22,6 +22,10 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/content-sync/tick",
+      "schedule": "0 2 * * *"
+    },
+    {
       "path": "/api/invoice-statements/sweep",
       "schedule": "0 22 1 * *"
     },
@@ -151,6 +155,9 @@
       "maxDuration": 300
     },
     "src/app/(frontend)/api/contract-reminders/tick/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/(frontend)/api/content-sync/tick/route.ts": {
       "maxDuration": 300
     },
     "src/app/(frontend)/api/invoice-statements/sweep/route.ts": {
