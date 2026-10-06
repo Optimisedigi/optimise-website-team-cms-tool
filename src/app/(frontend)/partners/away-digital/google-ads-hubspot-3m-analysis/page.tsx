@@ -154,7 +154,7 @@ export default function AwayDigitalHubspotAnalysisPage() {
             className="orbit-deco"
             style={{ width: '720px', height: '720px', right: '-160px', top: '-80px', borderColor: 'rgba(77,148,255,0.1)' }}
           />
-          <div className="relative z-10 px-8 md:px-12 pt-10 w-full flex items-center justify-between gap-4">
+          <div className="relative z-20 px-8 md:px-12 pt-10 w-full flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="cover-dot" aria-hidden="true" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -162,7 +162,7 @@ export default function AwayDigitalHubspotAnalysisPage() {
             </div>
             <DownloadPdfButton />
           </div>
-          <div className="relative z-10 flex-1 flex flex-col justify-center px-8 md:px-12 pb-12 w-full -mt-[20px]">
+          <div className="relative z-10 flex-1 flex flex-col justify-center px-8 md:px-12 pb-12 w-full -mt-[20px] pointer-events-none">
             <div className="flex flex-col items-start gap-5 text-left max-w-4xl">
               <div className="flex items-center gap-4 flex-wrap">
                 <span className="cover-pill">Google Ads + HubSpot Analysis</span>
