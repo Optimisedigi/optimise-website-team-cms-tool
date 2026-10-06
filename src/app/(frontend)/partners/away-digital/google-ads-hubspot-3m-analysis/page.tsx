@@ -359,29 +359,21 @@ export default function AwayDigitalHubspotAnalysisPage() {
             One page per role and service on the hire subdomain — each built to match its ad group and
             turn the click into a lead.
           </Lead>
-          <div className="flex items-center gap-5 rounded-3xl border border-slate-200 bg-white p-6">
-            <div className="text-6xl font-black tabular-nums text-slate-950">{LANDING_PAGES_TOTAL}</div>
-            <div>
-              <div className="text-sm font-semibold text-slate-800">targeted landing pages</div>
-              <div className="text-xs text-slate-500">live on hire.awaydigitalteams.com</div>
-            </div>
-          </div>
-          <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <p className="lp-count"><strong>{LANDING_PAGES_TOTAL}</strong> targeted landing pages created on hire.awaydigitalteams.com</p>
+          <div className="lp-row">
             {LANDING_PAGE_PREVIEWS.map((p) => (
-              <div key={p.slug} className="flex flex-col items-center gap-2">
-                <div className="w-full max-w-[210px] rounded-[26px] border-[6px] border-slate-900 bg-slate-900 shadow-xl">
-                  <div className="h-[420px] overflow-hidden rounded-[18px] bg-white">
-                    <iframe
-                      src={p.url}
-                      title={p.title}
-                      sandbox="allow-scripts allow-forms"
-                      loading="lazy"
-                      className="h-full w-full border-0"
-                    />
-                  </div>
+              <figure key={p.slug} className="lp-phone">
+                <figcaption>{p.label}</figcaption>
+                <div className="lp-screen">
+                  <iframe
+                    src={p.url}
+                    title={p.title}
+                    sandbox="allow-scripts allow-forms"
+                    loading="lazy"
+                  />
                 </div>
-                <div className="text-center text-xs font-semibold text-slate-800">{p.label}</div>
-              </div>
+                <p className="lp-url">{p.url}</p>
+              </figure>
             ))}
           </div>
         </Section>
