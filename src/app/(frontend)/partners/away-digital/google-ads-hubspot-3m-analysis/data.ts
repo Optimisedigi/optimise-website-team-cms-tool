@@ -4,7 +4,7 @@
  * Extracted from the Growth Tools report
  *   output/away-digital-teams-paid-search-leads-and-clients.html
  * (generated 6 Oct 2026). Regenerate from that report if the source changes.
- * Lead enquiries are personal data — this deck is client-gated.
+ * Lead enquiries are personal data - this deck is client-gated.
  */
 
 export type LeadGradeKey = 'strong' | 'lowbiz' | 'mixed' | 'weak' | 'poorlite' | 'neutral'
@@ -65,7 +65,7 @@ export type LeadGroup = {
 
 export const CLIENTS_WON: readonly ClientWonRow[] = [
   {
-    "label": "Jul 2025 – May 2026",
+    "label": "Jul 2025 - May 2026",
     "clients": "8 in 11 months",
     "spend": "$59,863",
     "cadence": "42 days",
@@ -81,7 +81,7 @@ export const CLIENTS_WON: readonly ClientWonRow[] = [
     ]
   },
   {
-    "label": "Jun 2026 – 5 Oct 2026",
+    "label": "Jun 2026 - 5 Oct 2026",
     "clients": "5 in 4 months",
     "spend": "$24,586",
     "cadence": "25 days",
@@ -414,12 +414,12 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "2 Jul",
         "name": "shamara jarrett",
-        "company": "ServiceCue · —",
+        "company": "ServiceCue · -",
         "keyword": "outsource graphic design",
         "asked": "i dont want marketing emailes",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Salesqualifiedlead"
       },
       {
@@ -463,18 +463,18 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We require remote book keeping for all the services you have listed",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
         "date": "9 Jul",
         "name": "Melinda W",
-        "company": "Nova Bookkeeping · —",
+        "company": "Nova Bookkeeping · -",
         "keyword": "offshore bookkeeping",
         "asked": "costs",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Plant a seed"
       },
       {
@@ -513,7 +513,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "22 Jul",
         "name": "Bronwyn Griffiths",
-        "company": "Bayview Concreting · —",
+        "company": "Bayview Concreting · -",
         "keyword": "offshore bookkeeping",
         "asked": "I would like to know more about your finance department. I am looking for a accounts payable / bookkeeping service",
         "gradeKey": "strong",
@@ -526,10 +526,10 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "name": "Logan Bailey",
         "company": "Allo · Australia",
         "keyword": "outsourcing company",
-        "asked": "To Whom it may concern, I’m the founder of *Allo*, a premium cannabis accessories brand based in Australia. We’re preparing to launch our first product — a custom-designed, smell-proof stash box with a secure locking mechanism and clean, modern aesthetic. We’re currently seeking…",
+        "asked": "To Whom it may concern, I’m the founder of *Allo*, a premium cannabis accessories brand based in Australia. We’re preparing to launch our first product - a custom-designed, smell-proof stash box with a secure locking mechanism and clean, modern aesthetic. We’re currently seeking…",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
@@ -546,7 +546,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "31 Jul",
         "name": "truc Nguyen",
-        "company": "TACare Melbourne · —",
+        "company": "TACare Melbourne · -",
         "keyword": "vietnam outsourcing",
         "asked": "No message",
         "gradeKey": "lowbiz",
@@ -559,7 +559,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "name": "Dave Newman",
         "company": "PlanCare · Australia",
         "keyword": "offshore staffing",
-        "asked": "Company Overview PlanCare is seeking proposals from qualified offshore staffing providers to supply a dedicated team to perform data entry and invoice entry tasks within our proprietary system. ⸻ Project Scope Staffing Requirements: • Number of staff: 15–20 offshore team members…",
+        "asked": "Company Overview PlanCare is seeking proposals from qualified offshore staffing providers to supply a dedicated team to perform data entry and invoice entry tasks within our proprietary system. ⸻ Project Scope Staffing Requirements: • Number of staff: 15-20 offshore team members…",
         "gradeKey": "strong",
         "grade": "Quality",
         "meeting": "1 Jul",
@@ -595,7 +595,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We need some traing videos and detailed user guide for our software. Is this something you can help with?",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
@@ -606,7 +606,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We need a self-hosted AI platform with secure, account-based access for our clinical staff to log in and generate allied-health reports using our proprietary IP. It must enforce role-based permissions, encrypt data at rest and in transit, pass an independent penetration test, an…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
@@ -639,7 +639,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We are looking at possibly hiring someone to create LinkedIn videos similar to Sagle Construction LinkedIn videos https://www.instagram.com/reel/C_jcNQPiENJ/. These would be on an ad hoc basis. I'd like to find out what the cost of this would be. Thanks",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing nuture funnel"
       }
     ]
@@ -662,12 +662,12 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "6 Aug",
         "name": "Rob Carson",
-        "company": "Canopy East · —",
+        "company": "Canopy East · -",
         "keyword": "outsource social media",
         "asked": "I only need someone part time to begin with - 1 person, perhaps 3-4 hours per week for the next month or so, and then looking to scale up",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Plant a seed"
       },
       {
@@ -678,7 +678,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "3d video avatar for hologram fan business. https://www.instagram.com/p/DL5GII_xW06/?hl=en .",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
@@ -689,7 +689,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We are launching a new financial planning firm, Right Path Financial Services, and need a clean, modern, and professional logo. We are open to creative alternatives, but were initially thinking of an RP monogram that subtly conveys financial growth, trust, and guidance. Preferre…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -706,7 +706,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "15 Aug",
         "name": "Jim Oshana",
-        "company": "Omni Environmental Systems · —",
+        "company": "Omni Environmental Systems · -",
         "keyword": "outsourcing services",
         "asked": "No message",
         "gradeKey": "lowbiz",
@@ -717,7 +717,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "15 Aug",
         "name": "Simon Rawadi",
-        "company": "Slyletica · —",
+        "company": "Slyletica · -",
         "keyword": "outsource youtube video editing",
         "asked": "No message",
         "gradeKey": "mixed",
@@ -728,7 +728,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "20 Aug",
         "name": "Jessie Sadler",
-        "company": "Christina Stephens · —",
+        "company": "Christina Stephens · -",
         "keyword": "Unknown keywords (SSL)",
         "asked": "No message",
         "gradeKey": "lowbiz",
@@ -739,7 +739,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "22 Aug",
         "name": "Ryan kelley",
-        "company": "Ryan Florist · —",
+        "company": "Ryan Florist · -",
         "keyword": "outsourcing company",
         "asked": "yes I want know the likely hood off outsourcing someone that specialises in Google tag manager and ga4 especially with implementation. This would be for my marketing team",
         "gradeKey": "mixed",
@@ -761,7 +761,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "26 Aug",
         "name": "Leo Cardamone",
-        "company": "Locus Design Group · —",
+        "company": "Locus Design Group · -",
         "keyword": "outsourcing company",
         "asked": "not sure",
         "gradeKey": "lowbiz",
@@ -777,7 +777,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Looking to refine our Power Bi documents to be more interactive and have the ability to produce more data / insights",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -795,17 +795,17 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "date": "2 Aug",
         "name": "Emma Clark",
         "company": "sdad · Albania",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Opportunity"
       },
       {
         "date": "4 Aug",
         "name": "Steven Lowrie",
-        "company": "Support Circuits · —",
+        "company": "Support Circuits · -",
         "keyword": "overseas software development",
         "asked": "No message",
         "gradeKey": "lowbiz",
@@ -816,7 +816,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "13 Aug",
         "name": "Ben Henzell",
-        "company": "BFJ Digital · —",
+        "company": "BFJ Digital · -",
         "keyword": "outsource design work",
         "asked": "we already have overseas designers and staff, so we are used to this process, so ultimately I’m just looking for an hourly rate",
         "gradeKey": "weak",
@@ -827,8 +827,8 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "13 Aug",
         "name": "Shiv Goundar",
-        "company": "Butter Insurance · —",
-        "keyword": "—",
+        "company": "Butter Insurance · -",
+        "keyword": "-",
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
@@ -843,24 +843,24 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We are a group of businesses and are looking for digital marketing specialist that are skilled in video editing, graphics designing, for Facebook and Insta marketing campaigns.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
         "date": "23 Aug",
         "name": "Liam Wood",
-        "company": "outlook.com · —",
+        "company": "outlook.com · -",
         "keyword": "back end developer",
         "asked": "no, im alright thank you",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
         "date": "26 Aug",
         "name": "Norris Jajjo",
-        "company": "Bluearctech · —",
+        "company": "Bluearctech · -",
         "keyword": "outsourcing company",
         "asked": "No message",
         "gradeKey": "lowbiz",
@@ -883,22 +883,22 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "date": "27 Aug",
         "name": "Olivera Ferguson",
         "company": "The Strata Plus Group · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "Reply Me",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
         "date": "28 Aug",
         "name": "Alex Sandoval",
         "company": "PGG Online · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "PGG Online",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -921,12 +921,12 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "2 Sep",
         "name": "(name field holds their message)",
-        "company": "Refined LIving · —",
+        "company": "Refined LIving · -",
         "keyword": "outsourcing solutions",
         "asked": "Can you draft in Microvellum",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Salesqualifiedlead"
       },
       {
@@ -976,7 +976,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "15 Sep",
         "name": "Rohit Kapoor",
-        "company": "Wise Monkeys · —",
+        "company": "Wise Monkeys · -",
         "keyword": "content writer for hire",
         "asked": "Looking for maths content writers to help refine, enrich and format our existing Maths booklets. Going forward assisting with creation and assessment of tests",
         "gradeKey": "strong",
@@ -1020,7 +1020,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "29 Sep",
         "name": "Mark Kimo",
-        "company": "Creative Matter · —",
+        "company": "Creative Matter · -",
         "keyword": "digital marketing specialist",
         "asked": "No message",
         "gradeKey": "lowbiz",
@@ -1042,7 +1042,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I'm just after the operation menu",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Contact Pending - Unresponsive"
       },
       {
@@ -1064,7 +1064,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I deal with personal injury cases in my clinic and I have some accounts receivables with some law firms. I need someone to help manage and follow-up with these cases. It's not too much and would only be a temporary job until we're all caught up.",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing nuture funnel"
       },
       {
@@ -1086,7 +1086,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I need someone to make me capabillity statements and other work",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Contact Pending - Unresponsive"
       },
       {
@@ -1097,7 +1097,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I’m looking for someone that can do front end and back end API integration",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Contact Pending - Unresponsive"
       },
       {
@@ -1108,7 +1108,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I'm looking for a outsource web design & developer, will you be able to help me?",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1119,7 +1119,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "NDiS provider need admin assistant to onboard clients.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1141,7 +1141,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Looking for information on data cleansing and enrichment solutions. Ideally to outsource reviewing, validating, standardizing, and maintaining large datasets.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1174,7 +1174,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi, I am looking for a candidtate to set up my social media platforms please.",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1204,10 +1204,10 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "name": "Aaron Waite",
         "company": "Onyx Agency · Australia",
         "keyword": "3d animation artist for hire",
-        "asked": "Hi, I’m reaching out from Onyx Agency as we’re looking to connect with talented 3D renderers for potential future collaborations on exhibit designs for events. We’re looking for: - 8–10 renders (both frontside and aerial) - Three rounds of revisions - A video walkthrough of the…",
+        "asked": "Hi, I’m reaching out from Onyx Agency as we’re looking to connect with talented 3D renderers for potential future collaborations on exhibit designs for events. We’re looking for: - 8-10 renders (both frontside and aerial) - Three rounds of revisions - A video walkthrough of the…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
@@ -1279,7 +1279,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi, We are a new start up business near Brisbane focussed on asset broking (no mortgages) we are looking for a marketting team who would be able to assist in promoting our business, making us stand out. I was wondering if there is a PDF with plans/costs for review? We look forwa…",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1290,7 +1290,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Looking for a cost effective solution to convert mvp's into working apps/saas products.",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Contact Pending - Unresponsive"
       },
       {
@@ -1301,7 +1301,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hey I am after a design to put on my mobile dog wash trailer and also flyers and shirts to be printed please",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Unqualified - Not Model Aligned"
       },
       {
@@ -1312,7 +1312,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Send back to marketing for nurture"
       },
       {
@@ -1367,7 +1367,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi there, Hope you're well. We are looking to hire an offshore editor for our social media platforms. We are seeking someone for the below; Editing social media content - reels/videos Providing raw files, and editing the videos Ease of communication - to allow for back and forth…",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1385,8 +1385,8 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "date": "20 Nov",
         "name": "Nathan Liang",
         "company": "By Intuity · Australia",
-        "keyword": "—",
-        "asked": "We’re looking for a world-class video editor who goes beyond basic editing and understands marketing strategy. You must be able to edit across multiple formats — professional and intimate VSLs, high-engagement Instagram Reels, and performance-driven paid ads with strong 3-second…",
+        "keyword": "-",
+        "asked": "We’re looking for a world-class video editor who goes beyond basic editing and understands marketing strategy. You must be able to edit across multiple formats - professional and intimate VSLs, high-engagement Instagram Reels, and performance-driven paid ads with strong 3-second…",
         "gradeKey": "strong",
         "grade": "Quality",
         "meeting": "24 Nov",
@@ -1400,7 +1400,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi there, I have a project that I need some help with here's the notion page https://www.notion.so/Project-Brief-AI-Powered-Life-Coaching-Accountability-Bot-2aeeff98a97780d2a058d2877093b2b7?source=copy_link",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Unqualified - Not Model Aligned"
       },
       {
@@ -1429,11 +1429,11 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "date": "25 Nov",
         "name": "Naomi Brummtit",
         "company": "Iberdrola · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "Hi there, We’re looking to create a 3‑minute farewell video for our CEO. Our plan is to have different people across the business record a short video (up to 20 seconds) on their iPhone to share their thanks. We’d like someone to edit these clips into a cohesive, engaging video,…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1455,15 +1455,15 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "just need pricing for content creators and how much they cost",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
         "date": "28 Nov",
         "name": "Harry Vo",
         "company": "HV Tax · Australia",
-        "keyword": "—",
-        "asked": "Hi I’m looking to upgrade my brand and expand my practice as I prepare to scale. Ideally, I’d like to rebrand and develop a complete new brand identity and website, and I’m exploring my options. My goal is to position the firm as a boutique accounting practice delivering Big 4–l…",
+        "keyword": "-",
+        "asked": "Hi I’m looking to upgrade my brand and expand my practice as I prepare to scale. Ideally, I’d like to rebrand and develop a complete new brand identity and website, and I’m exploring my options. My goal is to position the firm as a boutique accounting practice delivering Big 4-l…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
         "meeting": "28 Nov",
@@ -1494,7 +1494,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Send back to marketing for nurture"
       },
       {
@@ -1527,7 +1527,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "poorlite",
         "grade": "Poor: personal email, no message",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Send back to marketing for nurture"
       },
       {
@@ -1544,7 +1544,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "26 Dec",
         "name": "Carl Malone",
-        "company": "Rambus · —",
+        "company": "Rambus · -",
         "keyword": "c1d25565-f664-4089-9f0a-1734cc1b3a65",
         "asked": "No message",
         "gradeKey": "lowbiz",
@@ -1555,7 +1555,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "1 Dec",
         "name": "JAPJEE SINGH",
-        "company": "JP Tax Advisors · —",
+        "company": "JP Tax Advisors · -",
         "keyword": "payroll outsourcing companies",
         "asked": "No message",
         "gradeKey": "lowbiz",
@@ -1567,11 +1567,11 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "date": "3 Dec",
         "name": "Rams",
         "company": "Luvella · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "Looking for digital marketing",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Send back to marketing for nurture"
       },
       {
@@ -1588,12 +1588,12 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "6 Dec",
         "name": "Jennifer KB",
-        "company": "Sheallures · —",
-        "keyword": "—",
+        "company": "Sheallures · -",
+        "keyword": "-",
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Contact Pending - Unresponsive"
       }
     ]
@@ -1649,12 +1649,12 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "12 Jan",
         "name": "David Miles",
-        "company": "sphericaldev.com · —",
+        "company": "sphericaldev.com · -",
         "keyword": "Unknown keywords (SSL)",
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Send back to marketing for nurture"
       },
       {
@@ -1676,7 +1676,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I’m looking for a shopify website to be built, currently have an Etsy site only. I’m not wanting anything else at this stage other than a website. I have had multiple meetings with other outsource companies who push from all other services. I’m not in a financial situation to be…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Unqualified - Not Model Aligned"
       },
       {
@@ -1742,7 +1742,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi I have a product BuzzPOD and would like to bring the software up to data.. I wrote it in VB6 a decade ago. The software reads batch data from the BuzzPOD device via VCP/USB and analyses that data, then results are stored/graphical display of results is completed. I am looking…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
@@ -1753,7 +1753,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Im looking for online data entry job",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -1825,7 +1825,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi Team, I am looking for a member or two to help me with the development of a new Trading Card Game, I will need help with the design of mechanics, play testing, artwork, marketing and disturbing. Thankyou",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1836,7 +1836,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi there, Looking for a bookkeeper as we have recently signed up for gst. we will do about 200k this financial year. We do everything through xero, and are about to start part time workers so would need help with setting up payroll etc. We dont have heaps and heaps of transactio…",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1847,7 +1847,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -1855,10 +1855,10 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "name": "Justin Kadash",
         "company": "CJ Solution · United States",
         "keyword": "digital advertising specialist",
-        "asked": "My name is Justin, and I run several online websites that sell novelty and replica diplomas and transcripts. I’m looking to relaunch Google Ads with the right team in place — one that can help us keep our account active, compliant, and optimized long term. We operate a professio…",
+        "asked": "My name is Justin, and I run several online websites that sell novelty and replica diplomas and transcripts. I’m looking to relaunch Google Ads with the right team in place - one that can help us keep our account active, compliant, and optimized long term. We operate a professio…",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed lost"
       },
       {
@@ -1869,7 +1869,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We are looking at outsourcing our transactional accounting",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
@@ -1880,7 +1880,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "what does it cost for a video editor",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -1899,10 +1899,10 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "name": "Robert",
         "company": "gmail.com · Australia",
         "keyword": "offshore it outsourcing",
-        "asked": "Hands-Free VA Needed – Run a Daily 2-Minute Motivational WhatsApp Program Do you want to manage a high-converting, fully automated digital service without constant supervision? We’re looking for a tech-savvy, organized Virtual Assistant to run Ultimate Success Mind, a daily moti…",
+        "asked": "Hands-Free VA Needed - Run a Daily 2-Minute Motivational WhatsApp Program Do you want to manage a high-converting, fully automated digital service without constant supervision? We’re looking for a tech-savvy, organized Virtual Assistant to run Ultimate Success Mind, a daily moti…",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -1913,7 +1913,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Please contact me on maria.karantziounis@gmail.com as this is a personal request not one for my business for a game app developer. I wish to develop an app. Benchmark is fruitninja,tetris,bubble pop,block blast.",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1935,7 +1935,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "need to know more about instagram page managing and marketing for small business",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -1957,7 +1957,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Need an admin staff for secretary and bookkeeping work.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed lost"
       },
       {
@@ -1968,7 +1968,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "ITintial set up for our dealship",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1979,7 +1979,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We need an experienced content writer for 2 websites we need set up - we’re looking for a fixed price quote",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -1990,7 +1990,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Looking for a part time bookkeeper,",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
@@ -2001,7 +2001,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi",
         "gradeKey": "neutral",
         "grade": "Not enough detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -2012,7 +2012,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Please provide quote for your managed IT services",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2023,7 +2023,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Require a USP explainer 3D animated video",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2045,7 +2045,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Small business content creation, social media marketing, digital marketing",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing Nurture Funnel"
       },
       {
@@ -2056,7 +2056,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing nuture funnel"
       }
     ]
@@ -2073,7 +2073,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Wanting pricing for logo design, already have logos that I want, just need a few things changed & tweaked",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Unqualified - Not Model Aligned"
       },
       {
@@ -2106,7 +2106,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I am looking to create personal animated videos based on stories I have already written. My goal is to turn these stories into short animated films. I would appreciate guidance on the process of producing these animations, including the tools, workflow, and any resources that co…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "In progress"
       },
       {
@@ -2117,7 +2117,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed lost"
       },
       {
@@ -2128,7 +2128,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I'm looking to hire 3D animators to join my company Clavell Media. We focus on 3D animations for long form YouTube Videos.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed lost"
       },
       {
@@ -2139,7 +2139,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "seeking price for a bookkeeper for a new business",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Contact Pending - Unresponsive"
       },
       {
@@ -2150,7 +2150,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I require someone to edit videos for social media. I need up to 5 videos per week at most.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Unqualified - Not Model Aligned"
       },
       {
@@ -2161,7 +2161,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I would like to try your products",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "In progress"
       },
       {
@@ -2172,7 +2172,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "In progress"
       },
       {
@@ -2194,7 +2194,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hello, My name is Oscar, and I’m reaching out on behalf of East Side Clothing Co. We’ve recently partnered with a team to support our Meta marketing efforts, however we’ve run into issues with our Meta Pixel setup across our Shopify stores. At the moment, the pixel is not tracki…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2216,7 +2216,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I'm after an experienced and professional graphic designer full time.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2227,7 +2227,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I’m not sure if your services are more high end ($) in comparison to say upwork etc and therefore I’ll drop what I’m doing in here and leave it with you guys if you’d mind taking a look and giving me a ballpark thanks. We have a Shopify store that requires variant work to conver…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Unqualified - Not Model Aligned"
       },
       {
@@ -2238,7 +2238,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "WHAT IS YOUR PRICING MODEL AND ALSO DO YOU HAVE EXP. MEDICAL BILLING PEOPLE ???",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed lost"
       },
       {
@@ -2260,7 +2260,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "poorlite",
         "grade": "Poor: personal email, no message",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       }
     ]
@@ -2310,7 +2310,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "looking for help with my Shopify business?",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Contact Pending - Unresponsive"
       },
       {
@@ -2365,7 +2365,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "contact me",
         "gradeKey": "poorlite",
         "grade": "Poor: personal email, no message",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -2376,7 +2376,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "William T Merola creator of energy 4u App to reduce co2 Emissions Worldwide for Humanity. Cost for affiliate shoppify Merola",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -2387,7 +2387,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Looking for someone to build shopify store",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed lost"
       },
       {
@@ -2406,10 +2406,10 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "name": "Michael Jezek",
         "company": "Starbrand.Studio · United States",
         "keyword": "outsource company",
-        "asked": "Hi — quick question. I’m currently lining up offshore partners to support a steady flow of B2B and finance-facing projects — primarily infographics, pitch decks, and report/whitepaper design. I came across Away Digital Teams and wanted to see if you have dedicated design capabil…",
+        "asked": "Hi - quick question. I’m currently lining up offshore partners to support a steady flow of B2B and finance-facing projects - primarily infographics, pitch decks, and report/whitepaper design. I came across Away Digital Teams and wanted to see if you have dedicated design capabil…",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed lost"
       },
       {
@@ -2420,7 +2420,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Thank you. We are looking for a reliable brokerage partner for our ongoing shipping needs. Dependability and efficiency are very important to us.",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed lost"
       },
       {
@@ -2431,7 +2431,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I'm looking for a mid level unreal engine 5 developer to assist me in developing a video game",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -2464,7 +2464,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "hello I'd like to talk with you about gettning around 600 visual renders done of our market umbrellas. On top of that, every render will need to show 6 different colours. Can you help me with this for a reasonable price?",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2475,7 +2475,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "0402 226 333",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2486,7 +2486,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2497,7 +2497,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi Team!, I am wanting to get roughly 25-35 images rendered. These images are for our Chemical Products. I am just needing an Quote to see a rough estimate of cost.",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2508,7 +2508,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I'm searching for an independent SEO consultant for a private psychology practice located in Beverly Hills. A few things I would love to know about you: Have you worked with high-end wellness or mental health practices? Case studies or references would help Your typical engageme…",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Marketing nuture funnel"
       },
       {
@@ -2530,7 +2530,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hello, we are looking to trial an offshore administration contractor. Is it possible to hire someone on a contract basis, or does it have to be full time?",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       }
     ]
@@ -2547,7 +2547,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi I am a small business looking for marketing support. Social Media content and posting (i provide the long form video and blog to be broken down into shorts, posts, carousels). Canva templates ready.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -2558,7 +2558,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Where are you based? Where are your workers from? What are the rates? Where do your workers, work from?",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2580,7 +2580,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Digital Marketing",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2591,7 +2591,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We are looking for somone to complete some indesign work from templates we already have - such as construction project profiles, staff CV's and tenderr submssion pages",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -2635,7 +2635,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We have been notified by Amazon that the nodes are changing and we need help to reconnect our api to a data base we currently have set up so it can talk to our CRM? Our forms have now stopped working.",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2646,7 +2646,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I am looking for an admin who can speak English (intermediate-fluent) and Vietnamese (fluently). We are looking for contract role to start with. Please send me the estimated cost.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -2712,7 +2712,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi, My name is Anthoula and I am currently building a new luxury skincare brand called JAK’S Skincare. I am looking for a long-term agency partner that can help with the full digital launch and growth of the brand, including: • Shopify website build and luxury design direction •…",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed lost"
       }
     ]
@@ -2729,7 +2729,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "To whom it may concern, I'm still new to the app development process. I'm looking into what it takes to develop a new iOS app for women's safety while exercising at night. Could you please outline the typical roles included in an app development team for a project like this? Wha…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2737,10 +2737,10 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "name": "Mikyo M",
         "company": "Seventeen.Digital Marketing · Australia",
         "keyword": "3d animator for hire",
-        "asked": "Hi team, We've got a client that works in AI apps and they've got a new product launching soon. They're after some promotional videos — no filming needed, animations only. We already have 3 samples and just need a quote from you guys. Please get back to me ASAP as it's a bit urg…",
+        "asked": "Hi team, We've got a client that works in AI apps and they've got a new product launching soon. They're after some promotional videos - no filming needed, animations only. We already have 3 samples and just need a quote from you guys. Please get back to me ASAP as it's a bit urg…",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2751,7 +2751,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I'm looking for social media strategies to help us with our travel business. Thanks.",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2773,7 +2773,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I'd like to learn more about graphic design support for social media posts",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -2784,7 +2784,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I want to make a mobile app",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Junk/spam"
       },
       {
@@ -2795,7 +2795,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "I’m looking for a virtual assistant / salesperson. For new leads, booking trials, sales and updating our pipeline.",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       },
       {
@@ -2889,7 +2889,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "looking for options a hiring an offshore computational designer in Vietnam",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2939,7 +2939,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hello, we have a freelance bookkeeper from the Philippines who is looking to come fulltime with our company at $10usd per hour, I wondering if this is something you can facilitate?",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2950,7 +2950,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Looking for Shopify web re-development",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -2961,7 +2961,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No",
         "gradeKey": "neutral",
         "grade": "Not enough detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Junk/spam"
       },
       {
@@ -2972,7 +2972,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "poorlite",
         "grade": "Poor: personal email, no message",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "In progress"
       },
       {
@@ -3016,29 +3016,29 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "No message",
         "gradeKey": "poorlite",
         "grade": "Poor: personal email, no message",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Junk/spam"
       },
       {
         "date": "27 Aug",
         "name": "dgdfg",
-        "company": "dfgdffgd · —",
+        "company": "dfgdffgd · -",
         "keyword": "outsourcing companies",
         "asked": "No message",
         "gradeKey": "weak",
         "grade": "Poor: wrong service or spam",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Junk/spam"
       },
       {
         "date": "31 Aug",
         "name": "Stuart",
-        "company": "acp trades · —",
+        "company": "acp trades · -",
         "keyword": "recruiter vietnam",
         "asked": "what is your fee",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Junk/spam"
       },
       {
@@ -3049,7 +3049,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We are looking for a Bookkeeper",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       }
     ]
@@ -3088,18 +3088,18 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Intent: Exploring fit and where to start? Roles: Finance People, Admin People, Customer Service People Roles to fill: 4-6 Hiring timeline: 1 - 3 Months Outsourced before: Yes",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead - Awaiting Contact"
       },
       {
         "date": "26 Sep",
         "name": "Leah Nguyen",
-        "company": "gmail.com · —",
+        "company": "gmail.com · -",
         "keyword": "outsourced bookkeeper",
         "asked": "No message",
         "gradeKey": "poorlite",
         "grade": "Poor: personal email, no message",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Lead"
       }
     ]
@@ -3177,7 +3177,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "We're looking for an offshore Content Creator / Marketing Specialist to hire 20 hours per week",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
@@ -3196,7 +3196,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "name": "Bryce Matthews",
         "company": "Torilla Technologies Pty Ltd · Australia",
         "keyword": "away digital teams",
-        "asked": "Hello, I am looking to hire 3 – 4 technical staff from Vietnam, to assist my company and software we currently have and support. English language is a must: 1 Product owner/BA 2 Mid level developers 1 senior developer Regards, Bryce",
+        "asked": "Hello, I am looking to hire 3 - 4 technical staff from Vietnam, to assist my company and software we currently have and support. English language is a must: 1 Product owner/BA 2 Mid level developers 1 senior developer Regards, Bryce",
         "gradeKey": "strong",
         "grade": "Quality",
         "meeting": "26 Feb",
@@ -3233,19 +3233,19 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
       {
         "date": "11 Sep",
         "name": "Sam Sit",
-        "company": "Fingo · —",
-        "keyword": "—",
+        "company": "Fingo · -",
+        "keyword": "-",
         "asked": "the off shoring staff/team that you hire our your clients' behave, do they work from your dedicated office in Vietname or do they work from home or remotely?",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Plant a seed"
       },
       {
         "date": "30 Sep",
         "name": "Mark Amin",
         "company": "Potter and Sower · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "Looking for a marketing assistant",
         "gradeKey": "strong",
         "grade": "Quality",
@@ -3256,18 +3256,18 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "date": "8 Oct",
         "name": "Ian Slater",
         "company": "PerformancePRO · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "Hi What are standard rates for a customer service and BDM on phone role, driving new business inquiries and lead generation? Thanks Ian",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
         "date": "22 Oct",
         "name": "Kimy Doan",
         "company": "gmail.com · United States",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "I just recently open a pickleball and badminton facility in Houston. I would like to learn more about your company how you can help me with digital marketing.",
         "gradeKey": "strong",
         "grade": "Quality",
@@ -3278,7 +3278,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "date": "27 Oct",
         "name": "Amber Balart",
         "company": "Heathwood Hydraulic · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
@@ -3289,40 +3289,40 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "date": "27 Nov",
         "name": "LEONID SHENDELMAN",
         "company": "magicplatestand.com · United States",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "No message",
         "gradeKey": "lowbiz",
         "grade": "Low quality: real business, little detail",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Send back to marketing for nurture"
       },
       {
         "date": "10 Dec",
         "name": "Craig Smith",
         "company": "Dynasty Sport · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "Hi, We are exploring options for our artwork requirements. Logo redraw, concept art, order graphics (cad). We have internal teams and established processes that require scale. Is this something that you provide? Cheers? Craig",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
         "date": "1 Jan",
         "name": "John Dooley",
         "company": "Adcom Media Productions · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "I need to produce a package of 3D rendered TV station IDs, News bulletin headline teaser, news opener, weather sting intro, Footy show opener and animated results graphics etc. Kind regards John Dooley 0404475687",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       },
       {
         "date": "9 Jan",
         "name": "Ray Ghamous",
         "company": "EPIQORE · United States",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "Looking to expand our team but would like to start with a part time contractor for cold calling and emailing",
         "gradeKey": "strong",
         "grade": "Quality",
@@ -3333,18 +3333,18 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "date": "11 Feb",
         "name": "Hi team,",
         "company": "gmail.com · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "Im looking for someone doing social media and website",
         "gradeKey": "mixed",
         "grade": "One-off or short-term project",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Contact Pending - Unresponsive"
       },
       {
         "date": "30 Apr",
         "name": "Anne Hurley",
         "company": "James&Co · Australia",
-        "keyword": "—",
+        "keyword": "-",
         "asked": "I want to outsource sales & marketing of the business. Have developed products with growth markets, outsourced warehouse & fulfilment, B2B, lots of research into markets (there are many) and want to kick it out. I can't do sales & marketing.",
         "gradeKey": "strong",
         "grade": "Quality",
@@ -3359,7 +3359,7 @@ export const LEAD_GROUPS: readonly LeadGroup[] = [
         "asked": "Hi team, Currently in the market for a virtual assistant - someone of high calibre with proficiency in general admin, research, strong verbal and written communication. Can you please reach out to organise a time to chat. Thanks Danny",
         "gradeKey": "strong",
         "grade": "Quality",
-        "meeting": "—",
+        "meeting": "-",
         "outcome": "Closed Lost"
       }
     ]
@@ -3379,6 +3379,38 @@ export type LandingPagePreview = {
  * previews below are representative pages (AU market) shown as live iframes.
  */
 export const LANDING_PAGES_TOTAL = 98
+
+export type ChannelRow = {
+  readonly channel: string
+  readonly sessions: string
+  readonly conversions: string
+  readonly cvr: string
+}
+
+// Digital channel performance (GA4): where traffic comes from and how each
+// channel converts. Period: July 2025 to September 2026.
+export const CHANNEL_PERIOD = 'July 2025 to September 2026'
+
+export const CHANNEL_ROWS: readonly ChannelRow[] = [
+  { channel: 'Direct', sessions: '19,491', conversions: '144', cvr: '0.74%' },
+  { channel: 'Paid Search', sessions: '18,598', conversions: '217', cvr: '1.17%' },
+  { channel: 'Paid Social', sessions: '14,384', conversions: '5', cvr: '0.03%' },
+  { channel: 'Organic Search', sessions: '10,475', conversions: '81', cvr: '0.77%' },
+  { channel: 'Cross-network', sessions: '7,281', conversions: '45', cvr: '0.62%' },
+  { channel: 'Referral', sessions: '3,570', conversions: '57', cvr: '1.60%' },
+  { channel: 'Organic Social', sessions: '1,456', conversions: '6', cvr: '0.41%' },
+  { channel: 'Paid Other', sessions: '460', conversions: '0', cvr: '0.00%' },
+  { channel: 'Email', sessions: '284', conversions: '4', cvr: '1.41%' },
+  { channel: 'AI Assistant', sessions: '193', conversions: '6', cvr: '3.11%' },
+  { channel: 'Display / Organic Shopping / Paid Video / Organic Video', sessions: '163', conversions: '0', cvr: '0.00%' },
+  { channel: 'Total', sessions: '76,355', conversions: '565', cvr: '0.74%' },
+]
+
+export const NEGATIVE_KEYWORDS = {
+  totalLists: '15',
+  activeLists: '15',
+  totalKeywords: '9,442',
+}
 
 export const LANDING_PAGE_PREVIEWS: readonly LandingPagePreview[] = [
   {

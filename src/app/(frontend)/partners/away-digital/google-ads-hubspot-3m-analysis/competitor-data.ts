@@ -3,9 +3,8 @@
 // competitors). This feeds the competitor-analysis table slide and the
 // appendix slide of the Google Ads + HubSpot deck.
 //
-// Visits / Google Ads / Meta Ads were recorded in the reviewer's browser
-// (localStorage) while using the review tool, so per-competitor values are
-// not carried over here. Only the Away Digital Teams benchmark row is fixed.
+// Visits / Google Ads / Meta Ads are the figures recorded for each competitor
+// in the reviewed comparison table. The Away Digital Teams row is the benchmark.
 
 export type CompetitorRow = {
   readonly name: string
@@ -31,33 +30,33 @@ export type CompetitorWriteup = {
 }
 
 export const COMPETITOR_ROWS: readonly CompetitorRow[] = [
-  { name: 'Away Digital Teams', location: 'Australia / Vietnam', visits: '6,048', googleAds: 'Yes', metaAds: '—', takeaway: false },
-  { name: "Somewhere", location: "United States", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "BruntWork", location: "Australia / Global", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Athena", location: "United States / Philippines", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Wing Assistant", location: "United States", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "MyOutDesk", location: "United States", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Pearl Talent", location: "United States", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "hammerjack", location: "Australia", visits: '—', googleAds: '—', metaAds: '—', takeaway: false },
-  { name: "Emapta", location: "Australia / Philippines", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Cloudstaff", location: "Australia / Philippines", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "MicroSourcing", location: "Philippines / Australia", visits: '—', googleAds: '—', metaAds: '—', takeaway: false },
-  { name: "Beepo", location: "Australia", visits: '—', googleAds: '—', metaAds: '—', takeaway: false },
-  { name: "Satellite Office", location: "Australia", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Virtual Coworker", location: "Australia / United States", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "VirtualStaff.ph", location: "Philippines", visits: '—', googleAds: '—', metaAds: '—', takeaway: false },
-  { name: "Outstaffer", location: "Australia", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "ClearDesk", location: "United States", visits: '—', googleAds: '—', metaAds: '—', takeaway: false },
-  { name: "Staff Domain", location: "Australia", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Outsourced.ph", location: "Australia / Philippines", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "KMC Solutions", location: "Philippines", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Booth & Partners", location: "Philippines", visits: '—', googleAds: '—', metaAds: '—', takeaway: false },
-  { name: "Acquire BPO", location: "Australia", visits: '—', googleAds: '—', metaAds: '—', takeaway: false },
-  { name: "Flat Planet", location: "Australia / United States", visits: '—', googleAds: '—', metaAds: '—', takeaway: false },
-  { name: "Remote CoWorker", location: "United States", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Yoonet", location: "Australia", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Connext Global", location: "United States / Philippines", visits: '—', googleAds: '—', metaAds: '—', takeaway: true },
-  { name: "Mintrix", location: "Australia", visits: '—', googleAds: '—', metaAds: '—', takeaway: false },
+  { name: 'Away Digital Teams', location: 'Australia / Vietnam', visits: '6,048', googleAds: 'Yes', metaAds: '-', takeaway: false },
+  { name: "Somewhere", location: "United States", visits: '213,700', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "BruntWork", location: "Australia / Global", visits: '210,200', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "Athena", location: "United States / Philippines", visits: '137,000', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "Wing Assistant", location: "United States", visits: '129,600', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "MyOutDesk", location: "United States", visits: '23,900', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "Pearl Talent", location: "United States", visits: '41,800', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "hammerjack", location: "Australia", visits: '12,100', googleAds: 'Yes', metaAds: 'Yes', takeaway: false },
+  { name: "Emapta", location: "Australia / Philippines", visits: '159,200', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "Cloudstaff", location: "Australia / Philippines", visits: '247,500', googleAds: 'No', metaAds: 'Yes', takeaway: true },
+  { name: "MicroSourcing", location: "Philippines / Australia", visits: '29,700', googleAds: 'Yes', metaAds: 'Yes', takeaway: false },
+  { name: "Beepo", location: "Australia", visits: '9,800', googleAds: 'Yes', metaAds: 'Yes', takeaway: false },
+  { name: "Satellite Office", location: "Australia", visits: '3,700', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "Virtual Coworker", location: "Australia / United States", visits: '21,000', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "VirtualStaff.ph", location: "Philippines", visits: '260,900', googleAds: 'No', metaAds: 'Yes', takeaway: false },
+  { name: "Outstaffer", location: "Australia", visits: '1,600', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "ClearDesk", location: "United States", visits: '7,600', googleAds: 'No', metaAds: 'No', takeaway: false },
+  { name: "Staff Domain", location: "Australia", visits: '-', googleAds: 'No', metaAds: 'No', takeaway: true },
+  { name: "Outsourced.ph", location: "Australia / Philippines", visits: '93,000', googleAds: 'No', metaAds: 'No', takeaway: true },
+  { name: "KMC Solutions", location: "Philippines", visits: '196,000', googleAds: 'Yes', metaAds: 'No', takeaway: true },
+  { name: "Booth & Partners", location: "Philippines", visits: '18,700', googleAds: 'No', metaAds: 'No', takeaway: false },
+  { name: "Acquire BPO", location: "Australia", visits: '129,000', googleAds: 'Yes', metaAds: 'No', takeaway: false },
+  { name: "Flat Planet", location: "Australia / United States", visits: '3,200', googleAds: 'No', metaAds: 'No', takeaway: false },
+  { name: "Remote CoWorker", location: "United States", visits: '21,270', googleAds: 'Yes', metaAds: 'Yes', takeaway: true },
+  { name: "Yoonet", location: "Australia", visits: '323', googleAds: 'No', metaAds: 'No', takeaway: true },
+  { name: "Connext Global", location: "United States / Philippines", visits: '50,200', googleAds: 'Yes', metaAds: 'No', takeaway: true },
+  { name: "Mintrix", location: "Australia", visits: '887', googleAds: 'No', metaAds: 'No', takeaway: false },
 ]
 
 export const COMPETITOR_WRITEUPS: readonly CompetitorWriteup[] = [
@@ -129,7 +128,7 @@ export const COMPETITOR_WRITEUPS: readonly CompetitorWriteup[] = [
       { title: "Make talent readiness explicit.", text: "“Pre-vetted” provides process assurance, while “AI-trained” signals current capability. Away should only use AI language when it describes a real skill standard and a clear client benefit." },
       { title: "Use expansion as evidence of delivered value.", text: "Showing that one in three clients expands within a year and expanding clients average four or more hires demonstrates confidence beyond the first placement." },
       { title: "Make retention a prominent trust signal.", text: "A 90%+ client-retention figure is concise and persuasive when its measurement period, sample, and definition are stated clearly." },
-      { title: "Differentiate support after hiring.", text: "Positioning the service as a partner—not a ticketing system—and naming ongoing talent support, compliance, and payroll shows that value continues after placement." },
+      { title: "Differentiate support after hiring.", text: "Positioning the service as a partner-not a ticketing system-and naming ongoing talent support, compliance, and payroll shows that value continues after placement." },
       { title: "Turn case studies into quantified proof.", text: "Three placements, $192k in annual overhead savings, and 34 days saved in sourcing and interviewing make the result easy to understand before reading the full story." },
     ],
     comment: "",

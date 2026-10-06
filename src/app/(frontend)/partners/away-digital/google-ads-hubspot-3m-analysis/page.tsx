@@ -5,18 +5,22 @@ import { AWAY_DIGITAL_SLUG } from '@/lib/away-digital'
 import DeckScrollEffects from '../google-ads-audit/DeckScrollEffects'
 import Starfield from '../google-ads-audit/Starfield'
 import DownloadPdfButton from './DownloadPdfButton'
+import LeadsQualityChart from './LeadsQualityChart'
 import {
   CLIENTS_WON,
   CLIENTS_WON_BRAND_NOTE,
-  LEAD_GRADES,
   LEAD_INSIGHTS,
   LEADS_BY_MONTH,
   LEAD_GROUPS,
   LANDING_PAGES_TOTAL,
   LANDING_PAGE_PREVIEWS,
+  CHANNEL_ROWS,
+  CHANNEL_PERIOD,
+  NEGATIVE_KEYWORDS,
 } from './data'
 import type { Lead, LeadGradeKey } from './data'
 import { COMPETITOR_ROWS, COMPETITOR_WRITEUPS } from './competitor-data'
+import { COMPETITOR_SHOTS } from './competitor-shots'
 
 const GRADE_TONE: Record<LeadGradeKey, { pill: string; bar: string }> = {
   strong: { pill: 'bg-emerald-100 text-emerald-800', bar: 'bg-emerald-500' },
@@ -25,10 +29,6 @@ const GRADE_TONE: Record<LeadGradeKey, { pill: string; bar: string }> = {
   weak: { pill: 'bg-rose-100 text-rose-800', bar: 'bg-rose-500' },
   poorlite: { pill: 'bg-rose-50 text-rose-600', bar: 'bg-rose-300' },
   neutral: { pill: 'bg-slate-100 text-slate-600', bar: 'bg-slate-400' },
-}
-
-function gradeCount(label: string): number {
-  return parseInt(label, 10) || 0
 }
 
 function Eyebrow({ children }: { children: ReactNode }) {
@@ -129,12 +129,10 @@ function LeadTable({ leads }: { leads: readonly Lead[] }) {
 }
 
 export default function AwayDigitalHubspotAnalysisPage() {
-  const gradeTotal = LEAD_GRADES.reduce((sum, g) => sum + gradeCount(g.count), 0)
-
   return (
     <AuditPasswordGate
       // `<clientSlug>/<deckSlug>`, resolved against the client record by
-      // /api/audit-auth — so it tracks the client slug (away-digital-teams),
+      // /api/audit-auth - so it tracks the client slug (away-digital-teams),
       // not this URL path. This deck has its own presentation entry so it is
       // tracked and linked separately from the Google Ads audit deck.
       auditSlug={`${AWAY_DIGITAL_SLUG}/google-ads-hubspot-3m-analysis`}
@@ -175,37 +173,48 @@ export default function AwayDigitalHubspotAnalysisPage() {
           </div>
         </section>
 
-        <Section id="clients-won" label="Clients won" number="2 / 7">
+        <Section id="clients-won" label="Clients won" number="2 / 8">
           <Eyebrow>Clients won</Eyebrow>
-          <SlideTitle>Paid search is winning clients faster — and for less.</SlideTitle>
+          <SlideTitle>Looking at actual clients, the account is moving in the right direction.</SlideTitle>
           <Lead>
-            13 new clients from paid search in 15 months. Since June they cost 59% less and arrive 39% sooner.
+            Clients are won through this channel more efficiently than the last 11 months, and we&apos;re refining
+            every day.
           </Lead>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {CLIENTS_WON.map((row, i) => (
-              <div
-                key={row.label}
-                className={`rounded-3xl border p-6 ${
-                  i === 1 ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'
-                }`}
-              >
-                <div className="text-xs font-black uppercase tracking-widest text-slate-500">{row.label}</div>
-                <div className="mt-4 grid grid-cols-3 gap-4">
-                  <div>
-                    <div className="text-[11px] uppercase tracking-wider text-slate-500">Clients</div>
-                    <div className="text-2xl font-black text-slate-950">{row.clients}</div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/70">
+            <div className="mb-3 grid grid-cols-[142px_1fr_120px_104px_104px] items-center gap-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <span />
+              <span />
+              <span>Clients</span>
+              <span className="text-right">Spend / client</span>
+              <span className="text-right">New client every</span>
+            </div>
+            {CLIENTS_WON.map((row) => {
+              const months = parseInt(row.clients.match(/in (\d+) months/)?.[1] ?? '11', 10)
+              const trackWidth = Math.min(100, (months / 11) * 100)
+              return (
+                <div
+                  key={row.label}
+                  className="grid grid-cols-[142px_1fr_120px_104px_104px] items-center gap-4 border-t border-slate-100 py-4"
+                >
+                  <span className="text-sm font-semibold text-slate-800">{row.label}</span>
+                  <div className="h-3.5 rounded-full bg-slate-100" style={{ width: `${trackWidth}%` }}>
+                    <div className="relative h-full rounded-full bg-emerald-200">
+                      {row.names.map((n, i) => (
+                        <span
+                          key={n}
+                          title={n}
+                          className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-white bg-emerald-500 shadow-sm"
+                          style={{ left: `calc(${((i + 0.5) / row.names.length) * 100}% - 7px)` }}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-[11px] uppercase tracking-wider text-slate-500">Spend / client</div>
-                    <div className="text-2xl font-black text-slate-950">{row.spend}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] uppercase tracking-wider text-slate-500">New client every</div>
-                    <div className="text-2xl font-black text-slate-950">{row.cadence}</div>
-                  </div>
+                  <span className="text-right text-base font-black text-slate-950">{row.clients}</span>
+                  <span className="text-right text-base font-black text-slate-950">{row.spend}</span>
+                  <span className="text-right text-base font-black text-slate-950">{row.cadence}</span>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
           <p className="mt-4 text-sm text-slate-600">{CLIENTS_WON_BRAND_NOTE}</p>
           <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
@@ -233,46 +242,14 @@ export default function AwayDigitalHubspotAnalysisPage() {
           </details>
         </Section>
 
-        <Section id="hubspot-leads" label="HubSpot leads" number="3 / 7">
+        <Section id="leads-quality" label="Leads by quality" number="3 / 8">
           <Eyebrow>Paid-search leads in HubSpot</Eyebrow>
-          <SlideTitle>Most enquiries aren&apos;t a fit — but the good ones are real businesses.</SlideTitle>
+          <SlideTitle>Most enquiries aren&apos;t a fit, but the good ones are real businesses.</SlideTitle>
           <Lead>
-            Every HubSpot contact that first arrived through paid search, graded on what they asked for. {gradeTotal}{' '}
-            enquiries graded across 15 months.
+            Every paid-search lead, month by month, graded on what they asked for. Use the legend to see total volume,
+            or break it down by quality.
           </Lead>
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/70">
-            <div className="mb-3 text-xs font-black uppercase tracking-widest text-slate-500">
-              Lead quality breakdown
-            </div>
-            <div className="flex h-16 overflow-hidden rounded-2xl bg-slate-100 shadow-inner">
-              {LEAD_GRADES.map((g) => {
-                const n = gradeCount(g.count)
-                return (
-                  <div
-                    key={g.key}
-                    className={`${GRADE_TONE[g.key].bar} flex items-center justify-center text-[11px] font-bold text-white`}
-                    style={{ width: `${(n / gradeTotal) * 100}%` }}
-                    title={`${g.label}: ${g.count}`}
-                  >
-                    {n}
-                  </div>
-                )
-              })}
-            </div>
-            <div className="mt-4 space-y-2.5">
-              {LEAD_GRADES.map((g) => (
-                <div key={g.key} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span
-                    className={`inline-block shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${GRADE_TONE[g.key].pill}`}
-                  >
-                    {g.label}
-                  </span>
-                  <span className="text-sm font-bold text-slate-800">{g.count}</span>
-                  <span className="text-sm text-slate-600">{g.desc}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <LeadsQualityChart />
           <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
             <h3 className="mb-3 text-xs font-black uppercase tracking-widest text-slate-500">What the leads tell us</h3>
             <ul className="space-y-2.5">
@@ -288,13 +265,193 @@ export default function AwayDigitalHubspotAnalysisPage() {
           </div>
         </Section>
 
-        <Section id="leads-by-month" label="Leads by month" number="4 / 7">
-          <Eyebrow>Every paid-search lead, by month</Eyebrow>
-          <SlideTitle>Every lead, month by month.</SlideTitle>
+        <Section id="channel-performance" label="Digital channels" number="4 / 8">
+          <Eyebrow>Where traffic comes from</Eyebrow>
+          <SlideTitle>Digital channel performance.</SlideTitle>
           <Lead>
-            The monthly trend is below. Expand to open every enquiry, month by month — including the leads that were
-            brand searches or arrived another way.
+            Where the traffic comes from and how each channel converts, {CHANNEL_PERIOD}. This is the full digital
+            picture across every channel, not just paid search.
           </Lead>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
+                  <th className="px-3 py-2">Channel</th>
+                  <th className="px-3 py-2 text-right">Sessions</th>
+                  <th className="px-3 py-2 text-right">Real conversions</th>
+                  <th className="px-3 py-2 text-right">CVR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {CHANNEL_ROWS.map((r) => {
+                  const isTotal = r.channel === 'Total'
+                  return (
+                    <tr key={r.channel} className={`border-t border-slate-100 ${isTotal ? 'bg-slate-50 font-bold' : ''}`}>
+                      <td className={`px-3 py-1.5 ${isTotal ? 'text-slate-950' : 'text-slate-800'}`}>{r.channel}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-slate-700">{r.sessions}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-slate-700">{r.conversions}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-slate-700">{r.cvr}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+        <Section id="competitor-analysis" label="Competitor analysis" number="5 / 8">
+          <Eyebrow>Competitor analysis</Eyebrow>
+          <SlideTitle>Who we&apos;re up against, and what to borrow.</SlideTitle>
+          <Lead>
+            Every competitor we reviewed: where they sit, whether they run Google or Meta ads, and the
+            website takeaway worth applying to Away Digital.
+          </Lead>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
+                  <th className="px-2 py-2">Competitor</th>
+                  <th className="px-2 py-2">Location</th>
+                  <th className="px-2 py-2 text-right">Visits / month</th>
+                  <th className="px-2 py-2">Google Ads</th>
+                  <th className="px-2 py-2">Meta Ads</th>
+                  <th className="px-2 py-2">Website takeaway</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPETITOR_ROWS.map((r, i) => (
+                  <tr
+                    key={r.name}
+                    className={`border-t border-slate-100 ${i === 0 ? 'bg-emerald-50 font-semibold' : ''}`}
+                  >
+                    <td className="px-2 py-1.5 text-slate-800">{r.name}</td>
+                    <td className="px-2 py-1.5 text-slate-600">{r.location}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{r.visits}</td>
+                    <td className="px-2 py-1.5 text-slate-700">{r.googleAds}</td>
+                    <td className="px-2 py-1.5 text-slate-700">{r.metaAds}</td>
+                    <td className="px-2 py-1.5 text-slate-700">{r.takeaway ? '✓' : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        <Section id="landing-pages" label="Landing pages" number="6 / 8">
+          <Eyebrow>hire.awaydigitalteams.com</Eyebrow>
+          <SlideTitle>98 landing pages created.</SlideTitle>
+          <Lead>
+            One page per role and service on the hire subdomain, each built to match its ad group and turn the click
+            into a lead.
+          </Lead>
+          <div className="mb-6 flex items-end gap-4">
+            <div className="text-7xl font-black leading-none text-emerald-600">{LANDING_PAGES_TOTAL}</div>
+            <div className="pb-2 text-lg font-semibold text-slate-800">
+              targeted landing pages created on hire.awaydigitalteams.com
+            </div>
+          </div>
+          <p className="mb-6 text-sm text-slate-600">
+            Better engagement. More people are clicking through the buttons and CTAs than before.
+          </p>
+          <div className="lp-row">
+            {LANDING_PAGE_PREVIEWS.map((p) => (
+              <figure key={p.slug} className="lp-phone">
+                <figcaption>{p.label}</figcaption>
+                <div className="lp-screen">
+                  <iframe
+                    src={p.url}
+                    title={p.title}
+                    // No allow-scripts: the landing pages reveal their cookie-consent
+                    // panel via JS when no consent is stored. Sandboxed cross-origin
+                    // frames always look consent-less, so that banner would show in
+                    // every preview. Blocking scripts keeps the panel's default
+                    // `hidden` state (b-styles.css: .privacy-panel[hidden]{display:none})
+                    // while still loading b-styles.css + the server-rendered page.
+                    sandbox="allow-forms"
+                    loading="lazy"
+                  />
+                </div>
+                <p className="lp-url">{p.url}</p>
+              </figure>
+            ))}
+          </div>
+          <p className="mt-6 text-sm">
+            <a
+              href="#appendix-competitors"
+              className="font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700"
+            >
+              All of this was based on the competitor analysis review that we did across 26 competitors →
+            </a>
+          </p>
+        </Section>
+
+        <Section id="negative-keywords" label="Negative keywords" number="7 / 8">
+          <Eyebrow>Account refinement</Eyebrow>
+          <SlideTitle>Negative keywords, constantly added. {NEGATIVE_KEYWORDS.totalKeywords} and counting.</SlideTitle>
+          <Lead>
+            We keep adding negative keywords to cut wasted spend and sharpen targeting. As time goes by, the account
+            becomes more focused on the searches that turn into real leads.
+          </Lead>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6">
+              <div className="text-xs font-black uppercase tracking-widest text-slate-500">Total lists</div>
+              <div className="mt-3 text-5xl font-black text-slate-950">{NEGATIVE_KEYWORDS.totalLists}</div>
+            </div>
+            <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6">
+              <div className="text-xs font-black uppercase tracking-widest text-emerald-700">Active lists</div>
+              <div className="mt-3 text-5xl font-black text-emerald-600">{NEGATIVE_KEYWORDS.activeLists}</div>
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6">
+              <div className="text-xs font-black uppercase tracking-widest text-slate-500">Total keywords</div>
+              <div className="mt-3 text-5xl font-black text-slate-950">{NEGATIVE_KEYWORDS.totalKeywords}</div>
+            </div>
+          </div>
+        </Section>
+
+        <Section id="philippine-opportunity" label="Philippine opportunity" number="8 / 8">
+          <Eyebrow>Opportunity</Eyebrow>
+          <SlideTitle>The Philippine outsourcing keyword opportunity.</SlideTitle>
+          <Lead>
+            A large share of the outsourcing search market is looking for Philippine providers. We can approach those
+            keywords to take share from the offshore competitors, and explain how Away differs from a pure Philippine
+            operation.
+          </Lead>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6">
+              <div className="text-xs font-black uppercase tracking-widest text-emerald-700">Away Digital Teams</div>
+              <ul className="mt-4 space-y-2.5 text-sm text-slate-700">
+                <li className="flex gap-2.5"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" /><span>Australian business, with Australian account management.</span></li>
+                <li className="flex gap-2.5"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" /><span>Delivery team in Vietnam, working Australian hours.</span></li>
+                <li className="flex gap-2.5"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" /><span>A local team that knows your market.</span></li>
+              </ul>
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6">
+              <div className="text-xs font-black uppercase tracking-widest text-slate-500">Typical Philippine provider</div>
+              <ul className="mt-4 space-y-2.5 text-sm text-slate-600">
+                <li className="flex gap-2.5"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" /><span>Philippines-based offshore staffing.</span></li>
+                <li className="flex gap-2.5"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" /><span>Positioned mainly around offshore cost savings.</span></li>
+                <li className="flex gap-2.5"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" /><span>Offshore account management and support.</span></li>
+              </ul>
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-slate-600">
+            Build landing pages around the Philippine outsourcing keywords, and lead with this difference in the ad and
+            page copy so the traffic converts.
+          </p>
+        </Section>
+
+        <Section id="appendix" label="Appendix" number="Appendix">
+          <Eyebrow>Supporting detail</Eyebrow>
+          <SlideTitle>Appendix.</SlideTitle>
+          <Lead>
+            The supporting detail behind the analysis: every lead month by month, and the full competitor review the
+            landing pages were built on.
+          </Lead>
+        </Section>
+
+        <Section id="appendix-leads" label="Month by month" number="Appendix">
+          <Eyebrow>Appendix</Eyebrow>
+          <SlideTitle>Every paid-search lead, month by month.</SlideTitle>
+          <Lead>The full monthly detail and every enquiry behind the numbers above.</Lead>
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
             <table className="w-full text-xs">
               <thead>
@@ -336,14 +493,14 @@ export default function AwayDigitalHubspotAnalysisPage() {
 
           <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
             <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-              Show every lead ({LEAD_GROUPS.reduce((sum, g) => sum + g.leads.length, 0)}) — month by month
+              Show every lead ({LEAD_GROUPS.reduce((sum, g) => sum + g.leads.length, 0)}) - month by month
             </summary>
             <div className="mt-4 space-y-3">
               {LEAD_GROUPS.map((group) => (
                 <details key={group.label} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
                   <summary className="cursor-pointer text-sm font-semibold text-slate-800">
                     {group.label}{' '}
-                    <span className="font-normal text-slate-500">— {group.summary}</span>
+                    <span className="font-normal text-slate-500">- {group.summary}</span>
                   </summary>
                   <div className="mt-3">
                     <LeadTable leads={group.leads} />
@@ -353,132 +510,64 @@ export default function AwayDigitalHubspotAnalysisPage() {
             </div>
           </details>
         </Section>
-        <Section id="competitor-analysis" label="Competitor analysis" number="5 / 7">
-          <Eyebrow>Competitor analysis</Eyebrow>
-          <SlideTitle>Who we&apos;re up against — and what to borrow.</SlideTitle>
-          <Lead>
-            Every competitor we reviewed: where they sit, whether they run Google or Meta ads, and the
-            website takeaway worth applying to Away Digital.
-          </Lead>
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
-                  <th className="px-2 py-2">Competitor</th>
-                  <th className="px-2 py-2">Location</th>
-                  <th className="px-2 py-2 text-right">Visits / month</th>
-                  <th className="px-2 py-2">Google Ads</th>
-                  <th className="px-2 py-2">Meta Ads</th>
-                  <th className="px-2 py-2">Website takeaway</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMPETITOR_ROWS.map((r, i) => (
-                  <tr
-                    key={r.name}
-                    className={`border-t border-slate-100 ${i === 0 ? 'bg-emerald-50 font-semibold' : ''}`}
-                  >
-                    <td className="px-2 py-1.5 text-slate-800">{r.name}</td>
-                    <td className="px-2 py-1.5 text-slate-600">{r.location}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{r.visits}</td>
-                    <td className="px-2 py-1.5 text-slate-700">{r.googleAds}</td>
-                    <td className="px-2 py-1.5 text-slate-700">{r.metaAds}</td>
-                    <td className="px-2 py-1.5 text-slate-700">{r.takeaway ? '✓' : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
 
-        <Section id="landing-pages" label="Landing pages" number="6 / 7">
-          <Eyebrow>hire.awaydigitalteams.com</Eyebrow>
-          <SlideTitle>Landing pages created.</SlideTitle>
-          <Lead>
-            One page per role and service on the hire subdomain — each built to match its ad group and
-            turn the click into a lead.
-          </Lead>
-          <p className="lp-count"><strong>{LANDING_PAGES_TOTAL}</strong> targeted landing pages created on hire.awaydigitalteams.com</p>
-          <div className="max-w-4xl mb-6 flex items-start gap-3 rounded-xl border border-slate-200 border-l-4 border-l-emerald-500 bg-slate-50 px-5 py-4">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-emerald-600">
-              <path d="M3 17l6-6 4 4 8-8" />
-              <path d="M17 7h4v4" />
-            </svg>
-            <p className="text-sm md:text-[15px] text-slate-700 leading-relaxed">
-              <span className="font-semibold text-slate-950">Better engagement.</span>{' '}
-              More people are clicking through the buttons and CTAs than before.
-            </p>
-          </div>
-          <div className="lp-row">
-            {LANDING_PAGE_PREVIEWS.map((p) => (
-              <figure key={p.slug} className="lp-phone">
-                <figcaption>{p.label}</figcaption>
-                <div className="lp-screen">
-                  <iframe
-                    src={p.url}
-                    title={p.title}
-                    // No allow-scripts: the landing pages reveal their cookie-consent
-                    // panel via JS when no consent is stored. Sandboxed cross-origin
-                    // frames always look consent-less, so that banner would show in
-                    // every preview. Blocking scripts keeps the panel's default
-                    // `hidden` state (b-styles.css: .privacy-panel[hidden]{display:none})
-                    // while still loading b-styles.css + the server-rendered page.
-                    sandbox="allow-forms"
-                    loading="lazy"
-                  />
-                </div>
-                <p className="lp-url">{p.url}</p>
-              </figure>
-            ))}
-          </div>
-          <p className="mt-6 text-sm">
-            <a
-              href="#appendix"
-              className="font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700"
-            >
-              All of this was based on the competitor analysis review that we did across 26 competitors →
-            </a>
-          </p>
-        </Section>
-
-        <Section id="appendix" label="Appendix" number="7 / 7">
+        <Section id="appendix-competitors" label="Competitor review" number="Appendix">
           <Eyebrow>Appendix</Eyebrow>
           <SlideTitle>The competitor analysis behind the landing pages.</SlideTitle>
           <Lead>
-            Every competitor we reviewed in full — what each does above the fold, the takeaways to apply
-            to Away Digital, and our notes. This is the work the landing pages were built on.
+            Every competitor we reviewed in full, what each does above the fold, the takeaways to apply to Away
+            Digital, and our notes. This is the work the landing pages were built on.
           </Lead>
           <div className="space-y-3">
-            {COMPETITOR_WRITEUPS.map((c) => (
-              <details key={c.name} className="rounded-xl border border-slate-200 bg-white p-4">
-                <summary className="cursor-pointer text-sm font-semibold text-slate-800">
-                  {c.name} <span className="font-normal text-slate-500">— {c.location}</span>
-                </summary>
-                <div className="mt-3 space-y-3">
-                  <p className="text-sm leading-relaxed text-slate-600">{c.description}</p>
-                  {c.takeaways.length > 0 ? (
-                    <div>
-                      <h4 className="mb-1 text-xs font-black uppercase tracking-widest text-slate-500">
-                        Takeaways to apply to Away Digital
-                      </h4>
-                      <ul className="space-y-1.5">
-                        {c.takeaways.map((t) => (
-                          <li key={t.title} className="text-sm text-slate-600">
-                            <strong className="text-slate-800">{t.title}</strong> {t.text}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  {c.comment ? (
-                    <div>
-                      <h4 className="mb-1 text-xs font-black uppercase tracking-widest text-slate-500">Notes</h4>
-                      <p className="text-sm leading-relaxed text-slate-600">{c.comment}</p>
-                    </div>
-                  ) : null}
-                </div>
-              </details>
-            ))}
+            {COMPETITOR_WRITEUPS.map((c) => {
+              const shot = COMPETITOR_SHOTS[c.name]
+              return (
+                <details key={c.name} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                    {c.name} <span className="font-normal text-slate-500">- {c.location}</span>
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {shot ? (
+                      <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[2fr_1fr]">
+                        <figure>
+                          <figcaption className="mb-1 text-xs font-semibold text-slate-500">Desktop</figcaption>
+                          <div className="overflow-hidden rounded-lg border border-slate-200">
+                            <img src={shot.desktop} alt={`${c.name} desktop homepage`} className="w-full" loading="lazy" />
+                          </div>
+                        </figure>
+                        <figure>
+                          <figcaption className="mb-1 text-xs font-semibold text-slate-500">Mobile</figcaption>
+                          <div className="overflow-hidden rounded-lg border border-slate-200">
+                            <img src={shot.mobile} alt={`${c.name} mobile homepage`} className="w-full" loading="lazy" />
+                          </div>
+                        </figure>
+                      </div>
+                    ) : null}
+                    <p className="text-sm leading-relaxed text-slate-600">{c.description}</p>
+                    {c.takeaways.length > 0 ? (
+                      <div>
+                        <h4 className="mb-1 text-xs font-black uppercase tracking-widest text-slate-500">
+                          Takeaways to apply to Away Digital
+                        </h4>
+                        <ul className="space-y-1.5">
+                          {c.takeaways.map((t) => (
+                            <li key={t.title} className="text-sm text-slate-600">
+                              <strong className="text-slate-800">{t.title}</strong> {t.text}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {c.comment ? (
+                      <div>
+                        <h4 className="mb-1 text-xs font-black uppercase tracking-widest text-slate-500">Notes</h4>
+                        <p className="text-sm leading-relaxed text-slate-600">{c.comment}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                </details>
+              )
+            })}
           </div>
         </Section>
       </main>
