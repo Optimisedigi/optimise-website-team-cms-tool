@@ -1,0 +1,19 @@
+/* Aussie Fluid Power Proposal — house blue accent overrides */
+/* Matches the Optimise proposal palette (report-v2 defaults / Swanson deck) */
+
+.proposal-v2.afp {
+  /* These tokens drive: .num-tag, .road-cell .week, .val.purple, .eyebrow, pill border */
+  --purple-deep:  #0066FF;
+  --purple:       #4d94ff;
+  --purple-soft:  #99c0ff;
+  --gold:         #d97706;  /* CPC values */
+
+  /* Slide cover accent */
+  --accent:       #4d94ff;
+}
+
+/* Blue dot for brand-tag */
+.proposal-v2.afp .dot {
+  background: #0066FF;
+  box-shadow: 0 0 16px #0066FF;
+}

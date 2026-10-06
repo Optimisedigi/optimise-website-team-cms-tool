@@ -16,6 +16,7 @@ import {
   LANDING_PAGE_PREVIEWS,
 } from './data'
 import type { Lead, LeadGradeKey } from './data'
+import { COMPETITOR_ROWS, COMPETITOR_WRITEUPS } from './competitor-data'
 
 const GRADE_TONE: Record<LeadGradeKey, { pill: string; bar: string }> = {
   strong: { pill: 'bg-emerald-100 text-emerald-800', bar: 'bg-emerald-500' },
@@ -174,7 +175,7 @@ export default function AwayDigitalHubspotAnalysisPage() {
           </div>
         </section>
 
-        <Section id="clients-won" label="Clients won" number="2 / 5">
+        <Section id="clients-won" label="Clients won" number="2 / 7">
           <Eyebrow>Clients won</Eyebrow>
           <SlideTitle>Paid search is winning clients faster — and for less.</SlideTitle>
           <Lead>
@@ -232,7 +233,7 @@ export default function AwayDigitalHubspotAnalysisPage() {
           </details>
         </Section>
 
-        <Section id="hubspot-leads" label="HubSpot leads" number="3 / 5">
+        <Section id="hubspot-leads" label="HubSpot leads" number="3 / 7">
           <Eyebrow>Paid-search leads in HubSpot</Eyebrow>
           <SlideTitle>Most enquiries aren&apos;t a fit — but the good ones are real businesses.</SlideTitle>
           <Lead>
@@ -287,7 +288,7 @@ export default function AwayDigitalHubspotAnalysisPage() {
           </div>
         </Section>
 
-        <Section id="leads-by-month" label="Leads by month" number="4 / 5">
+        <Section id="leads-by-month" label="Leads by month" number="4 / 7">
           <Eyebrow>Every paid-search lead, by month</Eyebrow>
           <SlideTitle>Every lead, month by month.</SlideTitle>
           <Lead>
@@ -352,7 +353,45 @@ export default function AwayDigitalHubspotAnalysisPage() {
             </div>
           </details>
         </Section>
-        <Section id="landing-pages" label="Landing pages" number="5 / 5">
+        <Section id="competitor-analysis" label="Competitor analysis" number="5 / 7">
+          <Eyebrow>Competitor analysis</Eyebrow>
+          <SlideTitle>Who we&apos;re up against — and what to borrow.</SlideTitle>
+          <Lead>
+            Every competitor we reviewed: where they sit, whether they run Google or Meta ads, and the
+            website takeaway worth applying to Away Digital.
+          </Lead>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
+                  <th className="px-2 py-2">Competitor</th>
+                  <th className="px-2 py-2">Location</th>
+                  <th className="px-2 py-2 text-right">Visits / month</th>
+                  <th className="px-2 py-2">Google Ads</th>
+                  <th className="px-2 py-2">Meta Ads</th>
+                  <th className="px-2 py-2">Website takeaway</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPETITOR_ROWS.map((r, i) => (
+                  <tr
+                    key={r.name}
+                    className={`border-t border-slate-100 ${i === 0 ? 'bg-emerald-50 font-semibold' : ''}`}
+                  >
+                    <td className="px-2 py-1.5 text-slate-800">{r.name}</td>
+                    <td className="px-2 py-1.5 text-slate-600">{r.location}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{r.visits}</td>
+                    <td className="px-2 py-1.5 text-slate-700">{r.googleAds}</td>
+                    <td className="px-2 py-1.5 text-slate-700">{r.metaAds}</td>
+                    <td className="px-2 py-1.5 text-slate-700">{r.takeaway ? '✓' : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        <Section id="landing-pages" label="Landing pages" number="6 / 7">
           <Eyebrow>hire.awaydigitalteams.com</Eyebrow>
           <SlideTitle>Landing pages created.</SlideTitle>
           <Lead>
@@ -360,6 +399,16 @@ export default function AwayDigitalHubspotAnalysisPage() {
             turn the click into a lead.
           </Lead>
           <p className="lp-count"><strong>{LANDING_PAGES_TOTAL}</strong> targeted landing pages created on hire.awaydigitalteams.com</p>
+          <div className="max-w-4xl mb-6 flex items-start gap-3 rounded-xl border border-slate-200 border-l-4 border-l-emerald-500 bg-slate-50 px-5 py-4">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-emerald-600">
+              <path d="M3 17l6-6 4 4 8-8" />
+              <path d="M17 7h4v4" />
+            </svg>
+            <p className="text-sm md:text-[15px] text-slate-700 leading-relaxed">
+              <span className="font-semibold text-slate-950">Better engagement.</span>{' '}
+              More people are clicking through the buttons and CTAs than before.
+            </p>
+          </div>
           <div className="lp-row">
             {LANDING_PAGE_PREVIEWS.map((p) => (
               <figure key={p.slug} className="lp-phone">
@@ -368,12 +417,67 @@ export default function AwayDigitalHubspotAnalysisPage() {
                   <iframe
                     src={p.url}
                     title={p.title}
-                    sandbox="allow-scripts allow-forms"
+                    // No allow-scripts: the landing pages reveal their cookie-consent
+                    // panel via JS when no consent is stored. Sandboxed cross-origin
+                    // frames always look consent-less, so that banner would show in
+                    // every preview. Blocking scripts keeps the panel's default
+                    // `hidden` state (b-styles.css: .privacy-panel[hidden]{display:none})
+                    // while still loading b-styles.css + the server-rendered page.
+                    sandbox="allow-forms"
                     loading="lazy"
                   />
                 </div>
                 <p className="lp-url">{p.url}</p>
               </figure>
+            ))}
+          </div>
+          <p className="mt-6 text-sm">
+            <a
+              href="#appendix"
+              className="font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700"
+            >
+              All of this was based on the competitor analysis review that we did across 26 competitors →
+            </a>
+          </p>
+        </Section>
+
+        <Section id="appendix" label="Appendix" number="7 / 7">
+          <Eyebrow>Appendix</Eyebrow>
+          <SlideTitle>The competitor analysis behind the landing pages.</SlideTitle>
+          <Lead>
+            Every competitor we reviewed in full — what each does above the fold, the takeaways to apply
+            to Away Digital, and our notes. This is the work the landing pages were built on.
+          </Lead>
+          <div className="space-y-3">
+            {COMPETITOR_WRITEUPS.map((c) => (
+              <details key={c.name} className="rounded-xl border border-slate-200 bg-white p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                  {c.name} <span className="font-normal text-slate-500">— {c.location}</span>
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <p className="text-sm leading-relaxed text-slate-600">{c.description}</p>
+                  {c.takeaways.length > 0 ? (
+                    <div>
+                      <h4 className="mb-1 text-xs font-black uppercase tracking-widest text-slate-500">
+                        Takeaways to apply to Away Digital
+                      </h4>
+                      <ul className="space-y-1.5">
+                        {c.takeaways.map((t) => (
+                          <li key={t.title} className="text-sm text-slate-600">
+                            <strong className="text-slate-800">{t.title}</strong> {t.text}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {c.comment ? (
+                    <div>
+                      <h4 className="mb-1 text-xs font-black uppercase tracking-widest text-slate-500">Notes</h4>
+                      <p className="text-sm leading-relaxed text-slate-600">{c.comment}</p>
+                    </div>
+                  ) : null}
+                </div>
+              </details>
             ))}
           </div>
         </Section>
