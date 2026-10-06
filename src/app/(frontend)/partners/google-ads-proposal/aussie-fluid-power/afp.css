@@ -17,3 +17,46 @@
   background: #0066FF;
   box-shadow: 0 0 16px #0066FF;
 }
+
+/* === Viewport-anchored slide slots (away-digital deck behaviour) ======
+   Each slide sits in a full-viewport slot with its 1920x1080 canvas scaled
+   and centred inside, so the slide always centres to the window on resize
+   and the next slide is never visible below/above it. Mandatory scroll-snap
+   makes the browser re-snap to a single slide after the window changes. */
+html:has(.proposal-v2.afp) {
+  scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
+}
+
+.proposal-v2.afp .deck-stage-wrap {
+  width: 100%;
+  background: transparent; /* slots paint their own background */
+}
+
+.proposal-v2.afp .deck-stage-wrap .afp-slot {
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: start;
+  background: var(--bg-paper);
+}
+
+.proposal-v2.afp .deck-stage-wrap .afp-slot.is-dark {
+  background: var(--bg-night);
+}
+
+.proposal-v2.afp .deck-stage-wrap .afp-slot .slide {
+  /* Keep the fixed canvas + scale; centre it in the slot instead of the
+     old top-left flow packing (which stacked slides edge-to-edge). */
+  transform-origin: center center;
+  margin: 0;
+  box-shadow: none;
+  /* Never let the slot's flex layout squeeze the 1920px canvas: the slide
+     must always lay out at 1920x1080 and be scaled by transform only, so
+     content geometry is identical on every window size (no re-wrapping or
+     cropped boxes on small screens). */
+  flex: none;
+}

@@ -8,6 +8,7 @@ import '@/app/(frontend)/proposals/[slug]/v2/report-v2.css'
 import '@/app/(frontend)/partners/google-ads-proposal/aussie-fluid-power/afp.css'
 import { DeckStage } from '@/components/v2/DeckStage'
 import RocketScroll from '@/components/RocketScroll'
+import { SlideSnap } from './SlideSnap'
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -27,9 +28,11 @@ export default function AussieFluidPowerProposal() {
   return (
     <div className={`proposal-v2 afp ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
       <DeckStage>
+        <SlideSnap />
         <RocketScroll>
 
           {/* ── SLIDE 01 · COVER ─────────────────────────────────── */}
+          <div className="afp-slot is-dark">
           <section className="slide dark cover" data-label="01 Cover">
             <div className="starfield" aria-hidden="true" />
             <div className="orbit-deco" style={{ width: 1400, height: 1400, right: -500, top: -400 }} />
@@ -45,20 +48,22 @@ export default function AussieFluidPowerProposal() {
             <div className="center">
               <div className="eyebrow-line">
                 <span className="pill" style={{ color: 'var(--purple-soft)', borderColor: 'var(--purple)', fontSize: 26 }}>Google Ads Proposal</span>
-                <span className="meta-tag" style={{ color: 'rgba(255,255,255,0.45)' }}>Search · Perth &amp; Melbourne · v1.0</span>
+                <span className="meta-tag" style={{ color: 'rgba(255,255,255,0.45)' }}>Aussie Fluid Power · Perth &amp; Melbourne</span>
                 <span className="meta-tag" style={{ color: 'rgba(255,255,255,0.45)' }}>October 2026</span>
               </div>
               <div className="h1" style={{ fontSize: 121 }}>
-                Perth &amp; Melbourne search volume.<br />High commercial intent.<br /><em style={{ color: 'var(--purple-soft)' }}>Zero paid presence.</em>
+                Search volume with higher commercial intent.<br /><em style={{ color: 'var(--purple-soft)' }}>Zero paid presence.</em>
               </div>
               <div className="deck-for" style={{ fontSize: 35 }}>
-                Own high-intent hydraulic, process &amp; construction search Australia-wide.<br />Lead measurement built in from day one.
+                Own high-intent hydraulic, process &amp; construction search Australia-wide, starting in Perth &amp; Melbourne. Lead measurement from day one.
               </div>
             </div>
             <div />
           </section>
+          </div>
 
           {/* ── SLIDE 02 · SEARCH VOLUME ─────────────────────────── */}
+          <div className="afp-slot">
           <section className="slide" data-label="02 Search Volume">
             <div className="brand-tag"><span className="dot"></span> 02 · Search Volume</div>
             <div className="slide-head">
@@ -123,9 +128,11 @@ export default function AussieFluidPowerProposal() {
             </div>
             <div className="slide-foot" />
           </section>
+          </div>
 
           {/* ── SLIDE 03 · KEYWORD LANDSCAPE ─────────────────────── */}
-          <section className="slide" data-label="03 Keyword Landscape">
+          <div className="afp-slot">
+          <section className="slide" data-label="03 Keyword Landscape" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="brand-tag"><span className="dot"></span> 03 · Keyword Landscape</div>
             <div className="slide-head">
               <div className="h-left">
@@ -134,40 +141,41 @@ export default function AussieFluidPowerProposal() {
               </div>
               <div className="h-meta">Google Keyword Planner estimates · AUD</div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0 }}>
               <div className="eyebrow" style={{ color: 'var(--purple-deep)', marginBottom: 6 }}>
                 TOP 20 KEYWORDS BY SEARCH VOLUME
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, flex: 1, minHeight: 0, gridAutoRows: 'minmax(0, 1fr)', overflow: 'hidden' }}>
                 {[
-                  { term: 'hydraulic hose repair near me', vol: '1,600', cpc: '$2-7', geo: 'National', intent: 'Very High' },
-                  { term: 'hydraulic hose repair', vol: '1,300', cpc: '$2-7', geo: 'Melbourne 880', intent: 'Very High' },
-                  { term: 'hydraulic cylinders', vol: '1,300', cpc: '$1-6', geo: 'National', intent: 'Medium' },
-                  { term: 'hydraulic pumps', vol: '1,300', cpc: '$1-5', geo: 'National', intent: 'Medium' },
-                  { term: 'hydraulic fittings', vol: '1,000', cpc: '$0.75-3.55', geo: 'National', intent: 'Medium' },
-                  { term: 'hydraulic power pack', vol: '720', cpc: '$0.90-3.65', geo: 'National', intent: 'High' },
-                  { term: 'hydraulic motors', vol: '720', cpc: '$0.80-3.30', geo: 'National', intent: 'Medium' },
-                  { term: 'hydraulic repair near me', vol: '590', cpc: '$2-6', geo: 'National', intent: 'Very High' },
-                  { term: 'hydraulic hose fittings', vol: '590', cpc: '$0.85-3.85', geo: 'National', intent: 'Medium' },
-                  { term: 'hydrostatic testing', vol: '480', cpc: '$0.90-11.60', geo: 'National', intent: 'High' },
-                  { term: 'hydraulic repairs', vol: '390', cpc: '$2.50-8.95', geo: 'National', intent: 'Very High' },
-                  { term: 'hydraulic cylinder repair', vol: '390', cpc: '$2-9.25', geo: 'National', intent: 'Very High' },
-                  { term: 'hydraulic components', vol: '320', cpc: '$2.20-6.75', geo: 'National', intent: 'Medium' },
-                  { term: 'hydraulic service', vol: '260', cpc: '$2.20-7.40', geo: 'National', intent: 'High' },
-                  { term: 'hydraulic valves', vol: '260', cpc: '$1-4.55', geo: 'National', intent: 'Medium' },
-                  { term: 'hydraulic ram repair', vol: '210', cpc: '$1.90-6.40', geo: 'National', intent: 'Very High' },
-                  { term: 'hydraulic pump repair', vol: '210', cpc: '$2.15-5.70', geo: 'National', intent: 'Very High' },
-                  { term: 'hydraulic shop', vol: '210', cpc: '$1.71-5.64', geo: 'National', intent: 'High' },
-                  { term: 'hydraulic power unit', vol: '210', cpc: '$1.28-5.59', geo: 'National', intent: 'High' },
-                  { term: 'hydrogen generation', vol: '210', cpc: '$0.89-6.76', geo: 'National', intent: 'High' },
+                  { term: 'hydraulic hose repair near me', vol: '1,600', cpc: '$2-7', geo: 'National' },
+                  { term: 'hydraulic hose repair', vol: '1,300', cpc: '$2-7', geo: 'Melbourne 880' },
+                  { term: 'hydraulic cylinders', vol: '1,300', cpc: '$1-6', geo: 'National' },
+                  { term: 'hydraulic pumps', vol: '1,300', cpc: '$1-5', geo: 'National' },
+                  { term: 'hydraulic fittings', vol: '1,000', cpc: '$0.75-3.55', geo: 'National' },
+                  { term: 'hydraulic power pack', vol: '720', cpc: '$0.90-3.65', geo: 'National' },
+                  { term: 'hydraulic motors', vol: '720', cpc: '$0.80-3.30', geo: 'National' },
+                  { term: 'hydraulic repair near me', vol: '590', cpc: '$2-6', geo: 'National' },
+                  { term: 'hydraulic hose fittings', vol: '590', cpc: '$0.85-3.85', geo: 'National' },
+                  { term: 'hydrostatic testing', vol: '480', cpc: '$0.90-11.60', geo: 'National' },
+                  { term: 'hydraulic repairs', vol: '390', cpc: '$2.50-8.95', geo: 'National' },
+                  { term: 'hydraulic cylinder repair', vol: '390', cpc: '$2-9.25', geo: 'National' },
+                  { term: 'hydraulic components', vol: '320', cpc: '$2.20-6.75', geo: 'National' },
+                  { term: 'hydraulic service', vol: '260', cpc: '$2.20-7.40', geo: 'National' },
+                  { term: 'hydraulic valves', vol: '260', cpc: '$1-4.55', geo: 'National' },
+                  { term: 'hydraulic ram repair', vol: '210', cpc: '$1.90-6.40', geo: 'National' },
+                  { term: 'hydraulic pump repair', vol: '210', cpc: '$2.15-5.70', geo: 'National' },
+                  { term: 'hydraulic shop', vol: '210', cpc: '$1.71-5.64', geo: 'National' },
+                  { term: 'hydraulic power unit', vol: '210', cpc: '$1.28-5.59', geo: 'National' },
+                  { term: 'hydrogen generation', vol: '210', cpc: '$0.89-6.76', geo: 'National' },
                 ].map((kw, j) => (
-                  <div key={j} className="card" style={{ padding: '14px 18px', gap: 6 }}>
-                    <div className="h" style={{ fontSize: 22, lineHeight: 1.2 }}>{kw.term}</div>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 4 }}>
+                  <div key={j} className="card" style={{ padding: '8px 14px', gap: 2, overflow: 'hidden', display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                      <div className="h" style={{ fontSize: 20, lineHeight: 1.2 }}>{kw.term}</div>
+                      <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 16, color: 'var(--ink-mute)' }}>{kw.geo}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'right', flexShrink: 0 }}>
                       <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--ink-mute)' }}>{kw.vol}/mo</span>
-                      <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--gold)', fontWeight: 600 }}>Avg CPC {kw.cpc}</span>
-                      <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--ink-mute)' }}>{kw.geo}</span>
-                      <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--purple-deep)', fontWeight: 600 }}>{kw.intent}</span>
+                      <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 16, color: 'var(--gold)', fontWeight: 600 }}>Avg CPC {kw.cpc}</span>
                     </div>
                   </div>
                 ))}
@@ -178,8 +186,10 @@ export default function AussieFluidPowerProposal() {
             </p>
             <div className="slide-foot" />
           </section>
+          </div>
 
           {/* ── SLIDE 04 · GOOGLE ADS BUDGET ─────────────────────── */}
+          <div className="afp-slot">
           <section className="slide" data-label="04 Google Ads Budget">
             <div className="brand-tag"><span className="dot"></span> 04 · Google Ads Budget</div>
             <div className="slide-head">
@@ -187,18 +197,18 @@ export default function AussieFluidPowerProposal() {
                 <div className="h-eyebrow">04 · Google Ads Budget</div>
                 <h1 className="h-title">Monthly Budget Recommendations</h1>
               </div>
-              <div className="h-meta">Search · Perth &amp; Melbourne → Australia-wide</div>
+              <div className="h-meta" style={{ whiteSpace: 'nowrap' }}>Search · Perth &amp; Melbourne → Australia-wide</div>
             </div>
             <p className="pull" style={{ fontSize: 24, lineHeight: 1.25, maxWidth: 1700, marginBottom: 14 }}>
               <strong style={{ color: 'var(--ink)' }}>The goal:</strong>{' '}win Perth &amp; Melbourne&apos;s high-intent hydraulic, process and engineering searches first, prove the cost per enquiry, then scale Australia-wide.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 42 }}>
               {[
                 {
                   phase: 'PHASE 01',
                   name: 'Perth + Melbourne Focus',
                   budget: '$3,000',
-                  duration: 'Months 1-3 · from go-live',
+                  duration: 'Months 1-6 · from go-live',
                   goal: 'Establish AFP in its home markets: high-intent service, repair and product searches in Perth & Melbourne.',
                   targets: [
                     'Service & repair, high-intent terms · 55%',
@@ -210,16 +220,16 @@ export default function AussieFluidPowerProposal() {
                   color: '#0066FF',
                 },
                 {
-                  phase: 'PHASE 02',
+                  phase: 'PHASE 02 · OPTIONAL',
                   name: 'Australia-Wide Scale',
-                  budget: '$6,500',
-                  duration: 'Month 4 onwards',
-                  goal: 'Scale the proven structure across Australia: generic repair & service (5,490 searches/mo), product demand and specialist lines.',
+                  budget: '$5,500',
+                  duration: 'Optional · month 4 onwards',
+                  goal: 'Optional: increase the budget only if Phase 1 is seeing really good performance and we want to open up. Then scale the proven structure across Australia: generic repair & service (5,490 searches/mo), product demand and specialist lines.',
                   targets: [
                     'All generic service & repair terms',
                     'Full product & component coverage',
                     'Specialist, process & hydrogen lines',
-                    'Est. 50-65 tracked enquiries/mo · target CPA $100-130',
+                    'Est. 42-55 tracked enquiries/mo · target CPA $100-130',
                     'Bid strategy moves to tCPA after 30+ conversions',
                   ],
                   color: '#0052CC',
@@ -289,8 +299,10 @@ export default function AussieFluidPowerProposal() {
             </div>
             <div className="slide-foot" />
           </section>
+          </div>
 
           {/* ── SLIDE 05 · RECOMMENDATION ──────────────────────── */}
+          <div className="afp-slot">
           <section className="slide" data-label="05 Recommendation">
             <div className="brand-tag"><span className="dot"></span> 05 · Recommendation</div>
             <div className="slide-head">
@@ -300,7 +312,7 @@ export default function AussieFluidPowerProposal() {
               </div>
               <div className="h-meta">Perth + Melbourne first · then Australia-wide</div>
             </div>
-            <div className="card" style={{ padding: '22px 28px', gap: 10, background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.12)', marginBottom: 18 }}>
+            <div className="card" style={{ padding: '22px 28px', gap: 10, background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.12)', marginBottom: 20 }}>
               <div className="eyebrow" style={{ color: 'var(--purple-deep)' }}>Group overlap</div>
               <div className="b" style={{ fontSize: 27, lineHeight: 1.35 }}>
                 AFP shares service categories with Berendsen and Custom Fluid Power, and the sister accounts already bid on very close terms. Managing this between states, and excluding them so they don&apos;t compete with each other and don&apos;t drive bids up, is a really important aspect to consider.
@@ -353,8 +365,10 @@ export default function AussieFluidPowerProposal() {
             </div>
             <div className="slide-foot" />
           </section>
+          </div>
 
           {/* ── SLIDE 06 · FLIGHT PLAN ───────────────────────────── */}
+          <div className="afp-slot">
           <section className="slide" data-label="06 Flight Plan">
             <div className="brand-tag"><span className="dot"></span> 06 · Flight Plan</div>
             <div className="slide-head">
@@ -362,7 +376,7 @@ export default function AussieFluidPowerProposal() {
                 <div className="h-eyebrow">06 · Flight Plan</div>
                 <h1 className="h-title">Roadmap</h1>
               </div>
-              <div className="h-meta">Ideal go live: 16 November 2026</div>
+              <div className="h-meta">TBC</div>
             </div>
             <div className="roadmap" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
               {[
@@ -370,7 +384,7 @@ export default function AussieFluidPowerProposal() {
                 { week: 'WEEK 02', step: 'Tracking First', body: 'Leads currently land untracked in the sales inbox, so measurement comes first: call tracking, form & email-click tracking, GA4 key events, Google Ads conversion actions.' },
                 { week: 'WEEK 03', step: 'Strategy + Sign-off', body: 'Campaign structure, keyword set aligned to your search tracker, negative keyword lists, and brand guardrails agreed with Berendsen & Custom Fluid Power to prevent group overlap.' },
                 { week: 'WEEK 04', step: 'Build + Go Live', body: 'Service, product & specialist campaigns go live in Perth + Melbourne. Budget: $3,000/month. Landing pages checked with CRO audit.' },
-                { week: 'WEEK 05+', step: 'Optimise + Scale', body: 'Search-term sculpting against your tracker. tCPA after 30+ conversions. Scale Australia-wide to $6,500/mo. HubSpot offline conversion import the moment the migration lands.' },
+                { week: 'WEEK 05+', step: 'Optimise + Review', body: 'Optimise the campaign to a point where we can consider increasing the budget from month four onwards. Search-term sculpting against your tracker, tCPA after 30+ conversions, HubSpot offline conversion import the moment the migration lands.' },
               ].map((cell, i) => (
                 <div key={i} className="road-cell">
                   <div className="week">{cell.week}</div>
@@ -384,6 +398,7 @@ export default function AussieFluidPowerProposal() {
             </p>
             <div className="slide-foot" />
           </section>
+          </div>
 
         </RocketScroll>
       </DeckStage>
