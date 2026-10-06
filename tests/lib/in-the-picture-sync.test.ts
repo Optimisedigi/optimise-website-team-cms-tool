@@ -751,4 +751,83 @@ describe('In The Picture boundary', () => {
       await rm(dir, { recursive: true, force: true })
     }
   })
+  it('applies rank-only website updates that advance updatedAt without a record revision', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'itp-rank-drift-'))
+    const db = createClient({ url: `file:${join(dir, 'test.db')}` })
+    try {
+      for (const table of ['clients', 'blog_posts', '_blog_posts_v', 'payload_locked_documents_rels'])
+        await db.execute(`CREATE TABLE ${table} (id integer PRIMARY KEY)`)
+      await db.execute('INSERT INTO clients(id) VALUES (1)')
+      for (const [, statement] of inThePictureSchema) await db.execute(statement)
+      process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+      process.env.IN_THE_PICTURE_WEBSITE_ORIGIN = 'https://website.example.com'
+      process.env.CONTENT_CMS_SYNC_TOKEN = token
+      const payload = { db: { client: db } } as never
+      const ideaA = '12345678-1234-4234-8234-123456789aaa'
+      const stale = '12345678-1234-4234-8234-123456789bbb'
+      const record = (blogId: string, priority: number, orderRevision: number, updatedAt: string) => ({
+        blogId,
+        priority,
+        orderRevision,
+        recordRevision: 2,
+        blogIdea: 'Brief',
+        suggestedTitle: '',
+        mainPoint: '',
+        keyPoints: '',
+        pointsToAvoid: '',
+        supportingContent: '',
+        contributor: '',
+        idealAuthor: '',
+        status: 'open' as const,
+        publishedSlug: '',
+        updatedAt,
+      })
+      await applyIdeas(payload, [
+        record(ideaA, 1, 1, '2026-09-28T02:43:38.563Z'),
+        record(stale, 2, 2, '2026-09-28T02:43:38.563Z'),
+      ])
+      // The website reordered (bumping updatedAt and order revision, not record revision) and deleted `stale`.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                version: 1,
+                ideas: [record(ideaA, 1, 6, '2026-09-29T02:19:23.427Z')],
+                total: 1,
+                nextOffset: null,
+                snapshotRevision: 8,
+                orderRevision: 6,
+              }),
+            ),
+        ),
+      )
+      expect(await pullIdeas(payload)).toEqual({ applied: 1, count: 1, deleted: 1 })
+      const rows = (
+        await db.execute(
+          'SELECT blog_id, record_revision, order_revision, source_updated_at FROM blog_ideas WHERE client_id = 1',
+        )
+      ).rows
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        blog_id: ideaA,
+        record_revision: 2,
+        order_revision: 6,
+        source_updated_at: '2026-09-29T02:19:23.427Z',
+      })
+      // Genuine content drift at an equal record revision is still rejected.
+      await expect(
+        applyIdeas(payload, [record(ideaA, 1, 6, '2026-09-29T02:19:23.427Z')]),
+      ).resolves.toEqual({ applied: 0, ignored: 1 })
+      await expect(
+        applyIdeas(payload, [
+          { ...record(ideaA, 1, 6, '2026-09-29T02:19:23.427Z'), blogIdea: 'Tampered' },
+        ]),
+      ).rejects.toThrow('Conflicting record revision')
+    } finally {
+      db.close()
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 })

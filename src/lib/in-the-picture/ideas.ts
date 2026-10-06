@@ -26,6 +26,9 @@ const sourceColumns = [
   ['contributor', 'contributor'], ['ideal_author', 'idealAuthor'], ['status', 'status'], ['published_slug', 'publishedSlug'],
   ['source_updated_at', 'updatedAt'],
  ] as const
+/** `source_updated_at` mirrors the website's last-change metadata, which rank-only edits advance without
+ * touching record revision — so it is stored but never checked as a record-conflict value. */
+const contentColumns = sourceColumns.filter(([column]) => column !== 'source_updated_at')
 export async function applyIdeas(payload: Payload, ideas: Idea[], includeRank = true): Promise<{ applied: number; ignored: number }> {
   const client = configuredClientId()
   const db = (payload.db as unknown as { client?: Client }).client
@@ -43,10 +46,12 @@ export async function applyIdeas(payload: Payload, ideas: Idea[], includeRank = 
       if (current && Number(current.client_id) !== client) throw new Error('Blog ID belongs to another client')
       const recordNew = !current || idea.recordRevision > Number(current.record_revision)
       const orderNew = !current || (includeRank && idea.orderRevision > Number(current.order_revision))
-      if (current && idea.recordRevision === Number(current.record_revision) && sourceColumns.some(([col, key]) => (current[col] ?? '') !== idea[key])) throw new Error('Conflicting record revision')
+      if (current && idea.recordRevision === Number(current.record_revision) && contentColumns.some(([col, key]) => (current[col] ?? '') !== idea[key])) throw new Error('Conflicting record revision')
       if (current && includeRank && idea.orderRevision === Number(current.order_revision) && Number(current.priority) !== idea.priority) throw new Error('Conflicting order revision')
       if (!recordNew && !orderNew) { ignored++; continue }
       const now = new Date().toISOString()
+      const storedSourceUpdatedAt = current ? Date.parse(String(current.source_updated_at ?? '')) : NaN
+      const advanceSourceUpdatedAt = !recordNew && orderNew && (!(storedSourceUpdatedAt > 0) || Date.parse(idea.updatedAt) > storedSourceUpdatedAt)
       if (!current) {
         const columns = ['client_id', 'blog_id', 'priority', 'record_revision', 'order_revision', ...sourceColumns.map(([col]) => col), 'updated_at', 'created_at']
         await tx.execute({ sql: `INSERT INTO blog_ideas (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`, args: [client, idea.blogId, idea.priority, idea.recordRevision, idea.orderRevision, ...sourceColumns.map(([, key]) => idea[key]), now, now] })
@@ -54,6 +59,7 @@ export async function applyIdeas(payload: Payload, ideas: Idea[], includeRank = 
         const values = [
           ...(recordNew ? [['record_revision', idea.recordRevision], ...sourceColumns.map(([col, key]) => [col, idea[key]] as const)] : []),
           ...(orderNew ? [['order_revision', idea.orderRevision], ['priority', idea.priority]] : []),
+          ...(advanceSourceUpdatedAt ? [['source_updated_at', idea.updatedAt] as const] : []),
           ['updated_at', now],
         ] as Array<readonly [string, string | number]>
         const updated = await tx.execute({ sql: `UPDATE blog_ideas SET ${values.map(([column]) => `${column} = ?`).join(',')} WHERE id = ? AND record_revision = ? AND order_revision = ?`, args: [...values.map(([, value]) => value), Number(current.id), Number(current.record_revision), Number(current.order_revision)] })
