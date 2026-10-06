@@ -366,6 +366,7 @@
 .blog-prompter__detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .blog-prompter__detail-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .blog-prompter__detail-head p { margin: 2px 0 0; color: var(--bp-faint); font-size: 12px; }
+.blog-prompter__notes { white-space: pre-wrap; }
 .blog-prompter__detail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 
 .blog-prompter :is(button, input, textarea, select, a):focus-visible {

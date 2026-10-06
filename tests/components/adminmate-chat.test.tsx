@@ -30,6 +30,12 @@ const staged = {
   monthlyRetainer: 2000,
   isActive: true,
 }
+const proposal = {
+  businessName: 'Aussie Fluid Power',
+  slug: 'aussie-fluid-power',
+  websiteUrl: 'https://www.aussiefluidpower.com.au',
+  contactName: 'Priya',
+}
 const response = (body: unknown, ok = true) => ({ ok, json: async () => body })
 
 describe('AdminMateChat', () => {
@@ -94,6 +100,29 @@ describe('AdminMateChat', () => {
     resolveCreate?.(response({ id: 11, name: 'Acme Corp', slug: 'acme-corp-au' }))
     expect(await screen.findByText(/Created Acme Corp/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create Acme Corp' })).not.toBeInTheDocument()
+  })
+
+  it('stages a client proposal and creates it once', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url === '/api/optimate/adminmate/chat') {
+        return Promise.resolve(response({ reply: 'Review it.', stagedProposal: proposal }))
+      }
+      if (url === '/api/optimate/adminmate/create-proposal') {
+        return Promise.resolve(response({ id: 21, businessName: 'Aussie Fluid Power', slug: 'aussie-fluid-power', adminUrl: '/admin/collections/client-proposals/21' }))
+      }
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+    render(<AdminMateChat />)
+
+    fireEvent.change(screen.getByLabelText('Message AdminMate'), { target: { value: 'create a client proposal for Aussie Fluid Power' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(await screen.findByRole('button', { name: 'Create Aussie Fluid Power' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create Aussie Fluid Power' }))
+
+    expect(await screen.findByText(/Created the proposal for Aussie Fluid Power/)).toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/optimate/adminmate/create-proposal')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Create Aussie Fluid Power' })).not.toBeInTheDocument()
   })
 
   it('keeps the staged card when creation fails', async () => {

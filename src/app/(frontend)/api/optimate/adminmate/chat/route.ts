@@ -156,6 +156,7 @@ export async function POST(request: Request) {
       stagedOneOffPayment: result.stagedOneOffPayment,
       oneOffPaymentPreview,
       stagedClient: result.stagedClient,
+      stagedProposal: result.stagedProposal,
       similarClients: result.similarClients,
       stagedContract: result.stagedContract,
       missingContractDetails: result.missingContractDetails,

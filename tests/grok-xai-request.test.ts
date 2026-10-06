@@ -41,7 +41,7 @@ describe("xAI Grok adapter", () => {
   it("never sends Codex reasoning fields to the Grok proxy", async () => {
     await callXaiGrok(baseOptions(), "grok-build", {
       baseUrl: "https://grok.test/v1",
-      clientVersion: "0.2.51",
+      clientVersion: "1.0.46",
     });
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);

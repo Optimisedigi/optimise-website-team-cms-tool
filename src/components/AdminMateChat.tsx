@@ -9,6 +9,8 @@ import type { StagedContract } from '@/lib/agents/adminmate/contract-tools'
 import type { ContractTemplateOption } from '@/lib/contract-from-template'
 import AdminMateContractCard from './AdminMateContractCard'
 import AdminMateOneOffPaymentCard from './AdminMateOneOffPaymentCard'
+import AdminMateProposalCard from './AdminMateProposalCard'
+import type { StagedProposal } from '@/lib/agents/adminmate/proposal-tools'
 import type {
   OneOffPaymentPreview,
   StagedOneOffPayment,
@@ -49,6 +51,7 @@ export default function AdminMateChat() {
   const [staged, setStaged] = useState<StagedClient>()
   const [similar, setSimilar] = useState<AdminMateClient[]>([])
   const [stagedContract, setStagedContract] = useState<StagedContract>()
+  const [stagedProposal, setStagedProposal] = useState<StagedProposal>()
   const [stagedPayment, setStagedPayment] = useState<StagedOneOffPayment>()
   const [paymentPreview, setPaymentPreview] = useState<OneOffPaymentPreview>()
   const [missingDetails, setMissingDetails] = useState<string[]>([])
@@ -87,7 +90,7 @@ export default function AdminMateChat() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
-  }, [messages, staged, stagedContract, stagedPayment])
+  }, [messages, staged, stagedContract, stagedPayment, stagedProposal])
 
   const patch = (changes: Partial<StagedClient>) => setStaged((current) => current && { ...current, ...changes })
   const patchContract = (changes: Partial<StagedContract>) => setStagedContract((current) => current && { ...current, ...changes })
@@ -161,6 +164,7 @@ export default function AdminMateChat() {
       setEmailPickerOpen(false)
       if (json.stagedClient) setStaged(json.stagedClient)
       setSimilar(Array.isArray(json.similarClients) ? json.similarClients : [])
+      if (json.stagedProposal) setStagedProposal(json.stagedProposal)
       if (json.stagedContract) {
         setStagedContract(json.stagedContract)
         setMissingDetails(Array.isArray(json.missingContractDetails) ? json.missingContractDetails : [])
@@ -200,6 +204,26 @@ export default function AdminMateChat() {
       setSimilar([])
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create the client')
+    } finally { setCreating(false) }
+  }
+
+  const createProposal = async () => {
+    if (!stagedProposal || creating) return
+    setCreating(true)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await fetch('/api/optimate/adminmate/create-proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(stagedProposal),
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Could not create the proposal')
+      setSuccess(`Created the proposal for ${json.businessName}. Open ${json.adminUrl} to run its audits.`)
+      setStagedProposal(undefined)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not create the proposal')
     } finally { setCreating(false) }
   }
 
@@ -411,6 +435,14 @@ export default function AdminMateChat() {
               {creating ? 'Creating…' : `Create ${staged.name.trim() || 'client'}`}
             </button>
           </section>
+        )}
+        {stagedProposal && (
+          <AdminMateProposalCard
+            staged={stagedProposal}
+            creating={creating}
+            onChange={(changes) => setStagedProposal((current) => current && { ...current, ...changes })}
+            onCreate={() => void createProposal()}
+          />
         )}
         {stagedContract && (
           <AdminMateContractCard

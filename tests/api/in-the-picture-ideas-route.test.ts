@@ -25,4 +25,15 @@ describe('idea receiver', () => {
     expect((await POST(request('{', `Bearer ${token}`))).status).toBe(400)
     expect((await POST(request(JSON.stringify({ version: 1, ideas: [{ blogId: 'not-a-uuid' }] }), `Bearer ${token}`))).status).toBe(400)
   })
+  it('validates deletion tombstones before touching the DB', async () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+    process.env.CONTENT_CMS_IDEAS_TOKEN = token
+    const blogId = '12345678-1234-4234-8234-123456789abc'
+    // Empty batches, malformed or duplicate tombstones, and an idea that is
+    // both updated and deleted must all fail before any write.
+    expect((await POST(request(JSON.stringify({ version: 1 }), `Bearer ${token}`))).status).toBe(400)
+    expect((await POST(request(JSON.stringify({ version: 1, deletedBlogIds: ['not-a-uuid'] }), `Bearer ${token}`))).status).toBe(400)
+    expect((await POST(request(JSON.stringify({ version: 1, deletedBlogIds: [blogId, blogId] }), `Bearer ${token}`))).status).toBe(400)
+    expect((await POST(request(JSON.stringify({ version: 1, ideas: [{ blogId }], deletedBlogIds: [blogId] }), `Bearer ${token}`))).status).toBe(400)
+  })
 })

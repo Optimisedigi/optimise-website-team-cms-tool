@@ -50,6 +50,46 @@ interface SavedBrief extends BriefFields {
   source?: string
   workflowStatus?: 'idea_phase' | 'in_progress' | 'published' | null
   blogPost?: string | number | { id?: string | number } | null
+  editorNotes?: string | null
+}
+
+/** Blog idea proposed in the client's own CMS and synced into `blog-ideas`. */
+interface WebsiteIdea {
+  id: string | number
+  priority?: number | null
+  blogIdea?: string | null
+  suggestedTitle?: string | null
+  mainPoint?: string | null
+  keyPoints?: string | null
+  pointsToAvoid?: string | null
+  supportingContent?: string | null
+  status?: 'open' | 'published' | null
+  publishedSlug?: string | null
+  editorNotes?: string | null
+}
+
+const WEBSITE_IDEA_SOURCE = 'website-cms'
+
+/** Website CMS ideas read like saved briefs so one backlog can list both sources. */
+function websiteIdeaBrief(idea: WebsiteIdea): SavedBrief {
+  return {
+    id: `idea-${idea.id}`,
+    blogIdea: idea.blogIdea ?? '',
+    titleIdea: idea.suggestedTitle ?? '',
+    category: '',
+    tag: '',
+    mainPoint: idea.mainPoint ?? '',
+    keyPoints: idea.keyPoints ?? '',
+    primaryKeywords: '',
+    secondaryKeywords: '',
+    pointsToAvoid: idea.pointsToAvoid ?? '',
+    targetAudience: '',
+    supportingContent: idea.supportingContent ?? '',
+    generatedPrompt: '',
+    source: WEBSITE_IDEA_SOURCE,
+    workflowStatus: idea.status === 'published' ? 'published' : 'idea_phase',
+    editorNotes: idea.editorNotes,
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -129,6 +169,7 @@ const BlogPrompterPage = () => {
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
   const [briefs, setBriefs] = useState<SavedBrief[]>([])
+  const [websiteIdeas, setWebsiteIdeas] = useState<WebsiteIdea[]>([])
   const [loadingBriefs, setLoadingBriefs] = useState(true)
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState('')
@@ -164,8 +205,18 @@ const BlogPrompterPage = () => {
   })
 
   const activeBriefs = briefs.filter((b) => b.source !== 'topic-clusters' && !b.archivedAt && b.workflowStatus !== 'published')
-  const blogIdeaProposedBriefs = briefs.filter((b) => b.source === 'topic-clusters' && b.workflowStatus !== 'published')
-  const publishedProposedBriefs = briefs.filter((b) => b.source === 'topic-clusters' && b.workflowStatus === 'published')
+  const websiteIdeaBriefs = websiteIdeas
+    .slice()
+    .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+    .map(websiteIdeaBrief)
+  const blogIdeaProposedBriefs = [
+    ...websiteIdeaBriefs.filter((b) => b.workflowStatus !== 'published'),
+    ...briefs.filter((b) => b.source === 'topic-clusters' && b.workflowStatus !== 'published'),
+  ]
+  const publishedProposedBriefs = [
+    ...websiteIdeaBriefs.filter((b) => b.workflowStatus === 'published'),
+    ...briefs.filter((b) => b.source === 'topic-clusters' && b.workflowStatus === 'published'),
+  ]
   const proposedBaseBriefs = showPublishedProposed ? publishedProposedBriefs : blogIdeaProposedBriefs
   const proposedTagOptions = Array.from(new Set(proposedBaseBriefs.map((b) => b.tag?.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
   const proposedBriefs = proposedTagFilter
@@ -293,6 +344,9 @@ const BlogPrompterPage = () => {
       return
     }
 
+    // Website CMS ideas have no saved blog-prompt record to update.
+    const promptBrief = brief ?? selectedBrief
+    const blogPromptId = promptBrief && promptBrief.source !== WEBSITE_IDEA_SOURCE ? promptBrief.id : undefined
     const generated = brief
       ? brief.generatedPrompt || buildCurrentPrompt(brief)
       : prompt || buildCurrentPrompt()
@@ -307,7 +361,7 @@ const BlogPrompterPage = () => {
         body: JSON.stringify({
           prompt: generated,
           clientId: selectedClient?.id,
-          blogPromptId: brief?.id || selectedBrief?.id,
+          blogPromptId,
           createDraft: true,
           category: brief?.category || fields.category,
           tag: brief?.tag || fields.tag,
@@ -320,7 +374,7 @@ const BlogPrompterPage = () => {
       }
       setGeneratedBlogMarkdown(data.markdown)
       setGeneratedDraftUrl(typeof data.draft?.adminUrl === 'string' ? data.draft.adminUrl : '')
-      const updatedPromptId = brief?.id || selectedBrief?.id
+      const updatedPromptId = blogPromptId
       if (updatedPromptId) {
         setBriefs((prev) => prev.map((item) => item.id === updatedPromptId ? { ...item, workflowStatus: 'in_progress', blogPost: data.draft?.id } : item))
         setSelectedBrief((prev) => prev && prev.id === updatedPromptId ? { ...prev, workflowStatus: 'in_progress', blogPost: data.draft?.id } : prev)
@@ -391,6 +445,7 @@ const BlogPrompterPage = () => {
   useEffect(() => {
     if (!selectedClientId) {
       setBriefs([])
+      setWebsiteIdeas([])
       setLoadingBriefs(false)
       return
     }
@@ -401,6 +456,10 @@ const BlogPrompterPage = () => {
       .then((d) => { if (d.docs) setBriefs(d.docs) })
       .catch(() => setBriefs([]))
       .finally(() => setLoadingBriefs(false))
+    fetch(`/api/blog-ideas?clientId=${encodeURIComponent(selectedClientId)}`)
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d.docs)) setWebsiteIdeas(d.docs) })
+      .catch(() => setWebsiteIdeas([]))
   }, [selectedClientId])
 
   const handleSelectBrief = (brief: SavedBrief) => {
@@ -559,9 +618,15 @@ const BlogPrompterPage = () => {
                       {stripBlogPrefix(brief.blogIdea)}
                     </button>
                     <div className="blog-prompter__row-meta">
-                      <span>{brief.category?.trim() || 'Uncategorised'}</span>
-                      <span className="blog-prompter__row-sep">/</span>
-                      <span>{brief.tag?.trim() || 'No tag'}</span>
+                      {brief.source === WEBSITE_IDEA_SOURCE ? (
+                        <span>From client CMS</span>
+                      ) : (
+                        <>
+                          <span>{brief.category?.trim() || 'Uncategorised'}</span>
+                          <span className="blog-prompter__row-sep">/</span>
+                          <span>{brief.tag?.trim() || 'No tag'}</span>
+                        </>
+                      )}
                     </div>
                     <span className={`blog-prompter__pill blog-prompter__pill--${statusClass}`}>{status}</span>
                     <div className="blog-prompter__row-actions">
@@ -586,18 +651,20 @@ const BlogPrompterPage = () => {
                           </svg>
                         </button>
                       )}
-                      <button
-                        className="blog-prompter__icon blog-prompter__icon--danger"
-                        type="button"
-                        aria-label={`Delete ${stripBlogPrefix(brief.blogIdea)}`}
-                        title="Delete prompt"
-                        disabled={deletingId === brief.id}
-                        onClick={() => handleDeleteBrief(brief.id)}
-                      >
-                        <svg aria-hidden="true" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7">
-                          <path d="M4 5.5h12M8 3.5h4M6.5 5.5l.6 11h5.8l.6-11M8.5 8.5v5M11.5 8.5v5" />
-                        </svg>
-                      </button>
+                      {brief.source !== WEBSITE_IDEA_SOURCE && (
+                        <button
+                          className="blog-prompter__icon blog-prompter__icon--danger"
+                          type="button"
+                          aria-label={`Delete ${stripBlogPrefix(brief.blogIdea)}`}
+                          title="Delete prompt"
+                          disabled={deletingId === brief.id}
+                          onClick={() => handleDeleteBrief(brief.id)}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7">
+                            <path d="M4 5.5h12M8 3.5h4M6.5 5.5l.6 11h5.8l.6-11M8.5 8.5v5M11.5 8.5v5" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -798,6 +865,7 @@ const BlogPrompterPage = () => {
               <div>
                 <h2 id="selected-brief-heading">{stripBlogPrefix(selectedBrief.blogIdea)}</h2>
                 {selectedBrief.titleIdea && <p>{selectedBrief.titleIdea}</p>}
+                {selectedBrief.editorNotes && <p className="blog-prompter__notes">Notes: {selectedBrief.editorNotes}</p>}
               </div>
               <button className="blog-prompter__button blog-prompter__button--ghost" type="button" onClick={() => setSelectedBrief(null)}>Close</button>
             </div>
@@ -812,14 +880,16 @@ const BlogPrompterPage = () => {
               >
                 {generatingBlog ? 'Generating...' : 'Generate blog'}
               </button>
-              <button
-                className="blog-prompter__button blog-prompter__button--danger"
-                type="button"
-                onClick={() => handleDeleteBrief(selectedBrief.id)}
-                disabled={deletingId === selectedBrief.id}
-              >
-                {deletingId === selectedBrief.id ? 'Deleting...' : 'Delete'}
-              </button>
+              {selectedBrief.source !== WEBSITE_IDEA_SOURCE && (
+                <button
+                  className="blog-prompter__button blog-prompter__button--danger"
+                  type="button"
+                  onClick={() => handleDeleteBrief(selectedBrief.id)}
+                  disabled={deletingId === selectedBrief.id}
+                >
+                  {deletingId === selectedBrief.id ? 'Deleting...' : 'Delete'}
+                </button>
+              )}
             </div>
           </section>
         )}

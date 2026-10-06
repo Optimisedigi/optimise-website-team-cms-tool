@@ -49,8 +49,8 @@ export interface StagedClient {
 
 const services = new Set<string>(CLIENT_SERVICE_OPTIONS.map(({ value }) => value));
 const clientTypes = new Set<string>(CLIENT_TYPE_OPTIONS.map(({ value }) => value));
-const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const emailPattern = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
+export const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const emailPattern = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
 
 /** URL-friendly identifier derived the same way an admin would type it. */
 export function toClientSlug(value: string): string {
@@ -64,7 +64,7 @@ export function toClientSlug(value: string): string {
     .replace(/-+$/g, "");
 }
 
-function boundedText(value: unknown, name: string, max: number, required = true): string | undefined {
+export function boundedText(value: unknown, name: string, max: number, required = true): string | undefined {
   if (value === undefined || value === null || value === "") {
     if (required) throw new Error(`${name} is required`);
     return undefined;
@@ -89,7 +89,7 @@ function parseMoney(value: unknown, name: string): number | undefined {
 }
 
 /** Accept "acme.com" or a full URL; reject anything that isn't http(s). */
-function normaliseWebsiteUrl(raw: string): string {
+export function normaliseWebsiteUrl(raw: string): string {
   const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
   let url: URL;
   try {

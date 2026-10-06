@@ -73,7 +73,7 @@ describe('GET /api/blog-prompts', () => {
     expect(json.error).toBe('Unauthorized')
   })
 
-  it('returns client briefs plus legacy unassigned briefs when clientId is supplied', async () => {
+  it('returns only the selected client\'s briefs when clientId is supplied', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
     mockPayload.find.mockResolvedValue({ docs: [{ id: '1', title: 'Brief 1', client: 42 }] })
 
@@ -87,12 +87,7 @@ describe('GET /api/blog-prompts', () => {
       collection: 'blog-prompts',
       sort: '-createdAt',
       limit: 200,
-      where: {
-        or: [
-          { client: { equals: '42' } },
-          { client: { exists: false } },
-        ],
-      },
+      where: { client: { equals: '42' } },
       overrideAccess: true,
     })
   })

@@ -1,5 +1,5 @@
 import type { Access, CollectionConfig } from 'payload'
-import { canAccess, hideUnlessFeature } from '../lib/access'
+import { canAccess } from '../lib/access'
 import { configuredClientId } from '../lib/in-the-picture/config'
 
 const scopedAccess: Access = ({ req }) => {
@@ -10,7 +10,8 @@ const scopedAccess: Access = ({ req }) => {
 /** Website-owned brief and ordering; only notes and linkedPost are editable here. */
 export const BlogIdeas: CollectionConfig = {
   slug: 'blog-ideas',
-  admin: { group: 'Content', useAsTitle: 'blogIdea', defaultColumns: ['priority', 'blogIdea', 'status', 'linkedPost'], hidden: hideUnlessFeature('blog-ideas') },
+  // Website CMS ideas live in the Blog Prompter view (client-filtered); no second sidebar entry.
+  admin: { group: 'Content', useAsTitle: 'blogIdea', defaultColumns: ['priority', 'blogIdea', 'status', 'linkedPost'], hidden: true },
   access: {
     read: scopedAccess,
     create: () => false,

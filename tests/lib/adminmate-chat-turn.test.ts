@@ -158,3 +158,80 @@ describe("runAdminMateChatTurn client questions", () => {
     expect(result.reply).toBe("Yes, the Google Ads ID is set up.");
   });
 });
+
+describe("runAdminMateChatTurn client proposals", () => {
+  beforeEach(() => mockRunAgent.mockReset());
+
+  const proposalInput = (text: string) => ({
+    messages: [{
+      role: "user" as const,
+      content: [{ type: "text" as const, text }],
+    }],
+    existingClients: [],
+    contractTemplates: [],
+    userId: 17,
+    modelOverride: "gpt-5.6-luna",
+  });
+
+  const stagedProposalStep = {
+    step: 1,
+    type: "tool-call",
+    toolName: "stage_client_proposal",
+    output: {
+      ok: true,
+      data: {
+        staged: {
+          businessName: "Aussie Fluid Power",
+          slug: "aussie-fluid-power",
+          websiteUrl: "https://www.aussiefluidpower.com.au",
+        },
+      },
+    },
+    timestamp: "2026-10-06T10:00:00.000Z",
+  };
+
+  it("registers stage_client_proposal and returns the staged proposal card", async () => {
+    mockRunAgent.mockResolvedValueOnce(assistantResult("Staged for review.", [stagedProposalStep]));
+
+    const result = await runAdminMateChatTurn(proposalInput("create a client proposal for Aussie Fluid Power"));
+
+    expect(mockRunAgent.mock.calls[0][0].tools.map((tool: { name: string }) => tool.name)).toContain("stage_client_proposal");
+    expect(result.stagedProposal).toMatchObject({ businessName: "Aussie Fluid Power", slug: "aussie-fluid-power" });
+    expect(result.stagedClient).toBeUndefined();
+  });
+
+  it("routes 'create a client proposal' to proposal staging, not client staging", async () => {
+    mockRunAgent.mockResolvedValue(assistantResult("Staged.", [stagedProposalStep]));
+
+    const result = await runAdminMateChatTurn(proposalInput("create a client proposal for Aussie Fluid Power"));
+
+    // One run is enough: no create-client correction is forced.
+    expect(mockRunAgent).toHaveBeenCalledTimes(1);
+    expect(result.stagedProposal?.businessName).toBe("Aussie Fluid Power");
+  });
+
+  it("corrects a text-only reply that claims a staged card into a real stage_client_proposal call", async () => {
+    mockRunAgent
+      .mockResolvedValueOnce(assistantResult("I've staged the new client proposal card for review."))
+      .mockResolvedValueOnce(assistantResult("Staged.", [stagedProposalStep]));
+
+    const result = await runAdminMateChatTurn(proposalInput("create a client proposal for Aussie Fluid Power"));
+
+    expect(mockRunAgent).toHaveBeenCalledTimes(2);
+    const secondRun = mockRunAgent.mock.calls[1][0];
+    expect(secondRun.initialMessages.at(-1).content[0].text).toContain("stage_client_proposal");
+    expect(result.stagedProposal?.businessName).toBe("Aussie Fluid Power");
+  });
+
+  it("keeps correcting until a card is actually staged", async () => {
+    mockRunAgent
+      .mockResolvedValueOnce(assistantResult("I've staged the proposal."))
+      .mockResolvedValueOnce(assistantResult("I've staged the proposal card again."))
+      .mockResolvedValueOnce(assistantResult("Now staged.", [stagedProposalStep]));
+
+    const result = await runAdminMateChatTurn(proposalInput("create a client proposal for Aussie Fluid Power"));
+
+    expect(mockRunAgent).toHaveBeenCalledTimes(3);
+    expect(result.stagedProposal?.businessName).toBe("Aussie Fluid Power");
+  });
+});

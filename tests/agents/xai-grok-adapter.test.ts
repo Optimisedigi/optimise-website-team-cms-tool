@@ -23,7 +23,7 @@ const opts: CallLLMOptions = {
   messages: [{ role: "user", content: [{ type: "text", text: "Reply ok" }] }],
 };
 
-const config = { baseUrl: "https://cli-chat-proxy.grok.com/v1", clientVersion: "0.2.51" };
+const config = { baseUrl: "https://cli-chat-proxy.grok.com/v1", clientVersion: "1.0.46" };
 
 const originalFetch = global.fetch;
 
@@ -69,7 +69,7 @@ describe("callXaiGrok", () => {
     expect(init.method).toBe("POST");
     expect(init.headers.Authorization).toBe("Bearer tok");
     expect(init.headers["X-XAI-Token-Auth"]).toBe("xai-grok-cli");
-    expect(init.headers["x-grok-client-version"]).toBe("0.2.51");
+    expect(init.headers["x-grok-client-version"]).toBe("1.0.46");
     expect(init.headers["x-grok-model-override"]).toBe("grok-build");
 
     const body = JSON.parse(init.body);

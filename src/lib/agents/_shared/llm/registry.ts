@@ -212,7 +212,7 @@ export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
     baseUrl: "https://cli-chat-proxy.grok.com/v1",
     // Mirrors the installed grok CLI; the proxy rejects missing/old versions
     // with HTTP 426. Bump if the proxy raises its minimum.
-    clientVersion: "0.2.51",
+    clientVersion: "1.0.46",
     supportsOAuth: true,
   },
 };

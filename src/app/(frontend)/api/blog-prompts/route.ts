@@ -19,16 +19,7 @@ export async function GET(request: NextRequest) {
       collection: "blog-prompts",
       sort: "-createdAt",
       limit: 200,
-      ...(clientId
-        ? {
-            where: {
-              or: [
-                { client: { equals: clientId } },
-                { client: { exists: false } },
-              ],
-            },
-          }
-        : {}),
+      ...(clientId ? { where: { client: { equals: clientId } } } : {}),
       overrideAccess: true,
     });
 

@@ -13,7 +13,11 @@ export const ideaSchema = z.object({
   updatedAt: z.string().datetime({ offset: true }),
   recordRevision: z.number().int().positive().safe(), orderRevision: z.number().int().positive().safe(),
 }).strict()
-export const batchSchema = z.object({ version: z.literal(1), ideas: z.array(ideaSchema).min(1).max(100) }).strict()
+export const batchSchema = z.object({
+  version: z.literal(1),
+  ideas: z.array(ideaSchema).max(100).default([]),
+  deletedBlogIds: z.array(z.string().uuid()).max(100).default([]),
+}).strict()
 export type Idea = z.infer<typeof ideaSchema>
 
 const sourceColumns = [
@@ -62,8 +66,40 @@ export async function applyIdeas(payload: Payload, ideas: Idea[], includeRank = 
   } catch (error) { await tx.rollback(); throw error }
 }
 
+/** Tombstones from the website (or a complete snapshot): remove ideas the website no longer holds. */
+export async function deleteIdeas(payload: Payload, blogIds: string[]): Promise<{ deleted: number }> {
+  const client = configuredClientId()
+  const db = (payload.db as unknown as { client?: Client }).client
+  if (!client || !db) throw new Error('Sync client/database not configured')
+  if (blogIds.length > 100) throw new Error('Batch too large')
+  if (new Set(blogIds).size !== blogIds.length) throw new Error('Duplicate blog IDs')
+  const tx = await db.transaction('write')
+  let deleted = 0
+  try {
+    for (const blogId of blogIds) {
+      const record = await tx.execute({ sql: 'SELECT id, client_id FROM blog_ideas WHERE blog_id = ?', args: [blogId] })
+      const current = record.rows[0]
+      if (!current) continue
+      if (Number(current.client_id) !== client) throw new Error('Blog ID belongs to another client')
+      deleted += (await tx.execute({ sql: 'DELETE FROM blog_ideas WHERE id = ? AND client_id = ?', args: [Number(current.id), client] })).rowsAffected
+    }
+    await tx.commit()
+    return { deleted }
+  } catch (error) { await tx.rollback(); throw error }
+}
+
+/** A validated complete snapshot is authoritative: anything absent no longer exists on the website. */
+export async function pruneIdeas(payload: Payload, keepBlogIds: ReadonlySet<string>): Promise<{ deleted: number }> {
+  const client = configuredClientId()
+  const db = (payload.db as unknown as { client?: Client }).client
+  if (!client || !db) throw new Error('Sync client/database not configured')
+  const rows = (await db.execute({ sql: 'SELECT blog_id FROM blog_ideas WHERE client_id = ?', args: [client] })).rows
+  const missing = rows.map((row) => String(row.blog_id)).filter((blogId) => !keepBlogIds.has(blogId))
+  return missing.length ? deleteIdeas(payload, missing) : { deleted: 0 }
+}
+
 const feedSchema = z.object({ version: z.literal(1), ideas: z.array(ideaSchema).max(100), total: z.number().int().nonnegative().max(1000), nextOffset: z.number().int().nonnegative().nullable(), snapshotRevision: z.number().int().nonnegative().safe(), orderRevision: z.number().int().nonnegative().safe() }).strict()
-export async function pullIdeas(payload: Payload): Promise<{ applied: number; count: number }> {
+export async function pullIdeas(payload: Payload): Promise<{ applied: number; count: number; deleted: number }> {
   const url = websiteUrl('/api/content-sync/ideas')
   const token = process.env.CONTENT_CMS_SYNC_TOKEN
   if (!url || !token || token.length < 32 || !configuredClientId()) throw new Error('Pull not configured')
@@ -93,7 +129,8 @@ export async function pullIdeas(payload: Payload): Promise<{ applied: number; co
     if (ideas.length !== total || new Set(ideas.map(idea => idea.blogId)).size !== ideas.length || ideas.some((idea, i) => idea.priority !== i + 1 || idea.orderRevision !== rankVersion)) throw new Error('Incomplete idea snapshot')
     // Never apply partial ranks: validate the complete traversal before any writes.
     const result = await applyIdeas(payload, ideas, true)
-    return { applied: result.applied, count: ideas.length }
+    const prune = await pruneIdeas(payload, new Set(ideas.map((idea) => idea.blogId)))
+    return { applied: result.applied, count: ideas.length, deleted: prune.deleted }
   }
   throw new Error('Idea feed changed during traversal')
 }
