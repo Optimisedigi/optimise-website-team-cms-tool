@@ -95,7 +95,12 @@ export async function pruneIdeas(payload: Payload, keepBlogIds: ReadonlySet<stri
   if (!client || !db) throw new Error('Sync client/database not configured')
   const rows = (await db.execute({ sql: 'SELECT blog_id FROM blog_ideas WHERE client_id = ?', args: [client] })).rows
   const missing = rows.map((row) => String(row.blog_id)).filter((blogId) => !keepBlogIds.has(blogId))
-  return missing.length ? deleteIdeas(payload, missing) : { deleted: 0 }
+  // Chunked because deleteIdeas enforces the push-boundary cap of 100 IDs per batch.
+  let deleted = 0
+  for (let start = 0; start < missing.length; start += 100) {
+    deleted += (await deleteIdeas(payload, missing.slice(start, start + 100))).deleted
+  }
+  return { deleted }
 }
 
 const feedSchema = z.object({ version: z.literal(1), ideas: z.array(ideaSchema).max(100), total: z.number().int().nonnegative().max(1000), nextOffset: z.number().int().nonnegative().nullable(), snapshotRevision: z.number().int().nonnegative().safe(), orderRevision: z.number().int().nonnegative().safe() }).strict()

@@ -686,4 +686,69 @@ describe('In The Picture boundary', () => {
       await rm(dir, { recursive: true, force: true })
     }
   })
+  it('prunes large deletions in bounded batches so a repair pull cannot get stuck', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'itp-prune-'))
+    const db = createClient({ url: `file:${join(dir, 'test.db')}` })
+    try {
+      for (const table of ['clients', 'blog_posts', '_blog_posts_v', 'payload_locked_documents_rels'])
+        await db.execute(`CREATE TABLE ${table} (id integer PRIMARY KEY)`)
+      await db.execute('INSERT INTO clients(id) VALUES (1)')
+      for (const [, statement] of inThePictureSchema) await db.execute(statement)
+      process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+      process.env.IN_THE_PICTURE_WEBSITE_ORIGIN = 'https://website.example.com'
+      process.env.CONTENT_CMS_SYNC_TOKEN = token
+      const payload = { db: { client: db } } as never
+      const ideaA = '12345678-1234-4234-8234-123456789aaa'
+      const ideaB = '12345678-1234-4234-8234-123456789bbb'
+      const record = (blogId: string, priority: number) => ({
+        blogId,
+        priority,
+        orderRevision: 1,
+        recordRevision: 1,
+        blogIdea: 'Brief',
+        suggestedTitle: '',
+        mainPoint: '',
+        keyPoints: '',
+        pointsToAvoid: '',
+        supportingContent: '',
+        contributor: '',
+        idealAuthor: '',
+        status: 'open' as const,
+        publishedSlug: '',
+        updatedAt: '2026-09-26T00:00:00.000Z',
+      })
+      await applyIdeas(payload, [record(ideaA, 1), record(ideaB, 2)])
+      // 150 ideas deleted on the website at once: more than one deletion batch.
+      for (let i = 0; i < 150; i += 1) {
+        await db.execute(
+          "INSERT INTO blog_ideas(client_id,blog_id,priority,blog_idea,status,record_revision,order_revision) VALUES (1,?,?,'Stale','open',1,1)",
+          [`12345678-1234-4234-8234-${String(i).padStart(12, '0')}`, i + 3],
+        )
+      }
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                version: 1,
+                ideas: [record(ideaA, 1), record(ideaB, 2)],
+                total: 2,
+                nextOffset: null,
+                snapshotRevision: 2,
+                orderRevision: 1,
+              }),
+            ),
+        ),
+      )
+      expect(await pullIdeas(payload)).toEqual({ applied: 0, count: 2, deleted: 150 })
+      const remaining = (
+        await db.execute('SELECT blog_id FROM blog_ideas WHERE client_id = 1')
+      ).rows.map((row) => String(row.blog_id))
+      expect(remaining.sort()).toEqual([ideaA, ideaB].sort())
+    } finally {
+      db.close()
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 })
