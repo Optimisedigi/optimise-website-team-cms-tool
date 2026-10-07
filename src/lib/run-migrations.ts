@@ -724,6 +724,42 @@ export async function runMigrations(
     for (const [label, statement] of HOSTING_ONE_OFF_SCHEDULED_SEND) await run(label, statement);
   }
 
+  // Meeting schedulers can link to a client OR a prospect (2026-10-08). Payload
+  // stores that two-collection `client` field in meeting_schedulers_rels, so
+  // existing client_id links are copied there once (marker-guarded so a later
+  // re-run never restores a link the user has since changed or cleared).
+  // Runs before the marker short-circuit: production carries the marker.
+  // Keep in sync with src/migrations/20261008_120000_meeting_scheduler_prospects.ts.
+  async function addMeetingSchedulerProspects(): Promise<void> {
+    for (const table of ["meeting_schedulers", "clients", "client_proposals", "payload_migrations"]) {
+      if (!(await tableExists(table))) return;
+    }
+    await run("meeting_schedulers_rels", `CREATE TABLE IF NOT EXISTS \`meeting_schedulers_rels\` (
+      \`id\` integer PRIMARY KEY NOT NULL, \`order\` integer, \`parent_id\` integer NOT NULL,
+      \`path\` text NOT NULL, \`clients_id\` integer, \`client_proposals_id\` integer,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`meeting_schedulers\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`clients_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`client_proposals_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("meeting_schedulers_rels_order_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_rels_order_idx` ON `meeting_schedulers_rels` (`order`)");
+    await run("meeting_schedulers_rels_parent_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_rels_parent_idx` ON `meeting_schedulers_rels` (`parent_id`)");
+    await run("meeting_schedulers_rels_path_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_rels_path_idx` ON `meeting_schedulers_rels` (`path`)");
+    await run("meeting_schedulers_rels_clients_id_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_rels_clients_id_idx` ON `meeting_schedulers_rels` (`clients_id`)");
+    await run("meeting_schedulers_rels_client_proposals_id_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_rels_client_proposals_id_idx` ON `meeting_schedulers_rels` (`client_proposals_id`)");
+    const marker = "20261008_120000_meeting_scheduler_prospects";
+    if (await markerExists(marker)) return;
+    const before = results.length;
+    if (await columnExists("meeting_schedulers", "client_id")) {
+      await run("meeting_schedulers_rels.copy_client_id", "INSERT INTO `meeting_schedulers_rels` (`parent_id`, `path`, `clients_id`) SELECT ms.`id`, 'client', ms.`client_id` FROM `meeting_schedulers` ms WHERE ms.`client_id` IS NOT NULL AND EXISTS (SELECT 1 FROM `clients` c WHERE c.`id` = ms.`client_id`) AND NOT EXISTS (SELECT 1 FROM `meeting_schedulers_rels` rel WHERE rel.`parent_id` = ms.`id` AND rel.`path` = 'client')");
+    }
+    if (results.slice(before).every((r) => r.status !== "error")) {
+      await run(
+        `mark_migration:${marker}`,
+        `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('${marker}', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+      );
+    }
+  }
+
   async function addInThePictureSchema(): Promise<void> {
     // Existing databases must run this before either legacy marker return.
     // Fresh databases create these prerequisites in the full sweep below.
@@ -792,6 +828,7 @@ export async function runMigrations(
     await addHostingStartDateAndOneOffPayments();
     await addWatchtowerAndSiteHealthSchema();
     await addInThePictureSchema()
+    await addMeetingSchedulerProspects();
 
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the
@@ -3222,6 +3259,8 @@ export async function runMigrations(
     // Per-day availability schedule (JSON)
     await run("meeting_schedulers_day_schedule", "ALTER TABLE `meeting_schedulers` ADD `day_schedule` text");
     await run("meeting_schedulers_date_overrides", "ALTER TABLE `meeting_schedulers` ADD `date_overrides` text");
+    // Fresh databases: tables now exist, so the pre-short-circuit step can run.
+    await addMeetingSchedulerProspects();
   
     // Fix meeting_schedulers_attendees.id type from integer to text (Payload v3 uses 24-char hex IDs)
     await run("att_id_check", `SELECT type FROM pragma_table_info('meeting_schedulers_attendees') WHERE name='id'`);

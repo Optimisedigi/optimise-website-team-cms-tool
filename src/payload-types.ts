@@ -8117,9 +8117,17 @@ export interface MeetingScheduler {
    */
   title: string;
   /**
-   * Client this meeting is for
+   * Client or prospect (from Client Proposals) this meeting is for
    */
-  client?: (number | null) | Client;
+  client?:
+    | ({
+        relationTo: 'clients';
+        value: number | Client;
+      } | null)
+    | ({
+        relationTo: 'client-proposals';
+        value: number | ClientProposal;
+      } | null);
   /**
    * Meeting duration
    */

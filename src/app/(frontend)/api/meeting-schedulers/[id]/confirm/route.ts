@@ -5,6 +5,7 @@ import { createCalendarEvent } from "@/lib/calendar-service";
 import { generateScheduleConfirmedEmail } from "@/lib/schedule-email";
 import { logActivity } from "@/lib/activity-log";
 import { notifyAdminsOfMeetingEvent } from "@/lib/meeting-scheduler-notify";
+import { meetingSchedulerClientId } from "@/lib/meeting-scheduler-client";
 
 function formatSlotForEmail(
   isoString: string,
@@ -160,7 +161,7 @@ export async function POST(
       title: `Meeting confirmed: ${doc.title}`,
       description: `${date} at ${time} (admin-confirmed)`,
       user: user.id,
-      client: doc.client,
+      client: meetingSchedulerClientId(doc.client),
     }).catch(() => {});
   }
 
@@ -172,7 +173,7 @@ export async function POST(
       title: `Meeting time set: ${doc.title}`,
       body: `${date} at ${time}`,
       schedulerId: id,
-      client: doc.client,
+      client: meetingSchedulerClientId(doc.client),
     });
   }
 

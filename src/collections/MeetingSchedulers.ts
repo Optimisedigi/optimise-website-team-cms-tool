@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
+import { meetingSchedulerClientId } from "../lib/meeting-scheduler-client";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const MeetingSchedulers: CollectionConfig = {
@@ -89,7 +90,7 @@ export const MeetingSchedulers: CollectionConfig = {
             title: `Meeting scheduler created: ${doc.title || "Untitled"}`,
             description: `${doc.attendees?.length || 0} attendee(s)`,
             user: req.user?.id,
-            client: doc.client,
+            client: meetingSchedulerClientId(doc.client),
           }).catch(() => {});
         }
       },
@@ -160,9 +161,11 @@ export const MeetingSchedulers: CollectionConfig = {
                 {
                   name: "client",
                   type: "relationship",
-                  relationTo: "clients",
+                  // Prospects (Client Proposals) are listed too, for meetings
+                  // with people who are not yet clients.
+                  relationTo: ["clients", "client-proposals"],
                   admin: {
-                    description: "Client this meeting is for",
+                    description: "Client or prospect (from Client Proposals) this meeting is for",
                   },
                 },
                 {

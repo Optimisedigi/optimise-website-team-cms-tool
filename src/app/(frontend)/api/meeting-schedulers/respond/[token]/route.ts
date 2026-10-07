@@ -12,6 +12,7 @@ import {
 import { logActivity } from "@/lib/activity-log";
 import { orderSlotsByPreference } from "@/lib/meeting-slot-preference";
 import { notifyAdminsOfMeetingEvent } from "@/lib/meeting-scheduler-notify";
+import { meetingSchedulerClientId } from "@/lib/meeting-scheduler-client";
 
 type AttendeeResponse = "accepted" | "maybe" | "declined";
 
@@ -429,7 +430,7 @@ export async function POST(
         type: "meeting_confirmed",
         title: `Meeting confirmed: ${doc.title}`,
         description: `${date} at ${time}`,
-        client: doc.client,
+        client: meetingSchedulerClientId(doc.client),
       }).catch(() => {});
     } else {
       // No match - notify agency
@@ -472,13 +473,13 @@ export async function POST(
       title: `${responderName} accepted: ${doc.title}`,
       body: `${filteredSlots.length} time${filteredSlots.length === 1 ? "" : "s"} selected.`,
       schedulerId: doc.id,
-      client: doc.client,
+      client: meetingSchedulerClientId(doc.client),
     });
     logActivity(payload, {
       type: "meeting_response_accepted",
       title: `Meeting accepted: ${doc.title}`,
       description: `${responderName} selected ${filteredSlots.length} time(s)`,
-      client: doc.client,
+      client: meetingSchedulerClientId(doc.client),
     }).catch(() => {});
   } else if (response === "declined") {
     await notifyAdminsOfMeetingEvent(payload, {
@@ -486,13 +487,13 @@ export async function POST(
       title: `${responderName} declined: ${doc.title}`,
       body: `${currentAttendee.email || ""}`.trim() || undefined,
       schedulerId: doc.id,
-      client: doc.client,
+      client: meetingSchedulerClientId(doc.client),
     });
     logActivity(payload, {
       type: "meeting_response_declined",
       title: `Meeting declined: ${doc.title}`,
       description: `${responderName} can't attend`,
-      client: doc.client,
+      client: meetingSchedulerClientId(doc.client),
     }).catch(() => {});
 
     // Internal decline email to the agency.
@@ -535,7 +536,7 @@ export async function POST(
       title: `Meeting time set: ${doc.title}`,
       body: `${date} at ${time}`,
       schedulerId: doc.id,
-      client: doc.client,
+      client: meetingSchedulerClientId(doc.client),
     });
   }
 
