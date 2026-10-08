@@ -33,6 +33,7 @@ export const ACCOUNT_TIMELINE_SERVICE_AREA_OPTIONS = [
 
 export const ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS = [
   // Account lifecycle
+  { label: "Client First Reached Out", value: "first_contact" },
   { label: "Client Account Created", value: "client_created" },
   { label: "Account Takeover", value: "account_takeover" },
   { label: "Account Access Granted", value: "access_granted" },
@@ -50,6 +51,9 @@ export const ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS = [
   { label: "Strategy Meeting", value: "strategy_meeting" },
   { label: "Review Meeting", value: "review_meeting" },
   { label: "Client Presentation", value: "client_presentation" },
+  { label: "Presentation Analysis Done", value: "presentation_analysis" },
+  // Audits
+  { label: "Account Audit", value: "account_audit" },
   // Tracking & tagging
   { label: "Tagging Updated", value: "tagging_updated" },
   { label: "Conversion Tracking Changed", value: "conversion_tracking_changed" },

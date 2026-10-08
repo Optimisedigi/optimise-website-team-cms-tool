@@ -591,10 +591,11 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         }
 
         const accountTimeline = proposalTimeline.map(
-          ({ date, serviceArea, actionType, description, addedBy }) => ({
+          ({ date, serviceArea, actionType, customAction, description, addedBy }) => ({
             date,
             serviceArea,
             actionType,
+            customAction,
             description,
             addedBy,
           }),
@@ -1141,6 +1142,67 @@ export const ClientProposals: CollectionConfig = {
                   Field: "./components/MockupUpload",
                 },
               },
+            },
+          ],
+        },
+        {
+          label: "Prospect Timeline",
+          fields: [
+            {
+              name: "proposalAccountTimeline",
+              type: "array",
+              dbName: "client_proposals_account_timeline",
+              admin: {
+                components: {
+                  RowLabel: false as any,
+                  Field: "./components/AccountTimelineTable",
+                },
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "date",
+                      type: "date",
+                      required: true,
+                      defaultValue: () => new Date().toISOString(),
+                      admin: {
+                        date: {
+                          pickerAppearance: "dayOnly",
+                          displayFormat: "d MMM yyyy",
+                        },
+                      },
+                    },
+                    {
+                      name: "serviceArea",
+                      type: "select",
+                      defaultValue: "google_ads",
+                      options: [...ACCOUNT_TIMELINE_SERVICE_AREA_OPTIONS],
+                    },
+                    {
+                      name: "actionType",
+                      type: "select",
+                      required: true,
+                      options: [...ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS],
+                    },
+                    {
+                      name: "customAction",
+                      type: "text",
+                      admin: {
+                        description: "Custom action name when Action is \"Other\"",
+                        condition: (_data: unknown, siblingData: { actionType?: string } | undefined) =>
+                          siblingData?.actionType === "other",
+                      },
+                    },
+                    {
+                      name: "description",
+                      type: "text",
+                      required: true,
+                    },
+                  ],
+                },
+              ],
             },
           ],
         },
@@ -2668,58 +2730,6 @@ export const ClientProposals: CollectionConfig = {
                   admin: {
                     description: "Note content (point form supported)",
                   },
-                },
-              ],
-            },
-          ],
-        },
-        {
-          label: "Prospect Timeline",
-          fields: [
-            {
-              name: "proposalAccountTimeline",
-              type: "array",
-              dbName: "client_proposals_account_timeline",
-              admin: {
-                components: {
-                  RowLabel: false as any,
-                  Field: "./components/AccountTimelineTable",
-                },
-              },
-              fields: [
-                {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "date",
-                      type: "date",
-                      required: true,
-                      defaultValue: () => new Date().toISOString(),
-                      admin: {
-                        date: {
-                          pickerAppearance: "dayOnly",
-                          displayFormat: "d MMM yyyy",
-                        },
-                      },
-                    },
-                    {
-                      name: "serviceArea",
-                      type: "select",
-                      defaultValue: "google_ads",
-                      options: [...ACCOUNT_TIMELINE_SERVICE_AREA_OPTIONS],
-                    },
-                    {
-                      name: "actionType",
-                      type: "select",
-                      required: true,
-                      options: [...ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS],
-                    },
-                    {
-                      name: "description",
-                      type: "text",
-                      required: true,
-                    },
-                  ],
                 },
               ],
             },

@@ -805,6 +805,7 @@ export interface Client {
             )
           | null;
         actionType:
+          | 'first_contact'
           | 'client_created'
           | 'account_takeover'
           | 'access_granted'
@@ -820,6 +821,8 @@ export interface Client {
           | 'strategy_meeting'
           | 'review_meeting'
           | 'client_presentation'
+          | 'presentation_analysis'
+          | 'account_audit'
           | 'tagging_updated'
           | 'conversion_tracking_changed'
           | 'ga4_setup'
@@ -840,6 +843,10 @@ export interface Client {
           | 'strategy_change'
           | 'process_milestone'
           | 'other';
+        /**
+         * Custom action name when Action is "Other"
+         */
+        customAction?: string | null;
         description: string;
         id?: string | null;
       }[]
@@ -2155,6 +2162,69 @@ export interface ClientProposal {
    * Path or URL to the HTML mockup for this client (e.g. /mockups/purples/index.html)
    */
   websiteMockupUrl?: string | null;
+  proposalAccountTimeline?:
+    | {
+        date: string;
+        serviceArea?:
+          | (
+              | 'google_ads'
+              | 'seo'
+              | 'analytics'
+              | 'website'
+              | 'social'
+              | 'content'
+              | 'contracts'
+              | 'onboarding'
+              | 'general'
+            )
+          | null;
+        actionType:
+          | 'first_contact'
+          | 'client_created'
+          | 'account_takeover'
+          | 'access_granted'
+          | 'onboarding_started'
+          | 'onboarding_completed'
+          | 'contract_start'
+          | 'retainer_start'
+          | 'contract_sent'
+          | 'contract_signed'
+          | 'contract_renewed'
+          | 'scope_changed'
+          | 'kickoff_meeting'
+          | 'strategy_meeting'
+          | 'review_meeting'
+          | 'client_presentation'
+          | 'presentation_analysis'
+          | 'account_audit'
+          | 'tagging_updated'
+          | 'conversion_tracking_changed'
+          | 'ga4_setup'
+          | 'gtm_updated'
+          | 'campaign_start'
+          | 'google_ads_account_linked'
+          | 'campaign_structure_proposed'
+          | 'campaign_structure_implemented'
+          | 'budget_changed'
+          | 'negative_keywords_added'
+          | 'bid_strategy_changed'
+          | 'ad_copy_generated'
+          | 'ad_copy_updated'
+          | 'landing_pages_changed'
+          | 'site_migration'
+          | 'dashboard_created'
+          | 'reporting_started'
+          | 'strategy_change'
+          | 'process_milestone'
+          | 'other';
+        /**
+         * Custom action name when Action is "Other"
+         */
+        customAction?: string | null;
+        description: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Enter the 10-digit client account ID, not the manager account ID. The client must grant the Optimise Digital MCC access before the audit can run.
    */
@@ -3191,62 +3261,6 @@ export interface ClientProposal {
          * Note content (point form supported)
          */
         content: string;
-        id?: string | null;
-      }[]
-    | null;
-  proposalAccountTimeline?:
-    | {
-        date: string;
-        serviceArea?:
-          | (
-              | 'google_ads'
-              | 'seo'
-              | 'analytics'
-              | 'website'
-              | 'social'
-              | 'content'
-              | 'contracts'
-              | 'onboarding'
-              | 'general'
-            )
-          | null;
-        actionType:
-          | 'client_created'
-          | 'account_takeover'
-          | 'access_granted'
-          | 'onboarding_started'
-          | 'onboarding_completed'
-          | 'contract_start'
-          | 'retainer_start'
-          | 'contract_sent'
-          | 'contract_signed'
-          | 'contract_renewed'
-          | 'scope_changed'
-          | 'kickoff_meeting'
-          | 'strategy_meeting'
-          | 'review_meeting'
-          | 'client_presentation'
-          | 'tagging_updated'
-          | 'conversion_tracking_changed'
-          | 'ga4_setup'
-          | 'gtm_updated'
-          | 'campaign_start'
-          | 'google_ads_account_linked'
-          | 'campaign_structure_proposed'
-          | 'campaign_structure_implemented'
-          | 'budget_changed'
-          | 'negative_keywords_added'
-          | 'bid_strategy_changed'
-          | 'ad_copy_generated'
-          | 'ad_copy_updated'
-          | 'landing_pages_changed'
-          | 'site_migration'
-          | 'dashboard_created'
-          | 'reporting_started'
-          | 'strategy_change'
-          | 'process_milestone'
-          | 'other';
-        description: string;
         id?: string | null;
       }[]
     | null;
@@ -12143,6 +12157,7 @@ export interface ClientsSelect<T extends boolean = true> {
         date?: T;
         serviceArea?: T;
         actionType?: T;
+        customAction?: T;
         description?: T;
         id?: T;
       };
@@ -12497,6 +12512,16 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   gscSiteUrl?: T;
   screenshotClickSelector?: T;
   websiteMockupUrl?: T;
+  proposalAccountTimeline?:
+    | T
+    | {
+        date?: T;
+        serviceArea?: T;
+        actionType?: T;
+        customAction?: T;
+        description?: T;
+        id?: T;
+      };
   googleAdsCustomerId?: T;
   googleAdsAudit?: T;
   keywordCategories?:
@@ -12699,15 +12724,6 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         date?: T;
         author?: T;
         content?: T;
-        id?: T;
-      };
-  proposalAccountTimeline?:
-    | T
-    | {
-        date?: T;
-        serviceArea?: T;
-        actionType?: T;
-        description?: T;
         id?: T;
       };
   proposalStatus?: T;

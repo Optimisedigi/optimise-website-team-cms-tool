@@ -144,6 +144,7 @@ export type OptimateClientProfile = {
       date: string | null;
       serviceArea: string | null;
       actionType: string | null;
+      customAction: string | null;
       description: string | null;
     }>;
   };
@@ -505,6 +506,7 @@ function projectProfile(
         date: entry.date ?? null,
         serviceArea: entry.serviceArea ?? null,
         actionType: entry.actionType ?? null,
+        customAction: entry.customAction ?? null,
         description: entry.description ?? null,
       })),
     };

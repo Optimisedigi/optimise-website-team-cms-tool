@@ -11,6 +11,7 @@ type TimelineEntry = {
   date: string
   serviceArea: string
   actionType: string
+  customAction: string
   description: string
 }
 
@@ -29,6 +30,7 @@ function extractEntries(fields: Record<string, any>, basePath: string): Timeline
       date: fields[`${basePath}.${i}.date`]?.value ?? '',
       serviceArea: fields[`${basePath}.${i}.serviceArea`]?.value ?? 'google_ads',
       actionType: fields[`${basePath}.${i}.actionType`]?.value ?? '',
+      customAction: fields[`${basePath}.${i}.customAction`]?.value ?? '',
       description: fields[`${basePath}.${i}.description`]?.value ?? '',
     })
     i++
@@ -201,6 +203,16 @@ function AccountTimelineTable(props: any) {
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
+                    {entry.actionType === 'other' && (
+                      <input
+                        type="text"
+                        value={entry.customAction}
+                        onChange={(e) => updateValue(`${path}.${i}.customAction`, e.target.value)}
+                        placeholder="Type the action..."
+                        aria-label="Custom action"
+                        style={{ ...inputStyle, marginTop: 6 }}
+                      />
+                    )}
                   </td>
                   <td style={cellStyle}>
                     <input

@@ -6394,6 +6394,9 @@ export async function runMigrations(
     await run("clients_hosting_subscription_price_changes_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_hosting_subscription_price_changes_parent_idx` ON `clients_hosting_subscription_price_changes` (`_parent_id`)");
     await run("clients_hosting_subscription_price_changes_order_idx", "CREATE INDEX IF NOT EXISTS `clients_hosting_subscription_price_changes_order_idx` ON `clients_hosting_subscription_price_changes` (`_order`)");
     await run("locked_docs_rels.hosting_payment_offers_id", "ALTER TABLE `payload_locked_documents_rels` ADD `hosting_payment_offers_id` integer REFERENCES `hosting_payment_offers`(`id`) ON DELETE cascade");
+    // Account Timeline "Other" free-text action (clients + prospect timelines).
+    await run("client_account_timeline.custom_action", "ALTER TABLE `client_account_timeline` ADD `custom_action` text");
+    await run("client_proposals_account_timeline.custom_action", "ALTER TABLE `client_proposals_account_timeline` ADD `custom_action` text");
     await run("mark_migration:20260814_120000_add_hosting_billing", "INSERT OR IGNORE INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) VALUES ('20260814_120000_add_hosting_billing', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
 
     // Payload clears document locks after collection updates. These columns are

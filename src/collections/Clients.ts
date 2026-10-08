@@ -2239,6 +2239,15 @@ export const Clients: CollectionConfig = {
                       options: [...ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS],
                     },
                     {
+                      name: "customAction",
+                      type: "text",
+                      admin: {
+                        description: "Custom action name when Action is \"Other\"",
+                        condition: (_data: unknown, siblingData: { actionType?: string } | undefined) =>
+                          siblingData?.actionType === "other",
+                      },
+                    },
+                    {
                       name: "description",
                       type: "text",
                       required: true,

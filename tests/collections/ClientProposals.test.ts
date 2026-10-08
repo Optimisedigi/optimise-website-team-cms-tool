@@ -787,6 +787,14 @@ describe("ClientProposals: convertToClient hook", () => {
           description: "Initial strategy meeting.",
           addedBy: "Alice",
         },
+        {
+          id: "tl-2",
+          date: "2026-05-02T00:00:00.000Z",
+          serviceArea: "google_ads",
+          actionType: "other",
+          customAction: "Competitor teardown",
+          description: "Custom step.",
+        },
       ],
     };
 
@@ -802,7 +810,8 @@ describe("ClientProposals: convertToClient hook", () => {
     );
     expect(clientUpdate).toBeDefined();
     const timeline = clientUpdate![0].data.accountTimeline;
-    expect(timeline).toHaveLength(1);
+    expect(timeline).toHaveLength(2);
+    expect(timeline[1].customAction).toBe("Competitor teardown");
     expect(timeline[0]).not.toHaveProperty("id");
     expect(timeline[0].actionType).toBe("strategy_meeting");
     expect(timeline[0].description).toBe("Initial strategy meeting.");

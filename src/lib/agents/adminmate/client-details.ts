@@ -804,7 +804,10 @@ export function buildClientDetails(
     const entries = timeline.entries.map((entry) => ({
       date: day(entry.date),
       service: optionLabel(ACCOUNT_TIMELINE_SERVICE_AREA_OPTIONS, entry.serviceArea),
-      action: optionLabel(ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS, entry.actionType),
+      action:
+        entry.actionType === "other" && entry.customAction
+          ? entry.customAction
+          : optionLabel(ACCOUNT_TIMELINE_ACTION_TYPE_OPTIONS, entry.actionType),
       description: entry.description,
     }))
     const filtered = filterBySearch(
