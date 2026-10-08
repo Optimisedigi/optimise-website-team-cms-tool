@@ -305,3 +305,117 @@ export function isVoiceConfirmation(text: string): boolean {
     normalised,
   )
 }
+
+/** Edits the admin may make to a scheduler before its invites are emailed. */
+export interface MeetingInviteEdits {
+  schedulerId: string
+  title: string
+  durationMinutes: MeetingDuration
+  meetingTopic?: string
+  attendees: StagedMeetingAttendee[]
+}
+
+/**
+ * Re-validates the send-invites card. Runs in the browser for the card and
+ * again in the send route, so an edited payload gets the same checks.
+ */
+export function validateInviteEdits(raw: unknown): MeetingInviteEdits {
+  const input = asRecord(raw, 'input')
+  const schedulerId = boundedText(input.schedulerId, 'schedulerId', 40) ?? ''
+  if (!/^\d+$/.test(schedulerId)) throw new Error('schedulerId must be a record id')
+  const title = boundedText(input.title, 'title', 200) ?? ''
+  const duration = String(input.durationMinutes ?? '30')
+  if (!durations.has(duration))
+    throw new Error(`durationMinutes must be one of ${MEETING_DURATION_OPTIONS.join(', ')}`)
+  if (!Array.isArray(input.attendees) || input.attendees.length === 0)
+    throw new Error('Add at least one attendee')
+  if (input.attendees.length > MAX_MEETING_ATTENDEES)
+    throw new Error(`attendees can have at most ${MAX_MEETING_ATTENDEES} people`)
+  const attendees = input.attendees.map(validateAttendee)
+  const emails = new Set<string>()
+  for (const attendee of attendees) {
+    if (emails.has(attendee.email)) throw new Error(`${attendee.email} is listed twice`)
+    emails.add(attendee.email)
+  }
+  if (attendees.every((attendee) => attendee.internalConfirmed))
+    throw new Error('At least one attendee must receive an invite')
+  return {
+    schedulerId,
+    title,
+    durationMinutes: duration as MeetingDuration,
+    meetingTopic: boundedText(input.meetingTopic, 'meetingTopic', 2000, false),
+    attendees,
+  }
+}
+
+/**
+ * True when a dictated message clearly asks to send the staged invites
+ * ("send it", "yes, send the invites"). Deliberately stricter than
+ * isVoiceConfirmation: a plain "yes" never emails anyone.
+ */
+export function isSendConfirmation(text: string): boolean {
+  const normalised = text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!,]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!normalised || normalised.length > 60) return false
+  return /^((yes|yep|yeah|ok|okay|sure) )?(please )?(go ahead and )?send( it| them| the (invites?|emails?)| (invites?|emails?))?( now)?( please| thanks)?$/.test(
+    normalised,
+  )
+}
+
+/** A scheduler AdminMate can send invites for. */
+export interface AdminMateSchedulerSummary {
+  id: string
+  title: string
+  status: string
+  attendees: string[]
+}
+
+export function createAdminMateMeetingInviteTools(
+  schedulers: AdminMateSchedulerSummary[],
+): CanonicalTool<unknown>[] {
+  const find: CanonicalTool<{ query: string }> = {
+    name: 'find_meeting_schedulers',
+    description:
+      'Search recent meeting schedulers that are not yet confirmed, by title or attendee name/email, to send their invites.',
+    inputSchema: {
+      type: 'object',
+      properties: { query: { type: 'string', minLength: 1, maxLength: 200 } },
+      required: ['query'],
+      additionalProperties: false,
+    },
+    validate: (raw) => ({ query: boundedText(asRecord(raw, 'input').query, 'query', 200) ?? '' }),
+    execute: async ({ query }) => ({
+      ok: true,
+      data: {
+        schedulers: schedulers.filter((s) => matches(query, s.title, ...s.attendees)).slice(0, 10),
+      },
+    }),
+  }
+
+  const stage: CanonicalTool<{ schedulerId: string }> = {
+    name: 'stage_meeting_invites',
+    description:
+      "Stage sending a meeting scheduler's invite emails for human review. No email is sent here — the admin reviews and edits the details on a card, then confirms. schedulerId comes from find_meeting_schedulers.",
+    inputSchema: {
+      type: 'object',
+      properties: { schedulerId: { type: 'string', maxLength: 40 } },
+      required: ['schedulerId'],
+      additionalProperties: false,
+    },
+    validate: (raw) => {
+      const schedulerId = boundedText(asRecord(raw, 'input').schedulerId, 'schedulerId', 40) ?? ''
+      if (!schedulers.some((s) => s.id === schedulerId))
+        throw new Error(
+          'schedulerId does not match a meeting scheduler; call find_meeting_schedulers',
+        )
+      return { schedulerId }
+    },
+    execute: async ({ schedulerId }) => ({ ok: true, data: { schedulerId } }),
+  }
+
+  return [find as unknown as CanonicalTool<unknown>, stage as unknown as CanonicalTool<unknown>]
+}

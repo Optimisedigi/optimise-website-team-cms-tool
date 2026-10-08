@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   createAdminMateMeetingSchedulerTools,
+  isSendConfirmation,
   isVoiceConfirmation,
+  validateInviteEdits,
   validateStagedMeetingScheduler,
 } from '@/lib/agents/adminmate/meeting-scheduler-tools'
 
@@ -76,6 +78,56 @@ describe('isVoiceConfirmation', () => {
     'rejects %s',
     (text) => {
       expect(isVoiceConfirmation(text)).toBe(false)
+    },
+  )
+})
+
+describe('validateInviteEdits', () => {
+  const edits = {
+    schedulerId: '31',
+    title: 'Discovery call',
+    attendees: [{ name: 'Priya', email: 'Priya@AFP.com.au' }],
+  }
+
+  it('normalises emails and defaults the duration', () => {
+    expect(validateInviteEdits(edits)).toMatchObject({
+      durationMinutes: '30',
+      attendees: [{ email: 'priya@afp.com.au', internalConfirmed: false }],
+    })
+  })
+
+  it.each([
+    ['no invitees', { ...edits, attendees: [] }, /at least one attendee/],
+    [
+      'only internal invitees',
+      { ...edits, attendees: [{ name: 'Pe', email: 'pe@od.com', internalConfirmed: true }] },
+      /must receive an invite/,
+    ],
+    [
+      'duplicate emails',
+      { ...edits, attendees: [edits.attendees[0], { name: 'P', email: 'priya@afp.com.au' }] },
+      /listed twice/,
+    ],
+    ['bad scheduler id', { ...edits, schedulerId: '../1' }, /record id/],
+  ])('rejects %s', (_label, input, error) => {
+    expect(() => validateInviteEdits(input)).toThrow(error)
+  })
+})
+
+describe('isSendConfirmation', () => {
+  it.each([
+    'Send it',
+    'yes, send the invites',
+    'go ahead and send them',
+    'send invites now please',
+  ])('accepts %s', (text) => {
+    expect(isSendConfirmation(text)).toBe(true)
+  })
+
+  it.each(['yes', 'yes, create it', 'go ahead', 'send it to someone else instead'])(
+    'does not email on %s',
+    (text) => {
+      expect(isSendConfirmation(text)).toBe(false)
     },
   )
 })

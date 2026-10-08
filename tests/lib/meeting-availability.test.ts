@@ -49,13 +49,21 @@ describe('meeting availability', () => {
     ])
   })
 
-  it('skips weekends unless a dictated window opens them', () => {
+  it('never offers weekends, even when a dictated window covers one', () => {
     const weekend = { rangeStart: '2026-10-17', rangeEnd: '2026-10-18', busy: [] }
     expect(grid(weekend).open).toEqual([])
     expect(
       grid({ ...weekend, windows: [{ date: '2026-10-17', startMinutes: 540, endMinutes: 600 }] })
         .open,
-    ).toEqual(['2026-10-17|540', '2026-10-17|570'])
+    ).toEqual([])
+  })
+
+  it('hides weekend days from the client grid for older schedulers', () => {
+    const saturday = zonedToUtc('2026-10-17', 540, tz).toISOString()
+    const monday = zonedToUtc('2026-10-19', 540, tz).toISOString()
+    expect(clientGridFromSlots([saturday, monday], 30, tz, now).map((day) => day.date)).toEqual([
+      '2026-10-19',
+    ])
   })
 
   it('offers only start times whose whole meeting fits in open cells', () => {

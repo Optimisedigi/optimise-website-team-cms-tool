@@ -12,10 +12,14 @@ import AdminMateOneOffPaymentCard from './AdminMateOneOffPaymentCard'
 import AdminMateProposalCard from './AdminMateProposalCard'
 import type { StagedProposal } from '@/lib/agents/adminmate/proposal-tools'
 import AdminMateMeetingSchedulerCard from './AdminMateMeetingSchedulerCard'
+import AdminMateMeetingInvitesCard from './AdminMateMeetingInvitesCard'
 import {
+  isSendConfirmation,
   isVoiceConfirmation,
+  type MeetingInviteEdits,
   type StagedMeetingScheduler,
 } from '@/lib/agents/adminmate/meeting-scheduler-tools'
+import type { MeetingInvitePreview } from '@/lib/meeting-scheduler-invites'
 
 /** Pause after the last dictated phrase before it is sent automatically. */
 const VOICE_SEND_DELAY_MS = 2500
@@ -61,6 +65,8 @@ export default function AdminMateChat() {
   const [stagedContract, setStagedContract] = useState<StagedContract>()
   const [stagedProposal, setStagedProposal] = useState<StagedProposal>()
   const [stagedMeeting, setStagedMeeting] = useState<StagedMeetingScheduler>()
+  const [invitePreview, setInvitePreview] = useState<MeetingInvitePreview>()
+  const [inviteEdits, setInviteEdits] = useState<MeetingInviteEdits>()
   const [stagedPayment, setStagedPayment] = useState<StagedOneOffPayment>()
   const [paymentPreview, setPaymentPreview] = useState<OneOffPaymentPreview>()
   const [missingDetails, setMissingDetails] = useState<string[]>([])
@@ -74,6 +80,8 @@ export default function AdminMateChat() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  // An "Open" link shown with the success message it was set alongside.
+  const [successLink, setSuccessLink] = useState<{ text: string; href: string }>()
   const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
   const [emailPickerOpen, setEmailPickerOpen] = useState(false)
   const [images, setImages] = useState<PreparedImage[]>([])
@@ -107,7 +115,7 @@ export default function AdminMateChat() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
-  }, [messages, staged, stagedContract, stagedPayment, stagedProposal, stagedMeeting])
+  }, [messages, staged, stagedContract, stagedPayment, stagedProposal, stagedMeeting, invitePreview])
 
   const patch = (changes: Partial<StagedClient>) => setStaged((current) => current && { ...current, ...changes })
   const patchContract = (changes: Partial<StagedContract>) => setStagedContract((current) => current && { ...current, ...changes })
@@ -187,6 +195,7 @@ export default function AdminMateChat() {
       setSimilar(Array.isArray(json.similarClients) ? json.similarClients : [])
       if (json.stagedProposal) setStagedProposal(json.stagedProposal)
       if (json.stagedMeetingScheduler) setStagedMeeting(json.stagedMeetingScheduler)
+      if (json.stagedMeetingInvites?.schedulerId) void loadInvites(String(json.stagedMeetingInvites.schedulerId))
       if (json.stagedContract) {
         setStagedContract(json.stagedContract)
         setMissingDetails(Array.isArray(json.missingContractDetails) ? json.missingContractDetails : [])
@@ -262,10 +271,62 @@ export default function AdminMateChat() {
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json.error || 'Could not create the meeting scheduler')
-      setSuccess(`Created ${json.title}. Open ${json.adminUrl} to review the times and send invites.`)
+      const text = `Created ${json.title}.`
+      setSuccess(text)
+      setSuccessLink({ text, href: json.adminUrl })
       setStagedMeeting(undefined)
+      // Straight on to the send step: review, edit, then confirm.
+      void loadInvites(String(json.id))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create the meeting scheduler')
+    } finally { setCreating(false) }
+  }
+
+  async function loadInvites(schedulerId: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/optimate/adminmate/meeting-invites?id=${encodeURIComponent(schedulerId)}`)
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Could not load the meeting invites')
+      const preview = json as MeetingInvitePreview
+      setInvitePreview(preview)
+      setInviteEdits({
+        schedulerId: preview.schedulerId,
+        title: preview.title,
+        durationMinutes: preview.durationMinutes as MeetingInviteEdits['durationMinutes'],
+        meetingTopic: preview.meetingTopic,
+        attendees: preview.attendees.map(({ name, email, internalConfirmed }) => ({ name, email, internalConfirmed })),
+      })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load the meeting invites')
+    }
+  }
+
+  const sendInvites = async () => {
+    if (!inviteEdits || creating) return
+    setCreating(true)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await fetch('/api/optimate/adminmate/meeting-invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...inviteEdits,
+          attendees: inviteEdits.attendees.map((attendee) => ({ ...attendee, email: attendee.email.trim() })),
+        }),
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Could not send the invites')
+      const failed: string[] = Array.isArray(json.failed) ? json.failed : []
+      const text = `Sent scheduling invites to ${json.sentCount} ${json.sentCount === 1 ? 'person' : 'people'}.${
+        failed.length ? ` Not sent to ${failed.join(', ')}.` : ''
+      }`
+      setSuccess(text)
+      setSuccessLink({ text, href: json.adminUrl })
+      setInvitePreview(undefined)
+      setInviteEdits(undefined)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not send the invites')
     } finally { setCreating(false) }
   }
 
@@ -275,8 +336,19 @@ export default function AdminMateChat() {
   createMeetingRef.current = createMeeting
   const hasStagedMeeting = useRef(false)
   hasStagedMeeting.current = Boolean(stagedMeeting)
+  const sendInvitesRef = useRef(sendInvites)
+  sendInvitesRef.current = sendInvites
+  const hasStagedInvites = useRef(false)
+  hasStagedInvites.current = Boolean(inviteEdits)
 
   const onDictation = (text: string) => {
+    // "Send it" emails the staged invites; a plain "yes" never does.
+    if (hasStagedInvites.current && !latestDraft.current.trim() && isSendConfirmation(text)) {
+      if (voiceSendTimer.current) clearTimeout(voiceSendTimer.current)
+      voiceSendTimer.current = null
+      void sendInvitesRef.current()
+      return
+    }
     if (hasStagedMeeting.current && !latestDraft.current.trim() && isVoiceConfirmation(text)) {
       if (voiceSendTimer.current) clearTimeout(voiceSendTimer.current)
       voiceSendTimer.current = null
@@ -519,6 +591,16 @@ export default function AdminMateChat() {
             onDiscard={() => setStagedMeeting(undefined)}
           />
         )}
+        {invitePreview && inviteEdits && (
+          <AdminMateMeetingInvitesCard
+            preview={invitePreview}
+            edits={inviteEdits}
+            sending={creating}
+            onChange={(changes) => setInviteEdits((current) => current && { ...current, ...changes })}
+            onSend={() => void sendInvites()}
+            onDiscard={() => { setInvitePreview(undefined); setInviteEdits(undefined) }}
+          />
+        )}
         {stagedContract && (
           <AdminMateContractCard
             staged={stagedContract}
@@ -541,7 +623,19 @@ export default function AdminMateChat() {
           />
         )}
         {error && <div role="alert" style={{ ...noticeStyle, color: '#991b1b', background: '#fef2f2' }}>{error}</div>}
-        {success && <div role="status" style={{ ...noticeStyle, color: '#166534', background: '#f0fdf4' }}>{success}</div>}
+        {success && (
+          <div role="status" style={{ ...noticeStyle, color: '#166534', background: '#f0fdf4' }}>
+            {success}
+            {successLink && successLink.text === success && (
+              <>
+                {' '}
+                <a href={successLink.href} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>
+                  Open
+                </a>
+              </>
+            )}
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
       <div

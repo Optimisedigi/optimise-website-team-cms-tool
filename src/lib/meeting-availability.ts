@@ -201,7 +201,7 @@ export function defaultDayWindow(
 /**
  * A fresh grid from a calendar check: every free weekday cell inside the day
  * window is open. When `windows` is given (AdminMate dictated specific dates
- * and hours), only cells inside them open, weekends included.
+ * and hours), only cells inside them open. Weekends are never offered.
  */
 export function buildAvailability(input: {
   rangeStart: string
@@ -217,10 +217,10 @@ export function buildAvailability(input: {
 }): MeetingAvailability {
   const open: CellKey[] = []
   for (const date of datesInRange(input.rangeStart, input.rangeEnd)) {
-    const dayWindows = input.windows
-      ? input.windows.filter((window) => window.date === date)
-      : isWeekend(date)
-        ? []
+    const dayWindows = isWeekend(date)
+      ? []
+      : input.windows
+        ? input.windows.filter((window) => window.date === date)
         : [{ date, startMinutes: input.dayStartMinutes, endMinutes: input.dayEndMinutes }]
     for (let minutes = 0; minutes < 1440; minutes += CELL_MINUTES) {
       const inWindow = dayWindows.some(
@@ -401,7 +401,11 @@ export function clientGridFromSlots(
       byDate.set(cell.date, open)
     }
   }
-  return [...byDate.keys()].sort().map((date) => ({ date, open: byDate.get(date) ?? new Set() }))
+  // Weekends are never shown, even for older schedulers that offered them.
+  return [...byDate.keys()]
+    .filter((date) => !isWeekend(date))
+    .sort()
+    .map((date) => ({ date, open: byDate.get(date) ?? new Set() }))
 }
 
 /** Offered meeting times whose every cell the attendee selected. */

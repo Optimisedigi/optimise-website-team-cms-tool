@@ -128,8 +128,20 @@ describe('AdminMateChat', () => {
     expect(screen.queryByRole('button', { name: 'Create Aussie Fluid Power' })).not.toBeInTheDocument()
   })
 
-  it('stages and creates a meeting scheduler by voice alone', async () => {
-    fetchMock.mockImplementation((url: string) => {
+  it('stages, creates and sends a meeting scheduler by voice alone', async () => {
+    const preview = {
+      schedulerId: '31',
+      title: 'Discovery call',
+      durationMinutes: '30',
+      timezone: 'Australia/Sydney',
+      status: 'slots_generated',
+      offeredTimes: 6,
+      firstTime: '2026-10-12T22:00:00.000Z',
+      lastTime: '2026-10-13T00:30:00.000Z',
+      attendees: [{ name: 'Priya', email: 'priya@afp.com.au', internalConfirmed: false, alreadySent: false, responded: false }],
+      adminUrl: '/admin/collections/meeting-schedulers/31',
+    }
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
       if (url === '/api/optimate/adminmate/chat') {
         return Promise.resolve(response({
           reply: 'Staged a 30 minute discovery call.',
@@ -143,8 +155,15 @@ describe('AdminMateChat', () => {
           },
         }))
       }
+      if (url === '/api/optimate/adminmate/meeting-links') {
+        return Promise.resolve(response({ clients: [{ id: '7', name: 'Acme' }], prospects: [{ id: '4', businessName: 'Aussie Fluid Power' }] }))
+      }
       if (url === '/api/optimate/adminmate/create-meeting-scheduler') {
         return Promise.resolve(response({ id: 31, title: 'Discovery call', adminUrl: '/admin/collections/meeting-schedulers/31' }))
+      }
+      if (url === '/api/optimate/adminmate/meeting-invites?id=31') return Promise.resolve(response(preview))
+      if (url === '/api/optimate/adminmate/meeting-invites' && init?.method === 'POST') {
+        return Promise.resolve(response({ sentCount: 1, failed: [], adminUrl: '/admin/collections/meeting-schedulers/31' }))
       }
       throw new Error(`Unexpected fetch ${url}`)
     })
@@ -159,17 +178,68 @@ describe('AdminMateChat', () => {
       vi.useRealTimers()
     }
 
-    expect(await screen.findByText('Aussie Fluid Power (prospect)')).toBeInTheDocument()
+    const linkSelect = await screen.findByRole('combobox', { name: 'Client or prospect' })
+    expect(linkSelect).toHaveValue('prospect:4')
     expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).message).toContain('Aussie Fluid Power')
 
     dictation.phrase = 'Yes, create it'
     fireEvent.click(screen.getByRole('button', { name: 'Dictate' }))
 
     expect(await screen.findByText(/Created Discovery call/)).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Open' })[0]).toHaveAttribute('href', '/admin/collections/meeting-schedulers/31')
     const createCalls = fetchMock.mock.calls.filter(([url]) => url === '/api/optimate/adminmate/create-meeting-scheduler')
     expect(createCalls).toHaveLength(1)
     expect(JSON.parse(createCalls[0][1].body as string)).toMatchObject({ title: 'Discovery call', link: { kind: 'prospect', id: '4' } })
+
+    // Straight on to the send step, with editable details.
+    expect(await screen.findByRole('region', { name: 'Send meeting invites review' })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Invitee 1 name' }), { target: { value: 'Priya Shah' } })
+    dictation.phrase = 'Send it'
+    fireEvent.click(screen.getByRole('button', { name: 'Dictate' }))
+
+    expect(await screen.findByText(/Sent scheduling invites to 1 person/)).toBeInTheDocument()
+    const sendCalls = fetchMock.mock.calls.filter(([url, init]) => url === '/api/optimate/adminmate/meeting-invites' && init?.method === 'POST')
+    expect(sendCalls).toHaveLength(1)
+    expect(JSON.parse(sendCalls[0][1].body as string)).toMatchObject({
+      schedulerId: '31',
+      attendees: [{ name: 'Priya Shah', email: 'priya@afp.com.au', internalConfirmed: false }],
+    })
+    expect(screen.queryByRole('region', { name: 'Send meeting invites review' })).not.toBeInTheDocument()
     expect(fetchMock.mock.calls.filter(([url]) => url === '/api/optimate/adminmate/chat')).toHaveLength(1)
+  })
+
+  it('links a meeting to a prospect picked from the dropdown and adds their contact', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url === '/api/optimate/adminmate/chat') {
+        return Promise.resolve(response({
+          reply: 'Staged.',
+          stagedMeetingScheduler: {
+            title: 'Intro call',
+            durationMinutes: '30',
+            timezone: 'Australia/Sydney',
+            dates: [{ date: '2026-10-13', start: '09:00', end: '12:00' }],
+            attendees: [],
+          },
+        }))
+      }
+      if (url === '/api/optimate/adminmate/meeting-links') {
+        return Promise.resolve(response({
+          clients: [{ id: '7', name: 'Acme' }],
+          prospects: [{ id: '4', businessName: 'Aussie Fluid Power', contactName: 'Priya', contactEmail: 'Priya@AFP.com.au' }],
+        }))
+      }
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+    render(<AdminMateChat />)
+    fireEvent.change(screen.getByLabelText('Message AdminMate'), { target: { value: 'set up an intro meeting' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    const linkSelect = await screen.findByRole('combobox', { name: 'Client or prospect' })
+    await screen.findByRole('option', { name: 'Aussie Fluid Power' })
+    fireEvent.change(linkSelect, { target: { value: 'prospect:4' } })
+
+    expect(linkSelect).toHaveValue('prospect:4')
+    expect(screen.getByText('Priya <priya@afp.com.au>')).toBeInTheDocument()
   })
 
   it('keeps the staged card when creation fails', async () => {

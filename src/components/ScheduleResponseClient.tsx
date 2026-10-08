@@ -698,7 +698,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   contentGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))',
+    // Meeting details 40%, availability 60%.
+    gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 3fr)',
     gap: 24,
     alignItems: 'start',
   },
@@ -877,14 +878,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   timeSectionHeader: {
     display: 'flex',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 12,
     margin: '0 0 8px',
-    flexWrap: 'wrap' as const,
   },
+  // Takes the free width so Select all stays on the same row, at the right.
   timeSectionTitleBlock: {
-    flex: '0 1 auto',
+    flex: '1 1 0',
+    minWidth: 0,
   },
   timeSectionLabel: {
     margin: 0,
@@ -999,8 +1001,8 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    padding: '12px 16px',
-    marginBottom: 16,
+    padding: '6px 8px 6px 14px',
+    marginBottom: 12,
     background: '#f8fafc',
     border: '1px solid #e7edf6',
     borderRadius: 12,
@@ -1012,7 +1014,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
   },
   declineButton: {
-    padding: '9px 20px',
+    padding: '4px 14px',
     background: '#ffffff',
     color: '#b91c1c',
     border: '1px solid #fca5a5',
