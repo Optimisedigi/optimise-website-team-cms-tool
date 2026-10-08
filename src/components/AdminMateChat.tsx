@@ -11,6 +11,14 @@ import AdminMateContractCard from './AdminMateContractCard'
 import AdminMateOneOffPaymentCard from './AdminMateOneOffPaymentCard'
 import AdminMateProposalCard from './AdminMateProposalCard'
 import type { StagedProposal } from '@/lib/agents/adminmate/proposal-tools'
+import AdminMateMeetingSchedulerCard from './AdminMateMeetingSchedulerCard'
+import {
+  isVoiceConfirmation,
+  type StagedMeetingScheduler,
+} from '@/lib/agents/adminmate/meeting-scheduler-tools'
+
+/** Pause after the last dictated phrase before it is sent automatically. */
+const VOICE_SEND_DELAY_MS = 2500
 import type {
   OneOffPaymentPreview,
   StagedOneOffPayment,
@@ -52,6 +60,7 @@ export default function AdminMateChat() {
   const [similar, setSimilar] = useState<AdminMateClient[]>([])
   const [stagedContract, setStagedContract] = useState<StagedContract>()
   const [stagedProposal, setStagedProposal] = useState<StagedProposal>()
+  const [stagedMeeting, setStagedMeeting] = useState<StagedMeetingScheduler>()
   const [stagedPayment, setStagedPayment] = useState<StagedOneOffPayment>()
   const [paymentPreview, setPaymentPreview] = useState<OneOffPaymentPreview>()
   const [missingDetails, setMissingDetails] = useState<string[]>([])
@@ -75,9 +84,17 @@ export default function AdminMateChat() {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const draftRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  // Hands-free voice: dictated text sends itself after a short pause, and a
+  // spoken "yes, create it" confirms a staged meeting scheduler.
+  const voiceSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestDraft = useRef(draft)
+  latestDraft.current = draft
 
   useEffect(() => {
     sessionStorage.removeItem(STORAGE_KEY)
+    return () => {
+      if (voiceSendTimer.current) clearTimeout(voiceSendTimer.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -90,7 +107,7 @@ export default function AdminMateChat() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
-  }, [messages, staged, stagedContract, stagedPayment, stagedProposal])
+  }, [messages, staged, stagedContract, stagedPayment, stagedProposal, stagedMeeting])
 
   const patch = (changes: Partial<StagedClient>) => setStaged((current) => current && { ...current, ...changes })
   const patchContract = (changes: Partial<StagedContract>) => setStagedContract((current) => current && { ...current, ...changes })
@@ -114,6 +131,10 @@ export default function AdminMateChat() {
   }
 
   const send = async (text = draft) => {
+    if (voiceSendTimer.current) {
+      clearTimeout(voiceSendTimer.current)
+      voiceSendTimer.current = null
+    }
     const typed = text.trim()
     const freshImages = text === draft ? images : []
     if ((!typed && freshImages.length === 0) || sending) return
@@ -165,6 +186,7 @@ export default function AdminMateChat() {
       if (json.stagedClient) setStaged(json.stagedClient)
       setSimilar(Array.isArray(json.similarClients) ? json.similarClients : [])
       if (json.stagedProposal) setStagedProposal(json.stagedProposal)
+      if (json.stagedMeetingScheduler) setStagedMeeting(json.stagedMeetingScheduler)
       if (json.stagedContract) {
         setStagedContract(json.stagedContract)
         setMissingDetails(Array.isArray(json.missingContractDetails) ? json.missingContractDetails : [])
@@ -225,6 +247,50 @@ export default function AdminMateChat() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create the proposal')
     } finally { setCreating(false) }
+  }
+
+  const createMeeting = async () => {
+    if (!stagedMeeting || creating) return
+    setCreating(true)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await fetch('/api/optimate/adminmate/create-meeting-scheduler', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(stagedMeeting),
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Could not create the meeting scheduler')
+      setSuccess(`Created ${json.title}. Open ${json.adminUrl} to generate slots and send invites.`)
+      setStagedMeeting(undefined)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not create the meeting scheduler')
+    } finally { setCreating(false) }
+  }
+
+  const sendRef = useRef(send)
+  sendRef.current = send
+  const createMeetingRef = useRef(createMeeting)
+  createMeetingRef.current = createMeeting
+  const hasStagedMeeting = useRef(false)
+  hasStagedMeeting.current = Boolean(stagedMeeting)
+
+  const onDictation = (text: string) => {
+    if (hasStagedMeeting.current && !latestDraft.current.trim() && isVoiceConfirmation(text)) {
+      if (voiceSendTimer.current) clearTimeout(voiceSendTimer.current)
+      voiceSendTimer.current = null
+      void createMeetingRef.current()
+      return
+    }
+    const next = `${latestDraft.current}${latestDraft.current.trim() ? ' ' : ''}${text}`
+    latestDraft.current = next
+    setDraft(next)
+    if (voiceSendTimer.current) clearTimeout(voiceSendTimer.current)
+    voiceSendTimer.current = setTimeout(() => {
+      voiceSendTimer.current = null
+      void sendRef.current(latestDraft.current)
+    }, VOICE_SEND_DELAY_MS)
   }
 
   const createContract = async () => {
@@ -444,6 +510,15 @@ export default function AdminMateChat() {
             onCreate={() => void createProposal()}
           />
         )}
+        {stagedMeeting && (
+          <AdminMateMeetingSchedulerCard
+            staged={stagedMeeting}
+            creating={creating}
+            onChange={(changes) => setStagedMeeting((current) => current && { ...current, ...changes })}
+            onCreate={() => void createMeeting()}
+            onDiscard={() => setStagedMeeting(undefined)}
+          />
+        )}
         {stagedContract && (
           <AdminMateContractCard
             staged={stagedContract}
@@ -602,7 +677,7 @@ export default function AdminMateChat() {
                 </svg>
               </button>
               <span style={{ flex: 1 }} />
-              <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={(text) => setDraft((current) => `${current}${current.trim() ? ' ' : ''}${text}`)} />
+              <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={onDictation} />
               <OptiMateMetalSend>
                 <button type="button" disabled={sending || (!draft.trim() && images.length === 0)} onClick={() => void send()} aria-label="Send" title="Send" data-optimate-send="">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">

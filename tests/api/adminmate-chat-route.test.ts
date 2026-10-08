@@ -12,6 +12,7 @@ vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("@/lib/agents/adminmate", () => ({ runAdminMateChatTurn }));
 vi.mock("@/lib/agents/adminmate/list-clients", () => ({ listExistingClients }));
+vi.mock("@/lib/agents/adminmate/list-prospects", () => ({ listMeetingProspects: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/contract-from-template", () => ({ listContractTemplates }));
 vi.mock("@/lib/agents/_shared/user-gmail-tokens", () => ({ getValidGmailToken }));
 vi.mock("@/lib/gmail-search", () => ({ fetchMessageBody }));

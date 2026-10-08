@@ -235,3 +235,64 @@ describe("runAdminMateChatTurn client proposals", () => {
     expect(result.stagedProposal?.businessName).toBe("Aussie Fluid Power");
   });
 });
+
+describe("runAdminMateChatTurn meeting schedulers", () => {
+  beforeEach(() => mockRunAgent.mockReset());
+
+  const meetingInput = (text: string) => ({
+    messages: [{ role: "user" as const, content: [{ type: "text" as const, text }] }],
+    existingClients: [],
+    contractTemplates: [],
+    prospects: [{ id: "4", businessName: "Aussie Fluid Power", contactEmail: "priya@afp.com.au" }],
+    userId: 17,
+    modelOverride: "gpt-5.6-luna",
+  });
+
+  const stagedMeetingStep = {
+    step: 1,
+    type: "tool-call",
+    toolName: "stage_meeting_scheduler",
+    output: {
+      ok: true,
+      data: {
+        staged: {
+          title: "Discovery call",
+          link: { kind: "prospect", id: "4", name: "Aussie Fluid Power" },
+          durationMinutes: "30",
+          timezone: "Australia/Sydney",
+          dates: [{ date: "2026-10-13", start: "09:00", end: "12:00" }],
+          attendees: [{ name: "Priya", email: "priya@afp.com.au" }],
+        },
+      },
+    },
+    timestamp: "2026-10-08T10:00:00.000Z",
+  };
+
+  it("registers the meeting tools and returns the staged meeting card", async () => {
+    mockRunAgent.mockResolvedValueOnce(assistantResult("Staged.", [stagedMeetingStep]));
+
+    const result = await runAdminMateChatTurn(meetingInput("set up a meeting with Aussie Fluid Power next Tuesday morning"));
+
+    const toolNames = mockRunAgent.mock.calls[0][0].tools.map((tool: { name: string }) => tool.name);
+    expect(toolNames).toEqual(expect.arrayContaining(["stage_meeting_scheduler", "find_meeting_prospects"]));
+    expect(mockRunAgent).toHaveBeenCalledTimes(1);
+    expect(result.stagedMeetingScheduler).toMatchObject({
+      title: "Discovery call",
+      link: { kind: "prospect", id: "4" },
+      attendees: [{ email: "priya@afp.com.au", internalConfirmed: false }],
+    });
+    expect(result.stagedClient).toBeUndefined();
+  });
+
+  it("corrects a 'meeting with the client' reply that staged nothing into a stage_meeting_scheduler call", async () => {
+    mockRunAgent
+      .mockResolvedValueOnce(assistantResult("I've staged the meeting."))
+      .mockResolvedValueOnce(assistantResult("Staged.", [stagedMeetingStep]));
+
+    const result = await runAdminMateChatTurn(meetingInput("schedule a meeting with the client Aussie Fluid Power on Tuesday"));
+
+    expect(mockRunAgent).toHaveBeenCalledTimes(2);
+    expect(mockRunAgent.mock.calls[1][0].initialMessages.at(-1).content[0].text).toContain("stage_meeting_scheduler");
+    expect(result.stagedMeetingScheduler?.title).toBe("Discovery call");
+  });
+});

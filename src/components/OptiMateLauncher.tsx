@@ -297,7 +297,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   ← Accounts
                 </button>
               )}
-              {(step === 'invoice-chat' ||
+              {(step === 'audit' ||
+                step === 'invoice-chat' ||
                 step === 'taskmate' ||
                 step === 'adminmate' ||
                 step === 'gmail' ||
@@ -308,6 +309,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   className="om-headlink"
                   onClick={() => {
                     setAgent('')
+                    setSelectedAudits([])
+                    setPortfolioSelected(false)
                     setStep('agent')
                   }}
                 >
@@ -662,18 +665,6 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                         : `${selectedAudits.length} selected`}
                   </span>
                   <div className="om-btnrow">
-                    <button
-                      type="button"
-                      className="om-btn"
-                      onClick={() => {
-                        setAgent('')
-                        setSelectedAudits([])
-                        setPortfolioSelected(false)
-                        setStep('agent')
-                      }}
-                    >
-                      ← Change agent
-                    </button>
                     <button
                       type="button"
                       className={`om-btn om-btn--primary${

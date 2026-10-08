@@ -6,6 +6,7 @@ import type { Message } from "@/lib/agents/_shared/llm/types";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 import { runAdminMateChatTurn } from "@/lib/agents/adminmate";
 import { listExistingClients } from "@/lib/agents/adminmate/list-clients";
+import { listMeetingProspects } from "@/lib/agents/adminmate/list-prospects";
 import { createPayloadClientDetailsReader } from "@/lib/agents/adminmate/client-details";
 import { parseAdminMateImageAttachments } from "@/lib/agents/adminmate/image-attachments";
 import { createPayloadClientLinkSourcesReader } from "@/lib/agents/adminmate/client-link-sources";
@@ -111,10 +112,11 @@ export async function POST(request: Request) {
       }
     }
 
-    const [existingClients, contractTemplates, settings] = await Promise.all([
+    const [existingClients, contractTemplates, settings, prospects] = await Promise.all([
       listExistingClients(payload),
       listContractTemplates(payload),
       getOptiMateDefaultModels(payload),
+      listMeetingProspects(payload),
     ]);
     const history = compactHistory(parsedHistory, settings.chatHistoryTokenLimit);
     const messages: Message[] = [
@@ -140,6 +142,7 @@ export async function POST(request: Request) {
       messages,
       existingClients,
       contractTemplates,
+      prospects,
       // Read lazily: client records are only fetched when the agent calls get_client_details.
       clientDetails: createPayloadClientDetailsReader(payload),
       clientLinkSources: createPayloadClientLinkSourcesReader(payload),
@@ -157,6 +160,7 @@ export async function POST(request: Request) {
       oneOffPaymentPreview,
       stagedClient: result.stagedClient,
       stagedProposal: result.stagedProposal,
+      stagedMeetingScheduler: result.stagedMeetingScheduler,
       similarClients: result.similarClients,
       stagedContract: result.stagedContract,
       missingContractDetails: result.missingContractDetails,

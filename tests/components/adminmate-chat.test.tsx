@@ -1,10 +1,12 @@
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import AdminMateChat from '@/components/AdminMateChat'
 
+const dictation = vi.hoisted(() => ({ phrase: 'dictated client' }))
+
 vi.mock('@/components/OptiMateTranscribe', () => ({
-  default: ({ onTranscript }: { onTranscript: (text: string) => void }) => <button type="button" onClick={() => onTranscript('dictated client')}>Dictate</button>,
+  default: ({ onTranscript }: { onTranscript: (text: string) => void }) => <button type="button" onClick={() => onTranscript(dictation.phrase)}>Dictate</button>,
 }))
 
 vi.mock('@/components/EmailAttachPicker', () => ({
@@ -43,6 +45,7 @@ describe('AdminMateChat', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    dictation.phrase = 'dictated client'
     sessionStorage.clear()
     vi.stubGlobal('fetch', fetchMock)
   })
@@ -123,6 +126,50 @@ describe('AdminMateChat', () => {
     expect(await screen.findByText(/Created the proposal for Aussie Fluid Power/)).toBeInTheDocument()
     expect(fetchMock.mock.calls.filter(([url]) => url === '/api/optimate/adminmate/create-proposal')).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'Create Aussie Fluid Power' })).not.toBeInTheDocument()
+  })
+
+  it('stages and creates a meeting scheduler by voice alone', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url === '/api/optimate/adminmate/chat') {
+        return Promise.resolve(response({
+          reply: 'Staged a 30 minute discovery call.',
+          stagedMeetingScheduler: {
+            title: 'Discovery call',
+            link: { kind: 'prospect', id: '4', name: 'Aussie Fluid Power' },
+            durationMinutes: '30',
+            timezone: 'Australia/Sydney',
+            dates: [{ date: '2026-10-13', start: '09:00', end: '12:00' }],
+            attendees: [{ name: 'Priya', email: 'priya@afp.com.au', internalConfirmed: false }],
+          },
+        }))
+      }
+      if (url === '/api/optimate/adminmate/create-meeting-scheduler') {
+        return Promise.resolve(response({ id: 31, title: 'Discovery call', adminUrl: '/admin/collections/meeting-schedulers/31' }))
+      }
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+    vi.useFakeTimers()
+    try {
+      render(<AdminMateChat />)
+      dictation.phrase = 'set up a discovery call with Aussie Fluid Power next Tuesday morning'
+      fireEvent.click(screen.getByRole('button', { name: 'Dictate' }))
+      // The dictated message sends itself after a pause; no Send click.
+      await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(await screen.findByText('Aussie Fluid Power (prospect)')).toBeInTheDocument()
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).message).toContain('Aussie Fluid Power')
+
+    dictation.phrase = 'Yes, create it'
+    fireEvent.click(screen.getByRole('button', { name: 'Dictate' }))
+
+    expect(await screen.findByText(/Created Discovery call/)).toBeInTheDocument()
+    const createCalls = fetchMock.mock.calls.filter(([url]) => url === '/api/optimate/adminmate/create-meeting-scheduler')
+    expect(createCalls).toHaveLength(1)
+    expect(JSON.parse(createCalls[0][1].body as string)).toMatchObject({ title: 'Discovery call', link: { kind: 'prospect', id: '4' } })
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/optimate/adminmate/chat')).toHaveLength(1)
   })
 
   it('keeps the staged card when creation fails', async () => {
