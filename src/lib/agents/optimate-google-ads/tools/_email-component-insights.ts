@@ -1,5 +1,6 @@
 import type { GoogleAdsEmailComponentKey } from "@/lib/google-ads-email-components";
 import { pickVariant } from "./_email-copy-variants";
+import { formatAudWhole } from "@/lib/format-money";
 
 /**
  * Component-driven insight sentence for report emails.
@@ -91,8 +92,8 @@ export function buildComponentInsightSentence(
         const latest = trend[trend.length - 1]!;
         const previous = trend[trend.length - 2]!;
         const delta = Number(latest.value) - Number(previous.value);
-        const current = formatCurrency(Number(latest.value));
-        const prior = formatCurrency(Number(previous.value));
+        const current = formatAudWhole(Number(latest.value));
+        const prior = formatAudWhole(Number(previous.value));
         if (delta <= -5) {
           insights.push(
             pickVariant(
@@ -164,7 +165,7 @@ export function buildComponentInsightSentence(
       if (top?.term && conversions > 0) {
         const cpaText =
           Number.isFinite(Number(top.cpa)) && Number(top.cpa) > 0
-            ? ` at a CPA of ${formatCurrency(Number(top.cpa))}`
+            ? ` at a CPA of ${formatAudWhole(Number(top.cpa))}`
             : "";
         insights.push(
           `the strongest converting search was ${top.term}, generating ${formatNumber(conversions)} conversions${cpaText}`,
@@ -209,15 +210,6 @@ function capitalize(value: string): string {
 
 function hasNumericValue<T extends { value: number | null }>(row: T): row is T & { value: number } {
   return typeof row.value === "number" && Number.isFinite(row.value);
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 function formatNumber(value: number): string {

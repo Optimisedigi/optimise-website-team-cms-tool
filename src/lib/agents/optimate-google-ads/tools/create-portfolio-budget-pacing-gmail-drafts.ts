@@ -19,6 +19,7 @@ import { copySeed, pickGreeting, pickVariant, seedCustomerId } from './_email-co
 import { loadClientEmailCopy } from '@/lib/agents/_shared/client-email-copy'
 import type { EmailComponentData } from './_email-component-insights'
 import { escapeHtml } from '@/lib/html-escape'
+import { formatAudWhole } from '@/lib/format-money'
 
 interface CreatePortfolioBudgetPacingGmailDraftsArgs {
   accountRefs?: Array<string | number>
@@ -585,11 +586,7 @@ function summaryHtml(summary: string): string {
 }
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(value) ? value : 0)
+  return formatAudWhole(Number.isFinite(value) ? value : 0)
 }
 
 /** CPC is the one email figure kept to cents - whole dollars lose too much of it. */

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { GoogleAdsDashboardMonthlyWasteRelevancy, HubSpotPostClickDashboardData } from "@/lib/dashboard-types";
 import { isAwayDigitalAccount } from "@/lib/away-digital";
+import { formatAudWholeOrDash } from "@/lib/format-money";
 
 type MetricKey = "paidLeads" | "meetings" | "totalMeetings" | "googleAdsConversions" | "meetingRate" | "cpaGoogleAdsConversions" | "cpaLeadsWithMeetings" | "cpaMeetings" | "googleAdsSpend";
 type MonthlyPoint = HubSpotPostClickDashboardData["monthly"][number];
@@ -192,21 +193,16 @@ function formatRate(value: number | null | undefined): string {
   return `${value.toFixed(1).replace(/\.0$/, "")}%`;
 }
 
-function formatCurrency(value: number | null | undefined): string {
-  if (value == null) return "—";
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
-}
-
 function formatCompactCurrency(value: number | null | undefined): string {
   if (value == null) return "—";
   if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
-  return formatCurrency(value);
+  return formatAudWholeOrDash(value);
 }
 
 function formatCompactSpend(value: number | null | undefined): string {
   if (value == null) return "—";
   if (Math.abs(value) >= 1000) return `$${Math.round(value / 1000)}k`;
-  return formatCurrency(value);
+  return formatAudWholeOrDash(value);
 }
 
 function nullSafeCpa(spend: number, denominator: number): number | null {
@@ -812,7 +808,7 @@ function MonthlySalesFollowUpMetrics({ data }: { data: MonthlySalesPoint[] }) {
             return (
               <tr key={row.month}>
                 <td className={`px-3 py-2 ${isCurrentMonth ? "font-bold text-slate-800" : "font-medium text-slate-700"}`}>{monthFull(row.month)}</td>
-                <td className={valueClassName}>{formatCurrency(row.googleAdsSpend)}</td>
+                <td className={valueClassName}>{formatAudWholeOrDash(row.googleAdsSpend)}</td>
                 <td className={valueClassName}>{Math.round(row.googleAdsConversions || 0)}</td>
                 <td className={valueClassName}>{formatRate(row.keywordRelevancy)}</td>
                 <td className={valueClassName}>{row.paidLeads}</td>

@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/analytics.readonly",
@@ -6,11 +7,7 @@ const SCOPES = [
 ];
 
 function getOAuth2Client() {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GA4_REDIRECT_URI
-  );
+  return createGoogleOAuth2Client(process.env.GA4_REDIRECT_URI);
 }
 
 /**

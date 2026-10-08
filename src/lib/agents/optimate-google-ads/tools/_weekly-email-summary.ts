@@ -3,6 +3,7 @@ import type { WeeklyBucketRow } from "@/lib/google-ads-weekly-metric-table";
 import { pickCopy } from "./_email-copy-variants";
 import type { ClientEmailCopy } from "./_email-copy-slots";
 import { buildComponentInsightSentence, type EmailComponentData } from "./_email-component-insights";
+import { formatAudWhole } from "@/lib/format-money";
 
 /**
  * The single top-line summary used by every weekly Google Ads report email,
@@ -83,15 +84,15 @@ function buildPerformanceSentence(
 
   const label = latest.label;
   const conversionsText = formatNumber(conversions);
-  const cpaText = cpa !== null ? formatCurrency(cpa) : "";
-  const spendText = formatCurrency(spend);
+  const cpaText = cpa !== null ? formatAudWhole(cpa) : "";
+  const spendText = formatAudWhole(spend);
   const conversionsUp = previousConversions !== null && conversions > previousConversions;
   const conversionsDown = previousConversions !== null && conversions < previousConversions;
   const cpaImproved = cpa !== null && previousCpa !== null && cpa < previousCpa;
   const cpaWorsened = cpa !== null && previousCpa !== null && cpa > previousCpa;
   const previousConversionsText =
     previousConversions !== null ? formatNumber(previousConversions) : "";
-  const previousCpaText = previousCpa !== null ? formatCurrency(previousCpa) : "";
+  const previousCpaText = previousCpa !== null ? formatAudWhole(previousCpa) : "";
 
   const tokens = {
     period: label,
@@ -173,14 +174,6 @@ function buildPacingSentence(
   if (!budget || budget.monthlyBudget <= 0) return "";
   const slot = budget.pacingDifference <= 0 ? "weekly-budget-under" : "weekly-budget-over";
   return pickCopy(slot, seed, copy);
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 function formatNumber(value: number): string {

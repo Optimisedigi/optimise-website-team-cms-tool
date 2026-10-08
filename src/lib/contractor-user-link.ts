@@ -9,6 +9,8 @@
  * normalised name — the same identity the admin sees in both surfaces.
  */
 
+import { relationshipIdString } from "@/lib/relationship-id";
+
 export type ContractorLike = { id: number | string; name?: string | null; email?: string | null };
 export type UserLike = { id: number | string; name?: string | null; email?: string | null };
 
@@ -40,14 +42,6 @@ export function buildUserToContractorMap(
   return map;
 }
 
-function relId(value: unknown): string | undefined {
-  if (value == null || value === "") return undefined;
-  if (typeof value === "object") {
-    const id = (value as { id?: unknown }).id;
-    return id == null ? undefined : String(id);
-  }
-  return String(value);
-}
 
 /**
  * Resolve which contractor a time entry belongs to: its explicit `contractor`
@@ -57,9 +51,9 @@ export function resolveEntryContractorId(
   entry: { contractor?: unknown; user?: unknown },
   userToContractor: Map<string, string>,
 ): string | undefined {
-  const explicit = relId(entry.contractor);
+  const explicit = relationshipIdString(entry.contractor) || undefined;
   if (explicit) return explicit;
-  const userId = relId(entry.user);
+  const userId = relationshipIdString(entry.user) || undefined;
   if (userId && userToContractor.has(userId)) return userToContractor.get(userId);
   return undefined;
 }

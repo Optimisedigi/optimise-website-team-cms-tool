@@ -1,4 +1,5 @@
 import { google, searchconsole_v1 } from "googleapis";
+import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/webmasters.readonly",
@@ -6,11 +7,7 @@ const SCOPES = [
 ];
 
 function getOAuth2Client() {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GSC_REDIRECT_URI
-  );
+  return createGoogleOAuth2Client(process.env.GSC_REDIRECT_URI);
 }
 
 /** Escape RE2 metacharacters so a literal brand term is safe inside a Search

@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
@@ -7,11 +8,7 @@ const SCOPES = [
 ];
 
 function getOAuth2Client(redirectUri?: string) {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri || process.env.CALENDAR_REDIRECT_URI
-  );
+  return createGoogleOAuth2Client(redirectUri || process.env.CALENDAR_REDIRECT_URI);
 }
 
 /**

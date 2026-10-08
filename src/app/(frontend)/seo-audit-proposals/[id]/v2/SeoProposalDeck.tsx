@@ -21,6 +21,7 @@ import { DeckPrintStyles } from '@/components/v2/DeckPrintStyles'
 import { SeoHealthSlide } from '@/components/v2/SeoHealthSlide'
 import { CroHealthSlide } from '@/components/v2/CroHealthSlide'
 import { ClosingSlide } from '@/components/v2/ClosingSlide'
+import { formatAudWholeOrDash } from '@/lib/format-money'
 
 // ── Report types (loose — a degraded report still renders) ─────────────────
 type QueryRow = { query: string; clicks: number; impressions: number; ctr: number; position: number }
@@ -92,8 +93,6 @@ type RoiBand = {
 // ── Formatters ─────────────────────────────────────────────────────────────
 const fmtNum = (x: number | null | undefined): string =>
   x == null ? '—' : new Intl.NumberFormat('en-AU').format(Math.round(x))
-const fmtMoney = (x: number | null | undefined): string =>
-  x == null ? '—' : new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(x)
 const fmtPct = (x: number | null | undefined, d = 1): string =>
   x == null ? '—' : `${(x * 100).toFixed(d)}%`
 
@@ -214,15 +213,15 @@ function OpportunitySlide({
           <div className="opp-label">Conservative</div>
           <div className="opp-clicks">+{fmtNum(conservativeClicks)} clicks/mo</div>
           <div className="opp-line">{fmtNum(cons.leads)} leads/mo</div>
-          <div className="opp-rev">{cons.revenue != null ? `${fmtMoney(cons.revenue)}/mo` : 'Set AOV'}</div>
-          <div className="opp-line">{cons.annual != null ? `${fmtMoney(cons.annual)}/yr` : ''}</div>
+          <div className="opp-rev">{cons.revenue != null ? `${formatAudWholeOrDash(cons.revenue)}/mo` : 'Set AOV'}</div>
+          <div className="opp-line">{cons.annual != null ? `${formatAudWholeOrDash(cons.annual)}/yr` : ''}</div>
         </div>
         <div className="opp-col opp-col-opt">
           <div className="opp-label">Optimistic</div>
           <div className="opp-clicks">+{fmtNum(optimisticClicks)} clicks/mo</div>
           <div className="opp-line">{fmtNum(opt.leads)} leads/mo</div>
-          <div className="opp-rev">{opt.revenue != null ? `${fmtMoney(opt.revenue)}/mo` : 'Set AOV'}</div>
-          <div className="opp-line">{opt.annual != null ? `${fmtMoney(opt.annual)}/yr` : ''}</div>
+          <div className="opp-rev">{opt.revenue != null ? `${formatAudWholeOrDash(opt.revenue)}/mo` : 'Set AOV'}</div>
+          <div className="opp-line">{opt.annual != null ? `${formatAudWholeOrDash(opt.annual)}/yr` : ''}</div>
         </div>
       </div>
       <p className="opp-note">

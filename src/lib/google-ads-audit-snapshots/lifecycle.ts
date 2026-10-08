@@ -4,6 +4,7 @@ import { discoverSnapshotWindow } from "./window";
 import { cleanupSnapshotEvidenceBlobs, loadPrivateGzipJson, validateBlobMetadata } from "./evidence-storage";
 import { SNAPSHOT_DATASET_KEYS, SNAPSHOT_SCHEMA_VERSION, type SnapshotManifestItem } from "./types";
 import { GOOGLE_ADS_AUDIT_RUBRIC_VERSION } from "./scoring";
+import { relationshipKey } from "@/lib/relationship-id";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -14,11 +15,6 @@ function coerceId(value: string | number): string | number {
   return typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
 }
 
-function relationId(value: unknown): string | number | undefined {
-  if (typeof value === "string" || typeof value === "number") return coerceId(value);
-  if (value && typeof value === "object" && "id" in value) return coerceId((value as { id: string | number }).id);
-  return undefined;
-}
 
 function parseList(value: unknown): string[] {
   const items = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,;]+/) : [];
@@ -78,7 +74,7 @@ export async function dispatchSnapshot(payload: Payload, snapshot: any): Promise
     overrideAccess: true, context: { googleAdsSnapshotInternal: true },
   });
   await (payload as any).update({
-    collection: "google-ads-audits", id: relationId(snapshot.audit),
+    collection: "google-ads-audits", id: relationshipKey(snapshot.audit),
     data: { snapshotState: "running", auditStatus: "running", auditProgress: "Capturing immutable Google Ads evidence|1", auditError: null },
     overrideAccess: true,
   });
@@ -96,7 +92,7 @@ async function dispatchWithFailureRecording(payload: Payload, snapshot: any): Pr
       overrideAccess: true, context: { googleAdsSnapshotInternal: true },
     }).catch(() => undefined);
     await (payload as any).update({
-      collection: "google-ads-audits", id: relationId(snapshot.audit),
+      collection: "google-ads-audits", id: relationshipKey(snapshot.audit),
       data: { snapshotState: "failed", auditStatus: "failed", auditProgress: "Dispatch failed|100", auditError: error },
       overrideAccess: true,
     }).catch(() => undefined);
@@ -113,7 +109,7 @@ export async function createSnapshotForAudit(payload: Payload, auditId: string |
     },
   });
   if (!audit?.customerId) throw new Error("Audit has no Google Ads customer ID");
-  const clientId = relationId(audit.client);
+  const clientId = relationshipKey(audit.client);
   if (!clientId) throw new Error("Audit must be linked to a client before a snapshot can be created");
   const client = await (payload as any).findByID({
     collection: "clients", id: clientId, depth: 0, overrideAccess: true,
@@ -180,7 +176,7 @@ export async function createSnapshotForAudit(payload: Payload, auditId: string |
     snapshot = await (payload as any).create({
       collection: "google-ads-audit-snapshots",
       data: {
-        audit: coerceId(auditId), client: clientId, proposal: relationId(audit.proposal), customerId: audit.customerId.replace(/-/g, ""),
+        audit: coerceId(auditId), client: clientId, proposal: relationshipKey(audit.proposal), customerId: audit.customerId.replace(/-/g, ""),
         ...window, schemaVersion: SNAPSHOT_SCHEMA_VERSION, rubricVersion: GOOGLE_ADS_AUDIT_RUBRIC_VERSION,
         websiteUrl: frozenContext.websiteUrl, businessName: frozenContext.businessName, businessType: frozenContext.businessType,
         brandTerms: frozenContext.brandTerms, conversionObjectives: frozenContext.conversionObjectives,
@@ -291,7 +287,7 @@ export async function finalizeSnapshot(payload: Payload, snapshotId: string, inp
     overrideAccess: true, context: { googleAdsSnapshotInternal: true },
   });
   await (payload as any).update({
-    collection: "google-ads-audits", id: relationId(snapshot.audit),
+    collection: "google-ads-audits", id: relationshipKey(snapshot.audit),
     data: { snapshot: coerceId(snapshotId), snapshotState: "completed", snapshotCapturedAt: input.capturedAt, auditStatus: "completed", auditProgress: "Snapshot complete|100", auditCompletedAt: finalizedAt, overallScore: input.analysis?.scoring?.total, scoreRubricVersion: input.analysis?.scoring?.rubricVersion ?? snapshot.rubricVersion, scoreStatus: input.analysis?.scoring?.total == null ? "insufficient_evidence" : "scored", auditDetailUrl: `/partners/_audit-preview/${snapshot.audit}` },
     overrideAccess: true,
   });
@@ -311,7 +307,7 @@ export async function failSnapshot(payload: Payload, snapshotId: string, input: 
     overrideAccess: true, context: { googleAdsSnapshotInternal: true },
   });
   await (payload as any).update({
-    collection: "google-ads-audits", id: relationId(snapshot.audit),
+    collection: "google-ads-audits", id: relationshipKey(snapshot.audit),
     data: { snapshotState: "failed", auditStatus: "failed", auditProgress: "Snapshot failed|100", auditError: error },
     overrideAccess: true,
   });

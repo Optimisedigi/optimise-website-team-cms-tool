@@ -22,6 +22,7 @@ import {
 import { timelineDay } from '@/lib/account-timeline-auto'
 import { searchClients } from './contract-tools'
 import type { AdminMateClient } from './tools'
+import { relationshipId } from '@/lib/relationship-id'
 
 /**
  * On-demand, read-only access to one client's CMS record for AdminMate.
@@ -183,13 +184,6 @@ function textOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
-function relationId(value: unknown): number | null {
-  if (typeof value === 'number') return value
-  if (value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'number') {
-    return (value as { id: number }).id
-  }
-  return null
-}
 
 function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -384,8 +378,8 @@ export function createPayloadClientDetailsReader(payload: Payload): ClientDetail
         })
         return result.docs
           .flatMap((doc): ClientContractRecord[] => {
-            const linkedId = relationId(doc.client)
-            const linked = linkedId === id
+            const linkedId = relationshipId(doc.client)
+            const linked = typeof linkedId === 'number' && linkedId === id
             // Signed client contracts are often also flagged as templates so the
             // team can reuse them. A contract linked to this client is the
             // client's own contract either way; only skip unlinked templates.

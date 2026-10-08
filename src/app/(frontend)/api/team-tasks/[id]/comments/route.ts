@@ -3,21 +3,10 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
 import { isAssignableTeamTaskUser } from "@/lib/team-task-users";
+import { relationshipKey } from "@/lib/relationship-id";
 
 type UserOption = { id: string | number; name?: string | null; email?: string | null };
 
-function relId(value: unknown): string | number | undefined {
-  if (value == null || value === "") return undefined;
-  if (typeof value === "string" || typeof value === "number") {
-    const numeric = Number(value);
-    return Number.isNaN(numeric) ? value : numeric;
-  }
-  if (value && typeof value === "object" && "id" in value) {
-    const id = (value as { id?: string | number }).id;
-    if (typeof id === "string" || typeof id === "number") return relId(id);
-  }
-  return undefined;
-}
 
 function normaliseMention(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -31,7 +20,7 @@ function mentionedUserIds(body: string, users: UserOption[], explicit: unknown):
   const ids = new Set<string | number>();
   if (Array.isArray(explicit)) {
     for (const value of explicit) {
-      const id = relId(value);
+      const id = relationshipKey(value);
       if (id != null) ids.add(id);
     }
   }
@@ -116,15 +105,15 @@ export async function POST(
     const comment = await payload.create({
       collection: "team-task-comments" as any,
       data: {
-        task: relId(id),
-        author: relId(user.id),
+        task: relationshipKey(id),
+        author: relationshipKey(user.id),
         body: commentBody,
       } as any,
       depth: 1,
       overrideAccess: true,
     });
 
-    const clientId = relId((task as any).client);
+    const clientId = relationshipKey((task as any).client);
     const excerpt = stripHtml(commentBody).slice(0, 180);
     await Promise.all(mentions.map((recipient) => payload.create({
       collection: "notifications" as any,
@@ -134,7 +123,7 @@ export async function POST(
         title: `Mentioned in: ${(task as any).title || "Team task"}`,
         body: excerpt,
         url: `/admin/collections/team-tasks?task=${encodeURIComponent(String(id))}`,
-        relatedTeamTask: relId(id),
+        relatedTeamTask: relationshipKey(id),
         relatedClient: clientId,
       } as any,
       overrideAccess: true,

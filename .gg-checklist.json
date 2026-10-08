@@ -2,33 +2,31 @@
   "version": 1,
   "items": {
     "code-health": {
-      "checkedAt": "2026-10-08T11:41:00.224Z",
-      "commit": "4fb067d6",
-      "uncommittedChanges": false,
+      "checkedAt": "2026-10-08T12:47:53.687Z",
+      "commit": "59dd7083",
+      "uncommittedChanges": true,
       "result": "issues",
-      "summary": "Typecheck green, 4301/4302 tests pass (1 flaky); but src carries a committed sync-conflict duplicate file, 24 copies of escapeHtml, ~28 relation-id helpers, 3 copied account-structure routes, 3 overlapping migration sweeps, ~25 dead exports, and many 1000+-line components/handlers.",
+      "summary": "Low-risk duplication fixed and verified: relation-id helpers, getOAuth2Client factory, 6 identical AUD formatters (15 divergent copies left on purpose). Still open: 3 overlapping migration sweeps, 12 functions over 900 lines, duplicate partner pages, 149 own-file-only exports.",
       "findings": [
-        "src/components/ProcessTemplateWorksheet.sync-conflict-20260322-124117-HKCELI7.tsx:1 — High: committed Syncthing conflict copy (662-line duplicate), typechecked, imported nowhere. Fix: delete it (plus root *.sync-conflict* package/lock/CLAUDE copies).",
-        "src/lib/invoice-statement-email.ts:155 + 23 more (contract-email.ts:5, schedule-email.ts:5, google-ads-email-components.ts:379, api/contracts/sign/[token]/route.ts:652…) — Medium: 24 copies of escapeHtml, ~10 differing bodies. Fix: one shared src/lib/html-escape.ts.",
-        "src/lib/client-hub.ts:23, lib/quarterly-organic-growth.ts:105, lib/google-ads-audit-snapshots/lifecycle.ts:17, collections/ScheduledAgentTasks.ts:7 + ~24 more — Medium: ~28 local relationId/relationshipId helpers with inconsistent null/undefined returns. Fix: one shared helper.",
-        "src/app/(frontend)/api/partners/[clientSlug]/account-structure/route.ts:28, api/client/[slug]/google-ads/account-structure/route.ts:28, api/google-ads-account-structure/cron/route.ts:32 — Medium: ~80 lines copy-pasted 3x. Fix: extract to src/lib/google-ads-account-structure/.",
-        "src/lib/run-migrations.ts:1 (6429 lines), api/migrate/route.ts:182 (1104-line GET), api/schema-migrate/route.ts:12 (1030-line POST) — High: three overlapping hand-written schema sweeps. Fix: fold into run-migrations.ts, delete the other two.",
-        "src/components/GoogleAdsBudgetManagement.tsx:153 (2787 lines), DiscoveryBriefingForm.tsx:179 (2373), MonthlyKeywordSelection.tsx:66 (1574), NegativeListBuilder.tsx:710 (1420) — Medium: single components >1400 lines. Fix: Extract Component/Hook per section.",
-        "src/app/(frontend)/api/dashboard/route.ts:125 — Medium: 1017-line GET handler. Fix: split per-section aggregation into pure src/lib/dashboard/*.ts functions; keep route as composition.",
-        "src/app/(frontend)/partners/google-ads-audit/team-session-may-2026/page.tsx:547 vs _templates/post-build-optimisation-qbr/page.tsx:598 — Low: 1341/1373-line pages differ by 86 lines, both export TeamSessionMay2026. Fix: share slide components from _templates; rename copied exports.",
-        "Dead exports: components/RocketSaveButton.tsx, components/v2/NextStepsSlide.tsx, lib/ga4-service.ts:69 listGa4Properties, lib/landing-api.ts:242 verifyAssignmentToken, + ~21 more; ~150 exports used only in-file — Low: remove or un-export.",
-        "tests/components/ContractorTimeEntriesSpreadsheet.test.tsx:60 — Low (flaky): synchronous getByText('Sep 2026') failed once in full run, passed alone. Fix: await screen.findByText('Sep 2026')."
+        "src/lib/run-migrations.ts:1 (6429 lines), api/migrate/route.ts:182 (1104-line GET), api/schema-migrate/route.ts:12 (1030-line POST) — High: three overlapping hand-written schema sweeps; route header (:24) says GET/route should be deleted. Fix: fold into run-migrations.ts, delete the other two.",
+        "src/components/GoogleAdsBudgetManagement.tsx:153 (2787 lines), DiscoveryBriefingForm.tsx:179 (2373), MonthlyKeywordSelection.tsx:66 (1574), NegativeListBuilder.tsx:710 (1420), GoogleAdsDashboard.tsx:106, GmailReplyChat.tsx:189 — Medium: components >900 lines. Fix: Extract Component/Hook per section.",
+        "src/app/(frontend)/api/dashboard/route.ts:125 — Medium: 1017-line GET handler. Fix: move per-section aggregation into pure src/lib/dashboard/*.ts functions; keep the route as composition.",
+        "partners/away-digital/google-ads-audit/page.tsx:549 (1627 lines), custom-fluid-power/google-ads-audit/page.tsx:406 (1168, still named AwayDigitalAuditPage), contracts/sign/[token]/page.tsx:97 (1210) — Medium: single-function pages. Fix: split into section components; rename the copied export.",
+        "15 remaining formatCurrency/formatMoney copies with different output (cents-always: XeroInvoicesPage.tsx:72, NegativeSweepReviewPage.tsx:43; `$`+toLocaleString: ClientBillingSummary.tsx:256; multi-currency: contract-template.ts:175) — Low: unify per product decision.",
+        "src/app/(frontend)/partners/google-ads-audit/team-session-may-2026/page.tsx:547 vs _templates/post-build-optimisation-qbr/page.tsx:598 — Low: 1341/1373-line pages differ by 86 lines, both export TeamSessionMay2026. Fix: share slide components from _templates; rename.",
+        "149 symbols in src/{lib,components,collections,globals} are exported but only referenced in their own file — Low: drop the export keyword as files are touched (text-based scan; not individually verified)."
       ],
       "evidence": [
-        "Loaded skill: refactoring (report-only; no edits made)",
-        "RUNTIME: NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit — exit 0, no errors (16s)",
-        "RUNTIME: npx vitest run — 473/474 files, 4301/4302 tests passed; 1 failure in tests/components/ContractorTimeEntriesSpreadsheet.test.tsx:60; re-run of that file alone passed 2/2 (flaky)",
-        "RUNTIME: wc -l over src *.ts/*.tsx — 1655 files, 340k lines; 40 files >1000 lines, largest run-migrations.ts 6429; awk scan found 11 top-level functions >1000 lines",
-        "RUNTIME: rg sweep of 1666 exported symbols in src: 177 referenced only in own file, 25 with no in-file use (dead); 6 spot-checked across src/tests/scripts/docs",
-        "RUNTIME: rg duplicate-definition counts — escapeHtml x24 (~10 distinct bodies), relationId/relationshipId/relId x28, getOAuth2Client x5, slugify x4, serializeConversionActionCategories x3",
-        "CODE: read headers of api/migrate, api/schema-migrate, lib/run-migrations.ts, the 3 account-structure routes, the flaky test; find *sync-conflict* in src",
-        "Scope: src/ TypeScript/TSX with tests/ and scripts/ as reference targets; checks run were tsc --noEmit and vitest run (project's lint/typecheck/test commands)",
-        "Not checked: no ESLint/Biome/knip/jscpd in repo so no AST-level dead-code/clone detection; dynamic imports/importMap.js string refs not resolved; scripts/, docs/, src/migrations/ bodies; no build run"
+        "Loaded skill: refactoring (execute loop: baseline green, one named transformation per step, checks after each)",
+        "RUNTIME: npm run check (tsc --noEmit) — exit 0 after each of the 3 steps and on the final tree",
+        "RUNTIME: npx vitest run (full) on final tree — 474 files / 4302 tests passed (51s); step-level runs: tests/lib+agents+api/team-tasks 2286 passed, tests/lib 1792 passed",
+        "RUNTIME: rg re-check — relation-id helper definitions: 1 (src/lib/relationship-id.ts; added relationshipKey); getOAuth2Client bodies: all 5 delegate to createGoogleOAuth2Client",
+        "RUNTIME: rg re-check — currency formatter definitions 21 → 16 (6 identical AUD-whole copies replaced by lib/format-money.ts; 15 remaining differ in decimals/locale/currency and were left)",
+        "RUNTIME: wc -l unchanged — migration sweeps 9100 lines total; GoogleAdsBudgetManagement.tsx 2960, dashboard/route.ts 1146; TeamSessionMay2026 still exported twice",
+        "CODE: edited 19 files (+95/-157): relationship-id.ts, timeline auto/backfill, lifecycle.ts, contractor-user-link.ts, client-details.ts, team-tasks comments, 5 Google services, 6 formatter sites",
+        "CODE: new files src/lib/google-oauth-client.ts, src/lib/format-money.ts; account-timeline-auto relationId renamed to positiveRelationId (one caller updated)",
+        "Scope: fix pass for the low-risk duplication findings from tonight's review; src/ TypeScript/TSX at 59dd7083 + working tree",
+        "Not checked: no ESLint/Biome/knip/jscpd; migration consolidation and big-screen splits not attempted; 149 own-file-only exports not individually verified; no next build"
       ]
     },
     "errors-logging": {

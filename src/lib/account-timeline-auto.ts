@@ -5,6 +5,7 @@ import type {
   ACCOUNT_TIMELINE_SERVICE_AREA_OPTIONS,
 } from './client-field-options'
 import { deferPostCommit } from './google-ads-audit-bootstrap'
+import { relationshipKey } from './relationship-id'
 
 /**
  * Automatic Account Timeline entries.
@@ -75,9 +76,9 @@ export function timelineDate(value: string | Date | null | undefined, now: Date)
   return `${day}T02:00:00.000Z`
 }
 
-export function relationId(rel: unknown): number | null {
-  const raw = rel && typeof rel === 'object' && 'id' in rel ? (rel as { id?: unknown }).id : rel
-  const id = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw
+/** Timeline owners must be positive integer ids; anything else is treated as unlinked. */
+export function positiveRelationId(rel: unknown): number | null {
+  const id = relationshipKey(rel)
   return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? id : null
 }
 
@@ -85,9 +86,9 @@ export function relationId(rel: unknown): number | null {
 export function resolveTimelineOwner(
   doc: { client?: unknown; proposal?: unknown } | null | undefined,
 ): TimelineOwner | null {
-  const clientId = relationId(doc?.client)
+  const clientId = positiveRelationId(doc?.client)
   if (clientId !== null) return { collection: 'clients', id: clientId }
-  const proposalId = relationId(doc?.proposal)
+  const proposalId = positiveRelationId(doc?.proposal)
   if (proposalId !== null) return { collection: 'client-proposals', id: proposalId }
   return null
 }

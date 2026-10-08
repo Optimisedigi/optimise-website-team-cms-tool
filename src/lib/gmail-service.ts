@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
 import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
 
 /**
@@ -29,11 +30,7 @@ const SCOPES = [
 ];
 
 function getOAuth2Client() {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GMAIL_REDIRECT_URI,
-  );
+  return createGoogleOAuth2Client(process.env.GMAIL_REDIRECT_URI);
 }
 
 /**

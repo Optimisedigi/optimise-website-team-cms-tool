@@ -49,3 +49,13 @@ export function coerceRelationshipKey(value: unknown): unknown {
   const numeric = Number(value);
   return Number.isNaN(numeric) ? value : numeric;
 }
+
+/**
+ * Unwrap a relationship (bare id or populated doc) and coerce numeric
+ * strings to numbers, so the result can be used directly as a Payload
+ * `where`/`id` key. Missing/empty → `undefined`.
+ */
+export function relationshipKey(value: unknown): string | number | undefined {
+  const key = coerceRelationshipKey(relationshipId(value));
+  return typeof key === "string" || typeof key === "number" ? key : undefined;
+}

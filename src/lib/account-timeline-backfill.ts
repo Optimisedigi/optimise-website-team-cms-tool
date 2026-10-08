@@ -6,7 +6,7 @@ import {
   clientStartDateEntries,
   contractHistoryEntries,
   parseJson,
-  relationId,
+  positiveRelationId,
   seoMigrationTimelineEntries,
   timelineDate,
   TIMELINE_TABLE,
@@ -134,17 +134,17 @@ export function planTimelineBackfill(
   const proposalIds = new Set<number>()
   for (const proposal of source.proposals) {
     proposalIds.add(proposal.id)
-    const clientId = relationId(proposal.client)
+    const clientId = positiveRelationId(proposal.client)
     if (clientId !== null && clientIds.has(clientId)) convertedTo.set(proposal.id, clientId)
   }
 
   // Client wins; a proposal that converted hands its events to its client
   // (the proposal timeline was copied at conversion and is no longer shown).
   const ownerOf = (doc: { client?: unknown; proposal?: unknown }): TimelineOwner | null => {
-    const clientId = relationId(doc.client)
+    const clientId = positiveRelationId(doc.client)
     if (clientId !== null)
       return clientIds.has(clientId) ? { collection: 'clients', id: clientId } : null
-    const proposalId = relationId(doc.proposal)
+    const proposalId = positiveRelationId(doc.proposal)
     if (proposalId === null || !proposalIds.has(proposalId)) return null
     const converted = convertedTo.get(proposalId)
     return converted !== undefined
