@@ -111,7 +111,7 @@ export default function AdminMateMeetingSchedulerCard({
         )}
       </div>
       <div role="status" style={noticeStyle}>
-        Say “yes, create it” or press Create. Then open the scheduler to generate slots and send
+        Say “yes, create it” or press Create. Then open the scheduler to review the times and send
         invites.
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
@@ -170,7 +170,10 @@ const secondaryButtonStyle: React.CSSProperties = {
 const noticeStyle: React.CSSProperties = {
   padding: 10,
   borderRadius: 9,
-  background: 'var(--theme-elevation-100)',
+  // Transparent so the card's own background shows through in light and dark themes.
+  border: '1px solid var(--theme-elevation-200)',
+  background: 'transparent',
+  color: 'inherit',
   fontSize: 13,
   lineHeight: 1.45,
 }

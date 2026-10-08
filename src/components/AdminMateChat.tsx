@@ -262,7 +262,7 @@ export default function AdminMateChat() {
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json.error || 'Could not create the meeting scheduler')
-      setSuccess(`Created ${json.title}. Open ${json.adminUrl} to generate slots and send invites.`)
+      setSuccess(`Created ${json.title}. Open ${json.adminUrl} to review the times and send invites.`)
       setStagedMeeting(undefined)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create the meeting scheduler')

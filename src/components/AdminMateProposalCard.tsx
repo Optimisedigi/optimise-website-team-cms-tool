@@ -152,7 +152,10 @@ const primaryButtonStyle: React.CSSProperties = {
 const noticeStyle: React.CSSProperties = {
   padding: 10,
   borderRadius: 9,
-  background: 'var(--theme-elevation-100)',
+  // Transparent so the card's own background shows through in light and dark themes.
+  border: '1px solid var(--theme-elevation-200)',
+  background: 'transparent',
+  color: 'inherit',
   fontSize: 13,
   lineHeight: 1.45,
 }
