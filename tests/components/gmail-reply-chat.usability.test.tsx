@@ -452,6 +452,23 @@ describe('GmailReplyChat usability smoke', () => {
     })
   })
 
+  it('attaches an image dropped anywhere in the panel, outside the composer', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })
+      if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+    render(<GmailReplyChat initialPhase="compose" />)
+    const panel = await screen.findByTestId('gmail-panel-image-dropzone')
+    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'panel-drop.png', { type: 'image/png' })
+
+    fireEvent.dragEnter(panel, { dataTransfer: { files: [png], types: ['Files'] } })
+    fireEvent.drop(panel, { dataTransfer: { files: [png], types: ['Files'] } })
+
+    expect(await screen.findByText('panel-drop.png')).toBeInTheDocument()
+    expect(screen.getAllByText('panel-drop.png')).toHaveLength(1)
+  })
+
   it('reserves attachment limits across overlapping drops', async () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-4.6' })

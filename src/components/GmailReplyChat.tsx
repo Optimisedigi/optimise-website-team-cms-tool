@@ -240,6 +240,8 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
   const pendingAttachmentCountRef = useRef(0)
   const attachmentGenerationRef = useRef(0)
   const [draftAttachmentError, setDraftAttachmentError] = useState<string | null>(null)
+  const panelDragDepthRef = useRef(0)
+  const [panelDragActive, setPanelDragActive] = useState(false)
   const [originalEmailCollapsed, setOriginalEmailCollapsed] = useState(Boolean(persistedState?.originalEmailCollapsed))
   const [readThread, setReadThread] = useState(Boolean(persistedState?.readThread))
   const [summariseMode, setSummariseMode] = useState(Boolean(persistedState?.summariseMode ?? initialSummariseMode))
@@ -777,8 +779,40 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     />
   ) : null
 
+  // Images can be dropped anywhere in the panel whenever a draft composer is showing.
+  const panelAcceptsImages =
+    !draftingReply && (phase === 'compose' || (phase === 'message' && Boolean(message) && !summariseMode))
+  const isFileDrag = (event: React.DragEvent): boolean =>
+    panelAcceptsImages && Array.from(event.dataTransfer.types).includes('Files')
+
   return (
-    <div style={fillColumn}>
+    <div
+      data-testid="gmail-panel-image-dropzone"
+      style={{ ...fillColumn, ...(panelDragActive ? gmailPanelDropActiveStyle : {}) }}
+      onDragEnter={(event) => {
+        if (!isFileDrag(event)) return
+        event.preventDefault()
+        panelDragDepthRef.current += 1
+        setPanelDragActive(true)
+      }}
+      onDragOver={(event) => {
+        if (!isFileDrag(event)) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+      }}
+      onDragLeave={() => {
+        panelDragDepthRef.current = Math.max(0, panelDragDepthRef.current - 1)
+        if (panelDragDepthRef.current === 0) setPanelDragActive(false)
+      }}
+      onDrop={(event) => {
+        panelDragDepthRef.current = 0
+        setPanelDragActive(false)
+        // The composer's own drop zone already handled (and prevented) drops on it.
+        if (event.defaultPrevented || !isFileDrag(event)) return
+        event.preventDefault()
+        void addDraftAttachments(event.dataTransfer.files)
+      }}
+    >
       <div
         style={{
           display: 'flex',
@@ -1699,6 +1733,12 @@ const googleMateComposerBoxStyle: React.CSSProperties = {
   borderRadius: 0,
   background: 'transparent',
   padding: 0,
+}
+
+const gmailPanelDropActiveStyle: React.CSSProperties = {
+  borderRadius: 14,
+  outline: '2px dashed #60a5fa',
+  outlineOffset: -2,
 }
 
 const gmailImageDropActiveStyle: React.CSSProperties = {

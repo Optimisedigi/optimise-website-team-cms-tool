@@ -430,7 +430,32 @@ export default function AdminMateChat() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <div
+      data-testid="adminmate-image-dropzone"
+      // The whole AdminMate panel accepts dropped screenshots, not just the composer.
+      onDragOver={(event) => {
+        if (!Array.from(event.dataTransfer.types).includes('Files')) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setDragActive(true)
+      }}
+      onDragLeave={(event) => {
+        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
+        setDragActive(false)
+      }}
+      onDrop={(event) => {
+        if (!Array.from(event.dataTransfer.types).includes('Files')) return
+        event.preventDefault()
+        setDragActive(false)
+        void addImages(Array.from(event.dataTransfer.files))
+      }}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative', ...(dragActive ? { outline: '2px dashed #2563eb', outlineOffset: -4 } : {}) }}
+    >
+      {dragActive && (
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(37, 99, 235, 0.12)', color: '#fff', fontSize: 13, fontWeight: 700, pointerEvents: 'none' }}>
+          <span style={{ padding: '10px 16px', borderRadius: 12, background: '#1d4ed8' }}>Drop image for AdminMate</span>
+        </div>
+      )}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 16px', display: 'grid', alignContent: 'start', gap: 10 }}>
         {messages.length === 0 && (
           <div style={{ ...bubbleStyle, background: '#2a2a2d', color: '#fff', justifySelf: 'start' }}>
@@ -639,22 +664,7 @@ export default function AdminMateChat() {
         <div ref={bottomRef} />
       </div>
       <div
-        onDragOver={(event) => {
-          if (!Array.from(event.dataTransfer.types).includes('Files')) return
-          event.preventDefault()
-          setDragActive(true)
-        }}
-        onDragLeave={(event) => {
-          if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
-          setDragActive(false)
-        }}
-        onDrop={(event) => {
-          if (!Array.from(event.dataTransfer.types).includes('Files')) return
-          event.preventDefault()
-          setDragActive(false)
-          void addImages(Array.from(event.dataTransfer.files))
-        }}
-        style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8, position: 'relative', minWidth: 0, ...(dragActive ? { outline: '2px dashed #2563eb', outlineOffset: -4 } : {}) }}
+        style={{ borderTop: '1px solid var(--theme-elevation-150)', padding: 10, display: 'grid', gap: 8, position: 'relative', minWidth: 0 }}
       >
         {images.length === 0 && earlierImages.length > 0 && (
           <div role="status" style={attachedEmailStyle}>

@@ -372,6 +372,19 @@ describe('AdminMateChat', () => {
     expect(requestBodies[2]).not.toHaveProperty('imageAttachments')
   })
 
+  it('accepts an image dropped anywhere in the panel, not just the composer', async () => {
+    render(<AdminMateChat />)
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'drop.png', { type: 'image/png' })
+    const messageArea = screen.getByText(/Create a client called Acme Corp/)
+
+    fireEvent.dragOver(messageArea, { dataTransfer: { files: [file], types: ['Files'] } })
+    expect(screen.getByText('Drop image for AdminMate')).toBeInTheDocument()
+    fireEvent.drop(messageArea, { dataTransfer: { files: [file], types: ['Files'] } })
+
+    expect(await screen.findByRole('button', { name: /^Remove / })).toBeInTheDocument()
+    expect(screen.queryByText('Drop image for AdminMate')).not.toBeInTheDocument()
+  })
+
   it('rejects unsupported image types with a message', async () => {
     render(<AdminMateChat />)
     const file = new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' })
