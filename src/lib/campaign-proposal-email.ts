@@ -1,3 +1,4 @@
+import { escapeHtml } from "@/lib/html-escape"
 type ProposalKeyword = {
   text?: string | null
 }
@@ -21,15 +22,6 @@ type CampaignProposalEmailData = {
   businessName?: string | null
   location?: string | null
   proposedCampaigns?: ProposedCampaign[] | null
-}
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 function formatNumber(value: number | null | undefined): string {

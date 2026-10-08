@@ -18,6 +18,7 @@ import {
 import { copySeed, pickGreeting, pickVariant, seedCustomerId } from './_email-copy-variants'
 import { loadClientEmailCopy } from '@/lib/agents/_shared/client-email-copy'
 import type { EmailComponentData } from './_email-component-insights'
+import { escapeHtml } from '@/lib/html-escape'
 
 interface CreatePortfolioBudgetPacingGmailDraftsArgs {
   accountRefs?: Array<string | number>
@@ -581,15 +582,6 @@ function buildPerformanceSummary(
 
 function summaryHtml(summary: string): string {
   return `<p style="margin:0 0 20px;width:100%;max-width:none;display:block;font-family:Arial,sans-serif;font-size:14px;color:#1e293b;line-height:1.5">${escapeHtml(summary)}</p>`
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 function formatCurrency(value: number): string {

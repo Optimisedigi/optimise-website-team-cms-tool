@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { relationshipId } from "@/lib/relationship-id";
 
 export const maxDuration = 60;
 
@@ -10,11 +11,6 @@ function internalKeyMatches(req: NextRequest): boolean {
   return Boolean(expected && provided && provided === expected);
 }
 
-function relationshipId(value: any): number | string | null {
-  if (!value) return null;
-  if (typeof value === "object") return value.id ?? null;
-  return value;
-}
 
 export async function GET(req: NextRequest) {
   if (!internalKeyMatches(req)) {

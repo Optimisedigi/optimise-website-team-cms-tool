@@ -2,10 +2,6 @@ import { landingPresetSpan, zonedDay } from "@/lib/landing-date-range";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function formatDateOnly(date: Date): string {
-  return zonedDay(date);
-}
-
 function addDays(date: string, delta: number): string {
   return new Date(Date.parse(`${date}T00:00:00.000Z`) + delta * DAY_MS).toISOString().slice(0, 10);
 }

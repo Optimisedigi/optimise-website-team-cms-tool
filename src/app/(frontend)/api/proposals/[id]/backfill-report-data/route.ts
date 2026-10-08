@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { explicitUnavailableTraffic, extractRootDomain, formatTraffic, hasTrafficCoverage, normaliseDomain, type FormattedTraffic } from "@/lib/proposal-audit-backfill";
+import { relationshipId } from "@/lib/relationship-id";
 
 export const maxDuration = 300;
 
@@ -10,11 +11,6 @@ const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 const TRAFFIC_FETCH_TIMEOUT_MS = 20_000;
 
-function relationshipId(value: any): number | string | null {
-  if (!value) return null;
-  if (typeof value === "object") return value.id ?? null;
-  return value;
-}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

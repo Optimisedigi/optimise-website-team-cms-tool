@@ -134,8 +134,3 @@ export function listTemplates(): TemplateDef[] {
   return [...REGISTRY.values()].sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-/** Test/dev escape hatch — clear the registry. Not exported through
- *  the registry barrel; only intended for vitest setup files. */
-export function _resetRegistryForTests(): void {
-  REGISTRY.clear();
-}

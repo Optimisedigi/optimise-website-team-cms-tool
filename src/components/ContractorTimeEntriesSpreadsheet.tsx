@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { relationshipIdString } from '@/lib/relationship-id'
 
 type Option = { id: string | number; name: string; email?: string | null }
 type Allocation = { client: string | number; hours: number }
@@ -68,10 +69,7 @@ const tdStyle: React.CSSProperties = {
   verticalAlign: 'top',
 }
 
-function relId(value: Option | string | number | null | undefined): string {
-  if (value && typeof value === 'object') return String(value.id)
-  return value == null ? '' : String(value)
-}
+const relId = (value: unknown): string => relationshipIdString(value) ?? ''
 
 function relName(value: Option | string | number | null | undefined, options: Option[]): string {
   const id = relId(value)

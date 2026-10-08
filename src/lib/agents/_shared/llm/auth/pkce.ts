@@ -66,35 +66,3 @@ export async function exchangeCode(opts: ExchangeCodeOptions): Promise<Exchanged
   };
 }
 
-export async function refreshTokens(opts: {
-  tokenUrl: string;
-  refreshToken: string;
-  clientId: string;
-}): Promise<ExchangedTokens> {
-  const body = new URLSearchParams({
-    grant_type: "refresh_token",
-    refresh_token: opts.refreshToken,
-    client_id: opts.clientId,
-  });
-  const res = await fetch(opts.tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
-  if (!res.ok) {
-    throw new Error(`PKCE token refresh failed (${res.status}): ${await res.text()}`);
-  }
-  const json = (await res.json()) as {
-    access_token: string;
-    refresh_token?: string;
-    expires_in?: number;
-    scope?: string;
-  };
-  return {
-    accessToken: json.access_token,
-    // Some providers rotate refresh tokens, others don't. Preserve the old one if not returned.
-    refreshToken: json.refresh_token ?? opts.refreshToken,
-    expiresIn: json.expires_in ?? 3600,
-    scope: json.scope ?? "",
-  };
-}

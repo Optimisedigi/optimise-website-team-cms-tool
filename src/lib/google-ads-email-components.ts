@@ -5,6 +5,8 @@
  * data shown in dashboard/reporting UI without embedding UI components in Gmail.
  */
 
+import { escapeHtml } from "@/lib/html-escape";
+
 export type GoogleAdsEmailComponentKey =
   | "keyword_relevancy"
   | "cpa_trend"
@@ -376,11 +378,3 @@ function escapeUrlAttribute(value: string): string {
     .replace(/\"/g, "&quot;");
 }
 
-function escapeHtml(value: string): string {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}

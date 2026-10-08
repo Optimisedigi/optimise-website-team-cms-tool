@@ -219,8 +219,6 @@ export interface AssignmentTokenPayload {
   issuedAt: number;
 }
 
-const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
-
 function base64url(input: Buffer): string {
   return input.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
@@ -233,47 +231,6 @@ export function signAssignmentToken(payload: AssignmentTokenPayload, secret: str
   const body = base64url(Buffer.from(JSON.stringify(payload), "utf8"));
   const signature = base64url(crypto.createHmac("sha256", secret).update(body).digest());
   return `${body}.${signature}`;
-}
-
-/**
- * Verify and decode an assignment token. Uses a timing-safe comparison and
- * rejects anything expired, malformed, or bound to a different property.
- */
-export function verifyAssignmentToken(
-  token: unknown,
-  secret: string,
-  expectedPropertyKey: string
-): AssignmentTokenPayload | null {
-  if (typeof token !== "string" || token.length > 2048) return null;
-  const parts = token.split(".");
-  if (parts.length !== 2) return null;
-  const [body, signature] = parts;
-
-  const expected = base64url(crypto.createHmac("sha256", secret).update(body).digest());
-  const given = Buffer.from(signature);
-  const want = Buffer.from(expected);
-  if (given.length !== want.length || !crypto.timingSafeEqual(given, want)) return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(Buffer.from(body, "base64").toString("utf8"));
-  } catch {
-    return null;
-  }
-
-  if (!parsed || typeof parsed !== "object") return null;
-  const candidate = parsed as Record<string, unknown>;
-  if (candidate.propertyKey !== expectedPropertyKey) return null;
-  if (!isSlug(candidate.experimentId) || typeof candidate.allocationVersion !== "string") return null;
-  if (typeof candidate.issuedAt !== "number") return null;
-  if (Date.now() - candidate.issuedAt > TOKEN_TTL_MS) return null;
-
-  return {
-    propertyKey: candidate.propertyKey,
-    experimentId: candidate.experimentId,
-    allocationVersion: candidate.allocationVersion,
-    issuedAt: candidate.issuedAt,
-  };
 }
 
 /**

@@ -19,6 +19,7 @@ import {
   type RetainerHistoryEntry,
   type OneOffProject,
 } from '@/lib/client-revenue'
+import { relationshipIdString as relationshipId } from '@/lib/relationship-id'
 
 /**
  * Client record header card — the mockup's `.detail-head` (mockups/4-client-record.html).
@@ -163,18 +164,6 @@ function computeRevenue(d: SavedData): RevenueStrip {
   }
 }
 
-function relationshipId(value: RelationshipValue): string | null {
-  if (typeof value === 'string' || typeof value === 'number') return String(value)
-  if (value && typeof value === 'object') {
-    if (typeof value.id === 'string' || typeof value.id === 'number') return String(value.id)
-    if (typeof value.value === 'string' || typeof value.value === 'number') return String(value.value)
-    if (value.value && typeof value.value === 'object') {
-      const nestedId = value.value.id
-      if (typeof nestedId === 'string' || typeof nestedId === 'number') return String(nestedId)
-    }
-  }
-  return null
-}
 
 const CLIENT_HEADER_SELECT =
   '?depth=0&select[name]=true&select[websiteUrl]=true&select[slug]=true&select[isActive]=true&select[isAgency]=true&select[logoThumbUrl]=true&select[clientPin]=true&select[services]=true&select[clientOverview]=true&select[clientType]=true&select[monthlyRetainer]=true&select[setupFee]=true&select[revenueSharePercent]=true&select[clientStartDate]=true&select[retainerStartDate]=true&select[oneOffProjects]=true&select[retainerHistory]=true&select[referralCommissions]=true&select[historicalRevenueByYear]=true'

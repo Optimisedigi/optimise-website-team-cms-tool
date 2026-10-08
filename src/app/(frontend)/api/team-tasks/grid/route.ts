@@ -5,6 +5,7 @@ import { headers as nextHeaders } from "next/headers";
 import { userHasFeature } from "@/lib/access";
 import { isEmptyTeamTaskPlaceholder } from "@/lib/team-task-placeholder";
 import { isAssignableTeamTaskUser, toTeamTaskUserOption } from "@/lib/team-task-users";
+import { coerceRelationshipKey } from "@/lib/relationship-id";
 
 const TASK_SELECT = {
   title: true,
@@ -23,11 +24,6 @@ const TASK_SELECT = {
   createdAt: true,
 } as const;
 
-function relationshipId(value: unknown) {
-  if (value == null || value === "") return undefined;
-  const numeric = Number(value);
-  return Number.isNaN(numeric) ? value : numeric;
-}
 
 
 async function getAuthedPayload() {
@@ -135,11 +131,11 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       data: {
         title: body.title || "New task",
-        client: relationshipId(body.client),
+        client: coerceRelationshipKey(body.client),
         taskType: body.taskType || "other",
         status: body.status || "in_progress",
         priority: body.priority || "normal",
-        assignedTo: relationshipId(body.assignedTo),
+        assignedTo: coerceRelationshipKey(body.assignedTo),
         dueDate: body.dueDate || undefined,
         instructions: body.instructions || "",
         sheetWeek: body.sheetWeek || "",
@@ -182,7 +178,7 @@ export async function PATCH(req: NextRequest) {
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
       if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
-      if (key === "client" || key === "assignedTo") data[key] = relationshipId(body[key]) ?? null;
+      if (key === "client" || key === "assignedTo") data[key] = coerceRelationshipKey(body[key]) ?? null;
       else data[key] = body[key] || null;
     }
 

@@ -49,12 +49,3 @@ export function Pill({
   return <span className={`pill ${variant}`}>{children}</span>
 }
 
-export function Subhead({ children, extra }: { children: React.ReactNode; extra?: React.ReactNode }): React.ReactElement {
-  return (
-    <div className="subhead">
-      <h4>{children}</h4>
-      <div className="line" />
-      {extra}
-    </div>
-  )
-}

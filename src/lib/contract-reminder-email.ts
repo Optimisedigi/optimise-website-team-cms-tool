@@ -11,6 +11,7 @@
  */
 
 import type { ReminderKind } from "./contract-reminders";
+import { escapeHtml } from "@/lib/html-escape";
 
 export interface ReminderEmailInput {
   kind: ReminderKind;
@@ -70,15 +71,6 @@ function computeAnniversary(contractDate: string | Date): Date {
   const out = new Date(d.getTime());
   out.setUTCMonth(out.getUTCMonth() + 12);
   return out;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 export function buildReminderEmail(

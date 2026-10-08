@@ -1,5 +1,6 @@
 import type { Payload } from "payload";
 import { buildLedgerSummary } from "./client-value-ledger";
+import { relationshipId as relationId } from "@/lib/relationship-id";
 
 export interface ClientHubPayload {
   client: {
@@ -20,11 +21,6 @@ export interface ClientHubPayload {
   discoveryBriefings: Array<Record<string, unknown>>;
 }
 
-function relationId(value: unknown): string | number | null {
-  if (value && typeof value === "object" && "id" in value) return (value as { id: string | number }).id;
-  if (typeof value === "string" || typeof value === "number") return value;
-  return null;
-}
 
 async function findDocs(payload: Payload, collection: string, where: Record<string, unknown>, limit: number): Promise<Array<Record<string, unknown>>> {
   const result = await payload.find({

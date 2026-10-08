@@ -144,10 +144,6 @@ export function getMonthInfo(): { daysInMonth: number; daysElapsed: number; days
 
 // Get actual MTD spend from campaign data (from Google Ads THIS_MONTH query)
 // Standalone campaigns have their own budget pool and are excluded by default.
-export function campaignHasPeriodData(c: Pick<BudgetCampaign, 'mtdSpend' | 'spend' | 'impressions' | 'clicks' | 'conversions'>): boolean {
-  return Number(c.mtdSpend ?? c.spend ?? 0) > 0 || Number(c.impressions || 0) > 0 || Number(c.clicks || 0) > 0 || Number(c.conversions || 0) > 0;
-}
-
 function googleDateKey(value: string | null | undefined): string | null {
   if (!value) return null;
   const match = String(value).trim().match(/^(\d{4})-?(\d{2})-?(\d{2})$/);

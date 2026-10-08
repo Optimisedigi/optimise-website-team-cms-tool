@@ -15,6 +15,7 @@ import type { ClientEmailCopy } from './_email-copy-slots'
 import { loadClientEmailCopy } from '@/lib/agents/_shared/client-email-copy'
 import { buildWeeklyEmailSummary } from './_weekly-email-summary'
 import type { EmailComponentData } from './_email-component-insights'
+import { escapeHtml } from '@/lib/html-escape'
 
 /**
  * Weekly reports support the same two graphs as the single-account weekly
@@ -420,7 +421,6 @@ function contextForAccount(ctx: ToolContext, account: PortfolioAccount): ToolCon
   }
 }
 
-
 function greetingHtml(seed = 0, copy?: ClientEmailCopy): string {
   return `<p style="margin:0 0 20px;color:#1e293b;font-size:14px;font-family:Arial,sans-serif;width:100%;max-width:none;display:block">${pickGreeting(seed, copy)}</p>`
 }
@@ -445,18 +445,3 @@ function previousSundayInAgencyTime(now = new Date()): string {
   return agencyDateAsUtc.toISOString().slice(0, 10)
 }
 
-
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-export const __createPortfolioWeeklyGmailDraftsInternals = {
-  previousSundayInAgencyTime,
-  deadlineIsTooClose,
-  DEADLINE_SAFETY_MARGIN_MS,
-}

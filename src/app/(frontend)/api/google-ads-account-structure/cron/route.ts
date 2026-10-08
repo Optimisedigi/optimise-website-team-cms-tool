@@ -6,7 +6,9 @@ import {
   accountStructureConversionFilterKey,
   fetchLiveAccountStructure,
   getYesterdayWindow,
+  normalizeActionList,
   normalizeCustomerId,
+  serializeConversionActionCategories,
   upsertAccountStructureSnapshot,
   withConversionFilterKey,
 } from "@/lib/google-ads-account-structure-cache";
@@ -22,35 +24,6 @@ type ClientDoc = {
   phoneCallConversionActions?: string | null;
   formSubmitConversionActions?: string | null;
 };
-
-type ConversionActionCategoryRow = {
-  label?: unknown;
-  color?: unknown;
-  actions?: unknown;
-};
-
-function normalizeActionList(value: unknown): string {
-  return String(value || "")
-    .split(/[\r\n,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .join(",");
-}
-
-function serializeConversionActionCategories(client: Record<string, unknown>): string {
-  const arr = client.conversionActionCategories;
-  if (!Array.isArray(arr) || arr.length === 0) return "";
-  return JSON.stringify(
-    arr
-      .map((row: ConversionActionCategoryRow) => ({
-        label: String(row.label || "").trim(),
-        color: String(row.color || "sky"),
-        actions: normalizeActionList(row.actions),
-      }))
-      .map((row) => ({ ...row, actions: row.actions ? row.actions.split(",") : [] }))
-      .filter((row) => row.label && row.actions.length > 0),
-  );
-}
 
 async function runPool<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = [];

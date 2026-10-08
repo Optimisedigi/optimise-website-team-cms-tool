@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { explicitUnavailableTraffic, formatTraffic, type FormattedTraffic } from "@/lib/proposal-audit-backfill";
+import { relationshipId } from "@/lib/relationship-id";
 
 export const maxDuration = 120;
 
@@ -22,11 +23,6 @@ function internalKeyMatches(req: NextRequest): boolean {
   return Boolean(INTERNAL_API_KEY && provided && provided === INTERNAL_API_KEY);
 }
 
-function relationshipId(value: any): number | string | null {
-  if (!value) return null;
-  if (typeof value === "object") return value.id ?? null;
-  return value;
-}
 
 async function importToGrowthTools(domain: string, rawPayload: unknown): Promise<FormattedTraffic | null> {
   if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY || !rawPayload) return null;

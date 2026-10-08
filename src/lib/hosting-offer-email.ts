@@ -6,6 +6,7 @@ import {
 } from './hosting-billing'
 import { formatBillingDate, planBillingStart } from './hosting-billing-schedule'
 import { firstName } from './hosting-one-off-payment'
+import { escapeHtml } from '@/lib/html-escape'
 
 export type HostingOfferEmail = { subject: string; htmlContent: string; textContent: string }
 
@@ -14,15 +15,6 @@ export type HostingOfferEmail = { subject: string; htmlContent: string; textCont
  * → Invoice Statement + Signature), so accounts emails all close the same way.
  */
 export type AccountsSignOff = { signOff: string; senderName: string; signatureHtml: string }
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
-}
 
 /**
  * The email that delivers a hosting payment link to the client. A client set

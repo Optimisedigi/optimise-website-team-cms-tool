@@ -2,13 +2,7 @@
  * Meeting scheduler email templates - HTML emails sent via Brevo.
  */
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import { escapeHtml } from "@/lib/html-escape";
 
 /**
  * Render free-text meeting topic into HTML that matches the formatting used in

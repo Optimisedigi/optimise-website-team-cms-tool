@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { relationshipId as relId } from "@/lib/relationship-id";
 
 // SEO Audit Proposal runs the full Growth Tools engine (GSC + crawl + LLM),
 // which can take 1–3 minutes. Keep the function alive for the background work.
@@ -11,11 +12,6 @@ const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
 /** Resolve the relation id whether it's an object or a scalar. */
-function relId(value: unknown): number | string | null {
-  if (value == null) return null;
-  if (typeof value === "object") return (value as { id?: number | string }).id ?? null;
-  return value as number | string;
-}
 
 export async function POST(
   req: NextRequest,

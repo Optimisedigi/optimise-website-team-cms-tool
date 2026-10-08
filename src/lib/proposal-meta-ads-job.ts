@@ -18,6 +18,7 @@
 import { randomUUID } from "crypto";
 import type { Payload } from "payload";
 import { cleanMetaAdsDomain, fetchMetaAdsForCompetitor } from "@/lib/proposal-meta-ads";
+import { relationshipId } from "@/lib/relationship-id";
 
 export const META_ADS_BATCH_SIZE = 2;
 // Lease must outlive a single worker invocation (worker maxDuration = 180s).
@@ -66,11 +67,6 @@ export interface MetaAdsProgress {
   completedAt: string | null;
 }
 
-export function relationshipId(value: any): number | string | null {
-  if (value == null) return null;
-  if (typeof value === "object") return value.id ?? null;
-  return value;
-}
 
 /** Validate and coerce a raw JSON column value into a versioned job state. */
 export function parseJobState(raw: unknown): MetaAdsJobState | null {

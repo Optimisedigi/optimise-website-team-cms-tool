@@ -2,13 +2,7 @@
  * Contract email templates - HTML emails sent via Brevo.
  */
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import { escapeHtml } from "@/lib/html-escape"
 
 function baseTemplate(content: string): string {
   return `<!DOCTYPE html>

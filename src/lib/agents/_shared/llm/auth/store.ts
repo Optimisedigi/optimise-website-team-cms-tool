@@ -141,12 +141,6 @@ export async function setCredential(provider: ProviderName, cred: Credential): P
   }
 }
 
-export async function deleteCredential(provider: ProviderName): Promise<void> {
-  const { payload, row } = await findRow(provider);
-  if (!row) return;
-  await payload.delete({ collection: COLLECTION, id: row.id, overrideAccess: true });
-}
-
 export async function isForceFallback(provider: ProviderName): Promise<boolean> {
   const { row } = await findRow(provider);
   return Boolean(row?.forceFallback);

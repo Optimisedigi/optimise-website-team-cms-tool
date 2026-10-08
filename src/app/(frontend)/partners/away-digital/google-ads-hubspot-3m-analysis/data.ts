@@ -97,45 +97,6 @@ export const CLIENTS_WON: readonly ClientWonRow[] = [
 
 export const CLIENTS_WON_BRAND_NOTE = "Brand searches are not counted: 2 more clients (Halcol Energy and CAPTURELAB) searched for Away by name."
 
-export const LEAD_GRADES: readonly LeadGrade[] = [
-  {
-    "key": "strong",
-    "label": "Quality",
-    "count": "94 leads",
-    "desc": "A real business asking for an ongoing role or team, e.g. a bookkeeper, VA, developer or marketing team."
-  },
-  {
-    "key": "lowbiz",
-    "label": "Low quality: real business, little detail",
-    "count": "47 leads",
-    "desc": "Gave little or no detail, but named their company or used a company email, so a real business is behind it. Worth a call to find out what they need."
-  },
-  {
-    "key": "mixed",
-    "label": "One-off or short-term project",
-    "count": "68 leads",
-    "desc": "Wants a single job done rather than staff: build an app or website, fix a Shopify store, one video, a logo, or a personal idea such as a game."
-  },
-  {
-    "key": "weak",
-    "label": "Poor: wrong service or spam",
-    "count": "20 leads",
-    "desc": "Not something Away offers (shipping broker, guest posts, advice only, employing their own freelancer) or junk/spam."
-  },
-  {
-    "key": "poorlite",
-    "label": "Poor: personal email, no message",
-    "count": "6 leads",
-    "desc": "No company name, a personal email (Gmail and similar) and no message, so there is nothing to go on."
-  },
-  {
-    "key": "neutral",
-    "label": "Not enough detail",
-    "count": "2 leads",
-    "desc": "A personal email and no company, but they did leave a short reply. Anyone with no reply at all is graded poor."
-  }
-]
-
 export const LEAD_INSIGHTS: readonly LeadInsight[] = [
   {
     "bold": "68 leads wanted a one-off or short-term project, not a team.",

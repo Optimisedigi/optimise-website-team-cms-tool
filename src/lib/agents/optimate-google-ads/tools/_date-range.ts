@@ -375,11 +375,6 @@ export function resolveRangeWithSegment(
   return resolved;
 }
 
-/** True if a given preset is in our supported set (no coercion needed). */
-export function isSupportedPreset(value: string): value is Exclude<RangePreset, "CUSTOM"> {
-  return (SUPPORTED_PRESETS as readonly string[]).includes(value);
-}
-
 /** Display label for a preset, falls back to the preset itself. */
 export function labelFor(preset: string): string {
   return (LABELS as Record<string, string>)[preset] ?? preset;

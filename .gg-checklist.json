@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "items": {
+    "code-health": {
+      "checkedAt": "2026-10-08T11:41:00.224Z",
+      "commit": "4fb067d6",
+      "uncommittedChanges": false,
+      "result": "issues",
+      "summary": "Typecheck green, 4301/4302 tests pass (1 flaky); but src carries a committed sync-conflict duplicate file, 24 copies of escapeHtml, ~28 relation-id helpers, 3 copied account-structure routes, 3 overlapping migration sweeps, ~25 dead exports, and many 1000+-line components/handlers.",
+      "findings": [
+        "src/components/ProcessTemplateWorksheet.sync-conflict-20260322-124117-HKCELI7.tsx:1 — High: committed Syncthing conflict copy (662-line duplicate), typechecked, imported nowhere. Fix: delete it (plus root *.sync-conflict* package/lock/CLAUDE copies).",
+        "src/lib/invoice-statement-email.ts:155 + 23 more (contract-email.ts:5, schedule-email.ts:5, google-ads-email-components.ts:379, api/contracts/sign/[token]/route.ts:652…) — Medium: 24 copies of escapeHtml, ~10 differing bodies. Fix: one shared src/lib/html-escape.ts.",
+        "src/lib/client-hub.ts:23, lib/quarterly-organic-growth.ts:105, lib/google-ads-audit-snapshots/lifecycle.ts:17, collections/ScheduledAgentTasks.ts:7 + ~24 more — Medium: ~28 local relationId/relationshipId helpers with inconsistent null/undefined returns. Fix: one shared helper.",
+        "src/app/(frontend)/api/partners/[clientSlug]/account-structure/route.ts:28, api/client/[slug]/google-ads/account-structure/route.ts:28, api/google-ads-account-structure/cron/route.ts:32 — Medium: ~80 lines copy-pasted 3x. Fix: extract to src/lib/google-ads-account-structure/.",
+        "src/lib/run-migrations.ts:1 (6429 lines), api/migrate/route.ts:182 (1104-line GET), api/schema-migrate/route.ts:12 (1030-line POST) — High: three overlapping hand-written schema sweeps. Fix: fold into run-migrations.ts, delete the other two.",
+        "src/components/GoogleAdsBudgetManagement.tsx:153 (2787 lines), DiscoveryBriefingForm.tsx:179 (2373), MonthlyKeywordSelection.tsx:66 (1574), NegativeListBuilder.tsx:710 (1420) — Medium: single components >1400 lines. Fix: Extract Component/Hook per section.",
+        "src/app/(frontend)/api/dashboard/route.ts:125 — Medium: 1017-line GET handler. Fix: split per-section aggregation into pure src/lib/dashboard/*.ts functions; keep route as composition.",
+        "src/app/(frontend)/partners/google-ads-audit/team-session-may-2026/page.tsx:547 vs _templates/post-build-optimisation-qbr/page.tsx:598 — Low: 1341/1373-line pages differ by 86 lines, both export TeamSessionMay2026. Fix: share slide components from _templates; rename copied exports.",
+        "Dead exports: components/RocketSaveButton.tsx, components/v2/NextStepsSlide.tsx, lib/ga4-service.ts:69 listGa4Properties, lib/landing-api.ts:242 verifyAssignmentToken, + ~21 more; ~150 exports used only in-file — Low: remove or un-export.",
+        "tests/components/ContractorTimeEntriesSpreadsheet.test.tsx:60 — Low (flaky): synchronous getByText('Sep 2026') failed once in full run, passed alone. Fix: await screen.findByText('Sep 2026')."
+      ],
+      "evidence": [
+        "Loaded skill: refactoring (report-only; no edits made)",
+        "RUNTIME: NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit — exit 0, no errors (16s)",
+        "RUNTIME: npx vitest run — 473/474 files, 4301/4302 tests passed; 1 failure in tests/components/ContractorTimeEntriesSpreadsheet.test.tsx:60; re-run of that file alone passed 2/2 (flaky)",
+        "RUNTIME: wc -l over src *.ts/*.tsx — 1655 files, 340k lines; 40 files >1000 lines, largest run-migrations.ts 6429; awk scan found 11 top-level functions >1000 lines",
+        "RUNTIME: rg sweep of 1666 exported symbols in src: 177 referenced only in own file, 25 with no in-file use (dead); 6 spot-checked across src/tests/scripts/docs",
+        "RUNTIME: rg duplicate-definition counts — escapeHtml x24 (~10 distinct bodies), relationId/relationshipId/relId x28, getOAuth2Client x5, slugify x4, serializeConversionActionCategories x3",
+        "CODE: read headers of api/migrate, api/schema-migrate, lib/run-migrations.ts, the 3 account-structure routes, the flaky test; find *sync-conflict* in src",
+        "Scope: src/ TypeScript/TSX with tests/ and scripts/ as reference targets; checks run were tsc --noEmit and vitest run (project's lint/typecheck/test commands)",
+        "Not checked: no ESLint/Biome/knip/jscpd in repo so no AST-level dead-code/clone detection; dynamic imports/importMap.js string refs not resolved; scripts/, docs/, src/migrations/ bodies; no build run"
+      ]
+    }
+  }
+}

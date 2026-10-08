@@ -1,4 +1,5 @@
 import { calculateCardSurcharge, formatMoney, type SurchargeConfig } from './hosting-billing'
+import { escapeHtml } from '@/lib/html-escape'
 
 /**
  * One-off hosting payments: a single card charge (for example, backdated
@@ -131,15 +132,6 @@ export function createOneOffQuote(
     surchargeCents,
     totalCents: baseCents + surchargeCents,
   }
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
 }
 
 const MONO = 'font-family:Menlo,Consolas,monospace;'

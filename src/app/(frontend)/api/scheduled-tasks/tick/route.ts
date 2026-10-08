@@ -8,6 +8,7 @@ import { createGmailDraft } from "@/lib/gmail-service";
 import { runMonthlyBudgetRecommendations } from "@/lib/google-ads-monthly-budget-recommendations";
 import { computeNextRun, selectedBudgetAuditIds } from "@/lib/scheduled-task-schedule";
 import type { Message } from "@/lib/agents/_shared/llm/types";
+import { escapeHtml } from "@/lib/html-escape";
 
 export const maxDuration = 300;
 
@@ -369,15 +370,6 @@ function renderReplyAsHtml(args: {
   </div>
 </body>
 </html>`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 /**

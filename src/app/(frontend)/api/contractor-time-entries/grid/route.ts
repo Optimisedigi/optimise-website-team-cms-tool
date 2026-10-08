@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import { coerceRelationshipKey } from "@/lib/relationship-id";
 
 const ENTRY_SELECT = {
   user: true,
@@ -110,11 +111,6 @@ function ownerScopeFor(userId: string | number, contractorIds: string[]) {
   };
 }
 
-function relationshipId(value: unknown) {
-  if (value == null || value === "") return undefined;
-  const numeric = Number(value);
-  return Number.isNaN(numeric) ? value : numeric;
-}
 
 function monthRange(month: string) {
   const safeMonth = /^\d{4}-\d{2}$/.test(month) ? month : new Date().toISOString().slice(0, 7);
@@ -163,7 +159,7 @@ function normalizeAllocations(value: unknown) {
   return value
     .map((allocation) => {
       const row = allocation as Record<string, unknown>;
-      const client = relationshipId(row.client);
+      const client = coerceRelationshipKey(row.client);
       const hours = Number(row.hours || 0);
       if (!client || !Number.isFinite(hours) || hours <= 0) return null;
       return { client, hours: Math.round(hours * 100) / 100 };
@@ -336,9 +332,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const owner = user.role === "admin" ? relationshipId(body.user) : user.id;
+    const owner = user.role === "admin" ? coerceRelationshipKey(body.user) : user.id;
     if (!owner) return NextResponse.json({ error: "User is required" }, { status: 400 });
-    const contractor = relationshipId(body.contractor);
+    const contractor = coerceRelationshipKey(body.contractor);
 
     const entry = await payload.create({
       collection: "contractor-time-entries" as any,
@@ -405,8 +401,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     const data: Record<string, unknown> = {};
-    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "user") && user.role === "admin") data.user = relationshipId(body.user) ?? null;
-    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "contractor") && user.role === "admin") data.contractor = relationshipId(body.contractor) ?? null;
+    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "user") && user.role === "admin") data.user = coerceRelationshipKey(body.user) ?? null;
+    if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "contractor") && user.role === "admin") data.contractor = coerceRelationshipKey(body.contractor) ?? null;
     if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "weekCommencing")) data.weekCommencing = normalizeWeekCommencing(body.weekCommencing);
     if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "hours")) data.hours = Math.max(0, Number(body.hours || 0));
     if (!isPaidEntry && Object.prototype.hasOwnProperty.call(body, "status")) data.status = body.status || "draft";

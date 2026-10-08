@@ -191,6 +191,40 @@ export interface AccountStructureConversionFilters {
   conversionActionCategories?: string;
 }
 
+type ConversionActionCategoryRow = {
+  label?: unknown;
+  color?: unknown;
+  actions?: unknown;
+};
+
+/** Collapse a newline/comma separated action list into a canonical CSV string. */
+export function normalizeActionList(value: unknown): string {
+  return String(value || "")
+    .split(/[\r\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(",");
+}
+
+/**
+ * Serialize a client's `conversionActionCategories` array field into the JSON
+ * string the Growth Tools account-structure endpoint expects. Empty → "".
+ */
+export function serializeConversionActionCategories(client: Record<string, unknown>): string {
+  const arr = client.conversionActionCategories;
+  if (!Array.isArray(arr) || arr.length === 0) return "";
+  return JSON.stringify(
+    arr
+      .map((row: ConversionActionCategoryRow) => ({
+        label: String(row.label || "").trim(),
+        color: String(row.color || "sky"),
+        actions: normalizeActionList(row.actions),
+      }))
+      .map((row) => ({ ...row, actions: row.actions ? row.actions.split(",") : [] }))
+      .filter((row) => row.label && row.actions.length > 0),
+  );
+}
+
 export function accountStructureConversionFilterKey(filters: AccountStructureConversionFilters): string {
   return JSON.stringify({
     conversionActions: filters.conversionActions || "",

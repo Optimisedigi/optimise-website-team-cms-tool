@@ -6,6 +6,3 @@ export function removeForbiddenDashes(text: string): string {
   return text.replace(/\s*[—–]\s*/g, ", ");
 }
 
-export function containsForbiddenDash(text: string): boolean {
-  return /[—–]/.test(text);
-}

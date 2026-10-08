@@ -72,20 +72,9 @@ export function explicitUnavailableTraffic(reason: TrafficUnavailableReason | st
   };
 }
 
-export function isTrafficUnavailable(profile: unknown): boolean {
-  return (profile as any)?.traffic?.status === "unavailable";
-}
-
 export function hasTrafficCoverage(profile: unknown): boolean {
   const traffic = (profile as any)?.traffic;
   return typeof traffic?.monthlyVisits === "number" || traffic?.status === "unavailable";
-}
-
-export function trafficDisplayValue(raw: unknown): string {
-  const traffic = raw as any;
-  if (traffic?.status === "unavailable") return "Traffic unavailable";
-  if (typeof traffic?.monthlyVisits === "number") return traffic.monthlyVisits.toLocaleString();
-  return "Traffic unavailable";
 }
 
 export function formatTraffic(trafficData: any): FormattedTraffic {

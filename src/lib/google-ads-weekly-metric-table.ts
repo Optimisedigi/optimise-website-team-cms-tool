@@ -36,6 +36,8 @@
  * is the only time anchor a caller has to supply.
  */
 
+import { escapeHtml } from "@/lib/html-escape"
+
 /** All metrics the weekly table supports. */
 export type WeeklyMetricKey =
   | "spend"
@@ -464,14 +466,6 @@ export function generateWeeklyMetricTableHtml(args: GenerateTableArgs): string {
 }
 
 /** Minimal HTML-escape for the summary paragraph. */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 // ---------------------------------------------------------------------------
 // Back-compat shim for the legacy `get_weekly_trend_note` tool. Keeps the

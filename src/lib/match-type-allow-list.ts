@@ -43,12 +43,6 @@ export function buildAllowListSet(savedAllowList: AllowListTermInput[] = []): Se
   return allowed;
 }
 
-export function isAllowedMatchTypeToken(token: string, savedAllowList: AllowListTermInput[] = []): boolean {
-  const normalised = normaliseAllowListTerm(token);
-  if (!normalised) return true;
-  return buildAllowListSet(savedAllowList).has(normalised);
-}
-
 export function hasLikelyUnknownBrandToken(
   searchWords: readonly string[],
   keywordWords: readonly string[],

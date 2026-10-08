@@ -9,6 +9,7 @@
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { queueProposal } from "./_propose-helpers";
+import { escapeHtml } from "@/lib/html-escape";
 
 type MatchType = "exact" | "phrase" | "broad";
 
@@ -125,15 +126,6 @@ export const proposeNegativeKeywords: CanonicalTool<ProposeNegativesArgs> = {
     };
   },
 };
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function renderInternalMarkdown(summary: string, candidates: Candidate[]): string {
   const lines: string[] = [];

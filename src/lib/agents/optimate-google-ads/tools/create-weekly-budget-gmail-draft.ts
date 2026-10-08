@@ -1,4 +1,4 @@
-import type { CanonicalTool, ToolContext } from "@/lib/agents/_shared/tool";
+import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import type { WeeklyBucketRow } from "@/lib/google-ads-weekly-metric-table";
 import type { GoogleAdsEmailComponentKey } from "@/lib/google-ads-email-components";
 import { createGmailDraftTool } from "./create-gmail-draft";
@@ -9,6 +9,7 @@ import { copySeed, pickGreeting, seedCustomerId } from "./_email-copy-variants";
 import { loadClientEmailCopy } from "@/lib/agents/_shared/client-email-copy";
 import { buildWeeklyEmailSummary, type WeeklySummaryBudget } from "./_weekly-email-summary";
 import type { EmailComponentData } from "./_email-component-insights";
+import { escapeHtml } from "@/lib/html-escape";
 
 interface CreateWeeklyBudgetGmailDraftArgs {
   weeks: number;
@@ -242,17 +243,3 @@ function previousSundayInAgencyTime(now = new Date()): string {
   return agencyDateAsUtc.toISOString().slice(0, 10);
 }
 
-
-
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-export const __createWeeklyBudgetGmailDraftInternals = {
-  previousSundayInAgencyTime,
-};

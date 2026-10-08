@@ -1,14 +1,10 @@
 import type { CollectionConfig, Payload } from "payload";
 import { buildCronFromFriendlySchedule, computeNextRun } from "../lib/scheduled-task-schedule";
 import { hasValidApiKey } from "./api-key-access";
+import { relationshipId } from "@/lib/relationship-id";
 
 type RelationshipValue = number | string | { id?: number | string } | null | undefined;
 
-function relationshipId(value: RelationshipValue): number | string | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "object") return value.id ?? null;
-  return value;
-}
 
 function collectAuditIds(
   primaryAudit: RelationshipValue,

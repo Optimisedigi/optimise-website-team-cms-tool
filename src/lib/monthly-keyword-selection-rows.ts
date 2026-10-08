@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 import type { MonthlyKeywordSelectionRow } from './monthly-keyword-terms-warmer'
+import { relationshipId as relationId } from '@/lib/relationship-id'
 
 export type MonthlyKeywordSelectionRowDoc = MonthlyKeywordSelectionRow & Record<string, any> & {
   id?: string | number
@@ -34,12 +35,6 @@ export function keywordKey(negativeKeyword: string, matchType: string): string {
 
 export function selectionRowKey(clientId: number | string, yearMonth: string, searchTerm: string, rowIndex = 0): string {
   return `${clientId}|${yearMonth}|${normaliseSearchTermKey(searchTerm)}|${Number(rowIndex || 0)}`
-}
-
-function relationId(value: unknown): string | number | null {
-  if (value && typeof value === 'object' && 'id' in value) return (value as { id?: string | number }).id ?? null
-  if (typeof value === 'string' || typeof value === 'number') return value
-  return null
 }
 
 function asNklId(value: unknown): number | string | null {
@@ -106,10 +101,6 @@ export function selectionToRowData(clientId: number, selection: MonthlyKeywordSe
     keywordKey: keywordKey(selection.negativeKeyword, selection.matchType),
     appliedToNKL: asNklId(selection.appliedToNKL),
   } as Record<string, unknown>) as MonthlyKeywordSelectionRowDoc
-}
-
-export function legacyArrayRowsToRowRecords(clientId: number, rows: MonthlyKeywordSelectionRow[]): MonthlyKeywordSelectionRowDoc[] {
-  return rows.map((row) => selectionToRowData(clientId, row))
 }
 
 async function findAllPages(payload: Payload, where: Record<string, unknown>, limit = 1000): Promise<MonthlyKeywordSelectionRowDoc[]> {

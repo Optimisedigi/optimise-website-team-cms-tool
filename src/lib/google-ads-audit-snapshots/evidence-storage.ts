@@ -118,20 +118,6 @@ export async function loadSnapshotDataset(payload: Payload, snapshotId: string |
   return rows;
 }
 
-export async function loadFullSnapshotAnalysis(payload: Payload, snapshotId: string | number): Promise<Record<string, unknown>> {
-  const snapshot = await (payload as any).findByID({ collection: "google-ads-audit-snapshots", id: snapshotId, depth: 0, overrideAccess: true });
-  if (!snapshot.analysisBlobPathname) return snapshot.analysis as Record<string, unknown>;
-  return loadPrivateGzipJson<Record<string, unknown>>(validateBlobMetadata({
-    storageMode: "private_blob_gzip_v1",
-    blobUrl: snapshot.analysisBlobUrl,
-    blobPathname: snapshot.analysisBlobPathname,
-    encoding: snapshot.analysisBlobEncoding,
-    checksum: snapshot.analysisBlobChecksum,
-    compressedBytes: snapshot.analysisBlobCompressedBytes,
-    uncompressedBytes: snapshot.analysisBlobUncompressedBytes,
-  }, `google-ads-audits/${snapshotId}/analysis/full-analysis.json.gz`));
-}
-
 export async function cleanupSnapshotEvidenceBlobs(payload: Payload, snapshotId: string | number): Promise<number> {
   if (!process.env.GOOGLE_ADS_EVIDENCE_BLOB_READ_WRITE_TOKEN) return 0;
   const [snapshot, chunks] = await Promise.all([

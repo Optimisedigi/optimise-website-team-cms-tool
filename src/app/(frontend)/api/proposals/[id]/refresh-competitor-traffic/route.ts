@@ -2,14 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { extractRootDomain } from "@/lib/proposal-audit-backfill";
+import { relationshipId } from "@/lib/relationship-id";
 
 export const maxDuration = 60;
 
-function relationshipId(value: any): number | string | null {
-  if (!value) return null;
-  if (typeof value === "object") return value.id ?? null;
-  return value;
-}
 
 type TrafficDomainWorkItem = {
   key: string;

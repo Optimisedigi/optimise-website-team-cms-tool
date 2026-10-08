@@ -125,24 +125,6 @@ export async function queueForApproval(input: QueueForApprovalInput): Promise<nu
   return created.id;
 }
 
-export async function readPending(filter?: {
-  agentName?: string;
-  clientId?: string | number;
-}): Promise<ApprovalRow[]> {
-  const payloadConfig = await config;
-  const payload = await getPayload({ config: payloadConfig });
-  const where: Record<string, unknown> = { status: { equals: "pending" } };
-  if (filter?.agentName) where["agentName"] = { equals: filter.agentName };
-  if (filter?.clientId !== undefined) where["client"] = { equals: filter.clientId };
-  const result = await payload.find({
-    collection: COLLECTION,
-    where: where as any,
-    limit: 200,
-    overrideAccess: true,
-  });
-  return result.docs as unknown as ApprovalRow[];
-}
-
 type ResolvedApprovalStatus = "approved" | "rejected" | "applied" | "failed";
 
 /**

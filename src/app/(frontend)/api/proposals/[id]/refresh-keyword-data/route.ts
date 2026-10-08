@@ -9,20 +9,13 @@ import {
   summariseKeywordMetrics,
   type KeywordMetric,
 } from '@/lib/proposal-keyword-refresh'
+import { relationshipId } from '@/lib/relationship-id'
 
 export const maxDuration = 240
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
 
-function relationshipId(value: unknown): number | string | null {
-  if (typeof value === 'number' || typeof value === 'string') return value
-  if (value && typeof value === 'object' && 'id' in value) {
-    const id = (value as { id?: unknown }).id
-    return typeof id === 'number' || typeof id === 'string' ? id : null
-  }
-  return null
-}
 
 export async function POST(
   req: NextRequest,

@@ -20,6 +20,11 @@
  *  11. Brand signature HTML
  */
 
+import { escapeHtml } from "@/lib/html-escape";
+
+// Re-exported for existing importers (overdue-chase-email etc.).
+export { escapeHtml };
+
 export interface StatementInvoiceSnapshot {
   invoiceId: string;
   invoiceNumber: string;
@@ -150,15 +155,6 @@ function statusPill(dueDate: string, now: Date): InvoiceStatusPill {
     fg: "#166534",
     textColor: "#166534",
   };
-}
-
-export function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function deriveFirstName(snapshot: StatementContactSnapshot): string {

@@ -54,12 +54,6 @@ export function getRealtimeToolDefinitions(allowed: Set<string>): RealtimeFuncti
     .map(toRealtimeFunctionTool)
 }
 
-export function getPortfolioRealtimeToolDefinitions(allowed: Set<string>): RealtimeFunctionTool[] {
-  return getPortfolioTools({ attachMemoryTools: true })
-    .filter((tool) => allowed.has(tool.name))
-    .map(toRealtimeFunctionTool)
-}
-
 function toRealtimeFunctionTool(tool: CanonicalTool<unknown>): RealtimeFunctionTool {
   return {
     type: 'function',

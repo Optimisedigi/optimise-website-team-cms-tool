@@ -3,12 +3,8 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
 import { isAssignableTeamTaskUser, toTeamTaskUserOption } from "@/lib/team-task-users";
+import { coerceRelationshipKey } from "@/lib/relationship-id";
 
-function relationshipId(value: unknown) {
-  if (value == null || value === "") return undefined;
-  const numeric = Number(value);
-  return Number.isNaN(numeric) ? value : numeric;
-}
 
 async function getAuthedPayload(req: NextRequest) {
   const payload = await getPayload({ config });
@@ -93,7 +89,7 @@ export async function PATCH(
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
       if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
-      if (key === "client" || key === "assignedTo") data[key] = relationshipId(body[key]) ?? null;
+      if (key === "client" || key === "assignedTo") data[key] = coerceRelationshipKey(body[key]) ?? null;
       else data[key] = body[key] || null;
     }
 

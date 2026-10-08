@@ -10,6 +10,7 @@ import { loadClientEmailCopy } from "@/lib/agents/_shared/client-email-copy";
 import { buildMonthlyEmailSummary, type MonthlySummaryRow } from "./_monthly-email-summary";
 import { prepareMonthlyBudgetBreakdownHtml } from "./_monthly-budget-html";
 import type { EmailComponentData } from "./_email-component-insights";
+import { escapeHtml } from "@/lib/html-escape";
 
 interface CreateMonthlyBudgetGmailDraftArgs {
   components: GoogleAdsEmailComponentKey[];
@@ -264,22 +265,6 @@ function latestMonthLabel(rows: MonthlyMetricTableData["rows"]): string | null {
 function buildMonthlySubject(ctx: ToolContext, fallbackSubject: string, monthLabel: string | null): string {
   const clientName = String(ctx.context.clientName || fallbackSubject.split(" - Google Ads")[0] || "Client").trim() || "Client";
   return monthLabel ? `${clientName} - Google Ads Monthly Report - ${monthLabel}` : `${clientName} - Google Ads Monthly Report`;
-}
-
-
-
-
-
-
-
-
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 export const __createMonthlyBudgetGmailDraftInternals = {

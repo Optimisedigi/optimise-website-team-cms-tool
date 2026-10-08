@@ -1,3 +1,4 @@
+import { relationshipId as relationId } from "@/lib/relationship-id"
 export interface ScheduleEntry {
   snapshotDate: string;
   snapshotType: "month_1" | "quarterly";
@@ -102,11 +103,6 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-function relationId(value: unknown): string | number | null {
-  if (value && typeof value === "object" && "id" in value) return (value as { id?: string | number }).id ?? null;
-  if (typeof value === "string" || typeof value === "number") return value;
-  return null;
-}
 
 function rows(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === "object") : [];

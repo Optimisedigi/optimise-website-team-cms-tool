@@ -5,6 +5,8 @@ import TeamTaskDetailPane from './TeamTaskDetailPane'
 import { TEAM_TASK_TYPE_OPTIONS } from '@/lib/team-task-options'
 import { isEmptyTeamTaskPlaceholder } from '@/lib/team-task-placeholder'
 import { applyLinkShortcut } from '@/lib/rich-text-links'
+import { escapeHtml } from '@/lib/html-escape'
+import { relationshipIdString } from '@/lib/relationship-id'
 
 type Option = { id: string | number; name: string; email?: string; slug?: string }
 type Rel = Option | string | number | null | undefined
@@ -36,11 +38,7 @@ const statuses = [
   ['task_postponed', 'Task Postponed'],
 ]
 
-
-function relId(value: Rel): string {
-  if (value && typeof value === 'object') return String(value.id)
-  return value == null ? '' : String(value)
-}
+const relId = (value: unknown): string => relationshipIdString(value) ?? ''
 
 function relName(value: Rel, options: Option[]): string {
   const id = relId(value)
@@ -170,10 +168,6 @@ const weekColors = [
   { bg: '#f5f3ff', box: '#6d28d9' },
   { bg: '#fff7ed', box: '#c2410c' },
 ]
-
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
 
 function autolinkHtml(value: string): string {
   const urlPattern = /((?:https?:\/\/|www\.)[^\s<]+)/gi

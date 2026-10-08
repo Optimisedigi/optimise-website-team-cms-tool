@@ -8,6 +8,7 @@ import {
   type WeeklyMetricKey,
 } from "@/lib/google-ads-weekly-metric-table";
 import { ensureCustomerId, growthToolsGet, parseConversionActions } from "./_growth-tools";
+import { escapeHtml } from "@/lib/html-escape";
 
 export interface MonthlyMetricTableArgs {
   startMonth?: string;
@@ -273,15 +274,6 @@ function renderHtml(rows: MonthlyMetricRow[], metrics: WeeklyMetricKey[]): strin
     ${rowsHtml}
   </table>
 </div>`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function monthSpan(startMonth: string, endMonth: string): string[] {

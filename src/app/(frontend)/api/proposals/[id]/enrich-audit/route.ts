@@ -15,6 +15,7 @@ import {
   needsScreenshotRefresh,
   needsTrafficRefresh,
 } from '@/lib/proposal-audit-enrichment'
+import { relationshipId } from '@/lib/relationship-id'
 
 export const maxDuration = 300
 
@@ -27,14 +28,6 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
 const ITEM_TIMEOUT_MS = 20_000
 const DEADLINE_SAFETY_MS = 45_000
 
-function relationshipId(value: unknown): number | string | null {
-  if (typeof value === 'number' || typeof value === 'string') return value
-  if (value && typeof value === 'object' && 'id' in value) {
-    const id = (value as { id?: unknown }).id
-    return typeof id === 'number' || typeof id === 'string' ? id : null
-  }
-  return null
-}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 

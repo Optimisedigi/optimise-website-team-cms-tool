@@ -6,6 +6,8 @@
  * plain-text fallback.
  */
 
+import { escapeHtml } from "@/lib/html-escape";
+
 export interface TimelineEmailData {
   clientName: string;
   timelineTitle: string;
@@ -25,14 +27,6 @@ export interface TimelineEmailData {
       approvalStatus: string;
     }>;
   }>;
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 function formatDate(dateStr: string | null | undefined): string {

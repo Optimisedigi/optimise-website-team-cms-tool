@@ -27,8 +27,6 @@ export interface OptimateEvalCase {
   notes?: string;
 }
 
-const PROPOSE_TOOL_PREFIX = "propose_";
-
 export const ALL_PROPOSE_TOOLS = [
   "propose_negative_keywords",
   "propose_nkl_create",
@@ -396,6 +394,3 @@ export function getEvalCases(filter?: { categories?: EvalCaseCategory[]; ids?: s
   });
 }
 
-export function isProposeTool(toolName: string): boolean {
-  return toolName.startsWith(PROPOSE_TOOL_PREFIX) || toolName === "create_goal_run" || toolName === "create_account_efficiency_goal_run";
-}

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { applyLinkShortcut } from '@/lib/rich-text-links'
+import { escapeHtml } from '@/lib/html-escape'
+import { relationshipIdString } from '@/lib/relationship-id'
 
 type Option = { id: string | number; name: string; email?: string; role?: string }
 type Rel = Option | string | number | null | undefined
@@ -64,10 +66,7 @@ const fieldStyle: React.CSSProperties = {
   fontSize: 14,
 }
 
-function relId(value: Rel): string {
-  if (value && typeof value === 'object') return String(value.id)
-  return value == null ? '' : String(value)
-}
+const relId = (value: unknown): string => relationshipIdString(value) ?? ''
 
 function relName(value: Rel, users: Option[]): string {
   const id = relId(value)
@@ -91,10 +90,6 @@ function dateInNextWeek(value?: string | null): string {
 }
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>"']+/gi
-
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
 
 function linkifyText(value: string): string {
   return value.replace(URL_PATTERN, (rawUrl) => {

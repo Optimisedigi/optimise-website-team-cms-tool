@@ -2,6 +2,7 @@
 
 import { useDocumentInfo, useFormFields } from '@payloadcms/ui'
 import { useEffect, useMemo, useState } from 'react'
+import { relationshipId } from '@/lib/relationship-id'
 
 type NegativeKeywordList = {
   id: number | string
@@ -13,14 +14,6 @@ type Client = {
   name: string
 }
 
-function relationshipId(value: unknown): string | number | null {
-  if (typeof value === 'string' || typeof value === 'number') return value
-  if (value && typeof value === 'object' && 'id' in value) {
-    const id = (value as { id?: unknown }).id
-    return typeof id === 'string' || typeof id === 'number' ? id : null
-  }
-  return null
-}
 
 export default function NegativeKeywordListBreadcrumb() {
   const { id } = useDocumentInfo()

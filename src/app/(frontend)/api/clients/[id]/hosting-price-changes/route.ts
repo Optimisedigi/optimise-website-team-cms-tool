@@ -5,21 +5,13 @@ import { userHasFeature } from '@/lib/access'
 import { createHostingQuote, formatMoney } from '@/lib/hosting-billing'
 import { sendBrevoEmail } from '@/lib/brevo-email'
 import { getHostingSubscriptionItems } from '@/lib/stripe'
+import { escapeHtml } from '@/lib/html-escape'
 
 function renderTemplate(template: string, values: Record<string, string>): string {
   return Object.entries(values).reduce(
     (result, [key, value]) => result.replaceAll(`{{${key}}}`, () => String(value ?? '')),
     template,
   )
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

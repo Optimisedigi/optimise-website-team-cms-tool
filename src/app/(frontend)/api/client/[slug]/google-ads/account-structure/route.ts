@@ -6,7 +6,9 @@ import {
   assertIsoDate,
   fetchLiveAccountStructure,
   getLatestCachedAccountStructure,
+  normalizeActionList,
   normalizeCustomerId,
+  serializeConversionActionCategories,
   upsertAccountStructureSnapshot,
   withCacheMeta,
   withConversionFilterKey,
@@ -18,35 +20,6 @@ import {
  * Cached by default. `refresh=live` calls Growth Tools and writes through to the
  * dedicated full-response account-structure cache.
  */
-
-type ConversionActionCategoryRow = {
-  label?: unknown;
-  color?: unknown;
-  actions?: unknown;
-};
-
-function normalizeActionList(value: unknown): string {
-  return String(value || "")
-    .split(/[\r\n,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .join(",");
-}
-
-function serializeConversionActionCategories(client: Record<string, unknown>): string {
-  const arr = client.conversionActionCategories;
-  if (!Array.isArray(arr) || arr.length === 0) return "";
-  return JSON.stringify(
-    arr
-      .map((row: ConversionActionCategoryRow) => ({
-        label: String(row.label || "").trim(),
-        color: String(row.color || "sky"),
-        actions: normalizeActionList(row.actions),
-      }))
-      .map((row) => ({ ...row, actions: row.actions ? row.actions.split(",") : [] }))
-      .filter((row) => row.label && row.actions.length > 0),
-  );
-}
 
 export async function GET(
   req: NextRequest,

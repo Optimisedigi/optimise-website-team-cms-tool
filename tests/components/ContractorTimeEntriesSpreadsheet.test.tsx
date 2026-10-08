@@ -57,7 +57,7 @@ describe('ContractorTimeEntriesSpreadsheet', () => {
     const calculationsButton = await screen.findByRole('button', { name: 'Calculations +' })
     expect(calculationsButton).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Amount to transfer')).not.toBeInTheDocument()
-    expect(screen.getByText('Sep 2026')).toHaveStyle({ whiteSpace: 'nowrap' })
+    expect(await screen.findByText('Sep 2026')).toHaveStyle({ whiteSpace: 'nowrap' })
 
     fireEvent.click(calculationsButton)
 

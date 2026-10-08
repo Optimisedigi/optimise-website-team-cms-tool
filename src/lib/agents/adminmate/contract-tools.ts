@@ -49,16 +49,6 @@ export interface StagedContract {
   paymentTerms?: string;
 }
 
-/** Details the agent must have (or be told to skip) before staging. */
-export const CONTRACT_REQUIRED_DETAILS = [
-  "monthlyRetainer",
-  "setupFee",
-  "contractStartDate",
-  "clientBusinessAddress",
-  "clientContactName",
-  "clientEmail",
-] as const;
-
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function text(value: unknown, name: string, max: number, required = false): string | undefined {

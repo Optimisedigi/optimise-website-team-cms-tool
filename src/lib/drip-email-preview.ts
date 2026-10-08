@@ -6,6 +6,8 @@
  * if the templates change on the main website.
  */
 
+import { escapeHtml } from "@/lib/html-escape";
+
 // ─── Types ───────────────────────────────────────────────────
 
 export interface AuditLeadData {
@@ -18,15 +20,6 @@ export interface AuditLeadData {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
 
 const BOOKING_LINK = "https://calendar.app.google/74d3MPADMc6CLSWD8";
 

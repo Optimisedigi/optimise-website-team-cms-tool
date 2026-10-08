@@ -7,6 +7,7 @@ import DismissedKeywordReview from './match-type-violations/DismissedKeywordRevi
 import MatchTypeAllowListManager from './match-type-violations/MatchTypeAllowListManager'
 import MatchTypeSynonymRulesManager from './match-type-violations/MatchTypeSynonymRulesManager'
 import MatchTypeTriageDecisions from './match-type-violations/MatchTypeTriageDecisions'
+import { relationshipIdString as relationshipId } from '@/lib/relationship-id'
 
 type TabKey = 'violations' | 'decisions' | 'consolidations' | 'dismissed' | 'allowList' | 'synonyms'
 
@@ -31,14 +32,6 @@ interface ConsolidationResponse {
   totalPages: number
 }
 
-function relationshipId(value: RelationshipValue): string | null {
-  if (typeof value === 'string' || typeof value === 'number') return String(value)
-  if (value && typeof value === 'object') {
-    if (typeof value.id === 'string' || typeof value.id === 'number') return String(value.id)
-    if (typeof value.value === 'string' || typeof value.value === 'number') return String(value.value)
-  }
-  return null
-}
 
 function buttonStyle(variant: 'primary' | 'ghost' | 'danger', disabled = false): React.CSSProperties {
   const background = variant === 'primary' ? '#2563eb' : variant === 'danger' ? '#dc2626' : 'white'
