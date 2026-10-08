@@ -7,6 +7,7 @@ import OptiMateVoice from './OptiMateVoice'
 import OptiMateMetalSend, { OptiMateMetalPill } from './OptiMateMetalSend'
 import styles from './GmailReplyChat.module.css'
 import { ThinkingOrb } from 'thinking-orbs'
+import { fitImageForChat } from './chat-image-fit'
 import {
   CHAT_PICKER_MODELS,
   DEFAULT_CHAT_MODEL,
@@ -75,25 +76,12 @@ const DRAFT_IMAGE_TYPES = new Set<DraftImageAttachment['mediaType']>([
   'image/webp',
 ])
 const MAX_DRAFT_ATTACHMENTS = 3
-const MAX_DRAFT_ATTACHMENT_BYTES = 3 * 1024 * 1024
-const MAX_DRAFT_ATTACHMENTS_TOTAL_BYTES = 3 * 1024 * 1024
-
-function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : ''
-      const separator = result.indexOf(',')
-      if (separator < 0) {
-        reject(new Error(`Could not read ${file.name}.`))
-        return
-      }
-      resolve(result.slice(separator + 1))
-    }
-    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`))
-    reader.readAsDataURL(file)
-  })
-}
+/**
+ * Any size can be dropped; bigger images are shrunk in the browser so three of
+ * them always fit the server's 3 MB per-draft cap. These become real email
+ * attachments, so the edge stays larger than the chat-only surfaces.
+ */
+const DRAFT_IMAGE_FIT = { maxBytes: 1_000_000, maxEdge: 2560 }
 
 interface GmailReplyChatProps {
   initialPhase?: Phase
@@ -250,7 +238,6 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
   const [draftAttachments, setDraftAttachments] = useState<DraftImageAttachment[]>([])
   const draftAttachmentsRef = useRef<DraftImageAttachment[]>([])
   const pendingAttachmentCountRef = useRef(0)
-  const pendingAttachmentBytesRef = useRef(0)
   const attachmentGenerationRef = useRef(0)
   const [draftAttachmentError, setDraftAttachmentError] = useState<string | null>(null)
   const [originalEmailCollapsed, setOriginalEmailCollapsed] = useState(Boolean(persistedState?.originalEmailCollapsed))
@@ -402,7 +389,6 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
     setDraftAttachmentError(null)
 
     const selected = Array.from(files)
-    const selectedBytes = selected.reduce((sum, file) => sum + file.size, 0)
     const currentAttachments = draftAttachmentsRef.current
     if (currentAttachments.length + pendingAttachmentCountRef.current + selected.length > MAX_DRAFT_ATTACHMENTS) {
       setDraftAttachmentError(`Attach up to ${MAX_DRAFT_ATTACHMENTS} images.`)
@@ -413,37 +399,23 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
       setDraftAttachmentError('Attachments must be PNG, JPEG, GIF, or WebP images.')
       return
     }
-    const oversized = selected.find((file) => file.size > MAX_DRAFT_ATTACHMENT_BYTES)
-    if (oversized) {
-      setDraftAttachmentError(`${oversized.name} is too large. Use images up to 3 MB.`)
-      return
-    }
-    const currentBytes = currentAttachments.reduce((sum, attachment) => sum + attachment.size, 0)
-    if (currentBytes + pendingAttachmentBytesRef.current + selectedBytes > MAX_DRAFT_ATTACHMENTS_TOTAL_BYTES) {
-      setDraftAttachmentError('Attachments can total up to 3 MB per draft.')
-      return
-    }
 
     const generation = attachmentGenerationRef.current
     pendingAttachmentCountRef.current += selected.length
-    pendingAttachmentBytesRef.current += selectedBytes
     try {
-      const encoded = await Promise.all(selected.map(async (file): Promise<DraftImageAttachment> => ({
-        name: file.name,
-        mediaType: file.type as DraftImageAttachment['mediaType'],
-        data: await readFileAsBase64(file),
-        size: file.size,
-      })))
+      const encoded = await Promise.all(selected.map(async (file): Promise<DraftImageAttachment> => {
+        const result = await fitImageForChat(file, file.name || 'image', DRAFT_IMAGE_FIT)
+        if (!result.ok) throw new Error(result.error)
+        return result.value
+      }))
       if (generation !== attachmentGenerationRef.current) return
       pendingAttachmentCountRef.current -= selected.length
-      pendingAttachmentBytesRef.current -= selectedBytes
       const next = [...draftAttachmentsRef.current, ...encoded]
       draftAttachmentsRef.current = next
       setDraftAttachments(next)
     } catch (error) {
       if (generation !== attachmentGenerationRef.current) return
       pendingAttachmentCountRef.current -= selected.length
-      pendingAttachmentBytesRef.current -= selectedBytes
       setDraftAttachmentError(error instanceof Error ? error.message : 'Could not read the selected image.')
     }
   }, [])
@@ -458,7 +430,6 @@ export default function GmailReplyChat({ initialPhase = 'compose', initialSummar
   const clearDraftAttachments = useCallback(() => {
     attachmentGenerationRef.current += 1
     pendingAttachmentCountRef.current = 0
-    pendingAttachmentBytesRef.current = 0
     draftAttachmentsRef.current = []
     setDraftAttachments([])
     setDraftAttachmentError(null)

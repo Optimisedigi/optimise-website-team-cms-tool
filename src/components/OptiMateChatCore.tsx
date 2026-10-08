@@ -53,6 +53,7 @@ import OptiMateToolsHelp from './OptiMateToolsHelp'
 import OptiMateVoice from './OptiMateVoice'
 import OptiMateTranscribe from './OptiMateTranscribe'
 import { isVoiceEnabled } from '@/lib/realtime/token-provider'
+import { fitImageForChat } from './chat-image-fit'
 import {
   GOOGLE_MATE_PARITY_QUERY,
   summarizeForDevTrace,
@@ -183,9 +184,9 @@ interface ChatSession {
   turnCount: number
 }
 
-const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const MAX_IMAGE_ATTACHMENTS = 3
-const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024
+/** Any size can be dropped; bigger images are shrunk in the browser to fit the request. */
+const IMAGE_FIT = { maxBytes: 1_000_000, maxEdge: 1568 }
 
 const MONTHLY_EMAIL_COMPONENT_CHIPS = [
   { key: 'keyword_relevancy', label: 'Keyword Relevancy' },
@@ -1402,33 +1403,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       sendMessage(synthetic)
     }
 
-    const readImageAttachment = (file: File, nameOverride?: string): Promise<ImageAttachment> =>
-      new Promise((resolve, reject) => {
-        if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
-          reject(
-            new Error(`${file.name} is not a supported image type. Use PNG, JPEG, GIF, or WebP.`),
-          )
-          return
-        }
-        if (file.size > MAX_IMAGE_ATTACHMENT_BYTES) {
-          reject(new Error(`${file.name} is too large. Use images up to 5 MB.`))
-          return
-        }
-        const reader = new FileReader()
-        reader.onerror = () => reject(new Error(`Could not read ${file.name}`))
-        reader.onload = () => {
-          const result = typeof reader.result === 'string' ? reader.result : ''
-          const comma = result.indexOf(',')
-          const data = comma >= 0 ? result.slice(comma + 1) : result
-          resolve({
-            name: nameOverride || file.name || 'pasted-image',
-            mediaType: file.type as ImageAttachment['mediaType'],
-            data,
-            size: file.size,
-          })
-        }
-        reader.readAsDataURL(file)
-      })
+    const readImageAttachment = async (file: File, nameOverride?: string): Promise<ImageAttachment> => {
+      const result = await fitImageForChat(file, nameOverride || file.name || 'pasted-image', IMAGE_FIT)
+      if (!result.ok) throw new Error(result.error)
+      return result.value
+    }
 
     const handleImageFiles = useCallback(
       async (files: FileList | File[] | null, options?: { pasted?: boolean }) => {
