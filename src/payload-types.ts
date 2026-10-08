@@ -15796,9 +15796,9 @@ export interface OptimateSetting {
    * Model the OptiMate chat picker defaults to, and the model used when a chat request doesn't pick one. Users can still switch models per-conversation.
    */
   defaultChatModel:
-    | 'claude-sonnet-5'
+    | 'claude-sonnet-5.5'
     | 'claude-opus-5.5'
-    | 'claude-haiku-4.5'
+    | 'claude-haiku-5.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
     | 'minimax-m3'
@@ -15813,9 +15813,9 @@ export interface OptimateSetting {
    * Model used for unattended Google Ads runs (scheduled tasks, cron) where no human picks a model.
    */
   defaultAutonomousModel:
-    | 'claude-sonnet-5'
+    | 'claude-sonnet-5.5'
     | 'claude-opus-5.5'
-    | 'claude-haiku-4.5'
+    | 'claude-haiku-5.5'
     | 'kimi-k3'
     | 'kimi-for-coding'
     | 'minimax-m3'
@@ -15831,9 +15831,9 @@ export interface OptimateSetting {
    */
   blogPrompterModel?:
     | (
-        | 'claude-sonnet-5'
+        | 'claude-sonnet-5.5'
         | 'claude-opus-5.5'
-        | 'claude-haiku-4.5'
+        | 'claude-haiku-5.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
@@ -15851,9 +15851,9 @@ export interface OptimateSetting {
    */
   invoiceAssistantModel?:
     | (
-        | 'claude-sonnet-5'
+        | 'claude-sonnet-5.5'
         | 'claude-opus-5.5'
-        | 'claude-haiku-4.5'
+        | 'claude-haiku-5.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
@@ -15871,9 +15871,9 @@ export interface OptimateSetting {
    */
   emailAssistantModel?:
     | (
-        | 'claude-sonnet-5'
+        | 'claude-sonnet-5.5'
         | 'claude-opus-5.5'
-        | 'claude-haiku-4.5'
+        | 'claude-haiku-5.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
@@ -15891,9 +15891,9 @@ export interface OptimateSetting {
    */
   searchTermResearchModel?:
     | (
-        | 'claude-sonnet-5'
+        | 'claude-sonnet-5.5'
         | 'claude-opus-5.5'
-        | 'claude-haiku-4.5'
+        | 'claude-haiku-5.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'
@@ -15911,9 +15911,9 @@ export interface OptimateSetting {
    */
   negativeSweepModel?:
     | (
-        | 'claude-sonnet-5'
+        | 'claude-sonnet-5.5'
         | 'claude-opus-5.5'
-        | 'claude-haiku-4.5'
+        | 'claude-haiku-5.5'
         | 'kimi-k3'
         | 'kimi-for-coding'
         | 'minimax-m3'

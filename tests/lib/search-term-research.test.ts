@@ -193,21 +193,21 @@ describe("researchSearchTerms", () => {
     expect(mockCallLLM).toHaveBeenCalledTimes(1);
     const opts = mockCallLLM.mock.calls[0][0];
     expect(opts.model).toBe("minimax-m3");
-    expect(opts.fallbackModels).toEqual(["claude-sonnet-5", "minimax-m3"]);
+    expect(opts.fallbackModels).toEqual(["claude-sonnet-5.5", "minimax-m3"]);
   });
 
   it("uses the configured Research Terms model but keeps the fallback chain", async () => {
     mockGetOptiMateDefaultModels.mockResolvedValue({
       defaultAutonomousModel: "minimax-m3",
-      searchTermResearchModel: "claude-haiku-4.5",
+      searchTermResearchModel: "claude-haiku-5.5",
     });
     routeFetch({});
 
     const { researchSearchTerms } = await importModule();
     await researchSearchTerms(["acme"]);
 
-    expect(mockCallLLM.mock.calls[0][0]).toMatchObject({ model: "claude-haiku-4.5" });
-    expect(mockCallLLM.mock.calls[0][0].fallbackModels).toEqual(["claude-sonnet-5", "minimax-m3"]);
+    expect(mockCallLLM.mock.calls[0][0]).toMatchObject({ model: "claude-haiku-5.5" });
+    expect(mockCallLLM.mock.calls[0][0].fallbackModels).toEqual(["claude-sonnet-5.5", "minimax-m3"]);
   });
 
   it("(5) duplicate / whitespace / empty input terms are deduped before grounding", async () => {

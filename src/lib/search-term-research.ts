@@ -27,7 +27,7 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
 // Resilient fallback chain. Applied whichever model is selected: a task-specific
 // pick expresses a preference, not a reason to return "no summary available"
 // when that one provider is rate-limited or out of credit.
-const FALLBACK_MODELS = ['claude-sonnet-5', 'minimax-m3']
+const FALLBACK_MODELS = ['claude-sonnet-5.5', 'minimax-m3']
 
 // Summarise in small chunks. One 60-term request overflows the 4k output budget
 // mid-array, so the reply has no closing bracket and the whole batch is lost to

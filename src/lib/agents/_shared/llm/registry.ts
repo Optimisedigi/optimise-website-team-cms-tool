@@ -13,7 +13,8 @@
  * Adding a new model is one line here. Adding a new provider needs a new
  * entry in PROVIDER_CONFIG plus a new adapter under providers/.
  *
- * Last reviewed: 2026-09-30 (Kimi K2 series deprecates 2026-05-25).
+ * Last reviewed: 2026-10-08 (added Claude Sonnet 5.5 / Haiku 5.5 and Kimi K2.7 Code;
+ * Kimi K2 series deprecates 2026-05-25).
  */
 /**
  * Reasoning-effort levels for the GPT-5.5-class models served over the Codex
@@ -26,20 +27,24 @@ export const MODEL_REGISTRY = {
   // Anthropic (native API). All connect via OAuth (Claude Code client
   // impersonation) when ANTHROPIC OAuth is connected; otherwise via
   // ANTHROPIC_API_KEY when explicitly selected by the user.
+  "claude-sonnet-5.5": { provider: "anthropic", model: "claude-sonnet-5-5" },
+  // Sonnet 5 stays for stored selections (retired from the picker).
   "claude-sonnet-5": { provider: "anthropic", model: "claude-sonnet-5" },
   // Sonnet 4.6 / 4.5 stay as names for old stored selections but now run the
   // most recent Sonnet.
-  "claude-sonnet-4.6": { provider: "anthropic", model: "claude-sonnet-5" },
-  "claude-sonnet-4.5": { provider: "anthropic", model: "claude-sonnet-5" },
+  "claude-sonnet-4.6": { provider: "anthropic", model: "claude-sonnet-5-5" },
+  "claude-sonnet-4.5": { provider: "anthropic", model: "claude-sonnet-5-5" },
   "claude-opus-5.5": { provider: "anthropic", model: "claude-opus-5-5" },
   "claude-opus-5": { provider: "anthropic", model: "claude-opus-5" },
   "claude-opus-4-8": { provider: "anthropic", model: "claude-opus-4-8" },
   "claude-opus-4.7": { provider: "anthropic", model: "claude-opus-4-7" },
+  "claude-haiku-5.5": { provider: "anthropic", model: "claude-haiku-5-5" },
   "claude-haiku-4.5": { provider: "anthropic", model: "claude-haiku-4-5" },
 
   // Moonshot / Kimi (OpenAI-compatible, billed API-key path). Retired from the
   // chat/settings picker but kept here so stored selections and the autonomous
   // failover chain still resolve.
+  "kimi-k2.7-code": { provider: "moonshot", model: "kimi-k2.7-code" },
   "kimi-k2.6": { provider: "moonshot", model: "kimi-k2.6" },
 
   // Kimi via the official kimi-cli device-code OAuth flow. Uses the user's Kimi
@@ -223,12 +228,12 @@ export function isCanonicalModel(name: string): name is CanonicalModelName {
 
 /**
  * Default model when a chat session starts (sticky until the user picks
- * something else). Sonnet 5 is Anthropic's current best Sonnet — the retired
- * Sonnet 4.6 / 4.5 names run Sonnet 5 too — and connects via OAuth (Claude
+ * something else). Sonnet 5.5 is Anthropic's current best Sonnet — the retired
+ * Sonnet 4.6 / 4.5 names run Sonnet 5.5 too — and connects via OAuth (Claude
  * Code client impersonation), drawing from the agency's $150/mo Max plan
  * rather than billed API.
  */
-export const DEFAULT_CHAT_MODEL: CanonicalModelName = "claude-sonnet-5";
+export const DEFAULT_CHAT_MODEL: CanonicalModelName = "claude-sonnet-5.5";
 
 /**
  * Default fallback chain for autonomous (non-chat) agent runs. Kept separate
@@ -238,7 +243,7 @@ export const DEFAULT_CHAT_MODEL: CanonicalModelName = "claude-sonnet-5";
 export const DEFAULT_AUTONOMOUS_MODEL: CanonicalModelName = "kimi-k3";
 export const DEFAULT_AUTONOMOUS_FALLBACKS: CanonicalModelName[] = [
   "kimi-k3",
-  "claude-sonnet-5",
+  "claude-sonnet-5.5",
   "minimax-m3",
 ];
 
@@ -260,9 +265,9 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
    */
   requiresReasoning?: boolean;
 }> = [
-  { canonical: "claude-sonnet-5", label: "Claude Sonnet 5 (OAuth)", hint: "Default. Best brand voice, free via Claude Max." },
+  { canonical: "claude-sonnet-5.5", label: "Claude Sonnet 5.5 (OAuth)", hint: "Default. Best brand voice, free via Claude Max." },
   { canonical: "claude-opus-5.5", label: "Claude Opus 5.5 (OAuth)", hint: "Latest Opus. Adaptive thinking is always on." },
-  { canonical: "claude-haiku-4.5", label: "Claude Haiku 4.5 (OAuth)", hint: "Fastest Claude. Latest Haiku." },
+  { canonical: "claude-haiku-5.5", label: "Claude Haiku 5.5 (OAuth)", hint: "Fastest Claude. Latest Haiku." },
   { canonical: "kimi-k3", label: "Kimi K3 (Kimi OAuth)", hint: "Kimi's flagship. Long-horizon coding, up to 1M context. Default for autonomous runs. Reasoning is always on for K3. No API tokens billed.", requiresReasoning: true },
   { canonical: "kimi-for-coding", label: "Kimi For Coding (Kimi OAuth)", hint: "Kimi K2.7 Code via device-code OAuth. No API tokens billed." },
   { canonical: "minimax-m3", label: "MiniMax M3", hint: "Latest MiniMax fallback for agentic workflows." },

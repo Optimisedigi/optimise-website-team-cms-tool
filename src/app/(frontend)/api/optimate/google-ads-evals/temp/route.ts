@@ -12,9 +12,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const DEFAULT_MODELS: CanonicalModelName[] = [
-  "claude-sonnet-5",
+  "claude-sonnet-5.5",
   "claude-opus-5",
-  "claude-haiku-4.5",
+  "claude-haiku-5.5",
   "minimax-m3",
 ];
 

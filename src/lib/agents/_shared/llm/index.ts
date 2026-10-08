@@ -4,7 +4,7 @@
  * recoverable errors.
  *
  *   const response = await callLLM({
- *     model: 'claude-sonnet-5',
+ *     model: 'claude-sonnet-5.5',
  *     fallbackModels: ['kimi-k3', 'minimax-m3'],
  *     system: '...',
  *     messages: [...],

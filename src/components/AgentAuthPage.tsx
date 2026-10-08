@@ -715,11 +715,11 @@ export default function AgentAuthPage() {
           Sends a 1-token "ok" prompt to the chosen model and reports the credential source that served it.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button onClick={() => handleProbe("claude-sonnet-5")} style={ghostButtonStyle}>
-            Probe Sonnet 5 (OAuth)
+          <button onClick={() => handleProbe("claude-sonnet-5.5")} style={ghostButtonStyle}>
+            Probe Sonnet 5.5 (OAuth)
           </button>
-          <button onClick={() => handleProbe("claude-haiku-4.5")} style={ghostButtonStyle}>
-            Probe Haiku 4.5 (OAuth)
+          <button onClick={() => handleProbe("claude-haiku-5.5")} style={ghostButtonStyle}>
+            Probe Haiku 5.5 (OAuth)
           </button>
           <button onClick={() => handleProbe("kimi-for-coding")} style={ghostButtonStyle}>
             Probe Kimi For Coding (OAuth)

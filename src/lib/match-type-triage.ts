@@ -23,7 +23,7 @@
 import { callLLM } from '@/lib/agents/_shared/llm'
 import { getOptiMateDefaultModels } from '@/lib/agents/_shared/optimate-default-models'
 
-const FALLBACK_MODELS = ['claude-sonnet-5', 'minimax-m3']
+const FALLBACK_MODELS = ['claude-sonnet-5.5', 'minimax-m3']
 
 // Each decision carries a reason sentence, so a full 60-row batch overflows the
 // output budget mid-array and the reply parses to nothing. Chunk it: one bad

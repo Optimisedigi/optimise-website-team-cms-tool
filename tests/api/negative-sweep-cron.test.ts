@@ -309,7 +309,7 @@ describe('GET /api/negative-sweep/cron', () => {
     expect(mockCallLLM).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'minimax-m3',
-        fallbackModels: ['claude-sonnet-5', 'kimi-k2.6'],
+        fallbackModels: ['claude-sonnet-5.5', 'kimi-k2.6'],
         temperature: 0.3,
         maxTokens: 4000,
       }),
@@ -370,7 +370,7 @@ describe('GET /api/negative-sweep/cron', () => {
   it('uses the configured Weekly Negative Sweep model without autonomous fallbacks', async () => {
     mockGetOptiMateDefaultModels.mockResolvedValue({
       defaultAutonomousModel: 'minimax-m3',
-      negativeSweepModel: 'claude-haiku-4.5',
+      negativeSweepModel: 'claude-haiku-5.5',
     })
     mockPayload.findByID.mockResolvedValue(mockClient)
     mockPayload.find.mockResolvedValue({ docs: [] })
@@ -384,7 +384,7 @@ describe('GET /api/negative-sweep/cron', () => {
     await GET(makeRequest({ clientId: '1', force: 'true' }))
 
     expect(mockCallLLM).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'claude-haiku-4.5' }),
+      expect.objectContaining({ model: 'claude-haiku-5.5' }),
     )
     expect(mockCallLLM.mock.calls[0][0].fallbackModels).toBeUndefined()
   })

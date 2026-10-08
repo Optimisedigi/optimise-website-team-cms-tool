@@ -58,9 +58,9 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.defaultChatModel).toBe("gpt-6-sol");
     expect(result.defaultAutonomousModel).toBe("minimax-m3");
     expect(result.emailAssistantModel).toBe("claude-opus-5.5");
-    expect(result.blogPrompterModel).toBe("claude-sonnet-5");
+    expect(result.blogPrompterModel).toBe("claude-sonnet-5.5");
     expect(result.searchTermResearchModel).toBe("kimi-k3");
-    expect(result.negativeSweepModel).toBe("claude-haiku-4.5");
+    expect(result.negativeSweepModel).toBe("claude-haiku-5.5");
     expect(result.blogImageGenerationModel).toBe("custom-imagen");
     expect(result.voiceRealtimeModel).toBe("gpt-realtime-2");
   });
@@ -75,8 +75,10 @@ describe("getOptiMateDefaultModels", () => {
     ["gpt-5.6-terra", "gpt-6-sol"],
     ["gpt-5.6-luna", "gpt-6-luna"],
     ["grok-4.5", "grok-4.6"],
-    ["claude-sonnet-4.6", "claude-sonnet-5"],
-    ["claude-sonnet-4.5", "claude-sonnet-5"],
+    ["claude-sonnet-5", "claude-sonnet-5.5"],
+    ["claude-sonnet-4.6", "claude-sonnet-5.5"],
+    ["claude-sonnet-4.5", "claude-sonnet-5.5"],
+    ["claude-haiku-4.5", "claude-haiku-5.5"],
   ])("keeps saved retired selection %s on %s", async (stored, expected) => {
     nextGlobal = { defaultChatModel: stored };
     expect((await getOptiMateDefaultModels()).defaultChatModel).toBe(expected);
@@ -148,12 +150,12 @@ describe("getOptiMateDefaultModels", () => {
 
   it("uses a caller-supplied payload instance without calling getPayload", async () => {
     nextGlobal = {
-      defaultChatModel: "claude-haiku-4.5",
+      defaultChatModel: "claude-haiku-5.5",
       defaultAutonomousModel: "kimi-k2.6",
     };
     const override = { findGlobal: findGlobalImpl } as never;
     const result = await getOptiMateDefaultModels(override);
-    expect(result.defaultChatModel).toBe("claude-haiku-4.5");
+    expect(result.defaultChatModel).toBe("claude-haiku-5.5");
     expect(getPayloadImpl).not.toHaveBeenCalled();
   });
 });

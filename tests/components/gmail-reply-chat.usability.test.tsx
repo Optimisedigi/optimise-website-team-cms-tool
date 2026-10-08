@@ -637,7 +637,7 @@ describe('GmailReplyChat usability smoke', () => {
   it('supports search → pick email → chat through reply → save threaded draft', async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === '/api/optimate/default-model') {
-        return jsonResponse({ emailAssistantModel: 'claude-sonnet-5' })
+        return jsonResponse({ emailAssistantModel: 'claude-sonnet-5.5' })
       }
       if (url === '/api/gmail/status') {
         return jsonResponse({ connected: true, email: 'user@example.com' })
@@ -673,7 +673,7 @@ describe('GmailReplyChat usability smoke', () => {
         expect(request).toMatchObject({
           prompt: 'Be warm and explain the next step.',
           mode: 'reply',
-          model: 'claude-sonnet-5',
+          model: 'claude-sonnet-5.5',
         })
         return jsonResponse({ enhancedPrompt: 'Draft a warm reply that clearly explains the next step.' })
       }
@@ -683,7 +683,7 @@ describe('GmailReplyChat usability smoke', () => {
         return jsonResponse({
           reply: 'I’ve staged the reply below.',
           stagedEmailReply: { body: 'Hi Client,\n\nThe next step is to review the proposal together.' },
-          modelUsed: 'claude-sonnet-5',
+          modelUsed: 'claude-sonnet-5.5',
         })
       }
       if (url === '/api/gmail/draft') {
@@ -780,14 +780,14 @@ describe('GmailReplyChat usability smoke', () => {
 
   it('enhances a draft instruction in place without sending it to GmailMate', async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-5' })
+      if (url === '/api/optimate/default-model') return jsonResponse({ emailAssistantModel: 'claude-sonnet-5.5' })
       if (url === '/api/gmail/status') return jsonResponse({ connected: true, email: 'user@example.com' })
       if (url === '/api/optimate/email/enhance') {
         const request = JSON.parse(String(init?.body))
         expect(request).toMatchObject({
           prompt: 'thank sarah for the report',
           mode: 'draft',
-          model: 'claude-sonnet-5',
+          model: 'claude-sonnet-5.5',
         })
         return jsonResponse({ enhancedPrompt: 'Draft a concise email thanking Sarah for the report.' })
       }
