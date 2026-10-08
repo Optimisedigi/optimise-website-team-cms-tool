@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
 import { meetingSchedulerClientId } from "../lib/meeting-scheduler-client";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { parseMeetingAvailability, slotsFromAvailability } from "../lib/meeting-availability";
 
 export const MeetingSchedulers: CollectionConfig = {
   slug: "meeting-schedulers",
@@ -27,6 +28,37 @@ export const MeetingSchedulers: CollectionConfig = {
   hooks: {
     beforeChange: [
       async ({ data, operation, originalDoc }) => {
+        // The availability grid is the source of truth for new schedulers: when
+        // it (or the duration) changes, re-derive the meeting times offered to
+        // attendees. Unchanged saves keep generatedSlots as-is, so later
+        // re-saves never invalidate times attendees already picked.
+        if (data && data.availability !== undefined && data.availability !== null) {
+          const availability = parseMeetingAvailability(data.availability);
+          const duration = String(data.durationMinutes ?? (originalDoc as any)?.durationMinutes ?? "30");
+          const changed =
+            operation === "create" ||
+            JSON.stringify(availability) !==
+              JSON.stringify(parseMeetingAvailability((originalDoc as any)?.availability)) ||
+            duration !== String((originalDoc as any)?.durationMinutes ?? "30") ||
+            (data.timezone !== undefined && data.timezone !== (originalDoc as any)?.timezone);
+          if (availability && changed) {
+            const timezone = String(data.timezone || (originalDoc as any)?.timezone || "Australia/Sydney");
+            data.availability = availability;
+            data.generatedSlots = slotsFromAvailability(
+              availability,
+              Number.parseInt(duration, 10) || 30,
+              timezone,
+              new Date()
+            );
+            data.slotsGeneratedAt = new Date().toISOString();
+            data.dateRangeStart = `${availability.rangeStart}T00:00:00.000Z`;
+            data.dateRangeEnd = `${availability.rangeEnd}T00:00:00.000Z`;
+            // Favourites replace the old per-date preferred times.
+            data.dateOverrides = [];
+            const status = data.status ?? (originalDoc as any)?.status ?? "draft";
+            if (status === "draft" && data.generatedSlots.length > 0) data.status = "slots_generated";
+          }
+        }
         // Derive dateRangeStart/End from the dateOverrides (now the single
         // source of truth) so the freebusy time-window query has bounds.
         const overrides = (data as any)?.dateOverrides;
@@ -101,20 +133,10 @@ export const MeetingSchedulers: CollectionConfig = {
       type: "row",
       fields: [
         {
-          name: "generateSlotsButton",
-          type: "ui",
-          admin: {
-            width: "33%",
-            components: {
-              Field: "./components/GenerateSlotsButton",
-            },
-          },
-        },
-        {
           name: "copyEmailButton",
           type: "ui",
           admin: {
-            width: "33%",
+            width: "50%",
             components: {
               Field: "./components/CopyScheduleEmailButton",
             },
@@ -124,7 +146,7 @@ export const MeetingSchedulers: CollectionConfig = {
           name: "sendInvitesButton",
           type: "ui",
           admin: {
-            width: "34%",
+            width: "50%",
             components: {
               Field: "./components/SendScheduleInvitesButton",
             },
@@ -202,7 +224,6 @@ export const MeetingSchedulers: CollectionConfig = {
                   defaultValue: "Australia/Sydney",
                   admin: {
                     description: "Timezone for slots",
-                    width: "50%",
                   },
                 },
                 {
@@ -210,8 +231,8 @@ export const MeetingSchedulers: CollectionConfig = {
                   type: "number",
                   defaultValue: 30,
                   admin: {
-                    description: "Slot interval (mins)",
-                    width: "50%",
+                    // The availability grid always works in 30-minute cells.
+                    hidden: true,
                   },
                 },
               ],
@@ -232,12 +253,21 @@ export const MeetingSchedulers: CollectionConfig = {
               admin: { hidden: true },
             },
             {
+              // Legacy per-date windows and preferred times. Superseded by
+              // `availability`; kept so older schedulers still match in order.
               name: "dateOverrides",
               type: "json",
               defaultValue: [],
+              admin: { hidden: true },
+            },
+            {
+              // Date range, calendar-checked open times and favourites.
+              // Drives generatedSlots in the beforeChange hook.
+              name: "availability",
+              type: "json",
               admin: {
                 components: {
-                  Field: "./components/MeetingSchedulerDateOverrides",
+                  Field: "./components/MeetingSchedulerAvailabilityGrid",
                 },
               },
             },

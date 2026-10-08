@@ -8140,9 +8140,6 @@ export interface MeetingScheduler {
    * Timezone for slots
    */
   timezone?: string | null;
-  /**
-   * Slot interval (mins)
-   */
   slotIntervalMinutes?: number | null;
   dateRangeStart?: string | null;
   dateRangeEnd?: string | null;
@@ -8156,6 +8153,15 @@ export interface MeetingScheduler {
     | boolean
     | null;
   dateOverrides?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  availability?:
     | {
         [k: string]: unknown;
       }
@@ -13164,6 +13170,7 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
   dateRangeEnd?: T;
   daySchedule?: T;
   dateOverrides?: T;
+  availability?: T;
   businessHoursStart?: T;
   businessHoursEnd?: T;
   attendees?:

@@ -149,6 +149,30 @@ function jsDayInTz(ymd: string, timeZone: string): number {
   return map[wd] ?? 0;
 }
 
+/**
+ * Busy periods on the connected account's primary calendar between two
+ * instants, as ISO start/end pairs.
+ */
+export async function fetchBusyPeriods(
+  refreshToken: string,
+  timeMin: Date,
+  timeMax: Date,
+  timeZone: string
+): Promise<Array<{ start: string; end: string }>> {
+  const calendar = await getAuthenticatedCalendarClient(refreshToken);
+  const response = await calendar.freebusy.query({
+    requestBody: {
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      timeZone,
+      items: [{ id: "primary" }],
+    },
+  });
+  return (response.data.calendars?.primary?.busy ?? []).flatMap((period) =>
+    period.start && period.end ? [{ start: period.start, end: period.end }] : []
+  );
+}
+
 export async function fetchAvailableSlots(
   refreshToken: string,
   options: {

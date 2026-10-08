@@ -730,6 +730,16 @@ export async function runMigrations(
   // re-run never restores a link the user has since changed or cleared).
   // Runs before the marker short-circuit: production carries the marker.
   // Keep in sync with src/migrations/20261008_120000_meeting_scheduler_prospects.ts.
+  // Calendar-grid availability for meeting schedulers (2026-10-08). Additive
+  // nullable column, so it runs on every invocation before the marker
+  // short-circuit. Keep in sync with
+  // src/migrations/20261008_140000_meeting_scheduler_availability.ts.
+  async function addMeetingSchedulerAvailability(): Promise<void> {
+    if (!(await tableExists("meeting_schedulers"))) return;
+    if (await columnExists("meeting_schedulers", "availability")) return;
+    await run("meeting_schedulers.availability", "ALTER TABLE `meeting_schedulers` ADD `availability` text");
+  }
+
   async function addMeetingSchedulerProspects(): Promise<void> {
     for (const table of ["meeting_schedulers", "clients", "client_proposals", "payload_migrations"]) {
       if (!(await tableExists(table))) return;
@@ -829,6 +839,7 @@ export async function runMigrations(
     await addWatchtowerAndSiteHealthSchema();
     await addInThePictureSchema()
     await addMeetingSchedulerProspects();
+    await addMeetingSchedulerAvailability();
 
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the
@@ -3259,8 +3270,9 @@ export async function runMigrations(
     // Per-day availability schedule (JSON)
     await run("meeting_schedulers_day_schedule", "ALTER TABLE `meeting_schedulers` ADD `day_schedule` text");
     await run("meeting_schedulers_date_overrides", "ALTER TABLE `meeting_schedulers` ADD `date_overrides` text");
-    // Fresh databases: tables now exist, so the pre-short-circuit step can run.
+    // Fresh databases: tables now exist, so the pre-short-circuit steps can run.
     await addMeetingSchedulerProspects();
+    await addMeetingSchedulerAvailability();
   
     // Fix meeting_schedulers_attendees.id type from integer to text (Payload v3 uses 24-char hex IDs)
     await run("att_id_check", `SELECT type FROM pragma_table_info('meeting_schedulers_attendees') WHERE name='id'`);

@@ -136,11 +136,10 @@ import { default as default_c942878b95bb76e4edb6703d0af13ae3 } from '../../../co
 import { default as default_e5c235401c2506e52e0da17600621f37 } from '../../../components/ClientProcessWorksheet'
 import { default as default_f3192da0e1eaceb3549701f5cee70cf7 } from '../../../components/CreateProcessFromTemplate'
 import { default as default_03c19e26ded9f30117bc663c9fa87312 } from '../../../components/TeamTasksListView'
-import { default as default_971d902ea7bb079a9f85d3af6410683c } from '../../../components/GenerateSlotsButton'
 import { default as default_00616646d6161fbe87975107f4e83aa2 } from '../../../components/CopyScheduleEmailButton'
 import { default as default_0038b26ea788903db0f6afa6e94f619a } from '../../../components/SendScheduleInvitesButton'
 import { default as default_392e7f41a027f157fd32e33bbc1ae135 } from '../../../components/MeetingSchedulerInstructions'
-import { default as default_57f48a92bb6f9a2866ff1934c962fd56 } from '../../../components/MeetingSchedulerDateOverrides'
+import { default as default_36921b0881abc8bf40eee1028c93d80a } from '../../../components/MeetingSchedulerAvailabilityGrid'
 import { default as default_bc615a67c4e11c38db54a3bb23baf563 } from '../../../components/MeetingSchedulerAttendeesTable'
 import { default as default_b1a172dcaa4141cf8a8a49b72ea9569b } from '../../../components/ScheduleResponseStatus'
 import { default as default_2b563fa0e9b70d98b73119ee8b081564 } from '../../../components/MarkdownGuide'
@@ -378,11 +377,10 @@ export const importMap = {
   "./components/ClientProcessWorksheet#default": default_e5c235401c2506e52e0da17600621f37,
   "./components/CreateProcessFromTemplate#default": default_f3192da0e1eaceb3549701f5cee70cf7,
   "./components/TeamTasksListView#default": default_03c19e26ded9f30117bc663c9fa87312,
-  "./components/GenerateSlotsButton#default": default_971d902ea7bb079a9f85d3af6410683c,
   "./components/CopyScheduleEmailButton#default": default_00616646d6161fbe87975107f4e83aa2,
   "./components/SendScheduleInvitesButton#default": default_0038b26ea788903db0f6afa6e94f619a,
   "./components/MeetingSchedulerInstructions#default": default_392e7f41a027f157fd32e33bbc1ae135,
-  "./components/MeetingSchedulerDateOverrides#default": default_57f48a92bb6f9a2866ff1934c962fd56,
+  "./components/MeetingSchedulerAvailabilityGrid#default": default_36921b0881abc8bf40eee1028c93d80a,
   "./components/MeetingSchedulerAttendeesTable#default": default_bc615a67c4e11c38db54a3bb23baf563,
   "./components/ScheduleResponseStatus#default": default_b1a172dcaa4141cf8a8a49b72ea9569b,
   "./components/MarkdownGuide#default": default_2b563fa0e9b70d98b73119ee8b081564,

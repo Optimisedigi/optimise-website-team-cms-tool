@@ -11,6 +11,7 @@ import {
 } from "@/lib/schedule-email";
 import { logActivity } from "@/lib/activity-log";
 import { orderSlotsByPreference } from "@/lib/meeting-slot-preference";
+import { parseMeetingAvailability, rankSlotsByFavourites } from "@/lib/meeting-availability";
 import { notifyAdminsOfMeetingEvent } from "@/lib/meeting-scheduler-notify";
 import { meetingSchedulerClientId } from "@/lib/meeting-scheduler-client";
 
@@ -40,7 +41,9 @@ function findIntersection(
   attendees: any[],
   generatedSlots: string[],
   dateOverrides: any[] = [],
-  timezone = "Australia/Sydney"
+  timezone = "Australia/Sydney",
+  availability: unknown = null,
+  durationMinutes = 30
 ): string | null {
   const generatedSet = new Set(generatedSlots);
   const now = new Date();
@@ -53,7 +56,13 @@ function findIntersection(
 
   if (attendeeSlots.length === 0) return null;
 
-  const orderedSlots = orderSlotsByPreference(generatedSlots, dateOverrides, timezone);
+  // The admin's favourite times win first; preferred/chronological order breaks ties.
+  const orderedSlots = rankSlotsByFavourites(
+    orderSlotsByPreference(generatedSlots, dateOverrides, timezone),
+    parseMeetingAvailability(availability),
+    durationMinutes,
+    timezone
+  );
 
   // Find the first slot (in preference order) that every attendee selected
   for (const slot of orderedSlots) {
@@ -286,7 +295,9 @@ export async function POST(
           matchingSet,
           doc.generatedSlots || [],
           doc.dateOverrides || [],
-          doc.timezone || "Australia/Sydney"
+          doc.timezone || "Australia/Sydney",
+          doc.availability,
+          parseInt(doc.durationMinutes || "30", 10)
         )
       : null;
     newStatus = matchedSlot ? "confirmed" : "no_match";

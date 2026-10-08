@@ -112,6 +112,11 @@ export function validateStagedMeetingScheduler(raw: unknown): StagedMeetingSched
   if (input.dates.length > MAX_MEETING_DATES)
     throw new Error(`dates can have at most ${MAX_MEETING_DATES} rows`)
   const dates = input.dates.map(validateDate)
+  const sortedDates = dates.map((row) => row.date).sort()
+  const first = sortedDates[0]
+  const last = sortedDates[sortedDates.length - 1]
+  if (first && last && Date.parse(last) - Date.parse(first) > (MAX_MEETING_DATES - 1) * 86_400_000)
+    throw new Error(`dates must fall within ${MAX_MEETING_DATES} days of each other`)
 
   const rawAttendees = input.attendees ?? []
   if (!Array.isArray(rawAttendees)) throw new Error('attendees must be a list')

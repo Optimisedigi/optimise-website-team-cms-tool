@@ -1,6 +1,19 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import AvailabilityGrid, { GridLegend } from './AvailabilityGrid'
+import {
+  CELL_MINUTES,
+  cellKey,
+  cellsFromSlots,
+  clientGridFromSlots,
+  slotsFromSelectedCells,
+  type CellKey,
+} from '@/lib/meeting-availability'
+
+/** Days shown side by side before paging. */
+const DAYS_PER_PAGE_DESKTOP = 5
+const DAYS_PER_PAGE_MOBILE = 3
 
 interface MeetingData {
   title: string
@@ -67,69 +80,16 @@ function RocketSplash() {
   )
 }
 
-interface SlotsByDay {
-  dateKey: string
-  label: string
-  timezoneLabel: string
-  slots: { iso: string; timeLabel: string }[]
+function durationOf(data: Pick<MeetingData, 'durationMinutes'>): number {
+  return Number.parseInt(data.durationMinutes, 10) || 30
 }
 
-function getTimeZoneLabel(date: Date, timezone: string): string {
+function timeZoneLabel(timezone: string): string {
   const parts = new Intl.DateTimeFormat('en-AU', {
     timeZone: timezone,
     timeZoneName: 'short',
-  }).formatToParts(date)
+  }).formatToParts(new Date())
   return parts.find((part) => part.type === 'timeZoneName')?.value || timezone
-}
-
-function groupSlotsByDay(slots: string[], timezone: string): SlotsByDay[] {
-  const groups: Record<string, { iso: string; timeLabel: string }[]> = {}
-  const dateLabels: Record<string, string> = {}
-  const timezoneLabels: Record<string, string> = {}
-
-  for (const iso of slots) {
-    const d = new Date(iso)
-    // Skip past slots
-    if (d <= new Date()) continue
-
-    // Use ISO YYYY-MM-DD as the sort key so chronological order is correct.
-    const dateKey = new Intl.DateTimeFormat('en-CA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      timeZone: timezone,
-    }).format(d)
-    const label = d.toLocaleDateString('en-AU', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      timeZone: timezone,
-    })
-    const timeLabel = d.toLocaleTimeString('en-AU', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: timezone,
-    })
-
-    if (!groups[dateKey]) {
-      groups[dateKey] = []
-      dateLabels[dateKey] = label
-      timezoneLabels[dateKey] = getTimeZoneLabel(d, timezone)
-    }
-    groups[dateKey].push({ iso, timeLabel })
-  }
-
-  return Object.keys(groups)
-    .sort()
-    .map((dateKey) => ({
-      dateKey,
-      label: dateLabels[dateKey],
-      timezoneLabel: timezoneLabels[dateKey],
-      slots: groups[dateKey].sort(
-        (a, b) => new Date(a.iso).getTime() - new Date(b.iso).getTime()
-      ),
-    }))
 }
 
 type MeetingTopicBlock =
@@ -191,7 +151,10 @@ export default function ScheduleResponseClient({
   const [data, setData] = useState<MeetingData | null>(previewData || null)
   const [loading, setLoading] = useState(!previewData)
   const [error, setError] = useState<string | null>(null)
-  const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set())
+  // The attendee picks 30-minute cells; the meeting times they cover in full
+  // are what gets submitted.
+  const [selectedCells, setSelectedCells] = useState<Set<CellKey>>(new Set())
+  const [dayPage, setDayPage] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submittedResponse, setSubmittedResponse] = useState<'accepted' | 'maybe' | 'declined' | null>(null)
@@ -217,7 +180,9 @@ export default function ScheduleResponseClient({
       if (previewData.responded) {
         setSubmitted(true)
         setSubmittedResponse(previewData.response || 'accepted')
-        setSelectedSlots(new Set(previewData.selectedSlots))
+        setSelectedCells(
+          cellsFromSlots(previewData.selectedSlots, durationOf(previewData), previewData.timezone),
+        )
       }
       return
     }
@@ -232,44 +197,54 @@ export default function ScheduleResponseClient({
         if (d.responded) {
           setSubmitted(true)
           setSubmittedResponse(d.response || 'accepted')
-          setSelectedSlots(new Set(d.selectedSlots))
+          setSelectedCells(cellsFromSlots(d.selectedSlots, durationOf(d), d.timezone))
         }
       })
       .catch(() => setError('This scheduling link is not valid or has expired.'))
       .finally(() => setLoading(false))
   }, [token, previewData])
 
-  const dayGroups = useMemo(() => {
+  // Mounted-time clock so past times drop off; fixed per render pass.
+  const [now] = useState(() => new Date())
+  const gridDays = useMemo(() => {
     if (!data) return []
-    return groupSlotsByDay(data.generatedSlots, data.timezone)
-  }, [data])
+    return clientGridFromSlots(data.generatedSlots, durationOf(data), data.timezone, now)
+  }, [data, now])
 
-  const toggleSlot = (iso: string) => {
-    setSelectedSlots((prev) => {
-      const next = new Set(prev)
-      if (next.has(iso)) {
-        next.delete(iso)
-      } else {
-        next.add(iso)
-      }
-      return next
-    })
-  }
+  // Only the hours that hold free times, e.g. 9:00 am to 5:00 pm.
+  const gridRows = useMemo(() => {
+    const minutes = gridDays.flatMap((day) => [...day.open])
+    if (minutes.length === 0) return []
+    const rows: number[] = []
+    for (let m = Math.min(...minutes); m <= Math.max(...minutes); m += CELL_MINUTES) rows.push(m)
+    return rows
+  }, [gridDays])
 
-  const toggleDaySlots = (slots: { iso: string }[]) => {
-    setSelectedSlots((prev) => {
-      const next = new Set(prev)
-      const allSelected = slots.every((slot) => next.has(slot.iso))
-      for (const slot of slots) {
-        if (allSelected) {
-          next.delete(slot.iso)
-        } else {
-          next.add(slot.iso)
-        }
-      }
-      return next
-    })
-  }
+  const selectedSlots = useMemo(
+    () =>
+      data
+        ? new Set(
+            slotsFromSelectedCells(selectedCells, data.generatedSlots, durationOf(data), data.timezone),
+          )
+        : new Set<string>(),
+    [data, selectedCells],
+  )
+
+  const allOpenCells = useMemo(
+    () => gridDays.flatMap((day) => [...day.open].map((minutes) => cellKey(day.date, minutes))),
+    [gridDays],
+  )
+  const everythingSelected =
+    allOpenCells.length > 0 && allOpenCells.every((key) => selectedCells.has(key))
+
+  const daysPerPage = isMobile ? DAYS_PER_PAGE_MOBILE : DAYS_PER_PAGE_DESKTOP
+  const pageCount = Math.max(1, Math.ceil(gridDays.length / daysPerPage))
+  const page = Math.min(dayPage, pageCount - 1)
+  const pageDays = gridDays.slice(page * daysPerPage, page * daysPerPage + daysPerPage)
+  const openByDate = useMemo(
+    () => new Map(gridDays.map((day) => [day.date, day.open])),
+    [gridDays],
+  )
 
   const handleSubmit = async (response: 'accepted' | 'maybe' | 'declined') => {
     if (response !== 'declined' && selectedSlots.size === 0) return
@@ -485,7 +460,9 @@ export default function ScheduleResponseClient({
           <p style={styles.kicker}>Availability</p>
           <h3 style={styles.availabilityTitle}>Select your free calendar times</h3>
         </div>
-        <span style={styles.selectionCount}>{selectedSlots.size} selected</span>
+        <span style={styles.selectionCount}>
+          {selectedSlots.size} {selectedSlots.size === 1 ? 'time' : 'times'} selected
+        </span>
       </div>
       <p style={styles.instructions}>
         Once everyone has responded, we'll match availability and send a calendar invite for the first slot that works for all attendees.
@@ -509,48 +486,74 @@ export default function ScheduleResponseClient({
         </button>
       </div>
 
-      <div
-        style={{
-          ...styles.daysGrid,
-          gridTemplateColumns: dayGroups.length > 1 ? 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))' : '1fr',
-        }}
-      >
-        {dayGroups.map((group) => {
-          const allDaySlotsSelected = group.slots.every((slot) => selectedSlots.has(slot.iso))
+      <div style={{ ...styles.timeSection, ...(isMobile ? styles.mobileTimeSection : {}) }}>
+        <div style={styles.timeSectionHeader}>
+          <div style={styles.timeSectionTitleBlock}>
+            <p style={styles.timeSectionMeta}>
+              {isMobile ? 'Tap' : 'Click or drag across'} the free times that suit you.{' '}
+              {data.durationMinutes} min meeting ({timeZoneLabel(data.timezone)}).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedCells(everythingSelected ? new Set() : new Set(allOpenCells))}
+            style={styles.selectDayButton}
+          >
+            {everythingSelected ? 'Clear all' : 'Select all'}
+          </button>
+        </div>
 
-          return (
-            <div key={group.dateKey} style={{ ...styles.timeSection, ...(isMobile ? styles.mobileTimeSection : {}) }}>
-              <div style={styles.timeSectionHeader}>
-                <div style={styles.timeSectionTitleBlock}>
-                  <p style={styles.timeSectionLabel}>{group.label}</p>
-                  <p style={styles.timeSectionMeta}>{data.durationMinutes} min meeting ({group.timezoneLabel})</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => toggleDaySlots(group.slots)}
-                  style={styles.selectDayButton}
-                >
-                  {allDaySlotsSelected ? 'Clear all' : 'Select all'}
-                </button>
-              </div>
-              <div style={styles.timeGrid}>
-                {group.slots.map((slot) => (
-                  <button
-                    key={slot.iso}
-                    type="button"
-                    onClick={() => toggleSlot(slot.iso)}
-                    style={{
-                      ...styles.timeSlot,
-                      ...(selectedSlots.has(slot.iso) ? styles.timeSlotActive : {}),
-                    }}
-                  >
-                    {slot.timeLabel}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )
-        })}
+        {pageCount > 1 && (
+          <div style={styles.pageNav}>
+            <button
+              type="button"
+              aria-label="Earlier days"
+              disabled={page === 0}
+              onClick={() => setDayPage(page - 1)}
+              style={{ ...styles.pageButton, opacity: page === 0 ? 0.4 : 1 }}
+            >
+              ←
+            </button>
+            <span style={styles.pageLabel}>
+              Days {page * daysPerPage + 1}–{Math.min((page + 1) * daysPerPage, gridDays.length)} of{' '}
+              {gridDays.length}
+            </span>
+            <button
+              type="button"
+              aria-label="Later days"
+              disabled={page >= pageCount - 1}
+              onClick={() => setDayPage(page + 1)}
+              style={{ ...styles.pageButton, opacity: page >= pageCount - 1 ? 0.4 : 1 }}
+            >
+              →
+            </button>
+          </div>
+        )}
+
+        <AvailabilityGrid
+          ariaLabel="Free times to choose from"
+          days={pageDays.map((day) => ({ date: day.date }))}
+          isLocked={(date, minutes) => (openByDate.get(date)?.has(minutes) ? null : 'unavailable')}
+          onChange={setSelectedCells}
+          rows={gridRows}
+          selected={selectedCells}
+          selectedLabel="selected"
+          unselectedLabel="free"
+          variant="client"
+        />
+        <GridLegend
+          variant="client"
+          items={[
+            { label: 'Free', kind: 'free' },
+            { label: 'Selected', kind: 'selected' },
+            { label: 'Unavailable', kind: 'locked' },
+          ]}
+        />
+        {selectedCells.size > 0 && selectedSlots.size === 0 && (
+          <p style={styles.timeSectionMeta} role="status">
+            Select at least {data.durationMinutes} minutes in a row so the meeting fits.
+          </p>
+        )}
       </div>
     </section>
   )
@@ -842,10 +845,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     color: '#476788',
   },
-  daysGrid: {
-    display: 'grid',
+  pageNav: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: 10,
-    minWidth: 0,
+    margin: '0 0 8px',
+  },
+  pageButton: {
+    width: 32,
+    height: 32,
+    border: '1px solid #d4e0ed',
+    borderRadius: 999,
+    background: '#ffffff',
+    color: '#0b3558',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  pageLabel: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#476788',
   },
   timeSection: {
     minWidth: 0,
@@ -888,30 +909,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     fontWeight: 700,
     cursor: 'pointer',
-    boxShadow: '0 8px 16px rgba(0,107,255,0.18)',
-  },
-  timeGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(82px, 1fr))',
-    gap: 6,
-    minWidth: 0,
-  },
-  timeSlot: {
-    padding: '7px 8px',
-    border: '1px solid #d4e0ed',
-    borderRadius: 9,
-    background: '#ffffff',
-    color: '#0b3558',
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-    textAlign: 'center' as const,
-  },
-  timeSlotActive: {
-    border: '1px solid #006bff',
-    background: '#006bff',
-    color: '#ffffff',
     boxShadow: '0 8px 16px rgba(0,107,255,0.18)',
   },
   additionalAttendeeBox: {

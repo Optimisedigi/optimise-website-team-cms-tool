@@ -1,0 +1,183 @@
+/*
+ * Week grid ported from Cipher Health's "Calendar block times" panel
+ * (components/admin/practitioner-week-blackout-panel.tsx): the same 1px-gap
+ * columns, 24px rows, rounded cells, striped locked cells and thin dark
+ * weekend columns. Colours come from CSS variables so the client page can
+ * keep the Optimise Digital blue while the admin uses Cipher's sage green.
+ */
+
+.grid,
+.legend {
+  --ag-accent: #3f6b52;
+  --ag-accent-soft: rgba(63, 107, 82, 0.6);
+  --ag-accent-hover: rgba(63, 107, 82, 0.25);
+  --ag-ink: #16191b;
+  --ag-muted: #5d655f;
+  --ag-free: #f1f1ec;
+  --ag-free-hover: #e3e3dc;
+  --ag-favourite: #b8791f;
+  --ag-locked: repeating-linear-gradient(45deg, #e4e4df, #e4e4df 3px, #f4f4f1 3px, #f4f4f1 6px);
+  --ag-weekend: #c9c9c1;
+}
+
+.grid {
+  display: grid;
+  gap: 1px;
+  overflow-x: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: inherit;
+}
+
+/* The client page keeps the current scheduler's colours. */
+.client {
+  --ag-accent: #006bff;
+  --ag-accent-soft: #006bff;
+  --ag-accent-hover: rgba(0, 107, 255, 0.12);
+  --ag-ink: #0b3558;
+  --ag-muted: #476788;
+  --ag-free: #ffffff;
+  --ag-free-hover: #eaf2ff;
+  --ag-locked: repeating-linear-gradient(45deg, #e7edf6, #e7edf6 3px, #f8f9fb 3px, #f8f9fb 6px);
+}
+
+.client.grid {
+  gap: 3px;
+}
+
+.client .cell {
+  border-color: #d4e0ed;
+}
+
+.client .selected {
+  border-color: #006bff;
+}
+
+.client .locked {
+  border-color: transparent;
+}
+
+.client .swatch {
+  border: 1px solid #d4e0ed;
+}
+
+.corner {
+  font-size: 11px;
+}
+
+.dayHeader {
+  padding-bottom: 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ag-ink);
+  white-space: nowrap;
+}
+
+.weekendHeader {
+  padding-bottom: 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ag-muted);
+}
+
+.row {
+  display: contents;
+}
+
+.time {
+  padding-right: 8px;
+  text-align: right;
+  font-size: 11px;
+  line-height: 24px;
+  color: var(--ag-muted);
+  white-space: nowrap;
+}
+
+.cell {
+  position: relative;
+  height: 24px;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: var(--ag-free);
+  cursor: pointer;
+  transition: background-color 150ms;
+  font: inherit;
+}
+
+.client .cell {
+  height: 28px;
+  border-radius: 4px;
+}
+
+.cell:hover {
+  background: var(--ag-free-hover);
+}
+
+.cell:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ag-accent);
+}
+
+.selected,
+.selected:hover {
+  background: var(--ag-accent-soft);
+}
+
+.locked,
+.locked:hover {
+  background: var(--ag-locked);
+  cursor: not-allowed;
+}
+
+.favourite::after {
+  content: '★';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.35);
+}
+
+.favouriteMode .selected {
+  cursor: pointer;
+}
+
+.favouriteMode .cell:not(.selected):not(.locked) {
+  cursor: default;
+}
+
+.weekendCell {
+  border-radius: 2px;
+  background: var(--ag-weekend);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ag-muted);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  position: relative;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}

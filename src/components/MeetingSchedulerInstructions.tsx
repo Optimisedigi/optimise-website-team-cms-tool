@@ -51,19 +51,19 @@ export default function MeetingSchedulerInstructions() {
               and connect your Google account.
             </li>
             <li style={{ marginBottom: 6 }}>
-              <strong>Fill in the Setup tab</strong> — Enter the meeting title, select the client, choose a duration, and set the date range to check availability for.
+              <strong>Fill in the Setup tab</strong> — Enter the meeting title, select the client or prospect, and choose a duration.
             </li>
             <li style={{ marginBottom: 6 }}>
               <strong>Add attendees</strong> — Go to the Attendees tab and type names and emails in the table. Press <strong>Tab</strong> or <strong>Enter</strong> from the email field to add another row.
             </li>
             <li style={{ marginBottom: 6 }}>
-              <strong>Generate available slots</strong> — Go to the Availability &amp; Result tab and click the button. This checks your Google Calendar and finds open time slots.
+              <strong>Check available times</strong> — Pick a start and end date and press <strong>Check available times</strong>. Your free Google Calendar times show in a week grid, all ticked. Untick any you don't want to offer, star your favourite times (they're matched first), then <strong>Save</strong>.
             </li>
             <li style={{ marginBottom: 6 }}>
               <strong>Send scheduling invites</strong> — Go to the Actions tab and click Send. Each attendee gets an email with a unique link to pick their available times.
             </li>
             <li style={{ marginBottom: 6 }}>
-              <strong>Attendees pick times</strong> — They select which days work, then choose preferred times. One page, one click to confirm.
+              <strong>Attendees pick times</strong> — They tap or drag across the free times in a day-by-day grid; your busy times show as unavailable. One page, one click to confirm.
             </li>
             <li>
               <strong>Auto-booked</strong> — Once everyone responds, the system finds a common time and creates a Google Calendar event with all attendees. Everyone gets a confirmation email.
