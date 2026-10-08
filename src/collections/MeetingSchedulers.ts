@@ -73,13 +73,6 @@ export const MeetingSchedulers: CollectionConfig = {
             (data as any).dateRangeEnd = `${sorted[sorted.length - 1]}T00:00:00.000Z`;
           }
         }
-        try {
-          console.log(
-            `[meeting-schedulers beforeChange] op=${operation} id=${(originalDoc as any)?.id} ` +
-            `dataKeys=${Object.keys(data || {}).join(',')} ` +
-            `dateOverrides=${JSON.stringify((data as any)?.dateOverrides)?.slice(0, 500)}`
-          );
-        } catch {}
         const generatedSlots = Array.isArray(data?.generatedSlots)
           ? data.generatedSlots
           : Array.isArray((originalDoc as any)?.generatedSlots)

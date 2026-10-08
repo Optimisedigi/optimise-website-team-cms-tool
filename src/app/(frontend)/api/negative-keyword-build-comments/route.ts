@@ -168,7 +168,12 @@ export async function POST(req: NextRequest) {
               .map((m: any) => m.email)
               .filter(Boolean);
           }
-        } catch {}
+        } catch (lookupErr) {
+          console.warn(
+            "[negative-keyword-build-comments] Client lookup for notification recipients failed, using team fallback:",
+            lookupErr instanceof Error ? lookupErr.message : lookupErr,
+          );
+        }
       }
 
       if (!recipientEmails.length && TEAM_EMAIL) {
@@ -176,7 +181,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (POSTMARK_API_KEY && recipientEmails.length) {
-        await fetch("https://api.postmarkapp.com/email", {
+        const res = await fetch("https://api.postmarkapp.com/email", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -194,8 +199,24 @@ export async function POST(req: NextRequest) {
             MessageStream: "outbound",
           }),
         });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`Postmark ${res.status}: ${text}`);
+        }
+      } else {
+        console.warn(
+          `[negative-keyword-build-comments] Approval notification skipped for audit ${audit.id}: ${
+            POSTMARK_API_KEY ? "no recipient emails" : "POSTMARK_API_KEY not set"
+          }`,
+        );
       }
-    } catch {}
+    } catch (emailErr) {
+      // Approval itself is already saved; only the staff notification failed.
+      console.error(
+        `[negative-keyword-build-comments] Failed to send approval notification for audit ${audit.id}:`,
+        emailErr instanceof Error ? emailErr.message : emailErr,
+      );
+    }
 
     return NextResponse.json({ ok: true });
   }

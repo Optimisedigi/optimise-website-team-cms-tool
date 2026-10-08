@@ -13,6 +13,8 @@ export const maxDuration = 300;
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+// Set AUDIT_DEBUG=1 to log raw Growth Tools payload samples when diagnosing field-name drift.
+const AUDIT_DEBUG = process.env.AUDIT_DEBUG === "1";
 const AUDIT_TIMEOUT_SAFETY_MS = 45_000;
 const SEO_AUDIT_REQUEST_BUDGET_MS = 210_000;
 // Content research is best-effort (it is never validated in
@@ -411,8 +413,7 @@ export async function POST(
         const kw = kwResult.value;
         const kwData = kw.keywords || kw.results || kw;
         const kwArrayRaw = Array.isArray(kwData) ? kwData : [];
-        // Debug: log first keyword entry to identify field names from Growth Tools API
-        if (kwArrayRaw.length > 0) {
+        if (AUDIT_DEBUG && kwArrayRaw.length > 0) {
           console.log("[kw-debug] First keyword entry fields:", JSON.stringify(Object.keys(kwArrayRaw[0])), "sample:", JSON.stringify(kwArrayRaw[0]));
         }
         // Normalize field names — Growth Tools may return search_volume, volume, monthlySearches etc.
@@ -467,12 +468,13 @@ export async function POST(
     if (compResult.status === "fulfilled") {
       try {
         const comp = compResult.value;
-        // Debug: log the full structure of the first competitor to diagnose missing fields
         const firstComp = comp.competitors?.[0];
-        console.log(`[competitor-debug] API returned ${comp.competitors?.length ?? 0} competitors. Keys on response: ${Object.keys(comp).join(", ")}`);
-        if (firstComp) {
-          console.log(`[competitor-debug] First competitor keys: ${Object.keys(firstComp).join(", ")}`);
-          console.log(`[competitor-debug] ${firstComp.domain || firstComp.url || firstComp.website || "NO-DOMAIN"}: websiteScreenshot=${firstComp.websiteScreenshot ? 'YES (' + String(firstComp.websiteScreenshot).length + ' chars)' : 'NO'}, metaAds.adScreenshots=${firstComp.metaAds?.adScreenshots?.length ?? 0} items`);
+        if (AUDIT_DEBUG) {
+          console.log(`[competitor-debug] API returned ${comp.competitors?.length ?? 0} competitors. Keys on response: ${Object.keys(comp).join(", ")}`);
+          if (firstComp) {
+            console.log(`[competitor-debug] First competitor keys: ${Object.keys(firstComp).join(", ")}`);
+            console.log(`[competitor-debug] ${firstComp.domain || firstComp.url || firstComp.website || "NO-DOMAIN"}: websiteScreenshot=${firstComp.websiteScreenshot ? 'YES (' + String(firstComp.websiteScreenshot).length + ' chars)' : 'NO'}, metaAds.adScreenshots=${firstComp.metaAds?.adScreenshots?.length ?? 0} items`);
+          }
         }
         const created = await payload.create({
           collection: "competitor-analyses",

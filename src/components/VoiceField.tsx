@@ -84,7 +84,6 @@ export default function VoiceField({
     if (typeof window === 'undefined') return
 
     const hasAPI = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
-    console.log('Web Speech API supported:', hasAPI)
     setIsSupported(hasAPI)
   }, [])
 
@@ -115,9 +114,6 @@ export default function VoiceField({
       recognition.lang = 'en-AU' // Australian English
       recognition.maxAlternatives = 1
 
-      recognition.onstart = () => {
-        console.log('Web Speech started')
-      }
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         speechGotResultRef.current = true
@@ -143,7 +139,10 @@ export default function VoiceField({
       }
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.log('Speech recognition error:', event.error)
+        // 'no-speech' and 'aborted' are routine; anything else is worth surfacing in the console.
+        if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          console.error('[voice-field] Speech recognition error:', event.error)
+        }
         
         // Auto-restart on no-speech errors (not on manual stop)
         if (!isManualStopRef.current && event.error === 'no-speech') {
@@ -167,7 +166,6 @@ export default function VoiceField({
         // Auto-restart if we haven't exceeded max restarts
         if (restartCountRef.current < MAX_RESTARTS && recognitionRef.current === recognition) {
           restartCountRef.current++
-          console.log(`Recognition ended unexpectedly, restarting (${restartCountRef.current}/${MAX_RESTARTS})...`)
           setTimeout(() => {
             if (!isManualStopRef.current && recognitionRef.current === recognition) {
               try { recognition.start() } catch (e) { /* ignore */ }
@@ -202,7 +200,6 @@ export default function VoiceField({
 
     if (speechWorked && hasNewTranscript) {
       // Web Speech worked — use its results (free)
-      console.log('Using Web Speech API results')
       setRecordingState('idle')
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 1500)

@@ -1021,7 +1021,7 @@ export async function GET() {
       where: { stage: { equals: "client" } },
     });
     convertedLeadsCount = cl.totalDocs;
-  } catch {}
+  } catch { /* sales-leads collection optional; leave count at 0 */ }
   const totalLeadsReceived = Number(totalLeadsReceivedCount.totalDocs) || 0;
   const conversionRate = totalLeadsReceived > 0
     ? round((convertedLeadsCount / totalLeadsReceived) * 100)

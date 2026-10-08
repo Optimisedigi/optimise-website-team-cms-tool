@@ -30,6 +30,26 @@
         "Scope: src/ TypeScript/TSX with tests/ and scripts/ as reference targets; checks run were tsc --noEmit and vitest run (project's lint/typecheck/test commands)",
         "Not checked: no ESLint/Biome/knip/jscpd in repo so no AST-level dead-code/clone detection; dynamic imports/importMap.js string refs not resolved; scripts/, docs/, src/migrations/ bodies; no build run"
       ]
+    },
+    "errors-logging": {
+      "checkedAt": "2026-10-08T12:26:50.751Z",
+      "commit": "78474659",
+      "uncommittedChanges": true,
+      "result": "pass",
+      "summary": "All 7 findings fixed and re-verified: Postmark responses now checked in all 4 routes, approval-notification failures are logged, the contract-sign route returns a fixed client message, debug prints removed or env-gated, and no bare `catch {}` remains in shipped (non-migration) code.",
+      "findings": [],
+      "evidence": [
+        "No skill loaded (none applies to this item)",
+        "RUNTIME: npm run check (tsc --noEmit) — exit 0, no errors, after all edits",
+        "RUNTIME: npx vitest run tests/api tests/components tests/agents/google-ads-connectors-and-scripts.test.ts — 191 files / 1311 tests passed (standalone run after last edit)",
+        "RUNTIME: rg re-check — negative-keyword-build-comments: res.ok at :202, both catches log (:171, :213); ad-copy-comments: res.ok at :180; send-email + contract-reminders already checked response.ok",
+        "RUNTIME: rg re-check — contracts/sign/[token]/route.ts no longer embeds e.message in the JSON response; MeetingSchedulers.ts and VoiceField.tsx have 0 console.log; VoiceField :144 now console.error",
+        "RUNTIME: rg bare `catch {}` in src excl. migrations: 0; rg AUDIT_DEBUG in run-audits/route.ts: const at :17, both debug blocks gated at :416 and :472",
+        "CODE: edited 9 files — 2 Postmark routes, contracts/sign route, MeetingSchedulers, VoiceField, run-audits, dashboard route, ProcessTracker, PomodoroTimer, RunProposalCompetitorWorkflowButton",
+        "Scope: re-check of the 7 findings recorded earlier today for this item; src/ API routes, lib, collections, components",
+        "Not checked: full vitest suite not re-run (only api/components/affected agent tests); no ESLint/Biome no-console lint available",
+        "Not checked: the 1,041 comment-only catches and 289 .catch(() => ...) outside the 7 findings were not individually reviewed"
+      ]
     }
   }
 }

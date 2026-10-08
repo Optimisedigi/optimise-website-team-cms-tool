@@ -110,7 +110,7 @@ const RunProposalCompetitorWorkflowButton = () => {
         try {
           const data = await res.json()
           if (data.error) errorMsg = data.error
-        } catch {}
+        } catch { /* non-JSON error body; keep the status-code message */ }
         setError(errorMsg)
         setLoading(false)
         return

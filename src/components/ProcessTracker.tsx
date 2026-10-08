@@ -147,7 +147,7 @@ function EmailPreviewModal({
       await navigator.clipboard.writeText(text)
       setCopied(type)
       setTimeout(() => setCopied(null), 2000)
-    } catch {}
+    } catch { /* clipboard blocked (insecure context / permission); user can select and copy manually */ }
   }
 
   const copyHtmlForGmail = async () => {
@@ -177,7 +177,10 @@ function EmailPreviewModal({
       })
       setShared(true)
       setTimeout(onClose, 1500)
-    } catch {}
+    } catch (err) {
+      // Marking as shared is bookkeeping only; the copied content is already on the clipboard.
+      console.error('[process-tracker] Failed to mark process as shared:', err)
+    }
     setSharing(false)
   }
 

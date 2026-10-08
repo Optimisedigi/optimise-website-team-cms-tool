@@ -509,9 +509,10 @@ export async function POST(
       agencySignerName: updatedDoc.agencySignerName,
     });
   } catch (e: any) {
-    console.error("[sign-contract] Error:", e.message);
+    // Full detail stays server-side; the signer only needs to know it did not go through.
+    console.error("[sign-contract] Error:", e?.message ?? e);
     return NextResponse.json(
-      { error: `Failed to complete signing: ${e.message}` },
+      { error: "We couldn't complete the signing. Please try again or contact us if the problem continues." },
       { status: 500 },
     );
   }

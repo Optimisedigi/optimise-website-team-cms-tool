@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
 
       if (POSTMARK_API_KEY) {
         try {
-          await fetch("https://api.postmarkapp.com/email", {
+          const res = await fetch("https://api.postmarkapp.com/email", {
             method: "POST",
             headers: {
               Accept: "application/json",
@@ -177,6 +177,10 @@ export async function POST(req: NextRequest) {
               MessageStream: "outbound",
             }),
           });
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`Postmark ${res.status}: ${text}`);
+          }
           console.log(`[ad-copy-comments] Approval notification sent for ${audit.businessName}`);
         } catch (emailErr) {
           console.error("[ad-copy-comments] Failed to send approval notification:", emailErr);

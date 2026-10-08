@@ -38,7 +38,7 @@ interface TrackerPersist {
 }
 
 function saveTracker(data: TrackerPersist) {
-  try { localStorage.setItem(TRACKER_STORAGE_KEY, JSON.stringify(data)) } catch {}
+  try { localStorage.setItem(TRACKER_STORAGE_KEY, JSON.stringify(data)) } catch { /* storage unavailable or full; timer still works in-memory */ }
 }
 
 function loadTracker(): TrackerPersist | null {
@@ -49,7 +49,7 @@ function loadTracker(): TrackerPersist | null {
 }
 
 function clearTrackerStorage() {
-  try { localStorage.removeItem(TRACKER_STORAGE_KEY) } catch {}
+  try { localStorage.removeItem(TRACKER_STORAGE_KEY) } catch { /* storage unavailable */ }
 }
 
 /* ── Reminder thresholds (seconds) ── */
@@ -83,7 +83,7 @@ function playReminderBeep() {
     pew(t + 0.2)
 
     setTimeout(() => ctx.close(), 600)
-  } catch {}
+  } catch { /* AudioContext blocked until user gesture; skip the chime */ }
 }
 
 function formatTime(seconds: number): string {
