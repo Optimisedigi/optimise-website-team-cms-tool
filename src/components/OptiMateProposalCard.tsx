@@ -35,6 +35,9 @@ function typePill(proposalType: string): string {
   if (proposalType.startsWith('budget')) return proposalType.replace('budget-', 'Budget · ')
   if (proposalType.startsWith('ad-copy')) return proposalType.replace('ad-copy-', 'Ad copy · ')
   if (proposalType === 'negative-keywords') return 'NKL · legacy'
+  if (proposalType.endsWith('-goal-run-create')) {
+    return `${proposalType.replace('-goal-run-create', '').replace(/-/g, ' ')} goal`
+  }
   return proposalType
 }
 
@@ -47,7 +50,11 @@ function typePill(proposalType: string): string {
  * Both link to /admin/agent-approvals/[id] in a new tab — the canonical review
  * surface where Approve / Apply lives.
  */
-const OptiMateProposalCard = ({ proposal, variant = 'inline', onReject }: OptiMateProposalCardProps) => {
+const OptiMateProposalCard = ({
+  proposal,
+  variant = 'inline',
+  onReject,
+}: OptiMateProposalCardProps) => {
   const status = statusPalette(proposal.status)
   const isStrip = variant === 'strip'
   const [rejecting, setRejecting] = useState(false)
@@ -68,32 +75,102 @@ const OptiMateProposalCard = ({ proposal, variant = 'inline', onReject }: OptiMa
     }
   }
 
-  const wrapperStyle: CSSProperties = isStrip
-    ? {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '4px 6px',
-        background: '#fffbeb',
-        border: '1px solid #fde68a',
-        borderRadius: 999,
-        fontSize: 11,
-        whiteSpace: 'nowrap',
-        flexShrink: 1,
-        minWidth: 0,
-        maxWidth: '100%',
-      }
-    : {
-        marginTop: 6,
-        padding: '8px 10px',
-        background: '#fffbeb',
-        border: '1px solid #fde68a',
-        borderRadius: 8,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        fontSize: 12,
-      }
+  if (!isStrip) {
+    // Inline card sits inside the dark chat: dark surface, two stacked rows
+    // so the type label and title get the full width instead of being squeezed.
+    return (
+      <div
+        style={{
+          marginTop: 6,
+          padding: '10px 12px',
+          background: 'rgba(251, 191, 36, 0.08)',
+          border: '1px solid rgba(251, 191, 36, 0.35)',
+          borderRadius: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          fontSize: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+          <span
+            style={{
+              background: 'rgba(251, 191, 36, 0.16)',
+              color: '#fcd34d',
+              fontSize: 10,
+              fontWeight: 600,
+              padding: '3px 7px',
+              borderRadius: 4,
+              textTransform: 'capitalize',
+              maxWidth: '45%',
+              overflowWrap: 'anywhere',
+              lineHeight: 1.3,
+              flexShrink: 0,
+            }}
+          >
+            {typePill(proposal.proposalType)}
+          </span>
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontWeight: 500,
+              color: '#f3f4f6',
+              lineHeight: 1.4,
+            }}
+          >
+            {proposal.title}
+          </span>
+        </div>
+        <div
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+        >
+          <span
+            style={{
+              background: status.bg,
+              color: status.fg,
+              fontSize: 10,
+              fontWeight: 600,
+              padding: '2px 8px',
+              borderRadius: 999,
+              textTransform: 'capitalize',
+            }}
+          >
+            {proposal.status}
+          </span>
+          <a
+            href={`/admin/agent-approvals/${proposal.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#60a5fa',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: 12,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Open →
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  const wrapperStyle: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '4px 6px',
+    background: '#fffbeb',
+    border: '1px solid #fde68a',
+    borderRadius: 999,
+    fontSize: 11,
+    whiteSpace: 'nowrap',
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '100%',
+  }
 
   return (
     <div style={wrapperStyle}>
