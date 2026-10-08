@@ -56,6 +56,8 @@ interface ValidatedParameters {
   minRecipientConversions: number;
   maxTargetCpaUpliftPercent: number;
   maxTargetRoasReductionPercent: number;
+  /** Days the run keeps re-checking for opportunities before an empty tick completes it. */
+  runDurationDays: number;
   enabledLevers: LeverKey[];
   includedCampaignIds?: string[];
   excludedCampaignIds?: string[];
@@ -108,7 +110,12 @@ function validateCampaignIdList(raw: unknown, field: string): string[] | undefin
 }
 
 function validateEnabledLevers(raw: unknown): LeverKey[] {
-  if (raw === undefined || raw === null) return ["budget_shift"];
+  // Default to every implemented lever. Pause and bid-strategy levers always
+  // queue human approval through the risk-tier check, so a wider default
+  // can't auto-fire anything — it just means the agent looks harder.
+  // (Berendsen run #1 was created with the old budget_shift-only default
+  // and closed after one tick because that single rule found no match.)
+  if (raw === undefined || raw === null) return [...IMPLEMENTED_LEVERS];
   if (!Array.isArray(raw) || raw.length === 0) {
     throw new Error(
       "enabledLevers must be a non-empty array containing at least 'budget_shift'",
@@ -198,6 +205,7 @@ function validateParameters(raw: unknown): ValidatedParameters {
     minRecipientConversions: validateNumber(obj.minRecipientConversions, "minRecipientConversions", { min: 0, max: 1_000 }, 5),
     maxTargetCpaUpliftPercent: validateNumber(obj.maxTargetCpaUpliftPercent, "maxTargetCpaUpliftPercent", { min: 0, max: 100 }, 15),
     maxTargetRoasReductionPercent: validateNumber(obj.maxTargetRoasReductionPercent, "maxTargetRoasReductionPercent", { min: 0, max: 100 }, 10),
+    runDurationDays: validateNumber(obj.runDurationDays, "runDurationDays", { min: 1, max: 180 }, 42),
     enabledLevers: validateEnabledLevers(obj.enabledLevers),
     includedCampaignIds: validateCampaignIdList(obj.includedCampaignIds, "includedCampaignIds"),
     excludedCampaignIds: validateCampaignIdList(obj.excludedCampaignIds, "excludedCampaignIds"),
@@ -231,10 +239,14 @@ export const createAccountEfficiencyGoalRun: CanonicalTool<CreateAccountEfficien
           minRecipientConversions: { type: "number", description: "Conversions threshold a campaign needs to receive freed budget (default 5)." },
           maxTargetCpaUpliftPercent: { type: "number" },
           maxTargetRoasReductionPercent: { type: "number" },
+          runDurationDays: {
+            type: "number",
+            description: "How many days the run keeps re-checking daily for opportunities when nothing is actionable yet (default 42). The run only completes early if it actually makes changes and measures them.",
+          },
           enabledLevers: {
             type: "array",
             items: { type: "string", enum: [...ALL_LEVERS] },
-            description: "Which CPA-mode levers to enable. Pause and bid-strategy levers queue explicit approval.",
+            description: "Which CPA-mode levers to enable. Defaults to ALL levers. Pause and bid-strategy levers queue explicit approval, so leaving the default is safe.",
           },
           includedCampaignIds: { type: "array", items: { type: "string" }, description: "Optional allow-list of campaign ids." },
           excludedCampaignIds: { type: "array", items: { type: "string" }, description: "Optional deny-list of campaign ids." },

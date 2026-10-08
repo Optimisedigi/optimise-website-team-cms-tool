@@ -82,8 +82,9 @@ export function shouldRecordProgress(args: {
 
 export interface RunTimeline {
   startedAt: string;
-  /** End of the measurement cycle: start + measurementDays. */
+  /** End of the run horizon: start + horizonDays (runDurationDays). */
   cycleEndsAt: string;
+  /** Length of the horizon the bar spans, in days. */
   measurementDays: number;
   elapsedMs: number;
   remainingMs: number;
@@ -96,11 +97,12 @@ export function runTimeline(args: {
   createdAt: string;
   completedAt: string | null;
   status: string | null;
+  /** The run horizon (runDurationDays). */
   measurementDays: number;
   now: Date;
 }): RunTimeline {
   const start = new Date(args.createdAt).getTime();
-  const days = args.measurementDays > 0 ? args.measurementDays : 14;
+  const days = args.measurementDays > 0 ? args.measurementDays : 42;
   const end = start + days * 86_400_000;
   const isFinished = args.status === "complete" || args.status === "failed";
   const nowMs = args.now.getTime();

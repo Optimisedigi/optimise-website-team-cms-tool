@@ -1,12 +1,10 @@
 /**
  * Goal type: account-efficiency
  *
- * Improves account-wide CPA (and later ROAS) by pulling up to four levers in
- * concert. This module ships **Lever 1 only** — Budget shift between Google
- * Ads campaigns. Levers 2-5 (ad-group pause, keyword pause, bid adjust,
- * strategy alert) are scoped to later tasks; their detector functions and
- * `enabledLevers` filtering are intentionally absent here so that incomplete
- * code can't accidentally fire.
+ * Improves account-wide CPA (and later ROAS) by pulling up to five levers in
+ * concert: budget shift between campaigns, ad-group pause, keyword pause,
+ * bid adjust and strategy alert. Each lever is gated by `enabledLevers`; the
+ * pause / bid levers always queue human approval via the risk-tier check.
  *
  * Plan: .gg/plans/budget-reallocation-goal-agent.md
  * Reference handler: ./search-term-waste-reducer.ts
@@ -14,15 +12,19 @@
  * Lifecycle (mirrors the standard goal-runtime state machine):
  *
  *   awaiting_data → analysing → pending_approval → executing → measuring → complete
- *                         ↘ executing → measuring → complete   (when zero actionable proposals)
+ *                         ↘ analysing (loop: nothing actionable yet, re-check daily)
+ *                         ↘ executing → measuring → complete   (horizon reached, nothing actionable)
  *                                                           ↘ analysing (loop, partial_success)
  *
  * State-machine choice for the "no candidates" case:
- *   `analysing → complete` is NOT a legal transition. When the detector finds
- *   no actionable budget shift we walk `analysing → executing → measuring →
- *   complete` in a single tick by calling `markGoalRunStatus` three times.
- *   This is preferred over routing through `blocked`/`failed` because no human
- *   intervention is needed — a clean account is success, not a problem.
+ *   A run is a standing optimisation over `runDurationDays` (default 42),
+ *   not a one-shot scan — Google Ads data refreshes daily and a campaign
+ *   that doesn't qualify today may tomorrow. So when the detectors find
+ *   nothing we stay in `analysing`, record a no-op snapshot and re-check in
+ *   24h. Only once the horizon has elapsed with nothing to do is the run
+ *   walked `analysing → executing → measuring → complete` (`analysing →
+ *   complete` is not a legal transition). Completing rather than routing
+ *   through `blocked`/`failed` is deliberate: a clean account is success.
  *
  * Pure module: no LLM, no HTTP. All side-effects go through the injected
  * Payload instance and the apply-dispatcher. The pure detector + verdict
@@ -82,12 +84,25 @@ export interface GoalRunDoc {
   iterationsCount: number;
   coolingOffUntil?: string | null;
   nextCheckAt?: string | null;
+  /** Row creation time; anchors the `runDurationDays` horizon. */
+  createdAt?: string | null;
   /**
    * Per-run knobs supplied at create time. Stored as JSON on the goal-runs
    * row; shape validated lazily in `loadParameters()` with defaults filled
    * in for any missing key.
    */
   parameters?: Record<string, unknown> | null;
+}
+
+/** True once `createdAt + runDurationDays` has elapsed (or createdAt is unknown). */
+export function runHorizonReached(
+  goalRun: Pick<GoalRunDoc, "createdAt">,
+  parameters: Pick<AccountEfficiencyParameters, "runDurationDays">,
+  now: Date,
+): boolean {
+  const created = goalRun.createdAt ? new Date(goalRun.createdAt).getTime() : Number.NaN;
+  if (!Number.isFinite(created)) return true;
+  return now.getTime() - created >= parameters.runDurationDays * 24 * 60 * 60 * 1000;
 }
 
 export interface AccountEfficiencyContext {
@@ -147,10 +162,26 @@ export interface AccountEfficiencyParameters {
   minRecipientConversions: number;
   maxTargetCpaUpliftPercent: number;
   maxTargetRoasReductionPercent: number;
+  /**
+   * How long the run keeps looking for opportunities when a tick finds
+   * nothing actionable. Until `createdAt + runDurationDays` the run stays in
+   * `analysing` and re-checks daily; after that an empty tick completes it.
+   * Defaults to 42 (six weeks).
+   */
+  runDurationDays: number;
   enabledLevers: AccountEfficiencyLever[];
   includedCampaignIds?: string[];
   excludedCampaignIds?: string[];
 }
+
+/** Every lever this build implements. Pause/bid levers queue approval; nothing auto-fires. */
+export const ALL_ACCOUNT_EFFICIENCY_LEVERS: readonly AccountEfficiencyLever[] = Object.freeze([
+  "budget_shift",
+  "ad_group_pause",
+  "keyword_pause",
+  "bid_adjust",
+  "strategy_alert",
+]);
 
 const DEFAULT_PARAMETERS: AccountEfficiencyParameters = Object.freeze({
   optimisationMetric: "cpa",
@@ -168,8 +199,12 @@ const DEFAULT_PARAMETERS: AccountEfficiencyParameters = Object.freeze({
   minRecipientConversions: 5,
   maxTargetCpaUpliftPercent: 15,
   maxTargetRoasReductionPercent: 10,
-  enabledLevers: Object.freeze(["budget_shift"]) as AccountEfficiencyLever[],
+  runDurationDays: 42,
+  enabledLevers: ALL_ACCOUNT_EFFICIENCY_LEVERS as AccountEfficiencyLever[],
 }) as AccountEfficiencyParameters;
+
+/** Re-check cadence while a run is in `analysing` with nothing to do. */
+const NO_PROPOSALS_RECHECK_MS = 24 * 60 * 60 * 1000;
 
 // ─── Constants (tunable defaults) ──────────────────────────────────────────
 
@@ -295,6 +330,7 @@ function loadParameters(raw: unknown): AccountEfficiencyParameters {
       r.maxTargetRoasReductionPercent,
       DEFAULT_PARAMETERS.maxTargetRoasReductionPercent,
     ),
+    runDurationDays: asNumber(r.runDurationDays, DEFAULT_PARAMETERS.runDurationDays),
     enabledLevers: asLeverArray(r.enabledLevers) ?? [...DEFAULT_PARAMETERS.enabledLevers],
   };
   if (included) params.includedCampaignIds = included;
@@ -1503,23 +1539,46 @@ async function handleAnalysing(ctx: AccountEfficiencyContext): Promise<TickResul
   }
 
   if (envelopes.length === 0) {
+    const noOpPayload = {
+      action: "account-efficiency",
+      scope: "account",
+      reason: "no actionable proposals",
+      enabledLevers: parameters.enabledLevers,
+      snapshotCapturedAt: snapshot.capturedAt,
+      snapshotRowCount: snapshot.rowCount,
+    };
+
+    if (!runHorizonReached(ctx.goalRun, parameters, ctx.now)) {
+      // Standing run: nothing qualified on today's data. Record the no-op so
+      // the audit trail shows the agent looked, then re-check tomorrow after
+      // the 04:00 snapshot refresh. Do NOT complete — see file header.
+      const recheckAt = new Date(ctx.now.getTime() + NO_PROPOSALS_RECHECK_MS).toISOString();
+      await recordGoalRunSnapshot(ctx.payload, {
+        goalRunId: ctx.goalRun.id,
+        step: stepBase,
+        action: "no-actionable-proposals",
+        riskTier: "green",
+        status: "approved",
+        proposedPayload: { ...noOpPayload, recheckAt },
+        blockReason: "no actionable proposals on this tick; re-checking in 24h",
+      });
+      return {
+        status: "analysing",
+        nextCheckAt: recheckAt,
+        note: `No actionable account-efficiency proposals on this tick; re-checking at ${recheckAt}.`,
+      };
+    }
+
     await walkToComplete(
       ctx,
-      "no actionable account-efficiency proposals",
+      "no actionable account-efficiency proposals and run horizon reached",
       stepBase,
-      {
-        action: "account-efficiency",
-        scope: "account",
-        reason: "no actionable proposals",
-        enabledLevers: parameters.enabledLevers,
-        snapshotCapturedAt: snapshot.capturedAt,
-        snapshotRowCount: snapshot.rowCount,
-      },
+      { ...noOpPayload, runDurationDays: parameters.runDurationDays },
     );
     return {
       status: "complete",
       nextCheckAt: ctx.now.toISOString(),
-      note: "No account-efficiency proposals found; walked to complete.",
+      note: `No account-efficiency proposals and the ${parameters.runDurationDays}-day run horizon has elapsed; walked to complete.`,
     };
   }
 

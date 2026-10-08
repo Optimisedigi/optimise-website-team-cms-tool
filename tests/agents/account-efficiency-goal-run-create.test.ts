@@ -156,6 +156,22 @@ describe("create_account_efficiency_goal_run — required monthly budget prerequ
     expect(validated.parameters?.minRecipientConversions).toBe(8);
   });
 
+  it("defaults enabledLevers to every implemented lever and runDurationDays to 42 when omitted", () => {
+    // Regression: Berendsen run #1 was created with the old budget_shift-only
+    // default and closed after a single tick because that one rule found nothing.
+    const validated = createAccountEfficiencyGoalRun.validate?.({ parameters: { monthlyBudget: 3000 } }) as {
+      parameters?: { enabledLevers: string[]; runDurationDays: number };
+    };
+    expect(validated.parameters?.enabledLevers).toEqual([
+      "budget_shift",
+      "ad_group_pause",
+      "keyword_pause",
+      "bid_adjust",
+      "strategy_alert",
+    ]);
+    expect(validated.parameters?.runDurationDays).toBe(42);
+  });
+
   it("rejects a negative monthly budget", () => {
     expect(() => createAccountEfficiencyGoalRun.validate?.({ parameters: { monthlyBudget: -5 } })).toThrow(/non-negative/);
   });

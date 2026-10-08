@@ -276,3 +276,77 @@ describe("account-efficiency CPA flow harness", () => {
     expect(state.updateCalls.some((call) => call.collection === "goal-run-snapshots" && call.data.measuredResult)).toBe(true);
   });
 });
+
+/**
+ * Regression for Berendsen run #1 (2026-10-08): budget_shift was the only
+ * lever, no converter qualified as a recipient (all rank-bound), and the run
+ * walked to `complete` 98 minutes after approval without doing anything. A
+ * standing run must keep looking until its horizon elapses.
+ */
+describe("account-efficiency — nothing actionable on a tick", () => {
+  function berendsenLikeState(): MockState {
+    const state = makeState();
+    // Donors exist (≥$200, 0 conv) but every converter loses >20% IS to rank,
+    // so detectBudgetShift returns null. No staging rows, no 60d/90d data.
+    state.finds.set("google-ads-snapshots", [
+      {
+        id: 901,
+        client: 42,
+        level: "campaign",
+        capturedAt: NOW.toISOString(),
+        customerId: "1234567890",
+        rowCount: 2,
+        rows: [
+          { campaignId: "D", name: "Repair", status: "ENABLED", spend: 696, clicks: 50, impressions: 1000, conversions: 0, ctr: 5, cpa: null, searchImpressionShare: 20, searchBudgetLostIS: 25.1, searchRankLostIS: 53.7 },
+          { campaignId: "R", name: "Hydraulic", status: "ENABLED", spend: 1244, clicks: 200, impressions: 5000, conversions: 23, ctr: 4, cpa: 54.11, searchImpressionShare: 12, searchBudgetLostIS: 61.9, searchRankLostIS: 26.1 },
+        ],
+      },
+    ]);
+    state.finds.set("goal-run-snapshots", []);
+    return state;
+  }
+
+  function budgetShiftOnlyRun(createdAt: string, runDurationDays = 42): GoalRunDoc {
+    return {
+      ...makeGoalRun("analysing"),
+      createdAt,
+      parameters: { enabledLevers: ["budget_shift"], runDurationDays },
+    };
+  }
+
+  it("stays in analysing, records a no-op snapshot and re-checks in 24h while inside the horizon", async () => {
+    const state = berendsenLikeState();
+    const payload = makePayload(state);
+    const createdAt = new Date(NOW.getTime() - 98 * 60_000).toISOString(); // approved 98 min ago
+
+    const result = await tick({ payload: payload as never, goalRun: budgetShiftOnlyRun(createdAt), clientId: 42, now: NOW });
+
+    expect(result.status).toBe("analysing");
+    expect(result.nextCheckAt).toBe(new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString());
+    const statusWrites = state.updateCalls.filter((c) => c.collection === "goal-runs" && c.data.status);
+    expect(statusWrites.map((c) => c.data.status)).not.toContain("complete");
+    const snapshots = state.createCalls.filter((c) => c.collection === "goal-run-snapshots");
+    expect(snapshots.map((c) => c.data.action)).toEqual(["no-actionable-proposals"]);
+  });
+
+  it("walks to complete once the run horizon has elapsed with nothing to do", async () => {
+    const state = berendsenLikeState();
+    const payload = makePayload(state);
+    const createdAt = new Date(NOW.getTime() - 43 * 24 * 60 * 60 * 1000).toISOString();
+
+    const result = await tick({ payload: payload as never, goalRun: budgetShiftOnlyRun(createdAt), clientId: 42, now: NOW });
+
+    expect(result.status).toBe("complete");
+    const statusWrites = state.updateCalls.filter((c) => c.collection === "goal-runs" && c.data.status).map((c) => c.data.status);
+    expect(statusWrites).toEqual(["executing", "measuring", "complete"]);
+  });
+
+  it("treats a run with unknown createdAt as past its horizon (legacy rows cannot loop forever)", async () => {
+    const state = berendsenLikeState();
+    const payload = makePayload(state);
+    const run = { ...budgetShiftOnlyRun(NOW.toISOString()), createdAt: null };
+
+    const result = await tick({ payload: payload as never, goalRun: run, clientId: 42, now: NOW });
+    expect(result.status).toBe("complete");
+  });
+});

@@ -86,7 +86,7 @@ export function RunStatusBar(props: {
           <strong>Elapsed</strong> {formatDuration(t.elapsedMs)}
         </span>
         <span style={{ fontSize: 13 }}>
-          <strong>{t.isFinished ? "Cycle ended" : "Cycle ends in"}</strong>{" "}
+          <strong>{t.isFinished ? "Horizon" : "Horizon ends in"}</strong>{" "}
           {t.isFinished ? new Date(t.cycleEndsAt).toLocaleDateString() : formatDuration(t.remainingMs)}
         </span>
         {!t.isFinished && (
@@ -104,14 +104,14 @@ export function RunStatusBar(props: {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={t.percentComplete}
-        aria-label={`${t.percentComplete}% of the ${t.measurementDays}-day measurement cycle elapsed`}
+        aria-label={`${t.percentComplete}% of the ${t.measurementDays}-day run horizon elapsed`}
         style={{ height: 14, background: "#f3f4f6", borderRadius: 7, overflow: "hidden", position: "relative" }}
       >
         <div style={{ width: `${t.percentComplete}%`, height: "100%", background: barColour, transition: "width 1s linear" }} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
         <span style={MUTED}>Started {new Date(t.startedAt).toLocaleString()}</span>
-        <span style={MUTED}>{ONE_DP.format(t.percentComplete)}% of {t.measurementDays}-day measurement cycle</span>
+        <span style={MUTED}>{ONE_DP.format(t.percentComplete)}% of {t.measurementDays}-day run horizon</span>
         <span style={MUTED}>Ends {new Date(t.cycleEndsAt).toLocaleString()}</span>
       </div>
       {props.completedAt && (

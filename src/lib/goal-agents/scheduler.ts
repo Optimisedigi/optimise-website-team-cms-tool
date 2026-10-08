@@ -314,6 +314,7 @@ export async function runGoalAgentsTick(
         typeof row.iterationsCount === "number" ? row.iterationsCount : 0,
       coolingOffUntil: row.coolingOffUntil ?? null,
       nextCheckAt: row.nextCheckAt ?? null,
+      createdAt: typeof row.createdAt === "string" ? row.createdAt : null,
       parameters,
     };
 

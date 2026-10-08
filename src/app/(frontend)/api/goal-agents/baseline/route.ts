@@ -194,8 +194,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (last7.ok) current.last7 = last7.point;
   else current.errors.push(`Latest 7 days: ${last7.error}`);
 
+  // The status bar spans the run horizon (how long the agent keeps looking),
+  // not the 14-day post-change measurement cycle.
   const measurementDays =
-    typeof run.parameters?.measurementDays === "number" ? run.parameters.measurementDays : 14;
+    typeof run.parameters?.runDurationDays === "number" ? run.parameters.runDurationDays : 42;
   const progress: GoalRunProgress = isGoalRunProgress(run.progress) ? run.progress : emptyProgress();
   const now = new Date();
 
