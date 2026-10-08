@@ -156,6 +156,15 @@ export const GoalRuns: CollectionConfig = {
           "Frozen pre-run performance baseline (shape: src/lib/goal-agents/baseline.ts GoalRunBaseline). Three 7-day windows ending just before the run started, 30 days earlier and 90 days earlier, each with account totals and per-campaign spend allocation scoped to includedCampaignIds. Captured once by the Goal Baseline admin page; never recomputed.",
       },
     },
+    {
+      name: "progress",
+      type: "json",
+      admin: {
+        readOnly: true,
+        description:
+          "Daily progress series (shape: src/lib/goal-agents/progress-shared.ts GoalRunProgress). One point per UTC day with that day's and the trailing-7-day metrics scoped to includedCampaignIds. Appended by the Google Ads snapshots cron while the run is active and for 14 days after it finishes; capped at 120 points.",
+      },
+    },
   ],
   timestamps: true,
 };

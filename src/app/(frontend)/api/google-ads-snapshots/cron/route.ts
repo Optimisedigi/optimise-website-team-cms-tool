@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { getPayload } from "payload";
+import config from "@/payload.config";
 import { runGoogleAdsSnapshotsCron } from "@/lib/google-ads-snapshots/cron";
+import { recordGoalRunProgress } from "@/lib/goal-agents/progress";
 
 export const maxDuration = 300;
 
@@ -33,7 +36,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   try {
     const summary = await runGoogleAdsSnapshotsCron();
-    return NextResponse.json({ ok: true, summary });
+
+    // Daily goal-run progress point (yesterday's metrics per tracked run).
+    // Runs after the snapshots so it never delays them; its own failure is
+    // reported in the response rather than failing the cron.
+    let goalRunProgress: Awaited<ReturnType<typeof recordGoalRunProgress>> | { error: string };
+    try {
+      const payload = await getPayload({ config });
+      goalRunProgress = await recordGoalRunProgress(payload);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[google-ads-snapshots-cron] goal-run progress failed:", message);
+      goalRunProgress = { error: message };
+    }
+
+    return NextResponse.json({ ok: true, summary, goalRunProgress });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Cron job failed";
     console.error("[google-ads-snapshots-cron]", message);

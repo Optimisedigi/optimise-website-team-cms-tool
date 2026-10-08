@@ -26,6 +26,12 @@ import {
   type BaselinePoint,
   type GoalRunBaseline,
 } from "@/lib/goal-agents/baseline";
+import {
+  emptyProgress,
+  isGoalRunProgress,
+  runTimeline,
+  type GoalRunProgress,
+} from "@/lib/goal-agents/progress-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +42,10 @@ interface RawGoalRunDoc {
   client?: number | string | { id?: number | string; name?: string; googleAdsCustomerId?: string | null } | null;
   parameters?: Record<string, unknown> | null;
   baseline?: unknown;
+  progress?: unknown;
   createdAt?: string | null;
+  completedAt?: string | null;
+  nextCheckAt?: string | null;
 }
 
 interface RawClientDoc {
@@ -185,12 +194,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (last7.ok) current.last7 = last7.point;
   else current.errors.push(`Latest 7 days: ${last7.error}`);
 
+  const measurementDays =
+    typeof run.parameters?.measurementDays === "number" ? run.parameters.measurementDays : 14;
+  const progress: GoalRunProgress = isGoalRunProgress(run.progress) ? run.progress : emptyProgress();
+  const now = new Date();
+
   return NextResponse.json({
     goalRun: {
       id: Number(run.id),
       goal: run.goal ?? null,
       status: run.status ?? null,
       createdAt: runStartedAt.toISOString(),
+      completedAt: run.completedAt ?? null,
+      nextCheckAt: run.nextCheckAt ?? null,
       clientId: runClientId,
       clientName: clientDoc?.name ?? null,
       customerId,
@@ -198,9 +214,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         typeof run.parameters?.targetImprovementPercent === "number"
           ? run.parameters.targetImprovementPercent
           : null,
+      measurementDays,
+      enabledLevers: Array.isArray(run.parameters?.enabledLevers)
+        ? run.parameters.enabledLevers.filter((l): l is string => typeof l === "string")
+        : [],
     },
+    timeline: runTimeline({
+      createdAt: runStartedAt.toISOString(),
+      completedAt: run.completedAt ?? null,
+      status: run.status ?? null,
+      measurementDays,
+      now,
+    }),
+    serverNow: now.toISOString(),
     baseline,
     baselineError,
     current,
+    progress,
   });
 }

@@ -11190,6 +11190,18 @@ export interface GoalRun {
     | number
     | boolean
     | null;
+  /**
+   * Daily progress series (shape: src/lib/goal-agents/progress-shared.ts GoalRunProgress). One point per UTC day with that day's and the trailing-7-day metrics scoped to includedCampaignIds. Appended by the Google Ads snapshots cron while the run is active and for 14 days after it finishes; capped at 120 points.
+   */
+  progress?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -15461,6 +15473,7 @@ export interface GoalRunsSelect<T extends boolean = true> {
   error?: T;
   parameters?: T;
   baseline?: T;
+  progress?: T;
   updatedAt?: T;
   createdAt?: T;
 }

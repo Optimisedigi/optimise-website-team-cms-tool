@@ -17,6 +17,8 @@ import type {
   GoalRunBaseline,
 } from "@/lib/goal-agents/baseline-shared";
 import { percentChange } from "@/lib/goal-agents/baseline-shared";
+import type { GoalRunProgress, RunTimeline } from "@/lib/goal-agents/progress-shared";
+import { ChangesByHour, CpaProgressChart, RunStatusBar, type ChangeRow } from "./GoalProgressSections";
 
 interface RunSummary {
   id: number;
@@ -27,10 +29,17 @@ interface RunSummary {
   clientName: string | null;
   customerId: string;
   targetImprovementPercent: number | null;
+  completedAt: string | null;
+  nextCheckAt: string | null;
+  measurementDays: number;
+  enabledLevers: string[];
 }
 
 interface BaselineResponse {
   goalRun?: RunSummary;
+  timeline?: RunTimeline;
+  serverNow?: string;
+  progress?: GoalRunProgress | null;
   baseline?: GoalRunBaseline | null;
   baselineError?: string | null;
   current?: {
@@ -321,14 +330,40 @@ export default function GoalBaselinePanel({ clientId, goalRunId }: Props): React
     return () => controller.abort();
   }, [clientId, goalRunId]);
 
+  const runId = data?.goalRun?.id ?? null;
+  const [changes, setChanges] = useState<ChangeRow[]>([]);
+  const [changesLoading, setChangesLoading] = useState(false);
+  const [changesError, setChangesError] = useState<string | null>(null);
+  useEffect(() => {
+    if (runId === null) return;
+    const controller = new AbortController();
+    setChangesLoading(true);
+    fetch(`/api/goal-agents/changes?goalRunId=${runId}`, { signal: controller.signal, credentials: "include" })
+      .then(async (res) => {
+        const json = (await res.json()) as { approved?: ChangeRow[]; disapproved?: ChangeRow[]; error?: string };
+        if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+        setChanges([...(json.approved ?? []), ...(json.disapproved ?? [])]);
+        setChangesError(null);
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setChangesError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setChangesLoading(false);
+      });
+    return () => controller.abort();
+  }, [runId]);
+
   if (!clientId && !goalRunId) return <RunPicker />;
   if (loading) return <p style={MUTED}>Loading baseline — the first open pulls three windows from Google Ads and freezes them…</p>;
   if (error) return <p style={{ color: "#991b1b" }}>{error}</p>;
   if (!data?.goalRun) return <p style={MUTED}>No data.</p>;
 
-  const { goalRun, baseline, baselineError, current } = data;
+  const { goalRun, baseline, baselineError, current, progress, serverNow } = data;
   const week = baseline?.points.find((p) => p.key === "week") ?? null;
   const scope = baseline?.scope.includedCampaignIds ?? null;
+  const noChangesYet = !changesLoading && !changesError && changes.filter((c) => c.action !== "create_account_efficiency_goal_run").length === 0;
 
   return (
     <div>
@@ -347,6 +382,34 @@ export default function GoalBaselinePanel({ clientId, goalRunId }: Props): React
         <a href={`/admin/goal-changes?goalRunId=${goalRun.id}`} style={{ marginLeft: "auto", fontSize: 13 }}>
           View applied changes →
         </a>
+      </div>
+
+      <div style={CARD}>
+        <h2 style={{ fontSize: 16, margin: "0 0 10px" }}>Run status</h2>
+        <RunStatusBar
+          status={goalRun.status}
+          createdAt={goalRun.createdAt}
+          completedAt={goalRun.completedAt}
+          nextCheckAt={goalRun.nextCheckAt}
+          measurementDays={goalRun.measurementDays}
+          enabledLevers={goalRun.enabledLevers}
+          serverNow={serverNow}
+        />
+        {goalRun.status === "complete" && noChangesYet && (
+          <p style={{ margin: "10px 0 0", fontSize: 13, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "8px 10px" }}>
+            This run completed without making any changes, so there is nothing for the chart to measure. Start a new run (e.g. with more levers enabled) to track progress.
+          </p>
+        )}
+      </div>
+
+      <div style={CARD}>
+        <h2 style={{ fontSize: 16, margin: "0 0 2px" }}>CPA since the run started</h2>
+        <p style={{ ...MUTED, margin: "0 0 12px" }}>One point per day, recorded by the 04:00 UTC snapshots cron. Line is the trailing 7-day CPA; dashed lines are the frozen baseline and the target.</p>
+        <CpaProgressChart
+          progress={progress ?? null}
+          baselineCpa={week?.metrics.cpa ?? null}
+          targetImprovementPercent={goalRun.targetImprovementPercent}
+        />
       </div>
 
       {baselineError && (
@@ -391,6 +454,12 @@ export default function GoalBaselinePanel({ clientId, goalRunId }: Props): React
           <BaselineTable points={baseline.points} current={current} />
         </div>
       )}
+
+      <div style={CARD}>
+        <h2 style={{ fontSize: 16, margin: "0 0 2px" }}>Changes by hour</h2>
+        <p style={{ ...MUTED, margin: "0 0 12px" }}>Every action the agent recorded for this run, grouped by the hourly cron tick. Newest first.</p>
+        <ChangesByHour rows={changes} loading={changesLoading} error={changesError} />
+      </div>
     </div>
   );
 }
