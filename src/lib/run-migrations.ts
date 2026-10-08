@@ -740,6 +740,15 @@ export async function runMigrations(
     await run("meeting_schedulers.availability", "ALTER TABLE `meeting_schedulers` ADD `availability` text");
   }
 
+  // Frozen goal-run performance baseline (2026-10-09). Additive nullable JSON
+  // column, so it runs on every invocation before the marker short-circuit.
+  // Keep in sync with src/migrations/20261009_120000_goal_runs_baseline.ts.
+  async function addGoalRunsBaseline(): Promise<void> {
+    if (!(await tableExists("goal_runs"))) return;
+    if (await columnExists("goal_runs", "baseline")) return;
+    await run("goal_runs.baseline", "ALTER TABLE `goal_runs` ADD `baseline` text");
+  }
+
   async function addMeetingSchedulerProspects(): Promise<void> {
     for (const table of ["meeting_schedulers", "clients", "client_proposals", "payload_migrations"]) {
       if (!(await tableExists(table))) return;
@@ -840,6 +849,7 @@ export async function runMigrations(
     await addInThePictureSchema()
     await addMeetingSchedulerProspects();
     await addMeetingSchedulerAvailability();
+    await addGoalRunsBaseline();
 
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the
@@ -4948,6 +4958,8 @@ export async function runMigrations(
     await run("payload_locked_documents_rels_goal_runs_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_goal_runs_id_idx` ON `payload_locked_documents_rels` (`goal_runs_id`)");
     await run("locked_docs_rels.goal_run_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `goal_run_snapshots_id` integer REFERENCES `goal_run_snapshots`(`id`) ON DELETE cascade");
     await run("payload_locked_documents_rels_goal_run_snapshots_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_goal_run_snapshots_id_idx` ON `payload_locked_documents_rels` (`goal_run_snapshots_id`)");
+    // Fresh databases: goal_runs now exists, so the pre-short-circuit step can run.
+    await addGoalRunsBaseline();
 
     // ── optimate_settings global (2026-06-07) ──────────────────────────────
     // Single-row global storing the OptiMate agent's default chat / autonomous

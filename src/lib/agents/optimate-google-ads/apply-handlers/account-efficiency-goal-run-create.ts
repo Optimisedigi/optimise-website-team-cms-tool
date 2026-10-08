@@ -1,6 +1,7 @@
 import type { Payload } from "payload";
 
 import type { ApplyHandler } from "@/lib/agents/_shared/apply-dispatcher";
+import { captureGoalRunBaseline } from "@/lib/goal-agents/baseline";
 import {
   markGoalRunStatus,
   recordGoalRunSnapshot,
@@ -181,6 +182,26 @@ export const applyAccountEfficiencyGoalRunCreate: ApplyHandler = async (rawPaylo
     overrideAccess: true,
   });
 
+  // Freeze the pre-run performance baseline now so the Goal Baseline page
+  // has a fixed anchor from day one. Best-effort: a Growth Tools failure must
+  // not undo the run creation above — the page re-attempts capture lazily on
+  // first open when `baseline` is still null.
+  const runStartedAt = new Date();
+  const baselineResult = await captureGoalRunBaseline({
+    payload: ctx.payload,
+    goalRunId: ref.id,
+    customerId: snapshot.customerId,
+    runStartedAt,
+    includedCampaignIds: args.parameters.includedCampaignIds,
+    now: runStartedAt,
+  });
+  const baselineError = baselineResult.ok ? null : baselineResult.error;
+  if (baselineError) {
+    ctx.payload.logger?.warn?.(
+      `[account-efficiency-goal-run-create] baseline capture deferred for run #${ref.id}: ${baselineError}`,
+    );
+  }
+
   await recordGoalRunSnapshot(ctx.payload, {
     goalRunId: ref.id,
     step: 1,
@@ -194,6 +215,8 @@ export const applyAccountEfficiencyGoalRunCreate: ApplyHandler = async (rawPaylo
       approvalId: ctx.approvalId,
       appliedByUserId: ctx.userId,
       ...(monthlyBudgetOverwrite ? { monthlyBudgetOverwrite } : {}),
+      baselineCaptured: baselineResult.ok,
+      ...(baselineError ? { baselineError } : {}),
     },
     approvalId: ctx.approvalId,
   });
@@ -209,6 +232,8 @@ export const applyAccountEfficiencyGoalRunCreate: ApplyHandler = async (rawPaylo
       nextCheckAt,
       parameters: args.parameters,
       ...(monthlyBudgetOverwrite ? { monthlyBudgetOverwrite } : {}),
+      baselineCaptured: baselineResult.ok,
+      ...(baselineError ? { baselineError } : {}),
     },
   };
 };

@@ -11178,6 +11178,18 @@ export interface GoalRun {
     | number
     | boolean
     | null;
+  /**
+   * Frozen pre-run performance baseline (shape: src/lib/goal-agents/baseline.ts GoalRunBaseline). Three 7-day windows ending just before the run started, 30 days earlier and 90 days earlier, each with account totals and per-campaign spend allocation scoped to includedCampaignIds. Captured once by the Goal Baseline admin page; never recomputed.
+   */
+  baseline?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -15448,6 +15460,7 @@ export interface GoalRunsSelect<T extends boolean = true> {
   completedAt?: T;
   error?: T;
   parameters?: T;
+  baseline?: T;
   updatedAt?: T;
   createdAt?: T;
 }

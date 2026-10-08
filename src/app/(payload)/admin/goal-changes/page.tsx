@@ -60,6 +60,16 @@ export default async function GoalChangesPage({
             Approved changes are shown by default. Toggle to reveal disapproved or
             blocked changes with the reason each was flagged.
             {!clientId && !goalRunId && " Pass ?clientId= or ?goalRunId= to scope."}
+            {(clientId || goalRunId) && (
+              <>
+                {" "}
+                <a
+                  href={`/admin/google-ads/goal-baseline?${goalRunId ? `goalRunId=${encodeURIComponent(goalRunId)}` : `clientId=${encodeURIComponent(clientId ?? "")}`}`}
+                >
+                  View performance baseline →
+                </a>
+              </>
+            )}
           </p>
           {clientId || goalRunId ? (
             <GoalChangeReview clientId={clientId} goalRunId={goalRunId} />

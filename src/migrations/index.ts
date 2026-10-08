@@ -186,6 +186,7 @@ import * as migration_20261005_120000_hosting_one_off_scheduled_resend from './2
 import * as migration_20261005_130000_landing_conversion_uploads from './20261005_130000_landing_conversion_uploads'
 import * as migration_20261008_120000_meeting_scheduler_prospects from './20261008_120000_meeting_scheduler_prospects'
 import * as migration_20261008_140000_meeting_scheduler_availability from './20261008_140000_meeting_scheduler_availability'
+import * as migration_20261009_120000_goal_runs_baseline from './20261009_120000_goal_runs_baseline'
 
 export const migrations = [
   {
@@ -1122,5 +1123,10 @@ export const migrations = [
     up: migration_20261008_140000_meeting_scheduler_availability.up,
     down: migration_20261008_140000_meeting_scheduler_availability.down,
     name: '20261008_140000_meeting_scheduler_availability',
+  },
+  {
+    up: migration_20261009_120000_goal_runs_baseline.up,
+    down: migration_20261009_120000_goal_runs_baseline.down,
+    name: '20261009_120000_goal_runs_baseline',
   },
 ]

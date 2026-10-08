@@ -147,6 +147,15 @@ export const GoalRuns: CollectionConfig = {
           "Per-run knobs supplied at create time. Read by the goal-type handler each tick; never mutated by the runtime. JSON-serialisable. Account-efficiency prerequisite keys: monthlyBudget (REQUIRED for new runs via OptiMate — on apply it overwrites the client's google-ads-audits.monthlyBudget, the budget-shift anchor), minRecipientConversions (conversions threshold a campaign needs to receive freed budget; default 5), targetImprovementPercent (CPA target; default 15), measurementDays (ad-group staging cycle; default 14), and includedCampaignIds (campaign scope allow-list). Other knobs: bufferTolerancePercent, observationDays, campaignWindowDays, maxDonorReductionPercent, minDailyBudgetFloor, minAdGroupSpend, minKeywordSpend, enabledLevers.",
       },
     },
+    {
+      name: "baseline",
+      type: "json",
+      admin: {
+        readOnly: true,
+        description:
+          "Frozen pre-run performance baseline (shape: src/lib/goal-agents/baseline.ts GoalRunBaseline). Three 7-day windows ending just before the run started, 30 days earlier and 90 days earlier, each with account totals and per-campaign spend allocation scoped to includedCampaignIds. Captured once by the Goal Baseline admin page; never recomputed.",
+      },
+    },
   ],
   timestamps: true,
 };

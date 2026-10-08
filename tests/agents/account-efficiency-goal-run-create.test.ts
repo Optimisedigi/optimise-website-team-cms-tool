@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockGetCampaignSnapshot, mockStartGoalRun, mockMarkGoalRunStatus, mockRecordGoalRunSnapshot } = vi.hoisted(() => ({
+const { mockGetCampaignSnapshot, mockStartGoalRun, mockMarkGoalRunStatus, mockRecordGoalRunSnapshot, mockCaptureGoalRunBaseline } = vi.hoisted(() => ({
   mockGetCampaignSnapshot: vi.fn(),
   mockStartGoalRun: vi.fn(),
   mockMarkGoalRunStatus: vi.fn(),
   mockRecordGoalRunSnapshot: vi.fn(),
+  mockCaptureGoalRunBaseline: vi.fn(),
 }));
 
 vi.mock("@/lib/google-ads-snapshots", () => ({
   getCampaignSnapshot: mockGetCampaignSnapshot,
+}));
+
+vi.mock("@/lib/goal-agents/baseline", () => ({
+  captureGoalRunBaseline: mockCaptureGoalRunBaseline,
 }));
 
 vi.mock("@/lib/goal-agents/goal-run-audit", () => ({
@@ -45,7 +50,9 @@ beforeEach(() => {
   mockStartGoalRun.mockReset();
   mockMarkGoalRunStatus.mockReset();
   mockRecordGoalRunSnapshot.mockReset();
-  mockGetCampaignSnapshot.mockResolvedValue({ rows: [{ searchImpressionShare: 80 }] });
+  mockCaptureGoalRunBaseline.mockReset();
+  mockCaptureGoalRunBaseline.mockResolvedValue({ ok: true, baseline: { version: 1 } });
+  mockGetCampaignSnapshot.mockResolvedValue({ customerId: "1234567890", rows: [{ searchImpressionShare: 80 }] });
   mockStartGoalRun.mockResolvedValue({ id: 321, status: "analysing" });
   mockMarkGoalRunStatus.mockResolvedValue({ id: 321, status: "awaiting_data" });
   mockRecordGoalRunSnapshot.mockResolvedValue({ id: 1, goalRunId: 321 });
@@ -100,6 +107,39 @@ describe("applyAccountEfficiencyGoalRunCreate — monthly budget overwrite", () 
       (u) => u.collection === "google-ads-audits",
     );
     expect(budgetUpdate).toBeUndefined();
+  });
+});
+
+describe("applyAccountEfficiencyGoalRunCreate — performance baseline", () => {
+  it("freezes the baseline for the new run using the run scope and snapshot customer id", async () => {
+    const state: FakeState = { audits: [], updates: [] };
+    const ctx: ApplyHandlerContext = { payload: makePayload(state), approvalId: 5, userId: 9 };
+
+    const result = await applyAccountEfficiencyGoalRunCreate(
+      { clientId: 7, parameters: { includedCampaignIds: ["c1", "c2"] } },
+      ctx,
+    );
+
+    expect(mockCaptureGoalRunBaseline).toHaveBeenCalledTimes(1);
+    expect(mockCaptureGoalRunBaseline.mock.calls[0]![0]).toMatchObject({
+      goalRunId: 321,
+      customerId: "1234567890",
+      includedCampaignIds: ["c1", "c2"],
+    });
+    expect(result.detail).toMatchObject({ baselineCaptured: true });
+  });
+
+  it("still creates the run when baseline capture fails, and records the error", async () => {
+    mockCaptureGoalRunBaseline.mockResolvedValue({ ok: false, error: "Growth Tools 503" });
+    const state: FakeState = { audits: [], updates: [] };
+    const ctx: ApplyHandlerContext = { payload: makePayload(state), approvalId: 5, userId: 9 };
+
+    const result = await applyAccountEfficiencyGoalRunCreate({ clientId: 7, parameters: {} }, ctx);
+
+    expect(result.message).toContain("Created Account Efficiency goal run #321");
+    expect(result.detail).toMatchObject({ baselineCaptured: false, baselineError: "Growth Tools 503" });
+    const snapshotCall = mockRecordGoalRunSnapshot.mock.calls[0]![1] as { proposedPayload: Record<string, unknown> };
+    expect(snapshotCall.proposedPayload.baselineError).toBe("Growth Tools 503");
   });
 });
 

@@ -138,6 +138,15 @@ const GoogleAdsHubPage = () => {
         >
           Change Tracker
         </button>
+        <button
+          type="button"
+          className="od-settings__btn"
+          onClick={() => {
+            window.location.href = '/admin/google-ads/goal-baseline'
+          }}
+        >
+          Goal Baseline
+        </button>
       </div>
 
       {/* Summary stats */}
