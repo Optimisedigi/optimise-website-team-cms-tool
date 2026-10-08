@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { create, findByID, fanOut, getPayload } = vi.hoisted(() => ({
+const { create, update, findByID, fanOut, clearNotifications, getPayload } = vi.hoisted(() => ({
   create: vi.fn(),
+  update: vi.fn(),
+  clearNotifications: vi.fn(),
   findByID: vi.fn(),
   fanOut: vi.fn(),
   getPayload: vi.fn(),
@@ -9,9 +11,12 @@ const { create, findByID, fanOut, getPayload } = vi.hoisted(() => ({
 
 vi.mock("payload", () => ({ getPayload }));
 vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
-vi.mock("@/lib/agent-approval-notifications", () => ({ fanOutApprovalNotifications: fanOut }));
+vi.mock("@/lib/agent-approval-notifications", () => ({
+  fanOutApprovalNotifications: fanOut,
+  clearApprovalNotifications: clearNotifications,
+}));
 
-import { queueForApproval } from "@/lib/agents/_shared/approval-queue";
+import { markRejected, queueForApproval } from "@/lib/agents/_shared/approval-queue";
 
 const proposal = {
   agentName: "optimate-google-ads",
@@ -50,5 +55,33 @@ describe("queueForApproval", () => {
     findByID.mockRejectedValue(new Error("not found"));
     await expect(queueForApproval(proposal)).rejects.toThrow("not found");
     expect(fanOut).not.toHaveBeenCalled();
+  });
+});
+
+describe("markRejected", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getPayload.mockResolvedValue({ update, findByID, logger: { error: vi.fn() } });
+    update.mockResolvedValue({ id: 87 });
+    clearNotifications.mockResolvedValue(2);
+  });
+
+  it("commits the rejection outside a transaction, verifies it, then clears notifications", async () => {
+    findByID.mockResolvedValue({ id: 87, status: "rejected" });
+    await expect(markRejected(87, 1)).resolves.toBeUndefined();
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: "agent-approval-queue",
+      id: 87,
+      disableTransaction: true,
+      context: { deferApprovalNotifications: true },
+      data: expect.objectContaining({ status: "rejected", reviewedBy: 1 }),
+    }));
+    expect(findByID.mock.invocationCallOrder[0]).toBeLessThan(clearNotifications.mock.invocationCallOrder[0]);
+  });
+
+  it("throws instead of reporting success when the row is still pending", async () => {
+    findByID.mockResolvedValue({ id: 87, status: "pending" });
+    await expect(markRejected(87, 1)).rejects.toThrow("was not persisted");
+    expect(clearNotifications).not.toHaveBeenCalled();
   });
 });

@@ -80,4 +80,14 @@ describe("AgentApprovalQueue Collection", () => {
     expect(clearApprovalNotifications).toHaveBeenCalledWith({ id: "payload" }, 42);
     expect(fanOutApprovalNotifications).not.toHaveBeenCalled();
   });
+
+  it("leaves notification cleanup to the caller when it is deferred", async () => {
+    const hook = getAfterChangeHooks()[0];
+    await hook({
+      doc: { id: 87, status: "rejected" },
+      operation: "update",
+      req: { payload: { id: "payload" }, context: { deferApprovalNotifications: true } },
+    } as any);
+    expect(clearApprovalNotifications).not.toHaveBeenCalled();
+  });
 });

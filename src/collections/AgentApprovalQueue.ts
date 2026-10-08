@@ -61,8 +61,10 @@ export const AgentApprovalQueue: CollectionConfig = {
           });
         }
 
+        // setApprovalStatus clears notifications itself after the update commits.
         if (
           operation === "update" &&
+          !req.context?.deferApprovalNotifications &&
           ["approved", "rejected", "applied", "failed"].includes(String(doc.status))
         ) {
           await clearApprovalNotifications(req.payload, Number(doc.id));

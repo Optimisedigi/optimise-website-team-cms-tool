@@ -143,59 +143,65 @@ export async function readPending(filter?: {
   return result.docs as unknown as ApprovalRow[];
 }
 
-export async function markApproved(id: number, reviewedById: number): Promise<void> {
+type ResolvedApprovalStatus = "approved" | "rejected" | "applied" | "failed";
+
+/**
+ * Persist a status transition and prove it stuck before returning.
+ *
+ * The update runs without a transaction and defers the collection hook's
+ * notification cleanup: that cleanup writes notification rows on separate
+ * SQLite connections, which made the transactional update roll back silently
+ * on Turso (the reject route returned 200 but the row stayed "pending").
+ * Notifications are cleared here, after the row is committed.
+ */
+async function setApprovalStatus(
+  id: number,
+  status: ResolvedApprovalStatus,
+  data: Record<string, unknown>,
+): Promise<void> {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
   await payload.update({
     collection: COLLECTION,
     id,
-    data: {
-      status: "approved",
-      reviewedBy: reviewedById,
-      reviewedAt: new Date().toISOString(),
-    },
+    data: { ...data, status },
+    disableTransaction: true,
+    context: { deferApprovalNotifications: true },
     overrideAccess: true,
   });
+  const persisted = (await payload.findByID({
+    collection: COLLECTION,
+    id,
+    depth: 0,
+    overrideAccess: true,
+  })) as { status?: string };
+  if (persisted.status !== status) {
+    throw new Error(
+      `Approval #${id} status change to "${status}" was not persisted (still "${String(persisted.status)}")`,
+    );
+  }
   // Clear the bell for everyone now that the queue item is actioned.
   await clearApprovalNotifications(payload, id);
 }
 
-export async function markRejected(id: number, reviewedById: number): Promise<void> {
-  const payloadConfig = await config;
-  const payload = await getPayload({ config: payloadConfig });
-  await payload.update({
-    collection: COLLECTION,
-    id,
-    data: {
-      status: "rejected",
-      reviewedBy: reviewedById,
-      reviewedAt: new Date().toISOString(),
-    },
-    overrideAccess: true,
+export async function markApproved(id: number, reviewedById: number): Promise<void> {
+  await setApprovalStatus(id, "approved", {
+    reviewedBy: reviewedById,
+    reviewedAt: new Date().toISOString(),
   });
-  await clearApprovalNotifications(payload, id);
+}
+
+export async function markRejected(id: number, reviewedById: number): Promise<void> {
+  await setApprovalStatus(id, "rejected", {
+    reviewedBy: reviewedById,
+    reviewedAt: new Date().toISOString(),
+  });
 }
 
 export async function markApplied(id: number): Promise<void> {
-  const payloadConfig = await config;
-  const payload = await getPayload({ config: payloadConfig });
-  await payload.update({
-    collection: COLLECTION,
-    id,
-    data: { status: "applied", appliedAt: new Date().toISOString() },
-    overrideAccess: true,
-  });
-  await clearApprovalNotifications(payload, id);
+  await setApprovalStatus(id, "applied", { appliedAt: new Date().toISOString() });
 }
 
 export async function markFailed(id: number, error: string): Promise<void> {
-  const payloadConfig = await config;
-  const payload = await getPayload({ config: payloadConfig });
-  await payload.update({
-    collection: COLLECTION,
-    id,
-    data: { status: "failed", applyError: error.slice(0, 4000) },
-    overrideAccess: true,
-  });
-  await clearApprovalNotifications(payload, id);
+  await setApprovalStatus(id, "failed", { applyError: error.slice(0, 4000) });
 }
