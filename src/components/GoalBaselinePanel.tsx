@@ -256,16 +256,35 @@ function RunPicker(): React.ReactElement {
   return (
     <div style={CARD}>
       <h2 style={{ fontSize: 16, margin: "0 0 10px" }}>Pick a goal run</h2>
+      <p style={{ ...MUTED, margin: "0 0 10px" }}>Click a run to open its baseline. The first open captures and freezes it.</p>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {runs.map((r) => (
-          <li key={r.id} style={{ padding: "8px 0", borderBottom: "1px solid #f3f4f6", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <a href={`/admin/google-ads/goal-baseline?goalRunId=${r.id}`} style={{ fontWeight: 600 }}>
-              {r.clientName ?? `Client #${r.clientId ?? "?"}`}
+          <li key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <a
+              href={`/admin/google-ads/goal-baseline?goalRunId=${r.id}`}
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+                flexWrap: "wrap",
+                padding: "10px 8px",
+                textDecoration: "none",
+                color: "inherit",
+                borderRadius: 6,
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#f3f4f6"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <span style={{ fontWeight: 600 }}>{r.clientName ?? `Client #${r.clientId ?? "?"}`}</span>
+              <span style={MUTED}>{r.goal}</span>
+              <span style={MUTED}>{r.status}</span>
+              {r.createdAt && <span style={MUTED}>started {new Date(r.createdAt).toLocaleDateString()}</span>}
+              <span style={{ ...MUTED, marginLeft: "auto" }}>{r.hasBaseline ? "baseline frozen" : "baseline not yet captured"}</span>
+              <span style={{ color: "#2563eb", fontWeight: 600, whiteSpace: "nowrap" }}>
+                {r.hasBaseline ? "View baseline →" : "Capture baseline →"}
+              </span>
             </a>
-            <span style={MUTED}>{r.goal}</span>
-            <span style={MUTED}>{r.status}</span>
-            {r.createdAt && <span style={MUTED}>started {new Date(r.createdAt).toLocaleDateString()}</span>}
-            <span style={{ ...MUTED, marginLeft: "auto" }}>{r.hasBaseline ? "baseline frozen" : "baseline not yet captured"}</span>
           </li>
         ))}
       </ul>
