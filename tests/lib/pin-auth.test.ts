@@ -111,3 +111,37 @@ describe("pin-auth lockout", () => {
     expect(r.ok).toBe(true);
   });
 });
+
+describe("client-hub PIN uses the persisted lockout", () => {
+  it("returns 429 once the per-slug bucket is locked, even with the correct PIN", async () => {
+    const bucket = {
+      id: 1,
+      bucketKey: "client-hub:acme",
+      attempts: 5,
+      lockedUntil: new Date(Date.now() + 10 * 60_000).toISOString(),
+      windowStart: new Date().toISOString(),
+    };
+    // First find: clients lookup; later finds: pin-rate-limits bucket.
+    mockFind
+      .mockResolvedValueOnce({ docs: [{ id: 7, clientPin: "1234" }] })
+      .mockResolvedValue({ docs: [bucket] });
+    const { verifyClientHubPin } = await import("../../src/lib/client-hub-auth");
+    const payload = { find: mockFind } as any;
+    const r = await verifyClientHubPin(payload, "acme", "1234");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.status).toBe(429);
+  });
+
+  it("records a failed attempt on a wrong PIN", async () => {
+    mockFind
+      .mockResolvedValueOnce({ docs: [{ id: 7, clientPin: "1234" }] })
+      .mockResolvedValue({ docs: [] });
+    mockCreate.mockResolvedValue({});
+    const { verifyClientHubPin } = await import("../../src/lib/client-hub-auth");
+    const r = await verifyClientHubPin({ find: mockFind } as any, "acme", "9999");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.status).toBe(401);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockCreate.mock.calls[0][0].data.bucketKey).toBe("client-hub:acme");
+  });
+});

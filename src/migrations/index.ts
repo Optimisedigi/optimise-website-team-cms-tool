@@ -189,6 +189,7 @@ import * as migration_20261008_140000_meeting_scheduler_availability from './202
 import * as migration_20261009_120000_goal_runs_baseline from './20261009_120000_goal_runs_baseline'
 import * as migration_20261009_150000_goal_runs_progress from './20261009_150000_goal_runs_progress'
 import * as migration_20261009_170000_add_client_target_customer from './20261009_170000_add_client_target_customer'
+import * as migration_20261010_090000_payload_3_90_columns from './20261010_090000_payload_3_90_columns'
 
 export const migrations = [
   {
@@ -1140,5 +1141,10 @@ export const migrations = [
     up: migration_20261009_170000_add_client_target_customer.up,
     down: migration_20261009_170000_add_client_target_customer.down,
     name: '20261009_170000_add_client_target_customer',
+  },
+  {
+    up: migration_20261010_090000_payload_3_90_columns.up,
+    down: migration_20261010_090000_payload_3_90_columns.down,
+    name: '20261010_090000_payload_3_90_columns',
   },
 ]

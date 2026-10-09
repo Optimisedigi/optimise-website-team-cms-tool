@@ -48,6 +48,29 @@
         "Not checked: full vitest suite not re-run (only api/components/affected agent tests); no ESLint/Biome no-console lint available",
         "Not checked: the 1,041 comment-only catches and 289 .catch(() => ...) outside the 7 findings were not individually reviewed"
       ]
+    },
+    "security": {
+      "checkedAt": "2026-10-09T18:56:39.395Z",
+      "commit": "e2ab9b03",
+      "uncommittedChanges": true,
+      "result": "pass",
+      "summary": "All 10 Oct 2026 findings resolved: 8 fixed and verified (Next 16.3.8 / Payload 3.90.2 / sharp 0.35.5, five routes + two pages gated, client-hub PIN lockout, crypto PINs), 1 Low accepted by owner; changes uncommitted and not yet deployed.",
+      "findings": [],
+      "accepted": [
+        "src/app/(frontend)/api/audit-markdown/route.ts:274-294 — Low: seo-audits without a reportPassword downloadable by numeric id; owner confirmed password-less audits are intentionally shareable"
+      ],
+      "evidence": [
+        "Re-check of the 10 Oct 2026 review findings only (bulletproof skill, fix mode)",
+        "RUNTIME: npm install next@16.3.8 payload@3.90.2 @payloadcms/*@3.90.2 sharp@0.35.5; npm audit --omit=dev no longer matches installed next/payload/sharp (transitive hits remain)",
+        "RUNTIME: npm run check (tsc --noEmit) → 0 errors after all edits",
+        "RUNTIME: npx vitest run → 478 files, 4362 tests passed (incl. 9 new auth-gate/lockout regression tests)",
+        "RUNTIME: NODE_OPTIONS=--max-old-space-size=8192 npm run build → exit 0 on Next 16.3.8",
+        "CODE: latest-gsc + xero/* require payload.auth(); client+partner account-structure routes/pages gated by dashboard_token or admin session (src/lib/client-surface-auth.ts)",
+        "CODE: client-hub-auth uses checkPinWithLockout(`client-hub:${slug}`); Clients/ClientProposals/GoogleAdsAudits PINs use crypto.randomInt",
+        "CODE: Payload 3.90 columns (users.reset_password_requested_at, media._object_key) added via migration 20261010_090000 + run-migrations.ts; payload-types regenerated",
+        "Scope: only the findings recorded on 10 Oct 2026; nothing committed or deployed — production needs deploy + POST /api/migrate",
+        "Not checked: live production behaviour after deploy, transitive-dependency advisories, items excluded from the original review"
+      ]
     }
   }
 }

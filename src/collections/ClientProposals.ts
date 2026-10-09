@@ -4,6 +4,7 @@ import type {
   CollectionBeforeChangeHook,
   CollectionAfterReadHook,
 } from "payload";
+import crypto from "crypto";
 import { proposalEditor } from "@/lib/proposalEditor";
 import { normaliseSlideId } from "@/lib/proposal-slide-ids";
 import { logActivity } from "../lib/activity-log";
@@ -232,7 +233,7 @@ const generateUniqueSlug: CollectionBeforeChangeHook = async ({
 const generateUniquePin = async (payload: any): Promise<string> => {
   const maxAttempts = 20;
   for (let i = 0; i < maxAttempts; i++) {
-    const pin = String(Math.floor(1000 + Math.random() * 9000));
+    const pin = String(crypto.randomInt(1000, 10000));
     const existing = await payload.find({
       collection: "client-proposals",
       where: { proposalPin: { equals: pin } },

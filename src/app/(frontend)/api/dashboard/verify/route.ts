@@ -11,7 +11,7 @@ const COOKIE_SECRET =
   "dashboard-fallback-secret";
 const COOKIE_MAX_AGE = 4 * 60 * 60; // 4 hours in seconds
 
-function signToken(slug: string, expiresAt: number): string {
+export function signToken(slug: string, expiresAt: number): string {
   const payloadStr = `${slug}:${expiresAt}`;
   const sig = crypto
     .createHmac("sha256", COOKIE_SECRET)

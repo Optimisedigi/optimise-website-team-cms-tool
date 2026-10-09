@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getPayload } from "payload";
+import config from "@/payload.config";
 
 interface XeroInvoiceLite {
   invoiceId?: string;
@@ -45,7 +47,12 @@ function normalizeDraftInvoice(invoice: XeroInvoiceLite): XeroInvoiceLite {
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Agency finance data: admin session only.
+  const payload = await getPayload({ config: await config });
+  const { user } = await payload.auth({ headers: req.headers });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const url = process.env.GROWTH_TOOLS_URL;
   const key = process.env.INTERNAL_API_KEY;
   if (!url || !key)

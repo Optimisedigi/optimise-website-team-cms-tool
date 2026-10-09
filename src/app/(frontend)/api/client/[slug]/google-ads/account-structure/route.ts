@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import configPromise from "@/payload.config";
+import { isAuthorisedForClientSlug } from "@/lib/client-surface-auth";
 import {
   accountStructureConversionFilterKey,
   assertIsoDate,
@@ -41,6 +42,10 @@ export async function GET(
   const refreshLive = req.nextUrl.searchParams.get("refresh") === "live";
 
   const payload = await getPayload({ config: configPromise });
+  // Client Google Ads data: dashboard PIN token for this slug or admin session only.
+  if (!(await isAuthorisedForClientSlug(req, payload, slug))) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
   const result = await payload.find({
     collection: "clients",
     where: {

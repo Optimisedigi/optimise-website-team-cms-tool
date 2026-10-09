@@ -8,6 +8,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!clientId) return NextResponse.json({ ok: false, error: "clientId is required" }, { status: 400 });
 
   const payload = await getPayload({ config: await config });
+  // Admin-only: this returns a client's full GSC snapshot and is used from the admin UI.
+  const { user } = await payload.auth({ headers: request.headers });
+  if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   const result = await payload.find({
     collection: "gsc-snapshots" as any,
     where: { client: { equals: clientId } },

@@ -10,6 +10,7 @@ const mockPayload = {
   find: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  auth: vi.fn(),
   logger: { error: vi.fn() },
 };
 
@@ -22,6 +23,7 @@ vi.mock("@/payload.config", () => ({
 }));
 
 import { GET as getClientAccountStructure } from "@/app/(frontend)/api/client/[slug]/google-ads/account-structure/route";
+import { GET as getPartnerAccountStructure } from "@/app/(frontend)/api/partners/[clientSlug]/account-structure/route";
 import { getYesterdayWindow } from "@/lib/google-ads-account-structure-cache";
 
 function request(path: string): NextRequest {
@@ -49,6 +51,8 @@ const defaultConversionFilterKey = JSON.stringify({
 describe("account structure cache routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: an authenticated admin session. Auth-gate tests override this.
+    mockPayload.auth.mockResolvedValue({ user: { id: 1 } });
     mockPayload.create.mockResolvedValue({ id: 10, capturedAt: "2026-06-22T07:00:00.000Z" });
     mockPayload.update.mockResolvedValue({ id: 10, capturedAt: "2026-06-22T07:00:00.000Z" });
     globalThis.fetch = vi.fn(async () => ({
@@ -56,6 +60,50 @@ describe("account structure cache routes", () => {
       status: 200,
       text: async () => JSON.stringify(livePayload),
     })) as any;
+  });
+
+  it("rejects anonymous callers on both client and partner routes without touching client data", async () => {
+    mockPayload.auth.mockResolvedValue({ user: null });
+
+    const clientRes = await getClientAccountStructure(request("/api/client/away-digital/google-ads/account-structure"), {
+      params: Promise.resolve({ slug: "away-digital" }),
+    });
+    const partnerRes = await getPartnerAccountStructure(request("/api/partners/away-digital/account-structure"), {
+      params: Promise.resolve({ clientSlug: "away-digital" }),
+    });
+
+    expect(clientRes.status).toBe(401);
+    expect(partnerRes.status).toBe(401);
+    expect(mockPayload.find).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a dashboard token minted for a different client slug", async () => {
+    mockPayload.auth.mockResolvedValue({ user: null });
+    const { signToken } = await import("@/app/(frontend)/api/dashboard/verify/route");
+    const req = request("/api/client/away-digital/google-ads/account-structure");
+    req.cookies.set("dashboard_token", signToken("other-client", Date.now() + 60_000));
+
+    const res = await getClientAccountStructure(req, { params: Promise.resolve({ slug: "away-digital" }) });
+
+    expect(res.status).toBe(401);
+    expect(mockPayload.find).not.toHaveBeenCalled();
+  });
+
+  it("accepts a dashboard token minted for this slug without an admin session", async () => {
+    mockPayload.auth.mockResolvedValue({ user: null });
+    const { signToken } = await import("@/app/(frontend)/api/dashboard/verify/route");
+    const req = request("/api/client/away-digital/google-ads/account-structure");
+    req.cookies.set("dashboard_token", signToken("away-digital", Date.now() + 60_000));
+    mockPayload.find
+      .mockResolvedValueOnce({ docs: [client] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] });
+
+    const res = await getClientAccountStructure(req, { params: Promise.resolve({ slug: "away-digital" }) });
+
+    expect(res.status).toBe(200);
+    expect(mockPayload.auth).not.toHaveBeenCalled();
   });
 
   it("returns cached payload without calling Growth Tools", async () => {

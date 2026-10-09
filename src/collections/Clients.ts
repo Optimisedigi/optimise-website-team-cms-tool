@@ -626,9 +626,7 @@ export const Clients: CollectionConfig = {
                         beforeChange: [
                           ({ value, operation }) => {
                             if (operation === "create" && !value) {
-                              return String(
-                                Math.floor(1000 + Math.random() * 9000)
-                              );
+                              return String(crypto.randomInt(1000, 10000));
                             }
                             return value;
                           },

@@ -48,7 +48,7 @@ const autoGenerateSlug: CollectionBeforeChangeHook = async ({
 const generateUniquePin = async (payload: any): Promise<string> => {
   const maxAttempts = 20;
   for (let i = 0; i < maxAttempts; i++) {
-    const pin = String(Math.floor(1000 + Math.random() * 9000));
+    const pin = String(crypto.randomInt(1000, 10000));
     const existing = await payload.find({
       collection: "google-ads-audits",
       where: { presentationPin: { equals: pin } },

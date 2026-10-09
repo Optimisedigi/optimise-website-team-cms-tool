@@ -1,17 +1,6 @@
-import crypto from "crypto";
 import type { Payload } from "payload";
 
-function constantTimeCompare(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) {
-    const padded = Buffer.alloc(bufA.length, 0);
-    bufB.copy(padded, 0, 0, Math.min(bufB.length, bufA.length));
-    crypto.timingSafeEqual(bufA, padded);
-    return false;
-  }
-  return crypto.timingSafeEqual(bufA, bufB);
-}
+import { checkPinWithLockout } from "@/lib/pin-auth";
 
 export async function verifyClientHubPin(
   payload: Payload,
@@ -29,7 +18,9 @@ export async function verifyClientHubPin(
   });
   const client = result.docs[0] as { id: string | number; clientPin?: string | null } | undefined;
   if (!client?.clientPin) return { ok: false, status: 404, error: "Client not found" };
-  if (!constantTimeCompare(pin, client.clientPin)) return { ok: false, status: 401, error: "Incorrect PIN" };
+  // Per-slug persisted lockout: a 4-digit PIN must not be brute-forceable.
+  const check = await checkPinWithLockout(`client-hub:${slug}`, pin, client.clientPin);
+  if (!check.ok) return { ok: false, status: check.status, error: check.message };
   return { ok: true, clientId: client.id };
 }
 

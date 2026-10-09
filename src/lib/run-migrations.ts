@@ -629,6 +629,15 @@ export async function runMigrations(
     await run("clients.target_customer", "ALTER TABLE `clients` ADD `target_customer` text");
   }
 
+  // Payload 3.90 security upgrade (2026-10-10): framework-owned columns Payload
+  // selects on every users/media read. Runs before the marker short-circuit so
+  // production receives it. Keep in sync with
+  // src/migrations/20261010_090000_payload_3_90_columns.ts.
+  async function addPayload390Columns(): Promise<void> {
+    await run("users.reset_password_requested_at", "ALTER TABLE `users` ADD `reset_password_requested_at` text");
+    await run("media._object_key", "ALTER TABLE `media` ADD `_object_key` text");
+  }
+
   // The original KPI table used _ytd, but Payload maps YTD to _y_t_d.
   // Rename instead of adding when possible so existing values survive.
   // If a new zero-default column was already added, copy historical nonzero
@@ -857,6 +866,7 @@ export async function runMigrations(
     await addMonthlyKeywordSelectionColumns();
     await addClientCampaignStartDate();
     await addClientTargetCustomer();
+    await addPayload390Columns();
     await repairAgencyKpiSnapshotColumns();
     await addOptiMateVoiceAuthMethod();
     await mergeClientPulseSeoService();

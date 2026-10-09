@@ -1,6 +1,8 @@
-import { notFound } from "next/navigation";
+import { cookies, headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import { getPayload } from "payload";
 import configPromise from "@/payload.config";
+import { validateDashboardToken } from "@/app/(frontend)/api/dashboard/verify/route";
 import AccountStructureTree from "@/app/(frontend)/partners/[clientSlug]/account-structure/AccountStructureTree";
 // Loads Tailwind v4 utilities for this route — the (frontend) root layout
 // deliberately ships no Tailwind to avoid bloating marketing pages.
@@ -56,6 +58,15 @@ export default async function ClientAccountStructurePage({
   const { slug } = await params;
 
   const payload = await getPayload({ config: configPromise });
+
+  // Same gate as the data API: dashboard PIN token for this slug or admin session.
+  // Otherwise send the visitor to the client dashboard's PIN screen.
+  const tokenCookie = (await cookies()).get("dashboard_token")?.value;
+  if (!validateDashboardToken(tokenCookie, slug)) {
+    const { user } = await payload.auth({ headers: await headers() }).catch(() => ({ user: null }));
+    if (!user) redirect(`/google-dashboard/${slug}`);
+  }
+
   const result = await payload.find({
     collection: "clients",
     where: {
