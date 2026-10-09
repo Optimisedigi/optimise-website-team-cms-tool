@@ -795,6 +795,20 @@ export const Clients: CollectionConfig = {
                   },
                   options: [...CLIENT_SERVICE_OPTIONS],
                 },
+                // Primary source for OptiMate's "Target customer" line. When blank,
+                // GET /api/optimate/clients falls back to the newest Discovery
+                // Briefing `data.idealClient`, then `gadsAuto.triageIdealCustomer`.
+                // Resolution order lives in src/lib/optimate-target-customer.ts.
+                {
+                  name: "targetCustomer",
+                  label: "Target customer",
+                  type: "textarea",
+                  admin: {
+                    description:
+                      "One or two plain sentences on this client's ideal customer, e.g. 'Sydney homeowners renovating kitchens with a $30k+ budget.' OptiMate uses it for Google Ads and Meta Ads work. When empty it falls back to the Discovery Briefing ideal client, then the Google Ads triage field.",
+                    rows: 2,
+                  },
+                },
               ],
             },
             {

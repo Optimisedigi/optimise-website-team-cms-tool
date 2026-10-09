@@ -417,6 +417,10 @@ export interface Client {
    * Which services Optimise delivers for this client. Shown as pills in the client header.
    */
   services?: ('google_ads' | 'seo' | 'paid_social' | 'website_build' | 'automations')[] | null;
+  /**
+   * One or two plain sentences on this client's ideal customer, e.g. 'Sydney homeowners renovating kitchens with a $30k+ budget.' OptiMate uses it for Google Ads and Meta Ads work. When empty it falls back to the Discovery Briefing ideal client, then the Google Ads triage field.
+   */
+  targetCustomer?: string | null;
   wcqTrackingStartDate?: string | null;
   wcqAssessmentTarget?: number | null;
   wcqPrescriptionTarget?: number | null;
@@ -11999,6 +12003,7 @@ export interface ClientsSelect<T extends boolean = true> {
   isAgency?: T;
   logo?: T;
   services?: T;
+  targetCustomer?: T;
   wcqTrackingStartDate?: T;
   wcqAssessmentTarget?: T;
   wcqPrescriptionTarget?: T;

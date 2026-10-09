@@ -622,6 +622,13 @@ export async function runMigrations(
     await run("clients.campaign_start_date", "ALTER TABLE `clients` ADD `campaign_start_date` text");
   }
 
+  // Business tab "Target customer" (2026-10-09), read by GET /api/optimate/clients.
+  // Same flat-column hazard as above, so it also runs before the marker short-circuit.
+  // Keep in sync with src/migrations/20261009_170000_add_client_target_customer.ts.
+  async function addClientTargetCustomer(): Promise<void> {
+    await run("clients.target_customer", "ALTER TABLE `clients` ADD `target_customer` text");
+  }
+
   // The original KPI table used _ytd, but Payload maps YTD to _y_t_d.
   // Rename instead of adding when possible so existing values survive.
   // If a new zero-default column was already added, copy historical nonzero
@@ -849,6 +856,7 @@ export async function runMigrations(
     await setClientsListPerPage();
     await addMonthlyKeywordSelectionColumns();
     await addClientCampaignStartDate();
+    await addClientTargetCustomer();
     await repairAgencyKpiSnapshotColumns();
     await addOptiMateVoiceAuthMethod();
     await mergeClientPulseSeoService();
@@ -934,6 +942,7 @@ export async function runMigrations(
     // Campaign delivery start is applied by addClientCampaignStartDate() above,
     // which runs before the marker short-circuit so production receives it too.
     await addClientCampaignStartDate();
+    await addClientTargetCustomer();
     await run("clients_services", `CREATE TABLE IF NOT EXISTS \`clients_services\` (
       \`order\` integer NOT NULL,
       \`parent_id\` integer NOT NULL,
