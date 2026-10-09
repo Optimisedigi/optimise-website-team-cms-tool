@@ -188,13 +188,96 @@ export default function AussieFluidPowerProposal() {
           </section>
           </div>
 
-          {/* ── SLIDE 04 · GOOGLE ADS BUDGET ─────────────────────── */}
+          {/* ── SLIDE 04 · COMPETITORS ───────────────────────────── */}
           <div className="afp-slot">
-          <section className="slide" data-label="04 Google Ads Budget">
-            <div className="brand-tag"><span className="dot"></span> 04 · Google Ads Budget</div>
+          <section className="slide" data-label="04 Competitors" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="brand-tag"><span className="dot"></span> 04 · Competitors</div>
             <div className="slide-head">
               <div className="h-left">
-                <div className="h-eyebrow">04 · Google Ads Budget</div>
+                <div className="h-eyebrow">04 · Competitors</div>
+                <h1 className="h-title">The competitors running ads get the traffic</h1>
+              </div>
+              <div className="h-meta">Google Ads Transparency Center · Keyword Planner · DataForSEO · Oct 2026</div>
+            </div>
+            {(() => {
+              const cols = '1fr 110px 150px 160px'
+              const Head = ({ first }: { first: string }) => (
+                <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                  <div className="lbl" style={{ fontSize: 14 }}>{first}</div>
+                  <div className="lbl" style={{ fontSize: 14, textAlign: 'right' }}>Ads running</div>
+                  <div className="lbl" style={{ fontSize: 14, textAlign: 'right' }}>Brand searches/mo</div>
+                  <div className="lbl" style={{ fontSize: 14, textAlign: 'right' }}>Est. visits/mo</div>
+                </div>
+              )
+              type Row = { name: string; scope: string; ads: string; brand: string; visits: string; you?: boolean }
+              const Rows = ({ rows }: { rows: Row[] }) => (
+                <>
+                  {rows.map((r, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: cols, gap: 12, padding: '9px 0', borderBottom: i < rows.length - 1 ? '1px solid var(--line)' : 'none', alignItems: 'center', background: r.you ? 'rgba(0,102,255,0.05)' : 'transparent', margin: r.you ? '0 -22px' : 0, paddingLeft: r.you ? 22 : 0, paddingRight: r.you ? 22 : 0 }}>
+                      <div>
+                        <div className="num-tag" style={{ fontSize: 21, color: r.you ? 'var(--purple-deep)' : 'var(--ink)' }}>{r.name}</div>
+                        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, color: 'var(--ink-mute)' }}>{r.scope}</div>
+                      </div>
+                      <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: r.ads === 'None' ? 17 : 21, fontWeight: r.ads === 'None' ? 400 : 600, color: r.ads === 'None' ? 'var(--ink-mute)' : '#b45309', textAlign: 'right' }}>{r.ads}</div>
+                      <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 19, color: 'var(--ink-2)', textAlign: 'right' }}>{r.brand}</div>
+                      <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 21, fontWeight: 600, color: 'var(--purple-deep)', textAlign: 'right' }}>{r.visits}</div>
+                    </div>
+                  ))}
+                </>
+              )
+              const bidding: Row[] = [
+                { name: 'WesTrac', scope: 'Cat dealer · WA & NSW', ads: 'Yes', brand: '6,600', visits: '26,000' },
+                { name: 'Pirtek', scope: 'Hose & fittings franchise · national', ads: 'Yes', brand: '9,900', visits: '17,800' },
+                { name: 'Motion Australia', scope: 'Industrial distributor · national', ads: 'Yes', brand: '1,600', visits: '15,700' },
+                { name: 'ENZED', scope: 'Hose franchise · national', ads: 'Yes', brand: '3,600', visits: '8,000' },
+                { name: 'AT Hydraulics', scope: 'Cylinder repair · Perth', ads: 'Yes', brand: '480', visits: '2,300' },
+              ]
+              const notBidding: Row[] = [
+                { name: 'Aussie Fluid Power', scope: 'You · Perth & Melbourne', ads: 'None', brand: '590', visits: '490', you: true },
+                { name: 'Pressure Dynamics', scope: 'Service & engineered builds · Perth', ads: 'None', brand: '480', visits: '530' },
+                { name: 'Hydraulic Energy', scope: 'Similar scope · Perth', ads: 'None', brand: '260', visits: '280' },
+                { name: 'HWC Hydraulics', scope: 'Similar scope · Perth', ads: 'None', brand: '140', visits: '60' },
+                { name: 'Hytube', scope: 'Piping installation · Perth', ads: 'None', brand: '110', visits: '10' },
+              ]
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'start', flex: 1, minHeight: 0 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div className="eyebrow" style={{ color: 'var(--purple-deep)', marginBottom: 2 }}>Running Google Ads</div>
+                    <div className="card" style={{ padding: '6px 22px 10px', gap: 0 }}>
+                      <Head first="Advertiser" />
+                      <Rows rows={bidding} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div className="eyebrow" style={{ color: 'var(--purple-deep)', marginBottom: 2 }}>Not running Google Ads</div>
+                    <div className="card" style={{ padding: '6px 22px 10px', gap: 0 }}>
+                      <Head first="Competitor" />
+                      <Rows rows={notBidding} />
+                    </div>
+                    <div className="card" style={{ padding: '14px 22px', gap: 4, background: 'rgba(0,102,255,0.05)', border: '1px solid rgba(0,102,255,0.12)' }}>
+                      <div className="eyebrow" style={{ color: 'var(--purple-deep)', fontSize: 15 }}>The gap</div>
+                      <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--ink)', lineHeight: 1.4 }}>
+                        AFP gets about 490 search visits a month. Every business running ads gets 2,300 to 26,000. Nobody in the specialist group clears 600. More traffic means more leads, and that gap is open because none of them are bidding.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+            <p className="small" style={{ marginTop: 8, fontSize: 16 }}>
+              <strong style={{ color: 'var(--ink)' }}>How to read this:</strong> Brand searches/mo is how many times people Google the company name each month (Google Keyword Planner, Australia, 12-month average). Est. visits/mo is the estimated monthly traffic the website gets from Google search.
+            </p>
+            <div className="slide-foot" />
+          </section>
+          </div>
+
+          {/* ── SLIDE 05 · GOOGLE ADS BUDGET ─────────────────────── */}
+          <div className="afp-slot">
+          <section className="slide" data-label="05 Google Ads Budget">
+            <div className="brand-tag"><span className="dot"></span> 05 · Google Ads Budget</div>
+            <div className="slide-head">
+              <div className="h-left">
+                <div className="h-eyebrow">05 · Google Ads Budget</div>
                 <h1 className="h-title">Monthly Budget Recommendations</h1>
               </div>
               <div className="h-meta" style={{ whiteSpace: 'nowrap' }}>Search · Perth &amp; Melbourne → Australia-wide</div>
@@ -301,13 +384,13 @@ export default function AussieFluidPowerProposal() {
           </section>
           </div>
 
-          {/* ── SLIDE 05 · RECOMMENDATION ──────────────────────── */}
+          {/* ── SLIDE 06 · RECOMMENDATION ──────────────────────── */}
           <div className="afp-slot">
-          <section className="slide" data-label="05 Recommendation">
-            <div className="brand-tag"><span className="dot"></span> 05 · Recommendation</div>
+          <section className="slide" data-label="06 Recommendation">
+            <div className="brand-tag"><span className="dot"></span> 06 · Recommendation</div>
             <div className="slide-head">
               <div className="h-left">
-                <div className="h-eyebrow">05 · Recommendation</div>
+                <div className="h-eyebrow">06 · Recommendation</div>
                 <h1 className="h-title">Own the home market first</h1>
               </div>
               <div className="h-meta">Perth + Melbourne first · then Australia-wide</div>
@@ -367,13 +450,13 @@ export default function AussieFluidPowerProposal() {
           </section>
           </div>
 
-          {/* ── SLIDE 06 · FLIGHT PLAN ───────────────────────────── */}
+          {/* ── SLIDE 07 · FLIGHT PLAN ───────────────────────────── */}
           <div className="afp-slot">
-          <section className="slide" data-label="06 Flight Plan">
-            <div className="brand-tag"><span className="dot"></span> 06 · Flight Plan</div>
+          <section className="slide" data-label="07 Flight Plan">
+            <div className="brand-tag"><span className="dot"></span> 07 · Flight Plan</div>
             <div className="slide-head">
               <div className="h-left">
-                <div className="h-eyebrow">06 · Flight Plan</div>
+                <div className="h-eyebrow">07 · Flight Plan</div>
                 <h1 className="h-title">Roadmap</h1>
               </div>
               <div className="h-meta">TBC</div>
