@@ -197,7 +197,6 @@ export default function AussieFluidPowerProposal() {
                 <div className="h-eyebrow">04 · Competitors</div>
                 <h1 className="h-title">The competitors running ads get the traffic</h1>
               </div>
-              <div className="h-meta">Google Ads Transparency Center · Keyword Planner · DataForSEO · Oct 2026</div>
             </div>
             {(() => {
               const cols = '1fr 110px 150px 160px'
