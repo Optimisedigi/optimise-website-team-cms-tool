@@ -105,10 +105,13 @@ export function runTimeline(args: {
   const days = args.measurementDays > 0 ? args.measurementDays : 42;
   const end = start + days * 86_400_000;
   const isFinished = args.status === "complete" || args.status === "failed";
-  const nowMs = args.now.getTime();
-  const elapsedMs = Math.max(0, nowMs - start);
-  const remainingMs = Math.max(0, end - nowMs);
-  const pct = Math.min(100, Math.max(0, ((nowMs - start) / (end - start)) * 100));
+  // A finished run's clock stops at completedAt: it must not keep ticking or
+  // keep filling the bar as calendar time passes, or it reads as still live.
+  const completedMs = args.completedAt ? new Date(args.completedAt).getTime() : Number.NaN;
+  const clockMs = isFinished && Number.isFinite(completedMs) ? completedMs : args.now.getTime();
+  const elapsedMs = Math.max(0, clockMs - start);
+  const remainingMs = isFinished ? 0 : Math.max(0, end - clockMs);
+  const pct = Math.min(100, Math.max(0, ((clockMs - start) / (end - start)) * 100));
   return {
     startedAt: new Date(start).toISOString(),
     cycleEndsAt: new Date(end).toISOString(),

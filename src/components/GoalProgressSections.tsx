@@ -76,7 +76,9 @@ export function RunStatusBar(props: {
   });
   const nextCheck = props.nextCheckAt ? new Date(props.nextCheckAt) : null;
   const nextCheckIn = nextCheck ? nextCheck.getTime() - now.getTime() : null;
-  const barColour = t.isFinished ? (props.status === "failed" ? "#dc2626" : "#16a34a") : "#2563eb";
+  // Finished runs get an inert grey bar (red if failed) and no width animation,
+  // so a completed run can't be mistaken for one that's still ticking.
+  const barColour = t.isFinished ? (props.status === "failed" ? "#dc2626" : "#9ca3af") : "#2563eb";
 
   return (
     <div>
@@ -107,16 +109,20 @@ export function RunStatusBar(props: {
         aria-label={`${t.percentComplete}% of the ${t.measurementDays}-day run horizon elapsed`}
         style={{ height: 14, background: "#f3f4f6", borderRadius: 7, overflow: "hidden", position: "relative" }}
       >
-        <div style={{ width: `${t.percentComplete}%`, height: "100%", background: barColour, transition: "width 1s linear" }} />
+        <div style={{ width: `${t.percentComplete}%`, height: "100%", background: barColour, transition: t.isFinished ? "none" : "width 1s linear" }} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
         <span style={MUTED}>Started {new Date(t.startedAt).toLocaleString()}</span>
-        <span style={MUTED}>{ONE_DP.format(t.percentComplete)}% of {t.measurementDays}-day run horizon</span>
-        <span style={MUTED}>Ends {new Date(t.cycleEndsAt).toLocaleString()}</span>
+        <span style={MUTED}>
+          {ONE_DP.format(t.percentComplete)}% of {t.measurementDays}-day run horizon{t.isFinished ? " used before the run ended" : ""}
+        </span>
+        <span style={MUTED}>{t.isFinished ? "Would have ended" : "Ends"} {new Date(t.cycleEndsAt).toLocaleString()}</span>
       </div>
-      {props.completedAt && (
-        <p style={{ ...MUTED, margin: "6px 0 0" }}>
-          Run marked {props.status} at {new Date(props.completedAt).toLocaleString()}. Progress points keep recording for 14 days after completion.
+      {t.isFinished && (
+        <p style={{ ...MUTED, margin: "6px 0 0", fontWeight: 600, color: props.status === "failed" ? "#b91c1c" : "#374151" }}>
+          This run is {props.status === "failed" ? "failed" : "finished"} and no longer ticking
+          {props.completedAt ? ` (marked ${props.status} at ${new Date(props.completedAt).toLocaleString()})` : ""}.
+          The hourly agent cron skips it. Progress points keep recording for 14 days after completion.
         </p>
       )}
     </div>

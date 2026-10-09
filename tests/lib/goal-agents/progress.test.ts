@@ -85,10 +85,25 @@ describe("runTimeline / formatDuration", () => {
     expect(formatDuration(t.remainingMs)).toBe("7d 0h");
     expect(t.isFinished).toBe(false);
   });
-  it("clamps to 100% after the cycle and flags finished runs", () => {
+  it("freezes a finished run's clock at completedAt instead of ticking with calendar time", () => {
+    // Berendsen run #1: completed after ~1.6h of a 42-day horizon. Viewed a day
+    // later, the bar must still show the frozen 0.2%, not 1.8% and climbing.
+    const t = runTimeline({
+      createdAt: "2026-10-08T11:22:20.000Z",
+      completedAt: "2026-10-08T13:00:18.000Z",
+      status: "complete",
+      measurementDays: 42,
+      now: new Date("2026-10-09T06:00:00.000Z"),
+    });
+    expect(t.isFinished).toBe(true);
+    expect(t.remainingMs).toBe(0);
+    expect(t.elapsedMs).toBe(new Date("2026-10-08T13:00:18.000Z").getTime() - new Date("2026-10-08T11:22:20.000Z").getTime());
+    expect(t.percentComplete).toBe(0.2);
+  });
+  it("clamps to 100% for a finished run that ran its whole horizon", () => {
     const t = runTimeline({
       createdAt: "2026-10-01T00:00:00.000Z",
-      completedAt: "2026-10-02T00:00:00.000Z",
+      completedAt: "2026-11-20T00:00:00.000Z",
       status: "complete",
       measurementDays: 14,
       now: new Date("2026-12-01T00:00:00.000Z"),
@@ -96,6 +111,17 @@ describe("runTimeline / formatDuration", () => {
     expect(t.percentComplete).toBe(100);
     expect(t.remainingMs).toBe(0);
     expect(t.isFinished).toBe(true);
+  });
+  it("falls back to now for a finished run with no completedAt", () => {
+    const t = runTimeline({
+      createdAt: "2026-10-01T00:00:00.000Z",
+      completedAt: null,
+      status: "failed",
+      measurementDays: 14,
+      now: new Date("2026-10-08T00:00:00.000Z"),
+    });
+    expect(t.percentComplete).toBe(50);
+    expect(t.remainingMs).toBe(0);
   });
   it("formats short durations", () => {
     expect(formatDuration(90 * 60_000)).toBe("1h 30m");
