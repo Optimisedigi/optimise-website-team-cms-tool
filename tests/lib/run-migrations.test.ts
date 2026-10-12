@@ -172,6 +172,54 @@ describe("runMigrations", () => {
     );
   });
 
+  it("creates the never-ported hot-path indexes even when production is fully marked and short-circuits", async () => {
+    const indexTables = ["notifications", "agent_approval_queue", "activity_log", "team_tasks", "google_ads_audit_snapshots"];
+    const execute = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("sqlite_master") && sql.includes("landing_")) return { rows: [{ name: "landing_events" }] };
+      if (sql.includes("PRAGMA table_info(`landing_events`)")) return { rows: [{ name: "market" }] };
+      if (sql.includes("sqlite_master") && indexTables.some((t) => sql.includes(`'${t}'`))) return { rows: [{ 1: 1 }] };
+      return { rows: [] };
+    });
+    const payload = { db: { client: { execute } } } as any;
+
+    const results = await runMigrations(payload);
+    const statements = execute.mock.calls.map(([sql]) => String(sql));
+
+    expect(results.length).toBeLessThan(120);
+    for (const name of [
+      "notifications_recipient_read_at_created_at_idx",
+      "notifications_recipient_created_at_idx",
+      "notifications_kind_related_approval_idx",
+      "agent_approval_queue_status_updated_at_idx",
+      "activity_log_type_created_at_idx",
+      "team_tasks_completed_at_idx",
+      "team_tasks_created_at_idx",
+      "google_ads_audit_snapshots_audit_idx",
+      "google_ads_audit_snapshots_client_idx",
+      "google_ads_audit_snapshots_status_idx",
+      "google_ads_audit_snapshots_requested_at_idx",
+      "google_ads_audit_snapshots_job_idx",
+    ]) {
+      expect(results).toContainEqual({ label: name, status: "ok" });
+    }
+    expect(statements).toContain(
+      "CREATE INDEX IF NOT EXISTS `notifications_recipient_read_at_created_at_idx` ON `notifications` (`recipient_id`, `read_at`, `created_at`)",
+    );
+  });
+
+  it("skips the hot-path indexes for tables that do not exist yet instead of erroring", async () => {
+    const execute = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("sqlite_master") && sql.includes("landing_")) return { rows: [{ name: "landing_events" }] };
+      if (sql.includes("PRAGMA table_info(`landing_events`)")) return { rows: [{ name: "market" }] };
+      return { rows: [] };
+    });
+    const results = await runMigrations({ db: { client: { execute } } } as any);
+    expect(results.some((r) => r.label === "team_tasks_completed_at_idx")).toBe(false);
+    expect(execute.mock.calls.map(([sql]) => String(sql)).some((sql) => sql.includes("team_tasks_completed_at_idx"))).toBe(false);
+  });
+
   it("adds the hosting start date, renewal note and one-off payments table when production short-circuits", async () => {
     // Production state: markers present, so the runner returns early. These were
     // first shipped only in the main sweep and never reached production, leaving

@@ -767,6 +767,36 @@ export async function runMigrations(
 
   // Daily goal-run progress series (2026-10-09). Same pattern as baseline.
   // Keep in sync with src/migrations/20261009_150000_goal_runs_progress.ts.
+  /**
+   * Indexes defined in 20260717 (notification hot paths), 20260718 (team
+   * tasks) and 20260805 (audit snapshots) that were never ported here, so
+   * production never had them. Runs before the marker short-circuit
+   * (production carries the marker); each table is skipped until it exists so
+   * a fresh database doesn't error, and the full sweep calls this again later.
+   */
+  async function addUnportedHotPathIndexes(): Promise<void> {
+    const indexes: Array<[table: string, name: string, columns: string]> = [
+      ["google_ads_audit_snapshots", "google_ads_audit_snapshots_audit_idx", "`audit_id`"],
+      ["google_ads_audit_snapshots", "google_ads_audit_snapshots_client_idx", "`client_id`"],
+      ["google_ads_audit_snapshots", "google_ads_audit_snapshots_status_idx", "`status`"],
+      ["google_ads_audit_snapshots", "google_ads_audit_snapshots_requested_at_idx", "`requested_at`"],
+      ["google_ads_audit_snapshots", "google_ads_audit_snapshots_job_idx", "`growth_tools_job_id`"],
+      ["notifications", "notifications_recipient_read_at_created_at_idx", "`recipient_id`, `read_at`, `created_at`"],
+      ["notifications", "notifications_recipient_created_at_idx", "`recipient_id`, `created_at`"],
+      ["notifications", "notifications_kind_related_approval_idx", "`kind`, `related_approval_id`"],
+      ["agent_approval_queue", "agent_approval_queue_status_updated_at_idx", "`status`, `updated_at`"],
+      ["activity_log", "activity_log_type_created_at_idx", "`type`, `created_at`"],
+      ["team_tasks", "team_tasks_completed_at_idx", "`completed_at`"],
+      ["team_tasks", "team_tasks_created_at_idx", "`created_at`"],
+    ];
+    const present = new Map<string, boolean>();
+    for (const [table, name, columns] of indexes) {
+      if (!present.has(table)) present.set(table, await tableExists(table));
+      if (!present.get(table)) continue;
+      await run(name, `CREATE INDEX IF NOT EXISTS \`${name}\` ON \`${table}\` (${columns})`);
+    }
+  }
+
   async function addGoalRunsProgress(): Promise<void> {
     if (!(await tableExists("goal_runs"))) return;
     if (await columnExists("goal_runs", "progress")) return;
@@ -877,6 +907,7 @@ export async function runMigrations(
     await addMeetingSchedulerAvailability();
     await addGoalRunsBaseline();
     await addGoalRunsProgress();
+    await addUnportedHotPathIndexes();
 
     // Skip only when the marker AND the schema it claims to have created are
     // both present. Trusting the marker alone left production believing the
@@ -6281,6 +6312,8 @@ export async function runMigrations(
 
     await run("google_ads_audit_snapshots_one_active_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshots_one_active_idx` ON `google_ads_audit_snapshots` (`audit_id`) WHERE `status` IN ('pending', 'running')");
     await run("google_ads_audit_snapshots_analysis_blob_pathname_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshots_analysis_blob_pathname_idx` ON `google_ads_audit_snapshots` (`analysis_blob_pathname`)");
+
+    await addUnportedHotPathIndexes();
     await run("google_ads_audit_snapshot_chunks_identity_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_identity_idx` ON `google_ads_audit_snapshot_chunks` (`identity`)");
     await run("google_ads_audit_snapshot_chunks_natural_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_natural_idx` ON `google_ads_audit_snapshot_chunks` (`snapshot_id`, `dataset_key`, `chunk_index`)");
     await run("google_ads_audit_snapshot_chunks_storage_mode_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audit_snapshot_chunks_storage_mode_idx` ON `google_ads_audit_snapshot_chunks` (`storage_mode`)");
