@@ -487,6 +487,9 @@ export function renderMarkdown(text: string) {
                     key={`th-${idx}`}
                     style={{
                       background: '#f3f4f6',
+                      // Header background is always light; pin the text dark so
+                      // it stays readable in dark mode (inherited colour is white).
+                      color: '#111827',
                       padding: '6px 8px',
                       textAlign: numericCols.has(idx) ? 'right' : 'left',
                       border: '1px solid #e5e7eb',

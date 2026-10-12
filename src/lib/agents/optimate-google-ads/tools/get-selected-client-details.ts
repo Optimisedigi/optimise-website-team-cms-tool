@@ -25,7 +25,7 @@ const MAX_ACCOUNTS = 10;
 export const getSelectedClientDetails: CanonicalTool<SelectedClientDetailsArgs> = {
   name: "get_selected_client_details",
   description:
-    "Read CMS client details for the currently selected portfolio accounts, one account at a time and labelled per account. Use when selected-account chat/voice asks for client start dates, Google Ads start dates, contact details, retainers, client notes, or account timeline/history. Args: accountRefs (server-injected for voice; optional in text), fields ('commercial','timeline','contact','notes','business','locations','goals','all'), limit for notes/timeline. Returns one result per selected account with clientStartDate and accountTimeline when requested.",
+    "Read CMS client details for the currently selected portfolio accounts, one account at a time and labelled per account. Use when selected-account chat/voice asks for client start dates, Google Ads start dates, contact details, retainers, monthly ad spend budgets (CMS Budget Management monthlyBudget), client notes, or account timeline/history. Args: accountRefs (server-injected for voice; optional in text), fields ('commercial','timeline','contact','notes','business','locations','goals','all'), limit for notes/timeline. Returns one result per selected account; 'commercial' includes monthlyRetainer and monthlyAdSpendBudget (from Budget Management, or the spend policy target as fallback).",
   inputSchema: {
     type: "object",
     properties: {
@@ -155,6 +155,8 @@ function projectConciseClient(profile: OptimateClientProfile, groups: FieldGroup
     out.commercial = {
       clientStartDate: profile.commercial?.clientStartDate ?? null,
       monthlyRetainer: profile.commercial?.monthlyRetainer ?? null,
+      monthlyAdSpendBudget: profile.commercial?.monthlyAdSpendBudget ?? null,
+      monthlyAdSpendBudgetSource: profile.commercial?.monthlyAdSpendBudgetSource ?? null,
       googleAdsCustomerId: profile.tracking?.googleAdsCustomerId ?? null,
     };
   }

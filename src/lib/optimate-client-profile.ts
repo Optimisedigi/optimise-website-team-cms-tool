@@ -56,6 +56,13 @@ export type OptimateClientProfile = {
     campaignStartDate: string | null;
     retainerStartDate: string | null;
     monthlyRetainer: number | null;
+    /**
+     * Monthly Google Ads spend budget from CMS Budget Management (the client's
+     * newest Google Ads audit `monthlyBudget`). Falls back to the client's spend
+     * policy monthly target when no audit budget is set.
+     */
+    monthlyAdSpendBudget: number | null;
+    monthlyAdSpendBudgetSource: "budget_management" | "spend_policy" | null;
     setupFee: number | null;
     revenueSharePercent: number | null;
     oneOffProjects: Array<{
@@ -229,16 +236,56 @@ export async function buildOptimateClientProfile(
   const client = await findClient(payload, args);
   if (!client) return null;
 
-  const [contracts, invoices] = await Promise.all([
+  const [contracts, invoices, adSpendBudget] = await Promise.all([
     groups.includes("contracts")
       ? findClientContracts(payload, client.id, limit)
       : Promise.resolve({ docs: [], totalDocs: 0 }),
     groups.includes("invoices")
       ? findClientInvoiceDrafts(payload, client.id, limit)
       : Promise.resolve({ docs: [], totalDocs: 0 }),
+    groups.includes("commercial")
+      ? findMonthlyAdSpendBudget(payload, client)
+      : Promise.resolve<MonthlyAdSpendBudget>({ amount: null, source: null }),
   ]);
 
-  return projectProfile(client, groups, limit, contracts, invoices);
+  return projectProfile(client, groups, limit, contracts, invoices, adSpendBudget);
+}
+
+type MonthlyAdSpendBudget = {
+  amount: number | null;
+  source: "budget_management" | "spend_policy" | null;
+};
+
+/**
+ * Monthly ad spend budget as the Budget Management tab shows it: the client's
+ * newest Google Ads audit `monthlyBudget`, else the client spend-policy target.
+ */
+async function findMonthlyAdSpendBudget(payload: Payload, client: Client): Promise<MonthlyAdSpendBudget> {
+  let auditBudget: number | null = null;
+  try {
+    const result = await payload.find({
+      collection: "google-ads-audits" as never,
+      where: { client: { equals: client.id } } as never,
+      sort: "-createdAt",
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      select: { monthlyBudget: true } as never,
+    });
+    const audit = result.docs[0] as { monthlyBudget?: unknown } | undefined;
+    auditBudget = finiteOrNull(audit?.monthlyBudget);
+  } catch {
+    auditBudget = null;
+  }
+  if (auditBudget !== null) return { amount: auditBudget, source: "budget_management" };
+
+  const policyTarget = finiteOrNull(client.spendPolicy?.monthlyBudgetTarget);
+  if (policyTarget !== null) return { amount: policyTarget, source: "spend_policy" };
+  return { amount: null, source: null };
+}
+
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function normaliseGroups(fields: OptimateClientProfileFieldGroup[] | undefined): OptimateClientProfileFieldGroup[] {
@@ -334,6 +381,7 @@ function projectProfile(
   limit: number,
   contracts: LimitedDocs<Contract>,
   invoices: LimitedDocs<InvoiceStatementDraft>,
+  adSpendBudget: MonthlyAdSpendBudget,
 ): OptimateClientProfile {
   const want = (group: OptimateClientProfileFieldGroup): boolean => groups.includes(group);
   const out: OptimateClientProfile = {
@@ -380,6 +428,8 @@ function projectProfile(
       campaignStartDate: client.campaignStartDate ?? null,
       retainerStartDate: client.retainerStartDate ?? null,
       monthlyRetainer: client.monthlyRetainer ?? null,
+      monthlyAdSpendBudget: adSpendBudget.amount,
+      monthlyAdSpendBudgetSource: adSpendBudget.source,
       setupFee: client.setupFee ?? null,
       revenueSharePercent: client.revenueSharePercent ?? null,
       oneOffProjects: (client.oneOffProjects ?? []).map((project) => ({

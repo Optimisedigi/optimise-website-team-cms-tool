@@ -57,7 +57,7 @@ interface GetClientDetailsArgs {
 export const getClientDetails: CanonicalTool<GetClientDetailsArgs> = {
   name: "get_client_details",
   description:
-    "On-demand read of the linked client's CMS record. Use ONLY when the user asks about client info that isn't in the context — contact details, retainer/start date, business goals, recent notes, account timeline. Pass `fields` to project just the slice you need: 'contact' (name/email/account managers), 'commercial' (retainer, start date), 'notes', 'timeline' (account history entries), 'business' (type, website), 'locations' (physical + Google Maps), 'goals' (conversion goals + client goals). Use 'all' sparingly. Default returns ['contact','commercial','goals'] which is the cheapest summary.",
+    "On-demand read of the linked client's CMS record. Use ONLY when the user asks about client info that isn't in the context — contact details, retainer/start date, business goals, recent notes, account timeline. Pass `fields` to project just the slice you need: 'contact' (name/email/account managers), 'commercial' (retainer, monthly ad spend budget from Budget Management, start date), 'notes', 'timeline' (account history entries), 'business' (type, website), 'locations' (physical + Google Maps), 'goals' (conversion goals + client goals). Use 'all' sparingly. Default returns ['contact','commercial','goals'] which is the cheapest summary.",
   inputSchema: {
     type: "object",
     properties: {
@@ -188,6 +188,8 @@ function projectConciseClient(profile: OptimateClientProfile, groups: FieldGroup
     out.commercial = {
       clientStartDate: profile.commercial?.clientStartDate ?? null,
       monthlyRetainer: profile.commercial?.monthlyRetainer ?? null,
+      monthlyAdSpendBudget: profile.commercial?.monthlyAdSpendBudget ?? null,
+      monthlyAdSpendBudgetSource: profile.commercial?.monthlyAdSpendBudgetSource ?? null,
       googleAdsCustomerId: profile.tracking?.googleAdsCustomerId ?? null,
     };
   }

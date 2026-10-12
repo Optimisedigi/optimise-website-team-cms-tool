@@ -968,7 +968,7 @@ export function createClientDetailsTool(
       "'business' = website, services, 'Who is this client?' overview, business type, goals, keywords, competitors, locations; " +
       "'tracking' = whether a Google Ads customer ID is set up plus Meta, GA4, Search Console, GTM and conversion-action setup; " +
       "'budget' = Google Ads budget from Budget Management: monthly budget, each campaign's share and daily budget, and budget vs actual spend by month (daily figures are the last values synced to Google Ads, not live); " +
-      "'commercial' = client/campaign/retainer start dates, retainer, setup fee, one-off projects; " +
+      "'commercial' = client/campaign/retainer start dates, retainer, monthly ad spend budget (monthlyAdSpendBudget from Budget Management), setup fee, one-off projects; " +
       "'contact' = contact person, additional contacts, account managers; " +
       "'contracts' = the client's CMS contracts: status, signed/sent dates, start/end dates, currency, monthly retainer, setup fee, monthly or annual hosting, additional work items, pricing notes, contract term, payment terms, scope of work and payment/termination overrides (only request when the admin asks about a contract or what was agreed in it); " +
       "'access' = the client hub PIN (only request when the admin asks for the PIN); " +
