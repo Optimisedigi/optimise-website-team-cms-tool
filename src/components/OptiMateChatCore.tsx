@@ -133,6 +133,8 @@ interface TypedChatRequestPayload {
     from: string
     date: string
   }
+  /** Email attached earlier in this chat; Gmail drafts are threaded replies to it. */
+  replyToEmail?: { messageId: string }
 }
 
 interface TypedChatResponse {
@@ -842,6 +844,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         setError(null)
         setHistoryOpen(false)
         setAttachedEmail(null)
+        setReplyTargetEmail(null)
         setImageAttachments([])
         setDraftState({})
       }
@@ -859,6 +862,12 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const [pendingRefreshTick, setPendingRefreshTick] = useState(0)
     const bumpPendingRefresh = useCallback(() => setPendingRefreshTick((n) => n + 1), [])
     const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
+    /**
+     * The email the user attached in this chat stays pinned as the reply
+     * target after its turn (the attachment itself is cleared per turn), so a
+     * later "draft a reply" creates a threaded Gmail reply, not a new email.
+     */
+    const [replyTargetEmail, setReplyTargetEmail] = useState<AttachedEmailMeta | null>(null)
     const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([])
     const [selectedMonthlyEmailComponents, setSelectedMonthlyEmailComponents] = useState<MonthlyEmailComponentKey[]>([])
     const [dragActive, setDragActive] = useState(false)
@@ -916,6 +925,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             body: text,
+            ...(replyTargetEmail ? { replyToMessageId: replyTargetEmail.messageId } : {}),
           }),
         })
         const data = await res.json().catch(() => ({}))
@@ -942,7 +952,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           },
         }))
       }
-    }, [])
+    }, [replyTargetEmail])
 
     // Pending-strip fetch: query approvals for this audit and surface anything
     // still pending. We over-fetch then client-filter on auditId because the
@@ -1111,6 +1121,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       setError(null)
       setHistoryOpen(false)
       setAttachedEmail(null)
+      setReplyTargetEmail(null)
       setImageAttachments([])
       setSelectedMonthlyEmailComponents([])
       setDraftState({})
@@ -1156,9 +1167,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 date: input.attachedEmail.date,
               }
             : undefined,
+          replyToEmail:
+            !input.attachedEmail && replyTargetEmail ? { messageId: replyTargetEmail.messageId } : undefined,
         }
       },
-      [mapMessagesToHistory, messageContextPrefix, messages, mode, reasoningMode, selectedAccountRefs, selectedModel],
+      [mapMessagesToHistory, messageContextPrefix, messages, mode, reasoningMode, replyTargetEmail, selectedAccountRefs, selectedModel],
     )
 
     const syncSessionIdFromResponse = useCallback(
@@ -2251,6 +2264,55 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         {/* Input — hidden when a multi-chat wrapper is supplying a shared one. */}
         {!hideInput && (
           <div style={{ position: 'relative', marginTop: 10, width: '100%', flexShrink: 0 }}>
+            {!attachedEmail && replyTargetEmail && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 8px',
+                  marginBottom: 8,
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 12,
+                  fontSize: 11,
+                  color: '#1e40af',
+                  maxWidth: '100%',
+                }}
+                title={`Gmail drafts from this chat are saved as a reply to the email from ${replyTargetEmail.from} · ${replyTargetEmail.date}`}
+              >
+                <span style={{ flexShrink: 0 }} aria-hidden="true">↩</span>
+                <span
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: 360,
+                  }}
+                >
+                  Drafts reply to: {replyTargetEmail.subject || '(no subject)'} — {replyTargetEmail.from}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setReplyTargetEmail(null)
+                  }}
+                  aria-label="Stop replying to this email"
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    color: '#1e40af',
+                    padding: 0,
+                    lineHeight: 1,
+                    fontSize: 12,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             {attachedEmail && (
               <div
                 style={{
@@ -2284,6 +2346,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   onClick={(e) => {
                     e.preventDefault()
                     setAttachedEmail(null)
+                    setReplyTargetEmail(null)
                   }}
                   aria-label="Remove attached email"
                   style={{
@@ -2379,6 +2442,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               onClose={() => setPickerOpen(false)}
               onSelect={(meta) => {
                 setAttachedEmail(meta)
+                setReplyTargetEmail(meta)
                 setPickerOpen(false)
               }}
             />

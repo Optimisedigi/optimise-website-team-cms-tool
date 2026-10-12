@@ -3,6 +3,8 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { createGmailDraft } from "@/lib/gmail-service";
+import { fetchMessageBody } from "@/lib/gmail-search";
+import { buildGmailReplyContext, parseGmailMessageId, type GmailReplyContext } from "@/lib/gmail-reply-context";
 import { parseGmailDraftAttachments } from "@/lib/gmail-draft-attachments";
 import { markdownLiteToHtml } from "@/lib/email-draft-markdown";
 import {
@@ -17,7 +19,10 @@ import {
  * logged-in user's own Gmail Drafts. New drafts may leave the recipient empty;
  * replies retain their thread recipient. We create drafts but never send mail.
  *
- * Body: { subject?: string, body: string, to?: string, attachments?: ImageAttachment[] }
+ * Body: { subject?: string, body: string, to?: string, attachments?: ImageAttachment[], replyToMessageId?: string }
+ *  - replyToMessageId: Gmail message id of an email the user attached in the
+ *    chat. The server fetches its headers and saves the draft as a threaded
+ *    reply (recipient, Re: subject, threadId, In-Reply-To all pinned).
  *  - body is treated as markdown-lite; we render a minimal HTML version
  *    so paragraphs and bullets survive in Gmail's compose pane.
  *  - to defaults to "" (empty recipient field) so Gmail forces the user
@@ -32,6 +37,8 @@ interface DraftBody {
   threadId?: unknown;
   /** RFC 822 Message-ID of the message being replied to. */
   inReplyTo?: unknown;
+  /** Gmail message id to reply to; resolved server-side into reply headers. */
+  replyToMessageId?: unknown;
   attachments?: unknown;
 }
 
@@ -83,10 +90,11 @@ export async function POST(req: NextRequest) {
   const clientTo = typeof body.to === "string" ? body.to.trim() : "";
   // Precedence: explicit client subject → parsed Subject: header → empty
   // (Gmail compose pane shows an empty subject line, which is honest).
-  const subject = clientSubject || headers.subject || "";
-  const to = clientTo || headers.to || "";
-  const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
-  const inReplyTo = typeof body.inReplyTo === "string" ? body.inReplyTo.trim() : "";
+  const hasReplyToMessageId = typeof body.replyToMessageId === "string" && body.replyToMessageId.trim() !== "";
+  const replyToMessageId = hasReplyToMessageId ? parseGmailMessageId(body.replyToMessageId) : null;
+  if (hasReplyToMessageId && !replyToMessageId) {
+    return NextResponse.json({ error: "replyToMessageId is invalid." }, { status: 400 });
+  }
 
   const tokenResult = await getValidGmailToken(user.id);
   if (!tokenResult.ok) {
@@ -95,6 +103,26 @@ export async function POST(req: NextRequest) {
       { status: 403 },
     );
   }
+
+  let reply: GmailReplyContext | undefined;
+  if (replyToMessageId) {
+    try {
+      reply = buildGmailReplyContext(await fetchMessageBody(tokenResult.accessToken, replyToMessageId));
+    } catch (err) {
+      const e = err as { message?: string };
+      return NextResponse.json(
+        { error: `Could not load the email to reply to: ${e.message ?? "Gmail fetch failed"}` },
+        { status: 502 },
+      );
+    }
+  }
+
+  // A reply's recipient/subject/thread come from the original email so Gmail
+  // threads it (it requires threadId, In-Reply-To and a matching Re: subject).
+  const subject = reply?.subject || clientSubject || headers.subject || "";
+  const to = reply?.to || clientTo || headers.to || "";
+  const threadId = reply ? (reply.threadId ?? "") : typeof body.threadId === "string" ? body.threadId.trim() : "";
+  const inReplyTo = reply ? (reply.inReplyTo ?? "") : typeof body.inReplyTo === "string" ? body.inReplyTo.trim() : "";
 
   try {
     const html = markdownLiteToHtml(text);

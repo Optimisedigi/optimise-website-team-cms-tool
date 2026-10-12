@@ -280,6 +280,45 @@ describe('create_portfolio_weekly_gmail_drafts', () => {
     expect(second).toEqual(first)
   })
 
+  it('never threads separate per-account drafts into a pinned Gmail reply', async () => {
+    mocks.loadAccounts.mockResolvedValue([
+      { accountRef: 4, clientId: 9, displayName: 'Berendsen', customerId: '123-456-7890', maskedCustomerId: 'x', source: 'audit', active: true, managed: true },
+      { accountRef: 5, clientId: 10, displayName: 'EPG engines', customerId: '222-333-4444', maskedCustomerId: 'y', source: 'audit', active: true, managed: true },
+    ])
+    mocks.executeWeekly.mockResolvedValue({
+      ok: true,
+      data: { html: '<table>weekly</table>', weeks: 4, rows: [] },
+    })
+    mocks.executeBudget.mockResolvedValue({
+      ok: true,
+      data: { html: '<div>budget</div>', budget: { monthlyBudget: 6000, totalSpend: 1, targetSpendToDate: 1, pacingDifference: 0 } },
+    })
+    mocks.executeDraft.mockResolvedValue({ ok: true, data: { draftId: 'd', messageId: 'm', gmailUrl: 'https://gmail/d' } })
+
+    const replyCtx: ToolContext = {
+      ...ctx,
+      context: {
+        ...ctx.context,
+        gmailReplyTo: 'Jane <jane@example.com>',
+        gmailReplySubject: 'Re: Budgets',
+        gmailReplyThreadId: 'thread-1',
+        gmailReplyInReplyTo: '<m@example.com>',
+      },
+    }
+    const args = createPortfolioWeeklyGmailDraftsTool.validate!({ accountRefs: [4, 5], weeks: 4, endDate: '2026-07-12' })
+    await createPortfolioWeeklyGmailDraftsTool.execute(args, replyCtx)
+
+    expect(mocks.executeDraft).toHaveBeenCalledTimes(2)
+    for (const call of mocks.executeDraft.mock.calls) {
+      const draftCtx = call[1] as ToolContext
+      expect(draftCtx.context).not.toHaveProperty('gmailReplyTo')
+      expect(draftCtx.context).not.toHaveProperty('gmailReplySubject')
+      expect(draftCtx.context).not.toHaveProperty('gmailReplyThreadId')
+      expect(draftCtx.context).not.toHaveProperty('gmailReplyInReplyTo')
+      expect(draftCtx.context.userId).toBe(12)
+    }
+  })
+
   describe('dashboard graph parity with the single-account weekly tool', () => {
     const validate = createPortfolioWeeklyGmailDraftsTool.validate!
 

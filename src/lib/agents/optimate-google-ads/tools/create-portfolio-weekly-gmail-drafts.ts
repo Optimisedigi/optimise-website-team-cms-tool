@@ -1,6 +1,7 @@
 import type { CanonicalTool, ToolContext } from '@/lib/agents/_shared/tool'
 import type { WeeklyBucketRow } from '@/lib/google-ads-weekly-metric-table'
 import { createGmailDraftTool } from './create-gmail-draft'
+import { withoutGmailReplyContext } from '@/lib/gmail-reply-context'
 import { getBudgetManagementEmail } from './get-budget-management-email'
 import {
   loadPortfolioAccounts,
@@ -409,8 +410,9 @@ function normaliseRefs(refs: Array<string | number>): Array<string | number> {
 function contextForAccount(ctx: ToolContext, account: PortfolioAccount): ToolContext {
   return {
     ...ctx,
+    // One separate draft per account: never thread them into a pinned reply.
     context: {
-      ...ctx.context,
+      ...withoutGmailReplyContext(ctx.context),
       ...(account.accountRef !== undefined ? { auditId: account.accountRef } : {}),
       ...(account.clientId !== undefined ? { clientId: account.clientId } : {}),
       clientName: account.displayName,

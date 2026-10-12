@@ -1,5 +1,6 @@
 import type { CanonicalTool, ToolContext } from '@/lib/agents/_shared/tool'
 import { createGmailDraftTool } from './create-gmail-draft'
+import { withoutGmailReplyContext } from '@/lib/gmail-reply-context'
 import { getBudgetManagementEmail } from './get-budget-management-email'
 import { getPortfolioPerformanceSummary } from './get-portfolio-performance-summary'
 import { getDashboardEmailComponents } from './get-dashboard-email-components'
@@ -414,9 +415,10 @@ export const createPortfolioBudgetPacingGmailDraftsTool: CanonicalTool<CreatePor
           ...(dashboard ? [dashboard.html] : []),
           period === 'last_month' ? prepareMonthlyBudgetBreakdownHtml(budget.html) : budget.html,
         ].join('\n')
+        // One separate draft per account: never thread them into a pinned reply.
         const draftResult = await createGmailDraftTool.execute(
           { subject: budget.subject, htmlBody, ...(args.to ? { to: args.to } : {}) },
-          ctx,
+          { ...ctx, context: withoutGmailReplyContext(ctx.context) },
         )
         if (!draftResult.ok) {
           failures.push({

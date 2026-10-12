@@ -5,6 +5,7 @@
  */
 
 import { runAgent, MAX_TOKENS_TRUNCATION_MARKER } from "../_shared/base-agent";
+import { gmailReplyAgentContext, type GmailReplyContext } from "@/lib/gmail-reply-context";
 import type { CanonicalTool } from "../_shared/tool";
 import type { CredentialSource, Message, ReasoningMode, Usage } from "../_shared/llm/types";
 import { DEFAULT_AUTONOMOUS_FALLBACKS } from "../_shared/llm/registry";
@@ -444,6 +445,8 @@ export interface RunChatTurnInput {
   userId?: number;
   /** True when the latest user message includes untrusted external content, e.g. a fetched Gmail body. */
   restrictExternalContextActions?: boolean;
+  /** Trusted reply target from an email the user attached; Gmail drafts thread as a reply to it. */
+  gmailReplyContext?: GmailReplyContext;
   /** Per-request reasoning mode. Defaults to off for routine chat turns. */
   reasoningMode?: ReasoningMode;
   /** Disable model failover for strict benchmark runs where fallback would invalidate the result. */
@@ -457,6 +460,8 @@ export interface RunPortfolioChatTurnInput {
   modelOverride?: string;
   userId?: number;
   restrictExternalContextActions?: boolean;
+  /** Trusted reply target from an email the user attached; Gmail drafts thread as a reply to it. */
+  gmailReplyContext?: GmailReplyContext;
   reasoningMode?: ReasoningMode;
   selectedAccountRefs?: Array<string | number>;
   /** Absolute epoch-ms deadline. Threaded to runAgent() for wall-clock budget control. */
@@ -523,7 +528,7 @@ const DEFAULT_FALLBACKS = DEFAULT_AUTONOMOUS_FALLBACKS;
 const CHAT_MAX_TOKENS = 8192;
 
 export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Promise<RunChatTurnResult> {
-  const { messages, modelOverride, userId, restrictExternalContextActions, reasoningMode, selectedAccountRefs, deadlineMs } = input;
+  const { messages, modelOverride, userId, restrictExternalContextActions, gmailReplyContext, reasoningMode, selectedAccountRefs, deadlineMs } = input;
   const pinnedMemory = await loadPinnedMemoryBlock([], { soulAgentKeys: ["google-ads"] });
   const systemPrompt = buildSystemPromptForPortfolio({
     pinnedMemoryBlock: pinnedMemory.text,
@@ -609,6 +614,7 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
       mode: "portfolio",
       ...(selectedAccountRefs && selectedAccountRefs.length > 0 ? { selectedAccountRefs } : {}),
       ...(userId !== undefined ? { userId } : {}),
+      ...gmailReplyAgentContext(gmailReplyContext),
     },
     deadlineMs,
   });
@@ -629,7 +635,7 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
 }
 
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
-  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, autonomous, reasoningMode, disableFallbacks, deadlineMs } = input;
+  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, gmailReplyContext, autonomous, reasoningMode, disableFallbacks, deadlineMs } = input;
   if (!audit.customerId || !String(audit.customerId).trim()) {
     throw new Error("Audit has no Customer ID; cannot run agent.");
   }
@@ -674,6 +680,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     conversionActions,
     conversionActionCategories,
     ...(userId !== undefined ? { userId } : {}),
+    ...gmailReplyAgentContext(gmailReplyContext),
   };
 
   let result = await runAgent({
