@@ -10,11 +10,16 @@ import RocketSplash from '@/components/RocketSplash'
 import { OPTIMATE_MODAL_CSS } from '@/components/optimate-modal-styles'
 
 type Props =
-  | { agent?: 'google-ads'; targets: OptiMateChatTarget[] }
-  | { agent: 'invoices'; targets?: undefined }
+  | {
+      agent?: 'google-ads'
+      targets: OptiMateChatTarget[]
+      selectedAccountsSessionId?: string
+      initialActiveId?: string
+    }
+  | { agent: 'invoices'; targets?: undefined; handoffId?: string }
   | { agent: 'gmail'; phase?: 'compose' | 'reply' | 'summarise'; targets?: undefined }
   | { agent: 'taskmate'; targets?: undefined }
-  | { agent: 'adminmate'; targets?: undefined }
+  | { agent: 'adminmate'; targets?: undefined; handoffId?: string }
 
 interface AccountOption {
   id: string | number
@@ -155,15 +160,20 @@ export default function OptimatePopoutClient(props: Props) {
         }}
       >
         {isInvoices ? (
-          <InvoiceAssistantChat />
+          <InvoiceAssistantChat handoffId={props.agent === 'invoices' ? props.handoffId : undefined} />
         ) : isGmail ? (
           <GmailReplyChat initialPhase={props.phase === 'reply' ? 'search' : props.phase === 'summarise' ? 'search' : 'compose'} initialSummariseMode={props.phase === 'summarise'} />
         ) : isTaskmate ? (
           <TaskMateChat />
         ) : isAdminmate ? (
-          <AdminMateChat />
+          <AdminMateChat handoffId={props.agent === 'adminmate' ? props.handoffId : undefined} />
         ) : (
-          <OptiMateMultiChat targets={targets} fluid />
+          <OptiMateMultiChat
+            targets={targets}
+            fluid
+            selectedAccountsSessionId={isStandaloneAgent ? undefined : props.selectedAccountsSessionId}
+            initialActiveId={isStandaloneAgent ? undefined : props.initialActiveId}
+          />
         )}
       </div>
 

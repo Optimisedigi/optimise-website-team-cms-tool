@@ -33,6 +33,7 @@ import { ThinkingOrb } from 'thinking-orbs'
 import { prepareAdminMateImage, type PreparedImage } from './adminmate-image'
 import { MAX_ADMINMATE_IMAGES } from '@/lib/agents/adminmate/image-attachments'
 import { toSafeClientLink, type ClientLink } from '@/lib/agents/adminmate/client-link-href'
+import { readHandoffMessages, readHandoffString, takeChatHandoff, type ChatHandoffRef } from '@/lib/optimate-chat-handoff'
 
 type GmailDraft = { gmailUrl: string; subject: string; to: string }
 type ChatMessage = { role: 'user' | 'assistant'; content: string; gmailDraft?: GmailDraft; links?: ClientLink[] }
@@ -57,7 +58,39 @@ const TEXT_FIELDS: Array<{ key: keyof StagedClient; label: string }> = [
   { key: 'contactPhone', label: 'Contact phone' },
 ]
 
-export default function AdminMateChat() {
+function restoreHandoffMessages(snapshot: unknown): ChatMessage[] {
+  return readHandoffMessages(snapshot, ['user', 'assistant']).map(({ role, content, raw }) => {
+    const draft = raw.gmailDraft as Record<string, unknown> | undefined
+    const gmailDraft =
+      draft && typeof draft.gmailUrl === 'string' && typeof draft.subject === 'string' && typeof draft.to === 'string'
+        ? { gmailUrl: draft.gmailUrl, subject: draft.subject, to: draft.to }
+        : undefined
+    const links = safeLinks(raw.links)
+    return {
+      role: role as ChatMessage['role'],
+      content,
+      ...(gmailDraft ? { gmailDraft } : {}),
+      ...(links && links.length > 0 ? { links } : {}),
+    }
+  })
+}
+
+function restoreHandoffEmail(snapshot: unknown): AttachedEmailMeta | null {
+  const email = (snapshot as { attachedEmail?: Record<string, unknown> } | null)?.attachedEmail
+  if (!email || typeof email.messageId !== 'string' || !email.messageId) return null
+  const text = (key: string) => (typeof email[key] === 'string' ? (email[key] as string) : '')
+  return { messageId: email.messageId, subject: text('subject'), from: text('from'), date: text('date'), snippet: text('snippet') }
+}
+
+export default function AdminMateChat({
+  handoffId,
+  handoffRef,
+}: {
+  /** Popout window: resume the chat the launcher handed off. */
+  handoffId?: string
+  /** Launcher: exposes a snapshot of this chat for the pop-out button. */
+  handoffRef?: ChatHandoffRef
+} = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [staged, setStaged] = useState<StagedClient>()
@@ -104,6 +137,28 @@ export default function AdminMateChat() {
       if (voiceSendTimer.current) clearTimeout(voiceSendTimer.current)
     }
   }, [])
+
+  // Popout: pick up the conversation the launcher handed off (read once).
+  useEffect(() => {
+    if (!handoffId) return
+    const snapshot = takeChatHandoff({ storage: window.localStorage, agent: 'adminmate', id: handoffId, now: Date.now() })
+    if (!snapshot) return
+    const restored = restoreHandoffMessages(snapshot)
+    if (restored.length > 0) setMessages(restored)
+    const restoredDraft = readHandoffString(snapshot, 'draft')
+    if (restoredDraft) setDraft(restoredDraft)
+    const email = restoreHandoffEmail(snapshot)
+    if (email) setAttachedEmail(email)
+  }, [handoffId])
+
+  // Launcher: let the pop-out button snapshot the live chat.
+  useEffect(() => {
+    if (!handoffRef) return
+    handoffRef.current = () => ({ messages, draft, attachedEmail })
+    return () => {
+      handoffRef.current = null
+    }
+  }, [attachedEmail, draft, handoffRef, messages])
 
   useEffect(() => {
     const textarea = draftRef.current

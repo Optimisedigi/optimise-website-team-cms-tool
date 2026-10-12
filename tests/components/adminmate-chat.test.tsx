@@ -50,6 +50,35 @@ describe('AdminMateChat', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
+  it('resumes a chat handed off from the launcher when popped out', async () => {
+    const handoffRef: { current: (() => unknown) | null } = { current: null }
+    const first = render(<AdminMateChat handoffRef={handoffRef} />)
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'half-typed note' } })
+    const snapshot = handoffRef.current?.() as { draft: string }
+    expect(snapshot.draft).toBe('half-typed note')
+    first.unmount()
+    expect(handoffRef.current).toBeNull()
+
+    localStorage.setItem('optimate:handoff:h1', JSON.stringify({
+      agent: 'adminmate',
+      createdAt: Date.now(),
+      snapshot: {
+        messages: [
+          { role: 'user', content: 'Who is the contact for Berendsen?' },
+          { role: 'assistant', content: 'Jane Doe is the contact.', links: [{ text: 'Open', href: 'javascript:alert(1)' }] },
+        ],
+        draft: 'and their phone?',
+      },
+    }))
+    render(<AdminMateChat handoffId="h1" />)
+
+    expect(await screen.findByText('Who is the contact for Berendsen?')).toBeInTheDocument()
+    expect(screen.getByText('Jane Doe is the contact.')).toBeInTheDocument()
+    expect(screen.queryByText('Open')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox')).toHaveValue('and their phone?')
+    expect(localStorage.getItem('optimate:handoff:h1')).toBeNull()
+  })
+
   it('shows a short, readable opening example on a dark bubble', () => {
     render(<AdminMateChat />)
     const example = screen.getByText(/Try: “Create a client called Acme Corp”/)

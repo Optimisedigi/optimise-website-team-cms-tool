@@ -14,6 +14,7 @@ import OptiMateBeamComposer from './OptiMateBeamComposer'
 import OptiMateMetalSend from './OptiMateMetalSend'
 import { ThinkingOrb } from 'thinking-orbs'
 import { fitImageForChat } from './chat-image-fit'
+import { readHandoffMessages, readHandoffString, takeChatHandoff, type ChatHandoffRef } from '@/lib/optimate-chat-handoff'
 
 /**
  * Compact Invoice Assistant chat for the OptiMate launcher panel.
@@ -135,7 +136,59 @@ interface OptiMateSettingsResponse {
   invoiceMateStarterQuestions?: string[]
 }
 
-export default function InvoiceAssistantChat() {
+function restoreContractorPayments(value: unknown): ContractorCostPayment[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const rows = value.flatMap((item): ContractorCostPayment[] => {
+    if (!item || typeof item !== 'object') return []
+    const r = item as Record<string, unknown>
+    if (
+      typeof r.contractorId !== 'number' ||
+      typeof r.contractorName !== 'string' ||
+      typeof r.fortnightStartDate !== 'string' ||
+      !(typeof r.fortnightEndDate === 'string' || r.fortnightEndDate === null) ||
+      typeof r.amount !== 'number' ||
+      typeof r.currency !== 'string' ||
+      typeof r.transferReference !== 'string' ||
+      (r.status !== 'paid' && r.status !== 'unpaid')
+    ) {
+      return []
+    }
+    return [{
+      contractorId: r.contractorId,
+      contractorName: r.contractorName,
+      fortnightStartDate: r.fortnightStartDate,
+      fortnightEndDate: r.fortnightEndDate as string | null,
+      amount: r.amount,
+      currency: r.currency,
+      transferReference: r.transferReference,
+      status: r.status,
+    }]
+  })
+  return rows.length > 0 ? rows : undefined
+}
+
+function restoreHandoffMessages(snapshot: unknown): ChatMessage[] {
+  return readHandoffMessages(snapshot, ['user', 'assistant', 'error']).map(({ role, content, raw }) => {
+    const contractorPayments = restoreContractorPayments(raw.contractorPayments)
+    return {
+      role: role as ChatMessage['role'],
+      content,
+      ...(typeof raw.id === 'string' ? { id: raw.id } : {}),
+      ...(typeof raw.modelUsed === 'string' ? { modelUsed: raw.modelUsed } : {}),
+      ...(contractorPayments ? { contractorPayments } : {}),
+    }
+  })
+}
+
+export default function InvoiceAssistantChat({
+  handoffId,
+  handoffRef,
+}: {
+  /** Popout window: resume the chat the launcher handed off. */
+  handoffId?: string
+  /** Launcher: exposes a snapshot of this chat for the pop-out button. */
+  handoffRef?: ChatHandoffRef
+} = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -149,6 +202,26 @@ export default function InvoiceAssistantChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+
+  // Popout: pick up the conversation the launcher handed off (read once).
+  useEffect(() => {
+    if (!handoffId) return
+    const snapshot = takeChatHandoff({ storage: window.localStorage, agent: 'invoices', id: handoffId, now: Date.now() })
+    if (!snapshot) return
+    const restored = restoreHandoffMessages(snapshot)
+    if (restored.length > 0) setMessages(restored)
+    const restoredInput = readHandoffString(snapshot, 'input')
+    if (restoredInput) setInput(restoredInput)
+  }, [handoffId])
+
+  // Launcher: let the pop-out button snapshot the live chat.
+  useEffect(() => {
+    if (!handoffRef) return
+    handoffRef.current = () => ({ messages, input })
+    return () => {
+      handoffRef.current = null
+    }
+  }, [handoffRef, input, messages])
 
   const pushVoiceTurn = useCallback((voiceId: string, role: 'user' | 'assistant', text: string) => {
     setMessages((prev) => {

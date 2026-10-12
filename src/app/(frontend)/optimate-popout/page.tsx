@@ -3,11 +3,15 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 import { redirect } from 'next/navigation'
 import OptimatePopoutClient from './OptimatePopoutClient'
+import { parsePopoutId } from '@/lib/optimate-popout-url'
 
 interface PageProps {
   searchParams: Promise<{
     audits?: string
     sessionIds?: string
+    selectedSessionId?: string
+    active?: string
+    handoff?: string
     mode?: string
     portfolio?: string
     agent?: string
@@ -37,6 +41,8 @@ interface PageProps {
  *     audit, by position). Empty entries mean "start a fresh thread for
  *     that audit". Set by the launcher popout button so the new window
  *     resumes the same conversations the launcher had open.
+ *   - selectedSessionId = thread of the "Selected accounts" tab (2+ accounts).
+ *   - active = tab id that was showing in the launcher.
  */
 export default async function OptimatePopoutPage({ searchParams }: PageProps) {
   const payload = await getPayload({ config })
@@ -46,11 +52,13 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
     redirect('/admin/login?redirect=/optimate-popout')
   }
 
-  const { audits, sessionIds: sessionIdsParam, mode, portfolio, agent, phase } = await searchParams
+  const { audits, sessionIds: sessionIdsParam, selectedSessionId, active, handoff, mode, portfolio, agent, phase } = await searchParams
+  // One-time id of an AdminMate / InvoiceMate chat handed off by the launcher.
+  const handoffId = parsePopoutId(handoff)
 
   // Standalone agents (no audit/account picker) just re-mount full-window.
   if (agent === 'invoices') {
-    return <OptimatePopoutClient agent="invoices" />
+    return <OptimatePopoutClient agent="invoices" {...(handoffId ? { handoffId } : {})} />
   }
 
   if (agent === 'gmail') {
@@ -62,13 +70,13 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
   }
 
   if (agent === 'adminmate') {
-    return <OptimatePopoutClient agent="adminmate" />
+    return <OptimatePopoutClient agent="adminmate" {...(handoffId ? { handoffId } : {})} />
   }
 
   const portfolioMode = mode === 'portfolio' || portfolio === '1'
 
   if (portfolioMode) {
-    const initialSessionId = sessionIdsParam?.split(',')[0]?.trim()
+    const initialSessionId = parsePopoutId(sessionIdsParam?.split(',')[0])
     return (
       <OptimatePopoutClient
         targets={[
@@ -99,7 +107,7 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
   if (sessionIdsParam) {
     const sids = sessionIdsParam.split(',').map((s) => s.trim())
     ids.forEach((auditId, i) => {
-      const sid = sids[i]
+      const sid = parsePopoutId(sids[i])
       if (sid) sessionIdsByAuditId.set(auditId, sid)
     })
   }
@@ -139,7 +147,15 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
     return <NoAudits />
   }
 
-  return <OptimatePopoutClient targets={targets} />
+  const selectedAccountsSessionId = parsePopoutId(selectedSessionId)
+  const initialActiveId = parsePopoutId(active)
+  return (
+    <OptimatePopoutClient
+      targets={targets}
+      {...(selectedAccountsSessionId ? { selectedAccountsSessionId } : {})}
+      {...(initialActiveId ? { initialActiveId } : {})}
+    />
+  )
 }
 
 function NoAudits() {

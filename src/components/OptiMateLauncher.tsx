@@ -6,6 +6,8 @@ import OptiMateMultiChat, {
   type OptiMateChatTarget,
   type OptiMateMultiChatHandle,
 } from './OptiMateMultiChat'
+import { buildGoogleMatePopoutUrl } from '@/lib/optimate-popout-url'
+import { stashChatHandoff, type ChatHandoffRef } from '@/lib/optimate-chat-handoff'
 import InvoiceAssistantChat from './InvoiceAssistantChat'
 import GmailReplyChat from './GmailReplyChat'
 import TaskMateChat from './TaskMateChat'
@@ -76,6 +78,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   /** Imperative handle on the embedded MultiChat so the popout button can
    *  read each tab's live sessionId and hand it off to the new window. */
   const multiChatRef = useRef<OptiMateMultiChatHandle | null>(null)
+  // Snapshots of the in-memory AdminMate / InvoiceMate chats, so popping them
+  // out carries the conversation into the new window instead of a blank chat.
+  const adminMateHandoffRef: ChatHandoffRef = useRef(null)
+  const invoiceHandoffRef: ChatHandoffRef = useRef(null)
   const [agent, setAgent] = useState<AgentKey | ''>('')
   const [audits, setAudits] = useState<AuditOption[] | null>(null)
   const [auditsLoading, setAuditsLoading] = useState(false)
@@ -348,7 +354,28 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                             ? '/optimate-popout?agent=adminmate'
                             : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
                     const name = step === 'invoice-chat' ? 'invoices' : step === 'taskmate' ? 'taskmate' : step === 'adminmate' ? 'adminmate' : `gmail-${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
-                    window.open(url, `optimate-popout-${name}`, features)
+                    const handoffAgent = step === 'adminmate' ? 'adminmate' : step === 'invoice-chat' ? 'invoices' : null
+                    const snapshot =
+                      step === 'adminmate'
+                        ? adminMateHandoffRef.current?.()
+                        : step === 'invoice-chat'
+                          ? invoiceHandoffRef.current?.()
+                          : undefined
+                    const handoffId =
+                      handoffAgent && snapshot
+                        ? stashChatHandoff({
+                            storage: window.localStorage,
+                            agent: handoffAgent,
+                            snapshot,
+                            id: crypto.randomUUID(),
+                            now: Date.now(),
+                          })
+                        : null
+                    window.open(
+                      handoffId ? `${url}&handoff=${encodeURIComponent(handoffId)}` : url,
+                      `optimate-popout-${name}`,
+                      features,
+                    )
                     setOpen(false)
                   }}
                   title="Pop out to a separate window"
@@ -417,23 +444,14 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     // History popover — but the user expects the chat to be
                     // there).
                     const ids = selectedAudits.map((a) => String(a.id)).join(',')
-                    const sessionMap = multiChatRef.current?.getSessionIds() ?? {}
-                    // Pair sessionIds with audit ids by index so the popout
-                    // page can zip them back together. Empty string for any
-                    // tab whose ChatCore hasn't reported a sessionId yet (the
-                    // popout falls back to a fresh thread for those).
-                    const sessionIds = selectedAudits
-                      .map((a) => sessionMap[String(a.id)] ?? '')
-                      .join(',')
-                    // Popout lives under (frontend), NOT (payload), so the
-                    // Payload admin layout doesn't wrap it with a sidebar +
-                    // floating launcher and doesn't trap our `position:
-                    // fixed` container — the chat fills the whole window
-                    // and resizes with it.
-                    const url = portfolioSelected
-                      ? `/optimate-popout?mode=portfolio&sessionIds=${encodeURIComponent(sessionMap.portfolio ?? '')}`
-                      : `/optimate-popout?audits=${encodeURIComponent(ids)}` +
-                        `&sessionIds=${encodeURIComponent(sessionIds)}`
+                    // Includes the synthetic "Selected accounts" tab's thread
+                    // and the active tab, so the window opens on that chat.
+                    const url = buildGoogleMatePopoutUrl({
+                      portfolio: portfolioSelected,
+                      auditIds: selectedAudits.map((a) => a.id),
+                      sessionMap: multiChatRef.current?.getSessionIds() ?? {},
+                      activeTabId: multiChatRef.current?.getActiveId(),
+                    })
                     const features = [
                       'popup=yes',
                       'width=680',
@@ -707,11 +725,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               />
             )}
 
-            {step === 'invoice-chat' && <InvoiceAssistantChat />}
+            {step === 'invoice-chat' && <InvoiceAssistantChat handoffRef={invoiceHandoffRef} />}
 
             {step === 'taskmate' && <TaskMateChat />}
 
-            {step === 'adminmate' && <AdminMateChat />}
+            {step === 'adminmate' && <AdminMateChat handoffRef={adminMateHandoffRef} />}
 
             {step === 'gmail' && <GmailReplyChat initialPhase="compose" />}
 

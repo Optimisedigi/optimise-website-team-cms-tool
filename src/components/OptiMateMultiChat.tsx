@@ -11,6 +11,7 @@ import {
 } from 'react'
 import OptiMateChatCore, { type OptiMateChatCoreHandle } from './OptiMateChatCore'
 import OptiMateToolsHelp from './OptiMateToolsHelp'
+import { SELECTED_ACCOUNTS_TAB_ID } from '@/lib/optimate-popout-url'
 
 export type OptiMateChatTarget =
   | {
@@ -36,6 +37,8 @@ export interface OptiMateMultiChatHandle {
   /** Map of String(auditId) → current sessionId for that tab. Used by the
    *  launcher popout handler so the new window can resume each thread. */
   getSessionIds: () => Record<string, string>
+  /** Tab id currently shown, so a popped-out window opens on the same tab. */
+  getActiveId: () => string
 }
 
 interface OptiMateMultiChatProps {
@@ -44,6 +47,10 @@ interface OptiMateMultiChatProps {
   compact?: boolean
   /** Fluid = standalone popout; chat and message bubbles expand with browser width. */
   fluid?: boolean
+  /** Thread to resume in the synthetic "Selected accounts" tab (popout handoff). */
+  selectedAccountsSessionId?: string
+  /** Tab to show first (popout handoff); ignored if no such tab. */
+  initialActiveId?: string
 }
 
 /**
@@ -54,7 +61,10 @@ interface OptiMateMultiChatProps {
  * single-account chat.
  */
 const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatProps>(
-  function OptiMateMultiChat({ targets, compact = false, fluid = false }, ref) {
+  function OptiMateMultiChat(
+    { targets, compact = false, fluid = false, selectedAccountsSessionId, initialActiveId },
+    ref,
+  ) {
     const selectedAccountsTarget = useMemo<OptiMateChatTarget | null>(() => {
       const auditTargets = targets.filter((t) => t.mode !== 'portfolio')
       if (auditTargets.length < 2) return null
@@ -68,8 +78,9 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
       })
       return {
         mode: 'portfolio',
-        id: 'selected-accounts',
+        id: SELECTED_ACCOUNTS_TAB_ID,
         businessName: 'Selected accounts',
+        ...(selectedAccountsSessionId ? { initialSessionId: selectedAccountsSessionId } : {}),
         messageContextPrefix:
           'Answer using only these selected Google Ads accounts unless the user explicitly asks to widen the scope. ' +
           'When the user asks for an email or draft, compare/summarise these selected accounts together and create one combined Gmail draft if requested.\n' +
@@ -77,12 +88,16 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
         selectedAccountRefs,
         selectedAccountLabels,
       }
-    }, [targets])
+    }, [selectedAccountsSessionId, targets])
     const chatTargets = useMemo(
       () => (selectedAccountsTarget ? [selectedAccountsTarget, ...targets] : targets),
       [selectedAccountsTarget, targets],
     )
-    const [activeId, setActiveId] = useState<string>(() => String(selectedAccountsTarget?.id ?? targets[0]?.id ?? ''))
+    const [activeId, setActiveId] = useState<string>(() =>
+      initialActiveId && chatTargets.some((t) => String(t.id) === initialActiveId)
+        ? initialActiveId
+        : String(selectedAccountsTarget?.id ?? targets[0]?.id ?? ''),
+    )
     const refs = useRef<Map<string, OptiMateChatCoreHandle | null>>(new Map())
 
     const setRef = useCallback(
@@ -118,8 +133,9 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
           }
           return out
         },
+        getActiveId: () => activeId,
       }),
-      [chatTargets],
+      [activeId, chatTargets],
     )
 
     // Single-account / portfolio fast path: ChatCore owns the header row so
