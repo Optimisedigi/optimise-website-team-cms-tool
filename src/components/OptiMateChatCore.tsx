@@ -282,6 +282,28 @@ function summarizeToolSetDiff(textTools: string[], voiceTools: string[]): string
     .join(' • ')
 }
 
+function isGmailUrl(href: string): boolean {
+  try {
+    const url = new URL(href)
+    return url.protocol === 'https:' && url.hostname === 'mail.google.com'
+  } catch {
+    return false
+  }
+}
+
+const gmailLinkButtonStyle: React.CSSProperties = {
+  display: 'inline-block',
+  margin: '2px 0',
+  padding: '4px 10px',
+  borderRadius: 7,
+  background: '#166534',
+  color: '#fff',
+  fontWeight: 700,
+  fontSize: '0.92em',
+  textDecoration: 'none',
+  whiteSpace: 'nowrap',
+}
+
 /**
  * Lightweight markdown renderer for chat messages.
  * Handles: **bold**, bullet lists (- item, including indented / •), numbered lists, paragraphs, fenced code.
@@ -356,8 +378,8 @@ export function renderMarkdown(text: string) {
    */
   const linkifyText = (text: string, keyPrefix: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = []
-    // Combined: full URL OR /admin/agent-approvals/<id>
-    const regex = /(https?:\/\/[^\s)]+)|(\/admin\/agent-approvals\/\d+)/g
+    // Markdown link [label](https://...) OR full URL OR /admin/agent-approvals/<id>
+    const regex = /\[([^\]\n]+)\][ \t]?\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s)]+)|(\/admin\/agent-approvals\/\d+)/g
     let lastIndex = 0
     let match: RegExpExecArray | null
     let matchIdx = 0
@@ -365,18 +387,40 @@ export function renderMarkdown(text: string) {
       if (match.index > lastIndex) {
         parts.push(text.slice(lastIndex, match.index))
       }
-      const href = match[0]
-      parts.push(
-        <a
-          key={`${keyPrefix}-link-${matchIdx++}`}
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
-        >
-          {href}
-        </a>,
-      )
+      // Sentence punctuation after a bare URL is not part of the link.
+      const bareUrl = match[3]
+      const trailing = bareUrl ? (bareUrl.match(/[.,;:!?]+$/)?.[0] ?? '') : ''
+      const href = match[2] ?? (bareUrl ? bareUrl.slice(0, bareUrl.length - trailing.length) : match[0])
+      const key = `${keyPrefix}-link-${matchIdx++}`
+      if (isGmailUrl(href)) {
+        // Gmail draft/thread links render as a button, like the Gmail agent,
+        // instead of a raw mail.google.com URL.
+        parts.push(
+          <a
+            key={key}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open in Gmail (opens in a new tab)"
+            style={gmailLinkButtonStyle}
+          >
+            Open in Gmail ↗
+          </a>,
+        )
+      } else {
+        parts.push(
+          <a
+            key={key}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
+          >
+            {match[1] ?? href}
+          </a>,
+        )
+      }
+      if (trailing) parts.push(trailing)
       lastIndex = regex.lastIndex
     }
     if (lastIndex < text.length) parts.push(text.slice(lastIndex))
