@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Payload, PayloadRequest } from 'payload'
+import { APIError, type Payload, type PayloadRequest } from 'payload'
 import type { BlogPost } from '@/payload-types'
 import { configuredClientId, websiteUrl } from './config'
 import { publishedEvent, reviewRequestedEvent } from './article'
@@ -54,7 +54,7 @@ async function checkedArticleEvent(
       ...(req ? { req } : {}),
     })
     if (!idea.docs.length)
-      throw new Error('The linked website Blog ID does not belong to this client')
+      throw new APIError('The linked website Blog ID does not belong to this client', 400, undefined, true)
   }
   const client = await payload.findByID({
     collection: 'clients',
@@ -63,8 +63,17 @@ async function checkedArticleEvent(
     overrideAccess: true,
     ...(req ? { req } : {}),
   })
+  // Editor-correctable: a public 400 shows this message in the admin toast
+  // instead of Payload's generic "Something went wrong" for plain errors.
   if (!client.authors?.some((author) => author.name === post.author))
-    throw new Error('Byline does not match this client’s public blog-author profile')
+    throw new APIError(
+      client.authors?.length
+        ? 'Byline does not match this client’s public blog-author profile. Choose an author from the Author field.'
+        : 'This client has no author profiles. Add one in Client > Authors, then choose it in the Author field.',
+      400,
+      undefined,
+      true,
+    )
   const hydrated = await hydratedPost(payload, post, req)
   return post.status === 'review'
     ? reviewRequestedEvent(hydrated, ideaId)

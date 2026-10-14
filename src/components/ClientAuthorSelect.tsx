@@ -1,7 +1,7 @@
 'use client'
 
 import { useField, useAllFormFields } from '@payloadcms/ui'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type AuthorEntry = {
   name: string
@@ -15,6 +15,17 @@ const ClientAuthorSelect = () => {
 
   const [authors, setAuthors] = useState<AuthorEntry[]>([])
   const [loading, setLoading] = useState(false)
+  const previousClientId = useRef(clientId)
+
+  // A byline belongs to one client's author profiles. When the editor switches
+  // client, drop the old byline instead of silently keeping a name the new
+  // client's dropdown cannot show (the save would then be rejected).
+  useEffect(() => {
+    if (previousClientId.current !== undefined && previousClientId.current !== clientId) {
+      setValue(null)
+    }
+    previousClientId.current = clientId
+  }, [clientId, setValue])
 
   useEffect(() => {
     if (!clientId) {

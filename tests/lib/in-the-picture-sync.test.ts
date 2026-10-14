@@ -255,6 +255,34 @@ describe('In The Picture boundary', () => {
     expect((events[3].body as { revision: string }).revision).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     expect(events[3].revision).toBe((events[3].body as { revision: string }).revision)
   })
+  it('rejects a byline outside the client author profiles with a public 400, not a generic 500', async () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+    const create = vi.fn()
+    const payloadFor = (authors: Array<{ name: string }>) => ({
+      findByID: vi.fn(async () => ({ id: 1, authors })),
+      find: vi.fn(async () => ({ docs: [] })),
+      create,
+    })
+    const post = {
+      id: 33,
+      client: 1,
+      clientConfirmed: true,
+      status: 'review',
+      author: 'Someone Else',
+      websiteSyncRevision: '2026-10-14T00:00:00.000Z',
+    } as BlogPost
+    for (const [authors, message] of [
+      [[], /no author profiles/],
+      [[{ name: 'Jane Editor' }], /Byline does not match/],
+    ] as const) {
+      await expect(enqueuePost(payloadFor([...authors]) as never, post)).rejects.toMatchObject({
+        status: 400,
+        isPublic: true,
+        message: expect.stringMatching(message),
+      })
+    }
+    expect(create).not.toHaveBeenCalled()
+  })
   it('retains a newer unpublish tombstone after deleting a published post', async () => {
     process.env.IN_THE_PICTURE_CLIENT_ID = '1'
     const queued: Array<Record<string, unknown>> = []
