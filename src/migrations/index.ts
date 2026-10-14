@@ -190,6 +190,8 @@ import * as migration_20261009_120000_goal_runs_baseline from './20261009_120000
 import * as migration_20261009_150000_goal_runs_progress from './20261009_150000_goal_runs_progress'
 import * as migration_20261009_170000_add_client_target_customer from './20261009_170000_add_client_target_customer'
 import * as migration_20261010_090000_payload_3_90_columns from './20261010_090000_payload_3_90_columns'
+import * as migration_20261014_120000_google_ads_milestone_audits from './20261014_120000_google_ads_milestone_audits'
+import * as migration_20261014_150000_mail_client_emails from './20261014_150000_mail_client_emails'
 
 export const migrations = [
   {
@@ -1146,5 +1148,15 @@ export const migrations = [
     up: migration_20261010_090000_payload_3_90_columns.up,
     down: migration_20261010_090000_payload_3_90_columns.down,
     name: '20261010_090000_payload_3_90_columns',
+  },
+  {
+    up: migration_20261014_120000_google_ads_milestone_audits.up,
+    down: migration_20261014_120000_google_ads_milestone_audits.down,
+    name: '20261014_120000_google_ads_milestone_audits',
+  },
+  {
+    up: migration_20261014_150000_mail_client_emails.up,
+    down: migration_20261014_150000_mail_client_emails.down,
+    name: '20261014_150000_mail_client_emails',
   },
 ]

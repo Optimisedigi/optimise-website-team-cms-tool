@@ -1,5 +1,7 @@
 import type { Payload } from "payload";
 import { inThePictureSchema } from './in-the-picture/schema';
+import { GOOGLE_ADS_MILESTONE_AUDITS_SCHEMA } from './google-ads-milestone-audits/schema';
+import { MAIL_SCHEMA } from './mail/schema';
 
 /**
  * One result row per `run()` call inside `runMigrations`.
@@ -855,6 +857,27 @@ export async function runMigrations(
     }
   }
 
+  // Google Ads milestone audits + per-client switch (2026-10-14). Runs before the
+  // marker short-circuit: production carries the marker, and Payload selects
+  // every flat `clients` column, so the new clients column must exist there.
+  // Fresh databases create the prerequisites in the full sweep and call this again.
+  // Keep in sync with src/migrations/20261014_120000_google_ads_milestone_audits.ts.
+  async function addGoogleAdsMilestoneAudits(): Promise<void> {
+    for (const table of ["clients", "google_ads_audits", "google_ads_audit_snapshots", "agent_approval_queue", "payload_locked_documents_rels"]) {
+      if (!(await tableExists(table))) return;
+    }
+    for (const [label, statement] of GOOGLE_ADS_MILESTONE_AUDITS_SCHEMA) await run(label, statement);
+  }
+
+  // Mail view tables (2026-10-14). Additive only. Keep in sync with
+  // src/migrations/20261014_150000_mail_client_emails.ts.
+  async function addMailSchema(): Promise<void> {
+    for (const table of ["clients", "users"]) {
+      if (!(await tableExists(table))) return;
+    }
+    for (const [label, statement] of MAIL_SCHEMA) await run(label, statement);
+  }
+
   async function addWatchtowerAndSiteHealthSchema(): Promise<void> {
     await run("google_ads_automation_events", "CREATE TABLE IF NOT EXISTS `google_ads_automation_events` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `client_id` integer, `customer_id` text, `change_date_time` text, `resource_name` text NOT NULL, `change_resource_type` text, `resource_change_operation` text, `client_type` text, `user_email` text, `campaign_id` text, `campaign_name` text, `changed_fields` text, `old_values` text, `new_values` text, `is_google_automated` integer DEFAULT false, `summary` text, `impact_spend_before` numeric, `impact_spend_after` numeric, `impact_conv_before` numeric, `impact_conv_after` numeric, `impact_computed_at` text, `review_status` text DEFAULT 'unreviewed', `related_approval_id` integer, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL)");
     await run("google_ads_automation_events_resource_name_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_automation_events_resource_name_idx` ON `google_ads_automation_events` (`resource_name`)");
@@ -902,6 +925,8 @@ export async function runMigrations(
     await mergeClientPulseSeoService();
     await addHostingStartDateAndOneOffPayments();
     await addWatchtowerAndSiteHealthSchema();
+    await addGoogleAdsMilestoneAudits();
+    await addMailSchema();
     await addInThePictureSchema()
     await addMeetingSchedulerProspects();
     await addMeetingSchedulerAvailability();
@@ -6492,6 +6517,8 @@ export async function runMigrations(
 
     // Fresh-database path: prerequisites now exist. Reuse the same additive SQL.
     await addInThePictureSchema()
+    await addGoogleAdsMilestoneAudits();
+    await addMailSchema();
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

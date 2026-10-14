@@ -21,6 +21,7 @@ export const Users: CollectionConfig = {
     tokenExpiration: 7200,
   },
   admin: {
+    components: { beforeList: ["./components/SectionTabs"] },
     useAsTitle: "email",
     group: "Admin",
     // Hide Users tab from anyone except admins.

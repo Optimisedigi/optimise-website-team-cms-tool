@@ -83,7 +83,7 @@ function renderInternalMarkdown(md: string): React.ReactNode {
 
   const inline = (line: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
-    const re = /\{\{tip:([^{}]+?)::([^{}]+?)\}\}|\*\*(.+?)\*\*|`([^`]+)`/g;
+    const re = /\{\{tip:([^{}]+?)::([^{}]+?)\}\}|\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g;
     let last = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(line)) !== null) {
@@ -96,6 +96,13 @@ function renderInternalMarkdown(md: string): React.ReactNode {
         );
       } else if (m[3]) parts.push(<strong key={`b-${key++}`}>{m[3]}</strong>);
       else if (m[4]) parts.push(<code key={`c-${key++}`} style={inlineCode}>{m[4]}</code>);
+      else if (m[5] && m[6]) {
+        parts.push(
+          <a key={`a-${key++}`} href={m[6]} target="_blank" rel="noopener noreferrer" style={{ color: CMS_BLUE, fontWeight: 700 }}>
+            {m[5]}
+          </a>,
+        );
+      }
       last = re.lastIndex;
     }
     if (last < line.length) parts.push(line.slice(last));

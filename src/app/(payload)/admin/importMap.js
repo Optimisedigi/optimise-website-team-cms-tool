@@ -60,6 +60,7 @@ import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0
 import { default as default_4154adf929c45005b5e82bbfec0e76b5 } from '../../../components/client-business/ClientOverviewEditorPortal'
 import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
 import { default as default_9ac394c54993eebab40c6ee07594e90a } from '../../../components/admin/DiscoveryBriefingPanel'
+import { default as default_50bcd7553d2293cfcb87fb5b41936862 } from '../../../components/mail/ClientEmailsPanel'
 import { default as default_30019ca76d88f22be3a9fab3c840976c } from '../../../components/AccountTimelineTable'
 import { default as default_1a2b8d9a179321ad34f0f546c6575e98 } from '../../../components/StartProcessButton'
 import { default as default_b625d4fd2a78fb543eb54574c50e62fc } from '../../../components/LinkedProcesses'
@@ -91,6 +92,7 @@ import { default as default_a78435ccde604fd147bece248584301d } from '../../../co
 import { default as default_72d189b1b13bf8e4b8caa39292a6941b } from '../../../components/ClientsBulkAssignManager'
 import { GlimmerSaveButton as GlimmerSaveButton_8b8a72c580a11ddd0bbaa823ddd7ff94 } from '../../../components/GlimmerSaveButton'
 import { default as default_5342a25616e48bf0c85675486f63713b } from '../../../components/ClientWishlistGrid'
+import { default as default_a5a4319ea456068e35576807f18f1442 } from '../../../components/SectionTabs'
 import { default as default_201383597744ca0c337b337d4f7fc6d4 } from '../../../components/ClientProposalHeader'
 import { default as default_81632eb6d14ae90ef8820b753fa1481c } from '../../../components/list-cells/TitleAvatarCell'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
@@ -213,6 +215,7 @@ import { default as default_a82602a1f42713b7065c509fd7e4e34f } from '../../../co
 import { default as default_d334e471c138b9e2dc99334cf0d3e3e7 } from '../../../components/agent/OptiMateSoulSettingsPanel'
 import { default as default_1269315f863c0e9ba5985ad220b96bad } from '../../../components/agent/OptiMateSettingsLinksPanel'
 import { default as default_e6e2bce5ab37926b7cefd050f9b529bd } from '../../../components/agent/OptiMateSettingsDefaultTab'
+import { SectionTabsWithDescription as SectionTabsWithDescription_a5a4319ea456068e35576807f18f1442 } from '../../../components/SectionTabs'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_2539ed3128925d1e4131db1b637125cd } from '../../../components/NotificationsBell'
@@ -234,8 +237,8 @@ import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../co
 import { default as default_54545d17487007f83f65ecb3f857577d } from '../../../components/RoleBodyClass'
 import { default as default_53051385132d7c282b9e348f060d29d1 } from '../../../components/ResetDocumentTabsOnOpen'
 import { default as default_e842b8d1d5d4fd0e0c4e3c9f6c6394a5 } from '../../../components/ListRowClick'
-import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
+import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 
 /** @type import('payload').ImportMap */
 export const importMap = {
@@ -301,6 +304,7 @@ export const importMap = {
   "./components/client-business/ClientOverviewEditorPortal#default": default_4154adf929c45005b5e82bbfec0e76b5,
   "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
   "./components/admin/DiscoveryBriefingPanel#default": default_9ac394c54993eebab40c6ee07594e90a,
+  "./components/mail/ClientEmailsPanel#default": default_50bcd7553d2293cfcb87fb5b41936862,
   "./components/AccountTimelineTable#default": default_30019ca76d88f22be3a9fab3c840976c,
   "./components/StartProcessButton#default": default_1a2b8d9a179321ad34f0f546c6575e98,
   "./components/LinkedProcesses#default": default_b625d4fd2a78fb543eb54574c50e62fc,
@@ -332,6 +336,7 @@ export const importMap = {
   "./components/ClientsBulkAssignManager#default": default_72d189b1b13bf8e4b8caa39292a6941b,
   "./components/GlimmerSaveButton#GlimmerSaveButton": GlimmerSaveButton_8b8a72c580a11ddd0bbaa823ddd7ff94,
   "./components/ClientWishlistGrid#default": default_5342a25616e48bf0c85675486f63713b,
+  "./components/SectionTabs#default": default_a5a4319ea456068e35576807f18f1442,
   "./components/ClientProposalHeader#default": default_201383597744ca0c337b337d4f7fc6d4,
   "./components/list-cells/TitleAvatarCell#default": default_81632eb6d14ae90ef8820b753fa1481c,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
@@ -454,6 +459,7 @@ export const importMap = {
   "./components/agent/OptiMateSoulSettingsPanel#default": default_d334e471c138b9e2dc99334cf0d3e3e7,
   "./components/agent/OptiMateSettingsLinksPanel#default": default_1269315f863c0e9ba5985ad220b96bad,
   "./components/agent/OptiMateSettingsDefaultTab#default": default_e6e2bce5ab37926b7cefd050f9b529bd,
+  "./components/SectionTabs#SectionTabsWithDescription": SectionTabsWithDescription_a5a4319ea456068e35576807f18f1442,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/NotificationsBell#default": default_2539ed3128925d1e4131db1b637125cd,
@@ -475,6 +481,6 @@ export const importMap = {
   "./components/RoleBodyClass#default": default_54545d17487007f83f65ecb3f857577d,
   "./components/ResetDocumentTabsOnOpen#default": default_53051385132d7c282b9e348f060d29d1,
   "./components/ListRowClick#default": default_e842b8d1d5d4fd0e0c4e3c9f6c6394a5,
-  "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
-  "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
+  "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1,
+  "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e
 }

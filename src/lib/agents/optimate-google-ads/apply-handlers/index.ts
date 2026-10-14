@@ -20,6 +20,7 @@
  *   - "goal-run-create"      → create a generic goal-agent run
  *   - "account-efficiency-goal-run-create" → create an Account Efficiency goal-agent run
  *   - "stakeholder-deck"     → write a 5-slide deck (page.tsx + globals.css) to disk
+ *   - "google-ads-milestone-audit-share" → publish a milestone audit deck + create a Gmail draft to the client
  */
 
 import { registerApplyHandler } from "@/lib/agents/_shared/apply-dispatcher";
@@ -47,6 +48,7 @@ import { applyScheduledTaskCreate } from "./scheduled-task-create";
 import { applyScheduledTaskUpdate } from "./scheduled-task-update";
 import { applyStakeholderDeck } from "./stakeholder-deck";
 import { applyDeckFromTemplate } from "./deck-from-template";
+import { applyMilestoneAuditShare, MILESTONE_PROPOSAL_TYPE } from "@/lib/google-ads-milestone-audits/share";
 
 let registered = false;
 
@@ -84,6 +86,8 @@ export function registerOptimateApplyHandlers(): void {
   registerApplyHandler("scheduled-task-update", applyScheduledTaskUpdate);
   registerApplyHandler("stakeholder-deck", applyStakeholderDeck);
   registerApplyHandler("deck-from-template", applyDeckFromTemplate);
+  // Scheduled 1/3/6/9/12-month audits: publish deck + Gmail draft to the client.
+  registerApplyHandler(MILESTONE_PROPOSAL_TYPE, applyMilestoneAuditShare);
 }
 
 /**

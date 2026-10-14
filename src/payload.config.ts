@@ -40,6 +40,11 @@ import { ContractorPayments } from "./collections/ContractorPayments";
 import { BlogPrompts } from "./collections/BlogPrompts";
 import { GoogleAdsAudits } from "./collections/GoogleAdsAudits";
 import { GoogleAdsAuditSnapshots } from "./collections/GoogleAdsAuditSnapshots";
+import { GoogleAdsMilestoneAudits } from "./collections/GoogleAdsMilestoneAudits";
+import { ClientEmails } from "./collections/ClientEmails";
+import { ClientEmailSummaries } from "./collections/ClientEmailSummaries";
+import { MailAiRequests } from "./collections/MailAiRequests";
+import { MailSyncStates } from "./collections/MailSyncStates";
 import { GoogleAdsAuditSnapshotChunks } from "./collections/GoogleAdsAuditSnapshotChunks";
 import { GoogleAdsCampaignBudgets } from "./collections/GoogleAdsCampaignBudgets";
 import { GoogleAdsAdExtensions } from "./collections/GoogleAdsAdExtensions";
@@ -163,12 +168,14 @@ export default buildConfig({
   collections: [
     // Clients
     Clients, ClientWishlistItems, HostingPaymentOffers, HostingOneOffPayments, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
+    // Mail
+    ClientEmails, ClientEmailSummaries, MailAiRequests, MailSyncStates,
     // Content
     BlogPosts, BlogPrompts, BlogIdeas, BlogSyncEvents, JobPosts, Media,
     // SEO
     InternalLinkSuggestions,
     // Audits
-    SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, GoogleAdsAuditSnapshots, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, SearchQueryVocabulary, SearchQueryReviewGroups, NegativeKeywordLists, KeywordDeepDiveSessions, MonthlyKeywordSelections, SiteHealthReports,
+    SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, GoogleAdsAuditSnapshots, GoogleAdsMilestoneAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, SearchQueryVocabulary, SearchQueryReviewGroups, NegativeKeywordLists, KeywordDeepDiveSessions, MonthlyKeywordSelections, SiteHealthReports,
     // Reports
     ForecastScenarios, AgencyKpiSnapshots, ClientMetricSnapshots, ClientAnalyticsSnapshots, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Landing experiments

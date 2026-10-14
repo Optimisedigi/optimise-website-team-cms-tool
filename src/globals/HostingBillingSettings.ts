@@ -5,7 +5,20 @@ import { HOSTING_RENEWAL_NOTE_DEFAULT } from "../lib/hosting-billing";
 export const HostingBillingSettings: GlobalConfig = {
   slug: "hosting-billing-settings",
   label: "Hosting Billing Settings",
-  admin: { group: "Finance", hidden: hideGlobalUnlessFeature("hosting-billing-settings"), description: "Plans, disclosed card surcharge and capacity-change notice terms." },
+  admin: {
+    group: "Finance",
+    hidden: hideGlobalUnlessFeature("hosting-billing-settings"),
+    description: "Plans, disclosed card surcharge and capacity-change notice terms.",
+    components: {
+      elements: {
+        // Tabs across the Hosting Overview section; this global's sidebar link is hidden.
+        Description: {
+          path: "./components/SectionTabs#SectionTabsWithDescription",
+          clientProps: { text: "Plans, disclosed card surcharge and capacity-change notice terms." },
+        },
+      },
+    },
+  },
   access: globalAccess("hosting-billing-settings"),
   fields: [
     { type: "tabs", tabs: [

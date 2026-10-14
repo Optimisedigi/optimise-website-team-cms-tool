@@ -45,6 +45,7 @@ export const ClientProcesses: CollectionConfig = {
       "updatedAt",
     ],
     components: {
+      beforeList: ["./components/SectionTabs"],
       beforeListTable: ["./components/CreateProcessFromTemplate"],
     },
     hidden: hideUnlessFeature("client-processes"),

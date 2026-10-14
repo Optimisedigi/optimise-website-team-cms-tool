@@ -28,6 +28,7 @@ export const BlogPosts: CollectionConfig = {
     description: "Create and manage blog posts for clients",
     listSearchableFields: ["title", "slug", "author"],
     components: {
+      beforeList: ["./components/SectionTabs"],
       beforeListTable: ["./components/BlogPostsClientFilter"],
     },
     hidden: hideUnlessFeature("blog-posts"),

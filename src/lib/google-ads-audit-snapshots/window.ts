@@ -28,18 +28,34 @@ async function fetchMetadata(customerId: string, periodEnd?: string): Promise<Re
   return response.json() as Promise<Record<string, string>>;
 }
 
-export async function discoverSnapshotWindow(customerId: string, requestedAt = new Date().toISOString(), auditContext: Partial<FrozenAuditContext> = {}): Promise<SnapshotWindow> {
+/**
+ * Optional fixed window used by milestone audits. `periodEnd` replaces the
+ * default "end of last calendar month"; `periodStartFloor` narrows the start
+ * to no earlier than this date (e.g. the campaign go-live date).
+ */
+export interface SnapshotWindowOverride {
+  periodEnd?: string;
+  periodStartFloor?: string;
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function discoverSnapshotWindow(customerId: string, requestedAt = new Date().toISOString(), auditContext: Partial<FrozenAuditContext> = {}, override: SnapshotWindowOverride = {}): Promise<SnapshotWindow> {
+  if (override.periodEnd !== undefined && !ISO_DAY.test(override.periodEnd)) throw new Error("periodEnd override must be YYYY-MM-DD");
+  if (override.periodStartFloor !== undefined && !ISO_DAY.test(override.periodStartFloor)) throw new Error("periodStartFloor override must be YYYY-MM-DD");
   const normalizedCustomerId = customerId.replace(/-/g, "");
   const account = await fetchMetadata(normalizedCustomerId);
-  const periodEnd = previousCalendarMonthEnd(requestedAt, account.accountTimeZone);
+  const periodEnd = override.periodEnd ?? previousCalendarMonthEnd(requestedAt, account.accountTimeZone);
   const activity = await fetchMetadata(normalizedCustomerId, periodEnd);
-  const periodStart = activity.earliestAvailableActivityDate;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(periodStart) || periodStart > periodEnd) throw new Error("No valid Google Ads activity was available before the frozen period end");
+  const earliest = activity.earliestAvailableActivityDate;
+  if (!ISO_DAY.test(earliest) || earliest > periodEnd) throw new Error("No valid Google Ads activity was available before the frozen period end");
+  const periodStart = override.periodStartFloor && override.periodStartFloor > earliest ? override.periodStartFloor : earliest;
+  if (periodStart > periodEnd) throw new Error("Snapshot window starts after it ends");
   return {
     requestedAt,
     periodStart,
     periodEnd,
-    earliestAvailableActivityDate: periodStart,
+    earliestAvailableActivityDate: earliest,
     accountTimeZone: account.accountTimeZone,
     accountName: account.descriptiveName || `Customer ${normalizedCustomerId}`,
     currencyCode: account.currencyCode,

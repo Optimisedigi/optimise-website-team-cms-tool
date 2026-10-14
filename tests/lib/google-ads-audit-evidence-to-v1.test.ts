@@ -84,18 +84,47 @@ describe('evidence → v1 payload adapter', () => {
     expect(googleAdsAudit15SlideSchema.safeParse(v1).ok).toBe(true)
   })
 
-  it('shows the hardcoded Account-at-a-glance slide only for Away Digital', () => {
+  it("draws the Account-at-a-glance slide from each audit's own monthly data", () => {
     const accountGlanceSection = '<section id="account-glance"'
-    const away = buildV1PayloadFromEvidence(semantic())
-    expect(away.showAccountGlance).toBe(true)
-    expect(renderToStaticMarkup(createElement(Component, { payload: away }))).toContain(accountGlanceSection)
-
     const other = semantic({ clientName: 'Acme Plumbing' })
     ;(other.analysis as any).websiteAssessment = { websiteUrl: 'https://acmeplumbing.example/' }
+    ;(other.analysis as any).monthlyTrend = [
+      { month: '2026-01', cost: 1000, clicks: 100, conversions: 10 },
+      { month: '2026-02', cost: 2000, clicks: 150, conversions: 10 },
+    ]
     const v1 = buildV1PayloadFromEvidence(other)
-    expect(v1.showAccountGlance).toBe(false)
+    expect(v1.showAccountGlance).toBe(true)
+    expect(v1.accountGlance?.totals).toMatchObject({ spend: 3000, clicks: 250, conversions: 20, cpl: 150 })
     expect(googleAdsAudit15SlideSchema.safeParse(v1).ok).toBe(true)
-    // The slide (and its hardcoded Away Digital data) must not render for another client.
-    expect(renderToStaticMarkup(createElement(Component, { payload: v1 }))).not.toContain(accountGlanceSection)
+    const html = renderToStaticMarkup(createElement(Component, { payload: v1 }))
+    expect(html).toContain(accountGlanceSection)
+    expect(html).toContain('$3,000')
+    // None of the original hand-authored Away Digital figures leak in.
+    expect(html).not.toContain('573,270')
+    expect(html).not.toContain('GA4 page-view tracker')
+  })
+
+  it('hides the Account-at-a-glance slide when the audit has no monthly data', () => {
+    const source = semantic()
+    ;(source.analysis as any).monthlyTrend = []
+    const v1 = buildV1PayloadFromEvidence(source)
+    expect(v1.showAccountGlance).toBe(false)
+    expect(v1.accountGlance).toBeUndefined()
+    expect(renderToStaticMarkup(createElement(Component, { payload: v1 }))).not.toContain('<section id="account-glance"')
+  })
+
+  it('keeps the original fixed chart for hand-authored decks without evidence data', () => {
+    const v1 = buildV1PayloadFromEvidence(semantic())
+    const { accountGlance: _drop, showAccountGlance: _show, ...handAuthored } = v1
+    const html = renderToStaticMarkup(createElement(Component, { payload: handAuthored }))
+    expect(html).toContain('573,270')
+  })
+
+  it('titles the cover with the milestone when the deck is a milestone audit', () => {
+    const source = { ...semantic(), milestone: { months: 6, goLiveDate: '2026-04-13', dueDate: '2026-10-13' } }
+    const v1 = buildV1PayloadFromEvidence(source as SemanticGoogleAdsAuditPayload)
+    expect(v1.coverLabel).toBe('6-month Google Ads audit')
+    expect(renderToStaticMarkup(createElement(Component, { payload: v1 }))).toContain('6-month Google Ads audit')
+    expect(buildV1PayloadFromEvidence(semantic()).coverLabel).toBeUndefined()
   })
 })

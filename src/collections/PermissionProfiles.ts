@@ -16,6 +16,7 @@ import { FEATURE_KEYS, adminOnlyAccess, adminOnlyField } from "../lib/access";
 export const PermissionProfiles: CollectionConfig = {
   slug: "permission-profiles",
   admin: {
+    components: { beforeList: ["./components/SectionTabs"] },
     useAsTitle: "name",
     group: "Admin",
     description:

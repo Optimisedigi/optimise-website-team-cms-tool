@@ -18,6 +18,7 @@ import "./template.css";
 import Starfield from "./Starfield";
 import DeckScrollEffects from "./DeckScrollEffects";
 import AccountGlanceChart from "./AccountGlanceChart";
+import MonthlyPerformanceChart from "./MonthlyPerformanceChart";
 import type {
   GoogleAdsAudit15SlidePayload,
   AdGroupCategory,
@@ -131,7 +132,7 @@ function CoverSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
       <div className="relative z-10 flex-1 flex flex-col justify-center px-8 md:px-12 pb-12 w-full -mt-[20px]">
         <div className="flex flex-col items-start gap-5 text-left max-w-3xl">
           <div className="flex items-center gap-4 flex-wrap">
-            <span className="cover-pill">Google Ads Account Audit</span>
+            <span className="cover-pill">{p.coverLabel ?? "Google Ads Account Audit"}</span>
             <span className="cover-meta">{p.auditPeriodLabel}</span>
           </div>
           <h1 className="cover-h1 text-4xl md:text-6xl">{p.clientName}</h1>
@@ -183,13 +184,16 @@ function TlDrSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
 }
 
 /* ─── Slide 3: Account at a Glance ──────────────────────────────── */
-function AccountGlanceSlide() {
+function AccountGlanceSlide({ p }: { p: GoogleAdsAudit15SlidePayload }) {
+  // Evidence-built decks carry their own monthly data; only hand-authored
+  // decks without it fall back to the original fixed AccountGlanceChart.
+  const data = p.accountGlance;
   return (
     <SlideWrapper id="account-glance">
       <h2 className="text-xl md:text-2xl font-bold text-center mb-3 max-w-4xl mx-auto text-slate-900 dark:text-white">
-        Let&apos;s get context around the rising cost per lead
+        {data ? data.headline : "Let\u2019s get context around the rising cost per lead"}
       </h2>
-      <AccountGlanceChart />
+      {data ? <MonthlyPerformanceChart data={data} /> : <AccountGlanceChart />}
     </SlideWrapper>
   );
 }
@@ -928,7 +932,7 @@ export function Component({ payload: p, previewSlideId }: { payload: GoogleAdsAu
 
       <CoverSlide p={p} />
       <TlDrSlide p={p} />
-      {p.showAccountGlance !== false && <AccountGlanceSlide />}
+      {p.showAccountGlance !== false && <AccountGlanceSlide p={p} />}
       <AuditScoreSlide p={p} />
       <CategoryBreakdownSlide p={p} />
       <NonBrandTrendSlide p={p} />

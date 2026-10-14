@@ -12,6 +12,7 @@ export const HostingOneOffPayments: CollectionConfig = {
   lockDocuments: false,
   labels: { singular: 'Hosting one-off payment', plural: 'Hosting one-off payments' },
   admin: {
+    components: { beforeList: ["./components/SectionTabs"] },
     group: 'Finance',
     hidden: hideUnlessAnyFeature('hosting-billing-settings'),
     useAsTitle: 'id',

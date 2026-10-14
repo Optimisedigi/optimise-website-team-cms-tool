@@ -36,6 +36,45 @@ export interface NbTrendSegment {
   height: number;
 }
 
+/** One month on the evidence-driven "Account at a glance" chart. */
+export interface AccountGlanceMonth {
+  /** YYYY-MM */
+  month: string;
+  /** Axis label, e.g. "Apr-26". */
+  label: string;
+  spend: number;
+  clicks: number;
+  conversions: number;
+  /** Spend / conversions; null when the month had no conversions. */
+  cpl: number | null;
+  /** True when the audit window covers only part of this month. */
+  partial: boolean;
+}
+
+/** A month worth calling out because its cost per lead stood out. */
+export interface AccountGlanceCallout {
+  label: string;
+  spend: number;
+  conversions: number;
+  cpl: number | null;
+  reason: string;
+}
+
+/**
+ * Evidence-driven data for the "Account at a glance" slide, built from the
+ * snapshot's monthly trend. When present, the slide renders this instead of
+ * the hand-authored `AccountGlanceChart` series.
+ */
+export interface AccountGlanceData {
+  headline: string;
+  currencyCode: string;
+  periodLabel: string;
+  months: AccountGlanceMonth[];
+  totals: { spend: number; clicks: number; conversions: number; cpl: number | null };
+  callouts: AccountGlanceCallout[];
+  notes: string[];
+}
+
 export interface NbTrendMonth {
   /** X position of the bar (rect x attribute). */
   x: number;
@@ -188,11 +227,16 @@ export interface GoogleAdsAudit15SlidePayload {
   clientName: string;
   /** External-facing website for the closing CTA link, no trailing slash. */
   clientWebsite: string;
-  /** Gate for the "Account at a glance" slide. `AccountGlanceChart` currently
-   *  hardcodes Away Digital's monthly series, so the evidence adapter only sets
-   *  this true for that client; other clients hide the slide rather than show
-   *  another client's data. Undefined (legacy hand-authored decks) = show. */
+  /** Gate for the "Account at a glance" slide. Evidence decks set it true when
+   *  the audit has monthly data (drawn via `accountGlance`). Undefined (legacy
+   *  hand-authored decks) = show the original fixed `AccountGlanceChart`. */
   showAccountGlance?: boolean;
+  /** Evidence-driven Account-at-a-glance data. When set, the slide is drawn
+   *  from it; when absent, hand-authored decks fall back to the original
+   *  `AccountGlanceChart` series. */
+  accountGlance?: AccountGlanceData;
+  /** Cover pill text, e.g. "6-month Google Ads audit". Defaults to "Google Ads Account Audit". */
+  coverLabel?: string;
   /** Cover-card period label, e.g. "January 2025 – April 2026". */
   auditPeriodLabel: string;
   /** Subtitle paragraph on the cover slide. */
@@ -245,6 +289,27 @@ function isStr(v: unknown): v is string {
 function isNum(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
 }
+function isFiniteNum(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+function isNullableNum(v: unknown): v is number | null {
+  return v === null || isFiniteNum(v);
+}
+
+function isAccountGlanceData(v: unknown): v is AccountGlanceData {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const o = v as Record<string, unknown>;
+  const totals = o.totals as Record<string, unknown> | undefined;
+  return typeof o.headline === "string"
+    && typeof o.currencyCode === "string"
+    && typeof o.periodLabel === "string"
+    && Array.isArray(o.notes) && o.notes.every((n) => typeof n === "string")
+    && !!totals && isFiniteNum(totals.spend) && isFiniteNum(totals.clicks) && isFiniteNum(totals.conversions) && isNullableNum(totals.cpl)
+    && Array.isArray(o.months) && o.months.every((m: any) => m && typeof m.month === "string" && typeof m.label === "string" && isFiniteNum(m.spend) && isFiniteNum(m.clicks) && isFiniteNum(m.conversions) && isNullableNum(m.cpl) && typeof m.partial === "boolean")
+    && Array.isArray(o.callouts) && o.callouts.every((c: any) => c && typeof c.label === "string" && isFiniteNum(c.spend) && isFiniteNum(c.conversions) && isNullableNum(c.cpl) && typeof c.reason === "string");
+}
+
 function isBool(v: unknown): v is boolean {
   return typeof v === "boolean";
 }
@@ -416,11 +481,19 @@ function parsePayload(input: unknown): GoogleAdsAudit15SlidePayload {
   if (input.showAccountGlance !== undefined && !isBool(input.showAccountGlance)) {
     throw new TypeError('google-ads-audit-15-slide payload: field "showAccountGlance" must be a boolean');
   }
+  if (input.accountGlance !== undefined && !isAccountGlanceData(input.accountGlance)) {
+    throw new TypeError('google-ads-audit-15-slide payload: field "accountGlance" is invalid');
+  }
+  if (input.coverLabel !== undefined && !isStr(input.coverLabel)) {
+    throw new TypeError('google-ads-audit-15-slide payload: field "coverLabel" must be a string');
+  }
 
   return {
     clientName: requireStr("clientName"),
     clientWebsite: requireStr("clientWebsite"),
     ...(input.showAccountGlance !== undefined ? { showAccountGlance: input.showAccountGlance as boolean } : {}),
+    ...(input.accountGlance !== undefined ? { accountGlance: input.accountGlance as AccountGlanceData } : {}),
+    ...(input.coverLabel !== undefined ? { coverLabel: input.coverLabel as string } : {}),
     auditPeriodLabel: requireStr("auditPeriodLabel"),
     coverTagline: requireStr("coverTagline"),
     contactName: requireStr("contactName"),

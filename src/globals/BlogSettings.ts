@@ -8,6 +8,15 @@ export const BlogSettings: GlobalConfig = {
   admin: {
     group: 'Content',
     description: 'Global blog rules and defaults used by Blog Prompter generation.',
+    components: {
+      elements: {
+        // Tabs back to Blog Posts; the sidebar link for this global is hidden.
+        Description: {
+          path: './components/SectionTabs#SectionTabsWithDescription',
+          clientProps: { text: 'Global blog rules and defaults used by Blog Prompter generation.' },
+        },
+      },
+    },
   },
   access: globalAccess('blog-settings'),
   fields: [

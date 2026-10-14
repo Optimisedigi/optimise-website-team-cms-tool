@@ -5,6 +5,7 @@ export const CostCategories: CollectionConfig = {
   slug: "cost-categories",
   labels: { singular: "Cost Category", plural: "Cost Categories" },
   admin: {
+    components: { beforeList: ["./components/SectionTabs"] },
     group: "Finance",
     useAsTitle: "name",
     defaultColumns: ["name", "color", "budget", "isActive"],

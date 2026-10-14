@@ -31,8 +31,6 @@ function injectLink(
 }
 
 const ICONS = {
-  deployments:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
   integrations:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>',
   indexingHelper:
@@ -79,7 +77,6 @@ function useStickyFeature(user: any, feature: string): boolean {
 const SidebarNavExtras = () => {
   const { user } = useAuth()
   const canIntegrations = useStickyFeature(user, 'nav:integrations')
-  const canDeployments = useStickyFeature(user, 'nav:deployments')
   const canIndexingHelper = useStickyFeature(user, 'nav:indexing-helper')
   const canInvoices = useStickyFeature(user, 'nav:invoices')
   const canGoogleAds = useStickyFeature(user, 'nav:google-ads')
@@ -141,16 +138,7 @@ const SidebarNavExtras = () => {
         )
       }
 
-      if (canDeployments) {
-        injectLink(
-          '#nav-group-Settings .nav-group__content',
-          'deployments',
-          '/admin/deployments',
-          ICONS.deployments,
-          'Deployments',
-          'append',
-        )
-      }
+      // Deployments is hidden from the sidebar (page still reachable at /admin/deployments).
 
       if (canIndexingHelper) {
         injectLink(
@@ -311,7 +299,7 @@ const SidebarNavExtras = () => {
       clearInterval(injectInterval)
       clearInterval(hideInterval)
     }
-  }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts, canClientPulse])
+  }, [canIntegrations, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts, canClientPulse])
 
   // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released
   useEffect(() => {

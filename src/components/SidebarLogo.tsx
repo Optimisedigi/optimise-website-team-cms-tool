@@ -13,6 +13,13 @@ const IconChart = () => (
   </svg>
 )
 
+const IconMail = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <polyline points="3 7 12 13 21 7" />
+  </svg>
+)
+
 const IconSearch = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -47,6 +54,8 @@ const SidebarLogo = () => {
   const dashboardActive = pathname === "/admin";
   const showAnalytics = useStickyFeature(user, "nav:google-analytics");
   const showSearchConsole = useStickyFeature(user, "nav:search-console");
+  const showMail = useStickyFeature(user, "nav:mail");
+  const mailActive = pathname?.startsWith("/admin/mail") ?? false;
   // Hide the entire Performance group if the user has none of the items.
   const showPerfGroup = showAnalytics || showSearchConsole;
 
@@ -85,6 +94,22 @@ const SidebarLogo = () => {
           </a>
         )}
       </div>
+      {showMail && (
+        // Same nav-group > nav-group__content > nav__link structure as the
+        // groups below, so the icon and label line up with every other link.
+        <div className="nav-group sidebar-extras__group sidebar-mail-group">
+          <div className="nav-group__content">
+            <a
+              href="/admin/mail"
+              className={`nav__link sidebar-extras__link${mailActive ? " od-nav-active" : ""}`}
+              aria-current={mailActive ? "page" : undefined}
+            >
+              <IconMail />
+              <span className="nav__link-label">Mail</span>
+            </a>
+          </div>
+        </div>
+      )}
       {showPerfGroup && (
         <div id="nav-group-Performance" className="nav-group sidebar-extras__group">
           <button type="button" className="nav-group__toggle" tabIndex={-1}>

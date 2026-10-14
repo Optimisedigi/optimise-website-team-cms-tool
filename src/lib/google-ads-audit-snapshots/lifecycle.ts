@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Payload } from "payload";
-import { discoverSnapshotWindow } from "./window";
+import { discoverSnapshotWindow, type SnapshotWindowOverride } from "./window";
 import { cleanupSnapshotEvidenceBlobs, loadPrivateGzipJson, validateBlobMetadata } from "./evidence-storage";
 import { SNAPSHOT_DATASET_KEYS, SNAPSHOT_SCHEMA_VERSION, type SnapshotManifestItem } from "./types";
 import { GOOGLE_ADS_AUDIT_RUBRIC_VERSION } from "./scoring";
@@ -100,7 +100,7 @@ async function dispatchWithFailureRecording(payload: Payload, snapshot: any): Pr
   }
 }
 
-export async function createSnapshotForAudit(payload: Payload, auditId: string | number, options: { requestedAt?: string; allowNew?: boolean; dispatch?: boolean } = {}): Promise<any> {
+export async function createSnapshotForAudit(payload: Payload, auditId: string | number, options: { requestedAt?: string; allowNew?: boolean; dispatch?: boolean; window?: SnapshotWindowOverride } = {}): Promise<any> {
   const audit = await (payload as any).findByID({
     collection: "google-ads-audits", id: auditId, depth: 0, overrideAccess: true,
     select: {
@@ -170,7 +170,7 @@ export async function createSnapshotForAudit(payload: Payload, auditId: string |
     schemaVersion: SNAPSHOT_SCHEMA_VERSION as 3,
     rubricVersion: GOOGLE_ADS_AUDIT_RUBRIC_VERSION,
   };
-  const window = await discoverSnapshotWindow(audit.customerId, options.requestedAt, frozenContext);
+  const window = await discoverSnapshotWindow(audit.customerId, options.requestedAt, frozenContext, options.window);
   let snapshot: any;
   try {
     snapshot = await (payload as any).create({

@@ -39,6 +39,7 @@ export const FEATURE_KEYS = [
   { label: "Deck Templates", value: "deck-templates" },
   { label: "Client Processes", value: "client-processes" },
   { label: "Client Pulse", value: "nav:client-pulse" },
+  { label: "Mail", value: "nav:mail" },
   { label: "Team Tasks", value: "team-tasks" },
   { label: "Task Manager", value: "nav:task-manager" },
   { label: "Meeting Schedulers", value: "meeting-schedulers" },

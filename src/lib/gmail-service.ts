@@ -25,6 +25,9 @@ const SCOPES = [
   "https://www.googleapis.com/auth/gmail.compose",
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.settings.basic",
+  // gmail.modify: the CMS Mail view archives and marks messages read/unread.
+  // Users connected before it was added must reconnect once.
+  "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/userinfo.email",
   "openid",
 ];
@@ -145,24 +148,23 @@ function wrapBase64(content: Buffer): string {
  */
 export function buildMimeMessage(args: {
   to: string;
+  cc?: string;
   subject: string;
   htmlBody: string;
   /** RFC 822 Message-ID of the message being replied to, for threading. */
   inReplyTo?: string;
   attachments?: GmailDraftAttachment[];
 }): string {
-  const { to, subject, htmlBody, inReplyTo, attachments = [] } = args;
+  const { to, cc, subject, htmlBody, inReplyTo, attachments = [] } = args;
   // Encode subject as RFC 2047 if it contains non-ASCII to keep Gmail happy.
   const isAscii = /^[\x20-\x7E]*$/.test(subject);
   const encodedSubject = isAscii
     ? subject
     : `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
 
-  const lines = [
-    `To: ${to}`,
-    `Subject: ${encodedSubject}`,
-    "MIME-Version: 1.0",
-  ];
+  const lines = [`To: ${to}`];
+  if (cc && cc.trim()) lines.push(`Cc: ${cc.replace(/[\r\n]+/g, " ").trim()}`);
+  lines.push(`Subject: ${encodedSubject}`, "MIME-Version: 1.0");
   // In-thread replies: setting In-Reply-To / References lets Gmail group the
   // draft into the original conversation alongside threadId on the message.
   if (inReplyTo) {
@@ -317,4 +319,43 @@ export async function createGmailDraft(
     throw new Error("Gmail draft creation returned no id");
   }
   return { draftId, messageId };
+}
+
+/**
+ * Send an email immediately as the connected user. Only called from the Mail
+ * view's Send button route (/api/mail/send) after an explicit user click; the
+ * model never calls this. Appends the Gmail signature like drafts do.
+ */
+export async function sendGmailMessage(
+  accessToken: string,
+  args: {
+    to: string;
+    cc?: string;
+    subject: string;
+    htmlBody: string;
+    threadId?: string;
+    inReplyTo?: string;
+    appendSignature?: boolean;
+  },
+): Promise<{ messageId: string; threadId: string }> {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+  const body = removeForbiddenDashes(args.htmlBody);
+  const signed = args.appendSignature === false
+    ? body
+    : appendGmailSignature(body, await getPrimaryGmailSignature(accessToken));
+  const raw = buildMimeMessage({
+    to: args.to,
+    cc: args.cc,
+    subject: removeForbiddenDashes(args.subject),
+    htmlBody: formatGmailDraftHtml(signed),
+    inReplyTo: args.inReplyTo,
+  });
+  const res = await gmail.users.messages.send({
+    userId: "me",
+    requestBody: args.threadId ? { raw, threadId: args.threadId } : { raw },
+  });
+  if (!res.data.id) throw new Error("Gmail send returned no id");
+  return { messageId: res.data.id, threadId: res.data.threadId ?? args.threadId ?? "" };
 }

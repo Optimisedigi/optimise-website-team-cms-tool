@@ -88,6 +88,10 @@
     {
       "path": "/api/google-search-updates/cron",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/google-ads-milestone-audits/cron",
+      "schedule": "40 * * * *"
     }
   ],
   "functions": {
@@ -195,6 +199,9 @@
     },
     "src/app/(frontend)/api/google-search-updates/cron/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/(frontend)/api/google-ads-milestone-audits/cron/route.ts": {
+      "maxDuration": 300
     }
   }
 }

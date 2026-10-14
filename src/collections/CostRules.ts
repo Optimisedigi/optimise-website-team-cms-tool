@@ -5,6 +5,7 @@ export const CostRules: CollectionConfig = {
   slug: "cost-rules",
   labels: { singular: "Cost Rule", plural: "Cost Rules" },
   admin: {
+    components: { beforeList: ["./components/SectionTabs"] },
     group: "Finance",
     useAsTitle: "pattern",
     defaultColumns: ["pattern", "category"],

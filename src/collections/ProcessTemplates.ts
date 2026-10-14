@@ -79,6 +79,7 @@ export const ProcessTemplates: CollectionConfig = {
     plural: "Process Templates",
   },
   admin: {
+    components: { beforeList: ["./components/SectionTabs"] },
     useAsTitle: "name",
     group: "Clients",
     description:

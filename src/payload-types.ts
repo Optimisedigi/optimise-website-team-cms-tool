@@ -86,6 +86,10 @@ export interface Config {
     'client-portal-requests': ClientPortalRequest;
     'client-value-ledger-items': ClientValueLedgerItem;
     'meeting-schedulers': MeetingScheduler;
+    'client-emails': ClientEmail;
+    'client-email-summaries': ClientEmailSummary;
+    'mail-ai-requests': MailAiRequest;
+    'mail-sync-states': MailSyncState;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
     'blog-ideas': BlogIdea;
@@ -98,6 +102,7 @@ export interface Config {
     'cro-audits': CroAudit;
     'google-ads-audits': GoogleAdsAudit;
     'google-ads-audit-snapshots': GoogleAdsAuditSnapshot;
+    'google-ads-milestone-audits': GoogleAdsMilestoneAudit;
     'tag-setup-audits': TagSetupAudit;
     'keyword-snapshots': KeywordSnapshot;
     'competitor-analyses': CompetitorAnalysis;
@@ -178,6 +183,7 @@ export interface Config {
       googleAdsAudits: 'google-ads-audits';
       negativeKeywordLists: 'negative-keyword-lists';
       keywordDeepDiveSessions: 'keyword-deep-dive-sessions';
+      googleAdsMilestoneAudits: 'google-ads-milestone-audits';
       forecastScenarios: 'forecast-scenarios';
       siteHealthReports: 'site-health-reports';
       tagSetupAudits: 'tag-setup-audits';
@@ -207,6 +213,10 @@ export interface Config {
     'client-portal-requests': ClientPortalRequestsSelect<false> | ClientPortalRequestsSelect<true>;
     'client-value-ledger-items': ClientValueLedgerItemsSelect<false> | ClientValueLedgerItemsSelect<true>;
     'meeting-schedulers': MeetingSchedulersSelect<false> | MeetingSchedulersSelect<true>;
+    'client-emails': ClientEmailsSelect<false> | ClientEmailsSelect<true>;
+    'client-email-summaries': ClientEmailSummariesSelect<false> | ClientEmailSummariesSelect<true>;
+    'mail-ai-requests': MailAiRequestsSelect<false> | MailAiRequestsSelect<true>;
+    'mail-sync-states': MailSyncStatesSelect<false> | MailSyncStatesSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'blog-ideas': BlogIdeasSelect<false> | BlogIdeasSelect<true>;
@@ -219,6 +229,7 @@ export interface Config {
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
     'google-ads-audits': GoogleAdsAuditsSelect<false> | GoogleAdsAuditsSelect<true>;
     'google-ads-audit-snapshots': GoogleAdsAuditSnapshotsSelect<false> | GoogleAdsAuditSnapshotsSelect<true>;
+    'google-ads-milestone-audits': GoogleAdsMilestoneAuditsSelect<false> | GoogleAdsMilestoneAuditsSelect<true>;
     'tag-setup-audits': TagSetupAuditsSelect<false> | TagSetupAuditsSelect<true>;
     'keyword-snapshots': KeywordSnapshotsSelect<false> | KeywordSnapshotsSelect<true>;
     'competitor-analyses': CompetitorAnalysesSelect<false> | CompetitorAnalysesSelect<true>;
@@ -999,6 +1010,14 @@ export interface Client {
     totalDocs?: number;
   };
   /**
+   * Automated 1, 3, 6, 9 and 12-month Google Ads audits, counted from the Campaign start date
+   */
+  googleAdsMilestoneAudits?: {
+    docs?: (number | GoogleAdsMilestoneAudit)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
    * Configure Google Ads automations for this client
    */
   gadsAuto?: {
@@ -1079,6 +1098,10 @@ export interface Client {
      * Day of month to run (1-28)
      */
     reauditDayOfMonth?: number | null;
+    /**
+     * Run Google Ads audits 1, 3, 6, 9 and 12 months after the Campaign start date. Each one waits in OptiMate Approvals before a Gmail draft goes to the client.
+     */
+    milestoneAuditsEnabled?: boolean | null;
     /**
      * Enable monthly performance reports
      */
@@ -6227,6 +6250,7 @@ export interface User {
         | 'deck-templates'
         | 'client-processes'
         | 'nav:client-pulse'
+        | 'nav:mail'
         | 'team-tasks'
         | 'nav:task-manager'
         | 'meeting-schedulers'
@@ -6345,6 +6369,7 @@ export interface PermissionProfile {
         | 'deck-templates'
         | 'client-processes'
         | 'nav:client-pulse'
+        | 'nav:mail'
         | 'team-tasks'
         | 'nav:task-manager'
         | 'meeting-schedulers'
@@ -6565,6 +6590,120 @@ export interface KeywordDeepDiveSession {
         id?: string | null;
       }[]
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Automated Google Ads audits at 1, 3, 6, 9 and 12 months after a client's Campaign start date. Each one waits in OptiMate Approvals; applying it publishes the deck and creates a Gmail draft to the client.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-milestone-audits".
+ */
+export interface GoogleAdsMilestoneAudit {
+  id: number;
+  title: string;
+  client: number | Client;
+  /**
+   * Google Ads account audited
+   */
+  audit: number | GoogleAdsAudit;
+  /**
+   * Milestone: months after go-live
+   */
+  months: number;
+  /**
+   * Campaign start used for this schedule
+   */
+  goLiveDate: string;
+  /**
+   * Runs the day after this date
+   */
+  dueDate: string;
+  status: 'scheduled' | 'capturing' | 'awaiting_approval' | 'shared' | 'rejected' | 'skipped' | 'failed';
+  /**
+   * auditId:months — one row per account per milestone
+   */
+  milestoneKey: string;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  overallScore?: number | null;
+  snapshot?: (number | null) | GoogleAdsAuditSnapshot;
+  approval?: (number | null) | AgentApprovalQueue;
+  deckSlug?: string | null;
+  deckUrl?: string | null;
+  sharedAt?: string | null;
+  gmailDraftId?: string | null;
+  captureStartedAt?: string | null;
+  attempts?: number | null;
+  /**
+   * Why a row was skipped, rejected or failed
+   */
+  note?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Drafts and proposed actions from OptiMate awaiting human review.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-approval-queue".
+ */
+export interface AgentApprovalQueue {
+  id: number;
+  /**
+   * One-line summary the human sees in the queue list.
+   */
+  title: string;
+  /**
+   * Which agent produced this draft, e.g. optimate-google-ads.
+   */
+  agentName: string;
+  client?: (number | null) | Client;
+  /**
+   * What kind of action the draft proposes, e.g. phrase-match-additions, budget-reallocation, diagnostic-report.
+   */
+  proposalType: string;
+  /**
+   * Run ID this proposal was produced by; matches activity-log entries.
+   */
+  agentRunId: string;
+  /**
+   * Structured payload the apply-side tool will read on approval.
+   */
+  proposalPayload:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Pre-rendered presentation of the proposal for human review.
+   */
+  rendered?: {
+    /**
+     * Brand-toned client-facing HTML.
+     */
+    clientHtml?: string | null;
+    /**
+     * Terse internal-team review markdown.
+     */
+    internalMarkdown?: string | null;
+  };
+  status: 'pending' | 'approved' | 'rejected' | 'applied' | 'failed';
+  /**
+   * CMS user whose chat turn / scheduled action triggered the agent run that produced this proposal. Null for background/system runs.
+   */
+  triggeredBy?: (number | null) | User;
+  reviewedBy?: (number | null) | User;
+  reviewedAt?: string | null;
+  appliedAt?: string | null;
+  /**
+   * If status=failed, the error from the apply-side tool.
+   */
+  applyError?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -7925,71 +8064,6 @@ export interface BlogPost {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * Drafts and proposed actions from OptiMate awaiting human review.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "agent-approval-queue".
- */
-export interface AgentApprovalQueue {
-  id: number;
-  /**
-   * One-line summary the human sees in the queue list.
-   */
-  title: string;
-  /**
-   * Which agent produced this draft, e.g. optimate-google-ads.
-   */
-  agentName: string;
-  client?: (number | null) | Client;
-  /**
-   * What kind of action the draft proposes, e.g. phrase-match-additions, budget-reallocation, diagnostic-report.
-   */
-  proposalType: string;
-  /**
-   * Run ID this proposal was produced by; matches activity-log entries.
-   */
-  agentRunId: string;
-  /**
-   * Structured payload the apply-side tool will read on approval.
-   */
-  proposalPayload:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Pre-rendered presentation of the proposal for human review.
-   */
-  rendered?: {
-    /**
-     * Brand-toned client-facing HTML.
-     */
-    clientHtml?: string | null;
-    /**
-     * Terse internal-team review markdown.
-     */
-    internalMarkdown?: string | null;
-  };
-  status: 'pending' | 'approved' | 'rejected' | 'applied' | 'failed';
-  /**
-   * CMS user whose chat turn / scheduled action triggered the agent run that produced this proposal. Null for background/system runs.
-   */
-  triggeredBy?: (number | null) | User;
-  reviewedBy?: (number | null) | User;
-  reviewedAt?: string | null;
-  appliedAt?: string | null;
-  /**
-   * If status=failed, the error from the apply-side tool.
-   */
-  applyError?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * Automatic feed of team activity
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -8268,6 +8342,82 @@ export interface MeetingScheduler {
   googleEventLink?: string | null;
   status: 'draft' | 'slots_generated' | 'invites_sent' | 'awaiting_responses' | 'confirmed' | 'no_match' | 'expired';
   slug?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-emails".
+ */
+export interface ClientEmail {
+  id: number;
+  gmailMessageId: string;
+  gmailThreadId: string;
+  client: number | Client;
+  /**
+   * CMS user whose mailbox this came from
+   */
+  owner?: (number | null) | User;
+  direction?: ('inbound' | 'outbound') | null;
+  matchedBy?: ('auto' | 'manual') | null;
+  /**
+   * Domain or address that linked this email to the client
+   */
+  matchedOn?: string | null;
+  from?: string | null;
+  to?: string | null;
+  cc?: string | null;
+  subject?: string | null;
+  date?: string | null;
+  body?: string | null;
+  gmailLink?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-email-summaries".
+ */
+export interface ClientEmailSummary {
+  id: number;
+  client: number | Client;
+  email: number | ClientEmail;
+  owner?: (number | null) | User;
+  summary: string;
+  emailDate?: string | null;
+  model?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Every Mail AI call: one click, at most one email, no email content stored here.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mail-ai-requests".
+ */
+export interface MailAiRequest {
+  id: number;
+  user?: (number | null) | User;
+  action: 'reply' | 'draft' | 'summarise';
+  gmailMessageId?: string | null;
+  emailCount: number;
+  model?: string | null;
+  status?: ('ok' | 'error') | null;
+  error?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mail-sync-states".
+ */
+export interface MailSyncState {
+  id: number;
+  user: number | User;
+  gmailAddress?: string | null;
+  historyId?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -11683,6 +11833,10 @@ export interface PayloadLockedDocument {
         value: number | GoogleAdsAuditSnapshot;
       } | null)
     | ({
+        relationTo: 'google-ads-milestone-audits';
+        value: number | GoogleAdsMilestoneAudit;
+      } | null)
+    | ({
         relationTo: 'tag-setup-audits';
         value: number | TagSetupAudit;
       } | null)
@@ -12226,6 +12380,7 @@ export interface ClientsSelect<T extends boolean = true> {
   annualClientBudgetPlaceholders?: T;
   negativeKeywordLists?: T;
   keywordDeepDiveSessions?: T;
+  googleAdsMilestoneAudits?: T;
   gadsAuto?:
     | T
     | {
@@ -12252,6 +12407,7 @@ export interface ClientsSelect<T extends boolean = true> {
             };
         reauditEnabled?: T;
         reauditDayOfMonth?: T;
+        milestoneAuditsEnabled?: T;
         performanceReportEnabled?: T;
         performanceReportDayOfMonth?: T;
         performanceReportRecipientEmails?:
@@ -13249,6 +13405,70 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-emails_select".
+ */
+export interface ClientEmailsSelect<T extends boolean = true> {
+  gmailMessageId?: T;
+  gmailThreadId?: T;
+  client?: T;
+  owner?: T;
+  direction?: T;
+  matchedBy?: T;
+  matchedOn?: T;
+  from?: T;
+  to?: T;
+  cc?: T;
+  subject?: T;
+  date?: T;
+  body?: T;
+  gmailLink?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-email-summaries_select".
+ */
+export interface ClientEmailSummariesSelect<T extends boolean = true> {
+  client?: T;
+  email?: T;
+  owner?: T;
+  summary?: T;
+  emailDate?: T;
+  model?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mail-ai-requests_select".
+ */
+export interface MailAiRequestsSelect<T extends boolean = true> {
+  user?: T;
+  action?: T;
+  gmailMessageId?: T;
+  emailCount?: T;
+  model?: T;
+  status?: T;
+  error?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mail-sync-states_select".
+ */
+export interface MailSyncStatesSelect<T extends boolean = true> {
+  user?: T;
+  gmailAddress?: T;
+  historyId?: T;
+  lastSyncAt?: T;
+  lastError?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "blog-posts_select".
  */
 export interface BlogPostsSelect<T extends boolean = true> {
@@ -13800,6 +14020,34 @@ export interface GoogleAdsAuditSnapshotsSelect<T extends boolean = true> {
   analysisBlobEncoding?: T;
   analysisBlobCompressedBytes?: T;
   analysisBlobUncompressedBytes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-milestone-audits_select".
+ */
+export interface GoogleAdsMilestoneAuditsSelect<T extends boolean = true> {
+  title?: T;
+  client?: T;
+  audit?: T;
+  months?: T;
+  goLiveDate?: T;
+  dueDate?: T;
+  status?: T;
+  milestoneKey?: T;
+  periodStart?: T;
+  periodEnd?: T;
+  overallScore?: T;
+  snapshot?: T;
+  approval?: T;
+  deckSlug?: T;
+  deckUrl?: T;
+  sharedAt?: T;
+  gmailDraftId?: T;
+  captureStartedAt?: T;
+  attempts?: T;
+  note?: T;
   updatedAt?: T;
   createdAt?: T;
 }

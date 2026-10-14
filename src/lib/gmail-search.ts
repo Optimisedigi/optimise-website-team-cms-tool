@@ -266,6 +266,30 @@ function messageToBody(msg: gmail_v1.Schema$Message, fallbackMessageId: string):
   };
 }
 
+export interface GmailFullMessage extends GmailMessageBody {
+  cc: string;
+  snippet: string;
+  labelIds: string[];
+}
+
+/** Decode a Gmail API message (format=full) including Cc and labels. Used by the Mail view. */
+export function parseGmailFullMessage(msg: gmail_v1.Schema$Message): GmailFullMessage {
+  return {
+    ...messageToBody(msg, msg.id ?? ""),
+    cc: getHeader(msg.payload?.headers, "Cc"),
+    snippet: msg.snippet ?? "",
+    labelIds: msg.labelIds ?? [],
+  };
+}
+
+/** Read one header from a Gmail API message part list. */
+export function readGmailHeader(
+  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
+  name: string,
+): string {
+  return getHeader(headers, name);
+}
+
 export async function fetchMessageBody(
   accessToken: string,
   messageId: string,

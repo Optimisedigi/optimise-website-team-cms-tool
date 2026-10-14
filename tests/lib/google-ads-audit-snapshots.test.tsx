@@ -213,6 +213,27 @@ describe('versioned semantic deck', () => {
     expect(deck.publicPath).toBe('/partners/client/google-ads-audit-4')
   })
 
+  it('keeps the query-review working set (reviewGroups, vocabulary) out of the deck payload', () => {
+    const heavy = {
+      ...snapshot,
+      analysis: {
+        ...analysis,
+        searchTerms: {
+          ...analysis.searchTerms,
+          reviewGroups: [{ id: 'g1', queries: ['a'] }],
+          vocabulary: [{ phrase: 'p' }],
+        },
+      },
+    }
+    const deck = generateSemanticDeckPayload(audit, heavy)
+    expect(deck.analysis.searchTerms).not.toHaveProperty('reviewGroups')
+    expect(deck.analysis.searchTerms).not.toHaveProperty('vocabulary')
+    expect(deck.analysis.searchTerms.confirmedWasteAmount).toBe(300)
+    const slide = deck.slides.find((item: any) => item.id === 'search-terms')
+    expect(slide.evidence).not.toHaveProperty('reviewGroups')
+    expect(heavy.analysis.searchTerms.reviewGroups).toHaveLength(1)
+  })
+
   it('trims 140k classified search terms before persisting the generated deck', async () => {
     const classified = Array.from({ length: 140_000 }, (_, index) => ({
       searchTerm: `term-${index}`,

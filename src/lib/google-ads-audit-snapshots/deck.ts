@@ -22,9 +22,13 @@ function trimAnalysisForPresentation(analysis: any): any {
     .sort((a: any, b: any) => (Number(b?.spend) || 0) - (Number(a?.spend) || 0))
     .slice(0, 25);
   const pages = Array.isArray(analysis.landingPages?.pages) ? analysis.landingPages.pages.slice(0, 25) : analysis.landingPages?.pages;
+  // reviewGroups and vocabulary are the full query-review working set (often
+  // 10MB+); the deck never renders them (the admin review screens read their
+  // own collections), so they stay in the snapshot only.
+  const { reviewGroups: _reviewGroups, vocabulary: _vocabulary, ...searchTerms } = analysis.searchTerms ?? {};
   return {
     ...analysis,
-    searchTerms: { ...analysis.searchTerms, classified: renderedClassified },
+    searchTerms: { ...searchTerms, classified: renderedClassified },
     landingPages: { ...analysis.landingPages, pages },
   };
 }
@@ -85,6 +89,15 @@ function evidenceForSlide(id: string, analysis: any): unknown {
   return map[id] ?? null;
 }
 
+/** Find (or create once) the deck-templates row the audit decks render with. */
+export async function ensureAuditDeckTemplate(payload: Payload): Promise<{ id: string | number }> {
+  const templateResult = await (payload as any).find({ collection: "deck-templates", where: { templateSlug: { equals: "google-ads-audit-15-slide" } }, limit: 1, depth: 0, overrideAccess: true });
+  return templateResult.docs?.[0] ?? await (payload as any).create({
+    collection: "deck-templates", overrideAccess: true,
+    data: { templateSlug: "google-ads-audit-15-slide", name: "Google Ads Audit standardized deck", description: "Generated from an immutable Google Ads audit snapshot", category: "google-ads-audit", isActive: true },
+  });
+}
+
 export async function generateAuditDeck(payload: Payload, auditId: string): Promise<any> {
   const audit = await (payload as any).findByID({
     collection: "google-ads-audits", id: auditId, depth: 0, overrideAccess: true,
@@ -96,11 +109,7 @@ export async function generateAuditDeck(payload: Payload, auditId: string): Prom
   if (!clientId) throw new Error("Audit is not linked to a client");
   const snapshot = await (payload as any).findByID({ collection: "google-ads-audit-snapshots", id: snapshotId, depth: 0, overrideAccess: true });
   const deck = generateSemanticDeckPayload(audit, snapshot);
-  const templateResult = await (payload as any).find({ collection: "deck-templates", where: { templateSlug: { equals: "google-ads-audit-15-slide" } }, limit: 1, depth: 0, overrideAccess: true });
-  const template = templateResult.docs?.[0] ?? await (payload as any).create({
-    collection: "deck-templates", overrideAccess: true,
-    data: { templateSlug: "google-ads-audit-15-slide", name: "Google Ads Audit standardized deck", description: "Generated from an immutable Google Ads audit snapshot", category: "google-ads-audit", isActive: true },
-  });
+  const template = await ensureAuditDeckTemplate(payload);
   const client = await (payload as any).findByID({
     collection: "clients", id: clientId, depth: 0, overrideAccess: true,
     select: { slug: true, presentations: true },

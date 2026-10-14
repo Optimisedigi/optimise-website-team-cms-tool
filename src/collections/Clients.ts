@@ -2210,6 +2210,23 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          // Emails linked by the Mail view (deterministic domain matching) and
+          // the email summaries the user confirmed. Display-only UI field: no
+          // column on clients; data lives in client-emails / client-email-summaries.
+          label: "Emails",
+          fields: [
+            {
+              name: "emailsPanel",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/mail/ClientEmailsPanel",
+                },
+              },
+            },
+          ],
+        },
+        {
           label: "Account Timeline",
           fields: [
             {
@@ -2687,6 +2704,21 @@ export const Clients: CollectionConfig = {
                 defaultColumns: ["title", "keywordCount", "status", "appliedToNKL", "createdAt"],
               },
             },
+
+            // ─ Milestone audits ─
+            // Rows are created by /api/google-ads-milestone-audits/cron from the
+            // Campaign start date; this is a read-only view of the schedule.
+            {
+              name: "googleAdsMilestoneAudits",
+              type: "join",
+              collection: "google-ads-milestone-audits",
+              on: "client",
+              defaultSort: "dueDate",
+              admin: {
+                description: "Automated 1, 3, 6, 9 and 12-month Google Ads audits, counted from the Campaign start date",
+                defaultColumns: ["title", "dueDate", "status", "overallScore", "sharedAt"],
+              },
+            },
                   ],
                 },
                 {
@@ -2922,6 +2954,17 @@ export const Clients: CollectionConfig = {
                     description: "Day of month to run (1-28)",
                     step: 1,
                     condition: (data: any) => data?.gadsAuto?.reauditEnabled,
+                  },
+                },
+
+                // Milestone audits (1/3/6/9/12 months after Campaign start)
+                {
+                  name: "milestoneAuditsEnabled",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description:
+                      "Run Google Ads audits 1, 3, 6, 9 and 12 months after the Campaign start date. Each one waits in OptiMate Approvals before a Gmail draft goes to the client.",
                   },
                 },
 

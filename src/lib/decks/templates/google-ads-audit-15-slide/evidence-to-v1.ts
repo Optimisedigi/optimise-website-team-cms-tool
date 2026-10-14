@@ -3,7 +3,7 @@
  * `GoogleAdsAudit15SlidePayload` consumed by `Component.tsx`.
  *
  * This lets the evidence snapshot render through the established Google Ads
- * audit design (Starfield cover, score ring, AccountGlanceChart, category
+ * audit design (Starfield cover, score ring, monthly performance chart, category
  * bars) instead of the minimal semantic renderer.
  *
  * Honesty rule: categories with insufficient evidence are surfaced as
@@ -23,6 +23,7 @@ import type {
   SearchTermRow,
   SemanticGoogleAdsAuditPayload,
 } from "./payload";
+import { buildAccountGlance } from "./account-glance";
 
 /** Static Optimise Digital contact block — identical across audits. */
 const CONTACT = {
@@ -62,12 +63,6 @@ type Scorecard = NonNullable<SemanticGoogleAdsAuditPayload["scorecards"]>[number
 // `AccountGlanceChart` hardcodes Away Digital Teams' monthly series, so the
 // evidence adapter may only show that slide for that client. Any other client
 // hides it rather than display another client's spend/clicks/conversions.
-function isAwayDigitalClient(semantic: SemanticGoogleAdsAuditPayload): boolean {
-  const name = String(semantic.clientName ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const website = String((semantic.analysis as any)?.websiteAssessment?.websiteUrl ?? "").toLowerCase();
-  return name === "away digital teams" || website.includes("awaydigitalteams.com");
-}
-
 function num(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -246,11 +241,23 @@ export function buildV1PayloadFromEvidence(semantic: SemanticGoogleAdsAuditPaylo
     }));
 
   const { months, gridLines } = buildNbTrend(analysis.monthlyTrend ?? []);
+  const accountGlance = buildAccountGlance({
+    monthlyTrend: analysis.monthlyTrend,
+    periodStart: String(semantic.provenance.periodStart),
+    periodEnd: String(semantic.provenance.periodEnd),
+    currencyCode: semantic.provenance.currencyCode,
+  });
+  // Milestone decks title their cover (e.g. "6-month Google Ads audit").
+  const milestoneMonths = Number((semantic as { milestone?: { months?: unknown } }).milestone?.months);
+  const coverLabel = Number.isFinite(milestoneMonths) && milestoneMonths > 0 ? `${milestoneMonths}-month Google Ads audit` : undefined;
 
   return {
     clientName: semantic.clientName,
     clientWebsite: websiteUrl.replace(/\/$/, ""),
-    showAccountGlance: isAwayDigitalClient(semantic),
+    // Drawn from this audit's own monthly data; hidden only when there is none.
+    showAccountGlance: accountGlance != null,
+    ...(accountGlance ? { accountGlance } : {}),
+    ...(coverLabel ? { coverLabel } : {}),
     auditPeriodLabel: period,
     coverTagline: "A traceable, account-specific review of performance and improvement priorities.",
     ...CONTACT,
