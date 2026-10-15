@@ -7,7 +7,7 @@ type Row = Record<string, any> & { id: number };
 
 /** Minimal in-memory Payload with a unique gmailMessageId, like the real index. */
 function fakePayload(clients: Row[]) {
-  const tables: Record<string, Row[]> = { "client-emails": [], "mail-sync-states": [], clients };
+  const tables: Record<string, Row[]> = { "client-emails": [], "mail-sync-states": [], notifications: [], clients };
   let nextId = 1;
   const matches = (row: Row, where: any): boolean =>
     Object.entries(where ?? {}).every(([field, cond]: [string, any]) => {

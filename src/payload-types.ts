@@ -11238,7 +11238,8 @@ export interface Notification {
     | 'meeting-response-declined'
     | 'meeting-confirmed'
     | 'team-task-mention'
-    | 'hosting-duplicate-subscription';
+    | 'hosting-duplicate-subscription'
+    | 'client-email-received';
   title: string;
   /**
    * Short summary line.

@@ -6,7 +6,7 @@ import EmailBody from './EmailBody'
 import ComposeWindow, { type ComposeContent, type ComposeFile, type ComposeState } from './ComposeWindow'
 import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
-import { MAIL_DRAFT_QUERY_PARAM } from '../../lib/mail/drafts'
+import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
 
 /**
  * CMS Mail view. Inbox list → reading pane (newest message first) → Gmail-style
@@ -296,6 +296,28 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`)
     void openDraft(draftMessageId)
   }, [openDraft])
+
+  // Open a thread linked from the client email alert (`?thread=<id>`), then drop the param.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const threadId = params.get(MAIL_THREAD_QUERY_PARAM)
+    if (!threadId) return
+    params.delete(MAIL_THREAD_QUERY_PARAM)
+    const rest = params.toString()
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`)
+    if (!isGmailId(threadId)) return
+    void openThread({
+      threadId,
+      messageId: '',
+      from: '',
+      subject: '',
+      snippet: '',
+      date: '',
+      unread: true,
+      messageCount: 0,
+      client: null,
+    })
+  }, [openThread])
 
   const selectedThread = useMemo(() => threads.find((t) => t.threadId === selectedThreadId) ?? null, [threads, selectedThreadId])
   const latest = messages[messages.length - 1] ?? null

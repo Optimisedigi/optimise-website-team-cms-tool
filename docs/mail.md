@@ -41,6 +41,18 @@ A message is linked to a client when an address on it resolves to that client. A
 2. **Database.** Local `file:` databases pick up the four new tables automatically through Payload push. Production gets them from migration `20261014_150000_mail_client_emails` (also run by `runMigrations()`) via `POST /api/migrate` after deploy. The change is additive only: no existing table or client data is changed.
 3. **Access.** Admins have Mail automatically. Other users need the **Mail** (`nav:mail`) feature ticked on their user record. Non-admins only see emails synced from their own mailbox.
 
+## Client email alerts ("Client email – please read")
+
+A slide-up on every admin page tells you when a known client has emailed you, without opening Gmail.
+
+- **What triggers it.** A sync that stores a *new inbound* email from a matched client (same matching, hidden-sender and automated-mail rules as above). Sent mail, unmatched mail, and mail from hidden or automated senders never alert. Code: `src/lib/mail/client-email-alerts.ts`, called from `syncMailbox`.
+- **Who sees it.** Only the person whose mailbox received the email. Each alert is a `notifications` row (kind `client-email-received`) for that user, so it also shows in the top-bar bell.
+- **Noise limits.** No alerts on the first 14-day sync or a history-expired re-sync, none for emails older than 24 hours, at most 5 per sync (newest first), and one per Gmail message, ever.
+- **Where it shows.** Bottom-right, just above the OptiMate button. When the OptiMate panel is open it moves to the left of the panel (hidden on narrow screens). A new alert opens fully for about 20 seconds, then shrinks to a small chip that stays until you act on it. Click the chip to expand it again.
+- **Actions.** **Open email** opens the thread in Mail (`/admin/mail?thread=<id>`). **Dismiss** (or ×) marks it read on the server, so it never comes back in any tab. **Dismiss all** appears when more than one is waiting.
+- **How it checks.** `ClientEmailAlert` (mounted by `OptiMateLauncher`) calls `GET /api/mail/client-alerts?sync=1` every 60 seconds while the tab is visible. The route runs the normal incremental sync for your own mailbox at most once every ~55 seconds (across all your tabs), then returns your undismissed alerts. A sync error never breaks the panel. Users without Mail access or without Gmail connected see nothing.
+- **Setup.** None beyond Mail itself: Gmail connected and the Mail feature. No new tables or migration: the notification kind is a new select value on an existing text column.
+
 ## Behaviour notes
 
 - Opening an unread thread marks it read, as Gmail does. **Mark unread** undoes that.

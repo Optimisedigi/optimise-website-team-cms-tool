@@ -15,6 +15,7 @@ import AdminMateChat from './AdminMateChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
 import RocketSplash from './RocketSplash'
+import ClientEmailAlert from './ClientEmailAlert'
 
 type AgentKey = 'google-ads' | 'invoices' | 'taskmate' | 'adminmate'
 
@@ -233,6 +234,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   return (
     <>
       {children}
+
+      {/* "Client email – please read": above the orb, or left of the open panel. */}
+      <ClientEmailAlert panelOpen={open} />
 
       {/* Collapsed launcher: floating orb with an "Ask OptiMate" tooltip. */}
       {!open && (

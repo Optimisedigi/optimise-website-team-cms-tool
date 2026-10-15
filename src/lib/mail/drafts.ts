@@ -11,6 +11,13 @@
 const GMAIL_ID_RE = /^[A-Za-z0-9_-]{1,256}$/;
 
 export const MAIL_DRAFT_QUERY_PARAM = "draft";
+/** `/admin/mail?thread=<gmail thread id>` opens that thread in the reading pane. */
+export const MAIL_THREAD_QUERY_PARAM = "thread";
+
+/** CMS Mail path that opens the given Gmail thread. */
+export function cmsMailThreadPath(threadId: string): string {
+  return `/admin/mail?${MAIL_THREAD_QUERY_PARAM}=${encodeURIComponent(threadId)}`;
+}
 
 export function isGmailId(value: string): boolean {
   return GMAIL_ID_RE.test(value);

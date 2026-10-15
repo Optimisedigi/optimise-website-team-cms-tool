@@ -125,6 +125,12 @@ export const Notifications: CollectionConfig = {
           label: "Duplicate hosting subscription",
           value: "hosting-duplicate-subscription",
         },
+        {
+          // Raised by the Mail sync for a new inbound email from a known
+          // client; shown in the bottom-right ClientEmailAlert panel.
+          label: "Client email received",
+          value: "client-email-received",
+        },
       ],
     },
     {

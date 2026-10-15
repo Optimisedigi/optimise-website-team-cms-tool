@@ -20,6 +20,11 @@ import {
 import type { GmailFullMessage } from '@/lib/gmail-search'
 import { isHiddenSender, loadHiddenSenders } from './hidden-senders'
 import { isAutomatedMessage } from './automated-senders'
+import {
+  MAX_ALERTS_PER_SYNC,
+  createClientEmailAlert,
+  type ClientEmailAlertInput,
+} from './client-email-alerts'
 
 /**
  * Deterministic storage + sync for client emails. No model calls here, ever:
@@ -204,6 +209,8 @@ export interface SyncResult {
   skipped: number
   /** Matched emails that could not be saved; the rest of the sync still completes. */
   failed: number
+  /** "Client email – please read" alerts raised for the mailbox owner (see client-email-alerts.ts). */
+  alerts: number
   /** True when Gmail had more new mail than one sync takes; the next sync continues. */
   more: boolean
 }
@@ -268,6 +275,8 @@ export async function syncMailbox(args: {
     let unmatched = 0
     let skipped = 0
     let failed = 0
+    let alerts = 0
+    const alertCandidates: ClientEmailAlertInput[] = []
     if (fresh.length > 0) {
       const index = await loadClientDomainIndex(payload, ownAddresses)
       const hiddenSenders = args.hiddenSenders ?? (await loadHiddenSenders(payload, userId))
@@ -290,18 +299,30 @@ export async function syncMailbox(args: {
         async ({ header, match }) => {
           try {
             const message = await deps.getFullMessage(accessToken, header.messageId)
-            return await storeClientEmail(
-              payload,
-              toClientEmailInput({
-                message,
-                clientId: match!.clientId,
+            const emailInput = toClientEmailInput({
+              message,
+              clientId: match!.clientId,
+              ownerId: userId,
+              matchedBy: 'auto',
+              matchedOn: match!.matchedOn,
+              ownAddresses,
+              gmailAccount: profile.emailAddress,
+            })
+            const result = await storeClientEmail(payload, emailInput)
+            // Only a brand-new inbound email from an incremental sync can alert.
+            if (result.created && emailInput.direction === 'inbound' && mode === 'incremental') {
+              alertCandidates.push({
                 ownerId: userId,
-                matchedBy: 'auto',
-                matchedOn: match!.matchedOn,
-                ownAddresses,
-                gmailAccount: profile.emailAddress,
-              }),
-            )
+                clientId: match!.clientId,
+                clientName: match!.clientName,
+                from: emailInput.from,
+                subject: emailInput.subject,
+                gmailThreadId: emailInput.gmailThreadId,
+                gmailMessageId: emailInput.gmailMessageId,
+                date: emailInput.date,
+              })
+            }
+            return result
           } catch (err) {
             const status = Number(
               (err as { code?: number; status?: number }).code ??
@@ -320,6 +341,24 @@ export async function syncMailbox(args: {
       )
       stored = results.filter((result) => result.created).length
       failed = results.filter((result) => 'failed' in result).length
+
+      // Newest first, capped, so a burst of client mail raises a few alerts, not dozens.
+      const now = new Date()
+      const ordered = [...alertCandidates].sort(
+        (a, b) => (new Date(b.date).getTime() || 0) - (new Date(a.date).getTime() || 0),
+      )
+      for (const candidate of ordered) {
+        if (alerts >= MAX_ALERTS_PER_SYNC) break
+        try {
+          if (await createClientEmailAlert(payload, candidate, now)) alerts++
+        } catch (err) {
+          // An alert failing must never fail the sync or move the cursor back.
+          console.error(
+            `[mail] could not create client email alert for ${candidate.gmailMessageId}:`,
+            (err instanceof Error ? err.message : String(err)).slice(0, 200),
+          )
+        }
+      }
     }
 
     const stateData = {
@@ -352,6 +391,7 @@ export async function syncMailbox(args: {
       unmatched,
       skipped,
       failed,
+      alerts,
       more: resumeHistoryId !== null,
     }
   } catch (err) {
