@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { storeClientEmail, syncMailbox } from "@/lib/mail/store";
+import { MAX_BODY_STORED, storeClientEmail, syncMailbox } from "@/lib/mail/store";
 
 vi.mock("@/lib/agents/_shared/llm", () => ({ callLLM: vi.fn(() => { throw new Error("model must not be called during sync"); }) }));
 
@@ -70,6 +70,56 @@ describe("storeClientEmail", () => {
   });
 });
 
+describe("syncMailbox: oversize and failing emails", () => {
+  it("caps long bodies and keeps going when one email fails, so the cursor still advances", async () => {
+    const payload = fakePayload([{ id: 1, name: "In The Picture", websiteUrl: "inthepicture.com.au", isActive: true }]);
+    const from = "jo@inthepicture.com.au";
+    const result = await syncMailbox({
+      payload: payload as never,
+      userId: 10,
+      accessToken: "tok",
+      deps: {
+        getMailboxProfile: vi.fn(async () => ({ emailAddress: "peter@optimisedigital.online", historyId: "200" })),
+        listRecentMessageIds: vi.fn(async () => ["big", "broken", "ok"]),
+        listAddedMessageIdsSince: vi.fn(async () => []),
+        getMessageHeaders: vi.fn(async (_t: string, ids: string[]) =>
+          ids.map((id) => ({ messageId: id, threadId: id, from, to: "peter@optimisedigital.online", cc: "", labelIds: ["INBOX"] })),
+        ),
+        getFullMessage: vi.fn(async (_t: string, id: string) => {
+          if (id === "broken") throw new Error("Gmail hiccup");
+          return {
+            messageId: id, threadId: id, rfcMessageId: "", from, to: "peter@optimisedigital.online", cc: "",
+            subject: "S", date: "", bodyHtml: "", snippet: "", labelIds: [],
+            body: id === "big" ? "x".repeat(250_000) : "short",
+          };
+        }),
+      },
+    });
+    expect(result).toMatchObject({ stored: 2, failed: 1 });
+    const big = payload.tables["client-emails"].find((row) => row.gmailMessageId === "big");
+    expect(big?.body.length).toBe(MAX_BODY_STORED);
+    expect(payload.tables["mail-sync-states"][0]!.historyId).toBe("200");
+  });
+
+  it("stops on a Gmail permission error instead of skipping every email", async () => {
+    const payload = fakePayload([{ id: 1, name: "ITP", websiteUrl: "inthepicture.com.au", isActive: true }]);
+    await expect(
+      syncMailbox({
+        payload: payload as never,
+        userId: 10,
+        accessToken: "tok",
+        deps: {
+          getMailboxProfile: vi.fn(async () => ({ emailAddress: "peter@optimisedigital.online", historyId: "1" })),
+          listRecentMessageIds: vi.fn(async () => ["a"]),
+          listAddedMessageIdsSince: vi.fn(async () => []),
+          getMessageHeaders: vi.fn(async () => [{ messageId: "a", threadId: "a", from: "jo@inthepicture.com.au", to: "", cc: "", labelIds: [] }]),
+          getFullMessage: vi.fn(async () => { throw Object.assign(new Error("forbidden"), { code: 403 }); }),
+        },
+      }),
+    ).rejects.toThrow("forbidden");
+  });
+});
+
 describe("syncMailbox", () => {
   const clients = [{ id: 1, name: "In The Picture", websiteUrl: "www.inthepicture.com.au", isActive: true }];
   const headers: Record<string, { from: string; to: string }> = {
@@ -86,7 +136,7 @@ describe("syncMailbox", () => {
     ),
     getFullMessage: vi.fn(async (_t: string, id: string) => ({
       messageId: id, threadId: `t-${id}`, rfcMessageId: "", subject: "S", date: "2026-10-14T00:00:00.000Z",
-      body: "B", cc: "", snippet: "", labelIds: [], ...headers[id]!,
+      body: "B", bodyHtml: "", cc: "", snippet: "", labelIds: [], ...headers[id]!,
     })),
   });
 

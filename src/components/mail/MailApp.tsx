@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './MailApp.module.css'
+import EmailBody from './EmailBody'
 
 /**
  * CMS Mail view. Inbox list → reading pane → AI composer.
@@ -37,6 +38,8 @@ interface ThreadMessage {
   subject: string
   date: string
   body: string
+  /** Sanitised HTML document, or '' for plain-text emails. */
+  html: string
   unread: boolean
   stored: { id: number; clientId: number; clientName: string } | null
   match: { id: number; name: string; matchedOn: string } | null
@@ -155,12 +158,14 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const runSync = useCallback(async () => {
     setSyncNote('Syncing…')
     try {
-      const result = await api<{ stored: number; checked: number; mode: string }>('/api/mail/sync', { method: 'POST' })
-      setSyncNote(
-        result.stored > 0
-          ? `Linked ${result.stored} new email${result.stored === 1 ? '' : 's'} to clients`
-          : 'Up to date',
-      )
+      const result = await api<{ stored: number; checked: number; mode: string; failed?: number }>('/api/mail/sync', {
+        method: 'POST',
+      })
+      const parts = [
+        result.stored > 0 ? `Linked ${result.stored} new email${result.stored === 1 ? '' : 's'} to clients` : 'Up to date',
+        result.failed ? `${result.failed} could not be saved` : '',
+      ]
+      setSyncNote(parts.filter(Boolean).join(' · '))
     } catch (err) {
       setSyncNote('')
       showError(err)
@@ -478,7 +483,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                     </div>
                     <span className={styles.muted}>{longDate(message.date)}</span>
                   </header>
-                  <pre className={styles.body}>{message.body}</pre>
+                  {message.html ? (
+                    <EmailBody html={message.html} title={message.subject || 'Email'} />
+                  ) : (
+                    <pre className={styles.body}>{message.body}</pre>
+                  )}
                   <footer className={styles.messageFoot}>
                     <button type="button" className={styles.linkBtn} onClick={() => startReply(message)}>
                       Reply to this email

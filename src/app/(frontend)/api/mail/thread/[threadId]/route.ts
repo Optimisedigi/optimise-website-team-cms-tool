@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getThreadMessages } from "@/lib/mail/gmail-mail";
 import { matchMessageToClient } from "@/lib/mail/client-matching";
 import { loadClientDomainIndex } from "@/lib/mail/store";
+import { buildEmailDocument } from "@/lib/mail/email-html";
 import { gmailErrorResponse, parseGmailId, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
@@ -56,6 +57,8 @@ export async function GET(
           subject: message.subject,
           date: message.date,
           body: message.body,
+          // Sanitised standalone document for the sandboxed reading-pane iframe.
+          html: message.bodyHtml ? buildEmailDocument(message.bodyHtml) : "",
           unread: message.labelIds.includes("UNREAD"),
           stored: saved
             ? { id: saved.id, clientId: savedClient?.id ?? saved.client, clientName: savedClient?.name ?? "" }

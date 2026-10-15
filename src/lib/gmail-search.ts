@@ -268,6 +268,8 @@ function messageToBody(msg: gmail_v1.Schema$Message, fallbackMessageId: string):
 
 export interface GmailFullMessage extends GmailMessageBody {
   cc: string;
+  /** Raw text/html part, for display in the Mail reading pane only. */
+  bodyHtml: string;
   snippet: string;
   labelIds: string[];
 }
@@ -277,6 +279,7 @@ export function parseGmailFullMessage(msg: gmail_v1.Schema$Message): GmailFullMe
   return {
     ...messageToBody(msg, msg.id ?? ""),
     cc: getHeader(msg.payload?.headers, "Cc"),
+    bodyHtml: collectBodyByMime(msg.payload, "text/html"),
     snippet: msg.snippet ?? "",
     labelIds: msg.labelIds ?? [],
   };

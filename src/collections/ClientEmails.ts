@@ -65,7 +65,9 @@ export const ClientEmails: CollectionConfig = {
     { name: "cc", type: "text" },
     { name: "subject", type: "text" },
     { name: "date", type: "date", index: true },
-    { name: "body", type: "textarea" },
+    // Payload caps text fields at 40,000 chars by default; long newsletters exceed that.
+    // Keep in sync with MAX_BODY_STORED in src/lib/mail/store.ts.
+    { name: "body", type: "textarea", maxLength: 100_000 },
     { name: "gmailLink", type: "text" },
   ],
 };
