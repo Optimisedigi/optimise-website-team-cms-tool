@@ -6,6 +6,12 @@ import { MAIL_PROMPTS, type MailModelAction } from "./prompts";
  * client emails. `reply` and `summarise` require exactly one email; `draft`
  * takes none.
  *
+ * Opt-in thread context: when the user ticks "Use whole thread", a reply may
+ * also include the OTHER messages of that same Gmail thread (loaded server-side
+ * from the selected message's own thread id, never a client-supplied id). That
+ * is the user explicitly asking for that specific content; it is capped, and
+ * never reaches other threads, the inbox or other clients' mail.
+ *
  * Refining a draft (OptiMate-style "keep prompting") is a short conversation:
  * the earlier instructions and drafts the user already saw, plus the current
  * draft text as the user may have edited it. That history is the user's own
@@ -39,8 +45,8 @@ export interface MailModelRequest {
   messages: MailModelMessage[];
   /** Gmail id of the one email included, or null for a fresh draft. */
   gmailMessageId: string | null;
-  /** Always 0 or 1. Logged with every model call. */
-  emailCount: 0 | 1;
+  /** Emails included: 0 (new draft), 1 (default) or the thread size when opted in. Logged with every call. */
+  emailCount: number;
 }
 
 export const MAX_EMAIL_BODY_CHARS = 20_000;
@@ -48,6 +54,10 @@ export const MAX_INSTRUCTION_CHARS = 4_000;
 export const MAX_DRAFT_CHARS = 12_000;
 /** Earlier refine rounds kept in the conversation (oldest dropped first). */
 export const MAX_HISTORY_TURNS = 8;
+/** Opt-in thread context limits: most recent messages kept, oldest dropped first. */
+export const MAX_THREAD_MESSAGES = 15;
+export const MAX_THREAD_MESSAGE_CHARS = 6_000;
+export const MAX_THREAD_TOTAL_CHARS = 40_000;
 
 export class MailModelRequestError extends Error {}
 
@@ -81,9 +91,50 @@ function emailBlock(email: MailModelEmail): string {
   ].join("\n");
 }
 
+/**
+ * Earlier messages of the selected email's thread, oldest first, excluding the
+ * selected email itself, capped by count and size (newest kept).
+ */
+export function selectThreadContext(thread: MailModelEmail[], selectedId: string): MailModelEmail[] {
+  const others = thread.filter((message) => message.gmailMessageId !== selectedId).slice(-MAX_THREAD_MESSAGES);
+  const kept: MailModelEmail[] = [];
+  let total = 0;
+  for (let i = others.length - 1; i >= 0; i--) {
+    const message = { ...others[i]!, body: others[i]!.body.slice(0, MAX_THREAD_MESSAGE_CHARS) };
+    total += message.body.length;
+    if (total > MAX_THREAD_TOTAL_CHARS) break;
+    kept.unshift(message);
+  }
+  return kept;
+}
+
+function threadBlock(thread: MailModelEmail[]): string {
+  if (thread.length === 0) return "";
+  const parts = thread.map((message, index) =>
+    [
+      `--- Earlier message ${index + 1} of ${thread.length} ---`,
+      `From: ${message.from}`,
+      ...(message.to ? [`To: ${message.to}`] : []),
+      ...(message.date ? [`Date: ${message.date}`] : []),
+      "",
+      message.body,
+    ].join("\n"),
+  );
+  return [
+    "Earlier messages in this same thread, oldest first, for context only. Reply to the email below, not to these:",
+    "",
+    ...parts,
+    "",
+    "--- End of earlier messages ---",
+    "",
+  ].join("\n");
+}
+
 export function buildMailModelRequest(args: {
   action: MailModelAction;
   email?: MailModelEmail | null;
+  /** Opt-in (reply only): other messages from the selected email's own thread. */
+  thread?: MailModelEmail[] | null;
   instruction?: string | null;
   /** Earlier refine rounds (reply/draft only). */
   history?: MailDraftTurn[];
@@ -101,6 +152,9 @@ export function buildMailModelRequest(args: {
   const refining = history.length > 0 || currentDraft.length > 0;
 
   let email: MailModelEmail | null = null;
+  if (args.thread && args.action !== "reply") {
+    throw new MailModelRequestError("Thread context is only used for replies.");
+  }
   if (args.action === "draft") {
     if (args.email) throw new MailModelRequestError("A new draft does not take an email.");
     if (!instruction && !refining) throw new MailModelRequestError("Write an instruction for the new email.");
@@ -109,11 +163,12 @@ export function buildMailModelRequest(args: {
     email = args.email;
   }
   if (refining && !instruction) throw new MailModelRequestError("Say what to change in the draft.");
+  const threadContext = email && args.thread ? selectThreadContext(args.thread, email.gmailMessageId) : [];
 
   const opening = (firstInstruction: string) =>
     args.action === "draft"
       ? `My instruction for the new email:\n${firstInstruction}`
-      : `${emailBlock(email!)}\n\nMy instruction:\n${firstInstruction || prompt.defaultInstruction}`;
+      : `${threadContext.length ? threadBlock(threadContext) : ""}${emailBlock(email!)}\n\nMy instruction:\n${firstInstruction || prompt.defaultInstruction}`;
 
   const messages: MailModelMessage[] = [];
   if (!refining) {
@@ -153,6 +208,6 @@ export function buildMailModelRequest(args: {
     system: prompt.system,
     messages,
     gmailMessageId: email?.gmailMessageId ?? null,
-    emailCount: email ? 1 : 0,
+    emailCount: email ? 1 + threadContext.length : 0,
   };
 }

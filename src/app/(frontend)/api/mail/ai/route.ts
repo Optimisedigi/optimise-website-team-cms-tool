@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFullMessage } from "@/lib/mail/gmail-mail";
+import { getFullMessage, getThreadMessages } from "@/lib/mail/gmail-mail";
 import { buildMailModelRequest, cleanDraftHistory, MailModelRequestError } from "@/lib/mail/model-request";
 import { runMailModel } from "@/lib/mail/run-model";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
@@ -12,6 +12,10 @@ import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireM
  * history/currentDraft let the user keep refining the draft (OptiMate-style):
  * earlier instructions + drafts and the draft as currently edited. They are the
  * user's own text; the only mailbox content is still the one selected email.
+ *
+ * includeThread (reply only, opt-in checkbox): also send the other messages of
+ * the selected email's thread. The thread id comes from the selected message as
+ * Gmail returns it, never from the request, so no other thread can be pulled in.
  *
  * Runs only when the user clicks "Reply with AI" / "Draft with AI". For a
  * reply, the server fetches exactly the one selected message by id; nothing
@@ -26,6 +30,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     instruction?: unknown;
     history?: unknown;
     currentDraft?: unknown;
+    includeThread?: unknown;
   }>(req);
   if (!body) return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
 
@@ -50,25 +55,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const token = await requireGmailToken(ctx.user.id);
       if (token instanceof NextResponse) return token;
       let message;
+      let thread: Awaited<ReturnType<typeof getThreadMessages>> | null = null;
       try {
         message = await getFullMessage(token.accessToken, gmailMessageId);
+        if (body.includeThread === true && message.threadId) {
+          thread = await getThreadMessages(token.accessToken, message.threadId);
+        }
       } catch (err) {
         return gmailErrorResponse(err, "Could not load that email from Gmail.");
       }
+      const toModelEmail = (m: typeof message) => ({
+        gmailMessageId: m.messageId,
+        from: m.from,
+        to: m.to,
+        cc: m.cc,
+        subject: m.subject,
+        date: m.date,
+        body: m.body,
+      });
       request = buildMailModelRequest({
         action: "reply",
         instruction,
         history,
         currentDraft,
-        email: {
-          gmailMessageId: message.messageId,
-          from: message.from,
-          to: message.to,
-          cc: message.cc,
-          subject: message.subject,
-          date: message.date,
-          body: message.body,
-        },
+        email: toModelEmail(message),
+        thread: thread ? thread.filter((m) => m.threadId === message.threadId).map(toModelEmail) : null,
       });
     }
   } catch (err) {

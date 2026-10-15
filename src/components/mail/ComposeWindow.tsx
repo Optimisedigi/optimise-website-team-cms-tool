@@ -62,6 +62,8 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
   const [minimised, setMinimised] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [showCc, setShowCc] = useState(Boolean(initial.cc))
+  // Opt-in: also give the AI the rest of this email's thread. Off by default.
+  const [useThread, setUseThread] = useState(false)
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const historyEnd = useRef<HTMLDivElement>(null)
 
@@ -87,7 +89,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
     try {
       const data = await postJson<{ text: string }>('/api/mail/ai', {
         action: state.mode === 'reply' ? 'reply' : 'draft',
-        ...(state.mode === 'reply' ? { gmailMessageId: state.replyTo?.messageId } : {}),
+        ...(state.mode === 'reply' ? { gmailMessageId: state.replyTo?.messageId, includeThread: useThread } : {}),
         instruction,
         history: turns,
         currentDraft: hasDraft ? state.body : '',
@@ -244,9 +246,17 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
                 {busy === 'ai' ? 'Writing…' : hasDraft ? 'Revise' : 'Write with AI'}
               </button>
             </div>
+            {state.mode === 'reply' ? (
+              <label className={styles.threadToggle}>
+                <input type="checkbox" checked={useThread} onChange={(e) => setUseThread(e.target.checked)} disabled={busy !== ''} />
+                <span>Use whole thread</span>
+              </label>
+            ) : null}
             <p className={styles.hint}>
               {state.mode === 'reply'
-                ? 'The AI sees only the email you are replying to, your prompts and this draft. Enter to send the prompt, Shift+Enter for a new line.'
+                ? useThread
+                  ? 'The AI sees this email plus the earlier messages in this thread (no other threads), your prompts and this draft.'
+                  : 'The AI sees only the email you are replying to, your prompts and this draft. Tick "Use whole thread" to add the earlier messages.'
                 : 'The AI sees only your prompts and this draft. No emails are shared.'}
             </p>
           </div>

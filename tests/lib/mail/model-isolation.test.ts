@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { buildMailModelRequest, MailModelRequestError } from "@/lib/mail/model-request";
+import { buildMailModelRequest, MailModelRequestError, MAX_THREAD_MESSAGES, MAX_THREAD_TOTAL_CHARS, selectThreadContext } from "@/lib/mail/model-request";
 import { MAIL_PROMPTS } from "@/lib/mail/prompts";
 
 const mockPayload = { auth: vi.fn(), find: vi.fn(), findByID: vi.fn(), create: vi.fn(), update: vi.fn() };
@@ -29,7 +29,15 @@ const mockGetFullMessage = vi.fn(async (_token: string, id: string) => ({
   messageId: id, threadId: "t1", rfcMessageId: "<x@y>", to: "peter@optimisedigital.online", cc: "", date: "",
   snippet: "", labelIds: [], ...INBOX[id]!,
 }));
-vi.mock("@/lib/mail/gmail-mail", () => ({ getFullMessage: (t: string, id: string) => mockGetFullMessage(t, id) }));
+const mockGetThreadMessages = vi.fn(async (_token: string, threadId: string) => [
+  { messageId: "earlier", threadId, rfcMessageId: "", from: "jo@inthepicture.com.au", to: "peter@optimisedigital.online", cc: "", subject: "Meeting", date: "", snippet: "", labelIds: [], bodyHtml: "", body: "Proposed Tuesday. EARLIER-IN-THREAD" },
+  { messageId: "selected", threadId, rfcMessageId: "", from: "jo@inthepicture.com.au", to: "peter@optimisedigital.online", cc: "", subject: "Meeting", date: "", snippet: "", labelIds: [], bodyHtml: "", ...INBOX.selected },
+  { messageId: "stray", threadId: "some-other-thread", rfcMessageId: "", from: "sam@other.com", to: "", cc: "", subject: "x", date: "", snippet: "", labelIds: [], bodyHtml: "", body: "OTHER-EMAIL-BODY" },
+]);
+vi.mock("@/lib/mail/gmail-mail", () => ({
+  getFullMessage: (t: string, id: string) => mockGetFullMessage(t, id),
+  getThreadMessages: (t: string, id: string) => mockGetThreadMessages(t, id),
+}));
 
 function post(url: string, body: unknown) {
   return new NextRequest(`http://localhost${url}`, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
@@ -183,6 +191,41 @@ describe("refining a draft (keep prompting)", () => {
     // 8 kept rounds → 1 opening + 1 draft + 7 × 2 + final ask
     expect(req.messages).toHaveLength(17);
     expect(JSON.stringify(req.messages)).not.toContain("d11");
+  });
+});
+
+describe("opt-in whole thread", () => {
+  it("does not load the thread unless the box is ticked", async () => {
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    await POST(post("/api/mail/ai", { action: "reply", gmailMessageId: "selected", instruction: "ok" }));
+    expect(mockGetThreadMessages).not.toHaveBeenCalled();
+    expect(modelInput()).not.toContain("EARLIER-IN-THREAD");
+  });
+
+  it("adds the earlier messages of the selected email's own thread, never another thread", async () => {
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const res = await POST(
+      post("/api/mail/ai", { action: "reply", gmailMessageId: "selected", instruction: "ok", includeThread: true, threadId: "attacker-thread" }),
+    );
+    expect(res.status).toBe(200);
+    // Thread id comes from the selected message ("t1"), not from the request body.
+    expect(mockGetThreadMessages).toHaveBeenCalledWith("tok", "t1");
+    const input = modelInput();
+    expect(input).toContain("EARLIER-IN-THREAD");
+    expect(input).toContain("SELECTED-BODY");
+    expect(input).not.toContain("OTHER-EMAIL-BODY");
+    expect(mockPayload.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ gmailMessageId: "selected", emailCount: 2 }) }),
+    );
+  });
+
+  it("caps thread context and refuses it for new drafts", () => {
+    const thread = Array.from({ length: 30 }, (_, i) => ({ gmailMessageId: `m${i}`, from: "a@b.com", subject: "s", body: `B${i}-`.padEnd(6_000, "x") }));
+    const kept = selectThreadContext(thread, "m29");
+    expect(kept.length).toBeLessThanOrEqual(MAX_THREAD_MESSAGES);
+    expect(kept.reduce((n, m) => n + m.body.length, 0)).toBeLessThanOrEqual(MAX_THREAD_TOTAL_CHARS);
+    expect(kept[kept.length - 1]!.gmailMessageId).toBe("m28");
+    expect(() => buildMailModelRequest({ action: "draft", instruction: "x", thread })).toThrow(MailModelRequestError);
   });
 });
 

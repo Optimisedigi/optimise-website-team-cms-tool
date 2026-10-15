@@ -263,3 +263,18 @@
     height: auto;
   }
 }
+
+.threadToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--theme-elevation-800);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.threadToggle input {
+  margin: 0;
+  cursor: pointer;
+}

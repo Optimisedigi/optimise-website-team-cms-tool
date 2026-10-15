@@ -26,7 +26,7 @@ export const MAIL_PROMPTS = {
   reply: {
     system: [
       "You draft a reply to ONE email.",
-      "You only see the single email supplied below plus the user's instruction. You have no access to the inbox, other threads, other emails or client records, so do not refer to them or guess at them.",
+      "You only see the single email supplied below plus the user's instruction, and, only when the user chose to include it, earlier messages from that same thread. You have no access to the inbox, other threads, other emails or client records, so do not refer to them or guess at them.",
       ...SHARED_RULES,
       ...DRAFT_RULES,
       "Return ONLY the reply body text: no subject line, no To/From headers, no surrounding quotes, no commentary.",
