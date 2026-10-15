@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './MailApp.module.css'
 import EmailBody from './EmailBody'
+import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
+import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
 
 /**
  * CMS Mail view. Inbox list → reading pane → AI composer.
@@ -109,6 +111,12 @@ function replySubject(subject: string): string {
 export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [threads, setThreads] = useState<ThreadRow[]>([])
   const [account, setAccount] = useState('')
+  // Senders hidden from the inbox list (stored in Payload user preferences; view-only).
+  const [hiddenSenders, setHiddenSenders] = useState<string[]>([])
+  const [showHiddenPanel, setShowHiddenPanel] = useState(false)
+  const [hiddenInput, setHiddenInput] = useState('')
+  const [hideChoice, setHideChoice] = useState(false)
+  const [lastHidden, setLastHidden] = useState<string | null>(null)
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [listLoading, setListLoading] = useState(true)
   const [error, setError] = useState<{ message: string; connectUrl?: string } | null>(null)
@@ -139,10 +147,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         const params = new URLSearchParams()
         if (opts.pageToken) params.set('pageToken', opts.pageToken)
         if (opts.q) params.set('q', opts.q)
-        const data = await api<{ threads: ThreadRow[]; nextPageToken: string | null; account: string }>(
+        const data = await api<{ threads: ThreadRow[]; nextPageToken: string | null; account: string; hiddenSenders?: string[] }>(
           `/api/mail/inbox?${params.toString()}`,
         )
         setAccount(data.account)
+        if (Array.isArray(data.hiddenSenders)) setHiddenSenders(data.hiddenSenders)
         setThreads((current) => (opts.append ? [...current, ...data.threads] : data.threads))
         setNextPageToken(data.nextPageToken)
         setError(null)
@@ -186,6 +195,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     async (thread: ThreadRow) => {
       const request = ++threadRequest.current
       setSelectedThreadId(thread.threadId)
+      setHideChoice(false)
       setComposer(null)
       setSummary(null)
       setActionNote('')
@@ -213,6 +223,57 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   const selectedThread = useMemo(() => threads.find((t) => t.threadId === selectedThreadId) ?? null, [threads, selectedThreadId])
   const latest = messages[messages.length - 1] ?? null
+  const hideTarget = useMemo(() => {
+    const own = account.toLowerCase()
+    const message = [...messages].reverse().find((m) => senderAddress(m.from).toLowerCase() !== own)
+    if (!message) return null
+    const address = senderAddress(message.from).toLowerCase()
+    const domain = normaliseDomain(address)
+    return { address, domain: domain && !SHARED_MAILBOX_DOMAINS.has(domain) ? domain : '' }
+  }, [messages, account])
+
+  // ── Hidden senders ──
+  // Saved to Payload's per-user preferences; the inbox route turns the list
+  // into a Gmail search that leaves those senders out. Nothing changes in Gmail.
+  async function saveHiddenSenders(next: string[]) {
+    await api(`/api/payload-preferences/${HIDDEN_SENDERS_PREF_KEY}`, {
+      method: 'POST',
+      body: JSON.stringify({ value: { senders: next } }),
+    })
+    setHiddenSenders(next)
+    await loadInbox({ q: query })
+  }
+
+  async function hideSender(raw: string) {
+    const entry = normaliseHiddenSender(raw)
+    if (!entry || hiddenSenders.includes(entry)) return
+    const next = [...hiddenSenders, entry]
+    setHideChoice(false)
+    // Drop matching threads straight away; the reload confirms it.
+    setThreads((current) => current.filter((row) => !isHiddenSender(row.from, next)))
+    if (selectedThread && isHiddenSender(selectedThread.from, next)) {
+      setSelectedThreadId(null)
+      setMessages([])
+      setComposer(null)
+      setSummary(null)
+    }
+    try {
+      await saveHiddenSenders(next)
+      setLastHidden(entry)
+    } catch (err) {
+      setError({ message: `Could not save the hidden sender: ${(err as Error).message}` })
+      await loadInbox({ q: query })
+    }
+  }
+
+  async function unhideSender(entry: string) {
+    setLastHidden(null)
+    try {
+      await saveHiddenSenders(hiddenSenders.filter((item) => item !== entry))
+    } catch (err) {
+      setError({ message: `Could not update hidden senders: ${(err as Error).message}` })
+    }
+  }
 
   async function modify(action: 'archive' | 'read' | 'unread') {
     if (!selectedThreadId) return
@@ -383,6 +444,15 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search inbox" aria-label="Search inbox" />
         </form>
         <span className={styles.muted}>{syncNote}</span>
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => setShowHiddenPanel((open) => !open)}
+          aria-expanded={showHiddenPanel}
+          title="Senders hidden from this inbox"
+        >
+          Hidden{hiddenSenders.length ? ` (${hiddenSenders.length})` : ''}
+        </button>
         <button type="button" className={styles.btn} onClick={() => void refresh()} disabled={listLoading}>
           Refresh
         </button>
@@ -403,6 +473,59 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             Dismiss
           </button>
         </div>
+      ) : null}
+
+      {showHiddenPanel ? (
+        <div className={styles.panel} style={{ marginTop: 0 }}>
+          <h3 className={styles.panelTitle}>Hidden senders</h3>
+          <p className={styles.muted}>
+            Emails from these addresses or domains are left out of this inbox. They stay in Gmail untouched and still link to clients.
+          </p>
+          {hiddenSenders.length === 0 ? <p className={styles.muted}>Nothing hidden yet.</p> : null}
+          <ul className={styles.hiddenList}>
+            {hiddenSenders.map((entry) => (
+              <li key={entry}>
+                <span>{entry.startsWith('@') ? `Anyone at ${entry}` : entry}</span>
+                <button type="button" className={styles.linkBtn} onClick={() => void unhideSender(entry)}>
+                  Show again
+                </button>
+              </li>
+            ))}
+          </ul>
+          <form
+            className={styles.aiRow}
+            onSubmit={(event) => {
+              event.preventDefault()
+              const entry = normaliseHiddenSender(hiddenInput)
+              if (!entry) {
+                setError({ message: 'Enter an email address (orders@shop.com) or a domain (@shop.com).' })
+                return
+              }
+              setHiddenInput('')
+              void hideSender(entry)
+            }}
+          >
+            <input
+              className={styles.instruction}
+              value={hiddenInput}
+              onChange={(e) => setHiddenInput(e.target.value)}
+              placeholder="Add an address (orders@shop.com) or a domain (@shop.com)"
+              aria-label="Sender to hide"
+            />
+            <button type="submit" className={styles.btn}>
+              Hide
+            </button>
+          </form>
+        </div>
+      ) : null}
+
+      {lastHidden ? (
+        <p className={styles.note}>
+          Hidden {lastHidden.startsWith('@') ? `everyone at ${lastHidden}` : lastHidden}.{' '}
+          <button type="button" className={styles.linkBtn} onClick={() => void unhideSender(lastHidden)}>
+            Undo
+          </button>
+        </p>
       ) : null}
 
       <div className={styles.panes}>
@@ -467,6 +590,31 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                       Mark unread
                     </button>
                   )}
+                  {hideTarget ? (
+                    hideTarget.domain ? (
+                      hideChoice ? (
+                        <span className={styles.assign}>
+                          <button type="button" className={styles.btn} onClick={() => void hideSender(hideTarget.address)}>
+                            Hide {hideTarget.address}
+                          </button>
+                          <button type="button" className={styles.btn} onClick={() => void hideSender(`@${hideTarget.domain}`)}>
+                            Hide all @{hideTarget.domain}
+                          </button>
+                          <button type="button" className={styles.linkBtn} onClick={() => setHideChoice(false)}>
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <button type="button" className={styles.btn} onClick={() => setHideChoice(true)} title="Leave this sender out of the inbox">
+                          Hide sender
+                        </button>
+                      )
+                    ) : (
+                      <button type="button" className={styles.btn} onClick={() => void hideSender(hideTarget.address)} title="Leave this sender out of the inbox">
+                        Hide sender
+                      </button>
+                    )
+                  ) : null}
                 </div>
               </div>
               {actionNote ? <p className={styles.note}>{actionNote}</p> : null}

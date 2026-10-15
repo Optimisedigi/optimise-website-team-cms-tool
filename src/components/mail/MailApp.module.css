@@ -325,3 +325,18 @@
   line-height: 1.5;
   resize: vertical;
 }
+
+.hiddenList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hiddenList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--mail-border);
+}
