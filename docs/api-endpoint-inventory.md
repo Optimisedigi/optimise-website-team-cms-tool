@@ -156,7 +156,7 @@ CMS → Growth Tools unmatched calls: 4
 | `/api/gmail/connect` | GET | payload-session | json-body | google | `src/app/(frontend)/api/gmail/connect/route.ts` |
 | `/api/gmail/contacts` | GET | payload-session | json-body, query-params | google, email | `src/app/(frontend)/api/gmail/contacts/route.ts` |
 | `/api/gmail/disconnect` | POST | payload-session | json-body | google, email | `src/app/(frontend)/api/gmail/disconnect/route.ts` |
-| `/api/gmail/draft` | POST | payload-session | json-body, 400-validation | google, email | `src/app/(frontend)/api/gmail/draft/route.ts` |
+| `/api/gmail/draft` | GET, POST | payload-session | json-body, 400-validation | google, email | `src/app/(frontend)/api/gmail/draft/route.ts` |
 | `/api/gmail/message/[id]` | GET | payload-session | json-body, 400-validation | google | `src/app/(frontend)/api/gmail/message/[id]/route.ts` |
 | `/api/gmail/search` | GET | payload-session | json-body, query-params | google | `src/app/(frontend)/api/gmail/search/route.ts` |
 | `/api/gmail/status` | GET | payload-session | json-body | google, email | `src/app/(frontend)/api/gmail/status/route.ts` |
@@ -2630,6 +2630,7 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
       "route": "/api/gmail/draft",
       "file": "src/app/(frontend)/api/gmail/draft/route.ts",
       "methods": [
+        "GET",
         "POST"
       ],
       "auth": "payload-session",

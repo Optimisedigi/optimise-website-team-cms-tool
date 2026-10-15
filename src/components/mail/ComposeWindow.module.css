@@ -132,6 +132,22 @@
   line-height: 1.55;
 }
 
+.signature {
+  padding: 4px 16px 8px;
+}
+
+.signatureLabel {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--theme-elevation-500);
+  font-size: 12px;
+}
+
+.signaturePreview {
+  max-height: 120px;
+  overflow-y: auto;
+}
+
 .ai {
   padding: 10px 16px 6px;
   border-top: 1px solid var(--theme-elevation-100);

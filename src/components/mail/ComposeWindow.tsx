@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import styles from './ComposeWindow.module.css'
+import EmailBody from './EmailBody'
+import { buildEmailDocument } from '../../lib/mail/email-html'
 
 /**
  * Gmail-style compose window docked to the bottom right of the screen.
@@ -10,6 +12,8 @@ import styles from './ComposeWindow.module.css'
  * prompt revises the current draft (including the user's own edits) until it
  * is right. The model only ever sees the one email being replied to (server
  * enforced) plus this conversation. Nothing is sent until Send is clicked.
+ * The user's Gmail signature is previewed under the body; the server appends
+ * it on Send and Save as draft, so it is never part of the editable text.
  */
 
 export interface ComposeReplyTarget {
@@ -25,6 +29,8 @@ export interface ComposeState {
   cc: string
   subject: string
   body: string
+  /** Gmail draft this compose window is editing (opened from OptiMate or saved once). */
+  draftId?: string
 }
 
 interface Turn {
@@ -38,7 +44,10 @@ interface Props {
   onClose: () => void
   /** Returns the client name the sent email was linked to, if any. */
   onSend: (state: ComposeState) => Promise<void>
-  onSaveDraft: (state: ComposeState) => Promise<void>
+  /** Resolves to the Gmail draft id, so later saves update the same draft. */
+  onSaveDraft: (state: ComposeState) => Promise<string | undefined>
+  /** Gmail signature HTML; '' when none is set, null while unknown. */
+  signatureHtml: string | null
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -53,7 +62,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data
 }
 
-export default function ComposeWindow({ initial, title, onClose, onSend, onSaveDraft }: Props) {
+export default function ComposeWindow({ initial, title, onClose, onSend, onSaveDraft, signatureHtml }: Props) {
   const [state, setState] = useState<ComposeState>(initial)
   const [turns, setTurns] = useState<Turn[]>([])
   const [prompt, setPrompt] = useState('')
@@ -120,7 +129,8 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
       if (kind === 'send') {
         await onSend(state)
       } else {
-        await onSaveDraft(state)
+        const draftId = await onSaveDraft(state)
+        if (draftId) setState((current) => ({ ...current, draftId }))
         setNote('Saved to Gmail Drafts.')
       }
     } catch (err) {
@@ -205,6 +215,19 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
             placeholder="Write here, or ask the AI below. Nothing is sent until you click Send."
             aria-label="Email body"
           />
+
+          {signatureHtml === null ? null : (
+            <div className={styles.signature}>
+              <span className={styles.signatureLabel}>Signature (added automatically)</span>
+              {signatureHtml ? (
+                <div className={styles.signaturePreview}>
+                  <EmailBody html={buildEmailDocument(signatureHtml)} title="Your Gmail signature" />
+                </div>
+              ) : (
+                <span className={styles.signatureLabel}>No Gmail signature set. Add one in Gmail settings, then reopen this window.</span>
+              )}
+            </div>
+          )}
 
           <div className={styles.ai}>
             {turns.length > 0 ? (

@@ -629,8 +629,8 @@ describe('GmailReplyChat usability smoke', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
 
-    const link = await screen.findByRole('link', { name: 'Open in Gmail' })
-    expect(link).toHaveAttribute('href', 'https://mail.google.com/mail/u/0/#drafts/msg-123')
+    const link = await screen.findByRole('link', { name: 'Open in Mail' })
+    expect(link).toHaveAttribute('href', '/admin/mail?draft=msg-123')
     expect(screen.queryByRole('button', { name: 'Create Gmail draft' })).not.toBeInTheDocument()
   })
 

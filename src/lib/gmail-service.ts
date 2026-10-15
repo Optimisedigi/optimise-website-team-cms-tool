@@ -287,6 +287,8 @@ export async function createGmailDraft(
     appendSignature?: boolean;
     /** Validated image files to attach to the draft. */
     attachments?: GmailDraftAttachment[];
+    /** Replace this existing draft instead of creating a new one. */
+    draftId?: string;
   },
 ): Promise<{ draftId: string; messageId: string }> {
   const oauth2Client = getOAuth2Client();
@@ -306,12 +308,17 @@ export async function createGmailDraft(
     attachments: args.attachments,
   });
 
-  const res = await gmail.users.drafts.create({
-    userId: "me",
-    requestBody: {
-      message: args.threadId ? { raw, threadId: args.threadId } : { raw },
-    },
-  });
+  const message = args.threadId ? { raw, threadId: args.threadId } : { raw };
+  const res = args.draftId
+    ? await gmail.users.drafts.update({
+        userId: "me",
+        id: args.draftId,
+        requestBody: { id: args.draftId, message },
+      })
+    : await gmail.users.drafts.create({
+        userId: "me",
+        requestBody: { message },
+      });
 
   const draftId = res.data.id;
   const messageId = res.data.message?.id;

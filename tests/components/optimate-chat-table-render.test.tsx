@@ -131,25 +131,32 @@ describe('renderMarkdown — invoice lists', () => {
 })
 
 describe('renderMarkdown — links', () => {
-  it('renders a markdown Gmail draft link as an "Open in Gmail" button, not raw markdown', () => {
+  it('renders a markdown Gmail draft link as an "Open in Mail" button to CMS Mail, not raw markdown', () => {
     const { container } = renderMd(
       'The reply is saved as a threaded draft. [Open in Gmail](https://mail.google.com/mail/u/0/#drafts/1a130472e610f1a8)',
     )
     const links = container.querySelectorAll('a')
     expect(links.length).toBe(1)
-    expect(links[0]?.getAttribute('href')).toBe('https://mail.google.com/mail/u/0/#drafts/1a130472e610f1a8')
-    expect(links[0]?.textContent).toBe('Open in Gmail ↗')
+    expect(links[0]?.getAttribute('href')).toBe('/admin/mail?draft=1a130472e610f1a8')
+    expect(links[0]?.textContent).toBe('Open in Mail ↗')
     expect(links[0]?.getAttribute('rel')).toBe('noopener noreferrer')
     expect(container.textContent).not.toContain('[Open in Gmail]')
     expect(container.textContent).not.toContain('mail.google.com')
   })
 
-  it('also turns a bare Gmail URL into the button', () => {
+  it('also turns a bare Gmail draft URL into the CMS Mail button', () => {
     const { container } = renderMd('Draft: https://mail.google.com/mail/u/0/#drafts/abc123.')
     const link = container.querySelector('a')
+    expect(link?.textContent).toBe('Open in Mail ↗')
+    expect(link?.getAttribute('href')).toBe('/admin/mail?draft=abc123')
+    expect(container.textContent).toBe('Draft: Open in Mail ↗.')
+  })
+
+  it('keeps non-draft Gmail links pointing at Gmail', () => {
+    const { container } = renderMd('Thread: https://mail.google.com/mail/u/0/#all/abc123')
+    const link = container.querySelector('a')
     expect(link?.textContent).toBe('Open in Gmail ↗')
-    expect(link?.getAttribute('href')).toBe('https://mail.google.com/mail/u/0/#drafts/abc123')
-    expect(container.textContent).toBe('Draft: Open in Gmail ↗.')
+    expect(link?.getAttribute('href')).toBe('https://mail.google.com/mail/u/0/#all/abc123')
   })
 
   it('uses the label for other markdown links and leaves non-Gmail lookalike hosts as normal links', () => {

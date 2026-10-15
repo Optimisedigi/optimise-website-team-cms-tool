@@ -213,6 +213,31 @@ export async function listRecentMessageIds(accessToken: string, days: number, ma
   return ids.slice(0, maxIds);
 }
 
+/**
+ * Gmail draft id for a draft's message id. Gmail links and OptiMate only carry
+ * the message id, but updating or deleting a draft needs the draft id.
+ * Returns null when no draft holds that message (sent, discarded or not a draft).
+ */
+export async function findDraftIdByMessageId(accessToken: string, messageId: string): Promise<string | null> {
+  const gmail = gmailApi(accessToken);
+  let pageToken: string | undefined;
+  let pages = 0;
+  do {
+    const res = await gmail.users.drafts.list({ userId: "me", maxResults: 500, ...(pageToken ? { pageToken } : {}) });
+    const match = (res.data.drafts ?? []).find((draft) => draft.message?.id === messageId);
+    if (match?.id) return match.id;
+    pageToken = res.data.nextPageToken ?? undefined;
+    pages++;
+  } while (pageToken && pages < 5);
+  return null;
+}
+
+/** Delete a draft (after it has been sent from the Mail view). Needs gmail.compose. */
+export async function deleteDraft(accessToken: string, draftId: string): Promise<void> {
+  const gmail = gmailApi(accessToken);
+  await gmail.users.drafts.delete({ userId: "me", id: draftId });
+}
+
 export function gmailMessageLink(messageId: string, account?: string): string {
   const user = account ? encodeURIComponent(account) : "0";
   return `https://mail.google.com/mail/u/${user}/#all/${messageId}`;

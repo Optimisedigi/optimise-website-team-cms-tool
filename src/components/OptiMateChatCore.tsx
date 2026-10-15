@@ -8,6 +8,7 @@ import {
   modelRequiresReasoning,
 } from '@/lib/agents/_shared/llm/registry'
 import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
+import { cmsMailDraftPathFromGmailUrl } from '../lib/mail/drafts'
 import OptiMateBeamComposer from './OptiMateBeamComposer'
 import OptiMateMetalSend from './OptiMateMetalSend'
 import { ThinkingOrb } from 'thinking-orbs'
@@ -394,17 +395,19 @@ export function renderMarkdown(text: string) {
       const key = `${keyPrefix}-link-${matchIdx++}`
       if (isGmailUrl(href)) {
         // Gmail draft/thread links render as a button, like the Gmail agent,
-        // instead of a raw mail.google.com URL.
+        // instead of a raw mail.google.com URL. Draft links open the draft in
+        // CMS Mail rather than Gmail.
+        const mailPath = cmsMailDraftPathFromGmailUrl(href)
         parts.push(
           <a
             key={key}
-            href={href}
+            href={mailPath ?? href}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Open in Gmail (opens in a new tab)"
+            aria-label={mailPath ? 'Open draft in Mail (opens in a new tab)' : 'Open in Gmail (opens in a new tab)'}
             style={gmailLinkButtonStyle}
           >
-            Open in Gmail ↗
+            {mailPath ? 'Open in Mail ↗' : 'Open in Gmail ↗'}
           </a>,
         )
       } else {
@@ -951,7 +954,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
      * Save a chat reply into the user's Gmail Drafts. We POST the raw markdown
      * — the server converts it to lightweight HTML so paragraphs and bullets
      * survive in Gmail's compose pane. On success the response includes a
-     * deep-link to the draft in Gmail; we expose it via 'Open in Gmail ↗'.
+     * deep-link to the draft in Gmail; we link it to CMS Mail via 'open in Mail ↗'.
      */
     const saveAsDraft = useCallback(async (text: string, idx: number) => {
       setDraftState((prev) => ({ ...prev, [idx]: { status: 'saving' } }))
@@ -2116,14 +2119,15 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   {(() => {
                     const ds = draftState[i]
                     if (ds?.status === 'saved' && ds.url) {
+                      const mailPath = cmsMailDraftPathFromGmailUrl(ds.url)
                       return (
                         <a
-                          href={ds.url}
+                          href={mailPath ?? ds.url}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ color: '#10b981', textDecoration: 'none', fontWeight: 500 }}
                         >
-                          ✓ Saved — open in Gmail ↗
+                          {mailPath ? '✓ Saved — open in Mail ↗' : '✓ Saved — open in Gmail ↗'}
                         </a>
                       )
                     }

@@ -6,6 +6,7 @@ import EmailBody from './EmailBody'
 import ComposeWindow, { type ComposeState } from './ComposeWindow'
 import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
+import { MAIL_DRAFT_QUERY_PARAM } from '../../lib/mail/drafts'
 
 /**
  * CMS Mail view. Inbox list → reading pane (newest message first) → Gmail-style
@@ -14,6 +15,9 @@ import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-m
  * Model calls happen only on explicit clicks ("Write with AI", "Summarise"),
  * each sending at most the one selected email id. Nothing is sent until the
  * user clicks Send. Client matching/storage happen server-side in plain code.
+ *
+ * `/admin/mail?draft=<gmail message id>` opens that Gmail draft in the compose
+ * window (OptiMate links its saved drafts here instead of to Gmail).
  */
 
 export interface MailClientOption {
@@ -49,6 +53,16 @@ interface ThreadMessage {
   match: { id: number; name: string; matchedOn: string } | null
 }
 
+
+interface DraftResponse {
+  draftId: string
+  to: string
+  cc: string
+  subject: string
+  body: string
+  threadId: string
+  replyTo: { messageId: string; from: string; subject: string } | null
+}
 
 interface ApiError {
   error?: string
@@ -124,7 +138,10 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [composer, setComposer] = useState<(ComposeState & { key: number }) | null>(null)
   const [summary, setSummary] = useState<{ email: ThreadMessage; text: string; model: string; busy: boolean; note: string } | null>(null)
   const [assignClientId, setAssignClientId] = useState('')
+  // Gmail signature shown in the compose window: '' = none set, null = unknown.
+  const [signatureHtml, setSignatureHtml] = useState<string | null>(null)
   const threadRequest = useRef(0)
+  const composeKey = useRef(0)
 
   const showError = useCallback((err: unknown) => {
     const e = err as Error & { connectUrl?: string }
@@ -212,6 +229,64 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     [],
   )
 
+  useEffect(() => {
+    let cancelled = false
+    api<{ settingsAccess?: boolean; signatureHtml?: string }>('/api/gmail/status')
+      .then((data) => {
+        if (!cancelled && data.settingsAccess) setSignatureHtml(typeof data.signatureHtml === 'string' ? data.signatureHtml : '')
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const openDraft = useCallback(
+    async (messageId: string) => {
+      try {
+        const draft = await api<DraftResponse>(`/api/gmail/draft?messageId=${encodeURIComponent(messageId)}`)
+        if (draft.replyTo && draft.threadId) {
+          void openThread({
+            threadId: draft.threadId,
+            messageId: draft.replyTo.messageId,
+            from: draft.replyTo.from,
+            subject: draft.replyTo.subject,
+            snippet: '',
+            date: '',
+            unread: false,
+            messageCount: 0,
+            client: null,
+          })
+        }
+        setSummary(null)
+        setComposer({
+          key: ++composeKey.current,
+          mode: draft.replyTo ? 'reply' : 'new',
+          replyTo: draft.replyTo,
+          to: draft.to,
+          cc: draft.cc,
+          subject: draft.subject,
+          body: draft.body,
+          draftId: draft.draftId,
+        })
+      } catch (err) {
+        showError(new Error(`Could not open the draft: ${(err as Error).message}`))
+      }
+    },
+    [openThread, showError],
+  )
+
+  // Open a draft linked from OptiMate, then drop the param so a refresh doesn't reopen it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const draftMessageId = params.get(MAIL_DRAFT_QUERY_PARAM)
+    if (!draftMessageId) return
+    params.delete(MAIL_DRAFT_QUERY_PARAM)
+    const rest = params.toString()
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`)
+    void openDraft(draftMessageId)
+  }, [openDraft])
+
   const selectedThread = useMemo(() => threads.find((t) => t.threadId === selectedThreadId) ?? null, [threads, selectedThreadId])
   const latest = messages[messages.length - 1] ?? null
   const hideTarget = useMemo(() => {
@@ -287,8 +362,6 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }
 
-  const composeKey = useRef(0)
-
   function startReply(message: ThreadMessage) {
     setSummary(null)
     setComposer({
@@ -309,7 +382,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   // Send is only ever reached from the compose window's Send button.
   async function sendComposed(state: ComposeState) {
-    const data = await api<{ client: { name: string } | null }>('/api/mail/send', {
+    const data = await api<{ client: { name: string } | null; draftNote?: string | null }>('/api/mail/send', {
       method: 'POST',
       body: JSON.stringify({
         to: state.to,
@@ -317,24 +390,29 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         subject: state.subject,
         body: state.body,
         replyToMessageId: state.replyTo?.messageId ?? '',
+        ...(state.draftId ? { draftId: state.draftId } : {}),
       }),
     })
     setComposer(null)
-    setActionNote(data.client ? `Sent. Saved to ${data.client.name}'s emails.` : 'Sent.')
+    setActionNote(
+      [data.client ? `Sent. Saved to ${data.client.name}'s emails.` : 'Sent.', data.draftNote ?? ''].filter(Boolean).join(' '),
+    )
     const thread = selectedThread
     if (thread && state.mode === 'reply') void openThread(thread)
   }
 
-  async function saveComposedDraft(state: ComposeState) {
-    await api('/api/gmail/draft', {
+  async function saveComposedDraft(state: ComposeState): Promise<string | undefined> {
+    const data = await api<{ draftId?: string }>('/api/gmail/draft', {
       method: 'POST',
       body: JSON.stringify({
         to: state.to,
         subject: state.subject,
         body: state.body,
         ...(state.replyTo ? { replyToMessageId: state.replyTo.messageId } : {}),
+        ...(state.draftId ? { draftId: state.draftId } : {}),
       }),
     })
+    return data.draftId
   }
 
   async function assign(message: ThreadMessage) {
@@ -671,6 +749,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           onClose={() => setComposer(null)}
           onSend={sendComposed}
           onSaveDraft={saveComposedDraft}
+          signatureHtml={signatureHtml}
         />
       ) : null}
     </div>

@@ -31,6 +31,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   let settingsAccess = false;
   let hasSignature = false;
+  let signatureHtml = "";
   let reconnectRequired = false;
 
   if (fresh.gmailConnected) {
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const signature = await getPrimaryGmailSignature(token.accessToken);
         settingsAccess = true;
         hasSignature = signature.trim().length > 0;
+        signatureHtml = signature;
       } catch {
         reconnectRequired = true;
       }
@@ -55,6 +57,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     tokenExpiry: fresh.gmailTokenExpiry ?? null,
     settingsAccess,
     hasSignature,
+    // The user's own Gmail signature, shown in the Mail compose window.
+    signatureHtml,
     reconnectRequired,
   });
 }

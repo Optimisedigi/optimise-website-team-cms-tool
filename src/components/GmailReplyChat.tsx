@@ -8,6 +8,7 @@ import OptiMateMetalSend, { OptiMateMetalPill } from './OptiMateMetalSend'
 import styles from './GmailReplyChat.module.css'
 import { ThinkingOrb } from 'thinking-orbs'
 import { fitImageForChat } from './chat-image-fit'
+import { cmsMailDraftPathFromGmailUrl } from '../lib/mail/drafts'
 import {
   CHAT_PICKER_MODELS,
   DEFAULT_CHAT_MODEL,
@@ -182,7 +183,7 @@ function completedRecipients(value: string): string {
 function assistantMessageText(data: EmailChatResponse, stagedBody?: string): string {
   const parts = [data.reply || (stagedBody ? 'I\u2019ve drafted the email below.' : 'No response received.')]
   if (stagedBody) parts.push(`Draft preview:\n\n${stagedBody}`)
-  if (data.gmailDraft?.gmailUrl) parts.push(`Open in Gmail: ${data.gmailDraft.gmailUrl}`)
+  if (data.gmailDraft?.gmailUrl) parts.push(`Saved to Drafts: ${data.gmailDraft.gmailUrl}`)
   return parts.filter((part) => part.trim()).join('\n\n')
 }
 
@@ -1119,19 +1120,22 @@ function LinkifiedText({ text }: { text: string }): React.ReactElement {
       {parts.map((part, index) => {
         const markdownLink = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/)
         if (markdownLink) {
+          // Gmail draft links open the draft in CMS Mail instead of Gmail.
+          const mailPath = cmsMailDraftPathFromGmailUrl(markdownLink[2] ?? '')
           return (
-            <a key={`${index}-${part}`} href={markdownLink[2]} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
-              {markdownLink[1]}
+            <a key={`${index}-${part}`} href={mailPath ?? markdownLink[2]} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+              {mailPath ? 'Open draft in Mail' : markdownLink[1]}
             </a>
           )
         }
         if (!/^https?:\/\//.test(part)) return <Fragment key={`${index}-${part}`}>{part}</Fragment>
         const href = part.replace(/[).,]+$/, '')
         const suffix = part.slice(href.length)
+        const mailPath = cmsMailDraftPathFromGmailUrl(href)
         return (
           <Fragment key={`${index}-${part}`}>
-            <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
-              Open in Gmail
+            <a href={mailPath ?? href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+              {mailPath ? 'Open in Mail' : 'Open in Gmail'}
             </a>
             {suffix}
           </Fragment>
@@ -1252,11 +1256,13 @@ function DraftActionRow({
 }
 
 function SavedDraftLink({ savedUrl }: { savedUrl: string }): React.ReactElement {
+  // Open the saved draft in CMS Mail (with the Gmail signature shown) rather than Gmail.
+  const mailPath = cmsMailDraftPathFromGmailUrl(savedUrl)
   return (
     <div style={{ fontSize: 12, color: '#86efac' }}>
       Saved to Drafts.{' '}
-      <a href={savedUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
-        Open in Gmail →
+      <a href={mailPath ?? savedUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+        {mailPath ? 'Open in Mail →' : 'Open in Gmail →'}
       </a>
     </div>
   )
