@@ -11,14 +11,15 @@ import { MAIL_ATTACHMENT_LIMITS } from '../../lib/mail/compose-limits'
 import { fitImageForChat } from '../chat-image-fit'
 
 /**
- * Gmail-style compose window docked to the bottom right of the screen.
+ * Gmail-style compose window docked bottom right, just left of the OptiMate orb.
  *
  * The AI works like OptiMate: each prompt produces a draft, and every further
  * prompt revises the current draft (including the user's own edits) until it
  * is right. The model only ever sees the one email being replied to (server
  * enforced) plus this conversation. Nothing is sent until Send is clicked.
- * The user's Gmail signature is previewed under the body; the server appends
- * it on Send and Save as draft, so it is never part of the editable text.
+ * The user's Gmail signature is previewed at the end of the scrolling draft;
+ * the server appends it on Send and Save as draft, so it is never part of the
+ * editable text.
  *
  * The body is a rich editor (see RichEmailEditor): Cmd/Ctrl+B/I/U, pasted or
  * inserted tables, inline images, and attached files (3 MB in total).
@@ -356,85 +357,26 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
           </label>
         </div>
 
-        <RichEmailEditor
-          ref={editorRef}
-          initialHtml={initial.html}
-          ariaLabel="Email body"
-          placeholder="Write here, or ask the AI below. Cmd+B, I and U format text. Paste images and tables straight in. Nothing is sent until you click Send."
-          onContentChange={setHasDraft}
-          onPasteFiles={onPasteFiles}
-        />
+        {/* The body and signature scroll together so the whole email is visible. */}
+        <div className={styles.draftScroll}>
+          <RichEmailEditor
+            ref={editorRef}
+            initialHtml={initial.html}
+            ariaLabel="Email body"
+            placeholder="Write here, or ask the AI below. Cmd+B, I and U format text. Paste images and tables straight in. Nothing is sent until you click Send."
+            onContentChange={setHasDraft}
+            onPasteFiles={onPasteFiles}
+          />
 
-        <div className={styles.toolbar}>
-          <button type="button" className={styles.toolButton} onClick={() => attachInputRef.current?.click()} disabled={busy !== ''}>
-            📎 Attach files
-          </button>
-          <button type="button" className={styles.toolButton} onClick={() => imageInputRef.current?.click()} disabled={busy !== ''}>
-            🖼 Insert image
-          </button>
-          <button
-            type="button"
-            className={styles.toolButton}
-            onClick={() => setTableOpen((open) => !open)}
-            aria-expanded={tableOpen}
-            disabled={busy !== ''}
-          >
-            ⊞ Insert table
-          </button>
-          {tableOpen ? (
-            <span className={styles.tablePicker}>
-              <label>
-                Rows
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={tableSize.rows}
-                  onChange={(e) => setTableSize({ ...tableSize, rows: Number(e.target.value) })}
-                  aria-label="Table rows"
-                />
-              </label>
-              <label>
-                Columns
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={tableSize.columns}
-                  onChange={(e) => setTableSize({ ...tableSize, columns: Number(e.target.value) })}
-                  aria-label="Table columns"
-                />
-              </label>
-              <button type="button" className={styles.toolButton} onClick={insertTable}>
-                Insert
-              </button>
-            </span>
-          ) : null}
-          <input
-            ref={attachInputRef}
-            type="file"
-            multiple
-            hidden
-            aria-label="Attach files"
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? [])
-              e.target.value = ''
-              void addAttachments(files)
-            }}
-          />
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp"
-            multiple
-            hidden
-            aria-label="Insert image"
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? [])
-              e.target.value = ''
-              void addInlineImages(files)
-            }}
-          />
+          {signatureHtml === null ? null : (
+            <div className={styles.signature} title="Signature (added automatically)">
+              {signatureHtml ? (
+                <EmailBody html={buildEmailDocument(signatureHtml)} title="Your Gmail signature (added automatically)" />
+              ) : (
+                <span className={styles.signatureLabel}>No Gmail signature set. Add one in Gmail settings, then reopen this window.</span>
+              )}
+            </div>
+          )}
         </div>
 
         {state.attachments.length > 0 ? (
@@ -460,33 +402,93 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
           </ul>
         ) : null}
 
-        {signatureHtml === null ? null : (
-          <div className={styles.signature}>
-            <span className={styles.signatureLabel}>Signature (added automatically)</span>
-            {signatureHtml ? (
-              <div className={styles.signaturePreview}>
-                <EmailBody html={buildEmailDocument(signatureHtml)} title="Your Gmail signature" />
-              </div>
-            ) : (
-              <span className={styles.signatureLabel}>No Gmail signature set. Add one in Gmail settings, then reopen this window.</span>
-            )}
-          </div>
-        )}
-
         <div className={styles.ai}>
-          {turns.length > 0 ? (
-            <div className={styles.history} aria-label="AI prompts so far">
-              {turns.map((turn, index) => (
-                <span key={index} className={styles.chip} title={turn.instruction}>
-                  {turn.instruction}
-                </span>
-              ))}
-              <button type="button" className={styles.linkBtn} onClick={undoLast} disabled={busy !== ''}>
-                Undo last
+          <div className={styles.aiTools}>
+            {turns.length > 0 ? (
+              <div className={styles.history} aria-label="AI prompts so far">
+                {turns.map((turn, index) => (
+                  <span key={index} className={styles.chip} title={turn.instruction}>
+                    {turn.instruction}
+                  </span>
+                ))}
+                <button type="button" className={styles.linkBtn} onClick={undoLast} disabled={busy !== ''}>
+                  Undo last
+                </button>
+                <div ref={historyEnd} />
+              </div>
+            ) : null}
+            <div className={styles.toolbar}>
+              <button type="button" className={styles.toolButton} onClick={() => attachInputRef.current?.click()} disabled={busy !== ''}>
+                📎 Attach files
               </button>
-              <div ref={historyEnd} />
+              <button type="button" className={styles.toolButton} onClick={() => imageInputRef.current?.click()} disabled={busy !== ''}>
+                🖼 Insert image
+              </button>
+              <button
+                type="button"
+                className={styles.toolButton}
+                onClick={() => setTableOpen((open) => !open)}
+                aria-expanded={tableOpen}
+                disabled={busy !== ''}
+              >
+                ⊞ Insert table
+              </button>
+              {tableOpen ? (
+                <span className={styles.tablePicker}>
+                  <label>
+                    Rows
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={tableSize.rows}
+                      onChange={(e) => setTableSize({ ...tableSize, rows: Number(e.target.value) })}
+                      aria-label="Table rows"
+                    />
+                  </label>
+                  <label>
+                    Columns
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={tableSize.columns}
+                      onChange={(e) => setTableSize({ ...tableSize, columns: Number(e.target.value) })}
+                      aria-label="Table columns"
+                    />
+                  </label>
+                  <button type="button" className={styles.toolButton} onClick={insertTable}>
+                    Insert
+                  </button>
+                </span>
+              ) : null}
+              <input
+                ref={attachInputRef}
+                type="file"
+                multiple
+                hidden
+                aria-label="Attach files"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? [])
+                  e.target.value = ''
+                  void addAttachments(files)
+                }}
+              />
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                multiple
+                hidden
+                aria-label="Insert image"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? [])
+                  e.target.value = ''
+                  void addInlineImages(files)
+                }}
+              />
             </div>
-          ) : null}
+          </div>
           <div className={styles.promptRow}>
             <textarea
               ref={promptRef}
@@ -519,14 +521,6 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
               <span>Use whole thread</span>
             </label>
           ) : null}
-          <p className={styles.hint}>
-            {state.mode === 'reply'
-              ? useThread
-                ? 'The AI sees this email plus the earlier messages in this thread (no other threads), your prompts and this draft.'
-                : 'The AI sees only the email you are replying to, your prompts and this draft. Tick "Use whole thread" to add the earlier messages.'
-              : 'The AI sees only your prompts and this draft. No emails are shared.'}{' '}
-            AI revisions rewrite the text and keep tables, but drop images and formatting in the body, so add those last. Attachments stay.
-          </p>
         </div>
 
         {note ? <p className={styles.note}>{note}</p> : null}

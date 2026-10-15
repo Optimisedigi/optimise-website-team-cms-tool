@@ -1,12 +1,13 @@
-/* Gmail-style compose window docked bottom right. */
+/* Gmail-style compose window docked bottom right, just left of the OptiMate orb
+   (orb: right 24px, 72px wide; see OptiMateLauncher), so the orb never covers it. */
 .window {
   position: fixed;
-  right: 24px;
+  right: 112px;
   bottom: 0;
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  width: min(560px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 128px));
   height: min(640px, calc(100vh - 80px));
   border-radius: 10px 10px 0 0;
   background: var(--theme-elevation-0);
@@ -123,16 +124,20 @@
   display: none;
 }
 
-/* Rich editor: scrolls inside the window; the placeholder sits over the empty body. */
-.editorShell {
-  position: relative;
+/* Body + signature fill the window and scroll together. */
+.draftScroll {
   flex: 1;
   min-height: 120px;
   overflow-y: auto;
 }
 
+/* Rich editor; the placeholder sits over the empty body. */
+.editorShell {
+  position: relative;
+}
+
 .body {
-  min-height: 100%;
+  min-height: 120px;
   padding: 12px 16px;
   border: 0;
   outline: none;
@@ -191,13 +196,20 @@
   font-weight: 700;
 }
 
+/* Undo history and the attach/image/table buttons share one row above the prompt. */
+.aiTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 4px 16px;
-  border-top: 1px solid var(--theme-elevation-100);
 }
 
 .toolButton {
@@ -276,7 +288,7 @@
 }
 
 .signature {
-  padding: 4px 16px 8px;
+  padding: 0 16px 12px;
 }
 
 .signatureLabel {
@@ -284,11 +296,6 @@
   margin-bottom: 4px;
   color: var(--theme-elevation-500);
   font-size: 12px;
-}
-
-.signaturePreview {
-  max-height: 120px;
-  overflow-y: auto;
 }
 
 .ai {
@@ -303,7 +310,6 @@
   align-items: center;
   gap: 6px;
   max-height: 64px;
-  margin-bottom: 8px;
   overflow-y: auto;
 }
 
@@ -347,12 +353,6 @@
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-}
-
-.hint {
-  margin: 6px 0 0;
-  color: var(--theme-elevation-500);
-  font-size: 12px;
 }
 
 .note {
