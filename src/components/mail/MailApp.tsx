@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './MailApp.module.css'
 import EmailBody from './EmailBody'
+import ComposeWindow, { type ComposeState } from './ComposeWindow'
 import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
 
 /**
- * CMS Mail view. Inbox list → reading pane → AI composer.
+ * CMS Mail view. Inbox list → reading pane (newest message first) → Gmail-style
+ * compose window (bottom right) with an OptiMate-style AI refine loop.
  *
  * Model calls happen only on explicit clicks ("Write with AI", "Summarise"),
  * each sending at most the one selected email id. Nothing is sent until the
@@ -47,17 +49,6 @@ interface ThreadMessage {
   match: { id: number; name: string; matchedOn: string } | null
 }
 
-interface Composer {
-  mode: 'reply' | 'new'
-  replyTo: ThreadMessage | null
-  to: string
-  cc: string
-  subject: string
-  instruction: string
-  body: string
-  busy: '' | 'ai' | 'send' | 'draft'
-  note: string
-}
 
 interface ApiError {
   error?: string
@@ -130,7 +121,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [threadError, setThreadError] = useState('')
   const [actionNote, setActionNote] = useState('')
 
-  const [composer, setComposer] = useState<Composer | null>(null)
+  const [composer, setComposer] = useState<(ComposeState & { key: number }) | null>(null)
   const [summary, setSummary] = useState<{ email: ThreadMessage; text: string; model: string; busy: boolean; note: string } | null>(null)
   const [assignClientId, setAssignClientId] = useState('')
   const threadRequest = useRef(0)
@@ -296,85 +287,54 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }
 
+  const composeKey = useRef(0)
+
   function startReply(message: ThreadMessage) {
     setSummary(null)
     setComposer({
+      key: ++composeKey.current,
       mode: 'reply',
-      replyTo: message,
+      replyTo: { messageId: message.messageId, from: message.from, subject: message.subject },
       to: senderAddress(message.from),
       cc: '',
       subject: replySubject(message.subject),
-      instruction: '',
       body: '',
-      busy: '',
-      note: '',
     })
   }
 
   function startNew() {
     setSummary(null)
-    setComposer({ mode: 'new', replyTo: null, to: '', cc: '', subject: '', instruction: '', body: '', busy: '', note: '' })
+    setComposer({ key: ++composeKey.current, mode: 'new', replyTo: null, to: '', cc: '', subject: '', body: '' })
   }
 
-  async function writeWithAi() {
-    if (!composer) return
-    if (composer.mode === 'new' && !composer.instruction.trim()) {
-      setComposer({ ...composer, note: 'Write an instruction first.' })
-      return
-    }
-    setComposer({ ...composer, busy: 'ai', note: '' })
-    try {
-      const body =
-        composer.mode === 'reply'
-          ? { action: 'reply', gmailMessageId: composer.replyTo?.messageId, instruction: composer.instruction }
-          : { action: 'draft', instruction: composer.instruction }
-      const data = await api<{ text: string }>('/api/mail/ai', { method: 'POST', body: JSON.stringify(body) })
-      setComposer((current) => (current ? { ...current, body: data.text, busy: '', note: 'Draft ready. Edit it, then Send or Save as draft.' } : current))
-    } catch (err) {
-      setComposer((current) => (current ? { ...current, busy: '', note: (err as Error).message } : current))
-    }
+  // Send is only ever reached from the compose window's Send button.
+  async function sendComposed(state: ComposeState) {
+    const data = await api<{ client: { name: string } | null }>('/api/mail/send', {
+      method: 'POST',
+      body: JSON.stringify({
+        to: state.to,
+        cc: state.cc,
+        subject: state.subject,
+        body: state.body,
+        replyToMessageId: state.replyTo?.messageId ?? '',
+      }),
+    })
+    setComposer(null)
+    setActionNote(data.client ? `Sent. Saved to ${data.client.name}'s emails.` : 'Sent.')
+    const thread = selectedThread
+    if (thread && state.mode === 'reply') void openThread(thread)
   }
 
-  async function send() {
-    if (!composer || !composer.body.trim()) return
-    setComposer({ ...composer, busy: 'send', note: '' })
-    try {
-      const data = await api<{ client: { name: string } | null }>('/api/mail/send', {
-        method: 'POST',
-        body: JSON.stringify({
-          to: composer.to,
-          cc: composer.cc,
-          subject: composer.subject,
-          body: composer.body,
-          replyToMessageId: composer.replyTo?.messageId ?? '',
-        }),
-      })
-      setComposer(null)
-      setActionNote(data.client ? `Sent. Saved to ${data.client.name}'s emails.` : 'Sent.')
-      const thread = selectedThread
-      if (thread && composer.mode === 'reply') void openThread(thread)
-    } catch (err) {
-      setComposer((current) => (current ? { ...current, busy: '', note: (err as Error).message } : current))
-    }
-  }
-
-  async function saveDraft() {
-    if (!composer || !composer.body.trim()) return
-    setComposer({ ...composer, busy: 'draft', note: '' })
-    try {
-      await api('/api/gmail/draft', {
-        method: 'POST',
-        body: JSON.stringify({
-          to: composer.to,
-          subject: composer.subject,
-          body: composer.body,
-          ...(composer.replyTo ? { replyToMessageId: composer.replyTo.messageId } : {}),
-        }),
-      })
-      setComposer((current) => (current ? { ...current, busy: '', note: 'Saved to Gmail Drafts.' } : current))
-    } catch (err) {
-      setComposer((current) => (current ? { ...current, busy: '', note: (err as Error).message } : current))
-    }
+  async function saveComposedDraft(state: ComposeState) {
+    await api('/api/gmail/draft', {
+      method: 'POST',
+      body: JSON.stringify({
+        to: state.to,
+        subject: state.subject,
+        body: state.body,
+        ...(state.replyTo ? { replyToMessageId: state.replyTo.messageId } : {}),
+      }),
+    })
   }
 
   async function assign(message: ThreadMessage) {
@@ -562,7 +522,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         </ul>
 
         <section className={styles.reader} aria-label="Reading pane">
-          {composer?.mode === 'new' ? null : !selectedThreadId ? (
+          {!selectedThreadId ? (
             <p className={styles.empty}>Select an email to read it.</p>
           ) : threadLoading ? (
             <p className={styles.empty}>Loading…</p>
@@ -619,7 +579,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
               </div>
               {actionNote ? <p className={styles.note}>{actionNote}</p> : null}
 
-              {messages.map((message) => (
+              {/* Newest message first, like the latest sender at the top. */}
+              {[...messages].reverse().map((message) => (
                 <article key={message.messageId} className={styles.message}>
                   <header className={styles.messageHead}>
                     <div>
@@ -695,79 +656,23 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             </div>
           ) : null}
 
-          {composer ? (
-            <div className={styles.panel}>
-              <h3 className={styles.panelTitle}>
-                {composer.mode === 'reply' ? `Reply to ${senderName(composer.replyTo?.from ?? '')}` : 'New email'}
-              </h3>
-              <label className={styles.field}>
-                <span>To</span>
-                <input value={composer.to} onChange={(e) => setComposer({ ...composer, to: e.target.value })} />
-              </label>
-              <label className={styles.field}>
-                <span>Cc</span>
-                <input value={composer.cc} onChange={(e) => setComposer({ ...composer, cc: e.target.value })} />
-              </label>
-              <label className={styles.field}>
-                <span>Subject</span>
-                <input value={composer.subject} onChange={(e) => setComposer({ ...composer, subject: e.target.value })} />
-              </label>
-              <div className={styles.aiRow}>
-                <input
-                  className={styles.instruction}
-                  value={composer.instruction}
-                  onChange={(e) => setComposer({ ...composer, instruction: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      void writeWithAi()
-                    }
-                  }}
-                  placeholder={
-                    composer.mode === 'reply'
-                      ? 'Instruction for the AI, e.g. "reply saying Thursday works, keep it short"'
-                      : 'What should the email say?'
-                  }
-                  aria-label="Instruction for the AI"
-                />
-                <button type="button" className={styles.btn} onClick={() => void writeWithAi()} disabled={composer.busy !== ''}>
-                  {composer.busy === 'ai' ? 'Writing…' : 'Write with AI'}
-                </button>
-              </div>
-              <p className={styles.muted}>
-                {composer.mode === 'reply'
-                  ? 'The AI sees only the email you are replying to, plus your instruction.'
-                  : 'The AI sees only your instruction. No emails are shared.'}
-              </p>
-              <textarea
-                className={styles.textarea}
-                rows={12}
-                value={composer.body}
-                onChange={(e) => setComposer({ ...composer, body: e.target.value })}
-                placeholder="Write here, or use Write with AI. Nothing is sent until you click Send."
-                aria-label="Email body"
-              />
-              {composer.note ? <p className={styles.note}>{composer.note}</p> : null}
-              <div className={styles.actions}>
-                <button
-                  type="button"
-                  className={`${styles.btn} ${styles.primary}`}
-                  onClick={() => void send()}
-                  disabled={composer.busy !== '' || !composer.body.trim() || !composer.to.trim()}
-                >
-                  {composer.busy === 'send' ? 'Sending…' : 'Send'}
-                </button>
-                <button type="button" className={styles.btn} onClick={() => void saveDraft()} disabled={composer.busy !== '' || !composer.body.trim()}>
-                  {composer.busy === 'draft' ? 'Saving…' : 'Save as draft'}
-                </button>
-                <button type="button" className={styles.linkBtn} onClick={() => setComposer(null)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : null}
         </section>
       </div>
+
+      {composer ? (
+        <ComposeWindow
+          key={composer.key}
+          initial={composer}
+          title={
+            composer.mode === 'reply'
+              ? `Reply to ${senderName(composer.replyTo?.from ?? '')}`
+              : 'New message'
+          }
+          onClose={() => setComposer(null)}
+          onSend={sendComposed}
+          onSaveDraft={saveComposedDraft}
+        />
+      ) : null}
     </div>
   )
 }

@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFullMessage } from "@/lib/mail/gmail-mail";
-import { buildMailModelRequest, MailModelRequestError } from "@/lib/mail/model-request";
+import { buildMailModelRequest, cleanDraftHistory, MailModelRequestError } from "@/lib/mail/model-request";
 import { runMailModel } from "@/lib/mail/run-model";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
  * POST /api/mail/ai
- * Body: { action: "reply", gmailMessageId: string, instruction?: string }
- *     | { action: "draft", instruction: string }
+ * Body: { action: "reply", gmailMessageId: string, instruction?: string, history?, currentDraft? }
+ *     | { action: "draft", instruction: string, history?, currentDraft? }
+ *
+ * history/currentDraft let the user keep refining the draft (OptiMate-style):
+ * earlier instructions + drafts and the draft as currently edited. They are the
+ * user's own text; the only mailbox content is still the one selected email.
  *
  * Runs only when the user clicks "Reply with AI" / "Draft with AI". For a
  * reply, the server fetches exactly the one selected message by id; nothing
@@ -16,12 +20,20 @@ import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireM
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
   if (ctx instanceof NextResponse) return ctx;
-  const body = await readJson<{ action?: unknown; gmailMessageId?: unknown; instruction?: unknown }>(req);
+  const body = await readJson<{
+    action?: unknown;
+    gmailMessageId?: unknown;
+    instruction?: unknown;
+    history?: unknown;
+    currentDraft?: unknown;
+  }>(req);
   if (!body) return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
 
   const action = body.action === "reply" || body.action === "draft" ? body.action : null;
   if (!action) return NextResponse.json({ error: "action must be reply or draft." }, { status: 400 });
   const instruction = typeof body.instruction === "string" ? body.instruction : "";
+  const history = cleanDraftHistory(body.history);
+  const currentDraft = typeof body.currentDraft === "string" ? body.currentDraft : "";
 
   let request;
   try {
@@ -29,7 +41,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (body.gmailMessageId !== undefined && body.gmailMessageId !== null && body.gmailMessageId !== "") {
         return NextResponse.json({ error: "A new draft does not take an email." }, { status: 400 });
       }
-      request = buildMailModelRequest({ action: "draft", instruction });
+      request = buildMailModelRequest({ action: "draft", instruction, history, currentDraft });
     } else {
       const gmailMessageId = parseGmailId(body.gmailMessageId);
       if (!gmailMessageId) {
@@ -46,6 +58,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       request = buildMailModelRequest({
         action: "reply",
         instruction,
+        history,
+        currentDraft,
         email: {
           gmailMessageId: message.messageId,
           from: message.from,

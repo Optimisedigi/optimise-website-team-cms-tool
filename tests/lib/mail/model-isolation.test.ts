@@ -14,7 +14,11 @@ const mockCallLLM = vi.fn();
 vi.mock("@/lib/agents/_shared/llm", () => ({ callLLM: (...args: unknown[]) => mockCallLLM(...args) }));
 vi.mock("@/lib/agents/_shared/llm/registry", () => ({ DEFAULT_AUTONOMOUS_FALLBACKS: [] }));
 vi.mock("@/lib/agents/_shared/optimate-default-models", () => ({
-  getOptiMateDefaultModels: vi.fn(async () => ({ defaultAutonomousModel: "test-model" })),
+  getOptiMateDefaultModels: vi.fn(async () => ({ defaultAutonomousModel: "test-model", emailAssistantModel: "email-model" })),
+}));
+const mockSoul = vi.fn(async (_ids: unknown[], _opts: unknown) => ({ text: "## Working with this team\n- **email-tone**: SOUL-RULE-NO-SIGNOFF" }));
+vi.mock("@/lib/agents/optimate-google-ads/memory-loader", () => ({
+  loadPinnedMemoryBlock: (ids: unknown[], opts: unknown) => mockSoul(ids, opts),
 }));
 
 const INBOX: Record<string, { from: string; subject: string; body: string }> = {
@@ -114,3 +118,71 @@ describe("POST /api/mail/summarise", () => {
     expect(collections).toEqual(["mail-ai-requests"]);
   });
 });
+
+describe("OptiMate writing style (soul) and model", () => {
+  it("adds the email soul rules to reply prompts, soul only (no pinned account facts), using the Email Assistant model", async () => {
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    await POST(post("/api/mail/ai", { action: "reply", gmailMessageId: "selected", instruction: "ok" }));
+    const call = mockCallLLM.mock.calls[0]![0] as { system: string; model: string };
+    expect(call.system).toContain("SOUL-RULE-NO-SIGNOFF");
+    expect(call.model).toBe("email-model");
+    expect(mockSoul).toHaveBeenCalledWith([], { includePinnedFacts: false, soulAgentKeys: ["email"] });
+  });
+
+  it("does not add soul rules to timeline summaries", async () => {
+    mockPayload.findByID.mockResolvedValue({ id: 5, gmailMessageId: "selected", ...INBOX.selected });
+    const { POST } = await import("@/app/(frontend)/api/mail/summarise/route");
+    await POST(post("/api/mail/summarise", { clientEmailId: 5 }));
+    expect(modelInput()).not.toContain("SOUL-RULE-NO-SIGNOFF");
+  });
+});
+
+describe("refining a draft (keep prompting)", () => {
+  it("sends earlier prompts, drafts and the edited draft, but still only the one selected email", async () => {
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const res = await POST(
+      post("/api/mail/ai", {
+        action: "reply",
+        gmailMessageId: "selected",
+        instruction: "make it shorter",
+        history: [{ instruction: "say Thursday works", draft: "Hi Jo, Thursday works. FIRST-DRAFT" }],
+        currentDraft: "Hi Jo, Thursday works for me. MY-OWN-EDIT",
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockGetFullMessage).toHaveBeenCalledTimes(1);
+    const call = mockCallLLM.mock.calls[0]![0] as { messages: Array<{ role: string; content: Array<{ text: string }> }> };
+    expect(call.messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+    const input = modelInput();
+    expect(input).toContain("SELECTED-BODY");
+    expect(input).toContain("FIRST-DRAFT");
+    expect(input).toContain("MY-OWN-EDIT");
+    expect(input).toContain("make it shorter");
+    expect(input).not.toContain("OTHER-EMAIL-BODY");
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ emailCount: 1 }) }));
+  });
+
+  it("a refined new draft still contains no email", () => {
+    const req = buildMailModelRequest({
+      action: "draft",
+      instruction: "more formal",
+      history: [{ instruction: "invite Jo to a call", draft: "Hi Jo, fancy a call?" }],
+      currentDraft: "Hi Jo, fancy a call next week?",
+    });
+    expect(req.emailCount).toBe(0);
+    expect(req.messages).toHaveLength(3);
+    expect(req.messages[2]!.text).toContain("more formal");
+  });
+
+  it("requires a change instruction once there is a draft, and caps history", () => {
+    expect(() =>
+      buildMailModelRequest({ action: "draft", instruction: "", currentDraft: "Hi" }),
+    ).toThrow(MailModelRequestError);
+    const long = Array.from({ length: 20 }, (_, i) => ({ instruction: `i${i}`, draft: `d${i}` }));
+    const req = buildMailModelRequest({ action: "draft", instruction: "x", history: long });
+    // 8 kept rounds → 1 opening + 1 draft + 7 × 2 + final ask
+    expect(req.messages).toHaveLength(17);
+    expect(JSON.stringify(req.messages)).not.toContain("d11");
+  });
+});
+

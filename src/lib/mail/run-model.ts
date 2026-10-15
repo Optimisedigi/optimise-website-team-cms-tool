@@ -2,11 +2,30 @@ import type { Payload } from "payload";
 import { callLLM } from "@/lib/agents/_shared/llm";
 import { DEFAULT_AUTONOMOUS_FALLBACKS } from "@/lib/agents/_shared/llm/registry";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
+import { loadPinnedMemoryBlock } from "@/lib/agents/optimate-google-ads/memory-loader";
 import type { MailModelRequest } from "./model-request";
 
 /**
+ * The team's writing-style rules from OptiMate Settings → OptiMate Soul
+ * ("Email drafting" + "All" rows), loaded exactly as GmailMate does: soul only,
+ * no pinned account facts, so no client data enters the prompt this way.
+ */
+export async function loadEmailSoulBlock(): Promise<string> {
+  try {
+    const { text } = await loadPinnedMemoryBlock([], { includePinnedFacts: false, soulAgentKeys: ["email"] });
+    if (!text.trim()) return "";
+    return `\n\n${text}\n\nThe soul rules above are ABSOLUTE for writing this email. If an instruction conflicts with a soul rule, the soul rule wins. They never authorise adding facts that are not in the email or the user's instruction.`;
+  } catch (err) {
+    // Non-fatal: draft without soul rather than failing the click.
+    console.warn("[mail] soul lookup failed:", (err as Error).message);
+    return "";
+  }
+}
+
+/**
  * Runs one Mail model request through the CMS's existing LLM integration
- * (callLLM + the OptiMate default model; no new provider) and writes one
+ * (callLLM + the OptiMate Email Assistant model, falling back to the
+ * autonomous default, as GmailMate does; no new provider) and writes one
  * mail-ai-requests audit row per call: action, the single Gmail id, the
  * email count (0 or 1) and the model. Email content is never logged.
  */
@@ -33,15 +52,20 @@ export async function runMailModel(args: {
       } as never)
       .catch(() => undefined);
 
-  const { defaultAutonomousModel } = await getOptiMateDefaultModels(payload);
+  const defaults = await getOptiMateDefaultModels(payload);
+  const model = defaults.emailAssistantModel ?? defaults.defaultAutonomousModel;
+  const soul = request.action === "summarise" ? "" : await loadEmailSoulBlock();
   try {
     const response = await callLLM({
-      model: defaultAutonomousModel,
+      model,
       fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS,
-      maxTokens: 1500,
+      maxTokens: 2000,
       temperature: request.action === "summarise" ? 0.2 : 0.5,
-      system: request.system,
-      messages: [{ role: "user", content: [{ type: "text", text: request.userText }] }],
+      system: request.system + soul,
+      messages: request.messages.map((message) => ({
+        role: message.role,
+        content: [{ type: "text" as const, text: message.text }],
+      })),
     });
     const text = response.message.content
       .map((part) => (part.type === "text" ? part.text : ""))
@@ -53,7 +77,7 @@ export async function runMailModel(args: {
   } catch (err) {
     const message = err instanceof Error ? err.message.slice(0, 300) : "AI request failed";
     if (!(err instanceof Error && err.message.startsWith("The AI returned an empty"))) {
-      await log({ model: defaultAutonomousModel, status: "error", error: message });
+      await log({ model, status: "error", error: message });
     }
     throw err;
   }

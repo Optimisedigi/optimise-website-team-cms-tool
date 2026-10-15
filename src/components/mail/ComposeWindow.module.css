@@ -1,0 +1,265 @@
+/* Gmail-style compose window docked bottom right. */
+.window {
+  position: fixed;
+  right: 24px;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - 32px));
+  height: min(640px, calc(100vh - 80px));
+  border-radius: 10px 10px 0 0;
+  background: var(--theme-elevation-0);
+  color: var(--theme-elevation-1000);
+  box-shadow:
+    0 8px 10px 1px rgba(0, 0, 0, 0.14),
+    0 3px 14px 2px rgba(0, 0, 0, 0.12),
+    0 5px 5px -3px rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+.minimised {
+  height: auto;
+  width: min(320px, calc(100vw - 32px));
+}
+
+.expanded {
+  right: 50%;
+  bottom: 50%;
+  transform: translate(50%, 50%);
+  width: min(960px, calc(100vw - 48px));
+  height: min(820px, calc(100vh - 48px));
+  border-radius: 10px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px 9px 16px;
+  background: var(--theme-elevation-100);
+  cursor: default;
+}
+
+.minimised .header {
+  cursor: pointer;
+}
+
+.title {
+  overflow: hidden;
+  font-weight: 600;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerButtons {
+  display: flex;
+  gap: 2px;
+}
+
+.headerButtons button {
+  width: 28px;
+  height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--theme-elevation-700);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.headerButtons button:hover {
+  background: var(--theme-elevation-150);
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.fields {
+  padding: 0 16px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--theme-elevation-100);
+}
+
+.field span {
+  color: var(--theme-elevation-500);
+  font-size: 13px;
+}
+
+.field input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.ccToggle {
+  border: 0;
+  background: none;
+  color: var(--theme-elevation-500);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.body {
+  flex: 1;
+  min-height: 120px;
+  padding: 12px 16px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.ai {
+  padding: 10px 16px 6px;
+  border-top: 1px solid var(--theme-elevation-100);
+  background: var(--theme-elevation-50);
+}
+
+.history {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-height: 64px;
+  margin-bottom: 8px;
+  overflow-y: auto;
+}
+
+.chip {
+  max-width: 220px;
+  padding: 2px 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(44, 151, 201, 0.14);
+  color: #2c97c9;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.promptRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.prompt {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 8px;
+  resize: none;
+  background: var(--theme-elevation-0);
+  color: inherit;
+  font: inherit;
+  line-height: 1.4;
+}
+
+.aiButton {
+  padding: 8px 14px;
+  border: 1px solid #2c97c9;
+  border-radius: 8px;
+  background: var(--theme-elevation-0);
+  color: #2c97c9;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.hint {
+  margin: 6px 0 0;
+  color: var(--theme-elevation-500);
+  font-size: 12px;
+}
+
+.note {
+  margin: 0;
+  padding: 6px 16px;
+  color: var(--theme-elevation-700);
+  font-size: 13px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 14px;
+}
+
+.send {
+  padding: 9px 24px;
+  border: 0;
+  border-radius: 18px;
+  background: #0b57d0;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondary {
+  padding: 8px 16px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 18px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.send:disabled,
+.secondary:disabled,
+.aiButton:disabled,
+.linkBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.linkBtn {
+  border: 0;
+  background: none;
+  color: #2c97c9;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .window,
+  .expanded {
+    right: 0;
+    bottom: 0;
+    transform: none;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .minimised {
+    height: auto;
+  }
+}
