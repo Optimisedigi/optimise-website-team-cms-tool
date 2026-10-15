@@ -518,7 +518,6 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   return (
     <div className={styles.app}>
       <div className={styles.toolbar}>
-        <h1 className={styles.title}>Mail</h1>
         {account ? <span className={styles.muted}>{account}</span> : null}
         <form
           className={styles.search}
@@ -531,6 +530,18 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search inbox" aria-label="Search inbox" />
         </form>
         <span className={styles.muted}>{syncNote}</span>
+        {/* Collapsed confirmation of the last hide, so it does not take a full row. */}
+        {lastHidden ? (
+          <details key={lastHidden} className={styles.hiddenNote}>
+            <summary className={styles.muted}>Sender hidden</summary>
+            <span className={styles.hiddenNoteBody}>
+              Hidden {lastHidden.startsWith('@') ? `everyone at ${lastHidden}` : lastHidden}.{' '}
+              <button type="button" className={styles.linkBtn} onClick={() => void unhideSender(lastHidden)}>
+                Undo
+              </button>
+            </span>
+          </details>
+        ) : null}
         <button
           type="button"
           className={styles.btn}
@@ -632,15 +643,6 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         </div>
       ) : null}
 
-      {lastHidden ? (
-        <p className={styles.note}>
-          Hidden {lastHidden.startsWith('@') ? `everyone at ${lastHidden}` : lastHidden}.{' '}
-          <button type="button" className={styles.linkBtn} onClick={() => void unhideSender(lastHidden)}>
-            Undo
-          </button>
-        </p>
-      ) : null}
-
       <div className={styles.panes}>
         <ul className={styles.list} aria-label="Inbox">
           {threads.map((thread) => (
@@ -666,7 +668,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           {listLoading ? <li className={styles.empty}>Loading…</li> : null}
           {!listLoading && threads.length === 0 && !error ? <li className={styles.empty}>Inbox is empty.</li> : null}
           {!listLoading && nextPageToken ? (
-            <li>
+            <li className={styles.moreItem}>
               <button type="button" className={styles.more} onClick={() => void loadInbox({ append: true, pageToken: nextPageToken, q: query })}>
                 Load more
               </button>

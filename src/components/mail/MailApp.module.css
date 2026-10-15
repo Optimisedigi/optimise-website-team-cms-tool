@@ -7,7 +7,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px 0 24px;
+  padding: 16px 0 0;
   color: var(--mail-text);
   font-size: 14px;
 }
@@ -17,11 +17,6 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-}
-
-.title {
-  margin: 0;
-  font-size: 22px;
 }
 
 .search {
@@ -103,27 +98,34 @@
   color: var(--mail-muted);
 }
 
+/* The panes fill the viewport and stick to its top once the toolbar scrolls
+   away, so the inbox list stays in view while the reading pane scrolls on its own. */
 .panes {
+  position: sticky;
+  top: 0;
   display: grid;
   grid-template-columns: minmax(280px, 380px) 1fr;
   gap: 16px;
-  min-height: 70vh;
-}
-
-@media (max-width: 900px) {
-  .panes {
-    grid-template-columns: 1fr;
-  }
+  height: 100vh;
+  height: 100dvh;
+  padding: 12px 0;
 }
 
 .list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   margin: 0;
   padding: 0;
   list-style: none;
   border: 1px solid var(--mail-border);
   border-radius: 8px;
-  max-height: 78vh;
   overflow-y: auto;
+}
+
+/* Load more sits at the very bottom of the list, even when the list is short. */
+.moreItem {
+  margin-top: auto;
 }
 
 .row {
@@ -223,6 +225,26 @@
 
 .reader {
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 900px) {
+  .panes {
+    position: static;
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 0;
+  }
+
+  .list {
+    max-height: 60vh;
+  }
+
+  .reader {
+    overflow: visible;
+  }
 }
 
 .readerHead {
@@ -339,4 +361,18 @@
   gap: 12px;
   padding: 6px 0;
   border-bottom: 1px solid var(--mail-border);
+}
+
+.hiddenNote summary {
+  cursor: pointer;
+}
+
+.hiddenNoteBody {
+  margin-left: 6px;
+  color: var(--mail-muted);
+  font-size: 13px;
+}
+
+.hiddenNote {
+  display: inline-block;
 }
