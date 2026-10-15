@@ -73,4 +73,42 @@ describe("formatGmailDraftHtml", () => {
     expect(boundary).toBeTruthy();
     expect(mime).toContain(`--${boundary}--`);
   });
+
+  it("nests inline images in multipart/related inside multipart/mixed with attachments", () => {
+    const encoded = buildMimeMessage({
+      to: "client@example.com",
+      subject: "Report",
+      htmlBody: '<p>Chart: <img src="cid:image1@optimate.mail"></p>',
+      inlineImages: [{
+        contentId: "image1@optimate.mail",
+        filename: "image-1.png",
+        mimeType: "image/png",
+        content: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      }],
+      attachments: [{ filename: "quote.pdf", mimeType: "application/pdf", content: Buffer.from("%PDF") }],
+    });
+    const padded = encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+    const mime = Buffer.from(padded, "base64").toString("utf8");
+
+    const mixed = mime.indexOf("Content-Type: multipart/mixed;");
+    const related = mime.indexOf("Content-Type: multipart/related;");
+    expect(mixed).toBeGreaterThan(-1);
+    expect(related).toBeGreaterThan(mixed);
+    expect(mime.indexOf('Content-Type: text/html; charset="UTF-8"')).toBeGreaterThan(related);
+    expect(mime).toContain("Content-ID: <image1@optimate.mail>");
+    expect(mime).toContain("Content-Disposition: inline; filename*=UTF-8''image-1.png");
+    expect(mime).toContain("Content-Type: application/pdf;");
+    expect(mime).toContain("Content-Disposition: attachment; filename*=UTF-8''quote.pdf");
+  });
+
+  it("refuses a Content-ID that could inject MIME headers", () => {
+    expect(() =>
+      buildMimeMessage({
+        to: "client@example.com",
+        subject: "x",
+        htmlBody: "<p>x</p>",
+        inlineImages: [{ contentId: "a@b>\r\nX-Evil: 1", filename: "a.png", mimeType: "image/png", content: Buffer.from("x") }],
+      }),
+    ).toThrow("Invalid inline image Content-ID");
+  });
 });

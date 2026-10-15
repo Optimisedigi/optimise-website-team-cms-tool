@@ -11,8 +11,10 @@ import {
   extractEmailHeaders,
   stripAgentSignOff,
 } from "@/lib/gmail-draft-parsing";
-import { findDraftIdByMessageId, getFullMessage, getThreadMessages } from "@/lib/mail/gmail-mail";
-import { draftHtmlToText, stripTrailingSignature } from "@/lib/mail/drafts";
+import { findDraftIdByMessageId, getFullMessage, getMessageContentParts, getThreadMessages } from "@/lib/mail/gmail-mail";
+import { buildEditableDraft } from "@/lib/mail/draft-content";
+import { parseMailComposeContent, type MailComposeContent } from "@/lib/mail/compose-content";
+import { MAIL_ATTACHMENT_LIMITS } from "@/lib/mail/compose-limits";
 import { gmailErrorResponse, parseGmailId, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
@@ -23,7 +25,10 @@ import { gmailErrorResponse, parseGmailId, requireGmailToken, requireMailUser } 
  * replies retain their thread recipient. We create drafts but never send mail.
  *
  * Body: { subject?: string, body: string, to?: string, attachments?: ImageAttachment[], replyToMessageId?: string, draftId?: string }
+ *    or, from the CMS Mail compose window: { html, inlineImages?, attachments?, to?, subject?, replyToMessageId?, draftId? }
  *  - draftId: update this existing draft in place instead of creating a new one.
+ *  - html: rich body from the Mail editor (validated by parseMailComposeContent);
+ *    replaces `body`, and `attachments` may then be any file type Gmail allows.
  *  - replyToMessageId: Gmail message id of an email the user attached in the
  *    chat. The server fetches its headers and saves the draft as a threaded
  *    reply (recipient, Re: subject, threadId, In-Reply-To all pinned).
@@ -46,6 +51,9 @@ interface DraftBody {
   /** Existing Gmail draft id to update in place (Mail view "Save as draft"). */
   draftId?: unknown;
   attachments?: unknown;
+  /** Rich HTML body from the Mail compose window. */
+  html?: unknown;
+  inlineImages?: unknown;
 }
 
 /**
@@ -53,9 +61,10 @@ interface DraftBody {
  *
  * Loads one of the user's Gmail drafts for the CMS Mail compose window, so
  * drafts OptiMate saved open in the CMS instead of Gmail. The body comes back
- * as plain text without the Gmail signature (the compose window shows the
- * signature separately and the server adds it again on send/save). For a
- * reply draft, `replyTo` is the latest non-draft message in its thread.
+ * as HTML without the Gmail signature (the compose window shows the signature
+ * separately and the server adds it again on send/save), with inline images as
+ * data: URLs and attachments as files. For a reply draft, `replyTo` is the
+ * latest non-draft message in its thread.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
@@ -70,15 +79,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (!message.labelIds.includes("DRAFT")) {
       return NextResponse.json({ error: "This draft has already been sent or discarded." }, { status: 404 });
     }
-    const [draftId, signature, thread] = await Promise.all([
+    const [draftId, signature, thread, parts] = await Promise.all([
       findDraftIdByMessageId(token.accessToken, messageId),
       getPrimaryGmailSignature(token.accessToken).catch(() => ""),
       message.threadId ? getThreadMessages(token.accessToken, message.threadId) : Promise.resolve([]),
+      getMessageContentParts(token.accessToken, messageId, MAIL_ATTACHMENT_LIMITS.maxTotalBytes),
     ]);
     if (!draftId) {
       return NextResponse.json({ error: "This draft has already been sent or discarded." }, { status: 404 });
     }
-    const text = message.bodyHtml ? draftHtmlToText(message.bodyHtml) : message.body;
+    if (parts.tooLarge) {
+      return NextResponse.json(
+        { error: "This draft's attachments are over 3 MB, so it can't be edited in Mail. Open it in Gmail instead." },
+        { status: 413 },
+      );
+    }
+    const editable = buildEditableDraft(parts, signature);
     const original = [...thread].reverse().find((entry) => !entry.labelIds.includes("DRAFT"));
     return NextResponse.json({
       draftId,
@@ -86,7 +102,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       to: message.to,
       cc: message.cc,
       subject: message.subject,
-      body: stripTrailingSignature(text, signature),
+      html: editable.html,
+      attachments: editable.attachments,
       threadId: original ? message.threadId : "",
       replyTo: original
         ? { messageId: original.messageId, from: original.from, subject: original.subject }
@@ -118,15 +135,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
+  // The Mail compose window sends rich HTML + files; OptiMate sends markdown-lite text.
+  let rich: MailComposeContent | null = null;
+  if (typeof body.html === "string") {
+    const parsed = parseMailComposeContent({
+      html: body.html,
+      inlineImages: body.inlineImages,
+      attachments: body.attachments,
+    });
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    rich = parsed.value;
+  }
+
   const rawText = typeof body.body === "string" ? body.body.trim() : "";
-  if (!rawText) {
+  if (!rich && !rawText) {
     return NextResponse.json(
       { error: "body is required and must be non-empty." },
       { status: 400 },
     );
   }
 
-  const attachmentResult = parseGmailDraftAttachments(body.attachments);
+  const attachmentResult = rich
+    ? ({ ok: true, attachments: rich.attachments } as const)
+    : parseGmailDraftAttachments(body.attachments);
   if (!attachmentResult.ok) {
     return NextResponse.json({ error: attachmentResult.error }, { status: 400 });
   }
@@ -186,11 +217,12 @@ export async function POST(req: NextRequest) {
   const inReplyTo = reply ? (reply.inReplyTo ?? "") : typeof body.inReplyTo === "string" ? body.inReplyTo.trim() : "";
 
   try {
-    const html = markdownLiteToHtml(text);
+    const html = rich ? rich.html : markdownLiteToHtml(text);
     const result = await createGmailDraft(tokenResult.accessToken, {
       to,
       subject,
       htmlBody: html,
+      ...(rich && rich.inlineImages.length > 0 ? { inlineImages: rich.inlineImages } : {}),
       ...(threadId ? { threadId } : {}),
       ...(inReplyTo ? { inReplyTo } : {}),
       ...(draftId ? { draftId } : {}),

@@ -114,6 +114,11 @@ export interface MessageHeadersOnly {
   to: string;
   cc: string;
   labelIds: string[];
+  /** Bulk/auto headers used to skip automated mail (see automated-senders.ts). */
+  autoSubmitted?: string;
+  precedence?: string;
+  listId?: string;
+  listUnsubscribe?: string;
 }
 
 export async function getMessageHeaders(accessToken: string, ids: string[]): Promise<MessageHeadersOnly[]> {
@@ -123,7 +128,7 @@ export async function getMessageHeaders(accessToken: string, ids: string[]): Pro
       userId: "me",
       id,
       format: "metadata",
-      metadataHeaders: ["From", "To", "Cc"],
+      metadataHeaders: ["From", "To", "Cc", "Auto-Submitted", "Precedence", "List-Id", "List-Unsubscribe"],
     });
     const headers = res.data.payload?.headers;
     return {
@@ -133,6 +138,10 @@ export async function getMessageHeaders(accessToken: string, ids: string[]): Pro
       to: readGmailHeader(headers, "To"),
       cc: readGmailHeader(headers, "Cc"),
       labelIds: res.data.labelIds ?? [],
+      autoSubmitted: readGmailHeader(headers, "Auto-Submitted"),
+      precedence: readGmailHeader(headers, "Precedence"),
+      listId: readGmailHeader(headers, "List-Id"),
+      listUnsubscribe: readGmailHeader(headers, "List-Unsubscribe"),
     };
   });
 }
@@ -161,17 +170,22 @@ export async function getMailboxProfile(accessToken: string): Promise<{ emailAdd
  * Message ids added since `startHistoryId` (Gmail incremental sync).
  * Throws GmailHistoryExpiredError when Gmail no longer has that history (404),
  * so the caller can fall back to a recent-window sync.
+ *
+ * Stops after about `maxIds` ids. When it stops early, `resumeHistoryId` is
+ * the last history record it read, so the next sync carries on from there
+ * instead of jumping to the newest point and skipping the rest.
  */
 export async function listAddedMessageIdsSince(
   accessToken: string,
   startHistoryId: string,
   maxIds = 500,
-): Promise<string[]> {
+): Promise<{ ids: string[]; resumeHistoryId: string | null }> {
   const gmail = gmailApi(accessToken);
   const ids = new Set<string>();
   let pageToken: string | undefined;
+  let resumeHistoryId: string | null = null;
   try {
-    do {
+    pages: do {
       const res = await gmail.users.history.list({
         userId: "me",
         startHistoryId,
@@ -179,20 +193,26 @@ export async function listAddedMessageIdsSince(
         maxResults: 500,
         ...(pageToken ? { pageToken } : {}),
       });
-      for (const entry of res.data.history ?? []) {
+      const history = res.data.history ?? [];
+      for (const [index, entry] of history.entries()) {
         for (const added of entry.messagesAdded ?? []) {
           const message = added.message;
           if (message?.id && isSyncableLabelSet(message.labelIds)) ids.add(message.id);
         }
+        const more = index < history.length - 1 || Boolean(res.data.nextPageToken);
+        if (ids.size >= maxIds && more && entry.id) {
+          resumeHistoryId = String(entry.id);
+          break pages;
+        }
       }
       pageToken = res.data.nextPageToken ?? undefined;
-    } while (pageToken && ids.size < maxIds);
+    } while (pageToken);
   } catch (err) {
     const status = (err as { code?: number; status?: number }).code ?? (err as { status?: number }).status;
     if (status === 404) throw new GmailHistoryExpiredError("Gmail history expired");
     throw err;
   }
-  return [...ids].slice(0, maxIds);
+  return { ids: [...ids], resumeHistoryId };
 }
 
 /** Recent message ids (received and sent) for the first sync or after history expiry. */
@@ -211,6 +231,88 @@ export async function listRecentMessageIds(accessToken: string, days: number, ma
     pageToken = res.data.nextPageToken ?? undefined;
   } while (pageToken && ids.length < maxIds);
   return ids.slice(0, maxIds);
+}
+
+export interface MessageFilePart {
+  filename: string;
+  mimeType: string;
+  /** Content-ID without angle brackets, for images the HTML shows via cid:. */
+  contentId: string;
+  /** Standard base64 (not base64url). */
+  data: string;
+  size: number;
+}
+
+export interface MessageContentParts {
+  html: string;
+  text: string;
+  inline: MessageFilePart[];
+  attachments: MessageFilePart[];
+  /** True when the files exceed `maxBytes`; no file data is returned then. */
+  tooLarge: boolean;
+}
+
+/**
+ * HTML, inline images and attachments of one message, for re-editing a draft
+ * in the Mail compose window. Stops fetching once the files pass `maxBytes`.
+ */
+export async function getMessageContentParts(
+  accessToken: string,
+  messageId: string,
+  maxBytes: number,
+): Promise<MessageContentParts> {
+  const gmail = gmailApi(accessToken);
+  const res = await gmail.users.messages.get({ userId: "me", id: messageId, format: "full" });
+  const decode = (data: string) => Buffer.from(data, "base64url");
+  const header = (part: gmail_v1.Schema$MessagePart, name: string) =>
+    readGmailHeader(part.headers ?? undefined, name);
+
+  const out: MessageContentParts = { html: "", text: "", inline: [], attachments: [], tooLarge: false };
+  const files: Array<{ part: gmail_v1.Schema$MessagePart; inline: boolean }> = [];
+  const walk = (part: gmail_v1.Schema$MessagePart) => {
+    const contentId = header(part, "Content-ID").replace(/^<|>$/g, "");
+    const isFile = Boolean(part.filename) || Boolean(part.body?.attachmentId);
+    if (isFile) {
+      const disposition = header(part, "Content-Disposition").toLowerCase();
+      files.push({ part, inline: Boolean(contentId) && !disposition.startsWith("attachment") });
+    } else if (part.mimeType === "text/html" && part.body?.data && !out.html) {
+      out.html = decode(part.body.data).toString("utf-8");
+    } else if (part.mimeType === "text/plain" && part.body?.data && !out.text) {
+      out.text = decode(part.body.data).toString("utf-8");
+    }
+    part.parts?.forEach(walk);
+  };
+  if (res.data.payload) walk(res.data.payload);
+
+  let total = 0;
+  for (const { part, inline } of files) {
+    total += part.body?.size ?? 0;
+    if (total > maxBytes) {
+      out.tooLarge = true;
+      out.inline = [];
+      out.attachments = [];
+      return out;
+    }
+    let data = part.body?.data ?? "";
+    if (!data && part.body?.attachmentId) {
+      const attachment = await gmail.users.messages.attachments.get({
+        userId: "me",
+        messageId,
+        id: part.body.attachmentId,
+      });
+      data = attachment.data.data ?? "";
+    }
+    const content = decode(data);
+    const file: MessageFilePart = {
+      filename: part.filename || "attachment",
+      mimeType: part.mimeType || "application/octet-stream",
+      contentId: header(part, "Content-ID").replace(/^<|>$/g, ""),
+      data: content.toString("base64"),
+      size: content.length,
+    };
+    (inline ? out.inline : out.attachments).push(file);
+  }
+  return out;
 }
 
 /**

@@ -18,6 +18,8 @@ import {
   mapLimited,
 } from './gmail-mail'
 import type { GmailFullMessage } from '@/lib/gmail-search'
+import { isHiddenSender, loadHiddenSenders } from './hidden-senders'
+import { isAutomatedMessage } from './automated-senders'
 
 /**
  * Deterministic storage + sync for client emails. No model calls here, ever:
@@ -198,20 +200,29 @@ export interface SyncResult {
   stored: number
   alreadyStored: number
   unmatched: number
+  /** Client-matched emails not stored: from a hidden sender or automated. */
+  skipped: number
   /** Matched emails that could not be saved; the rest of the sync still completes. */
   failed: number
+  /** True when Gmail had more new mail than one sync takes; the next sync continues. */
+  more: boolean
 }
 
 /**
  * Pull new mail since the last sync and store client-matched messages.
  * Uses Gmail history (incremental) when a cursor exists; otherwise the last
  * INITIAL_SYNC_DAYS days. The cursor only moves forward after a clean run.
+ *
+ * Client-matched emails from the user's hidden senders, and automated ones
+ * (see automated-senders.ts), are not stored.
  */
 export async function syncMailbox(args: {
   payload: PayloadLike
   userId: number
   accessToken: string
   userEmail?: string
+  /** The user's hidden senders; loaded from their preferences when omitted. */
+  hiddenSenders?: string[]
   deps?: Partial<SyncDeps>
 }): Promise<SyncResult> {
   const deps = { ...defaultDeps, ...args.deps }
@@ -233,9 +244,12 @@ export async function syncMailbox(args: {
 
     let mode: SyncResult['mode'] = 'initial'
     let ids: string[]
+    let resumeHistoryId: string | null = null
     if (state?.historyId) {
       try {
-        ids = await deps.listAddedMessageIdsSince(accessToken, state.historyId)
+        const added = await deps.listAddedMessageIdsSince(accessToken, state.historyId)
+        ids = added.ids
+        resumeHistoryId = added.resumeHistoryId
         mode = 'incremental'
       } catch (err) {
         if (!(err instanceof GmailHistoryExpiredError)) throw err
@@ -252,20 +266,26 @@ export async function syncMailbox(args: {
 
     let stored = 0
     let unmatched = 0
+    let skipped = 0
     let failed = 0
     if (fresh.length > 0) {
       const index = await loadClientDomainIndex(payload, ownAddresses)
+      const hiddenSenders = args.hiddenSenders ?? (await loadHiddenSenders(payload, userId))
       const headers = await deps.getMessageHeaders(accessToken, fresh)
-      const matched = headers
+      const all = headers
         .filter((header) => isSyncableLabelSet(header.labelIds))
         .map((header) => ({ header, match: matchMessageToClient(index, header) }))
-      unmatched = matched.filter((entry) => !entry.match).length
+      unmatched = all.filter((entry) => !entry.match).length
+      const matched = all.filter(
+        ({ header, match }) => match && !isHiddenSender(header.from, hiddenSenders) && !isAutomatedMessage(header),
+      )
+      skipped = all.filter((entry) => entry.match).length - matched.length
 
       // One email that cannot be fetched or saved must not block every other
       // client email, so each is isolated. Only the error text is logged
       // (never the email content).
       const results = await mapLimited(
-        matched.filter((entry) => entry.match),
+        matched,
         4,
         async ({ header, match }) => {
           try {
@@ -305,7 +325,7 @@ export async function syncMailbox(args: {
     const stateData = {
       user: userId,
       gmailAddress: profile.emailAddress,
-      historyId: profile.historyId,
+      historyId: resumeHistoryId ?? profile.historyId,
       lastSyncAt: new Date().toISOString(),
       lastError: null,
     }
@@ -330,7 +350,9 @@ export async function syncMailbox(args: {
       stored,
       alreadyStored: already.size,
       unmatched,
+      skipped,
       failed,
+      more: resumeHistoryId !== null,
     }
   } catch (err) {
     const message = err instanceof Error ? err.message.slice(0, 300) : 'Sync failed'

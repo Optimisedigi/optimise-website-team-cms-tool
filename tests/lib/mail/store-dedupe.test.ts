@@ -81,7 +81,7 @@ describe("syncMailbox: oversize and failing emails", () => {
       deps: {
         getMailboxProfile: vi.fn(async () => ({ emailAddress: "peter@optimisedigital.online", historyId: "200" })),
         listRecentMessageIds: vi.fn(async () => ["big", "broken", "ok"]),
-        listAddedMessageIdsSince: vi.fn(async () => []),
+        listAddedMessageIdsSince: vi.fn(async () => ({ ids: [], resumeHistoryId: null })),
         getMessageHeaders: vi.fn(async (_t: string, ids: string[]) =>
           ids.map((id) => ({ messageId: id, threadId: id, from, to: "peter@optimisedigital.online", cc: "", labelIds: ["INBOX"] })),
         ),
@@ -111,7 +111,7 @@ describe("syncMailbox: oversize and failing emails", () => {
         deps: {
           getMailboxProfile: vi.fn(async () => ({ emailAddress: "peter@optimisedigital.online", historyId: "1" })),
           listRecentMessageIds: vi.fn(async () => ["a"]),
-          listAddedMessageIdsSince: vi.fn(async () => []),
+          listAddedMessageIdsSince: vi.fn(async () => ({ ids: [], resumeHistoryId: null })),
           getMessageHeaders: vi.fn(async () => [{ messageId: "a", threadId: "a", from: "jo@inthepicture.com.au", to: "", cc: "", labelIds: [] }]),
           getFullMessage: vi.fn(async () => { throw Object.assign(new Error("forbidden"), { code: 403 }); }),
         },
@@ -130,7 +130,7 @@ describe("syncMailbox", () => {
   const deps = (ids: string[], historyId: string) => ({
     getMailboxProfile: vi.fn(async () => ({ emailAddress: "peter@optimisedigital.online", historyId })),
     listRecentMessageIds: vi.fn(async () => ids),
-    listAddedMessageIdsSince: vi.fn(async () => ids),
+    listAddedMessageIdsSince: vi.fn(async () => ({ ids, resumeHistoryId: null as string | null })),
     getMessageHeaders: vi.fn(async (_t: string, list: string[]) =>
       list.map((id) => ({ messageId: id, threadId: `t-${id}`, cc: "", labelIds: ["INBOX"], ...headers[id]! })),
     ),
@@ -157,5 +157,46 @@ describe("syncMailbox", () => {
     expect(payload.tables["client-emails"]).toHaveLength(2);
     expect(payload.tables["mail-sync-states"]).toHaveLength(1);
     expect(payload.tables["mail-sync-states"][0]!.historyId).toBe("120");
+  });
+});
+
+describe("syncMailbox: hidden, automated and capped syncs", () => {
+  const clients = [{ id: 1, name: "Profiterole", websiteUrl: "profiterole.com.au", isActive: true }];
+  const to = "orders@profiterole.com.au";
+  const headers: Record<string, Record<string, string>> = {
+    person: { from: "Jo <jo@profiterole.com.au>" },
+    hidden: { from: "deals@shop.com", to },
+    noreply: { from: "no-reply@multiscreensite.com", to },
+    newsletter: { from: "team@tools.com", to, listUnsubscribe: "<mailto:u@tools.com>" },
+  };
+  const deps = (ids: string[], added: { ids: string[]; resumeHistoryId: string | null }) => ({
+    getMailboxProfile: vi.fn(async () => ({ emailAddress: "peter@optimisedigital.online", historyId: "900" })),
+    listRecentMessageIds: vi.fn(async () => ids),
+    listAddedMessageIdsSince: vi.fn(async () => added),
+    getMessageHeaders: vi.fn(async (_t: string, list: string[]) =>
+      list.map((id) => ({ messageId: id, threadId: id, to: "peter@optimisedigital.online", cc: "", labelIds: ["INBOX"], ...headers[id]! })),
+    ),
+    getFullMessage: vi.fn(async (_t: string, id: string) => ({
+      messageId: id, threadId: id, rfcMessageId: "", subject: "S", date: "", body: "B", bodyHtml: "",
+      cc: "", snippet: "", labelIds: [], to: "peter@optimisedigital.online", ...headers[id]!,
+    })),
+  });
+
+  it("matches but does not store hidden senders or automated mail", async () => {
+    const payload = fakePayload(clients);
+    const run = deps(["person", "hidden", "noreply", "newsletter"], { ids: [], resumeHistoryId: null });
+    const result = await syncMailbox({ payload: payload as never, userId: 10, accessToken: "tok", hiddenSenders: ["@shop.com"], deps: run });
+    expect(result).toMatchObject({ stored: 1, skipped: 3, unmatched: 0, more: false });
+    expect(payload.tables["client-emails"].map((row) => row.gmailMessageId)).toEqual(["person"]);
+    expect(run.getFullMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumes from where a capped incremental sync stopped instead of skipping ahead", async () => {
+    const payload = fakePayload(clients);
+    payload.tables["mail-sync-states"].push({ id: 99, user: 10, historyId: "100" });
+    const run = deps([], { ids: ["person"], resumeHistoryId: "450" });
+    const result = await syncMailbox({ payload: payload as never, userId: 10, accessToken: "tok", hiddenSenders: [], deps: run });
+    expect(result).toMatchObject({ mode: "incremental", stored: 1, more: true });
+    expect(payload.tables["mail-sync-states"][0]!.historyId).toBe("450");
   });
 });

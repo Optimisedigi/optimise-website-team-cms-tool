@@ -1,0 +1,83 @@
+import { describe, expect, it } from 'vitest'
+import { parseMailComposeContent } from '@/lib/mail/compose-content'
+import { extractInlineImages } from '@/lib/mail/compose-html'
+import { MAIL_ATTACHMENT_LIMITS } from '@/lib/mail/compose-limits'
+
+// 1x1 PNG
+const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+const PDF = Buffer.from('%PDF-1.4 test').toString('base64')
+
+describe('extractInlineImages', () => {
+  it('turns pasted data: images into cid references, once per distinct image', () => {
+    const html = `<p>Hi</p><img src="data:image/png;base64,${PNG}" alt="a"><img src="data:image/png;base64,${PNG}" alt="b"><img src="https://example.com/x.png">`
+    const result = extractInlineImages(html)
+    expect(result.inlineImages).toHaveLength(1)
+    expect(result.inlineImages[0]).toMatchObject({ contentId: 'image1@optimate.mail', mediaType: 'image/png', data: PNG })
+    expect(result.html).toBe(
+      '<p>Hi</p><img src="cid:image1@optimate.mail" alt="a"><img src="cid:image1@optimate.mail" alt="b"><img src="https://example.com/x.png">',
+    )
+  })
+})
+
+describe('parseMailComposeContent', () => {
+  it('accepts formatted HTML with a table, an inline image and an attached file', () => {
+    const result = parseMailComposeContent({
+      html: '<p class="x"><b>Hi</b> <i>there</i> <u>Sam</u></p><table><tr><td>A</td></tr></table><img src="cid:image1@optimate.mail">',
+      inlineImages: [{ contentId: 'image1@optimate.mail', name: 'image-1.png', mediaType: 'image/png', data: PNG }],
+      attachments: [{ name: 'quote.pdf', mediaType: 'application/pdf', data: PDF }],
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.html).toBe('<p><b>Hi</b> <i>there</i> <u>Sam</u></p><table><tr><td>A</td></tr></table><img src="cid:image1@optimate.mail">')
+    expect(result.value.inlineImages).toHaveLength(1)
+    expect(result.value.attachments[0]).toMatchObject({ filename: 'quote.pdf', mimeType: 'application/pdf' })
+  })
+
+  it('removes scripts, handlers and images that are not cid: or https', () => {
+    const result = parseMailComposeContent({
+      html: '<p onclick="steal()">Hi</p><script>alert(1)</script><img src="javascript:alert(1)"><img src="data:image/png;base64,AAAA"><img src="cid:unknown@x.y"><img src="https://example.com/a.png">',
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.html).toBe('<p>Hi</p><img src="https://example.com/a.png">')
+  })
+
+  it('drops inline images the body no longer shows', () => {
+    const result = parseMailComposeContent({
+      html: '<p>Hi</p>',
+      inlineImages: [{ contentId: 'image1@optimate.mail', name: 'image-1.png', mediaType: 'image/png', data: PNG }],
+    })
+    expect(result.ok && result.value.inlineImages).toEqual([])
+  })
+
+  it('rejects an empty body, fake images, blocked file types and oversized emails', () => {
+    expect(parseMailComposeContent({ html: '<p>&nbsp;</p>' })).toEqual({ ok: false, error: 'The email body is empty.' })
+    expect(
+      parseMailComposeContent({
+        html: '<img src="cid:image1@optimate.mail">',
+        inlineImages: [{ contentId: 'image1@optimate.mail', name: 'x.png', mediaType: 'image/png', data: PDF }],
+      }),
+    ).toEqual({ ok: false, error: 'x.png is not a valid image.' })
+    expect(
+      parseMailComposeContent({ html: '<p>Hi</p>', attachments: [{ name: 'setup.exe', mediaType: 'application/x-msdownload', data: PDF }] }),
+    ).toEqual({ ok: false, error: "setup.exe can't be attached: Gmail blocks .exe files." })
+
+    const big = Buffer.alloc(MAIL_ATTACHMENT_LIMITS.maxTotalBytes / 2 + 1).toString('base64')
+    const tooBig = parseMailComposeContent({
+      html: '<p>Hi</p>',
+      attachments: [
+        { name: 'a.bin', mediaType: 'application/octet-stream', data: big },
+        { name: 'b.bin', mediaType: 'application/octet-stream', data: big },
+      ],
+    })
+    expect(tooBig).toEqual({ ok: false, error: 'Images and attachments can total up to 3 MB per email.' })
+  })
+
+  it('falls back to a safe MIME type for odd attachment types', () => {
+    const result = parseMailComposeContent({
+      html: '<p>Hi</p>',
+      attachments: [{ name: 'notes.txt', mediaType: 'text/plain\r\nX-Evil: 1', data: PDF }],
+    })
+    expect(result.ok && result.value.attachments[0]?.mimeType).toBe('application/octet-stream')
+  })
+})

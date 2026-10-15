@@ -124,9 +124,23 @@ export async function refreshGmailAccessToken(refreshToken: string): Promise<{
   };
 }
 
-export interface GmailDraftAttachment {
+/** A file attached to an email (any type; the Mail view validates it first). */
+export interface GmailFileAttachment {
   filename: string;
+  mimeType: string;
+  content: Buffer;
+}
+
+/** OptiMate's image-only attachments. */
+export interface GmailDraftAttachment extends GmailFileAttachment {
   mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+}
+
+/** An image shown in the email body, referenced from the HTML as `cid:<contentId>`. */
+export interface GmailInlineImage {
+  contentId: string;
+  filename: string;
+  mimeType: string;
   content: Buffer;
 }
 
@@ -137,6 +151,14 @@ function safeMimeFilename(filename: string): string {
     .trim()
     .slice(0, 180);
   return cleaned || "image-attachment";
+}
+
+const MIME_TYPE_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/i;
+const CONTENT_ID_RE = /^[A-Za-z0-9._-]{1,128}@[A-Za-z0-9.-]{1,128}$/;
+
+/** MIME header values come from callers; anything unexpected becomes a safe default. */
+function safeMimeType(mimeType: string): string {
+  return MIME_TYPE_RE.test(mimeType) ? mimeType : "application/octet-stream";
 }
 
 function wrapBase64(content: Buffer): string {
@@ -153,9 +175,11 @@ export function buildMimeMessage(args: {
   htmlBody: string;
   /** RFC 822 Message-ID of the message being replied to, for threading. */
   inReplyTo?: string;
-  attachments?: GmailDraftAttachment[];
+  attachments?: GmailFileAttachment[];
+  /** Images embedded in the body (multipart/related), referenced as cid: URLs. */
+  inlineImages?: GmailInlineImage[];
 }): string {
-  const { to, cc, subject, htmlBody, inReplyTo, attachments = [] } = args;
+  const { to, cc, subject, htmlBody, inReplyTo, attachments = [], inlineImages = [] } = args;
   // Encode subject as RFC 2047 if it contains non-ASCII to keep Gmail happy.
   const isAscii = /^[\x20-\x7E]*$/.test(subject);
   const encodedSubject = isAscii
@@ -171,29 +195,42 @@ export function buildMimeMessage(args: {
     lines.push(`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`);
   }
 
+  const htmlPart = ['Content-Type: text/html; charset="UTF-8"', "Content-Transfer-Encoding: 7bit", "", htmlBody];
+  const newBoundary = () => `----=_OptiMate_${crypto.randomUUID().replaceAll("-", "")}`;
+
+  // Body = the HTML alone, or HTML + its inline images as multipart/related.
+  let bodyPart: string[] = htmlPart;
+  if (inlineImages.length > 0) {
+    const related = newBoundary();
+    bodyPart = [`Content-Type: multipart/related; boundary="${related}"`, "", `--${related}`, ...htmlPart];
+    inlineImages.forEach((image) => {
+      if (!CONTENT_ID_RE.test(image.contentId)) throw new Error("Invalid inline image Content-ID");
+      const filename = safeMimeFilename(image.filename);
+      bodyPart.push(
+        `--${related}`,
+        `Content-Type: ${safeMimeType(image.mimeType)}; name="${filename.replace(/"/g, "'")}"`,
+        "Content-Transfer-Encoding: base64",
+        `Content-ID: <${image.contentId}>`,
+        `Content-Disposition: inline; filename*=UTF-8''${encodeURIComponent(filename)}`,
+        "",
+        wrapBase64(image.content),
+      );
+    });
+    bodyPart.push(`--${related}--`, "");
+  }
+
   if (attachments.length === 0) {
-    lines.push(
-      'Content-Type: text/html; charset="UTF-8"',
-      "Content-Transfer-Encoding: 7bit",
-      "",
-      htmlBody,
-    );
+    lines.push(...bodyPart);
   } else {
-    const boundary = `----=_OptiMate_${crypto.randomUUID().replaceAll("-", "")}`;
+    const boundary = newBoundary();
     lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`, "");
-    lines.push(
-      `--${boundary}`,
-      'Content-Type: text/html; charset="UTF-8"',
-      "Content-Transfer-Encoding: 7bit",
-      "",
-      htmlBody,
-    );
+    lines.push(`--${boundary}`, ...bodyPart);
     attachments.forEach((attachment) => {
       const filename = safeMimeFilename(attachment.filename);
       const encodedFilename = encodeURIComponent(filename);
       lines.push(
         `--${boundary}`,
-        `Content-Type: ${attachment.mimeType}; name="${filename.replace(/"/g, "'")}"`,
+        `Content-Type: ${safeMimeType(attachment.mimeType)}; name="${filename.replace(/"/g, "'")}"`,
         "Content-Transfer-Encoding: base64",
         `Content-Disposition: attachment; filename*=UTF-8''${encodedFilename}`,
         "",
@@ -285,8 +322,10 @@ export async function createGmailDraft(
     inReplyTo?: string;
     /** Append the connected Gmail account's configured signature. Defaults to true. */
     appendSignature?: boolean;
-    /** Validated image files to attach to the draft. */
-    attachments?: GmailDraftAttachment[];
+    /** Validated files to attach to the draft. */
+    attachments?: GmailFileAttachment[];
+    /** Validated images embedded in the body as cid: references. */
+    inlineImages?: GmailInlineImage[];
     /** Replace this existing draft instead of creating a new one. */
     draftId?: string;
   },
@@ -306,6 +345,7 @@ export async function createGmailDraft(
     htmlBody,
     inReplyTo: args.inReplyTo,
     attachments: args.attachments,
+    inlineImages: args.inlineImages,
   });
 
   const message = args.threadId ? { raw, threadId: args.threadId } : { raw };
@@ -343,6 +383,8 @@ export async function sendGmailMessage(
     threadId?: string;
     inReplyTo?: string;
     appendSignature?: boolean;
+    attachments?: GmailFileAttachment[];
+    inlineImages?: GmailInlineImage[];
   },
 ): Promise<{ messageId: string; threadId: string }> {
   const oauth2Client = getOAuth2Client();
@@ -358,6 +400,8 @@ export async function sendGmailMessage(
     subject: removeForbiddenDashes(args.subject),
     htmlBody: formatGmailDraftHtml(signed),
     inReplyTo: args.inReplyTo,
+    attachments: args.attachments,
+    inlineImages: args.inlineImages,
   });
   const res = await gmail.users.messages.send({
     userId: "me",

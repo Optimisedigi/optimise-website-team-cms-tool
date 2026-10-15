@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './MailApp.module.css'
 import EmailBody from './EmailBody'
-import ComposeWindow, { type ComposeState } from './ComposeWindow'
+import ComposeWindow, { type ComposeContent, type ComposeFile, type ComposeState } from './ComposeWindow'
 import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
 import { MAIL_DRAFT_QUERY_PARAM } from '../../lib/mail/drafts'
@@ -59,7 +59,8 @@ interface DraftResponse {
   to: string
   cc: string
   subject: string
-  body: string
+  html: string
+  attachments: ComposeFile[]
   threadId: string
   replyTo: { messageId: string; from: string; subject: string } | null
 }
@@ -138,6 +139,14 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [composer, setComposer] = useState<(ComposeState & { key: number }) | null>(null)
   const [summary, setSummary] = useState<{ email: ThreadMessage; text: string; model: string; busy: boolean; note: string } | null>(null)
   const [assignClientId, setAssignClientId] = useState('')
+  // Stored-email cleanup (hidden senders / automated mail): counts first, delete on confirm.
+  const [cleanup, setCleanup] = useState<{
+    busy: boolean
+    hidden: number | null
+    automated: number | null
+    more: boolean
+    note: string
+  }>({ busy: false, hidden: null, automated: null, more: false, note: '' })
   // Gmail signature shown in the compose window: '' = none set, null = unknown.
   const [signatureHtml, setSignatureHtml] = useState<string | null>(null)
   const threadRequest = useRef(0)
@@ -266,7 +275,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           to: draft.to,
           cc: draft.cc,
           subject: draft.subject,
-          body: draft.body,
+          html: draft.html,
+          attachments: draft.attachments,
           draftId: draft.draftId,
         })
       } catch (err) {
@@ -341,6 +351,40 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }
 
+  async function checkCleanup() {
+    setCleanup({ busy: true, hidden: null, automated: null, more: false, note: '' })
+    try {
+      const data = await api<{ hidden: number; automated: number; more: boolean }>('/api/mail/cleanup')
+      setCleanup({ busy: false, hidden: data.hidden, automated: data.automated, more: data.more, note: '' })
+    } catch (err) {
+      setCleanup({ busy: false, hidden: null, automated: null, more: false, note: (err as Error).message })
+    }
+  }
+
+  async function runCleanup() {
+    const categories = [cleanup.hidden ? 'hidden' : '', cleanup.automated ? 'automated' : ''].filter(Boolean)
+    if (categories.length === 0) return
+    const total = (cleanup.hidden ?? 0) + (cleanup.automated ?? 0)
+    if (!window.confirm(`Delete ${total} stored email${total === 1 ? '' : 's'} from the CMS? Gmail is not changed.`)) return
+    setCleanup((current) => ({ ...current, busy: true, note: '' }))
+    try {
+      const data = await api<{ deleted: { hidden: number; automated: number }; more: boolean }>('/api/mail/cleanup', {
+        method: 'POST',
+        body: JSON.stringify({ categories }),
+      })
+      const deleted = data.deleted.hidden + data.deleted.automated
+      setCleanup({
+        busy: false,
+        hidden: null,
+        automated: null,
+        more: false,
+        note: `Deleted ${deleted} stored email${deleted === 1 ? '' : 's'}.${data.more ? ' More remain: check again.' : ''}`,
+      })
+    } catch (err) {
+      setCleanup((current) => ({ ...current, busy: false, note: (err as Error).message }))
+    }
+  }
+
   async function modify(action: 'archive' | 'read' | 'unread') {
     if (!selectedThreadId) return
     setActionNote('')
@@ -371,24 +415,27 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       to: senderAddress(message.from),
       cc: '',
       subject: replySubject(message.subject),
-      body: '',
+      html: '',
+      attachments: [],
     })
   }
 
   function startNew() {
     setSummary(null)
-    setComposer({ key: ++composeKey.current, mode: 'new', replyTo: null, to: '', cc: '', subject: '', body: '' })
+    setComposer({ key: ++composeKey.current, mode: 'new', replyTo: null, to: '', cc: '', subject: '', html: '', attachments: [] })
   }
 
   // Send is only ever reached from the compose window's Send button.
-  async function sendComposed(state: ComposeState) {
+  async function sendComposed(state: ComposeState, content: ComposeContent) {
     const data = await api<{ client: { name: string } | null; draftNote?: string | null }>('/api/mail/send', {
       method: 'POST',
       body: JSON.stringify({
         to: state.to,
         cc: state.cc,
         subject: state.subject,
-        body: state.body,
+        html: content.html,
+        inlineImages: content.inlineImages,
+        attachments: content.attachments,
         replyToMessageId: state.replyTo?.messageId ?? '',
         ...(state.draftId ? { draftId: state.draftId } : {}),
       }),
@@ -401,13 +448,15 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     if (thread && state.mode === 'reply') void openThread(thread)
   }
 
-  async function saveComposedDraft(state: ComposeState): Promise<string | undefined> {
+  async function saveComposedDraft(state: ComposeState, content: ComposeContent): Promise<string | undefined> {
     const data = await api<{ draftId?: string }>('/api/gmail/draft', {
       method: 'POST',
       body: JSON.stringify({
         to: state.to,
         subject: state.subject,
-        body: state.body,
+        html: content.html,
+        inlineImages: content.inlineImages,
+        attachments: content.attachments,
         ...(state.replyTo ? { replyToMessageId: state.replyTo.messageId } : {}),
         ...(state.draftId ? { draftId: state.draftId } : {}),
       }),
@@ -517,7 +566,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         <div className={styles.panel} style={{ marginTop: 0 }}>
           <h3 className={styles.panelTitle}>Hidden senders</h3>
           <p className={styles.muted}>
-            Emails from these addresses or domains are left out of this inbox. They stay in Gmail untouched and still link to clients.
+            Emails from these addresses or domains are left out of this inbox and are no longer saved to client timelines. They stay in Gmail untouched.
           </p>
           {hiddenSenders.length === 0 ? <p className={styles.muted}>Nothing hidden yet.</p> : null}
           <ul className={styles.hiddenList}>
@@ -554,6 +603,32 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
               Hide
             </button>
           </form>
+
+          <h3 className={styles.panelTitle}>Stored emails</h3>
+          <p className={styles.muted}>
+            Remove emails already saved to clients that are from hidden senders or automated (no-reply, notifications, newsletters). Emails you
+            assigned by hand or summarised to a timeline are kept. Gmail is not changed.
+          </p>
+          <div className={styles.actions}>
+            <button type="button" className={styles.btn} onClick={() => void checkCleanup()} disabled={cleanup.busy}>
+              {cleanup.busy && cleanup.hidden === null ? 'Checking…' : 'Check stored emails'}
+            </button>
+            {cleanup.hidden !== null && cleanup.automated !== null ? (
+              cleanup.hidden + cleanup.automated > 0 ? (
+                <>
+                  <span className={styles.muted}>
+                    {cleanup.hidden} from hidden senders · {cleanup.automated} automated{cleanup.more ? ' (first 1,000 checked)' : ''}
+                  </span>
+                  <button type="button" className={styles.btn} onClick={() => void runCleanup()} disabled={cleanup.busy}>
+                    {cleanup.busy ? 'Deleting…' : `Delete ${cleanup.hidden + cleanup.automated}`}
+                  </button>
+                </>
+              ) : (
+                <span className={styles.muted}>Nothing to remove.</span>
+              )
+            ) : null}
+          </div>
+          {cleanup.note ? <p className={styles.note}>{cleanup.note}</p> : null}
         </div>
       ) : null}
 

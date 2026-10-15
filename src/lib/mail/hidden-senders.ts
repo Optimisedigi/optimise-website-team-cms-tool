@@ -9,9 +9,11 @@ import { extractEmailAddresses, normaliseDomain } from "./client-matching";
  * Payload's built-in per-user preferences (payload-preferences, key below),
  * so it follows the user across devices and needs no schema change.
  *
- * View-only: it is turned into a Gmail search so hidden mail never appears in
- * the inbox list. Nothing is deleted, archived or changed in Gmail, and client
- * matching/sync are unaffected.
+ * It is turned into a Gmail search so hidden mail never appears in the inbox
+ * list, and sync no longer stores hidden senders' emails against clients
+ * (src/lib/mail/store.ts). Nothing is deleted, archived or changed in Gmail;
+ * already-stored rows are removed only via Mail's "Check stored emails"
+ * cleanup (src/lib/mail/cleanup.ts).
  */
 
 export const HIDDEN_SENDERS_PREF_KEY = "mail-hidden-senders";

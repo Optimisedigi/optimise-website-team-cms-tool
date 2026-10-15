@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendGmailMessage } from "@/lib/gmail-service";
-import { markdownLiteToHtml } from "@/lib/email-draft-markdown";
+import { parseMailComposeContent } from "@/lib/mail/compose-content";
 import { buildGmailReplyContext } from "@/lib/gmail-reply-context";
 import { deleteDraft, getFullMessage } from "@/lib/mail/gmail-mail";
 import { matchMessageToClient } from "@/lib/mail/client-matching";
@@ -9,10 +9,11 @@ import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireM
 
 /**
  * POST /api/mail/send
- * Body: { to, cc?, subject, body, replyToMessageId?, draftId? }
+ * Body: { to, cc?, subject, html, inlineImages?, attachments?, replyToMessageId?, draftId? }
  *
- * Sends mail. Only reachable from the Send button: the user's edited text
- * is sent as-is (the model never calls this route). For replies, thread id
+ * Sends mail. Only reachable from the Send button: the user's edited HTML
+ * is sent as-is after validation (the model never calls this route). Inline
+ * images arrive as cid: references with their data; attachments total ≤ 3 MB. For replies, thread id
  * and In-Reply-To come from the original message fetched server-side.
  * The sent message is matched and stored straight away if it is to a client.
  * When the email was opened from a Gmail draft, that draft is deleted after
@@ -27,11 +28,20 @@ function cleanHeader(value: unknown): string {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
   if (ctx instanceof NextResponse) return ctx;
-  const body = await readJson<{ to?: unknown; cc?: unknown; subject?: unknown; body?: unknown; replyToMessageId?: unknown; draftId?: unknown }>(req);
+  const body = await readJson<{
+    to?: unknown;
+    cc?: unknown;
+    subject?: unknown;
+    html?: unknown;
+    inlineImages?: unknown;
+    attachments?: unknown;
+    replyToMessageId?: unknown;
+    draftId?: unknown;
+  }>(req);
   if (!body) return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
 
-  const text = typeof body.body === "string" ? body.body.trim() : "";
-  if (!text) return NextResponse.json({ error: "The email body is empty." }, { status: 400 });
+  const content = parseMailComposeContent({ html: body.html, inlineImages: body.inlineImages, attachments: body.attachments });
+  if (!content.ok) return NextResponse.json({ error: content.error }, { status: 400 });
   const hasReply = typeof body.replyToMessageId === "string" && body.replyToMessageId !== "";
   const replyToMessageId = hasReply ? parseGmailId(body.replyToMessageId) : null;
   if (hasReply && !replyToMessageId) return NextResponse.json({ error: "Invalid reply message id." }, { status: 400 });
@@ -61,7 +71,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       to,
       cc: cleanHeader(body.cc) || undefined,
       subject,
-      htmlBody: markdownLiteToHtml(text),
+      htmlBody: content.value.html,
+      ...(content.value.inlineImages.length > 0 ? { inlineImages: content.value.inlineImages } : {}),
+      ...(content.value.attachments.length > 0 ? { attachments: content.value.attachments } : {}),
       ...(reply?.threadId ? { threadId: reply.threadId } : {}),
       ...(reply?.inReplyTo ? { inReplyTo: reply.inReplyTo } : {}),
     });
