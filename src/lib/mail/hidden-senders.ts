@@ -69,12 +69,24 @@ export function isHiddenSender(from: string | null | undefined, list: string[]):
 
 /** Read the user's hidden-senders list (server side). Missing or bad data → []. */
 export async function loadHiddenSenders(payload: Pick<Payload, "find">, userId: number): Promise<string[]> {
+  return loadSenderListPreference(payload, userId, HIDDEN_SENDERS_PREF_KEY);
+}
+
+/**
+ * Read a `{ senders: [...] }` list stored in the user's payload-preferences
+ * under `key` (hidden senders, client senders). Missing or bad data → [].
+ */
+export async function loadSenderListPreference(
+  payload: Pick<Payload, "find">,
+  userId: number,
+  key: string,
+): Promise<string[]> {
   try {
     const res = await payload.find({
       collection: "payload-preferences",
       where: {
         and: [
-          { key: { equals: HIDDEN_SENDERS_PREF_KEY } },
+          { key: { equals: key } },
           { "user.value": { equals: userId } },
           { "user.relationTo": { equals: "users" } },
         ],

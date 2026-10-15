@@ -98,13 +98,15 @@ describe('Dashboard traffic charts', () => {
     expect(labels).toEqual(MONTH_LABELS)
   })
 
-  it('stacks GA4 monthly sessions by channel directly above the Search Console card', async () => {
+  it('stacks GA4 monthly sessions by channel above the unread client emails panel, then Search Console', async () => {
     renderDashboard()
 
     const ga4Card = (await screen.findByText('GA4 Sessions by Channel')).closest('.od-box')
+    const mailPanel = screen.getByRole('region', { name: 'Unread client emails' })
     const gscCard = screen.getByText('Google Search Console').closest('.od-box')
 
-    expect(ga4Card?.nextElementSibling).toBe(gscCard)
+    expect(ga4Card?.nextElementSibling).toBe(mailPanel)
+    expect(mailPanel.nextElementSibling).toBe(gscCard)
 
     await waitFor(() => {
       expect(document.querySelectorAll('.od-chart__bar-group')).toHaveLength(12)

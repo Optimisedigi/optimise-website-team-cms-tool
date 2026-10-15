@@ -3,6 +3,7 @@ import { listInboxThreads } from "@/lib/mail/gmail-mail";
 import { matchMessageToClient } from "@/lib/mail/client-matching";
 import { loadClientDomainIndex } from "@/lib/mail/store";
 import { hiddenSendersQuery, loadHiddenSenders } from "@/lib/mail/hidden-senders";
+import { loadClientSenders } from "@/lib/mail/client-senders";
 import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
@@ -12,6 +13,7 @@ import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/ma
  * Each row carries a deterministic client match from headers. No model calls.
  * The user's hidden senders are excluded via the Gmail search itself, so
  * paging and search keep working (view-only; nothing changes in Gmail).
+ * The starred client senders (dashboard panel filter) are returned too.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
@@ -21,7 +23,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const pageToken = req.nextUrl.searchParams.get("pageToken") ?? undefined;
   const search = (req.nextUrl.searchParams.get("q") ?? "").slice(0, 200);
-  const hiddenSenders = await loadHiddenSenders(ctx.payload, ctx.user.id);
+  const [hiddenSenders, clientSenders] = await Promise.all([
+    loadHiddenSenders(ctx.payload, ctx.user.id),
+    loadClientSenders(ctx.payload, ctx.user.id),
+  ]);
   const q = [search, hiddenSendersQuery(hiddenSenders)].filter(Boolean).join(" ") || undefined;
 
   try {
@@ -32,6 +37,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       account: token.email,
       hiddenSenders,
+      clientSenders,
       nextPageToken,
       threads: threads.map((thread) => {
         const match = matchMessageToClient(index, thread);

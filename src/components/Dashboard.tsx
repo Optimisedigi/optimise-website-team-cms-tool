@@ -21,6 +21,7 @@ function clampTooltipCenter(center: number, width: number): number {
 import RocketSplash from './RocketSplash'
 import SalesFunnelDashboard from './SalesFunnelDashboard'
 import DripEmailTracker from './DripEmailTracker'
+import ClientUnreadMailCard from './ClientUnreadMailCard'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -877,6 +878,9 @@ const Dashboard = () => {
 
           {/* GA4 sessions by channel (monthly, stacked) */}
           <Ga4MonthlyChannelsCard />
+
+          {/* Unread emails from starred client senders (Mail) */}
+          <ClientUnreadMailCard />
 
           {/* Search Console */}
           <GscCard gsc={data.gsc} gscMonthly={data.gscMonthly} refreshing={gscRefreshing} onRefresh={handleGscRefresh} onSeed={handleGscSeed} seeding={gscSeeding} />

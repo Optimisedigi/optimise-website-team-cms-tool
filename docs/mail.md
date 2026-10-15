@@ -53,6 +53,15 @@ A slide-up on every admin page tells you when a known client has emailed you, wi
 - **How it checks.** `ClientEmailAlert` (mounted by `OptiMateLauncher`) calls `GET /api/mail/client-alerts?sync=1` every 60 seconds while the tab is visible. The route runs the normal incremental sync for your own mailbox at most once every ~55 seconds (across all your tabs), then returns your undismissed alerts. A sync error never breaks the panel. Users without Mail access or without Gmail connected see nothing.
 - **Setup.** None beyond Mail itself: Gmail connected and the Mail feature. No new tables or migration: the notification kind is a new select value on an existing text column.
 
+## Client senders and the dashboard panel ("Unread client emails")
+
+The dashboard shows a small **Unread client emails** panel under *GA4 Sessions by Channel*. It lists only unread inbox emails from senders you starred as clients.
+
+- **Starring.** In Mail, open an email and click **☆ Mark as client**. For a company domain you choose the address or the whole `@domain` (subdomains included), like Hide sender. **★ Client** shows it is starred; click it to unstar. **★ Clients** in the toolbar lists, adds and removes entries. Starred senders get a ★ in the inbox list.
+- **Storage.** Same as hidden senders: Payload per-user preferences, key `mail-client-senders` (`src/lib/mail/client-senders.ts`). Per user, no schema change or migration, nothing changed in Gmail. This list is separate from automatic client matching: only starred senders appear in the panel.
+- **Filtering.** `GET /api/mail/client-unread` searches your own inbox for `is:unread` mail from the starred senders, then re-checks every thread in code (unread, and the sender's actual address/domain is starred), so read mail and non-client senders never appear. With no starred senders Gmail is not queried. At most 8 rows are returned; the panel links to Mail when there are more. A starred sender shows even if it is also on your hidden list.
+- **States.** Loading, an error with Retry, **Connect Gmail** when Gmail isn't connected, a prompt to star senders when none are set, and *No unread emails from client senders* when nothing matches. Users without the Mail feature don't see the panel. Rows open the thread in Mail (`/admin/mail?thread=<id>`), which marks it read.
+
 ## Behaviour notes
 
 - Opening an unread thread marks it read, as Gmail does. **Mark unread** undoes that.

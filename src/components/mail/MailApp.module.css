@@ -376,3 +376,15 @@
 .hiddenNote {
   display: inline-block;
 }
+
+/* Client senders: star marker in inbox rows and the "★ Client" toggle. */
+.star {
+  color: #d97706;
+  font-weight: 400;
+}
+
+.starred {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+}

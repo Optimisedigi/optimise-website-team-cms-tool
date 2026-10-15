@@ -5,6 +5,12 @@ import styles from './MailApp.module.css'
 import EmailBody from './EmailBody'
 import ComposeWindow, { type ComposeContent, type ComposeFile, type ComposeState } from './ComposeWindow'
 import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
+import {
+  CLIENT_SENDERS_PREF_KEY,
+  isClientSender,
+  matchingClientSenderEntries,
+  normaliseClientSender,
+} from '../../lib/mail/client-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
 import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
 
@@ -123,6 +129,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [hiddenInput, setHiddenInput] = useState('')
   const [hideChoice, setHideChoice] = useState(false)
   const [lastHidden, setLastHidden] = useState<string | null>(null)
+  // Starred client senders: their unread mail shows in the dashboard panel (Payload user preferences).
+  const [clientSenders, setClientSenders] = useState<string[]>([])
+  const [showClientPanel, setShowClientPanel] = useState(false)
+  const [clientInput, setClientInput] = useState('')
+  const [starChoice, setStarChoice] = useState(false)
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [listLoading, setListLoading] = useState(true)
   const [error, setError] = useState<{ message: string; connectUrl?: string } | null>(null)
@@ -164,11 +175,18 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         const params = new URLSearchParams()
         if (opts.pageToken) params.set('pageToken', opts.pageToken)
         if (opts.q) params.set('q', opts.q)
-        const data = await api<{ threads: ThreadRow[]; nextPageToken: string | null; account: string; hiddenSenders?: string[] }>(
+        const data = await api<{
+          threads: ThreadRow[]
+          nextPageToken: string | null
+          account: string
+          hiddenSenders?: string[]
+          clientSenders?: string[]
+        }>(
           `/api/mail/inbox?${params.toString()}`,
         )
         setAccount(data.account)
         if (Array.isArray(data.hiddenSenders)) setHiddenSenders(data.hiddenSenders)
+        if (Array.isArray(data.clientSenders)) setClientSenders(data.clientSenders)
         setThreads((current) => (opts.append ? [...current, ...data.threads] : data.threads))
         setNextPageToken(data.nextPageToken)
         setError(null)
@@ -213,6 +231,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       const request = ++threadRequest.current
       setSelectedThreadId(thread.threadId)
       setHideChoice(false)
+      setStarChoice(false)
       setComposer(null)
       setSummary(null)
       setActionNote('')
@@ -329,6 +348,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     const domain = normaliseDomain(address)
     return { address, domain: domain && !SHARED_MAILBOX_DOMAINS.has(domain) ? domain : '' }
   }, [messages, account])
+  // Client-sender entries covering the open thread's sender (address or domain).
+  const starredEntries = useMemo(
+    () => (hideTarget ? matchingClientSenderEntries(hideTarget.address, clientSenders) : []),
+    [hideTarget, clientSenders],
+  )
 
   // ── Hidden senders ──
   // Saved to Payload's per-user preferences; the inbox route turns the list
@@ -371,6 +395,35 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     } catch (err) {
       setError({ message: `Could not update hidden senders: ${(err as Error).message}` })
     }
+  }
+
+  // ── Client senders ──
+  // Saved to Payload's per-user preferences. Only unread inbox mail from these
+  // senders appears in the dashboard's "Unread client emails" panel.
+  async function saveClientSenders(next: string[]) {
+    const previous = clientSenders
+    setClientSenders(next)
+    try {
+      await api(`/api/payload-preferences/${CLIENT_SENDERS_PREF_KEY}`, {
+        method: 'POST',
+        body: JSON.stringify({ value: { senders: next } }),
+      })
+    } catch (err) {
+      setClientSenders(previous)
+      setError({ message: `Could not update client senders: ${(err as Error).message}` })
+    }
+  }
+
+  async function starSender(raw: string) {
+    const entry = normaliseClientSender(raw)
+    setStarChoice(false)
+    if (!entry || clientSenders.includes(entry)) return
+    await saveClientSenders([...clientSenders, entry])
+  }
+
+  async function unstarEntries(entries: string[]) {
+    if (entries.length === 0) return
+    await saveClientSenders(clientSenders.filter((item) => !entries.includes(item)))
   }
 
   async function checkCleanup() {
@@ -573,6 +626,15 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         >
           Hidden{hiddenSenders.length ? ` (${hiddenSenders.length})` : ''}
         </button>
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => setShowClientPanel((open) => !open)}
+          aria-expanded={showClientPanel}
+          title="Senders whose unread emails show on the dashboard"
+        >
+          ★ Clients{clientSenders.length ? ` (${clientSenders.length})` : ''}
+        </button>
         <button type="button" className={styles.btn} onClick={() => void refresh()} disabled={listLoading}>
           Refresh
         </button>
@@ -592,6 +654,51 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           <button type="button" className={styles.linkBtn} onClick={() => setError(null)}>
             Dismiss
           </button>
+        </div>
+      ) : null}
+
+      {showClientPanel ? (
+        <div className={styles.panel} style={{ marginTop: 0 }}>
+          <h3 className={styles.panelTitle}>Client senders</h3>
+          <p className={styles.muted}>
+            Unread emails from these addresses or domains show in the dashboard&apos;s Unread client emails panel. Star a sender from an open
+            email, or add one here. Gmail is not changed.
+          </p>
+          {clientSenders.length === 0 ? <p className={styles.muted}>No client senders yet.</p> : null}
+          <ul className={styles.hiddenList}>
+            {clientSenders.map((entry) => (
+              <li key={entry}>
+                <span>{entry.startsWith('@') ? `Anyone at ${entry}` : entry}</span>
+                <button type="button" className={styles.linkBtn} onClick={() => void unstarEntries([entry])}>
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+          <form
+            className={styles.aiRow}
+            onSubmit={(event) => {
+              event.preventDefault()
+              const entry = normaliseClientSender(clientInput)
+              if (!entry) {
+                setError({ message: 'Enter an email address (jo@client.com) or a domain (@client.com).' })
+                return
+              }
+              setClientInput('')
+              void starSender(entry)
+            }}
+          >
+            <input
+              className={styles.instruction}
+              value={clientInput}
+              onChange={(e) => setClientInput(e.target.value)}
+              placeholder="Add an address (jo@client.com) or a domain (@client.com)"
+              aria-label="Client sender to add"
+            />
+            <button type="submit" className={styles.btn}>
+              Add
+            </button>
+          </form>
         </div>
       ) : null}
 
@@ -676,6 +783,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
               >
                 <span className={styles.rowTop}>
                   <span className={styles.sender}>
+                    {isClientSender(thread.from, clientSenders) ? (
+                      <span className={styles.star} role="img" title="Client sender" aria-label="Client sender">
+                        ★{' '}
+                      </span>
+                    ) : null}
                     {senderName(thread.from)}
                     {thread.messageCount > 1 ? <span className={styles.count}>{thread.messageCount}</span> : null}
                   </span>
@@ -727,6 +839,41 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                       Mark unread
                     </button>
                   )}
+                  {hideTarget ? (
+                    starredEntries.length > 0 ? (
+                      <button
+                        type="button"
+                        className={`${styles.btn} ${styles.starred}`}
+                        onClick={() => void unstarEntries(starredEntries)}
+                        aria-pressed="true"
+                        title={`Client sender (${starredEntries.join(', ')}). Click to unstar.`}
+                      >
+                        ★ Client
+                      </button>
+                    ) : hideTarget.domain && starChoice ? (
+                      <span className={styles.assign}>
+                        <button type="button" className={styles.btn} onClick={() => void starSender(hideTarget.address)}>
+                          Star {hideTarget.address}
+                        </button>
+                        <button type="button" className={styles.btn} onClick={() => void starSender(`@${hideTarget.domain}`)}>
+                          Star all @{hideTarget.domain}
+                        </button>
+                        <button type="button" className={styles.linkBtn} onClick={() => setStarChoice(false)}>
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.btn}
+                        onClick={() => (hideTarget.domain ? setStarChoice(true) : void starSender(hideTarget.address))}
+                        aria-pressed="false"
+                        title="Mark as a client sender: their unread emails show on the dashboard"
+                      >
+                        ☆ Mark as client
+                      </button>
+                    )
+                  ) : null}
                   {hideTarget ? (
                     hideTarget.domain ? (
                       hideChoice ? (
