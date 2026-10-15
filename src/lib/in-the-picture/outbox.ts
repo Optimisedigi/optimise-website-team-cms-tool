@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { APIError, type Payload, type PayloadRequest } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 import type { BlogPost } from '@/payload-types'
 import { configuredClientId, websiteUrl } from './config'
-import { publishedEvent, reviewRequestedEvent } from './article'
+import { editorError, publishedEvent, reviewRequestedEvent } from './article'
 
 async function hydratedPost(
   payload: Payload,
@@ -54,7 +54,7 @@ async function checkedArticleEvent(
       ...(req ? { req } : {}),
     })
     if (!idea.docs.length)
-      throw new APIError('The linked website Blog ID does not belong to this client', 400, undefined, true)
+      throw editorError('The linked website Blog ID does not belong to this client')
   }
   const client = await payload.findByID({
     collection: 'clients',
@@ -66,13 +66,10 @@ async function checkedArticleEvent(
   // Editor-correctable: a public 400 shows this message in the admin toast
   // instead of Payload's generic "Something went wrong" for plain errors.
   if (!client.authors?.some((author) => author.name === post.author))
-    throw new APIError(
+    throw editorError(
       client.authors?.length
         ? 'Byline does not match this client’s public blog-author profile. Choose an author from the Author field.'
         : 'This client has no author profiles. Add one in Client > Authors, then choose it in the Author field.',
-      400,
-      undefined,
-      true,
     )
   const hydrated = await hydratedPost(payload, post, req)
   return post.status === 'review'
@@ -118,7 +115,7 @@ export async function enqueuePost(
     eventBody: Record<string, unknown>,
   ): Promise<void> => {
     const encoded = JSON.stringify(eventBody)
-    if (Buffer.byteLength(encoded) > 2_000_000) throw new Error('Article event exceeds 2 MB')
+    if (Buffer.byteLength(encoded) > 2_000_000) throw editorError('This article is over the 2 MB website limit. Shorten it or use fewer or smaller images.')
     const found = await payload.find({
       collection: 'blog-sync-events',
       where: { eventKey: { equals: eventKey } },

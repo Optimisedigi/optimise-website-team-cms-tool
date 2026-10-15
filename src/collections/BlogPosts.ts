@@ -3,6 +3,7 @@ import matter from "gray-matter";
 import { logActivity } from "../lib/activity-log";
 import { createLedgerItem } from "../lib/client-value-ledger";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { editorError } from "../lib/in-the-picture/article";
 import { configuredClientId } from "../lib/in-the-picture/config";
 import { enqueuePost, nextRevision } from "../lib/in-the-picture/outbox";
 
@@ -280,7 +281,7 @@ export const BlogPosts: CollectionConfig = {
       },
       async ({ data, originalDoc, req }) => {
         if (configuredClientId() && originalDoc?.status === 'published' && data?.status === 'review' && (typeof originalDoc.client === 'number' ? originalDoc.client : originalDoc.client?.id) === configuredClientId() && process.env.IN_THE_PICTURE_REVIEW_SYNC_ENABLED !== '1') {
-          throw new Error('The website review receiver must be enabled before moving a published article back to review');
+          throw editorError('The website review receiver must be enabled before moving a published article back to review');
         }
         if (configuredClientId() && originalDoc?.status !== 'published' && data?.status === 'published' && originalDoc?.id) {
           const client = typeof (data?.client ?? originalDoc.client) === 'object' ? (data?.client ?? originalDoc.client)?.id : (data?.client ?? originalDoc.client);
@@ -306,16 +307,16 @@ export const BlogPosts: CollectionConfig = {
               const approved = reviews.docs[0]?.kind === 'review_requested' && reviews.docs[0].state === 'approved' && reviews.docs[0].revision === originalDoc.websiteSyncRevision;
               const reviewedFields = ['title', 'slug', 'excerpt', 'author', 'publishedDate', 'readingTime', 'websiteCategory', 'websiteServiceSlug', 'websiteBlogIdeaId', 'markdownContent', 'content', 'featuredImage', 'featuredImageAlt'];
               const changed = reviewedFields.some((field) => data?.[field] !== undefined && JSON.stringify(data[field]) !== JSON.stringify(originalDoc[field]));
-              if (!approved || changed) throw new Error('This article needs approval of its current review revision before publishing');
+              if (!approved || changed) throw editorError('This article needs approval of its current review revision before publishing');
             }
           }
         }
         if (originalDoc?.websiteBlogIdeaId && data?.websiteBlogIdeaId && data.websiteBlogIdeaId !== originalDoc.websiteBlogIdeaId) {
-          throw new Error('The website Blog ID cannot be changed after linking');
+          throw editorError('The website Blog ID cannot be changed after linking');
         }
         if (originalDoc?.slug && data?.slug && originalDoc.slug !== data.slug && configuredClientId()) {
           const delivered = await req.payload.find({ collection: 'blog-sync-events', where: { and: [{ postId: { equals: String(originalDoc.id) } }, { state: { equals: 'delivered' } }, { kind: { equals: 'published' } }] }, limit: 1, depth: 0, overrideAccess: true, req });
-          if (delivered.docs.length) throw new Error('Website slug cannot change after delivery');
+          if (delivered.docs.length) throw editorError('Website slug cannot change after delivery');
         }
         const client = typeof (data?.client ?? originalDoc?.client) === 'object' ? (data?.client ?? originalDoc?.client)?.id : (data?.client ?? originalDoc?.client);
         if (configuredClientId() && client === configuredClientId() && (['published', 'review'].includes(data?.status) || ['published', 'review'].includes(originalDoc?.status))) {

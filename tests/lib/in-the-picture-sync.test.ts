@@ -283,6 +283,43 @@ describe('In The Picture boundary', () => {
     }
     expect(create).not.toHaveBeenCalled()
   })
+  it('rejects editor-fixable article problems with a public 400 naming the fix, not "Something went wrong"', async () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+    const create = vi.fn()
+    const payload = {
+      findByID: vi.fn(async () => ({ id: 1, authors: [{ name: 'Jane Editor' }] })),
+      find: vi.fn(async () => ({ docs: [] })),
+      create,
+    }
+    // The failing save: new review post with empty sidebar fields and
+    // "[ITP to confirm]" markers in the Markdown body.
+    const post = {
+      id: 34,
+      client: 1,
+      clientConfirmed: true,
+      status: 'review',
+      author: 'Jane Editor',
+      excerpt: 'Missed out on income averaging?',
+      title: 'Missed Out on Income Averaging?',
+      slug: 'missed-out-on-income-averaging',
+      publishedDate: '2026-10-15T00:00:00.000Z',
+      markdownContent: 'If your past returns are still within the time limits [ITP to confirm], they can be amended.',
+      websiteSyncRevision: '2026-10-15T00:00:00.000Z',
+    } as BlogPost
+    const fixed = { websiteCategory: 'tax-tips', websiteServiceSlug: 'income-averaging' } as const
+    for (const [attempt, message] of [
+      [post, /Website Category and a Website Service Slug/],
+      [{ ...post, ...fixed }, /Fill in Reading Time before/],
+      [{ ...post, ...fixed, readingTime: '5 min read' }, /Unsupported Markdown syntax in ".*\[ITP to confirm\]/],
+    ] as const) {
+      await expect(enqueuePost(payload as never, attempt as BlogPost)).rejects.toMatchObject({
+        status: 400,
+        isPublic: true,
+        message: expect.stringMatching(message),
+      })
+    }
+    expect(create).not.toHaveBeenCalled()
+  })
   it('retains a newer unpublish tombstone after deleting a published post', async () => {
     process.env.IN_THE_PICTURE_CLIENT_ID = '1'
     const queued: Array<Record<string, unknown>> = []
