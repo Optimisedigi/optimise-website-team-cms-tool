@@ -637,7 +637,15 @@ export async function runMigrations(
   // src/migrations/20261010_090000_payload_3_90_columns.ts.
   async function addPayload390Columns(): Promise<void> {
     await run("users.reset_password_requested_at", "ALTER TABLE `users` ADD `reset_password_requested_at` text");
-    await run("media._object_key", "ALTER TABLE `media` ADD `_object_key` text");
+    // Payload names the `_objectKey` column `_objectkey` (leading underscore kept,
+    // no word split). Databases migrated before 2026-10-15 got `_object_key`,
+    // which made every media insert fail; rename it so existing values survive.
+    // Keep in sync with src/migrations/20261015_120000_fix_media_objectkey_column.ts.
+    if ((await columnExists("media", "_object_key")) && !(await columnExists("media", "_objectkey"))) {
+      await run("media._objectkey.rename", "ALTER TABLE `media` RENAME COLUMN `_object_key` TO `_objectkey`");
+    } else {
+      await run("media._objectkey", "ALTER TABLE `media` ADD `_objectkey` text");
+    }
   }
 
   // The original KPI table used _ytd, but Payload maps YTD to _y_t_d.

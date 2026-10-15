@@ -2,14 +2,15 @@ import { MigrateDownArgs, MigrateUpArgs, sql } from '@payloadcms/db-sqlite'
 
 // Payload 3.90 (security upgrade, 2026-10-10) adds two framework-owned columns:
 //   users.reset_password_requested_at  (password-reset throttling)
-//   media._object_key                  (cloud-storage object key)
+//   media._objectkey                   (cloud-storage object key; Payload's
+//                                       column name for the `_objectKey` field)
 // Production does not auto-push schema, and Payload selects every column on
 // these tables, so without them the admin login and media list break.
 // Keep in sync with addPayload390Columns() in src/lib/run-migrations.ts.
 export async function up({ db }: MigrateUpArgs): Promise<void> {
   for (const statement of [
     sql`ALTER TABLE \`users\` ADD COLUMN \`reset_password_requested_at\` text`,
-    sql`ALTER TABLE \`media\` ADD COLUMN \`_object_key\` text`,
+    sql`ALTER TABLE \`media\` ADD COLUMN \`_objectkey\` text`,
   ]) {
     try {
       await db.run(statement)
