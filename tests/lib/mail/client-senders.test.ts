@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { buildClientDomainIndex } from "@/lib/mail/client-matching";
 import {
   CLIENT_SENDERS_PREF_KEY,
-  clientUnreadQuery,
+  clientUnreadQueries,
+  clientUnreadTerms,
   isClientSender,
   loadClientSenders,
   matchingClientSenderEntries,
@@ -44,13 +46,53 @@ describe("matchingClientSenderEntries / isClientSender", () => {
   });
 });
 
-describe("clientUnreadQuery", () => {
+describe("clientUnreadQueries", () => {
   it("builds an unread OR-search and drops anything that is not an address or domain", () => {
-    expect(clientUnreadQuery(["jo@client.com", "@bigbrand.com.au", "x OR in:spam"])).toBe(
-      "is:unread {from:jo@client.com from:bigbrand.com.au}",
-    );
-    expect(clientUnreadQuery([])).toBe("");
-    expect(clientUnreadQuery(["{label:secret}"])).toBe("");
+    expect(clientUnreadQueries(clientUnreadTerms(null, ["jo@client.com", "@bigbrand.com.au", "x OR in:spam"]))).toEqual([
+      "is:unread {from:bigbrand.com.au from:jo@client.com}",
+    ]);
+    expect(clientUnreadQueries(clientUnreadTerms(null, []))).toEqual([]);
+    expect(clientUnreadQueries(clientUnreadTerms(null, ["{label:secret}"]))).toEqual([]);
+  });
+
+  it("splits many client senders across searches under the length limit", () => {
+    const terms = Array.from({ length: 30 }, (_, i) => `client${String(i).padStart(2, "0")}.com.au`);
+    const queries = clientUnreadQueries(terms, 200);
+    expect(queries.length).toBeGreaterThan(1);
+    for (const q of queries) expect(q.length).toBeLessThanOrEqual(200);
+    expect(queries.join(" ").match(/from:/g)).toHaveLength(30);
+  });
+});
+
+describe("automatic client matching (no starred senders)", () => {
+  const index = buildClientDomainIndex(
+    [
+      { id: 1, name: "In The Picture", websiteUrl: "https://www.inthepicture.com.au/" },
+      { id: 2, name: "Sole Trader", contactEmail: "sam.trader@gmail.com" },
+    ],
+    { ownAddresses: ["peter@optimisedigital.online"] },
+  );
+
+  it("includes client website domains and shared-provider contact addresses as search terms", () => {
+    expect(clientUnreadTerms(index, [])).toEqual(["inthepicture.com.au", "sam.trader@gmail.com"]);
+  });
+
+  it("shows unread mail from an address on a client's website domain", () => {
+    const threads = [
+      thread("Ana <ana@inthepicture.com.au>", true),
+      thread("Ana <ana@mail.inthepicture.com.au>", true), // subdomain rolls up
+      thread("Ana <ana@inthepicture.com.au>", false), // read
+      thread("Sam <sam.trader@gmail.com>", true), // exact contact on a shared provider
+      thread("Other <other@gmail.com>", true), // shared provider, not a contact
+      thread("Bot <noreply@inthepicture.com.au>", true), // automated sender
+      thread("Hidden <hide@inthepicture.com.au>", true), // hidden by the user
+      thread('"ana@inthepicture.com.au" <x@evil.com>', true), // address only in display name
+    ];
+    expect(unreadClientThreads(threads, [], { index, hidden: ["hide@inthepicture.com.au"] }).map((t) => t.from)).toEqual([
+      "Ana <ana@inthepicture.com.au>",
+      "Ana <ana@mail.inthepicture.com.au>",
+      "Sam <sam.trader@gmail.com>",
+    ]);
   });
 });
 

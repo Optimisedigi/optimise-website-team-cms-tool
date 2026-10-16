@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mockSetUser = vi.fn();
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 const mockPrefetch = vi.fn();
 const mockStartRouteTransition = vi.fn((cb: () => void) => cb());
 
@@ -12,7 +13,7 @@ vi.mock("@payloadcms/ui", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ prefetch: mockPrefetch, push: mockPush }),
+  useRouter: () => ({ prefetch: mockPrefetch, push: mockPush, replace: mockReplace }),
 }));
 
 import { CountdownLoginForm } from "@/components/login/CountdownLoginForm";
@@ -50,6 +51,7 @@ describe("CountdownLoginForm", () => {
     fetchMock.mockReset();
     mockSetUser.mockReset();
     mockPush.mockReset();
+    mockReplace.mockReset();
     mockPrefetch.mockReset();
     mockStartRouteTransition.mockClear();
     vi.stubGlobal("fetch", fetchMock);
@@ -71,7 +73,7 @@ describe("CountdownLoginForm", () => {
     expect(screen.queryByText("Content CMS")).not.toBeInTheDocument();
   });
 
-  it("logs in via Payload's REST endpoint, then sets the user and follows the redirect", async () => {
+  it("logs in via Payload's REST endpoint, then goes straight to the redirect without the route-transition overlay", async () => {
     const payload = {
       exp: 1_800_000_000,
       token: "jwt",
@@ -82,7 +84,7 @@ describe("CountdownLoginForm", () => {
 
     fillAndLaunch("pe@example.com", "hunter22");
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/admin/mail"));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/admin/mail"));
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/users/login",
       expect.objectContaining({
@@ -92,7 +94,9 @@ describe("CountdownLoginForm", () => {
       }),
     );
     expect(mockSetUser).toHaveBeenCalledWith(payload);
-    expect(mockStartRouteTransition).toHaveBeenCalledTimes(1);
+    // The route-transition overlay (RocketLoader) would flash before the dashboard loader.
+    expect(mockStartRouteTransition).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Signed in" })).toBeInTheDocument();
   });
 
@@ -112,7 +116,7 @@ describe("CountdownLoginForm", () => {
     expect(screen.getByRole("button", { name: "Launch" })).toBeEnabled();
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
     expect(mockSetUser).not.toHaveBeenCalled();
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it("asks for missing details without calling the login endpoint", () => {

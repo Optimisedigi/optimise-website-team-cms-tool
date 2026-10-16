@@ -33,7 +33,7 @@ describe('ClientUnreadMailCard', () => {
   it('shows an empty state when no client sender has unread mail', async () => {
     stubResponse(200, { clientSenderCount: 2, more: false, emails: [] })
     render(<ClientUnreadMailCard />)
-    expect(await screen.findByText('No unread emails from client senders.')).toBeInTheDocument()
+    expect(await screen.findByText('No unread emails from clients.')).toBeInTheDocument()
   })
 
   it('prompts to star senders when none are marked as clients', async () => {

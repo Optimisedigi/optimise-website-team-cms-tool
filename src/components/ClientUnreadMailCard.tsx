@@ -7,8 +7,9 @@ import { cmsMailThreadPath } from '../lib/mail/drafts'
 /**
  * Dashboard "Unread client emails" panel (under GA4 Sessions by Channel).
  *
- * Lists unread inbox emails from the senders the user starred as clients in
- * Mail, via GET /api/mail/client-unread (live Gmail, metadata only). Users
+ * Lists unread inbox emails from clients (senders on a client's website or
+ * contact domains, plus senders starred as clients in Mail), via
+ * GET /api/mail/client-unread (live Gmail, metadata only). Users
  * without the Mail feature see nothing; Gmail not connected shows a connect
  * link. Each row opens the thread in Mail.
  */
@@ -139,14 +140,14 @@ export default function ClientUnreadMailCard() {
           </div>
         ) : state.data.clientSenderCount === 0 ? (
           <p style={mutedText}>
-            No client senders yet. Open an email in{' '}
+            No client senders yet. Add a Website URL to a client, or open an email in{' '}
             <a href="/admin/mail" style={{ color: 'inherit', textDecoration: 'underline' }}>
               Mail
             </a>{' '}
             and click ☆ Mark as client.
           </p>
         ) : emails.length === 0 ? (
-          <p style={mutedText}>No unread emails from client senders.</p>
+          <p style={mutedText}>No unread emails from clients.</p>
         ) : (
           <ul className="od-processes__list" style={{ listStyle: 'none', margin: 0, padding: 0, gap: 12 }}>
             {emails.map((email) => (

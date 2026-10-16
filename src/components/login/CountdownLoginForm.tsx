@@ -1,6 +1,6 @@
 "use client";
 
-import { type UserWithToken, useAuth, useRouteTransition } from "@payloadcms/ui";
+import { type UserWithToken, useAuth } from "@payloadcms/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
@@ -13,8 +13,8 @@ import "./CountdownLogin.css";
  * parallel. Lift-off only happens once the server has accepted the
  * credentials; a rejection drops straight back to the idle form with the
  * server's message. After the launch animation the session user is handed to
- * Payload's auth context and we navigate to the safe redirect target — the
- * same `setUser` + `router.push` sequence Payload's built-in LoginForm uses.
+ * Payload's auth context and we navigate straight to the safe redirect target
+ * (no route-transition overlay), replacing the login entry in history.
  */
 
 type Phase = "idle" | "counting" | "launching" | "done";
@@ -96,7 +96,6 @@ export function CountdownLoginForm({
 }: CountdownLoginFormProps) {
   const { countStepMs, launchMs, reducedLaunchMs } = { ...DEFAULT_TIMINGS, ...timings };
   const { setUser } = useAuth();
-  const { startRouteTransition } = useRouteTransition();
   const router = useRouter();
   const statusId = useId();
 
@@ -227,7 +226,11 @@ export function CountdownLoginForm({
     setPhase("done");
     setCount(null);
     setUser(result.data);
-    startRouteTransition(() => router.push(redirectTo));
+    // Plain navigation, not a Payload route transition: a transition would show
+    // the full-screen rocket overlay before the dashboard's own loader, so
+    // login would jump twice. The finished launch scene stays up until the
+    // dashboard (already prefetched) replaces it.
+    router.replace(redirectTo);
   };
 
   const busy = phase !== "idle";
