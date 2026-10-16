@@ -146,7 +146,9 @@ import { default as default_bc615a67c4e11c38db54a3bb23baf563 } from '../../../co
 import { default as default_b1a172dcaa4141cf8a8a49b72ea9569b } from '../../../components/ScheduleResponseStatus'
 import { default as default_2b563fa0e9b70d98b73119ee8b081564 } from '../../../components/MarkdownGuide'
 import { BlogMarkdownField as BlogMarkdownField_7719ecedc67987c6c3814f15526d4f39 } from '../../../components/BlogMarkdownField'
+import { default as default_c26224a8a6ab9d6c8e003c72518c7ac9 } from '../../../components/ContentImageWarnings'
 import { default as default_8793146990086de56e1b564ebb701778 } from '../../../components/GenerateBlogImageButton'
+import { default as default_2e91aa7cc9356d2b91bd92fee0382835 } from '../../../components/FeaturedImageWarnings'
 import { default as default_7e7701142b7068d2cf11592b7f0f90ce } from '../../../components/ClientCategorySelect'
 import { default as default_944faab4983d5384b5ad76a5dc5c6065 } from '../../../components/ClientTagsSelect'
 import { default as default_cce1b7420de9fe5183217c041b5a6118 } from '../../../components/ClientAuthorSelect'
@@ -391,7 +393,9 @@ export const importMap = {
   "./components/ScheduleResponseStatus#default": default_b1a172dcaa4141cf8a8a49b72ea9569b,
   "./components/MarkdownGuide#default": default_2b563fa0e9b70d98b73119ee8b081564,
   "./components/BlogMarkdownField#BlogMarkdownField": BlogMarkdownField_7719ecedc67987c6c3814f15526d4f39,
+  "./components/ContentImageWarnings#default": default_c26224a8a6ab9d6c8e003c72518c7ac9,
   "./components/GenerateBlogImageButton#default": default_8793146990086de56e1b564ebb701778,
+  "./components/FeaturedImageWarnings#default": default_2e91aa7cc9356d2b91bd92fee0382835,
   "./components/ClientCategorySelect#default": default_7e7701142b7068d2cf11592b7f0f90ce,
   "./components/ClientTagsSelect#default": default_944faab4983d5384b5ad76a5dc5c6065,
   "./components/ClientAuthorSelect#default": default_cce1b7420de9fe5183217c041b5a6118,

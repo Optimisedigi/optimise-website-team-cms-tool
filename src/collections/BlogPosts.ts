@@ -457,6 +457,15 @@ export const BlogPosts: CollectionConfig = {
                 },
               },
             },
+            {
+              name: "contentImageWarnings",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ContentImageWarnings",
+                },
+              },
+            },
           ],
         },
         {
@@ -550,6 +559,15 @@ export const BlogPosts: CollectionConfig = {
               admin: {
                 description:
                   "Main image for the blog post. Will be used as thumbnail and social sharing image.",
+              },
+            },
+            {
+              name: "featuredImageWarnings",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/FeaturedImageWarnings",
+                },
               },
             },
             {
