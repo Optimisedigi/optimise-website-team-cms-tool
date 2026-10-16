@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/content-sync/tick",
-      "schedule": "0 2 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/invoice-statements/sweep",
