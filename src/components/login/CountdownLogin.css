@@ -1,0 +1,600 @@
+/*
+ * Admin login — Concept 4 "Countdown".
+ * Source of truth: design-concepts/rocket-login/4-countdown.html.
+ * Every class is prefixed `od-launch` because Payload's admin CSS already
+ * styles generic names such as `.row`, `.card` and `h1`.
+ */
+
+/* Payload wraps the view in its minimal template; let the scene fill it. */
+.login.template-minimal {
+  display: block;
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background: #fbf5ec;
+  color: #22180f;
+}
+
+.login.template-minimal .template-minimal__wrap {
+  width: 100%;
+  max-width: none;
+}
+
+.od-launch {
+  --od-cream: #fbf5ec;
+  --od-sand: #f1e4d1;
+  --od-ink: #22180f;
+  --od-muted: #7a6a58;
+  --od-red: #d6442f;
+  --od-red-dark: #b5321f;
+  --od-error: #b3261e;
+  --rh: 168px;
+  --clip: 0.29;
+  --launch: 2.1s;
+
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--od-ink);
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(214, 68, 47, 0.1), transparent 60%),
+    radial-gradient(700px 500px at 0% 20%, rgba(255, 186, 120, 0.16), transparent 60%),
+    var(--od-cream);
+  -webkit-font-smoothing: antialiased;
+}
+
+.od-launch *,
+.od-launch *::before,
+.od-launch *::after {
+  box-sizing: border-box;
+}
+
+.od-launch__main {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(48px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    calc(var(--rh) * (1 - var(--clip)) + 70px + env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+}
+
+.od-launch__card {
+  width: 100%;
+  max-width: 440px;
+  margin: 0;
+  padding: 44px 44px 38px;
+  background: #fff;
+  border-radius: 28px;
+  box-shadow:
+    0 1px 0 rgba(34, 24, 15, 0.04),
+    0 24px 60px -24px rgba(120, 70, 30, 0.28);
+}
+
+.od-launch__top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 38px;
+}
+
+.od-launch__logo {
+  display: block;
+  width: 170px;
+  height: auto;
+}
+
+.od-launch__title {
+  margin: 0 0 32px;
+  font-family: inherit;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: var(--od-ink);
+}
+
+.od-launch__fields {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.od-launch__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Wrapper gives ShowPasswordToggle a positioned parent for its button. */
+.od-launch__field {
+  position: relative;
+}
+
+.od-launch .od-launch__input {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin: 0;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 16px; /* >= 16px stops iOS zooming on focus */
+  color: var(--od-ink);
+  background: #f7f1e8;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  box-shadow: none;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.od-launch .od-launch__input::placeholder {
+  color: #a8957f;
+  opacity: 1;
+}
+
+.od-launch .od-launch__input:focus {
+  background: #fff;
+  border-color: var(--od-ink);
+}
+
+.od-launch .od-launch__input[aria-invalid="true"] {
+  border-color: var(--od-error);
+}
+
+.od-launch .od-launch__input:-webkit-autofill,
+.od-launch .od-launch__input:-webkit-autofill:hover {
+  -webkit-text-fill-color: var(--od-ink);
+  box-shadow: 0 0 0 100px #f7f1e8 inset;
+  caret-color: var(--od-ink);
+}
+
+.od-launch .od-launch__input:-webkit-autofill:focus {
+  box-shadow: 0 0 0 100px #fff inset;
+}
+
+.od-launch__fields:disabled .od-launch__input {
+  opacity: 0.75;
+}
+
+.od-launch [aria-label="Show password"],
+.od-launch [aria-label="Hide password"] {
+  color: var(--od-muted) !important;
+}
+
+.od-launch__row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 2px 0 6px;
+}
+
+.od-launch .od-launch__forgot {
+  font-size: 14px;
+  color: var(--od-muted);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(122, 106, 88, 0.35);
+}
+
+.od-launch .od-launch__forgot:hover {
+  color: var(--od-ink);
+}
+
+.od-launch .od-launch__forgot:focus-visible {
+  outline: 2px solid var(--od-ink);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.od-launch .od-launch__submit {
+  width: 100%;
+  height: 58px;
+  margin: 0;
+  border: 0;
+  border-radius: 16px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: var(--od-red);
+  box-shadow: 0 6px 0 var(--od-red-dark);
+  font-variant-numeric: tabular-nums;
+  transition:
+    transform 0.1s,
+    box-shadow 0.1s,
+    background 0.2s;
+}
+
+.od-launch .od-launch__submit:hover {
+  background: #df4b35;
+}
+
+.od-launch .od-launch__submit:focus-visible {
+  outline: 3px solid var(--od-ink);
+  outline-offset: 4px;
+}
+
+.od-launch .od-launch__submit:active,
+.od-launch.is-counting .od-launch__submit {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 var(--od-red-dark);
+}
+
+/* The fieldset is disabled while counting; keep the button looking live. */
+.od-launch.is-counting .od-launch__submit {
+  cursor: progress;
+  background: var(--od-red);
+}
+
+.od-launch__count {
+  display: inline-block;
+  animation: od-launch-pop 0.35s ease-out;
+}
+
+.od-launch__status {
+  min-height: 20px;
+  margin: 20px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--od-muted);
+}
+
+.od-launch__status--error {
+  color: var(--od-error);
+}
+
+.od-launch__card[data-error-pulse="odd"] {
+  animation: od-launch-shake-a 0.4s ease-out;
+}
+
+.od-launch__card[data-error-pulse="even"] {
+  animation: od-launch-shake-b 0.4s ease-out;
+}
+
+/* ---------- Ground, tower and rocket ---------- */
+
+.od-launch__ground {
+  position: absolute;
+  z-index: 3;
+  left: -10%;
+  right: -10%;
+  bottom: -60px;
+  height: 110px;
+  background: var(--od-sand);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  pointer-events: none;
+}
+
+.od-launch__tower {
+  position: absolute;
+  z-index: 4;
+  bottom: 40px;
+  left: 50%;
+  width: 22px;
+  height: calc(var(--rh) * 0.74);
+  margin-left: calc(var(--rh) * 0.2 + 6px);
+  background:
+    repeating-linear-gradient(45deg, transparent 0 7px, #c9b49a 7px 9px),
+    repeating-linear-gradient(-45deg, transparent 0 7px, #c9b49a 7px 9px);
+  border-left: 3px solid #b39a7c;
+  border-right: 3px solid #b39a7c;
+  pointer-events: none;
+  transform-origin: bottom right;
+  transition: transform 0.6s cubic-bezier(0.4, 1.6, 0.6, 1);
+}
+
+.od-launch__tower::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 26%;
+  width: 14px;
+  height: 3px;
+  background: #b39a7c;
+  transform-origin: right;
+  transition: transform 0.4s ease;
+}
+
+.od-launch__rocket {
+  position: absolute;
+  z-index: 20;
+  left: 50%;
+  bottom: calc(40px - var(--rh) * var(--clip));
+  width: calc(var(--rh) * 334 / 768);
+  height: var(--rh);
+  margin-left: calc(var(--rh) * -167 / 768);
+  pointer-events: none;
+  filter: drop-shadow(0 10px 14px rgba(120, 70, 30, 0.25));
+  will-change: transform;
+}
+
+.od-launch__rocket img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  clip-path: inset(0 0 calc(var(--clip) * 100%) 0);
+}
+
+.od-launch__billow {
+  position: absolute;
+  z-index: 21;
+  left: 50%;
+  bottom: 20px;
+  pointer-events: none;
+}
+
+.od-launch__billow i {
+  position: absolute;
+  left: -50px;
+  bottom: 0;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 40%, #fff, #f6ece0 60%, rgba(246, 236, 224, 0) 72%);
+  opacity: 0;
+  transform: scale(0.2);
+}
+
+/* 1) Countdown: rocket rumbles, tower arm swings away. */
+.od-launch.is-counting .od-launch__rocket img {
+  animation: od-launch-rumble 0.1s linear infinite;
+}
+
+.od-launch.is-counting .od-launch__tower::before {
+  transform: scaleX(0);
+}
+
+.od-launch.is-counting .od-launch__tower {
+  transform: rotate(8deg);
+}
+
+/* 2) Launch: arc up over the card. */
+.od-launch.is-launching .od-launch__rocket {
+  animation: od-launch-arc var(--launch) cubic-bezier(0.5, 0, 0.75, 0.4) forwards;
+}
+
+.od-launch.is-launching .od-launch__rocket img {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.15s ease;
+  animation: none;
+}
+
+.od-launch.is-launching .od-launch__billow i {
+  animation: od-launch-billow 2.2s ease-out forwards;
+}
+
+.od-launch.is-launching .od-launch__billow i:nth-child(1) {
+  --x: -170px;
+  --s: 2;
+}
+
+.od-launch.is-launching .od-launch__billow i:nth-child(2) {
+  --x: 170px;
+  --s: 2;
+  animation-delay: 0.05s;
+}
+
+.od-launch.is-launching .od-launch__billow i:nth-child(3) {
+  --x: -90px;
+  --s: 2.5;
+  animation-delay: 0.1s;
+}
+
+.od-launch.is-launching .od-launch__billow i:nth-child(4) {
+  --x: 90px;
+  --s: 2.5;
+  animation-delay: 0.12s;
+}
+
+.od-launch.is-launching .od-launch__billow i:nth-child(5) {
+  --x: 0px;
+  --s: 3;
+  animation-delay: 0.08s;
+}
+
+.od-launch.is-launching .od-launch__card {
+  animation: od-launch-jolt 0.4s ease-out;
+}
+
+@keyframes od-launch-pop {
+  from {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes od-launch-rumble {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-1px, 1px);
+  }
+  75% {
+    transform: translate(1px, -1px);
+  }
+}
+
+@keyframes od-launch-arc {
+  0% {
+    transform: translate(0, 0) rotate(0);
+  }
+  35% {
+    transform: translate(6px, -30vh) rotate(3deg);
+    transform: translate(6px, -30dvh) rotate(3deg);
+  }
+  70% {
+    transform: translate(34px, -68vh) rotate(8deg);
+    transform: translate(34px, -68dvh) rotate(8deg);
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(90px, calc(-100vh - var(--rh) * 1.4)) rotate(14deg);
+    transform: translate(90px, calc(-100dvh - var(--rh) * 1.4)) rotate(14deg);
+    opacity: 0;
+  }
+}
+
+@keyframes od-launch-billow {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.2);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), -24px) scale(var(--s));
+  }
+}
+
+@keyframes od-launch-jolt {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-2px, 1px);
+  }
+  40% {
+    transform: translate(2px, -1px);
+  }
+  60% {
+    transform: translate(-1px, 0);
+  }
+}
+
+/* Two identical keyframes so a repeat failure restarts the shake. */
+@keyframes od-launch-shake-a {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+@keyframes od-launch-shake-b {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+@keyframes od-launch-fadeup {
+  to {
+    transform: translateY(-40px);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .od-launch {
+    --rh: 124px;
+  }
+
+  .od-launch__main {
+    padding-top: max(24px, env(safe-area-inset-top));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+
+  .od-launch__card {
+    padding: 30px 22px 26px;
+    border-radius: 24px;
+  }
+
+  .od-launch__top {
+    margin-bottom: 28px;
+  }
+
+  .od-launch__logo {
+    width: 140px;
+  }
+
+  .od-launch__title {
+    font-size: 28px;
+    margin-bottom: 24px;
+  }
+}
+
+/* Short landscape phones: keep the card clear of the launch pad. */
+@media (max-height: 560px) and (orientation: landscape) {
+  .od-launch {
+    --rh: 110px;
+  }
+
+  .od-launch__main {
+    padding-top: max(20px, env(safe-area-inset-top));
+  }
+
+  .od-launch__top {
+    margin-bottom: 22px;
+  }
+
+  .od-launch__title {
+    margin-bottom: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .od-launch.is-counting .od-launch__rocket img,
+  .od-launch__count {
+    animation: none;
+  }
+
+  .od-launch.is-launching .od-launch__rocket {
+    animation: od-launch-fadeup 0.8s ease forwards;
+  }
+
+  .od-launch.is-launching .od-launch__billow i,
+  .od-launch.is-launching .od-launch__card,
+  .od-launch__card[data-error-pulse] {
+    animation: none;
+  }
+
+  .od-launch__tower,
+  .od-launch__tower::before {
+    transition: none;
+  }
+}
