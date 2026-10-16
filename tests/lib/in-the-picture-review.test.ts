@@ -315,3 +315,39 @@ describe('In The Picture article sources', () => {
     expect(hook({ data: { client: 2, markdownContent: markdown } }).markdownContent).toBe(markdown)
   })
 })
+
+describe('In The Picture article FAQ section', () => {
+  const published = { ...review, status: 'published' } as BlogPost
+  const article = (post: BlogPost) => (publishedEvent(post) as { article: Record<string, unknown> }).article
+
+  it('sends the FAQ section separately from the body, keeping Q and A as separate paragraphs', () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+    const sent = article({
+      ...published,
+      markdownContent: '## Heading\n\nBody.\n\n## FAQ\n**Q: Can I amend?**\nA: Yes, within the period.\n\n## Sources\n- [ATO: Amend](https://www.ato.gov.au/amend)',
+    })
+    expect(sent.contentBlocks).toEqual([
+      { type: 'heading', level: 2, children: [{ text: 'Heading' }] },
+      { type: 'paragraph', children: [{ text: 'Body.' }] },
+    ])
+    expect(sent.faqBlocks).toEqual([
+      { type: 'heading', level: 2, children: [{ text: 'FAQ' }] },
+      { type: 'paragraph', children: [{ text: 'Q: Can I amend?', bold: true }] },
+      { type: 'paragraph', children: [{ text: 'A: Yes, within the period.' }] },
+    ])
+    expect(sent.sources).toEqual([{ title: 'ATO: Amend', url: 'https://www.ato.gov.au/amend' }])
+  })
+
+  it('ends the FAQ at the next H2, and reports FAQ errors with the line number in the editor', () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+    const sent = article({
+      ...published,
+      markdownContent: '## Intro\n\nText.\n\n## Frequently asked questions\n\n### Do I qualify?\nMaybe.\n\n## Final thoughts\n\nThe end.',
+    })
+    expect(JSON.stringify(sent.contentBlocks)).toContain('Final thoughts')
+    expect(JSON.stringify(sent.contentBlocks)).not.toContain('Do I qualify?')
+    expect((sent.faqBlocks as unknown[]).length).toBe(3)
+    expect(article(published)).not.toHaveProperty('faqBlocks')
+    expect(() => article({ ...published, markdownContent: '## Intro\n\nText.\n\n## FAQs\n\n#### Too deep' })).toThrow('on line 7: "#### Too deep"')
+  })
+})

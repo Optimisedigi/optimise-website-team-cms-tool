@@ -47,3 +47,24 @@ export function mergeSourceLines(...lists: string[][]): string[] {
   }
   return merged
 }
+
+const faqHeading = /^##\s+(?:faqs?|frequently\s+asked\s+questions)\b.*$/i
+
+/**
+ * Separates the first "## FAQ" / "## FAQs" / "## Frequently asked questions"
+ * section (up to the next H2) from the rest of the Markdown. Lines are blanked
+ * rather than removed, so line numbers in conversion errors still match the editor.
+ */
+export function splitFaqSection(markdown: string): { body: string; faq: string } | null {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n')
+  const start = lines.findIndex((line) => faqHeading.test(line.trim()))
+  if (start < 0) return null
+  let end = start + 1
+  while (end < lines.length && !/^##\s/.test(lines[end]?.trim() ?? '')) end++
+  if (!lines.slice(start + 1, end).some((line) => line.trim())) return null
+  const inFaq = (index: number) => index >= start && index < end
+  return {
+    body: lines.map((line, index) => (inFaq(index) ? '' : line)).join('\n'),
+    faq: lines.map((line, index) => (inFaq(index) ? line : '')).join('\n'),
+  }
+}

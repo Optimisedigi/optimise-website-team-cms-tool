@@ -1,7 +1,7 @@
 import { APIError } from 'payload'
 import type { BlogPost, Media } from '@/payload-types'
 import { configuredClientId } from './config'
-import { MAX_SOURCES, MAX_SOURCE_TITLE, mergeSourceLines, type Source, sourceLine, splitTrailingSources } from './sources'
+import { MAX_SOURCES, MAX_SOURCE_TITLE, mergeSourceLines, type Source, sourceLine, splitFaqSection, splitTrailingSources } from './sources'
 
 /**
  * A problem the editor can fix in the post. Thrown as a public 400 so the admin
@@ -143,6 +143,8 @@ function markdownTable(lines: string[], start: number): { block: Extract<Block, 
   if (!rows.length || rows.length > MAX_TABLE_ROWS) throw editorError(`Table must have 1–${MAX_TABLE_ROWS} rows under its header, ${at(start)}`)
   return { block: { type: 'table', header: header.map(cell), rows }, next: i }
 }
+/** A "Q:" or "A:" line (optionally bold) from the documented FAQ format starts a new paragraph. */
+const qaLine = /^(?:\*{2,3}|\*)?[QA]:/
 /** Restricted Markdown subset. Reject unhandled syntax rather than silently dropping it. */
 export function markdownBlocks(source: string): Block[] {
   const result: Block[] = []
@@ -177,7 +179,7 @@ export function markdownBlocks(source: string): Block[] {
     if (line.startsWith('|')) { const table = markdownTable(lines, i); result.push(table.block); i = table.next; continue }
     if (/^(?:#|`|~|!\[|[-*](?:\s|$)|\d+\.(?:\s|$)|\s{4})/.test(line)) throw editorError(`Unsupported Markdown syntax on line ${i + 1}: "${snippet(line)}". Use ## or ### headings, - or 1. lists, > quotes, | pipe | tables | and ![alt text](image URL) images; the title belongs in the Title field, and #### headings and code are not supported.`)
     const paragraph: string[] = []
-    while (i < lines.length && lines[i].trim() && !/^(?:#{2,3}\s|[-*]\s|\d+\.\s|!\[|>|\|)/.test(lines[i].trim())) { paragraph.push(lines[i].trim()); i++ }
+    while (i < lines.length && lines[i].trim() && !/^(?:#{2,3}\s|[-*]\s|\d+\.\s|!\[|>|\|)/.test(lines[i].trim()) && !(paragraph.length && qaLine.test(lines[i].trim()))) { paragraph.push(lines[i].trim()); i++ }
     result.push({ type: 'paragraph', children: markdownInlines(paragraph.join(' ')) })
   }
   return result
@@ -208,14 +210,18 @@ export function publishedEvent(post: BlogPost, ideaId?: string): Record<string, 
   if (missing.length || !post.publishedDate) throw editorError(`Fill in ${missing.join(', ')} before sending for review or publishing.${missingSidebar.length ? ' Website Category and Website Service Slug are in the sidebar.' : ''}`)
   // A final "## Sources" section left in the body is sent as sources, shown below the author.
   const trailing = post.markdownContent?.trim() ? splitTrailingSources(post.markdownContent) : null
-  const blocks = post.markdownContent?.trim() ? markdownBlocks(trailing?.body ?? post.markdownContent) : lexicalBlocks(post.content)
+  // The website shows the FAQ section below the author profile, so it is sent separately.
+  const faqSplit = post.markdownContent?.trim() ? splitFaqSection(trailing?.body ?? post.markdownContent) : null
+  const blocks = post.markdownContent?.trim() ? markdownBlocks(faqSplit?.body ?? trailing?.body ?? post.markdownContent) : lexicalBlocks(post.content)
+  const faqBlocks = faqSplit ? markdownBlocks(faqSplit.faq) : []
   const fieldLines = (post.sources ?? '').split('\n').map(line => line.trim()).filter(Boolean)
   const sources = parseSources(mergeSourceLines(fieldLines, trailing?.sourceLines ?? []))
-  if (!blocks.length || blocks.length > 300 || !blocks.some(block => block.type !== 'heading')) throw editorError('Article must have 1–300 supported blocks, including body content')
+  if (!blocks.length || blocks.length + faqBlocks.length > 300 || !blocks.some(block => block.type !== 'heading')) throw editorError('Article must have 1–300 supported blocks, including body content')
   const article = {
     slug: post.slug, title: post.title, excerpt: post.excerpt, category: post.websiteCategory,
     relatedServiceSlug: post.websiteServiceSlug, publishDate: post.publishedDate.slice(0, 10),
     readTime: post.readingTime, author: post.author, contentBlocks: blocks,
+    ...(faqBlocks.length ? { faqBlocks } : {}),
     ...(sources.length ? { sources } : {}),
     ...(post.featuredImage ? { heroImage: image(post.featuredImage, post.featuredImageAlt || '').src, heroImageAlt: post.featuredImageAlt } : {}),
   }
