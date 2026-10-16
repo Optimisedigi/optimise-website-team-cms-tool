@@ -13,7 +13,7 @@ export function editorError(message: string): APIError<null> {
 const snippet = (text: string): string => (text.length > 60 ? `${text.slice(0, 57)}...` : text).trim()
 
 export type Inline = { text: string; bold?: boolean; italic?: boolean; link?: string }
-export type Block = { type: 'heading'; level: 2 | 3; children: Inline[] } | { type: 'paragraph' | 'quote'; children: Inline[] } | { type: 'list'; ordered: boolean; items: Inline[][] } | { type: 'image'; src: string; alt: string; caption?: string; width?: number; height?: number }
+export type Block = { type: 'heading'; level: 2 | 3; children: Inline[] } | { type: 'paragraph' | 'quote'; children: Inline[] } | { type: 'list'; ordered: boolean; items: Inline[][] } | { type: 'table'; header: Inline[][]; rows: Inline[][][] } | { type: 'image'; src: string; alt: string; caption?: string; width?: number; height?: number }
 const categories = ['tax-tips', 'business-handbook', 'contractor-handbook']
 const services = ['accounting', 'taxation', 'tax-advisory', 'superfunds', 'business-accounting', 'business-advice', 'virtual-fractional-cfo', 'income-averaging', 'property-service', 'finance-financial-planning', 'creative-tax-deductions', 'entertainment-industry-accounting']
 
@@ -117,6 +117,31 @@ function markdownInlines(text: string): Inline[] {
   if (!result.length || result.every(part => !part.text.trim())) throw editorError('Empty Markdown block')
   return result
 }
+const MAX_TABLE_COLUMNS = 12
+const MAX_TABLE_ROWS = 100
+const tableSeparator = /^\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?$/
+/** Cells of a "| a | b |" row; the outer pipes are optional. */
+function tableCells(line: string): string[] {
+  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim())
+}
+/** A GitHub-style pipe table: header row, "| --- |" separator, body rows. Cells may be blank. */
+function markdownTable(lines: string[], start: number): { block: Extract<Block, { type: 'table' }>; next: number } {
+  const header = tableCells(lines[start])
+  const at = (i: number) => `on line ${i + 1}: "${snippet(lines[i]?.trim() ?? '')}"`
+  if (!tableSeparator.test(lines[start + 1]?.trim() ?? '')) throw editorError(`Table needs a separator row like "| --- | --- |" under its header, ${at(start + 1)}`)
+  if (header.length > MAX_TABLE_COLUMNS || header.every(cell => !cell)) throw editorError(`Table header must have 1–${MAX_TABLE_COLUMNS} columns with text, ${at(start)}`)
+  if (tableCells(lines[start + 1]).length !== header.length) throw editorError(`Table separator must have ${header.length} columns to match the header, ${at(start + 1)}`)
+  const cell = (text: string): Inline[] => (text ? markdownInlines(text) : [])
+  const rows: Inline[][][] = []
+  let i = start + 2
+  while (i < lines.length && lines[i].trim().startsWith('|')) {
+    const cells = tableCells(lines[i])
+    if (cells.length !== header.length) throw editorError(`Table row has ${cells.length} columns but the header has ${header.length}, ${at(i)}`)
+    rows.push(cells.map(cell)); i++
+  }
+  if (!rows.length || rows.length > MAX_TABLE_ROWS) throw editorError(`Table must have 1–${MAX_TABLE_ROWS} rows under its header, ${at(start)}`)
+  return { block: { type: 'table', header: header.map(cell), rows }, next: i }
+}
 /** Restricted Markdown subset. Reject unhandled syntax rather than silently dropping it. */
 export function markdownBlocks(source: string): Block[] {
   const result: Block[] = []
@@ -148,9 +173,10 @@ export function markdownBlocks(source: string): Block[] {
       while (i < lines.length && lines[i].trim().startsWith('>')) { quoted.push(lines[i].trim().replace(/^>\s?/, '').trim()); i++ }
       result.push({ type: 'quote', children: markdownInlines(quoted.filter(Boolean).join(' ')) }); continue
     }
-    if (/^(?:#|`|~|\||!\[|[-*](?:\s|$)|\d+\.(?:\s|$)|\s{4})/.test(line)) throw editorError(`Unsupported Markdown syntax on line ${i + 1}: "${snippet(line)}". Use ## or ### headings, - or 1. lists, > quotes and ![alt text](image URL) images; the title belongs in the Title field, and #### headings, code and tables are not supported.`)
+    if (line.startsWith('|')) { const table = markdownTable(lines, i); result.push(table.block); i = table.next; continue }
+    if (/^(?:#|`|~|!\[|[-*](?:\s|$)|\d+\.(?:\s|$)|\s{4})/.test(line)) throw editorError(`Unsupported Markdown syntax on line ${i + 1}: "${snippet(line)}". Use ## or ### headings, - or 1. lists, > quotes, | pipe | tables | and ![alt text](image URL) images; the title belongs in the Title field, and #### headings and code are not supported.`)
     const paragraph: string[] = []
-    while (i < lines.length && lines[i].trim() && !/^(?:#{2,3}\s|[-*]\s|\d+\.\s|!\[|>)/.test(lines[i].trim())) { paragraph.push(lines[i].trim()); i++ }
+    while (i < lines.length && lines[i].trim() && !/^(?:#{2,3}\s|[-*]\s|\d+\.\s|!\[|>|\|)/.test(lines[i].trim())) { paragraph.push(lines[i].trim()); i++ }
     result.push({ type: 'paragraph', children: markdownInlines(paragraph.join(' ')) })
   }
   return result

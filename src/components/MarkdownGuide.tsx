@@ -36,6 +36,7 @@ const inThePictureGuide: GuideRow[] = [
   { label: 'Bullet List', syntax: '- Item' },
   { label: 'Numbered List', syntax: '1. Item' },
   { label: 'Blockquote', syntax: '> Quote text' },
+  { label: 'Table', syntax: '| Head | Head |\n| --- | --- |\n| Cell | Cell |' },
   { label: 'Line Break', syntax: 'Empty line between paragraphs' },
   { label: 'FAQ Section', syntax: '## FAQ\n**Q: Question?**\nA: Answer...' },
 ]
@@ -98,6 +99,7 @@ const MarkdownGuide = ({ inThePictureClientId }: { inThePictureClientId?: number
                   fontSize: 10,
                   color: 'var(--theme-elevation-500, #888)',
                   wordBreak: 'break-all',
+                  whiteSpace: 'pre-line',
                 }}
               >
                 {item.syntax}
@@ -120,7 +122,7 @@ const MarkdownGuide = ({ inThePictureClientId }: { inThePictureClientId?: number
         {inThePicture ? (
           <>
             <strong>This client&apos;s website accepts only the formats above.</strong> Put the
-            title in the Title field (a leading # heading is ignored). #### headings, code, tables,
+            title in the Title field (a leading # heading is ignored). #### headings, code
             and _ &lt; &gt; [ ] in normal text are rejected.
           </>
         ) : (

@@ -109,6 +109,27 @@ describe('In The Picture boundary', () => {
       'Unsupported Markdown syntax on line 5: "# Second H1"',
     )
     expect(() => markdownBlocks('Intro\n\n#### Deep')).toThrow('on line 3: "#### Deep"')
+    // The pipe table from the income-averaging article, directly after a paragraph line.
+    expect(
+      markdownBlocks(
+        'How long it lasts depends on how you earn.\n| Your situation | Amendment period |\n| --- | --- |\n| Individual (not a sole trader) | 2 years |\n| **Sole trader**, 2024–25 onwards |  |\n\nAfter.',
+      ),
+    ).toEqual([
+      { type: 'paragraph', children: [{ text: 'How long it lasts depends on how you earn.' }] },
+      {
+        type: 'table',
+        header: [[{ text: 'Your situation' }], [{ text: 'Amendment period' }]],
+        rows: [
+          [[{ text: 'Individual (not a sole trader)' }], [{ text: '2 years' }]],
+          [[{ text: 'Sole trader', bold: true }, { text: ', 2024–25 onwards' }], []],
+        ],
+      },
+      { type: 'paragraph', children: [{ text: 'After.' }] },
+    ])
+    expect(() => markdownBlocks('| A | B |\n| --- | --- |\n| 1 | 2 | 3 |')).toThrow(
+      'Table row has 3 columns but the header has 2, on line 3',
+    )
+    expect(() => markdownBlocks('| A | B |\n| 1 | 2 |')).toThrow('separator row')
     process.env.CONTENT_CMS_PUBLIC_ORIGIN = 'https://cms.example.com'
     expect(() => publishedEvent({ id: 1, client: 2, status: 'published' } as BlogPost)).toThrow(
       'not approved',
