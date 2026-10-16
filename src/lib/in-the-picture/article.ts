@@ -204,6 +204,20 @@ export function reviewRequestedEvent(post: BlogPost, ideaId?: string): Record<st
 export function publishedEvent(post: BlogPost, ideaId?: string): Record<string, unknown> {
   const client = typeof post.client === 'number' ? post.client : post.client?.id
   if (!configuredClientId() || client !== configuredClientId() || !post.clientConfirmed || post.status !== 'published') throw new Error('Post is not approved for this client')
+  return articleEvent(post, post.websiteSyncRevision, ideaId)
+}
+
+/**
+ * The exact article the website would receive, for a private preview of any
+ * saved version of this client's post (draft or not). Nothing is queued.
+ */
+export function previewEvent(post: BlogPost, revision: string, ideaId?: string): Record<string, unknown> {
+  const client = typeof post.client === 'number' ? post.client : post.client?.id
+  if (!configuredClientId() || client !== configuredClientId()) throw new Error('Post does not belong to this client')
+  return articleEvent(post, revision, ideaId)
+}
+
+function articleEvent(post: BlogPost, revision: string | null | undefined, ideaId?: string): Record<string, unknown> {
   // Report every missing field at once so editors are not sent round one save at a time.
   const missingSidebar = [!categories.includes(post.websiteCategory || '') && 'Website Category', !services.includes(post.websiteServiceSlug || '') && 'Website Service Slug'].filter(Boolean)
   const missing = [...missingSidebar, !post.publishedDate && 'Published Date', !post.author?.trim() && 'Author', !post.excerpt?.trim() && 'Excerpt', !post.readingTime?.trim() && 'Reading Time'].filter(Boolean)
@@ -225,5 +239,5 @@ export function publishedEvent(post: BlogPost, ideaId?: string): Record<string, 
     ...(sources.length ? { sources } : {}),
     ...(post.featuredImage ? { heroImage: image(post.featuredImage, post.featuredImageAlt || '').src, heroImageAlt: post.featuredImageAlt } : {}),
   }
-  return { version: 1, event: 'published', postId: String(post.id), revision: post.websiteSyncRevision, ...(ideaId ? { ideaId } : {}), article }
+  return { version: 1, event: 'published', postId: String(post.id), revision, ...(ideaId ? { ideaId } : {}), article }
 }

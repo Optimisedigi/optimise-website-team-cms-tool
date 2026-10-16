@@ -558,6 +558,28 @@ export const BlogPosts: CollectionConfig = {
           ],
         },
         {
+          label: "Website preview",
+          // Only In The Picture has a website that renders CMS previews.
+          admin: {
+            condition: (data) => {
+              const clientId = configuredClientId();
+              const owner = data?.client && typeof data.client === "object" ? data.client.id : data?.client;
+              return Boolean(clientId) && owner === clientId;
+            },
+          },
+          fields: [
+            {
+              name: "websitePreview",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/WebsiteArticlePreview",
+                },
+              },
+            },
+          ],
+        },
+        {
           label: "Media & Display",
           fields: [
             {

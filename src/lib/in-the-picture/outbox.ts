@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Payload, PayloadRequest } from 'payload'
 import type { BlogPost } from '@/payload-types'
 import { configuredClientId, websiteUrl } from './config'
-import { editorError, publishedEvent, reviewRequestedEvent } from './article'
+import { editorError, previewEvent, publishedEvent, reviewRequestedEvent } from './article'
 
 async function hydratedPost(
   payload: Payload,
@@ -40,6 +40,8 @@ async function checkedArticleEvent(
   payload: Payload,
   post: BlogPost,
   req?: PayloadRequest,
+  build: (post: BlogPost, ideaId?: string) => Record<string, unknown> = (hydrated, ideaId) =>
+    hydrated.status === 'review' ? reviewRequestedEvent(hydrated, ideaId) : publishedEvent(hydrated, ideaId),
 ): Promise<Record<string, unknown>> {
   const clientId = configuredClientId()
   if (!clientId) throw new Error('Sync client not configured')
@@ -72,9 +74,15 @@ async function checkedArticleEvent(
         : 'This client has no author profiles. Add one in Client > Authors, then choose it in the Author field.',
     )
   const hydrated = await hydratedPost(payload, post, req)
-  return post.status === 'review'
-    ? reviewRequestedEvent(hydrated, ideaId)
-    : publishedEvent(hydrated, ideaId)
+  return build(hydrated, ideaId)
+}
+
+/**
+ * The published-article event for a private website preview of a saved post,
+ * with the same idea, byline and content checks as a real send. Nothing is queued.
+ */
+export function previewArticleEvent(payload: Payload, post: BlogPost, revision: string): Promise<Record<string, unknown>> {
+  return checkedArticleEvent(payload, post, undefined, (hydrated, ideaId) => previewEvent(hydrated, revision, ideaId))
 }
 
 function clientOf(post: BlogPost): number | null {

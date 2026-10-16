@@ -17,7 +17,7 @@ export function configuredClientId(): number | null {
   return Number.isSafeInteger(id) ? id : null
 }
 
-export function websiteUrl(path: '/api/content-sync/ideas' | '/api/content-sync/articles'): URL | null {
+export function websiteUrl(path: '/api/content-sync/ideas' | '/api/content-sync/articles' | `/preview/cms-article/${number}`): URL | null {
   try {
     const raw = process.env.IN_THE_PICTURE_WEBSITE_ORIGIN
     if (!raw) return null
