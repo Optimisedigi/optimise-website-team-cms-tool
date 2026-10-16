@@ -1,6 +1,10 @@
 'use client'
 
-const guide = [
+import { useFormFields } from '@payloadcms/ui'
+
+type GuideRow = { label: string; syntax: string }
+
+const guide: GuideRow[] = [
   { label: 'Bold', syntax: '**text**' },
   { label: 'Italic', syntax: '*text*' },
   { label: 'Bold + Italic', syntax: '***text***' },
@@ -19,7 +23,33 @@ const guide = [
   { label: 'FAQ Section', syntax: '## FAQ\n**Q: Question?**\nA: Answer...' },
 ]
 
-const MarkdownGuide = () => {
+/** Only what the In The Picture website sync converts (src/lib/in-the-picture/article.ts). */
+const inThePictureGuide: GuideRow[] = [
+  { label: 'Bold', syntax: '**text**' },
+  { label: 'Italic', syntax: '*text*' },
+  { label: 'Bold + Italic', syntax: '***text***' },
+  { label: 'H2 (Section)', syntax: '## Heading' },
+  { label: 'H3 (Subsection)', syntax: '### Heading' },
+  { label: 'Link', syntax: '[text](https://url.com)' },
+  { label: 'Internal Link', syntax: '[text](/page-path)' },
+  { label: 'Image', syntax: '![descriptive alt text](image-url)' },
+  { label: 'Bullet List', syntax: '- Item' },
+  { label: 'Numbered List', syntax: '1. Item' },
+  { label: 'Blockquote', syntax: '> Quote text' },
+  { label: 'Line Break', syntax: 'Empty line between paragraphs' },
+  { label: 'FAQ Section', syntax: '## FAQ\n**Q: Question?**\nA: Answer...' },
+]
+
+function relationId(value: unknown): number | null {
+  const raw = value && typeof value === 'object' && 'id' in value ? value.id : value
+  const id = Number(raw)
+  return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
+const MarkdownGuide = ({ inThePictureClientId }: { inThePictureClientId?: number | null }) => {
+  const clientId = useFormFields(([fields]) => relationId(fields.client?.value))
+  const inThePicture = Boolean(inThePictureClientId) && clientId === inThePictureClientId
+  const rows = inThePicture ? inThePictureGuide : guide
   return (
     <div
       style={{
@@ -48,7 +78,7 @@ const MarkdownGuide = () => {
         }}
       >
         <tbody>
-          {guide.map((item) => (
+          {rows.map((item) => (
             <tr key={item.label}>
               <td
                 style={{
@@ -87,8 +117,18 @@ const MarkdownGuide = () => {
           lineHeight: 1.4,
         }}
       >
-        <strong>Tip:</strong> Use H2 for main sections and H3 for subsections. Keep body copy near
-        720 px wide; graphs can use the full content width.
+        {inThePicture ? (
+          <>
+            <strong>This client&apos;s website accepts only the formats above.</strong> Put the
+            title in the Title field (a leading # heading is ignored). #### headings, code, tables,
+            and _ &lt; &gt; [ ] in normal text are rejected.
+          </>
+        ) : (
+          <>
+            <strong>Tip:</strong> Use H2 for main sections and H3 for subsections. Keep body copy
+            near 720 px wide; graphs can use the full content width.
+          </>
+        )}
       </div>
     </div>
   )

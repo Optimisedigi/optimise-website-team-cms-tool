@@ -94,7 +94,7 @@ export function lexicalBlocks(value: unknown): Block[] {
 }
 function markdownInlines(text: string): Inline[] {
   const result: Inline[] = []
-  const token = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|\*[^*]+\*)/g
+  const token = /(\[[^\]]+\]\([^)]+\)|\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*)/g
   let cursor = 0
   const addPlain = (part: string) => {
     const bad = part.search(/[\[\]`<>*_]|!\(/)
@@ -108,7 +108,8 @@ function markdownInlines(text: string): Inline[] {
       const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(raw)
       if (!link) throw editorError('Invalid Markdown link')
       result.push({ text: link[1], link: validLink(link[2]) })
-    } else if (raw.startsWith('**')) result.push({ text: raw.slice(2, -2), bold: true })
+    } else if (raw.startsWith('***')) result.push({ text: raw.slice(3, -3), bold: true, italic: true })
+    else if (raw.startsWith('**')) result.push({ text: raw.slice(2, -2), bold: true })
     else result.push({ text: raw.slice(1, -1), italic: true })
     cursor = match.index + raw.length
   }
@@ -120,6 +121,10 @@ function markdownInlines(text: string): Inline[] {
 export function markdownBlocks(source: string): Block[] {
   const result: Block[] = []
   const lines = source.replace(/\r\n/g, '\n').split('\n')
+  // The website renders the Title field as the page H1, so a leading
+  // "# Title" line duplicates it and is dropped. Any other H1 is rejected.
+  const first = lines.findIndex(line => line.trim())
+  if (first >= 0 && /^#\s+\S/.test(lines[first].trim())) lines[first] = ''
   for (let i = 0; i < lines.length;) {
     const line = lines[i].trim()
     if (!line) { i++; continue }
@@ -138,9 +143,14 @@ export function markdownBlocks(source: string): Block[] {
       }
       result.push({ type: 'list', ordered, items }); continue
     }
-    if (/^(?:#|>|`|~|\||!\[|[-*](?:\s|$)|\d+\.(?:\s|$)|\s{4})/.test(line)) throw editorError('Unsupported Markdown syntax; review and convert to supported blocks')
+    if (line.startsWith('>')) {
+      const quoted: string[] = []
+      while (i < lines.length && lines[i].trim().startsWith('>')) { quoted.push(lines[i].trim().replace(/^>\s?/, '').trim()); i++ }
+      result.push({ type: 'quote', children: markdownInlines(quoted.filter(Boolean).join(' ')) }); continue
+    }
+    if (/^(?:#|`|~|\||!\[|[-*](?:\s|$)|\d+\.(?:\s|$)|\s{4})/.test(line)) throw editorError(`Unsupported Markdown syntax on line ${i + 1}: "${snippet(line)}". Use ## or ### headings, - or 1. lists, > quotes and ![alt text](image URL) images; the title belongs in the Title field, and #### headings, code and tables are not supported.`)
     const paragraph: string[] = []
-    while (i < lines.length && lines[i].trim() && !/^(?:#{2,3}\s|[-*]\s|\d+\.\s|!\[)/.test(lines[i].trim())) { paragraph.push(lines[i].trim()); i++ }
+    while (i < lines.length && lines[i].trim() && !/^(?:#{2,3}\s|[-*]\s|\d+\.\s|!\[|>)/.test(lines[i].trim())) { paragraph.push(lines[i].trim()); i++ }
     result.push({ type: 'paragraph', children: markdownInlines(paragraph.join(' ')) })
   }
   return result
@@ -154,8 +164,10 @@ export function reviewRequestedEvent(post: BlogPost, ideaId?: string): Record<st
 export function publishedEvent(post: BlogPost, ideaId?: string): Record<string, unknown> {
   const client = typeof post.client === 'number' ? post.client : post.client?.id
   if (!configuredClientId() || client !== configuredClientId() || !post.clientConfirmed || post.status !== 'published') throw new Error('Post is not approved for this client')
-  if (!categories.includes(post.websiteCategory || '') || !services.includes(post.websiteServiceSlug || '')) throw editorError('Choose a Website Category and a Website Service Slug in the sidebar before sending for review or publishing.')
-  if (!post.readingTime?.trim() || !post.publishedDate || !post.author?.trim() || !post.excerpt?.trim()) throw editorError(`Fill in ${[!post.publishedDate && 'Published Date', !post.author?.trim() && 'Author', !post.excerpt?.trim() && 'Excerpt', !post.readingTime?.trim() && 'Reading Time'].filter(Boolean).join(', ')} before sending for review or publishing.`)
+  // Report every missing field at once so editors are not sent round one save at a time.
+  const missingSidebar = [!categories.includes(post.websiteCategory || '') && 'Website Category', !services.includes(post.websiteServiceSlug || '') && 'Website Service Slug'].filter(Boolean)
+  const missing = [...missingSidebar, !post.publishedDate && 'Published Date', !post.author?.trim() && 'Author', !post.excerpt?.trim() && 'Excerpt', !post.readingTime?.trim() && 'Reading Time'].filter(Boolean)
+  if (missing.length || !post.publishedDate) throw editorError(`Fill in ${missing.join(', ')} before sending for review or publishing.${missingSidebar.length ? ' Website Category and Website Service Slug are in the sidebar.' : ''}`)
   const blocks = post.markdownContent?.trim() ? markdownBlocks(post.markdownContent) : lexicalBlocks(post.content)
   if (!blocks.length || blocks.length > 300 || !blocks.some(block => block.type !== 'heading')) throw editorError('Article must have 1–300 supported blocks, including body content')
   const article = {

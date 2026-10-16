@@ -6,6 +6,7 @@ import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 import { editorError } from "../lib/in-the-picture/article";
 import { configuredClientId } from "../lib/in-the-picture/config";
 import { enqueuePost, nextRevision } from "../lib/in-the-picture/outbox";
+import { estimatedReadingTime, readingTimeFromText } from "../lib/blog-reading-time";
 
 /**
  * Blog Posts Collection
@@ -150,7 +151,7 @@ export const BlogPosts: CollectionConfig = {
       },
     ],
     beforeChange: [
-      ({ data }) => {
+      ({ data, originalDoc }) => {
         if (!data?.markdownSource) return data;
 
         try {
@@ -204,6 +205,15 @@ export const BlogPosts: CollectionConfig = {
             if (h1Match) data.title = h1Match[1].trim();
           }
 
+          // In The Picture renders the Title field as the page H1 and rejects
+          // a body H1, so drop a leading "# Title" line for that client only
+          // (other client sites render the body H1 themselves).
+          const importClient = data.client ?? originalDoc?.client;
+          const importClientId = typeof importClient === "object" && importClient ? importClient.id : importClient;
+          if (configuredClientId() && importClientId === configuredClientId()) {
+            body = body.replace(/^\s*# [^\n]*(?:\n|$)/, "");
+          }
+
           // Strip metadata sections formatted as markdown headings
           // (e.g. "## Meta title\nContent\n\n") and extract their values
           const metaSections = [
@@ -251,9 +261,7 @@ export const BlogPosts: CollectionConfig = {
             }
 
             // Auto-calculate reading time from word count
-            const wordCount = body.trim().split(/\s+/).length;
-            const minutes = Math.max(1, Math.ceil(wordCount / 200));
-            data.readingTime = `${minutes} min read`;
+            data.readingTime = readingTimeFromText(body) ?? data.readingTime;
 
             // Set metaTitle and metaDescription
             if (!data.metaTitle?.trim() && data.title) {
@@ -324,6 +332,19 @@ export const BlogPosts: CollectionConfig = {
         }
         return data;
       },
+      ({ data, originalDoc }) => {
+        // Fill an empty Reading Time from the article body on every save, not
+        // only on Markdown import. An editor-entered value is never replaced.
+        if (!data) return data;
+        const current = data.readingTime ?? originalDoc?.readingTime;
+        if (typeof current === "string" && current.trim()) return data;
+        const estimate = estimatedReadingTime(
+          data.markdownContent ?? originalDoc?.markdownContent,
+          data.content ?? originalDoc?.content,
+        );
+        if (estimate) data.readingTime = estimate;
+        return data;
+      },
     ],
     afterDelete: [async ({ doc, req }) => {
       await enqueuePost(req.payload, { ...doc, websiteSyncRevision: nextRevision(doc.websiteSyncRevision) }, doc, req, true);
@@ -370,7 +391,10 @@ export const BlogPosts: CollectionConfig = {
       admin: {
         position: "sidebar",
         components: {
-          Field: "./components/MarkdownGuide",
+          Field: {
+            path: "./components/MarkdownGuide",
+            clientProps: { inThePictureClientId: configuredClientId() },
+          },
         },
       },
     },

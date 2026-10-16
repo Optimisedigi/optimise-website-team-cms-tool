@@ -100,6 +100,15 @@ describe('In The Picture boundary', () => {
       ],
     })
     expect(() => markdownBlocks('[unsafe](javascript:alert(1))')).toThrow('Invalid link')
+    // The sidebar guide advertises these; the converter must accept them.
+    expect(markdownBlocks('# Missed Out on Income Averaging?\n\n> Quoted\n> advice\n\n***Both***')).toEqual([
+      { type: 'quote', children: [{ text: 'Quoted advice' }] },
+      { type: 'paragraph', children: [{ text: 'Both', bold: true, italic: true }] },
+    ])
+    expect(() => markdownBlocks('## Head\n\nBody\n\n# Second H1')).toThrow(
+      'Unsupported Markdown syntax on line 5: "# Second H1"',
+    )
+    expect(() => markdownBlocks('Intro\n\n#### Deep')).toThrow('on line 3: "#### Deep"')
     process.env.CONTENT_CMS_PUBLIC_ORIGIN = 'https://cms.example.com'
     expect(() => publishedEvent({ id: 1, client: 2, status: 'published' } as BlogPost)).toThrow(
       'not approved',
@@ -308,7 +317,8 @@ describe('In The Picture boundary', () => {
     } as BlogPost
     const fixed = { websiteCategory: 'tax-tips', websiteServiceSlug: 'income-averaging' } as const
     for (const [attempt, message] of [
-      [post, /Website Category and a Website Service Slug/],
+      // Every missing field is named in one error, not one per save.
+      [post, /Fill in Website Category, Website Service Slug, Reading Time before .* in the sidebar/],
       [{ ...post, ...fixed }, /Fill in Reading Time before/],
       [{ ...post, ...fixed, readingTime: '5 min read' }, /Unsupported Markdown syntax in ".*\[ITP to confirm\]/],
     ] as const) {

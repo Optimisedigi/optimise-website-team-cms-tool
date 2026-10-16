@@ -301,6 +301,20 @@ ${words}`,
     expect(result.readingTime).toBe("2 min read");
   });
 
+  it("drops the leading H1 from the imported body only for the In The Picture client", () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = "7";
+    try {
+      const source = "# Missed Out on Income Averaging?\n\nBody text.";
+      const itp = markdownHook({ data: { client: 7, markdownSource: source } });
+      expect(itp.title).toBe("Missed Out on Income Averaging?");
+      expect(itp.markdownContent).toBe("Body text.");
+      const other = markdownHook({ data: { client: 8, markdownSource: source } });
+      expect(other.markdownContent).toBe(source);
+    } finally {
+      delete process.env.IN_THE_PICTURE_CLIENT_ID;
+    }
+  });
+
   it("should set minimum reading time of 1 min", () => {
     const data = {
       markdownSource: `---
@@ -604,5 +618,29 @@ describe("BlogPosts: field validation", () => {
     const hook = slugField.hooks.beforeValidate[0];
     const result = hook({ value: "existing-slug", data: { title: "Ignored" } });
     expect(result).toBe("existing-slug");
+  });
+});
+
+// ─── beforeChange hook: Reading time ───────────────────────────
+describe("BlogPosts: beforeChange reading time hook", () => {
+  const readingTimeHook = () => getBeforeChangeHooks().at(-1) as any;
+
+  it("fills an empty reading time from Markdown content on a normal save", () => {
+    const words = new Array(400).fill("word").join(" ");
+    const result = readingTimeHook()({ data: { readingTime: "", markdownContent: words } });
+    expect(result.readingTime).toBe("2 min read");
+  });
+
+  it("fills it from rich text when there is no Markdown content", () => {
+    const content = { root: { children: [{ type: "paragraph", children: [{ type: "text", text: "Hello world" }] }] } };
+    const result = readingTimeHook()({ data: { content }, originalDoc: { markdownContent: "" } });
+    expect(result.readingTime).toBe("1 min read");
+  });
+
+  it("never replaces an editor-entered reading time", () => {
+    const result = readingTimeHook()({ data: { readingTime: "9 min read", markdownContent: "Short." } });
+    expect(result.readingTime).toBe("9 min read");
+    const partial = readingTimeHook()({ data: { markdownContent: "Short." }, originalDoc: { readingTime: "9 min read" } });
+    expect(partial.readingTime).toBeUndefined();
   });
 });
