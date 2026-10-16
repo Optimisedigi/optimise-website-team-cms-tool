@@ -8000,6 +8000,10 @@ export interface BlogPost {
    */
   markdownContent?: string | null;
   /**
+   * Shown below the author profile on the In The Picture website. One link per line, e.g. - [ATO: Time limits on amendments](https://www.ato.gov.au/...). A final "## Sources" section in the Markdown is moved here on save.
+   */
+  sources?: string | null;
+  /**
    * URL slug (e.g., 'how-to-improve-website-speed'). Use hyphens, lowercase, no spaces.
    */
   slug: string;
@@ -13484,6 +13488,7 @@ export interface BlogPostsSelect<T extends boolean = true> {
   content?: T;
   readingTime?: T;
   markdownContent?: T;
+  sources?: T;
   slug?: T;
   metaTitle?: T;
   metaDescription?: T;

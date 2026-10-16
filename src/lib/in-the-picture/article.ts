@@ -1,6 +1,7 @@
 import { APIError } from 'payload'
 import type { BlogPost, Media } from '@/payload-types'
 import { configuredClientId } from './config'
+import { MAX_SOURCES, MAX_SOURCE_TITLE, mergeSourceLines, type Source, sourceLine, splitTrailingSources } from './sources'
 
 /**
  * A problem the editor can fix in the post. Thrown as a public 400 so the admin
@@ -181,6 +182,17 @@ export function markdownBlocks(source: string): Block[] {
   }
   return result
 }
+/** Sources from the Sources field, one per line; an invalid line is an editor error naming it. */
+function parseSources(lines: string[]): Source[] {
+  const sources = lines.map((line, index) => {
+    const source = sourceLine(line)
+    if (!source) throw editorError(`Sources line ${index + 1} ("${snippet(line)}") must be a link like - [ATO: Time limits on amendments](https://www.ato.gov.au/...).`)
+    if (source.title.length > MAX_SOURCE_TITLE) throw editorError(`Source title on line ${index + 1} must be ${MAX_SOURCE_TITLE} characters or fewer.`)
+    return { title: source.title, url: validLink(source.url) }
+  })
+  if (sources.length > MAX_SOURCES) throw editorError(`Use at most ${MAX_SOURCES} sources (currently ${sources.length}).`)
+  return sources
+}
 export function reviewRequestedEvent(post: BlogPost, ideaId?: string): Record<string, unknown> {
   if (post.status !== 'review' || !post.clientConfirmed) throw new Error('Review must be confirmed for this client')
   const published = publishedEvent({ ...post, status: 'published' }, ideaId)
@@ -194,12 +206,17 @@ export function publishedEvent(post: BlogPost, ideaId?: string): Record<string, 
   const missingSidebar = [!categories.includes(post.websiteCategory || '') && 'Website Category', !services.includes(post.websiteServiceSlug || '') && 'Website Service Slug'].filter(Boolean)
   const missing = [...missingSidebar, !post.publishedDate && 'Published Date', !post.author?.trim() && 'Author', !post.excerpt?.trim() && 'Excerpt', !post.readingTime?.trim() && 'Reading Time'].filter(Boolean)
   if (missing.length || !post.publishedDate) throw editorError(`Fill in ${missing.join(', ')} before sending for review or publishing.${missingSidebar.length ? ' Website Category and Website Service Slug are in the sidebar.' : ''}`)
-  const blocks = post.markdownContent?.trim() ? markdownBlocks(post.markdownContent) : lexicalBlocks(post.content)
+  // A final "## Sources" section left in the body is sent as sources, shown below the author.
+  const trailing = post.markdownContent?.trim() ? splitTrailingSources(post.markdownContent) : null
+  const blocks = post.markdownContent?.trim() ? markdownBlocks(trailing?.body ?? post.markdownContent) : lexicalBlocks(post.content)
+  const fieldLines = (post.sources ?? '').split('\n').map(line => line.trim()).filter(Boolean)
+  const sources = parseSources(mergeSourceLines(fieldLines, trailing?.sourceLines ?? []))
   if (!blocks.length || blocks.length > 300 || !blocks.some(block => block.type !== 'heading')) throw editorError('Article must have 1–300 supported blocks, including body content')
   const article = {
     slug: post.slug, title: post.title, excerpt: post.excerpt, category: post.websiteCategory,
     relatedServiceSlug: post.websiteServiceSlug, publishDate: post.publishedDate.slice(0, 10),
     readTime: post.readingTime, author: post.author, contentBlocks: blocks,
+    ...(sources.length ? { sources } : {}),
     ...(post.featuredImage ? { heroImage: image(post.featuredImage, post.featuredImageAlt || '').src, heroImageAlt: post.featuredImageAlt } : {}),
   }
   return { version: 1, event: 'published', postId: String(post.id), revision: post.websiteSyncRevision, ...(ideaId ? { ideaId } : {}), article }

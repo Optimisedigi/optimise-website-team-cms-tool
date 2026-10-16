@@ -39,6 +39,7 @@ const inThePictureGuide: GuideRow[] = [
   { label: 'Table', syntax: '| Head | Head |\n| --- | --- |\n| Cell | Cell |' },
   { label: 'Line Break', syntax: 'Empty line between paragraphs' },
   { label: 'FAQ Section', syntax: '## FAQ\n**Q: Question?**\nA: Answer...' },
+  { label: 'Sources (last)', syntax: '## Sources\n- [ATO: Page title](https://www.ato.gov.au/...)' },
 ]
 
 function relationId(value: unknown): number | null {

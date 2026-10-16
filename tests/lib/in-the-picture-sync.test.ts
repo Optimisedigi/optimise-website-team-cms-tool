@@ -7,6 +7,7 @@ import { matchesBearer, websiteUrl, boundedJson } from '@/lib/in-the-picture/con
 import { lexicalBlocks, markdownBlocks, publishedEvent } from '@/lib/in-the-picture/article'
 import { batchSchema, applyIdeas, deleteIdeas, pullIdeas } from '@/lib/in-the-picture/ideas'
 import { inThePictureSchema } from '@/lib/in-the-picture/schema'
+import { BLOG_POST_SOURCES_SCHEMA } from '@/lib/in-the-picture/sources-schema'
 import {
   deliverPending,
   enqueuePost,
@@ -628,7 +629,11 @@ describe('In The Picture boundary', () => {
       await db.execute('INSERT INTO clients(id) VALUES (1)')
       await db.execute('INSERT INTO blog_posts(id) VALUES (42)')
       for (const [, statement] of inThePictureSchema) await db.execute(statement)
-      expect((await db.execute('SELECT id FROM blog_posts WHERE id = 42')).rows.length).toBe(1)
+      for (const [, statement] of BLOG_POST_SOURCES_SCHEMA) await db.execute(statement)
+      expect((await db.execute('SELECT id, sources FROM blog_posts WHERE id = 42')).rows).toEqual([
+        expect.objectContaining({ id: 42, sources: null }),
+      ])
+      expect((await db.execute('SELECT version_sources FROM _blog_posts_v')).columns).toEqual(['version_sources'])
       expect(
         (await db.execute("SELECT name FROM sqlite_master WHERE name = 'blog_ideas'")).rows.length,
       ).toBe(1)

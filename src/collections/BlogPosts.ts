@@ -7,6 +7,7 @@ import { editorError } from "../lib/in-the-picture/article";
 import { configuredClientId } from "../lib/in-the-picture/config";
 import { enqueuePost, nextRevision } from "../lib/in-the-picture/outbox";
 import { estimatedReadingTime, readingTimeFromText } from "../lib/blog-reading-time";
+import { mergeSourceLines, splitTrailingSources } from "../lib/in-the-picture/sources";
 
 /**
  * Blog Posts Collection
@@ -313,7 +314,7 @@ export const BlogPosts: CollectionConfig = {
             }
             if (needsApproval) {
               const approved = reviews.docs[0]?.kind === 'review_requested' && reviews.docs[0].state === 'approved' && reviews.docs[0].revision === originalDoc.websiteSyncRevision;
-              const reviewedFields = ['title', 'slug', 'excerpt', 'author', 'publishedDate', 'readingTime', 'websiteCategory', 'websiteServiceSlug', 'websiteBlogIdeaId', 'markdownContent', 'content', 'featuredImage', 'featuredImageAlt'];
+              const reviewedFields = ['title', 'slug', 'excerpt', 'author', 'publishedDate', 'readingTime', 'websiteCategory', 'websiteServiceSlug', 'websiteBlogIdeaId', 'markdownContent', 'content', 'featuredImage', 'featuredImageAlt', 'sources'];
               const changed = reviewedFields.some((field) => data?.[field] !== undefined && JSON.stringify(data[field]) !== JSON.stringify(originalDoc[field]));
               if (!approved || changed) throw editorError('This article needs approval of its current review revision before publishing');
             }
@@ -330,6 +331,21 @@ export const BlogPosts: CollectionConfig = {
         if (configuredClientId() && client === configuredClientId() && (['published', 'review'].includes(data?.status) || ['published', 'review'].includes(originalDoc?.status))) {
           data.websiteSyncRevision = nextRevision(originalDoc?.websiteSyncRevision);
         }
+        return data;
+      },
+      ({ data, originalDoc }) => {
+        // In The Picture shows sources below the author profile, so move a
+        // final "## Sources" section of links out of the body into Sources.
+        // Other client sites render the body as-is, so their posts are untouched.
+        if (!data || typeof data.markdownContent !== "string" || !configuredClientId()) return data;
+        const owner = data.client ?? originalDoc?.client;
+        const ownerId = typeof owner === "object" && owner ? owner.id : owner;
+        if (ownerId !== configuredClientId()) return data;
+        const trailing = splitTrailingSources(data.markdownContent);
+        if (!trailing) return data;
+        const existing = String(data.sources ?? originalDoc?.sources ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
+        data.markdownContent = trailing.body;
+        data.sources = mergeSourceLines(existing, trailing.sourceLines).join("\n");
         return data;
       },
       ({ data, originalDoc }) => {
@@ -464,6 +480,15 @@ export const BlogPosts: CollectionConfig = {
                 components: {
                   Field: "./components/ContentImageWarnings",
                 },
+              },
+            },
+            {
+              name: "sources",
+              type: "textarea",
+              admin: {
+                rows: 6,
+                description:
+                  "Shown below the author profile on the In The Picture website. One link per line, e.g. - [ATO: Time limits on amendments](https://www.ato.gov.au/...). A final \"## Sources\" section in the Markdown is moved here on save.",
               },
             },
           ],

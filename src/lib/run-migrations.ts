@@ -1,5 +1,6 @@
 import type { Payload } from "payload";
 import { inThePictureSchema } from './in-the-picture/schema';
+import { BLOG_POST_SOURCES_SCHEMA } from './in-the-picture/sources-schema';
 import { GOOGLE_ADS_MILESTONE_AUDITS_SCHEMA } from './google-ads-milestone-audits/schema';
 import { MAIL_SCHEMA } from './mail/schema';
 
@@ -886,6 +887,18 @@ export async function runMigrations(
     for (const [label, statement] of MAIL_SCHEMA) await run(label, statement);
   }
 
+  // Blog post Sources (2026-10-16). Additive only; runs before the marker
+  // short-circuit because Payload selects every flat blog_posts column.
+  // Fresh databases create the prerequisites in the full sweep and call this again.
+  // Keep in sync with src/migrations/20261016_120000_blog_post_sources.ts.
+  async function addBlogPostSources(): Promise<void> {
+    for (const table of ["blog_posts", "_blog_posts_v", "payload_migrations"]) {
+      if (!(await tableExists(table))) return;
+    }
+    for (const [label, statement] of BLOG_POST_SOURCES_SCHEMA) await run(label, statement);
+    await run("mark_migration:20261016_120000_blog_post_sources", "INSERT INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) SELECT '20261016_120000_blog_post_sources', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM `payload_migrations` WHERE `name` = '20261016_120000_blog_post_sources')");
+  }
+
   async function addWatchtowerAndSiteHealthSchema(): Promise<void> {
     await run("google_ads_automation_events", "CREATE TABLE IF NOT EXISTS `google_ads_automation_events` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `client_id` integer, `customer_id` text, `change_date_time` text, `resource_name` text NOT NULL, `change_resource_type` text, `resource_change_operation` text, `client_type` text, `user_email` text, `campaign_id` text, `campaign_name` text, `changed_fields` text, `old_values` text, `new_values` text, `is_google_automated` integer DEFAULT false, `summary` text, `impact_spend_before` numeric, `impact_spend_after` numeric, `impact_conv_before` numeric, `impact_conv_after` numeric, `impact_computed_at` text, `review_status` text DEFAULT 'unreviewed', `related_approval_id` integer, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL)");
     await run("google_ads_automation_events_resource_name_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_automation_events_resource_name_idx` ON `google_ads_automation_events` (`resource_name`)");
@@ -936,6 +949,7 @@ export async function runMigrations(
     await addGoogleAdsMilestoneAudits();
     await addMailSchema();
     await addInThePictureSchema()
+    await addBlogPostSources();
     await addMeetingSchedulerProspects();
     await addMeetingSchedulerAvailability();
     await addGoalRunsBaseline();
@@ -6525,6 +6539,7 @@ export async function runMigrations(
 
     // Fresh-database path: prerequisites now exist. Reuse the same additive SQL.
     await addInThePictureSchema()
+    await addBlogPostSources();
     await addGoogleAdsMilestoneAudits();
     await addMailSchema();
   } catch (e: unknown) {

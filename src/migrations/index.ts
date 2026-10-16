@@ -193,6 +193,7 @@ import * as migration_20261010_090000_payload_3_90_columns from './20261010_0900
 import * as migration_20261014_120000_google_ads_milestone_audits from './20261014_120000_google_ads_milestone_audits'
 import * as migration_20261014_150000_mail_client_emails from './20261014_150000_mail_client_emails'
 import * as migration_20261015_120000_fix_media_objectkey_column from './20261015_120000_fix_media_objectkey_column'
+import * as migration_20261016_120000_blog_post_sources from './20261016_120000_blog_post_sources'
 
 export const migrations = [
   {
@@ -1164,5 +1165,10 @@ export const migrations = [
     up: migration_20261015_120000_fix_media_objectkey_column.up,
     down: migration_20261015_120000_fix_media_objectkey_column.down,
     name: '20261015_120000_fix_media_objectkey_column',
+  },
+  {
+    up: migration_20261016_120000_blog_post_sources.up,
+    down: migration_20261016_120000_blog_post_sources.down,
+    name: '20261016_120000_blog_post_sources',
   },
 ]

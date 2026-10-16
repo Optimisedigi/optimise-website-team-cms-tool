@@ -7,6 +7,7 @@ import type { BlogPost } from '@/payload-types'
 import { BlogPosts } from '@/collections/BlogPosts'
 import { inThePictureSchema } from '@/lib/in-the-picture/schema'
 import { applyReviewDecision, reviewDecisionSchema } from '@/lib/in-the-picture/review-decision'
+import { publishedEvent } from '@/lib/in-the-picture/article'
 import { deliverPending, enqueuePost, nextRevision, reconcilePosts } from '@/lib/in-the-picture/outbox'
 
 const environment = { ...process.env }
@@ -269,5 +270,48 @@ describe('private In The Picture article review', () => {
       await db.execute("UPDATE blog_posts SET website_sync_revision = '2026-09-27T00:00:00.000Z' WHERE id = 31")
       expect(await applyReviewDecision(payload as never, message)).toBe('conflict')
     } finally { db.close(); await rm(dir, { recursive: true, force: true }) }
+  })
+})
+
+describe('In The Picture article sources', () => {
+  const published = { ...review, status: 'published' } as BlogPost
+  const article = (post: BlogPost) => (publishedEvent(post) as { article: Record<string, unknown> }).article
+
+  it('sends the Sources field and a final "## Sources" section as sources, not body content', () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+    const sent = article({
+      ...published,
+      sources: '- [ATO: Who can income average (2026)](https://www.ato.gov.au/who-can)\n\n[In The Picture: Income Averaging](/services/income-averaging)',
+      markdownContent: '## Heading\n\nPlain text.\n\n## Sources\n\n- [ATO: Time limits on amendments](https://www.ato.gov.au/time-limits)\n- [Duplicate](https://www.ato.gov.au/who-can)',
+    })
+    expect(sent.sources).toEqual([
+      { title: 'ATO: Who can income average (2026)', url: 'https://www.ato.gov.au/who-can' },
+      { title: 'In The Picture: Income Averaging', url: '/services/income-averaging' },
+      { title: 'ATO: Time limits on amendments', url: 'https://www.ato.gov.au/time-limits' },
+    ])
+    expect(JSON.stringify(sent.contentBlocks)).not.toContain('Sources')
+    expect(article(published)).not.toHaveProperty('sources')
+  })
+
+  it('keeps a Sources section with non-link content in the body, and names a bad Sources field line', () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+    const kept = article({ ...published, markdownContent: '## Heading\n\nText.\n\n## Sources\n\nAll figures are from the ATO.' })
+    expect(kept).not.toHaveProperty('sources')
+    expect(JSON.stringify(kept.contentBlocks)).toContain('All figures are from the ATO.')
+    expect(() => article({ ...published, sources: '[ATO](https://www.ato.gov.au)\nsee the ATO website' })).toThrow(
+      /Sources line 2 \("see the ATO website"\) must be a link/,
+    )
+    expect(() => article({ ...published, sources: '[Bad](javascript:alert(1))' })).toThrow('Invalid link')
+  })
+
+  it('moves a final "## Sources" section into the Sources field on save for this client only', () => {
+    process.env.IN_THE_PICTURE_CLIENT_ID = '1'
+    const hooks = BlogPosts.hooks?.beforeChange ?? []
+    const hook = hooks[hooks.length - 2] as unknown as (args: { data: Record<string, unknown>; originalDoc?: Record<string, unknown> }) => Record<string, unknown>
+    const markdown = '## Heading\n\nText.\n\n## Sources\n- [ATO: Amend through myGov](https://www.ato.gov.au/amend)'
+    const moved = hook({ data: { client: 1, markdownContent: markdown }, originalDoc: { sources: '[ATO: Earlier](https://www.ato.gov.au/earlier)' } })
+    expect(moved.markdownContent).toBe('## Heading\n\nText.')
+    expect(moved.sources).toBe('[ATO: Earlier](https://www.ato.gov.au/earlier)\n- [ATO: Amend through myGov](https://www.ato.gov.au/amend)')
+    expect(hook({ data: { client: 2, markdownContent: markdown } }).markdownContent).toBe(markdown)
   })
 })
