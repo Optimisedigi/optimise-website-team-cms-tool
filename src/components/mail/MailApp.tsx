@@ -13,10 +13,12 @@ import {
 } from '../../lib/mail/client-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
 import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
+import { MAIL_FOLDERS, type MailFolder } from '../../lib/mail/folders'
 
 /**
- * CMS Mail view. Inbox list → reading pane (newest message first) → Gmail-style
- * compose window (bottom right) with an OptiMate-style AI refine loop.
+ * CMS Mail view. Folder list (Inbox / Sent / Drafts) → reading pane (newest
+ * message first) → Gmail-style compose window (bottom right) with an
+ * OptiMate-style AI refine loop. A Drafts row opens in the compose window.
  *
  * Model calls happen only on explicit clicks ("Write with AI", "Summarise"),
  * each sending at most the one selected email id. Nothing is sent until the
@@ -31,10 +33,14 @@ export interface MailClientOption {
   name: string
 }
 
+const FOLDER_LABELS: Record<MailFolder, string> = { inbox: 'Inbox', sent: 'Sent', drafts: 'Drafts' }
+const FOLDER_EMPTY: Record<MailFolder, string> = { inbox: 'Inbox is empty.', sent: 'No sent emails.', drafts: 'No drafts.' }
+
 interface ThreadRow {
   threadId: string
   messageId: string
   from: string
+  to: string
   subject: string
   snippet: string
   date: string
@@ -101,6 +107,15 @@ function senderAddress(from: string): string {
   return from.match(/<([^>]+)>/)?.[1] ?? from.trim()
 }
 
+/** "Jo Smith <jo@x.com>, sam@y.com" → "Jo Smith, sam@y.com" for Sent/Drafts rows. */
+export function recipientNames(to: string): string {
+  return to
+    .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+    .map((entry) => senderName(entry.trim()))
+    .filter(Boolean)
+    .join(', ')
+}
+
 function shortDate(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
@@ -121,6 +136,7 @@ function replySubject(subject: string): string {
 }
 
 export default function MailApp({ clients }: { clients: MailClientOption[] }) {
+  const [folder, setFolder] = useState<MailFolder>('inbox')
   const [threads, setThreads] = useState<ThreadRow[]>([])
   const [account, setAccount] = useState('')
   // Senders hidden from the inbox list (stored in Payload user preferences; view-only).
@@ -161,6 +177,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   // Gmail signature shown in the compose window: '' = none set, null = unknown.
   const [signatureHtml, setSignatureHtml] = useState<string | null>(null)
   const threadRequest = useRef(0)
+  const listRequest = useRef(0)
   const composeKey = useRef(0)
 
   const showError = useCallback((err: unknown) => {
@@ -168,11 +185,16 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     setError({ message: e.message || 'Something went wrong.', connectUrl: e.connectUrl })
   }, [])
 
+  // Loads one folder's thread list. `folder` is always passed explicitly so the
+  // callback stays stable; a request counter drops replies for a folder the
+  // user has already switched away from.
   const loadInbox = useCallback(
-    async (opts: { append?: boolean; pageToken?: string | null; q?: string } = {}) => {
+    async (opts: { folder: MailFolder; append?: boolean; pageToken?: string | null; q?: string }) => {
+      const request = ++listRequest.current
       setListLoading(true)
       try {
         const params = new URLSearchParams()
+        params.set('folder', opts.folder)
         if (opts.pageToken) params.set('pageToken', opts.pageToken)
         if (opts.q) params.set('q', opts.q)
         const data = await api<{
@@ -184,6 +206,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         }>(
           `/api/mail/inbox?${params.toString()}`,
         )
+        if (request !== listRequest.current) return
         setAccount(data.account)
         if (Array.isArray(data.hiddenSenders)) setHiddenSenders(data.hiddenSenders)
         if (Array.isArray(data.clientSenders)) setClientSenders(data.clientSenders)
@@ -191,9 +214,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         setNextPageToken(data.nextPageToken)
         setError(null)
       } catch (err) {
-        showError(err)
+        if (request === listRequest.current) showError(err)
       } finally {
-        setListLoading(false)
+        if (request === listRequest.current) setListLoading(false)
       }
     },
     [showError],
@@ -217,14 +240,38 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   }, [showError])
 
   const refresh = useCallback(async () => {
-    await Promise.all([runSync(), loadInbox({ q: query })])
-  }, [loadInbox, query, runSync])
+    await Promise.all([runSync(), loadInbox({ folder, q: query })])
+  }, [folder, loadInbox, query, runSync])
 
   // Sync on open.
   useEffect(() => {
     void runSync()
-    void loadInbox()
+    void loadInbox({ folder: 'inbox' })
   }, [runSync, loadInbox])
+
+  // Switching folders clears the list, the selection and the search; the
+  // compose window stays so an in-progress draft is not lost.
+  const switchFolder = useCallback(
+    (next: MailFolder) => {
+      if (next === folder) return
+      threadRequest.current++
+      setFolder(next)
+      setThreads([])
+      setNextPageToken(null)
+      setSelectedThreadId(null)
+      setMessages([])
+      setThreadLoading(false)
+      setThreadError('')
+      setActionNote('')
+      setSummary(null)
+      setHideChoice(false)
+      setStarChoice(false)
+      setSearch('')
+      setQuery('')
+      void loadInbox({ folder: next })
+    },
+    [folder, loadInbox],
+  )
 
   const openThread = useCallback(
     async (thread: ThreadRow) => {
@@ -278,6 +325,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             threadId: draft.threadId,
             messageId: draft.replyTo.messageId,
             from: draft.replyTo.from,
+            to: '',
             subject: draft.replyTo.subject,
             snippet: '',
             date: '',
@@ -329,6 +377,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       threadId,
       messageId: '',
       from: '',
+      to: '',
       subject: '',
       snippet: '',
       date: '',
@@ -363,7 +412,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       body: JSON.stringify({ value: { senders: next } }),
     })
     setHiddenSenders(next)
-    await loadInbox({ q: query })
+    await loadInbox({ folder, q: query })
   }
 
   async function hideSender(raw: string) {
@@ -384,7 +433,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       setLastHidden(entry)
     } catch (err) {
       setError({ message: `Could not save the hidden sender: ${(err as Error).message}` })
-      await loadInbox({ q: query })
+      await loadInbox({ folder, q: query })
     }
   }
 
@@ -483,11 +532,13 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   function startReply(message: ThreadMessage) {
     setSummary(null)
+    // Replying to one of our own sent messages goes back to its recipients, not to ourselves.
+    const ownMessage = account !== '' && senderAddress(message.from).toLowerCase() === account.toLowerCase()
     setComposer({
       key: ++composeKey.current,
       mode: 'reply',
       replyTo: { messageId: message.messageId, from: message.from, subject: message.subject },
-      to: senderAddress(message.from),
+      to: ownMessage && message.to ? message.to : senderAddress(message.from),
       cc: '',
       subject: replySubject(message.subject),
       html: '',
@@ -521,6 +572,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     )
     const thread = selectedThread
     if (thread && state.mode === 'reply') void openThread(thread)
+    // The sent message now belongs in Sent, and a sent draft leaves Drafts.
+    if (folder !== 'inbox') void loadInbox({ folder, q: query })
   }
 
   async function saveComposedDraft(state: ComposeState, content: ComposeContent): Promise<string | undefined> {
@@ -536,6 +589,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         ...(state.draftId ? { draftId: state.draftId } : {}),
       }),
     })
+    if (folder === 'drafts') void loadInbox({ folder, q: query })
     return data.draftId
   }
 
@@ -594,15 +648,34 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     <div className={styles.app}>
       <div className={styles.toolbar}>
         {account ? <span className={styles.muted}>{account}</span> : null}
+        <div className={styles.folders} role="tablist" aria-label="Mail folders">
+          {MAIL_FOLDERS.map((entry) => (
+            <button
+              key={entry}
+              type="button"
+              role="tab"
+              className={`${styles.btn} ${styles.folderBtn} ${entry === folder ? styles.folderActive : ''}`}
+              aria-selected={entry === folder}
+              onClick={() => switchFolder(entry)}
+            >
+              {FOLDER_LABELS[entry]}
+            </button>
+          ))}
+        </div>
         <form
           className={styles.search}
           onSubmit={(event) => {
             event.preventDefault()
             setQuery(search)
-            void loadInbox({ q: search })
+            void loadInbox({ folder, q: search })
           }}
         >
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search inbox" aria-label="Search inbox" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
+            aria-label={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
+          />
         </form>
         <span className={styles.muted}>{syncNote}</span>
         {/* Collapsed confirmation of the last hide, so it does not take a full row. */}
@@ -773,22 +846,31 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       ) : null}
 
       <div className={styles.panes}>
-        <ul className={styles.list} aria-label="Inbox">
+        <ul className={styles.list} aria-label={FOLDER_LABELS[folder]}>
           {threads.map((thread) => (
             <li key={thread.threadId}>
               <button
                 type="button"
                 className={`${styles.row} ${thread.unread ? styles.unread : ''} ${thread.threadId === selectedThreadId ? styles.selected : ''}`}
-                onClick={() => void openThread(thread)}
+                onClick={() => (folder === 'drafts' ? void openDraft(thread.messageId) : void openThread(thread))}
               >
                 <span className={styles.rowTop}>
                   <span className={styles.sender}>
-                    {isClientSender(thread.from, clientSenders) ? (
-                      <span className={styles.star} role="img" title="Client sender" aria-label="Client sender">
-                        ★{' '}
-                      </span>
-                    ) : null}
-                    {senderName(thread.from)}
+                    {folder === 'inbox' ? (
+                      <>
+                        {isClientSender(thread.from, clientSenders) ? (
+                          <span className={styles.star} role="img" title="Client sender" aria-label="Client sender">
+                            ★{' '}
+                          </span>
+                        ) : null}
+                        {senderName(thread.from)}
+                      </>
+                    ) : (
+                      <>
+                        {folder === 'drafts' ? <span className={styles.draftTag}>Draft</span> : null}
+                        To {recipientNames(thread.to) || '(no recipient)'}
+                      </>
+                    )}
                     {thread.messageCount > 1 ? <span className={styles.count}>{thread.messageCount}</span> : null}
                   </span>
                   <span className={styles.date}>{shortDate(thread.date)}</span>
@@ -800,10 +882,10 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             </li>
           ))}
           {listLoading ? <li className={styles.empty}>Loading…</li> : null}
-          {!listLoading && threads.length === 0 && !error ? <li className={styles.empty}>Inbox is empty.</li> : null}
+          {!listLoading && threads.length === 0 && !error ? <li className={styles.empty}>{FOLDER_EMPTY[folder]}</li> : null}
           {!listLoading && nextPageToken ? (
             <li className={styles.moreItem}>
-              <button type="button" className={styles.more} onClick={() => void loadInbox({ append: true, pageToken: nextPageToken, q: query })}>
+              <button type="button" className={styles.more} onClick={() => void loadInbox({ folder, append: true, pageToken: nextPageToken, q: query })}>
                 Load more
               </button>
             </li>
@@ -827,18 +909,23 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                       Reply with AI
                     </button>
                   ) : null}
-                  <button type="button" className={styles.btn} onClick={() => void modify('archive')}>
-                    Archive
-                  </button>
-                  {selectedThread?.unread ? (
-                    <button type="button" className={styles.btn} onClick={() => void modify('read')}>
-                      Mark read
-                    </button>
-                  ) : (
-                    <button type="button" className={styles.btn} onClick={() => void modify('unread')}>
-                      Mark unread
-                    </button>
-                  )}
+                  {/* Archive and read state are inbox labels; they do not apply to Sent. */}
+                  {folder === 'inbox' ? (
+                    <>
+                      <button type="button" className={styles.btn} onClick={() => void modify('archive')}>
+                        Archive
+                      </button>
+                      {selectedThread?.unread ? (
+                        <button type="button" className={styles.btn} onClick={() => void modify('read')}>
+                          Mark read
+                        </button>
+                      ) : (
+                        <button type="button" className={styles.btn} onClick={() => void modify('unread')}>
+                          Mark unread
+                        </button>
+                      )}
+                    </>
+                  ) : null}
                   {hideTarget ? (
                     starredEntries.length > 0 ? (
                       <button

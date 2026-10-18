@@ -1,5 +1,6 @@
 import { google, type gmail_v1 } from "googleapis";
 import { parseGmailFullMessage, readGmailHeader, type GmailFullMessage } from "@/lib/gmail-search";
+import type { MailFolder } from "@/lib/mail/folders";
 
 /**
  * Gmail API calls for the CMS Mail view. Pure transport: no matching, no
@@ -55,14 +56,26 @@ export function isSyncableLabelSet(labelIds: string[] | null | undefined): boole
   return !(labelIds ?? []).some((label) => SKIP_LABELS.has(label));
 }
 
-export async function listInboxThreads(
+/** Gmail system label behind each Mail folder. */
+const FOLDER_LABELS: Record<MailFolder, string> = { inbox: "INBOX", sent: "SENT", drafts: "DRAFT" };
+
+/**
+ * Threads in one folder, newest first (Gmail order). Each row describes the
+ * message shown in the list: for the inbox that is the latest message in the
+ * thread; for Sent and Drafts it is the latest message carrying that label, so
+ * a sent thread shows what you sent (not an incoming reply) and a drafts row's
+ * `messageId` is the draft message itself (what `/api/gmail/draft` opens).
+ */
+export async function listFolderThreads(
   accessToken: string,
+  folder: MailFolder,
   options: { pageToken?: string; q?: string; maxResults?: number } = {},
 ): Promise<{ threads: InboxThreadSummary[]; nextPageToken: string | null }> {
   const gmail = gmailApi(accessToken);
+  const label = FOLDER_LABELS[folder];
   const list = await gmail.users.threads.list({
     userId: "me",
-    labelIds: ["INBOX"],
+    labelIds: [label],
     maxResults: Math.min(Math.max(options.maxResults ?? 25, 1), 50),
     ...(options.pageToken ? { pageToken: options.pageToken } : {}),
     ...(options.q ? { q: options.q } : {}),
@@ -77,22 +90,33 @@ export async function listInboxThreads(
     });
     const messages = res.data.messages ?? [];
     const latest = messages[messages.length - 1];
+    const shown =
+      folder === "inbox"
+        ? latest
+        : ([...messages].reverse().find((message) => (message.labelIds ?? []).includes(label)) ?? latest);
     const first = messages[0];
-    const headers = latest?.payload?.headers;
+    const headers = shown?.payload?.headers;
     return {
       threadId: id,
-      messageId: latest?.id ?? "",
+      messageId: shown?.id ?? "",
       from: readGmailHeader(headers, "From"),
       to: readGmailHeader(headers, "To"),
       cc: readGmailHeader(headers, "Cc"),
       subject: readGmailHeader(first?.payload?.headers, "Subject") || readGmailHeader(headers, "Subject"),
-      snippet: latest?.snippet ?? "",
-      date: isoDate(readGmailHeader(headers, "Date"), latest?.internalDate),
+      snippet: shown?.snippet ?? "",
+      date: isoDate(readGmailHeader(headers, "Date"), shown?.internalDate),
       unread: messages.some((message) => (message.labelIds ?? []).includes("UNREAD")),
       messageCount: messages.length,
     } satisfies InboxThreadSummary;
   });
   return { threads, nextPageToken: list.data.nextPageToken ?? null };
+}
+
+export async function listInboxThreads(
+  accessToken: string,
+  options: { pageToken?: string; q?: string; maxResults?: number } = {},
+): Promise<{ threads: InboxThreadSummary[]; nextPageToken: string | null }> {
+  return listFolderThreads(accessToken, "inbox", options);
 }
 
 export async function getThreadMessages(accessToken: string, threadId: string): Promise<GmailFullMessage[]> {

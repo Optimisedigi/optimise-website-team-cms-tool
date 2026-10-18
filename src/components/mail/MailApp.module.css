@@ -19,6 +19,41 @@
   flex-wrap: wrap;
 }
 
+/* Inbox / Sent / Drafts switcher: one joined group of toolbar buttons. */
+.folders {
+  display: inline-flex;
+}
+
+.folderBtn {
+  border-radius: 0;
+}
+
+.folderBtn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.folderBtn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.folderBtn + .folderBtn {
+  margin-left: -1px;
+}
+
+.folderActive {
+  position: relative;
+  border-color: var(--mail-accent);
+  background: rgba(44, 151, 201, 0.12);
+  color: var(--mail-accent);
+  font-weight: 600;
+}
+
+.draftTag {
+  margin-right: 6px;
+  color: #e5484d;
+  font-weight: 600;
+}
+
 .search {
   flex: 1;
   min-width: 180px;
