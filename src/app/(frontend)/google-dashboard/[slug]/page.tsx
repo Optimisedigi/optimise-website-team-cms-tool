@@ -6,6 +6,7 @@ import config from "@/payload.config";
 import { DashboardClient } from "./DashboardClient";
 import { validateDashboardToken } from "../../api/dashboard/verify/route";
 import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/lib/dashboard-types";
+import { normalizeDashboardRange, withDashboardPresetRange } from "@/lib/dashboard-date-ranges";
 import "../globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -111,7 +112,9 @@ async function fetchDashboardData(
   try {
     // Strip dashes from customerId — Google Ads API uses dashless format
     const cleanCustomerId = customerId.replace(/-/g, "");
-    const params = new URLSearchParams({ range: "this_month", customerId: cleanCustomerId, clientName });
+    // Send the same Sydney-pinned span the range dropdown sends via
+    // /api/dashboard/data, so first-load KPI comparisons are like-for-like.
+    const params = new URLSearchParams({ range: normalizeDashboardRange("this_month"), customerId: cleanCustomerId, clientName });
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
     // dashboardConversionActions is stored newline-separated in the CMS
     // (textarea field), but Growth Tools expects comma-separated values.
@@ -135,7 +138,7 @@ async function fetchDashboardData(
       const text = await res.text().catch(() => "");
       return { data: null, error: `Growth Tools ${res.status}: ${text}` };
     }
-    return { data: await res.json(), error: null };
+    return { data: withDashboardPresetRange(await res.json(), "this_month"), error: null };
   } catch (err) {
     return { data: null, error: `Fetch error: ${err instanceof Error ? err.message : String(err)}` };
   }

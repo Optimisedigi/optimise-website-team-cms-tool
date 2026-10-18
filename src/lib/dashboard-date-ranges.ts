@@ -26,3 +26,13 @@ export function normalizeDashboardRange(range: string, today = new Date()): stri
   }
   return range;
 }
+
+/**
+ * Growth Tools echoes back the `range` it was sent. When a preset (e.g.
+ * this_month) is sent as its normalized `custom:` span, restore the preset so
+ * the dashboard treats it as that preset rather than a custom range (which
+ * would hide the vs-last-month/year toggle and label it "Custom range").
+ */
+export function withDashboardPresetRange<T extends { range?: string }>(data: T, preset: string): T {
+  return { ...data, range: preset };
+}

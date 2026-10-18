@@ -5,6 +5,7 @@ import config from "@/payload.config";
 import { SimpleDashboardClient } from "./SimpleDashboardClient";
 import { validateDashboardToken } from "../../../api/dashboard/verify/route";
 import type { GoogleAdsDashboardData } from "@/lib/dashboard-types";
+import { normalizeDashboardRange, withDashboardPresetRange } from "@/lib/dashboard-date-ranges";
 import "../../globals.css";
 
 /**
@@ -73,7 +74,9 @@ async function fetchDashboardData(
   try {
     const cleanCustomerId = customerId.replace(/-/g, "");
     const params = new URLSearchParams({
-      range: "this_month",
+      // Match the range dropdown (/api/dashboard/data) so first-load KPI
+      // comparisons are like-for-like.
+      range: normalizeDashboardRange("this_month"),
       customerId: cleanCustomerId,
       clientName,
     });
@@ -95,7 +98,7 @@ async function fetchDashboardData(
       const text = await res.text().catch(() => "");
       return { data: null, error: `Growth Tools ${res.status}: ${text}` };
     }
-    return { data: await res.json(), error: null };
+    return { data: withDashboardPresetRange(await res.json(), "this_month"), error: null };
   } catch (err) {
     return {
       data: null,

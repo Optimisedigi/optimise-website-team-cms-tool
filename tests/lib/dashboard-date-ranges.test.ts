@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getLastWeekRange, getThisWeekRange, normalizeDashboardRange } from '@/lib/dashboard-date-ranges'
+import { getLastWeekRange, getThisWeekRange, normalizeDashboardRange, withDashboardPresetRange } from '@/lib/dashboard-date-ranges'
 import { landingDateRangeParams, landingPresetSpan, zonedDay } from '@/lib/landing-date-range'
 
 describe('dashboard date ranges', () => {
@@ -50,6 +50,14 @@ describe('dashboard date ranges', () => {
     expect(Object.fromEntries(landingDateRangeParams({ mode: 'this_month' }, sydneyAheadOfUtc))).toEqual({
       start: '2026-08-01',
       end: '2026-08-21',
+    })
+  })
+
+  it('restores the preset range on data fetched with a normalized custom span', () => {
+    const fetched = { range: 'custom:2026-08-01,2026-08-21', kpis: { prevSpend: 10 } }
+    expect(withDashboardPresetRange(fetched, 'this_month')).toEqual({
+      range: 'this_month',
+      kpis: { prevSpend: 10 },
     })
   })
 })
