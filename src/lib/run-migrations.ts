@@ -3,6 +3,7 @@ import { inThePictureSchema } from './in-the-picture/schema';
 import { BLOG_POST_SOURCES_SCHEMA } from './in-the-picture/sources-schema';
 import { GOOGLE_ADS_MILESTONE_AUDITS_SCHEMA } from './google-ads-milestone-audits/schema';
 import { MAIL_SCHEMA } from './mail/schema';
+import { BANK_RECEIPTS_SCHEMA } from './finance/bank-receipts-schema';
 
 /**
  * One result row per `run()` call inside `runMigrations`.
@@ -899,6 +900,16 @@ export async function runMigrations(
     await run("mark_migration:20261016_120000_blog_post_sources", "INSERT INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) SELECT '20261016_120000_blog_post_sources', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM `payload_migrations` WHERE `name` = '20261016_120000_blog_post_sources')");
   }
 
+  // Bank receipts (2026-10-17). Additive only; runs before the marker
+  // short-circuit so production picks it up. Fresh databases call it again
+  // after the full sweep creates payload_migrations.
+  // Keep in sync with src/migrations/20261017_120000_bank_receipts.ts.
+  async function addBankReceipts(): Promise<void> {
+    if (!(await tableExists("payload_migrations"))) return;
+    for (const [label, statement] of BANK_RECEIPTS_SCHEMA) await run(label, statement);
+    await run("mark_migration:20261017_120000_bank_receipts", "INSERT INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) SELECT '20261017_120000_bank_receipts', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM `payload_migrations` WHERE `name` = '20261017_120000_bank_receipts')");
+  }
+
   async function addWatchtowerAndSiteHealthSchema(): Promise<void> {
     await run("google_ads_automation_events", "CREATE TABLE IF NOT EXISTS `google_ads_automation_events` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `client_id` integer, `customer_id` text, `change_date_time` text, `resource_name` text NOT NULL, `change_resource_type` text, `resource_change_operation` text, `client_type` text, `user_email` text, `campaign_id` text, `campaign_name` text, `changed_fields` text, `old_values` text, `new_values` text, `is_google_automated` integer DEFAULT false, `summary` text, `impact_spend_before` numeric, `impact_spend_after` numeric, `impact_conv_before` numeric, `impact_conv_after` numeric, `impact_computed_at` text, `review_status` text DEFAULT 'unreviewed', `related_approval_id` integer, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL)");
     await run("google_ads_automation_events_resource_name_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_automation_events_resource_name_idx` ON `google_ads_automation_events` (`resource_name`)");
@@ -950,6 +961,7 @@ export async function runMigrations(
     await addMailSchema();
     await addInThePictureSchema()
     await addBlogPostSources();
+    await addBankReceipts();
     await addMeetingSchedulerProspects();
     await addMeetingSchedulerAvailability();
     await addGoalRunsBaseline();
@@ -6540,6 +6552,7 @@ export async function runMigrations(
     // Fresh-database path: prerequisites now exist. Reuse the same additive SQL.
     await addInThePictureSchema()
     await addBlogPostSources();
+    await addBankReceipts();
     await addGoogleAdsMilestoneAudits();
     await addMailSchema();
   } catch (e: unknown) {

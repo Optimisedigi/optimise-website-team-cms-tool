@@ -176,6 +176,7 @@ interface DashboardData {
     total: number
   }
   costHistory: CostHistoryEntry[]
+  mtdCosts: number
   totalLeads?: number
   activeLeads?: number
   businessCosts?: {
@@ -859,7 +860,7 @@ const Dashboard = () => {
             <KpiCard
               label="MTD Costs"
               dotColor="#f59e0b"
-              value={`$${fmt0(data.costs.total + (data.businessCosts?.totalThisMonth || 0))}`}
+              value={`$${fmt0(data.mtdCosts)}`}
               delta={data.kpiMom?.mtdCosts}
             />
       </div>

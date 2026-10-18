@@ -285,7 +285,7 @@ export function netMonthlyRetainer(
  * the retainerHistory log. The current `monthlyRetainer` applies from the
  * most-recent history entry's effectiveDate onwards.
  */
-function grossRetainerForMonth(
+export function grossRetainerForMonth(
   monthlyRetainer: number,
   retainerHistory: RetainerHistoryEntry[],
   monthDate: Date,

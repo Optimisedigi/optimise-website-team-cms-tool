@@ -1120,6 +1120,9 @@ export async function GET() {
     totalLeads: totalLeadsReceived,
     activeLeads: activeLeadsCount.totalDocs,
     businessCosts: businessCostsSummary,
+    // Current-month total (infra + API + LLM + imported business costs) —
+    // the same figure the MTD Costs month-on-month delta is computed from.
+    mtdCosts,
     processes: processesData || null,
     teamTasks: teamTasksData || null,
     realtimeVoiceCost,

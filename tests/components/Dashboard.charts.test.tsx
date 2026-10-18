@@ -38,6 +38,7 @@ const dashboardData = {
   proposals: { active: 0, converted: 0, total: 0, conversionRate: 0 },
   usage: { seoAudits: 0, croAudits: 0, keywordSnapshots: 0, competitorAnalyses: 0, contentResearches: 0, mediaUploads: 0 },
   costs: { api: {}, apiTotal: 0, infrastructure: {}, infraTotal: 0, llm: {}, llmTotal: 0, total: 0 },
+  mtdCosts: 0,
   costHistory: [],
   month: 'September 2026',
 }

@@ -34,6 +34,7 @@ import { ActivityLog } from "./collections/ActivityLog";
 import { CostCategories } from "./collections/CostCategories";
 import { CostRules } from "./collections/CostRules";
 import { BusinessCosts } from "./collections/BusinessCosts";
+import { BankReceipts } from "./collections/BankReceipts";
 import { Contractors } from "./collections/Contractors";
 import { ContractorTimeEntries } from "./collections/ContractorTimeEntries";
 import { ContractorPayments } from "./collections/ContractorPayments";
@@ -155,7 +156,7 @@ export default buildConfig({
       beforeNav: ["./components/AdminNavSetup"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
-      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/IdleSessionKeepAlive", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass", "./components/ResetDocumentTabsOnOpen", "./components/ListRowClick"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/IdleSessionKeepAlive", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass", "./components/ResetDocumentTabsOnOpen", "./components/ListRowClick", "./components/CostCsvDropImport"],
       beforeDashboard: ["./components/Dashboard"],
       views: {
         // Concept 4 "Countdown" login; keeps Payload's login endpoint + redirect rules.
@@ -185,7 +186,7 @@ export default buildConfig({
     // Landing experiments
     LandingProperties, LandingExperiments, LandingEvents, LandingDomains, LandingConversionUploads,
     // Finance
-    BusinessCosts, CostCategories, CostRules, InvoiceStatementDrafts,
+    BusinessCosts, BankReceipts, CostCategories, CostRules, InvoiceStatementDrafts,
     Contractors, ContractorTimeEntries, ContractorPayments,
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,

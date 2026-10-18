@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useShiftSelect } from '@/lib/useShiftSelect'
+import { COSTS_IMPORTED_EVENT } from '@/lib/finance/events'
+import { SalesVsCostsPanel } from '@/components/SalesVsCostsPanel'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -214,6 +216,13 @@ const BusinessCostsPage = () => {
 
   useEffect(() => { fetchData() }, [])
 
+  // Refresh when a CSV is dropped anywhere in the admin (CostCsvDropImport).
+  useEffect(() => {
+    const onImported = () => fetchData(selectedMonth)
+    window.addEventListener(COSTS_IMPORTED_EVENT, onImported)
+    return () => window.removeEventListener(COSTS_IMPORTED_EVENT, onImported)
+  }, [selectedMonth])
+
   const handleMonthChange = (val: string) => {
     setSelectedMonth(val)
     setLoading(true)
@@ -374,6 +383,8 @@ const BusinessCostsPage = () => {
         </div>
       </div>
 
+      <SalesVsCostsPanel />
+
       {/* Alerts */}
       {data.costAlerts.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
@@ -464,7 +475,7 @@ const BusinessCostsPage = () => {
         <div style={{ padding: '10px 14px', borderRadius: 6, fontSize: 13, background: uploadResult.error ? '#fef2f2' : '#f0fdf4', border: `1px solid ${uploadResult.error ? '#fecaca' : '#bbf7d0'}`, marginBottom: 16 }}>
           {uploadResult.error
             ? `Error: ${uploadResult.error}`
-            : `Imported ${uploadResult.total} transactions (${uploadResult.categorised} categorised, ${uploadResult.uncategorised} uncategorised, ${uploadResult.duplicatesSkipped} duplicates skipped)`}
+            : `Imported ${uploadResult.total} costs (${uploadResult.categorised} categorised, ${uploadResult.uncategorised} uncategorised) and ${uploadResult.receipts ?? 0} payments received. ${uploadResult.duplicatesSkipped} already-imported rows skipped.`}
         </div>
       )}
 

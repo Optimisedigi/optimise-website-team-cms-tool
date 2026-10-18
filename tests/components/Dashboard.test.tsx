@@ -37,6 +37,7 @@ const dashboardData = {
   usage: { seoAudits: 0, croAudits: 0, keywordSnapshots: 0, competitorAnalyses: 0, contentResearches: 0, mediaUploads: 0 },
   costs: { api: {}, apiTotal: 0, infrastructure: {}, infraTotal: 0, llm: {}, llmTotal: 0, total: 0 },
   costHistory: [],
+  mtdCosts: 0,
   month: 'July 2026',
 }
 
@@ -93,6 +94,30 @@ describe('Dashboard assessment goal', () => {
     const total = await screen.findByRole('progressbar', { name: 'Combined total' })
     expect(total).toHaveAttribute('aria-valuetext', '534 of 500, 107%')
     expect(total.firstElementChild).toHaveStyle({ width: '100%' })
+  })
+})
+
+describe('Dashboard MTD Costs KPI', () => {
+  it('shows the current-month total, not last month plus this month', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      ok: true,
+      json: async () => url === '/api/dashboard'
+        ? {
+            ...dashboardData,
+            // Last month's full total (incl. $900 of last month's bank costs)
+            costs: { ...dashboardData.costs, total: 1000 },
+            businessCosts: { totalThisMonth: 400, totalLastMonth: 900, uncategorisedCount: 0 },
+            mtdCosts: 443,
+          }
+        : responseFor(url),
+    })))
+
+    render(<Dashboard />)
+
+    const label = await screen.findByText('MTD Costs')
+    const card = label.closest('.od-kpi') ?? label.parentElement?.parentElement
+    expect(card).toHaveTextContent('$443')
+    expect(card).not.toHaveTextContent('$1,400')
   })
 })
 

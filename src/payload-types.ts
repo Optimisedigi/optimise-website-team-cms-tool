@@ -131,6 +131,7 @@ export interface Config {
     'landing-domains': LandingDomain;
     'landing-conversion-uploads': LandingConversionUpload;
     'business-costs': BusinessCost;
+    'bank-receipts': BankReceipt;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
     'invoice-statement-drafts': InvoiceStatementDraft;
@@ -258,6 +259,7 @@ export interface Config {
     'landing-domains': LandingDomainsSelect<false> | LandingDomainsSelect<true>;
     'landing-conversion-uploads': LandingConversionUploadsSelect<false> | LandingConversionUploadsSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
+    'bank-receipts': BankReceiptsSelect<false> | BankReceiptsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
     'invoice-statement-drafts': InvoiceStatementDraftsSelect<false> | InvoiceStatementDraftsSelect<true>;
@@ -9776,6 +9778,39 @@ export interface CostCategory {
   createdAt: string;
 }
 /**
+ * Money in from imported bank statements. Delete transfers between your own accounts, refunds or loans so they don't count as sales received.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bank-receipts".
+ */
+export interface BankReceipt {
+  id: number;
+  date: string;
+  /**
+   * Positive = money received (AUD)
+   */
+  amount: number;
+  /**
+   * Payer / reference from the bank statement
+   */
+  description: string;
+  source?: ('csv_import' | 'manual') | null;
+  /**
+   * Auto-derived YYYY-MM
+   */
+  month?: string | null;
+  /**
+   * Auto-derived
+   */
+  year?: number | null;
+  /**
+   * Groups CSV imports
+   */
+  importBatch?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "cost-rules".
  */
@@ -14838,6 +14873,21 @@ export interface BusinessCostsSelect<T extends boolean = true> {
   month?: T;
   year?: T;
   client?: T;
+  importBatch?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bank-receipts_select".
+ */
+export interface BankReceiptsSelect<T extends boolean = true> {
+  date?: T;
+  amount?: T;
+  description?: T;
+  source?: T;
+  month?: T;
+  year?: T;
   importBatch?: T;
   updatedAt?: T;
   createdAt?: T;
