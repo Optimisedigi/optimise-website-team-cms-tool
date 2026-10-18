@@ -1,15 +1,21 @@
 'use client'
 
+/** Where the "Use OpenAI API key for voice" toggle lives (Models & Chat tab, which opens by default). */
+export const VOICE_BILLING_SETTINGS_HREF = '/admin/globals/optimate-settings'
+
 /**
  * Shown for the whole call when the Realtime secret was minted with
  * OPENAI_API_KEY instead of the ChatGPT plan (Codex OAuth), so per-minute
- * API billing is never silent.
+ * API billing is never silent. That happens when "Use OpenAI API key for
+ * voice" is on in OptiMate Settings (or for secrets from the local voice
+ * helper). The link opens that setting in a new tab so the live call keeps
+ * running.
  */
 export function ApiCreditsNotice(): React.ReactElement {
   return (
     <span
       role="status"
-      title="This voice call is billed to the OpenAI API key, not the ChatGPT plan. Switch voice billing to ChatGPT Plan in OptiMate Settings."
+      title="This voice call is billed to the OpenAI API key, not the ChatGPT plan."
       style={{
         fontSize: 11,
         fontWeight: 600,
@@ -20,7 +26,17 @@ export function ApiCreditsNotice(): React.ReactElement {
         whiteSpace: 'nowrap',
       }}
     >
-      Using API credits
+      <span>Using API credits</span>
+      {' · '}
+      <a
+        href={VOICE_BILLING_SETTINGS_HREF}
+        target="_blank"
+        rel="noopener noreferrer"
+        title='Open OptiMate Settings and switch off "Use OpenAI API key for voice"'
+        style={{ color: 'inherit', textDecoration: 'underline' }}
+      >
+        Turn off
+      </a>
     </span>
   )
 }

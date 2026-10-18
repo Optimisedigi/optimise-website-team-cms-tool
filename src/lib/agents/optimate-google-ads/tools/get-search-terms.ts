@@ -55,7 +55,7 @@ interface SearchTermsEnvelope {
 export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
   name: "get_search_terms",
   description:
-    "Search queries that triggered ads on the linked account, with metrics. Args: range (optional preset OR custom 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'-style literal; default LAST_30_DAYS), minImpressions (default 0), limit (default 200, max 1000), segment ('month'|'week'|'day' — when set, returns one row per (term, segment) pair instead of a single total), conversionActions (optional exact Google Ads conversion action names to override the CMS defaults). Returns conversion breakdowns by action/category when available. Use to find wasted spend before proposing negative keywords.",
+    "Search queries that triggered ads on the linked account, with metrics and conversion breakdowns. Set `segment` for one row per term per month, week or day instead of one total. Use it to find wasted spend before proposing negative keywords.",
   inputSchema: {
     type: "object",
     properties: {

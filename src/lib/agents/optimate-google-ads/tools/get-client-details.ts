@@ -57,7 +57,7 @@ interface GetClientDetailsArgs {
 export const getClientDetails: CanonicalTool<GetClientDetailsArgs> = {
   name: "get_client_details",
   description:
-    "On-demand read of the linked client's CMS record. Use ONLY when the user asks about client info that isn't in the context — contact details, retainer/start date, business goals, recent notes, account timeline. Pass `fields` to project just the slice you need: 'contact' (name/email/account managers), 'commercial' (retainer, monthly ad spend budget from Budget Management, start date), 'notes', 'timeline' (account history entries), 'business' (type, website), 'locations' (physical + Google Maps), 'goals' (conversion goals + client goals). Use 'all' sparingly. Default returns ['contact','commercial','goals'] which is the cheapest summary.",
+    "Read the linked client's CMS record, only when the user asks for client info not already in context. Pass `fields` for just the slices you need: 'contact' (names, emails, account managers), 'commercial' (retainer, monthly ad budget from Budget Management, start date), 'notes', 'timeline' (account history), 'business' (type, website), 'locations', 'goals' (conversion and client goals). Use 'all' sparingly.",
   inputSchema: {
     type: "object",
     properties: {

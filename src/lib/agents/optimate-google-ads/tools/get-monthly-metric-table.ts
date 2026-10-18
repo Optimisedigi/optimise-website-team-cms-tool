@@ -55,7 +55,7 @@ const MAX_METRICS = 6;
 export const getMonthlyMetricTable: CanonicalTool<MonthlyMetricTableArgs> = {
   name: "get_monthly_metric_table",
   description:
-    "Canonical account-level monthly Google Ads metric table. Use this whenever the user asks for CTR by month, monthly CTR, month-by-month clicks/impressions/CTR, six-month performance, or any monthly breakdown of spend, clicks, impressions, conversions, CPA, CPC, CTR, or conversion rate for the active audit account. For CTR, uses Google Ads' metrics.ctr values returned by Growth Tools, weighted by impressions across rows. Other derived rates still use summed totals. Returns Gmail-ready html, totals, display values, and validation formulas.",
+    "Canonical account-level monthly metric table (spend, clicks, impressions, conversions, CPA, CPC, CTR, conversion rate) with Gmail-ready HTML, totals and validation formulas. Use it for any month-by-month view, especially monthly CTR. CTR is Google Ads metrics.ctr, impression-weighted; other rates use summed totals.",
   inputSchema: {
     type: "object",
     properties: {

@@ -42,7 +42,7 @@ interface MetricsEnvelope {
 export const getAccountOverview: CanonicalTool<OverviewArgs> = {
   name: "get_account_overview",
   description:
-    "Account-level totals over a chosen window: total spend, total conversions, conversion breakdown by action/category, average CPA, active campaigns, and account-level search impression share / lost IS to budget / lost IS to rank. Args: range (optional preset, default LAST_30_DAYS), conversionActions (optional exact Google Ads conversion action names to override the CMS defaults). Common ranges: LAST_7_DAYS, LAST_30_DAYS, LAST_90_DAYS, THIS_MONTH, LAST_MONTH, YESTERDAY.",
+    "Account-level totals for a date window: spend, conversions (with action and category breakdown), average CPA, active campaigns, and account search impression share with lost IS to budget and rank.",
   inputSchema: {
     type: "object",
     properties: {

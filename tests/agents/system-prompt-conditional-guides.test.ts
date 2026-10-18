@@ -10,7 +10,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { buildSystemPromptForAudit } from "@/lib/agents/optimate-google-ads/config";
+import {
+  buildSystemPromptForAudit,
+  buildSystemPromptForPortfolio,
+  guidanceForRequestedBundles,
+} from "@/lib/agents/optimate-google-ads/config";
 import type { Message } from "@/lib/agents/_shared/llm/types";
 
 // Pull a distinctive sentence from each guide so the assertion can check
@@ -18,8 +22,11 @@ import type { Message } from "@/lib/agents/_shared/llm/types";
 const SCHEDULED_TASKS_SIGNATURE = "Never fabricate cron expressions";
 const DECK_SIGNATURE = "you MUST have:";
 const GEO_SIGNATURE = "INCREMENTAL ADDITIONS";
-// One-off Gmail draft guide — always loaded regardless of keywords.
+// One-off Gmail draft guide, loaded on email/draft/budget-report triggers.
 const GMAIL_DRAFT_SIGNATURE = "ONE-OFF Gmail drafts";
+// Segmentation and memory guides follow the tools they describe.
+const SEGMENTATION_SIGNATURE = "segmentationUnavailable";
+const MEMORY_SIGNATURE = "When to call/request `remember`";
 const ATTACHED_EMAIL_REPLY_SIGNATURE = "Selecting a Google Ads account does not by itself make an attached-email reply request a Google Ads data request";
 
 const AUDIT = {
@@ -42,27 +49,88 @@ describe("buildSystemPromptForAudit conditional guide inclusion", () => {
     expect(prompt).toContain(GEO_SIGNATURE);
   });
 
-  it("ALWAYS includes the one-off Gmail draft guide, regardless of recentMessages", () => {
-    // No recentMessages (back-compat path).
+  it("loads the Gmail draft guide only when an email, draft or budget-report trigger fires", () => {
+    // No recentMessages (back-compat path) keeps every guide.
     expect(buildSystemPromptForAudit(AUDIT, null)).toContain(GMAIL_DRAFT_SIGNATURE);
-    // Empty array (conditional path, no triggers).
+    // Routine turns no longer carry the ~10K-char guide.
     expect(
       buildSystemPromptForAudit(AUDIT, null, undefined, { recentMessages: [] }),
-    ).toContain(GMAIL_DRAFT_SIGNATURE);
-    // Generic CPA question (no triggers, no scheduled-task or deck guides).
+    ).not.toContain(GMAIL_DRAFT_SIGNATURE);
     expect(
       buildSystemPromptForAudit(AUDIT, null, undefined, {
         recentMessages: [userMsg("what is our CPA this week")],
       }),
-    ).toContain(GMAIL_DRAFT_SIGNATURE);
-    // The exact phrasing from the regression case the user reported.
+    ).not.toContain(GMAIL_DRAFT_SIGNATURE);
+    for (const text of [
+      // The exact phrasing from the regression case the user reported.
+      "Create a Gmail draft for the budget management email, and if CPA improved last week add a note on top",
+      "email the monthly budget management report",
+      "draft the MTD budget update",
+      "give me the monthly budget management report",
+      "do the weekly report for this client",
+      "respond to this email thanking her for GA4 access",
+    ]) {
+      expect(
+        buildSystemPromptForAudit(AUDIT, null, undefined, { recentMessages: [userMsg(text)] }),
+        text,
+      ).toContain(GMAIL_DRAFT_SIGNATURE);
+    }
+  });
+
+  it("loads the segmentation guide only with the bundles whose tools take a segment", () => {
+    const withMessages = (text: string) =>
+      buildSystemPromptForAudit(AUDIT, null, undefined, { recentMessages: [userMsg(text)] });
+    expect(buildSystemPromptForAudit(AUDIT, null)).toContain(SEGMENTATION_SIGNATURE);
+    expect(withMessages("hello")).not.toContain(SEGMENTATION_SIGNATURE);
+    expect(withMessages("what is our CPA this week")).toContain(SEGMENTATION_SIGNATURE);
+    expect(withMessages("which search terms are wasting money")).toContain(SEGMENTATION_SIGNATURE);
+  });
+
+  it("loads the memory guide only when memory tools are attached", () => {
+    expect(buildSystemPromptForAudit(AUDIT, null)).toContain(MEMORY_SIGNATURE);
+    expect(
+      buildSystemPromptForAudit(AUDIT, null, undefined, { recentMessages: [userMsg("what is our CPA this week")] }),
+    ).not.toContain(MEMORY_SIGNATURE);
     expect(
       buildSystemPromptForAudit(AUDIT, null, undefined, {
-        recentMessages: [
-          userMsg("Create a Gmail draft for the budget management email, and if CPA improved last week add a note on top"),
-        ],
+        recentMessages: [userMsg("Remember that this client hates PMax")],
       }),
-    ).toContain(GMAIL_DRAFT_SIGNATURE);
+    ).toContain(MEMORY_SIGNATURE);
+    expect(buildSystemPromptForPortfolio({ recentMessages: [userMsg("compare spend across accounts")] })).not.toContain(
+      MEMORY_SIGNATURE,
+    );
+    expect(buildSystemPromptForPortfolio({ recentMessages: [userMsg("remember this for next time")] })).toContain(
+      MEMORY_SIGNATURE,
+    );
+  });
+
+  it("sends a left-out guide with a mid-run bundle request, and skips guides already loaded", () => {
+    const notLoaded = { segmentation: false, memory: false };
+    expect(guidanceForRequestedBundles(["performance"], notLoaded)).toContain(SEGMENTATION_SIGNATURE);
+    expect(guidanceForRequestedBundles(["memory"], notLoaded)).toContain(MEMORY_SIGNATURE);
+    expect(guidanceForRequestedBundles(["goals"], notLoaded)).toBeUndefined();
+    expect(guidanceForRequestedBundles(["performance", "memory"], { segmentation: true, memory: true })).toBeUndefined();
+  });
+
+  it("does not load the scheduled-tasks guide for pausing a campaign", () => {
+    const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
+      recentMessages: [userMsg("pause the brand campaign")],
+    });
+    expect(prompt).not.toContain(SCHEDULED_TASKS_SIGNATURE);
+    expect(
+      buildSystemPromptForAudit(AUDIT, null, undefined, { recentMessages: [userMsg("pause my weekly report")] }),
+    ).toContain(SCHEDULED_TASKS_SIGNATURE);
+  });
+
+  it("keeps the Gmail draft guide loaded for the answer to a graph-choice question", () => {
+    const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
+      recentMessages: [
+        userMsg("put the weekly budget numbers into Gmail"),
+        { role: "assistant", content: [{ type: "text", text: "Which graphs: keyword_relevancy, cpa_trend, or both?" }] },
+        userMsg("both"),
+      ],
+    });
+    expect(prompt).toContain(GMAIL_DRAFT_SIGNATURE);
   });
 
   it("includes heavy guides when recentMessages is omitted via the options object", () => {
@@ -165,6 +233,27 @@ describe("buildSystemPromptForAudit conditional guide inclusion", () => {
   });
 });
 
+describe("buildSystemPromptForAudit size guard", () => {
+  // The routine prompt went from 17.3K to under 8K characters by loading
+  // guides with their tools and stating each rule once. Raising this budget
+  // should be a deliberate choice, not drift.
+  it("keeps a routine turn's prompt under 9,000 characters", () => {
+    const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, { recentMessages: [userMsg("hello")] });
+    expect(prompt.length).toBeLessThan(9000);
+  });
+
+  it("states no long sentence twice, even with every guide loaded", () => {
+    const counts = new Map<string, number>();
+    for (const sentence of buildSystemPromptForAudit(AUDIT, null)
+      .replace(/\s+/g, " ")
+      .split(/(?<=[.!?])\s+/)
+      .filter((item) => item.length >= 80)) {
+      counts.set(sentence, (counts.get(sentence) ?? 0) + 1);
+    }
+    expect([...counts].filter(([, count]) => count > 1).map(([sentence]) => sentence)).toEqual([]);
+  });
+});
+
 describe("buildSystemPromptForAudit dash hygiene", () => {
   /**
    * The user's soul rule (and the guardrail we just added) forbids em and en
@@ -177,9 +266,12 @@ describe("buildSystemPromptForAudit dash hygiene", () => {
    * with a comma, period, or rewrite. Hyphens (-) are unaffected.
    */
   it("contains no em or en dashes outside the rules that name them", () => {
+    // "draft" loads the Gmail draft guide so this check still covers it now
+    // that routine turns leave it out.
     const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
-      recentMessages: [userMsg("hello")],
+      recentMessages: [userMsg("draft the budget email")],
     });
+    expect(prompt).toContain(GMAIL_DRAFT_SIGNATURE);
     // Strip the no-dash guardrail + the OUTPUT_FORMAT line that legitimately
     // names the banned chars. The substring "NO EM DASHES OR EN DASHES" is
     // the start of the guardrail; "NO em or en dashes" is the OUTPUT_FORMAT

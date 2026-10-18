@@ -106,6 +106,42 @@ describe("GoogleMate tool routing", () => {
     ]);
   });
 
+  it("ignores assistant replies when choosing bundles", () => {
+    const names = getGoogleMateInitialTools([
+      userMessage("Hello"),
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "I can review campaign performance, draft a budget email, pause campaigns or build a deck." }],
+      },
+      userMessage("thanks"),
+    ]).map((tool) => tool.name);
+    expect(names).toEqual([
+      "request_googlemate_tool_bundle",
+      "get_account_overview",
+      "growth_tools_read",
+      "get_client_details",
+    ]);
+  });
+
+  it("loads live actions for a pause request without the approval-only campaign-build bundle", () => {
+    const names = toolNamesFor("pause the brand campaign");
+    expect(names).toContain("execute_google_ads_action");
+    expect(names).not.toContain("propose_campaign_restructure");
+    expect(names).not.toContain("request_confirm");
+  });
+
+  it("keeps rarely used budget-change and keyword-idea tools out of routine spend and performance turns", () => {
+    const routine = toolNamesFor("how much did we spend last month and what was the CPA");
+    expect(routine).toContain("get_campaign_performance");
+    expect(routine).toContain("get_budget_management_email");
+    expect(routine).not.toContain("propose_budget_update");
+    expect(routine).not.toContain("get_keyword_ideas");
+
+    expect(toolNamesFor("increase the daily budget on brand")).toContain("propose_budget_update");
+    expect(toolNamesFor("push the budgets live")).toContain("propose_all_campaign_budget_push");
+    expect(toolNamesFor("get keyword ideas and search volume for plumbers")).toContain("get_keyword_ideas");
+  });
+
   it("pre-attaches memory tools when the conversation explicitly asks for memory", () => {
     expectExactToolsFor("Remember that this client hates broad-match PMax tests.", [
       "memory_search",

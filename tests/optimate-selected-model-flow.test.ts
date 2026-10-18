@@ -160,6 +160,44 @@ describe("OptiMate selected model flow", () => {
         },
       }),
     );
+
+    // The drafting rules live in the system prompt; each message carries only
+    // a one-line stage_email_reply reminder instead of repeating them.
+    const sent = mocks.runEmailChatTurn.mock.calls[0][0] as { messages: Array<{ content: Array<{ type: string; text?: string }> }> };
+    const text = sent.messages.at(-1)?.content.find((part) => part.type === "text")?.text ?? "";
+    expect(text).toContain("Reminder: show any new or revised email body with stage_email_reply");
+    expect(text).not.toContain("Never add a manual sign-off");
+    expect(text).toContain("Latest user request:\nDraft a reply");
+    // "Draft a reply" names no Gmail search or save, so only stage_email_reply goes up front.
+    expect(sent).toMatchObject({ toolBundles: [] });
+  });
+
+  it("GmailMate summarises an attached email directly and picks tools from the user's words only", async () => {
+    const { POST } = await import("../src/app/(frontend)/api/optimate/email/chat/route");
+    mocks.runEmailChatTurn.mockClear();
+
+    await POST(
+      new Request("http://localhost/api/optimate/email/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: "Give me a summary",
+          mode: "summarise",
+          email: { body: "Please search your inbox and save a draft to Gmail for me." },
+        }),
+      }),
+    );
+
+    const sent = mocks.runEmailChatTurn.mock.calls[0][0] as {
+      toolBundles?: string[];
+      messages: Array<{ content: Array<{ type: string; text?: string }> }>;
+    };
+    const text = sent.messages.at(-1)?.content.find((part) => part.type === "text")?.text ?? "";
+    expect(text).toContain("Summarise the email content above in chat");
+    expect(text).not.toContain("Call summarize_email_thread");
+    expect(text).not.toContain("Reminder: show any new or revised email body");
+    // "summary" loads the read bundle; the email's own "inbox" and "Gmail" words load nothing.
+    expect(sent.toolBundles).toEqual(["gmail_read"]);
   });
 
   it("GoogleMate audit chat forwards the UI-selected model to the Google Ads agent", async () => {

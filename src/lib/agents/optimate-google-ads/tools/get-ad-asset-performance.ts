@@ -65,7 +65,7 @@ interface AdAssetEnvelope {
 export const getAdAssetPerformance: CanonicalTool<AdAssetPerfArgs> = {
   name: "get_ad_asset_performance",
   description:
-    "Per-headline (or description) RSA asset metrics for the linked account. Returns impressions, clicks, CTR, conversions and Google's BEST/GOOD/LOW performance label for each text asset, so the agent can compare headlines within an ad group and identify the worst 1–2 candidates for replacement. Args: range (optional preset OR 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'/'YTD' literal; default LAST_30_DAYS), adGroupIds (optional array of numeric ad group IDs — strongly recommended, account-wide queries are expensive), fieldType ('HEADLINE'|'DESCRIPTION'|'ALL'; default 'HEADLINE'), limit (default 200, max 1000). Used primarily by the Ad CTR Improver goal.",
+    "RSA text-asset metrics (impressions, clicks, CTR, conversions and Google's BEST/GOOD/LOW label) for comparing headlines or descriptions within an ad group and finding the weakest one or two. Pass adGroupIds when you can: account-wide queries are slow. Used mainly by the Ad CTR Improver goal.",
   inputSchema: {
     type: "object",
     properties: {

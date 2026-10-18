@@ -2,9 +2,10 @@
  * Realtime token provider — the single swappable seam for where the OpenAI
  * Realtime ephemeral secret comes from.
  *
- * The default provider mints secrets through our own Next.js route using the
- * server-side OPENAI_API_KEY. The older local Electron helper bridge remains as
- * a fallback provider for single-machine testing.
+ * The default provider mints secrets through our own Next.js route, which
+ * always uses the connected ChatGPT plan (Codex OAuth), never OPENAI_API_KEY.
+ * The older local Electron helper bridge remains as a fallback provider for
+ * single-machine testing.
  *
  * This module runs in the browser (the helper resolves `localhost` to the
  * user's own machine), so it must stay client-safe.
@@ -52,7 +53,7 @@ function helperUrl(): string {
   return fromEnv && fromEnv.trim().length > 0 ? fromEnv.trim() : DEFAULT_HELPER_URL
 }
 
-/** Talks to the app server, which mints the secret with OPENAI_API_KEY. */
+/** Talks to the app server, which mints the secret with the ChatGPT plan (Codex OAuth). The `api-key` provider name is kept for existing env config. */
 export const apiKeyProvider: TokenProvider = {
   async getSecret({ auditId, session }) {
     const response = await fetch('/api/optimate/realtime-secret', {

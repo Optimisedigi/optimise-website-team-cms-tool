@@ -97,6 +97,11 @@ describe('TaskMateLiveVoice', () => {
     render(<TaskMateLiveVoice onTurn={vi.fn()} onActiveChange={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Start GPT Live with TaskMate' }))
     await waitFor(() => expect(screen.getByText('Using API credits')).toBeTruthy())
+    // The warning links to the "Use OpenAI API key for voice" toggle in a new
+    // tab, so turning it off doesn't end the live call.
+    const link = screen.getByRole('link', { name: 'Turn off' })
+    expect(link.getAttribute('href')).toBe('/admin/globals/optimate-settings')
+    expect(link.getAttribute('target')).toBe('_blank')
   })
 
   it('shows no API credits warning when the secret came from the ChatGPT plan', async () => {

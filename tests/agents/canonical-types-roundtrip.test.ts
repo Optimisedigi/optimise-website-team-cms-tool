@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { toAnthropic } from "@/lib/agents/_shared/llm/transformers/to-anthropic";
+import { addConversationCacheBreakpoint, toAnthropic } from "@/lib/agents/_shared/llm/transformers/to-anthropic";
 import { fromAnthropic } from "@/lib/agents/_shared/llm/transformers/from-anthropic";
 import { toOpenAI } from "@/lib/agents/_shared/llm/transformers/to-openai";
 import { fromOpenAI } from "@/lib/agents/_shared/llm/transformers/from-openai";
@@ -64,6 +64,44 @@ const baseOpts: CallLLMOptions = {
 };
 
 describe("Anthropic transformer", () => {
+  it("caches the conversation by marking only its newest block", () => {
+    const body = toAnthropic(baseOpts, "claude-sonnet-4-5");
+    addConversationCacheBreakpoint(body);
+
+    const marked = body.messages.flatMap((m) => m.content).filter((block) => "cache_control" in block);
+    expect(marked).toHaveLength(1);
+    expect(body.messages[2].content.at(-1)).toMatchObject({
+      type: "tool_result",
+      tool_use_id: "toolu_01",
+      cache_control: { type: "ephemeral" },
+    });
+    // System breakpoint is untouched: two breakpoints in total, under Anthropic's limit of four.
+    expect(body.system?.[0]?.cache_control).toEqual({ type: "ephemeral" });
+  });
+
+  it("never puts the conversation breakpoint on a thinking block", () => {
+    const body = toAnthropic(
+      {
+        ...baseOpts,
+        messages: [
+          { role: "user", content: [{ type: "text", text: "Go." }] },
+          {
+            role: "assistant",
+            content: [
+              { type: "text", text: "Working." },
+              { type: "thinking", text: "plan", signature: "sig" },
+            ],
+          },
+        ],
+      },
+      "claude-sonnet-4-5",
+    );
+    addConversationCacheBreakpoint(body);
+
+    expect(body.messages[1].content[1]).not.toHaveProperty("cache_control");
+    expect(body.messages[1].content[0]).toMatchObject({ type: "text", cache_control: { type: "ephemeral" } });
+  });
+
   it("converts canonical request to Anthropic shape", () => {
     const body = toAnthropic(baseOpts, "claude-sonnet-4-5");
     expect(body.model).toBe("claude-sonnet-4-5");

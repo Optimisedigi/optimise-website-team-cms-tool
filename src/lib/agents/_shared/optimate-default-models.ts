@@ -31,15 +31,18 @@ import {
 } from "./optimate-starter-questions";
 
 export type OptiMateRealtimeModel = "gpt-realtime-mini" | "gpt-realtime-2" | "gpt-realtime-2.1";
-export type OptiMateVoiceAuthMethod = "api-key" | "codex-oauth";
 
 export interface OptiMateDefaultModels {
   defaultChatModel: CanonicalModelName;
   defaultAutonomousModel: CanonicalModelName;
   /** Model used when minting OptiMate Realtime voice sessions. */
   voiceRealtimeModel: OptiMateRealtimeModel;
-  /** Billing/auth method for voice calls: ChatGPT plan (Codex OAuth) or API key. */
-  voiceAuthMethod: OptiMateVoiceAuthMethod;
+  /**
+   * "Use OpenAI API key for voice" toggle. Off (default, and whenever settings
+   * can't be read): voice uses the ChatGPT plan only. On: voice bills
+   * OPENAI_API_KEY.
+   */
+  voiceApiKeyEnabled: boolean;
   /** Optional task-specific model for Blog Prompter AI Suggest. */
   blogPrompterModel?: CanonicalModelName;
   /** Optional task-specific model for the Xero invoice assistant. */
@@ -121,10 +124,6 @@ export function resolveVoiceRealtimeModel(value: unknown): OptiMateRealtimeModel
     : DEFAULT_VOICE_REALTIME_MODEL;
 }
 
-export function resolveVoiceAuthMethod(value: unknown): OptiMateVoiceAuthMethod {
-  return value === "codex-oauth" ? "codex-oauth" : "api-key";
-}
-
 /**
  * Resolve the configured defaults. `payloadOverride` lets callers that already
  * hold a Payload instance avoid a second getPayload() (e.g. inside a route
@@ -148,7 +147,7 @@ export async function getOptiMateDefaultModels(
       negativeSweepModel?: unknown;
       blogImageGenerationModel?: unknown;
       voiceRealtimeModel?: unknown;
-      voiceAuthMethod?: unknown;
+      voiceApiKeyEnabled?: unknown;
       chatHistoryTokenLimit?: unknown;
       googleMateStarterQuestions?: unknown;
       googleMatePortfolioStarterQuestions?: unknown;
@@ -165,7 +164,7 @@ export async function getOptiMateDefaultModels(
       defaultChatModel: resolvePickerModel(global?.defaultChatModel) ?? DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: resolvePickerModel(global?.defaultAutonomousModel) ?? DEFAULT_AUTONOMOUS_MODEL,
       voiceRealtimeModel: resolveVoiceRealtimeModel(global?.voiceRealtimeModel),
-      voiceAuthMethod: resolveVoiceAuthMethod(global?.voiceAuthMethod),
+      voiceApiKeyEnabled: global?.voiceApiKeyEnabled === true,
       blogImageGenerationModel: resolveNativeModel(
         global?.blogImageGenerationModel,
         DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
@@ -201,7 +200,7 @@ export async function getOptiMateDefaultModels(
       defaultChatModel: DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: DEFAULT_AUTONOMOUS_MODEL,
       voiceRealtimeModel: DEFAULT_VOICE_REALTIME_MODEL,
-      voiceAuthMethod: "api-key",
+      voiceApiKeyEnabled: false,
       blogImageGenerationModel: DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
       chatHistoryTokenLimit: DEFAULT_CHAT_HISTORY_TOKEN_LIMIT,
       googleMateStarterQuestions: [...DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS],

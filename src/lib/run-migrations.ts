@@ -888,6 +888,22 @@ export async function runMigrations(
     for (const [label, statement] of MAIL_SCHEMA) await run(label, statement);
   }
 
+  // "Use OpenAI API key for voice" toggle (2026-10-18). Additive, off by
+  // default. Runs before the marker short-circuit because Payload selects every
+  // `optimate_settings` column, so the settings global cannot load without it.
+  // Fresh databases call it again after the full sweep creates the table.
+  // Keep in sync with src/migrations/20261018_120000_voice_api_key_toggle.ts.
+  async function addOptiMateVoiceApiKeyToggle(): Promise<void> {
+    for (const table of ["optimate_settings", "payload_migrations"]) {
+      if (!(await tableExists(table))) return;
+    }
+    await run(
+      "optimate_settings.voice_api_key_enabled",
+      "ALTER TABLE `optimate_settings` ADD `voice_api_key_enabled` integer DEFAULT false",
+    );
+    await run("mark_migration:20261018_120000_voice_api_key_toggle", "INSERT INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) SELECT '20261018_120000_voice_api_key_toggle', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM `payload_migrations` WHERE `name` = '20261018_120000_voice_api_key_toggle')");
+  }
+
   // Blog post Sources (2026-10-16). Additive only; runs before the marker
   // short-circuit because Payload selects every flat blog_posts column.
   // Fresh databases create the prerequisites in the full sweep and call this again.
@@ -954,6 +970,7 @@ export async function runMigrations(
     await addPayload390Columns();
     await repairAgencyKpiSnapshotColumns();
     await addOptiMateVoiceAuthMethod();
+    await addOptiMateVoiceApiKeyToggle();
     await mergeClientPulseSeoService();
     await addHostingStartDateAndOneOffPayments();
     await addWatchtowerAndSiteHealthSchema();
@@ -6550,6 +6567,7 @@ export async function runMigrations(
     );
 
     // Fresh-database path: prerequisites now exist. Reuse the same additive SQL.
+    await addOptiMateVoiceApiKeyToggle();
     await addInThePictureSchema()
     await addBlogPostSources();
     await addBankReceipts();

@@ -48,7 +48,7 @@ interface AdGroupEnvelope {
 export const getAdGroupPerformance: CanonicalTool<AdGroupPerformanceArgs> = {
   name: "get_ad_group_performance",
   description:
-    "Ad-group metrics for the linked account, account-wide by default or limited to one campaign when campaignId is supplied. Args: campaignId (optional numeric Google Ads campaign ID), range (optional preset OR custom 'YYYY-MM-DD..YYYY-MM-DD'; default LAST_30_DAYS), adGroupNameContains (optional substring filter), adGroupNames (optional exact/partial name filters), conversionActions (optional exact Google Ads conversion action names to override the CMS defaults), limit (default 100, max 500). Returns campaignId, campaignName, adGroupId, adGroupName, status, spend, clicks, impressions, conversions filtered to the selected/default conversion actions, CPA, avg CPC, Google Ads CTR when Growth Tools returns it, and impression-share fields. For month-on-month ad-group CPA comparisons, call once per month range and compare the returned CPA values.",
+    "Ad-group rows for the linked account, account-wide or for one campaign: spend, clicks, impressions, conversions for the selected or default conversion actions, CPA, avg CPC, CTR and impression share. For month-on-month comparisons, call once per month range.",
   inputSchema: {
     type: "object",
     properties: {

@@ -83,16 +83,7 @@ export function createClientLinksTool(
   const tool: CanonicalTool<ClientLinksArgs> = {
     name: 'get_client_links',
     description:
-      'Get clickable CMS links for one existing client. The chat shows them to the admin as buttons, so call this whenever the admin asks for a link or wants to open something. Kinds: ' +
-      "'client_record' = the client's record in the CMS admin; " +
-      "'client_hub' = the client-facing hub page (PIN-gated); " +
-      "'contracts' = each of the client's contracts in the CMS admin plus its PDF (the signed PDF once fully signed, otherwise a preview); " +
-      "'proposals' = the client's proposals (the proposal page once its audit is complete, plus the CMS record); " +
-      "'discovery_briefings' = the client's discovery briefing forms (including ones started on their proposal) plus the CMS records; " +
-      "'audits' = the client's SEO audits and SEO audit proposals (report pages), Google Ads audits (negative keyword build page), CRO audits, competitor analyses, site health reports, tag setup audits, GSC indexing audits and SEO migration checks (CMS records), and the SEO & CRO report page; " +
-      "'decks' = the client's slide decks and presentations, including generated Google Ads audit decks; " +
-      "'portal_links' = the links saved on the client's hub (documents, dashboards and other resources). " +
-      "For 'audit links' request both 'audits' and 'decks'. Never write or guess URLs yourself; refer the admin to the buttons.",
+      "Get clickable CMS links for one existing client. The chat shows them to the admin as buttons, so call this whenever the admin asks for a link or wants to open something. Kinds: 'client_record' (CMS record); 'client_hub' (PIN-gated client hub page); 'contracts' (CMS records plus PDFs, the signed PDF once fully signed); 'proposals' (proposal pages and CMS records); 'discovery_briefings' (briefing forms and CMS records); 'audits' (SEO, Google Ads, CRO, competitor, site health, tag setup, GSC indexing and SEO migration audits, plus the SEO & CRO report page); 'decks' (slide decks, including Google Ads audit decks); 'portal_links' (links saved on the client hub). For 'audit links' request both 'audits' and 'decks'. Never write or guess URLs yourself; refer the admin to the buttons.",
     inputSchema: {
       type: 'object',
       properties: {

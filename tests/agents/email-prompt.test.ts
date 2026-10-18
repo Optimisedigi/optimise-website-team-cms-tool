@@ -35,6 +35,18 @@ describe("GmailMate email drafting prompt", () => {
     expect(stageEmailReplyTool.inputSchema.properties.body.description).toContain("preserve specific phrasing when the user clearly asks you to include it");
   });
 
+  it("states each rule once and stays small", () => {
+    const prompt = buildEmailReplySystemPrompt();
+    // Was 5.4K characters with the same rules repeated up to four times.
+    expect(prompt.length).toBeLessThan(3500);
+    const counts = new Map<string, number>();
+    for (const sentence of prompt.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/).filter((item) => item.length >= 60)) {
+      counts.set(sentence, (counts.get(sentence) ?? 0) + 1);
+    }
+    expect([...counts].filter(([, count]) => count > 1).map(([sentence]) => sentence)).toEqual([]);
+    expect(prompt.match(/stage_email_reply is your drafting tool/g)).toHaveLength(1);
+  });
+
   it("extracts staged replies from runAgent tool output", () => {
     const steps: AgentStep[] = [
       {

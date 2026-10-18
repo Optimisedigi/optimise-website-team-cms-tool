@@ -120,7 +120,7 @@ export function createTaskMateTools(clients: TaskMateClient[], users: TaskMateUs
   };
   const stageTasks: CanonicalTool<StagedTaskList> = {
     name: "stage_task_list",
-    description: "Stage a complete task list for human review. No CMS writes occur. Use only active client IDs and assignable user IDs returned by the list tools.",
+    description: "Stage a complete task list for human review. No CMS writes occur. Use only canonical active client IDs and assignable user IDs.",
     inputSchema: {
       type: "object",
       properties: {

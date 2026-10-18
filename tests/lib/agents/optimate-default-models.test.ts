@@ -148,6 +148,18 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.blogImageGenerationModel).toBe(DEFAULT_BLOG_IMAGE_GENERATION_MODEL);
   });
 
+  it("turns API-key voice on only when the toggle is exactly true", async () => {
+    nextGlobal = { voiceApiKeyEnabled: true };
+    expect((await getOptiMateDefaultModels()).voiceApiKeyEnabled).toBe(true);
+    for (const value of [false, null, undefined, 1, "true"]) {
+      nextGlobal = { voiceApiKeyEnabled: value, voiceAuthMethod: "api-key" };
+      expect((await getOptiMateDefaultModels()).voiceApiKeyEnabled).toBe(false);
+    }
+    // Unreadable settings must never switch voice onto the billed key.
+    nextError = new Error("no such column: voice_api_key_enabled");
+    expect((await getOptiMateDefaultModels()).voiceApiKeyEnabled).toBe(false);
+  });
+
   it("uses a caller-supplied payload instance without calling getPayload", async () => {
     nextGlobal = {
       defaultChatModel: "claude-haiku-5.5",

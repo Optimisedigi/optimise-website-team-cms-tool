@@ -127,7 +127,7 @@ async function fetchJsonWithRetry<T>(
 export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
   name: "get_budget_management_email",
   description:
-    "Returns the exact same Gmail-ready HTML produced by the CMS Budget Management tab's 'Copy for Gmail' button. Use this when the user asks for a budget update email, a draft for client communication, or as the body for a scheduled weekly report. Copy the returned `html` verbatim into your reply — do NOT summarise or modify it. Args: mode='this_month' for the current month-to-date budget update, mode='last_month' for the previous-month recap. In audit mode, auditId is read from context. In portfolio mode, pass one auditId/accountRef at a time to create client-specific drafts.",
+    "Returns the exact Gmail-ready HTML from the Budget Management tab's 'Copy for Gmail' button. Use it for a budget update email, a client communication draft, or the body of a scheduled weekly report. Copy the returned `html` verbatim into your reply; do NOT summarise or modify it. In portfolio mode, pass one auditId/accountRef per call.",
   inputSchema: {
     type: "object",
     properties: {

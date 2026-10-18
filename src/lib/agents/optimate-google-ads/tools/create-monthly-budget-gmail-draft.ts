@@ -74,7 +74,7 @@ export const createMonthlyBudgetGmailDraftTool: CanonicalTool<CreateMonthlyBudge
   // Creates a real Gmail draft, so the agent loop must de-duplicate repeats.
   sideEffect: true,
   description:
-    "Create the standard one-off Gmail draft for a monthly Google Ads budget report in one deterministic step. Requires explicit dashboard components; if none are supplied, asks which components to include and does not create a draft. Use this instead of separately calling get_dashboard_email_components, get_monthly_metric_table, get_budget_management_email, and create_gmail_draft whenever the user asks to create/save/drop a monthly budget report into Gmail. Valid components: keyword_relevancy, cpa_trend, quality_score, top_converters. Leaves the Gmail recipient blank.",
+    "Create the standard one-off monthly Google Ads budget report as a Gmail draft in one step. Use it instead of chaining get_dashboard_email_components, get_monthly_metric_table, get_budget_management_email and create_gmail_draft. Needs explicit components (keyword_relevancy, cpa_trend, quality_score, top_converters); without them it asks which to include and creates nothing. Leaves the recipient blank.",
   inputSchema: {
     type: "object",
     properties: {

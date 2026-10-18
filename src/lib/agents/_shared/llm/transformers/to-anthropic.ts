@@ -24,13 +24,15 @@ import { sanitizeToolUseId } from "./_tool-id";
 export const CLAUDE_CODE_SYSTEM_PREFIX =
   "You are Claude Code, Anthropic's official CLI for Claude.";
 
+type CacheControl = { cache_control?: { type: "ephemeral" } };
+
 interface AnthropicMessage {
   role: "user" | "assistant";
   content: Array<
-    | { type: "text"; text: string }
-    | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: string } }
-    | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-    | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
+    | ({ type: "text"; text: string } & CacheControl)
+    | ({ type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: string } } & CacheControl)
+    | ({ type: "tool_use"; id: string; name: string; input: Record<string, unknown> } & CacheControl)
+    | ({ type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean } & CacheControl)
     | { type: "thinking"; thinking: string; signature: string }
     | { type: "redacted_thinking"; data: string }
   >;
@@ -63,6 +65,32 @@ export interface AnthropicRequestBody {
    * blocks, so leaving thinking on makes M3 400 on the second turn.
    */
   thinking?: { type: "disabled" } | { type: "adaptive" } | { type: "enabled"; budget_tokens: number };
+}
+
+/**
+ * Put a second cache breakpoint on the newest block of the conversation.
+ *
+ * The system-prompt breakpoint alone leaves the whole message history
+ * uncached, so every tool step of a run re-sent the conversation and every
+ * earlier tool result at full input price (88% of GoogleMate runs and 91% of
+ * email runs take two or more steps). With this mark the next step, or the
+ * next chat turn inside the cache window, reads that prefix from cache.
+ * Anthropic allows four breakpoints per request; this uses the second.
+ * Thinking blocks cannot carry cache_control, so they are skipped.
+ *
+ * Native Anthropic only: Anthropic-compatible providers are not assumed to
+ * accept message-level cache_control.
+ */
+export function addConversationCacheBreakpoint(body: AnthropicRequestBody): void {
+  for (let i = body.messages.length - 1; i >= 0; i -= 1) {
+    const content = body.messages[i]?.content ?? [];
+    for (let j = content.length - 1; j >= 0; j -= 1) {
+      const block = content[j];
+      if (!block || block.type === "thinking" || block.type === "redacted_thinking") continue;
+      content[j] = { ...block, cache_control: { type: "ephemeral" } };
+      return;
+    }
+  }
 }
 
 function modelRejectsTemperature(providerModel: string): boolean {

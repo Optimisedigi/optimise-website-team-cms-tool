@@ -137,6 +137,45 @@ describe("runAdminMateChatTurn client questions", () => {
     ]);
   });
 
+  it("sends only the core tools for a client question and attaches a bundle on request", async () => {
+    mockRunAgent.mockResolvedValueOnce(assistantResult("The retainer is $1,500."));
+    await runAdminMateChatTurn(questionInput("what is the retainer for we can quit?"));
+
+    const call = mockRunAgent.mock.calls[0][0];
+    const names = call.tools.map((tool: { name: string }) => tool.name);
+    expect(names).toEqual(["request_adminmate_tools", "find_similar_clients", "find_clients", "get_client_details"]);
+    expect(call.systemPrompt).toContain("call request_adminmate_tools with its bundle first");
+
+    const attached = call.resolveToolBundles({
+      toolName: "request_adminmate_tools",
+      input: { bundles: ["contracts", "links"] },
+      output: {},
+      isError: false,
+      context: {},
+    });
+    expect(attached.map((tool: { name: string }) => tool.name)).toEqual([
+      "list_contract_templates",
+      "stage_contract",
+      "get_client_links",
+    ]);
+    expect(call.resolveToolBundles({ toolName: "find_clients", input: {}, output: {}, isError: false, context: {} })).toEqual([]);
+  });
+
+  it("keeps a flow's tools for follow-up messages that no longer name it", async () => {
+    mockRunAgent.mockResolvedValueOnce(assistantResult("Which template?"));
+    await runAdminMateChatTurn({
+      ...questionInput("the SEO one, retainer 2000"),
+      messages: [
+        { role: "user" as const, content: [{ type: "text" as const, text: "draft a contract for Acme" }] },
+        { role: "assistant" as const, content: [{ type: "text" as const, text: "Which template should I use?" }] },
+        { role: "user" as const, content: [{ type: "text" as const, text: "the SEO one, retainer 2000" }] },
+      ],
+    });
+    const names = mockRunAgent.mock.calls[0][0].tools.map((tool: { name: string }) => tool.name);
+    expect(names).toEqual(expect.arrayContaining(["list_contract_templates", "stage_contract"]));
+    expect(names).not.toContain("stage_meeting_scheduler");
+  });
+
   it("returns no links when get_client_links was not called", async () => {
     mockRunAgent.mockResolvedValueOnce(assistantResult("The retainer is $1,500."));
     const result = await runAdminMateChatTurn(questionInput("what is the retainer for we can quit?"));

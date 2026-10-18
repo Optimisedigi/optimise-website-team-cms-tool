@@ -16,7 +16,15 @@ import {
   buildSystemPromptForPortfolio,
   conversionActionCategoriesForClient,
   conversionActionsForClient,
+  guidanceForRequestedBundles,
+  selectAuditGuides,
 } from "./config";
+import {
+  detectGoogleMateToolBundles,
+  GOOGLEMATE_TOOL_BUNDLE_NAMES,
+  isGoogleMateToolBundleName,
+  type GoogleMateToolBundleName,
+} from "./keyword-matcher";
 import { getAccountOverview } from "./tools/get-account-overview";
 import { getCampaignPerformance } from "./tools/get-campaign-performance";
 import { getAdGroupPerformance } from "./tools/get-ad-group-performance";
@@ -129,25 +137,11 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "propose_deck_from_template",
 ]);
 
-const TOOL_BUNDLE_NAMES = [
-  "performance",
-  "negative_keywords",
-  "budget_email",
-  "ad_copy",
-  "seo_organic",
-  "campaign_build",
-  "goals",
-  "scheduled_tasks",
-  "decks",
-  "actions",
-  "memory",
-] as const;
-
-type GoogleMateToolBundleName = (typeof TOOL_BUNDLE_NAMES)[number];
+const TOOL_BUNDLE_NAMES = GOOGLEMATE_TOOL_BUNDLE_NAMES;
 
 const GOOGLEMATE_TOOL_ROUTER_PROMPT = `
 
-Tool routing: you are starting with a lean GoogleMate tool set. If the user asks for specialist work and the needed tool is not visible, first call request_googlemate_tool_bundle with one or more bundles, then use the newly attached tools on the next turn. Available bundles: performance, negative_keywords, budget_email, ad_copy, seo_organic, campaign_build, goals, scheduled_tasks, decks, actions, memory. Use performance when the user asks a Google Ads/GA4/GSC data question and the exact built-in report is not visible; the performance bundle includes growth_tools_read as the future-proof read-only Growth Tools bridge. Use actions when the user asks to apply, create, update, pause, enable, publish, deploy, push, or set up live changes via Growth Tools.${memoryToolRoutingPrompt("GoogleMate")}`;
+Tool routing: you are starting with a lean GoogleMate tool set. If the user asks for specialist work and the needed tool is not visible, first call request_googlemate_tool_bundle with one or more bundles, then use the newly attached tools on the next turn. Available bundles: ${TOOL_BUNDLE_NAMES.join(", ")}. Use performance when the user asks a Google Ads/GA4/GSC data question and the exact built-in report is not visible; the performance bundle includes growth_tools_read as the future-proof read-only Growth Tools bridge. Use budget_changes to queue budget updates or push budgets live, and keyword_research for Keyword Planner ideas and search volume. Use actions when the user asks to apply, create, update, pause, enable, publish, deploy, push, or set up live changes via Growth Tools; use campaign_build to queue campaign, ad group, keyword or status changes for approval.${memoryToolRoutingPrompt("GoogleMate")}`;
 
 const requestGoogleMateToolBundle: CanonicalTool<{ bundles: GoogleMateToolBundleName[]; reason?: string }> = {
   name: "request_googlemate_tool_bundle",
@@ -173,21 +167,27 @@ const requestGoogleMateToolBundle: CanonicalTool<{ bundles: GoogleMateToolBundle
     }
     const input = raw as Record<string, unknown>;
     if (!Array.isArray(input.bundles)) throw new Error("bundles must be an array.");
-    const bundles = input.bundles.filter((b): b is GoogleMateToolBundleName =>
-      typeof b === "string" && (TOOL_BUNDLE_NAMES as readonly string[]).includes(b),
-    );
+    const bundles = input.bundles.filter(isGoogleMateToolBundleName);
     if (bundles.length === 0) throw new Error("At least one valid bundle is required.");
     return {
       bundles: Array.from(new Set(bundles)),
       ...(typeof input.reason === "string" ? { reason: input.reason } : {}),
     };
   },
-  async execute(args) {
+  async execute(args, ctx) {
+    // Guides for the attached tools travel with them when the system prompt
+    // left them out (see selectAuditGuides).
+    const loaded = ctx.context.loadedGuides as { segmentation?: boolean; memory?: boolean } | undefined;
+    const guidance = guidanceForRequestedBundles(args.bundles, {
+      segmentation: loaded?.segmentation ?? false,
+      memory: loaded?.memory ?? false,
+    });
     return {
       ok: true,
       data: {
         attachedBundles: args.bundles,
         message: "Specialist GoogleMate tools are attached for the next turn. Continue using the newly available tools.",
+        ...(guidance ? { guidance } : {}),
       },
     };
   },
@@ -292,9 +292,14 @@ function applyToolRestrictions(
 }
 
 const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown>[]> = {
-  performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, getKeywordIdeas, growthToolsRead, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
+  performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, growthToolsRead, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
   negative_keywords: [getSearchTerms, getNegativeKeywordLists, proposeNegativeKeywords, proposeNklCreate, proposeNklUpdate, proposeNklPushLive] as unknown as CanonicalTool<unknown>[],
-  budget_email: [createWeeklyBudgetGmailDraftTool, createMonthlyBudgetGmailDraftTool, getBudgetManagementEmail, getDashboardEmailComponents, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool, proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
+  budget_email: [createWeeklyBudgetGmailDraftTool, createMonthlyBudgetGmailDraftTool, getBudgetManagementEmail, getDashboardEmailComponents, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool] as unknown as CanonicalTool<unknown>[],
+  // Split out of budget_email and performance: never called in production
+  // (Jul to Oct 2026), so they no longer ride along on every spend or
+  // performance question.
+  budget_changes: [proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
+  keyword_research: [getKeywordIdeas] as unknown as CanonicalTool<unknown>[],
   ad_copy: [getAdAssetPerformance, proposeAdCopyGenerate, proposeAdCopyDeploy] as unknown as CanonicalTool<unknown>[],
   seo_organic: [getGa4Overview, getGscOverview, getGscBrandedSplit, getGscIndexingStatus, getSerpDisplacement, getSerpDisplacementAlerts, getAiVisibility] as unknown as CanonicalTool<unknown>[],
   campaign_build: [proposeCampaignRestructure, proposeCampaignBuild, proposeGeoCampaignSplit, proposeCampaignStatusChange, proposeAdGroupCreate, proposeAdGroupStatusChange, proposeKeywordsAdd, getCampaignProposalStatus, requestConfirmTool] as unknown as CanonicalTool<unknown>[],
@@ -312,7 +317,7 @@ export function getGoogleMateInitialTools(messages: Message[], options?: { restr
     growthToolsRead,
     getClientDetails,
   ] as unknown as CanonicalTool<unknown>[];
-  const bundles = detectInitialToolBundles(messages);
+  const bundles = detectGoogleMateToolBundles(messages);
   if (shouldAttachMemoryTools(messages)) bundles.push("memory");
   return dedupeTools([
     ...baseTools,
@@ -334,25 +339,6 @@ function dedupeTools(
   ));
 }
 
-function detectInitialToolBundles(messages: Message[]): GoogleMateToolBundleName[] {
-  const text = extractConversationText(messages).toLowerCase();
-  const bundles = new Set<GoogleMateToolBundleName>();
-  const addIf = (bundle: GoogleMateToolBundleName, pattern: RegExp) => {
-    if (pattern.test(text)) bundles.add(bundle);
-  };
-  addIf("negative_keywords", /negative|nkl|search term|wast(e|ed)|irrelevant quer|exclude/);
-  addIf("budget_email", /budget|spend|pacing|draft|email|gmail|push live|allocation/);
-  addIf("ad_copy", /ad copy|rsa|headline|description|asset|creative/);
-  addIf("seo_organic", /ga4|gsc|search console|organic|seo|serp|index|branded|ai visibility|overlap/);
-  addIf("campaign_build", /campaign build|restructure|geo|location|status|pause|enable|ad group|keyword|proposal/);
-  addIf("goals", /goal|objective|progress|goal run|efficiency/);
-  addIf("scheduled_tasks", /schedule|scheduled task|remind|recurring|cron/);
-  addIf("decks", /deck|slides|stakeholder|presentation|template/);
-  addIf("actions", /\b(apply|execute|create|update|pause|enable|publish|deploy|push|set up|setup|make live|go live)\b|audience|key event|gtm|tag manager|tag|trigger|variable/);
-  addIf("performance", /performance|campaign|ad group|metric|cpa|roas|conversion|click|impression|ctr|cpc|weekly|monthly|trend|keyword planner|keyword idea|search volume|keyword research/);
-  return Array.from(bundles);
-}
-
 function resolveGoogleMateToolBundles(
   event: { toolName: string; input: unknown },
   options?: { restrictExternalContextActions?: boolean },
@@ -362,7 +348,7 @@ function resolveGoogleMateToolBundles(
     ? (event.input as Record<string, unknown>).bundles
     : null;
   const bundles = Array.isArray(rawBundles)
-    ? rawBundles.filter((b): b is GoogleMateToolBundleName => typeof b === "string" && (TOOL_BUNDLE_NAMES as readonly string[]).includes(b))
+    ? rawBundles.filter(isGoogleMateToolBundleName)
     : [];
   return dedupeTools(toolsForBundles(Array.from(new Set(bundles))), options);
 }
@@ -652,6 +638,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     pinnedMemoryBlock: pinnedMemory.text,
     recentMessages: messages,
   }));
+  const loadedGuides = selectAuditGuides(messages);
   const conversionActions = conversionActionsForClient(client);
   const conversionActionCategories = conversionActionCategoriesForClient(client);
 
@@ -679,6 +666,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     expectedEvents: client?.expectedEvents ?? null,
     conversionActions,
     conversionActionCategories,
+    loadedGuides: { segmentation: loadedGuides.segmentation, memory: loadedGuides.memory },
     ...(userId !== undefined ? { userId } : {}),
     ...gmailReplyAgentContext(gmailReplyContext),
   };
@@ -844,10 +832,6 @@ function buildPortfolioBudgetDraftShortcutReply(result: { ok: boolean; data?: un
   }
   if (data.capped) lines.push("Processed the first 10 selected accounts to keep the request bounded.");
   return lines.join("\n");
-}
-
-function extractConversationText(messages: Message[]): string {
-  return messages.map(messageText).join("\n");
 }
 
 function messageText(message: Message): string {

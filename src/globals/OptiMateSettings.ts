@@ -85,8 +85,10 @@ function normaliseRealtimeModel(value: unknown): string {
   return resolveVoiceRealtimeModel(value);
 }
 
-function normaliseVoiceAuthMethod(value: unknown): string {
-  return value === "codex-oauth" ? "codex-oauth" : "api-key";
+// voiceAuthMethod is the legacy select the toggle replaced; it mirrors the
+// toggle so the stored column never contradicts it.
+function voiceAuthMethodForToggle(apiKeyEnabled: boolean): string {
+  return apiKeyEnabled ? "api-key" : "codex-oauth";
 }
 
 function normaliseRequiredNativeModel(value: unknown, fallback: string): string {
@@ -168,13 +170,15 @@ export const OptiMateSettings: GlobalConfig = {
   access: globalAccess("optimate-settings"),
   hooks: {
     beforeValidate: [
-      ({ data }) => {
+      ({ data, originalDoc }) => {
         if (!data) return data;
 
         data.defaultChatModel = normaliseRequiredPickerModel(data.defaultChatModel, DEFAULT_CHAT_MODEL);
         data.defaultAutonomousModel = normaliseRequiredPickerModel(data.defaultAutonomousModel, DEFAULT_AUTONOMOUS_MODEL);
         data.voiceRealtimeModel = normaliseRealtimeModel(data.voiceRealtimeModel);
-        data.voiceAuthMethod = normaliseVoiceAuthMethod(data.voiceAuthMethod);
+        // A partial update without the toggle keeps the saved value.
+        data.voiceApiKeyEnabled = (data.voiceApiKeyEnabled ?? originalDoc?.voiceApiKeyEnabled) === true;
+        data.voiceAuthMethod = voiceAuthMethodForToggle(data.voiceApiKeyEnabled);
         data.blogPrompterModel = normaliseOptionalPickerModel(data.blogPrompterModel);
         data.invoiceAssistantModel = normaliseOptionalPickerModel(data.invoiceAssistantModel);
         data.emailAssistantModel = normaliseOptionalPickerModel(data.emailAssistantModel);
@@ -353,11 +357,24 @@ export const OptiMateSettings: GlobalConfig = {
                       value: "api-key",
                     },
                   ],
-                  defaultValue: "api-key",
+                  defaultValue: "codex-oauth",
+                  admin: {
+                    // Legacy: replaced by voiceApiKeyEnabled and mirrored from
+                    // it in beforeValidate. Kept so the column is not dropped.
+                    hidden: true,
+                  },
+                },
+                {
+                  // The voice "Using API credits" badge links here
+                  // (src/components/ApiCreditsNotice.tsx).
+                  name: "voiceApiKeyEnabled",
+                  type: "checkbox",
+                  label: "Use OpenAI API key for voice",
+                  defaultValue: false,
                   admin: {
                     width: "50%",
                     description:
-                      "How voice calls are authenticated and billed. Codex OAuth uses the connected ChatGPT subscription at flat rate; no automatic fallback to API key.",
+                      "Off (default): every voice call uses the connected ChatGPT plan, with no API-key fallback. On: voice calls are billed per hour to OPENAI_API_KEY, and a \"Using API credits\" badge shows during each call.",
                   },
                 },
                 {

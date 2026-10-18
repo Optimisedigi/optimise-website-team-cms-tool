@@ -28,10 +28,13 @@ type TurnDetectionConfig = {
  * session payload (instructions + voice-safe tool definitions); this route adds
  * the OpenAI model/audio config and mints a short-lived `ek_...` client secret.
  *
- * Auth is controlled by the `voiceAuthMethod` setting:
- *  - `codex-oauth`: uses the connected ChatGPT (Codex OAuth) subscription.
- *    No fallback to API key — a missing or failed OAuth credential is a hard error.
- *  - `api-key` (default): uses OPENAI_API_KEY. The real key never leaves the server.
+ * Auth for every voice agent (GoogleMate, GmailMate, InvoiceMate, TaskMate)
+ * follows the "Use OpenAI API key for voice" toggle in OptiMate Settings:
+ *  - off (default): the connected ChatGPT plan (Codex OAuth) only. A missing or
+ *    failed OAuth credential is a hard error; it never falls back to the key.
+ *  - on: OPENAI_API_KEY, billed per hour. The response reports
+ *    `billing: 'api-key'` so the voice UI shows the "Using API credits" badge,
+ *    which links back to the toggle. The real key never leaves the server.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   try {
@@ -48,39 +51,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const defaults = await getOptiMateDefaultModels(payload)
-    const voiceAuthMethod = defaults.voiceAuthMethod
 
-    // Resolve auth headers based on the configured billing method.
-    // codex-oauth: ChatGPT plan via Codex OAuth — no fallback to API key.
-    // api-key: OPENAI_API_KEY per-hour billing.
     let authHeaders: Record<string, string>
     // Reported to the browser so the voice UI can warn when a call bills API credits.
     let billing: 'oauth' | 'api-key'
-    if (voiceAuthMethod === 'codex-oauth') {
-      try {
-        const resolved = await resolveCredential('openai-codex')
-        if (resolved.source !== 'oauth') {
-          return NextResponse.json(
-            {
-              error:
-                'Voice billing is set to ChatGPT Plan (Codex OAuth) but no connected ChatGPT account was found. Connect a ChatGPT account in Agent Auth, or switch voice billing to API Key in OptiMate Settings.',
-            },
-            { status: 400 },
-          )
-        }
-        authHeaders = { ...resolved.authHeader, 'Content-Type': 'application/json' }
-        billing = 'oauth'
-      } catch (err) {
-        const reason = (err as Error).message || 'Unknown error'
-        console.error('[optimate-realtime-secret] Codex OAuth resolution failed:', reason)
-        return NextResponse.json(
-          {
-            error: `ChatGPT Plan (Codex OAuth) auth failed: ${reason}. No fallback to API key is configured — fix the OAuth connection or switch voice billing to API Key in OptiMate Settings.`,
-          },
-          { status: 502 },
-        )
-      }
-    } else {
+    if (defaults.voiceApiKeyEnabled) {
       const apiKey = process.env.OPENAI_API_KEY?.trim()
       if (!apiKey) {
         const diag = describeEnvScope()
@@ -88,12 +63,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         const reason = rawPresent
           ? 'OPENAI_API_KEY is present but blank (empty or whitespace-only value).'
           : 'OPENAI_API_KEY is not set in this deployment.'
-        console.error(
-          `[optimate-realtime-secret] missing key — ${reason} ${diag.log}`,
-        )
+        console.error(`[optimate-realtime-secret] missing key — ${reason} ${diag.log}`)
         return NextResponse.json(
           {
-            error: `${reason} Active env: ${diag.env}. Set OPENAI_API_KEY for this environment in Vercel, then redeploy (env vars are baked at build time).`,
+            error: `"Use OpenAI API key for voice" is on, but ${reason} Active env: ${diag.env}. Set OPENAI_API_KEY in Vercel and redeploy, or turn the toggle off in OptiMate Settings to use the ChatGPT plan.`,
             diagnostic: {
               reason: rawPresent ? 'present-but-blank' : 'absent',
               vercelEnv: diag.env,
@@ -109,6 +82,30 @@ export async function POST(request: Request): Promise<NextResponse> {
         'Content-Type': 'application/json',
       }
       billing = 'api-key'
+    } else {
+      try {
+        const resolved = await resolveCredential('openai-codex')
+        if (resolved.source !== 'oauth') {
+          return NextResponse.json(
+            {
+              error:
+                'Voice calls use the connected ChatGPT plan (Codex OAuth), but no connected ChatGPT account was found. Connect a ChatGPT account in Agent Auth, or turn on "Use OpenAI API key for voice" in OptiMate Settings.',
+            },
+            { status: 400 },
+          )
+        }
+        authHeaders = { ...resolved.authHeader, 'Content-Type': 'application/json' }
+        billing = 'oauth'
+      } catch (err) {
+        const reason = (err as Error).message || 'Unknown error'
+        console.error('[optimate-realtime-secret] Codex OAuth resolution failed:', reason)
+        return NextResponse.json(
+          {
+            error: `ChatGPT plan (Codex OAuth) sign-in failed: ${reason}. Voice only uses the OpenAI API key when "Use OpenAI API key for voice" is on in OptiMate Settings; otherwise reconnect the ChatGPT account in Agent Auth.`,
+          },
+          { status: 502 },
+        )
+      }
     }
 
     const requestedSession = isRecord(body?.session) ? body.session : null

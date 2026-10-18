@@ -160,7 +160,7 @@ function scopedParams(args: {
 export const growthToolsRead: CanonicalTool<GrowthToolsReadArgs> = {
   name: "growth_tools_read",
   description:
-    "Future-proof read-only bridge to Growth Tools APIs for the selected client. Use it when a specific built-in reporting tool is missing. It can call approved Growth Tools read/report endpoints under /api/google-ads/*, /api/ga4/*, /api/gsc/*, /api/ai-visibility/*, /api/serp/*, and /api/clients/* with GET or read-only POST. The tool injects the selected client's customerId/GA4/GTM IDs and blocks write-like paths such as apply, create, update, pause, push, publish, deploy, and delete.",
+    "Read-only bridge to approved Growth Tools read/report endpoints (/api/google-ads/*, /api/ga4/*, /api/gsc/*, /api/ai-visibility/*, /api/serp/*, /api/clients/*; GET or read-only POST) for when no built-in report tool fits. It injects the selected client's IDs and blocks write-like paths (apply, create, update, pause, push, publish, deploy, delete).",
   inputSchema: {
     type: "object",
     properties: {

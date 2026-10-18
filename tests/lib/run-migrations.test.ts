@@ -259,6 +259,27 @@ describe("runMigrations", () => {
     expect(statements).toContain("ALTER TABLE `hosting_one_off_payments` ADD `resend_at` text");
   });
 
+  it("adds the voice API-key toggle column, off by default, when production short-circuits", async () => {
+    const execute = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("sqlite_master") && /'(landing_|optimate_settings'|payload_migrations')/.test(sql))
+        return { rows: [{ name: "present" }] };
+      if (sql.includes("PRAGMA table_info(`landing_events`)")) return { rows: [{ name: "market" }] };
+      return { rows: [] };
+    });
+    const payload = { db: { client: { execute } } } as any;
+
+    const results = await runMigrations(payload);
+    const statements = execute.mock.calls.map(([sql]) => String(sql));
+
+    expect(results.length).toBeLessThan(100);
+    expect(results).toContainEqual({ label: "optimate_settings.voice_api_key_enabled", status: "ok" });
+    expect(statements).toContain(
+      "ALTER TABLE `optimate_settings` ADD `voice_api_key_enabled` integer DEFAULT false",
+    );
+    expect(statements.some((sql) => sql.includes("'20261018_120000_voice_api_key_toggle'"))).toBe(true);
+  });
+
   it("adds every client email copy column so saving OptiMate Settings works", async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
     const batch = vi.fn().mockResolvedValue(undefined);

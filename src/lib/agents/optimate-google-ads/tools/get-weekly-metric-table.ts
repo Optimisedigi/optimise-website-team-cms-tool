@@ -105,7 +105,7 @@ function isWeeklyMetricKey(value: unknown): value is WeeklyMetricKey {
 export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
   name: "get_weekly_metric_table",
   description:
-    "Canonical Gmail-ready weekly account-level metric table. Renders any combination of these eight metrics by week (Verdana, plain row borders, no card chrome): spend, clicks, impressions, conversions, cpa, cpc, ctr, conv_rate. CTR uses Google Ads metrics.ctr returned by Growth Tools, weighted by impressions when multiple rows exist. Weekly uplift / WoW delta columns are no longer rendered; the table shows absolute metric values only. Partial in-progress latest week is highlighted automatically. Args: weeks (1..12, default 4), endDate (ISO YYYY-MM-DD, default today UTC), metrics (1..6 keys from the list above, order preserved, dupes collapse), title (override heading), summary (optional 1-3 sentence note under the table). Use this WHENEVER the user asks for \"by week\", \"weekly\", \"week-on-week\", a trend, or a multi-week summary of any metric. NEVER hand-write trend HTML. Examples: metrics=[\"cpc\"] for a CPC trend; metrics=[\"spend\",\"conversions\",\"cpa\"] for the classic three-column trend.",
+    "Canonical Gmail-ready weekly account-level metric table: absolute values per week, with an in-progress latest week highlighted. Use it whenever the user asks for a weekly, week-on-week, trend or multi-week view of any metric, and never hand-write trend HTML. CTR is Google Ads metrics.ctr, impression-weighted. Example metrics: [\"spend\",\"conversions\",\"cpa\"] for the classic three-column trend.",
   inputSchema: {
     type: "object",
     properties: {

@@ -59,8 +59,14 @@ export const SCHEDULED_TASKS_TRIGGERS: readonly string[] = [
   "each friday",
   "each saturday",
   "each sunday",
-  "pause the",
-  "resume the",
+  // Pausing/resuming a scheduled report, not a campaign ("pause the brand
+  // campaign" used to load this guide).
+  "pause the report",
+  "pause the task",
+  "pause my",
+  "resume the report",
+  "resume the task",
+  "resume my",
   "list tasks",
   "list my tasks",
   "what reports am i getting",
@@ -124,6 +130,95 @@ export const GEO_WALKTHROUGH_TRIGGERS: readonly string[] = [
   "campaign build",
   "campaign proposal",
 ];
+
+/**
+ * Trigger phrases for the GMAIL_DRAFT_GUIDE (one-off Gmail drafts plus budget
+ * management emails and reports). "mail" covers email, e-mail, Gmail and the
+ * attached-email block header. Kept broad on purpose: a false positive only
+ * loads the guide, a miss drops the draft rules for that turn.
+ */
+export const GMAIL_DRAFT_TRIGGERS: readonly string[] = [
+  "mail",
+  "draft",
+  "inbox",
+  "budget management",
+  "budget report",
+  "budget update",
+  "weekly report",
+  "monthly report",
+];
+
+/** Specialist GoogleMate tool bundles the model can request mid-run. */
+export const GOOGLEMATE_TOOL_BUNDLE_NAMES = [
+  "performance",
+  "negative_keywords",
+  "budget_email",
+  "budget_changes",
+  "keyword_research",
+  "ad_copy",
+  "seo_organic",
+  "campaign_build",
+  "goals",
+  "scheduled_tasks",
+  "decks",
+  "actions",
+  "memory",
+] as const;
+
+export type GoogleMateToolBundleName = (typeof GOOGLEMATE_TOOL_BUNDLE_NAMES)[number];
+
+export function isGoogleMateToolBundleName(value: unknown): value is GoogleMateToolBundleName {
+  return typeof value === "string" && (GOOGLEMATE_TOOL_BUNDLE_NAMES as readonly string[]).includes(value);
+}
+
+/**
+ * Pre-load patterns, matched against the user's own messages only. Bundles
+ * the model actually used (production activity log, Jul to Oct 2026:
+ * performance, budget_email, negative_keywords, goals) keep broad triggers.
+ * Bundles it never used in that window only pre-load on explicit phrasing;
+ * the model can still attach any of them mid-run via
+ * request_googlemate_tool_bundle. Memory tools are routed separately
+ * (shouldAttachMemoryTools).
+ */
+const TOOL_BUNDLE_PATTERNS: ReadonlyArray<readonly [GoogleMateToolBundleName, RegExp]> = [
+  ["negative_keywords", /negative|nkl|search term|wast(e|ed)|irrelevant quer|exclude/],
+  ["budget_email", /budget|spend|pacing|draft|email|gmail|push live|allocation/],
+  [
+    "budget_changes",
+    /push live|push (the |all )?budgets?|budget (change|increase|decrease|cut|reallocation)|(change|increase|decrease|cut|raise|lower|reallocate|shift|set) (the |our |their |this |daily |campaign |monthly )*budgets?/,
+  ],
+  ["keyword_research", /keyword planner|keyword idea|search volume|keyword research/],
+  ["ad_copy", /ad copy|\brsas?\b|responsive search ad|headline|creative/],
+  ["seo_organic", /\bga4\b|\bgsc\b|search console|organic|\bseo\b|\bserp\b|indexing|ai visibility/],
+  [
+    "campaign_build",
+    /campaign build|build (a |the |new )?campaigns?|new campaigns?|restructure|\bgeo\b|split (the )?campaigns?|campaign split|new ad groups?|add (an? |new )?ad groups?|add keywords|proposal status/,
+  ],
+  ["goals", /goal|objective|progress|goal run|efficiency/],
+  ["scheduled_tasks", /schedule|scheduled task|remind|recurring|cron/],
+  ["decks", /\bdecks?\b|\bslides?\b|stakeholder|presentation/],
+  [
+    "actions",
+    /\b(pause|enable|reactivate|publish|deploy)\b|turn (it |this |them )?(on|off)|make (it |this |them )?live|go live|key event|\bgtm\b|tag manager/,
+  ],
+  ["performance", /performance|campaign|ad group|metric|cpa|roas|conversion|click|impression|ctr|cpc|weekly|monthly|trend/],
+];
+
+/**
+ * Bundles to attach before the first model call. Reads user messages only:
+ * assistant replies mention campaigns, budgets and emails constantly, so
+ * scanning them loaded nearly every bundle as a conversation went on.
+ */
+export function detectGoogleMateToolBundles(messages: Message[] | undefined): GoogleMateToolBundleName[] {
+  if (!messages || messages.length === 0) return [];
+  const text = messages
+    .filter((message) => message.role === "user")
+    .map(extractText)
+    .join("\n")
+    .toLowerCase();
+  if (!text.trim()) return [];
+  return TOOL_BUNDLE_PATTERNS.filter(([, pattern]) => pattern.test(text)).map(([bundle]) => bundle);
+}
 
 function extractText(message: Message): string {
   if (!message || !Array.isArray(message.content)) return "";

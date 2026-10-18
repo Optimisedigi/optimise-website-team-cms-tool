@@ -44,6 +44,13 @@ import {
   validateStagedOneOffPayment,
   type StagedOneOffPayment,
 } from "./one-off-payment-tool";
+import {
+  ADMINMATE_TOOL_LOADING_NOTE,
+  createAdminMateToolRequestTool,
+  detectAdminMateToolBundles,
+  resolveAdminMateToolBundles,
+  selectAdminMateTools,
+} from "./tool-bundles";
 
 export type { AdminMateClient, StagedClient } from "./tools";
 export { createAdminMateTools, findSimilarClients, toClientSlug, validateStagedClient } from "./tools";
@@ -131,7 +138,8 @@ const systemPrompt = buildSystemPrompt({
     "One-off payment flow: when the admin asks to send, request or schedule a one-off payment, payment link or backdated hosting charge for a client, call find_clients to resolve the client (ask if several match), then call stage_one_off_payment with what it is for and the amount in dollars before the card surcharge. Ask only for what is missing. If the admin names a send date ('on the 1st', 'next Monday'), resolve it to YYYY-MM-DD after today and pass it as sendOn; otherwise omit sendOn so it sends when they confirm. Never add the surcharge yourself and never claim the email was sent — the admin confirms the card first.",
   ],
   toolInventory:
-    "find_similar_clients — read existing clients matching a name, slug or website (duplicate check).\nstage_client — stage a validated new client for review with no side effects.\nstage_client_proposal — stage a validated new client proposal (Client Proposals record for a prospect) for review with no side effects.\nlist_contract_templates — read the contract templates the admin can choose from.\nfind_clients — search active and inactive clients and read their contact/pricing details.\nget_client_details — read one client's account timeline, notes, discovery briefing, business, tracking (Google Ads ID), Google Ads budget, commercial dates, contacts, contract terms and pricing (incl. hosting) or PIN, on demand and by section.\nget_client_links — get clickable links for one client (CMS record, client hub, contracts and PDFs, proposals, discovery briefings, audits and reports, decks, saved hub links); shown to the admin as buttons.\nstage_contract — stage a validated draft contract (from a template, for an existing or new client) for review with no side effects.\nstage_one_off_payment — stage a one-off card payment link for an existing client (sent now or on a scheduled date) for review with no side effects.\nfind_meeting_prospects — search prospects (Client Proposals — people who are not yet clients) to link a meeting to.\nstage_meeting_scheduler — stage a validated new meeting scheduler (title, client or prospect, duration, topic, available dates, attendees) for review with no side effects.\nfind_meeting_schedulers — search recent unconfirmed meeting schedulers by title or attendee.\nstage_meeting_invites — stage an existing meeting scheduler's invite emails for review with no side effects; the admin edits and confirms on a card.\ncreate_gmail_draft — create, but never send, a one-off draft in the authenticated admin's connected Gmail account and return its Gmail URL.",
+    "find_similar_clients — read existing clients matching a name, slug or website (duplicate check).\nstage_client — stage a validated new client for review with no side effects.\nstage_client_proposal — stage a validated new client proposal (Client Proposals record for a prospect) for review with no side effects.\nlist_contract_templates — read the contract templates the admin can choose from.\nfind_clients — search active and inactive clients and read their contact/pricing details.\nget_client_details — read one client's account timeline, notes, discovery briefing, business, tracking (Google Ads ID), Google Ads budget, commercial dates, contacts, contract terms and pricing (incl. hosting) or PIN, on demand and by section.\nget_client_links — get clickable links for one client (CMS record, client hub, contracts and PDFs, proposals, discovery briefings, audits and reports, decks, saved hub links); shown to the admin as buttons.\nstage_contract — stage a validated draft contract (from a template, for an existing or new client) for review with no side effects.\nstage_one_off_payment — stage a one-off card payment link for an existing client (sent now or on a scheduled date) for review with no side effects.\nfind_meeting_prospects — search prospects (Client Proposals — people who are not yet clients) to link a meeting to.\nstage_meeting_scheduler — stage a validated new meeting scheduler (title, client or prospect, duration, topic, available dates, attendees) for review with no side effects.\nfind_meeting_schedulers — search recent unconfirmed meeting schedulers by title or attendee.\nstage_meeting_invites — stage an existing meeting scheduler's invite emails for review with no side effects; the admin edits and confirms on a card.\ncreate_gmail_draft — create, but never send, a one-off draft in the authenticated admin's connected Gmail account and return its Gmail URL." +
+    "\n\n" + ADMINMATE_TOOL_LOADING_NOTE,
   outputFormat:
     "Be brief and conversational. When answering a client question, lead with the answer and cite the record it came from in the form 'Account Timeline, <date>: <description>' (or 'Contract <title> (<status>)' for contract answers) using only values returned by get_client_details. After stage_client, stage_client_proposal, stage_contract, stage_one_off_payment or stage_meeting_scheduler succeeds, say which fields you filled and which are still empty, and tell the admin to review and confirm the card. Never claim any record was created.",
 });
@@ -142,7 +150,7 @@ export async function runAdminMateChatTurn(input: RunAdminMateChatTurnInput): Pr
   const defaults = input.modelOverride ? null : await getOptiMateDefaultModels();
   const modelRequested = input.modelOverride ?? defaults!.defaultChatModel;
   const templates = input.contractTemplates ?? [];
-  const tools = [
+  const allTools = [
     ...createAdminMateTools(input.existingClients),
     createAdminMateProposalTool() as unknown as CanonicalTool<unknown>,
     ...createAdminMateContractTools(input.existingClients, templates),
@@ -159,10 +167,17 @@ export async function runAdminMateChatTurn(input: RunAdminMateChatTurnInput): Pr
       ? [createGmailDraftTool as unknown as CanonicalTool<unknown>]
       : []),
   ];
+  // Rarely used tools load on demand (see tool-bundles.ts). Bundles come from
+  // the original messages, so correction retries keep the same starting set.
+  const tools = [
+    createAdminMateToolRequestTool(allTools) as unknown as CanonicalTool<unknown>,
+    ...selectAdminMateTools(allTools, detectAdminMateToolBundles(input.messages)),
+  ];
   const run = (messages: Message[]) => runAgent({
     agentName: "AdminMate",
     systemPrompt: `${systemPrompt}\n\nToday's date is ${new Date().toISOString().slice(0, 10)}.`,
     tools,
+    resolveToolBundles: (event) => resolveAdminMateToolBundles(event, allTools),
     initialMessages: messages,
     model: modelRequested,
     fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS,

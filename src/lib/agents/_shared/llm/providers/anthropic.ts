@@ -15,7 +15,7 @@
 
 import { resolveCredential } from "../auth/resolver";
 import { withRetry, HttpError } from "../retry";
-import { toAnthropic } from "../transformers/to-anthropic";
+import { addConversationCacheBreakpoint, toAnthropic } from "../transformers/to-anthropic";
 import { fromAnthropic } from "../transformers/from-anthropic";
 import type { CallLLMOptions, LLMResponse } from "../types";
 
@@ -50,6 +50,7 @@ export async function callAnthropic(
   const auth = await resolveCredential("anthropic");
   const isOAuth = auth.source === "oauth";
   const body = toAnthropic(opts, providerModel, isOAuth);
+  addConversationCacheBreakpoint(body);
 
   // Build the full header set. OAuth callers need extra identity headers
   // and a broader anthropic-beta list (matching gg-ai's outbound shape).

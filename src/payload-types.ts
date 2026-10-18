@@ -16289,10 +16289,11 @@ export interface OptimateSetting {
    * Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 and 2.1 are better for complex tool-heavy requests; 2.1 is the newest.
    */
   voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-realtime-2.1';
-  /**
-   * How voice calls are authenticated and billed. Codex OAuth uses the connected ChatGPT subscription at flat rate; no automatic fallback to API key.
-   */
   voiceAuthMethod?: ('codex-oauth' | 'api-key') | null;
+  /**
+   * Off (default): every voice call uses the connected ChatGPT plan, with no API-key fallback. On: voice calls are billed per hour to OPENAI_API_KEY, and a "Using API credits" badge shows during each call.
+   */
+  voiceApiKeyEnabled?: boolean | null;
   /**
    * Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.
    */
@@ -16652,6 +16653,7 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
   blogImageGenerationModel?: T;
   voiceRealtimeModel?: T;
   voiceAuthMethod?: T;
+  voiceApiKeyEnabled?: T;
   chatHistoryTokenLimit?: T;
   googleMateStarterQuestions?:
     | T

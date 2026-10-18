@@ -55,7 +55,7 @@ interface MetricsEnvelope {
 export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
   name: "get_campaign_performance",
   description:
-    "Per-campaign metrics for the linked account. Args: range (optional preset OR 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'/'YTD'/'QTD' literal; default LAST_7_DAYS), segment ('month'|'week'|'day' — when set, returns one row per (campaign, segment) pair instead of a single total), conversionActions (optional exact Google Ads conversion action names to override the CMS defaults). Returns rows with campaignId, name, status, spend, clicks, impressions, conversions, conversionsByAction, conversionsByCategory, ctr, cpa, searchImpressionShare, searchBudgetLostIS, searchRankLostIS.",
+    "Per-campaign rows for the linked account: spend, clicks, impressions, conversions by action and category, CTR, CPA and search impression share (lost to budget and rank). Set `segment` for one row per campaign per month, week or day instead of one total.",
   inputSchema: {
     type: "object",
     properties: {

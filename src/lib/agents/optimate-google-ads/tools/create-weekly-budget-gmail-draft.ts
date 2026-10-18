@@ -58,7 +58,7 @@ export const createWeeklyBudgetGmailDraftTool: CanonicalTool<CreateWeeklyBudgetG
   // Creates a real Gmail draft, so the agent loop must de-duplicate repeats.
   sideEffect: true,
   description:
-    "Create the standard one-off Gmail draft for a weekly Google Ads spend-pacing report in one deterministic step. Requires an explicit choice of graphs: keyword_relevancy, cpa_trend, or both; when none are supplied, returns a clarification instead of creating a draft. This avoids passing large report HTML back through the LLM. Use this instead of separately calling get_weekly_metric_table, get_dashboard_email_components, get_budget_management_email, and create_gmail_draft whenever the user asks to create/save/drop a weekly budget report into Gmail. Args: weeks=1 for last week; weeks=4 for an unspecified weekly report or last four weeks / 4-week trend (weeks defaults to 4 when omitted); endDate optional ISO previous Sunday anchor; auditId optional for portfolio/audit override. Leaves the Gmail recipient blank.",
+    "Create the standard one-off weekly Google Ads budget (spend-pacing) report as a Gmail draft in one step, without passing report HTML through the chat. Use it instead of chaining get_weekly_metric_table, get_dashboard_email_components, get_budget_management_email and create_gmail_draft. Needs an explicit graph choice (keyword_relevancy, cpa_trend or both); without one it returns a clarification and creates nothing. Leaves the recipient blank.",
   inputSchema: {
     type: "object",
     properties: {

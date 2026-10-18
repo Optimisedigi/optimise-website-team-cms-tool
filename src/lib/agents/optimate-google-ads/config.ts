@@ -14,7 +14,11 @@ import {
   SCHEDULED_TASKS_TRIGGERS,
   DECK_TRIGGERS,
   GEO_WALKTHROUGH_TRIGGERS,
+  GMAIL_DRAFT_TRIGGERS,
+  detectGoogleMateToolBundles,
+  type GoogleMateToolBundleName,
 } from "./keyword-matcher";
+import { shouldAttachMemoryTools } from "../_shared/memory-tool-routing";
 
 export const AGENT_NAME = "optimate-google-ads";
 
@@ -45,36 +49,29 @@ const ROLE = `You are Optimate-Google-Ads, a paid-search and measurement special
 
 const PORTFOLIO_ROLE = `You are Optimate-Google-Ads in portfolio mode, a paid-search specialist embedded in Optimise Digital's CMS. You analyse the Google Ads portfolio across accounts or selected accounts based on requested client names/account names without preloading every account into context. The user is asking cross-account questions. Use compact portfolio tools first, choose small account subsets before fetching detail, never invent metrics, and use selected-account tools for account-specific changes.`;
 
+// Each rule appears once in the prompt. Rules the code already enforces stay
+// short: replies and drafts are dash-stripped (removeForbiddenDashes) and the
+// proposal cap is enforced in _propose-helpers.ts.
 const GUARDRAILS = [
-  "NO EM DASHES OR EN DASHES, EVER. Never use — or – in any user-visible output: chat replies, Gmail drafts you assemble, HTML callouts, proposal summaries, deck content, anything the user or a client will read. Use commas, periods, colons, semicolons, parentheses, or rewrite the sentence. This rule is ABSOLUTE and overrides every example in this prompt that uses a dash. If you see a dash in an example below, that example is wrong on this point and you copy the LOGIC, not the punctuation. Hyphens (-) in compound words like 'week-on-week' are fine. Dashes between clauses are NOT.",
-  "NEVER SHOW ARITHMETIC OR WORKING IN USER-VISIBLE OUTPUT. Compute silently. Lead with the final number. Do not write 'Let me calculate', 'spend = $X + $Y + $Z = $T', or 'CPA = T / N = R'. Do not narrate the sum. State the result and the tool you got it from. If the user explicitly asks 'show your working', then and only then expand the maths.",
-  "Every numeric claim must come from a tool result called this turn or earlier in the conversation. If you don't have the number, say so and call the tool. Don't guess.",
-  "For CTR, use the canonical metric-table tools when available and trust their Google Ads CTR field. CTR must come from Google Ads metrics.ctr, weighted by impressions when Growth Tools returns multiple rows. Never average campaign CTRs, recompute CTR in chat, or invent a filter that the tool did not apply. Other derived rates like CPC, CPA, and conversion rate use the tool validation formulas.",
-  "When the user asks about conversions, leads, CPA, or conversion volume generally, answer with the total conversions first. Do NOT split by conversion type unless the user explicitly asks for a breakdown, split, phone calls, form submits, conversion types, or category detail.",
-  "Growth Tools is the full-action bridge for the selected client. For data questions, use the specific read tool when one exists; when the exact built-in report is missing, use growth_tools_read to call an approved read/report Growth Tools endpoint with selected-client scoping. When the user directly asks you to make a Google Ads, GA4, or GTM change, use the matching execute_* tool and then review the result. The execute tools include mapped common actions plus scoped growth_tools_request mode for existing Google Ads, GA4, and GTM Growth Tools endpoints.",
-  "Use propose_* tools only when the user asks for a review workflow, approval workflow, draft, plan, staged proposal, or approval-ready recommendation.",
-  "Pause, enable, activate, reactivate, turn on, or turn off requests for existing Google Ads campaigns/ad groups MUST use execute_google_ads_action when the user asks to do it live, or propose_campaign_status_change/propose_ad_group_status_change when the user asks to queue approval.",
-  "Every propose_* tool MUST be called with a `summary` that's a 1 to 3 sentence overview AND a `supportingNumbers` array citing the tool result(s) that justify the change (e.g. '$140 spend, 0 conversions, 12 clicks (get_search_terms last 30 days)'). Skipping these is a tool-spec violation.",
-  "Never claim you 'have applied' or 'have pushed' anything until the execute tool returns success. If you used a propose tool, use queued/proposed wording and include the approval URL exactly as the tool returned it.",
-  "After any GA4, GTM, Google Ads conversion-tracking, URL, tag, or publish write, call review_tracking_changes when available. For other Google Ads writes, cite the execute tool result IDs/counts/status.",
-  "Never expose the raw Customer ID externally (e.g. don't paste it into a client-facing summary). It is fine to reference it internally.",
-  "If a tool returns an error AND you have an obvious correct retry (e.g. the user said 'April' and you can switch to LAST_MONTH, or you passed an invalid preset and the right one is in the date-range guide), JUST RETRY ONCE silently. Don't ask the user 'want me to try X instead?'. Only escalate to the user when there's no obvious retry, or after the retry also fails. Never fabricate fallback numbers.",
-  "Cap of 5 propose_* calls per chat turn. Bundle related changes into one proposal where possible. The 6th call will hard-error.",
-  "Keep replies tight: lead with the answer, follow with the supporting numbers, end with the recommended next step. No filler. No preamble. No 'now I have everything', 'let me think', 'here is what I found'.",
-  "CONFIRM GATE. Before calling `propose_campaign_restructure` OR `propose_campaign_build`, you MUST call `request_confirm` first with the action-specific wording AND the settings you'd pass to the propose tool. The two canonical wordings: for propose_campaign_restructure use exactly 'Want me to restructure the campaigns for approval?'; for propose_campaign_build use exactly 'Want me to build the campaigns for approval?'. Only call the actual propose tool AFTER the chat route sends a synthetic 'user confirmed' message (which the chat client emits when the user clicks Yes). If you receive a 'user declined' message instead, give the user a plain-text answer describing what you would have proposed but do NOT call the propose tool. Never skip this gate for these two tools. Other propose tools do NOT need this gate, call them directly.",
+  "NO EM DASHES OR EN DASHES (— or –) in anything the user or a client reads: replies, drafts, callouts, summaries, decks. Use commas, colons, parentheses or a new sentence; hyphens in compound words like 'week-on-week' are fine. This overrides any example in this prompt.",
+  "NEVER SHOW ARITHMETIC OR WORKING in replies. Compute silently and state the result with the tool it came from, unless the user asks to see the working.",
+  "Every number must come from a tool result in this conversation. If you don't have it, call the tool or say so; never guess or fabricate fallback numbers.",
+  "CTR comes from Google Ads metrics.ctr, via the metric-table tools when available and impression-weighted across rows. Never average or recompute CTR, or invent a filter the tool didn't apply. CPC, CPA and conversion rate use the tools' own formulas.",
+  "For conversions, leads or CPA, give total conversions first. Split by conversion type only when the user asks for a breakdown.",
+  "Never say you applied or pushed anything until the execute tool returns success. After a propose tool, use queued wording and end with 'Queued approval #<id>, review at /admin/agent-approvals/<id>' using the URL the tool returned.",
+  "Never put the raw Customer ID in client-facing text; internal references are fine.",
+  "If a tool errors and the fix is obvious (e.g. a valid preset instead of an unrecognised one), retry once silently. Ask the user only when there is no obvious retry or the retry also fails.",
+  "CONFIRM GATE. Before propose_campaign_restructure or propose_campaign_build, call request_confirm with the settings you would pass and exactly 'Want me to restructure the campaigns for approval?' (restructure) or 'Want me to build the campaigns for approval?' (build). Call the propose tool only after the synthetic 'user confirmed' message; after 'user declined', describe in plain text what you would have proposed. Other propose tools need no gate.",
 ];
 
 const TOOL_INVENTORY = [
   "CORE TOOL ROUTING:",
-  "- The live tool definitions already include each tool's full description and input schema. Use those definitions as the source of truth for exact arguments.",
-  "- Start with read tools for evidence, then call execute_* tools when the user asks to make a live change through Growth Tools.",
-  "- For account diagnostics, first call the smallest read tool that matches the question: overview for totals, campaign/ad-group tools for entity rows, search terms for query waste, weekly/monthly metric table tools for period tables. If the exact report needs Growth Tools dimensions/filters not covered by a named tool, call growth_tools_read instead of asking the user to run Growth Tools manually.",
-  "- For Google Ads, GA4, or GTM changes, use execute_google_ads_action, execute_ga4_action, or execute_gtm_action when the user asks to apply/create/update/publish/deploy/push live. Use mapped actions first; use growth_tools_request inside the execute tool for existing Growth Tools endpoints that are not named yet. Use propose_* only for approval, draft, plan, or staged workflows.",
-  "- Existing campaign/ad-group pause, enable, activate, reactivate, turn on, or turn off requests use execute_google_ads_action for live action, or propose_campaign_status_change/propose_ad_group_status_change for queued approval.",
-  "- Campaign restructure and campaign build require request_confirm first. Use the exact wording from the CONFIRM GATE guardrail, wait for the synthetic confirmation message, then call the propose tool.",
-  "- Budget management/email asks use get_budget_management_email. Monthly email dashboard component asks use get_dashboard_email_components before the canonical budget tracker. One-off weekly budget Gmail drafts use create_weekly_budget_gmail_draft. One-off monthly budget Gmail drafts use create_monthly_budget_gmail_draft after explicit component selection. Other one-off Gmail draft asks use create_gmail_draft. Recurring report asks use propose_scheduled_task.",
-  "- Client/GA4/GSC/SERP/AI Visibility/client-details/memory tools are lazy. Call them only when the user asks for that data or the answer needs it.",
-  "- For memory: remember durable client/team facts, memory_search before asking something history may answer, soul_set only for long-term communication-style corrections.",
+  "- Read first, with the smallest tool that fits: overview for totals, campaign/ad-group tools for rows, search terms for query waste, weekly/monthly metric tables for period tables. If no named tool covers the report, use growth_tools_read rather than asking the user to run Growth Tools.",
+  "- Live changes (apply, create, update, publish, deploy, push live): execute_google_ads_action, execute_ga4_action or execute_gtm_action, mapped actions first, growth_tools_request mode for endpoints without a mapped action. Pause, enable or turn on/off of existing campaigns or ad groups: execute_google_ads_action live, or propose_campaign_status_change/propose_ad_group_status_change to queue approval.",
+  "- After a GA4, GTM, conversion-tracking, URL, tag or publish write, call review_tracking_changes when available; for other Google Ads writes, cite the execute result IDs, counts and status.",
+  "- Use propose_* only when the user asks for an approval workflow, draft, plan or staged proposal. Give each a 1 to 3 sentence `summary` and `supportingNumbers` citing tool results, e.g. '$140 spend, 0 conversions, 12 clicks (get_search_terms last 30 days)'. Bundle related changes; at most 5 per turn.",
+  "- Budget and email: get_budget_management_email for budget management emails; get_dashboard_email_components for monthly dashboard components; create_weekly_budget_gmail_draft or create_monthly_budget_gmail_draft (after explicit component selection) for one-off budget drafts; create_gmail_draft for other one-off drafts; propose_scheduled_task for recurring reports.",
+  "- Client, GA4, GSC, SERP, AI Visibility and client-details tools: call only when the user asks for that data or the answer needs it.",
 ].join("\n");
 
 const GEO_WALKTHROUGH = `When the user describes a problem like "near-me searches don't have a near-me-specific landing", "split services into geo-targeted ad groups", or "build a new campaign structure based on the website", the right path is:
@@ -149,37 +146,16 @@ The right recurring \`prompt\` to save (it runs with NO chat history) is somethi
 
 Then call propose_scheduled_task with title="Weekly budget management email", that prompt, schedule="0 9 * * 1", and a 1-sentence summary. On each Monday firing, the agent runs that prompt, and the scheduled-task tick saves a Gmail Draft with subject "[Client Name] - Google Ads Weekly Report". The user reviews, edits the To: address, and hits Send.`;
 
-const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plain English into one of these range inputs and pass it as the \`range\` arg:
+const DATE_RANGE_GUIDE = `Pass the user's time window as the \`range\` arg:
+- today → TODAY; yesterday → YESTERDAY; past 7/14/30/60/90 days → LAST_7_DAYS, LAST_14_DAYS, LAST_30_DAYS (default), LAST_60_DAYS, LAST_90_DAYS; a fortnight is LAST_14_DAYS
+- this month / MTD → THIS_MONTH; last month (calendar) → LAST_MONTH
+- this week → THIS_WEEK_MON_TODAY; last week → LAST_WEEK_MON_SUN (agency default); LAST_WEEK_SUN_SAT only when the user says Sunday to Saturday
+- this/last quarter → THIS_QUARTER / LAST_QUARTER; quarter to date → QTD; year to date → YTD; a named quarter verbatim, e.g. range="Q1 2026"
+- explicit dates → "YYYY-MM-DD..YYYY-MM-DD", e.g. January through March → "2026-01-01..2026-03-31"
 
-Presets:
-- "today" → TODAY
-- "yesterday" → YESTERDAY
-- "past 7 days" → LAST_7_DAYS
-- "last 14 days" / "fortnight" → LAST_14_DAYS
-- "last 30 days" / "last month-ish" → LAST_30_DAYS (default)
-- "last 60 days" → LAST_60_DAYS
-- "last 90 days" → LAST_90_DAYS
-- "this month" / "month-to-date" / "MTD" → THIS_MONTH
-- "last month" (calendar) → LAST_MONTH
-- "this week" → THIS_WEEK_MON_TODAY
-- "last week" (default, agency convention is Monday to Sunday) → LAST_WEEK_MON_SUN
-- "last week Monday to Sunday" → LAST_WEEK_MON_SUN (same as default)
-- "last week Sunday to Saturday", or the explicit "Sun to Sat" calendar week → LAST_WEEK_SUN_SAT (only when the user explicitly says Sun to Sat)
+Results echo \`rangeLabel\` (plus \`startDate\`/\`endDate\` for custom spans); tell the user which window you queried. If a result has \`coercedFrom\` and a \`note\`, the range wasn't recognised: say so instead of presenting it as the requested window.`;
 
-Quarter / year (resolved to explicit ISO span server-side, no longer coerced to LAST_90_DAYS):
-- "this quarter" → THIS_QUARTER
-- "last quarter" → LAST_QUARTER
-- "quarter to date" / "QTD" → QTD
-- "year to date" / "YTD" → YTD
-- "Q1 2026" / "Q4 2025" → pass the literal verbatim, e.g. range="Q1 2026"
-
-Custom ISO span:
-- "January through March" / "between Jan 1 and Mar 31" → range="2026-01-01..2026-03-31"
-- Any explicit date pair the user gives → "YYYY-MM-DD..YYYY-MM-DD"
-
-The tool result echoes back \`rangeLabel\` and (when CUSTOM) \`startDate\`/\`endDate\` so you can confirm to the user which window you actually queried. If the response has a \`coercedFrom\` and \`note\`, the input wasn't recognised. Surface that rather than pretending you ran the exact range requested.`;
-
-const SEGMENTATION_GUIDE = `When the user asks for account-level monthly metrics, especially CTR by month, prefer get_monthly_metric_table over segmented campaign rows. When the user asks for weekly account-level metrics, prefer get_weekly_metric_table. These canonical tools fetch each period independently and use Google Ads metrics.ctr for CTR.
+const SEGMENTATION_GUIDE = `When the user asks for account-level monthly metrics, especially CTR by month, prefer get_monthly_metric_table over segmented campaign rows. When the user asks for weekly account-level metrics, prefer get_weekly_metric_table. These canonical tools fetch each period independently.
 
 When the user asks for a per-campaign, per-search-term, per-ad-group, per-month, per-week, or per-day breakdown (phrases like "campaigns month by month", "terms each month", "January, February, March separately by campaign", "this quarter broken down by term", "by week", "weekly trend"), pass \`segment="month"\` (or "week" / "day") AND pass an explicit \`range\` wide enough to cover what they asked for.
 
@@ -237,7 +213,7 @@ Keyword stats tiles (MTP, 5 tiles):
 
 Slug convention: lowercase kebab-case, include the month/year and the short name, e.g. "may-2026-mtp-recap", "may-2026-berendsen-recap".`;
 
-const MEMORY_GUIDE = `Memory and soul are designed to keep this prompt small. Pinned facts (importance ≥ 80) for the active client and scoped soul aspects are loaded above (see "Known about this account" / "Working with this team" sections, if present). Everything else stays in the database. Memory tool schemas are attached only for explicit memory requests or after requesting the memory bundle.
+const MEMORY_GUIDE = `Memory and soul are designed to keep this prompt small. Pinned facts (importance ≥ 80) for the active client and scoped soul aspects are loaded above (see "Known about this account" / "Working with this team" sections, if present). Everything else stays in the database.
 
 When to call/request \`remember\`:
 - The user shares a durable preference ("client X hates PMax", "always copy GM on budget changes").
@@ -289,9 +265,9 @@ Portfolio operating rules:
 12. Every client draft in a multi-account run must read as its own email. The draft shortcut tools already vary greeting and sentence structure per account; when you write draft copy yourself for two or more accounts, change the greeting and rephrase each summary so no two drafts are word-for-word identical. Numbers, metrics, and canonical HTML never change, only the wording.
 13. Recurring portfolio drafts are not enabled yet. If asked, offer one-off per-client drafts or ask to pick a specific audit-backed account for the existing scheduled task workflow.`;
 
-const OUTPUT_FORMAT = `Plain markdown. Short paragraphs and tight bullet lists. **Lead with the answer in the first sentence**. Number first, context after. No preamble like "Let me check...", "Here's what I found...", "I need to calculate...", "Now I have everything". Don't show your working unless the user asks for it. The supporting numbers come AFTER the headline answer, not before. Never emit \`<think>\` blocks, scratch arithmetic, or visible chain-of-thought. If you need to reason, do it in your reasoning channel, not in the user-visible reply. When you cite a number, name the tool you got it from in parentheses, e.g. "$1,240 spent over 7 days (get_campaign_performance)". When you queue a proposal, end the message with "Queued approval #<id>, review at /admin/agent-approvals/<id>". When returning structured metric data with more than 2 rows, use a GFM markdown table (pipe syntax with a \`|---|\` separator row). Bulleted lists are for unordered items, not metrics. NO em or en dashes (—, –) anywhere, including in Gmail drafts and HTML callouts you assemble. Use commas, periods, colons, parentheses, or rewrite. Hyphens in compound words are fine.
+const OUTPUT_FORMAT = `Plain markdown: short paragraphs and tight bullets. Lead with the answer in the first sentence, then the supporting numbers, then the recommended next step. No preamble or filler ("Let me check...", "Here's what I found...", "Now I have everything"). Never show \`<think>\` blocks, scratch arithmetic or chain-of-thought. Name each number's tool in parentheses, e.g. "$1,240 spent over 7 days (get_campaign_performance)". Use a GFM table (with a \`|---|\` separator row) for metric data with more than 2 rows; bullets are for unordered items, not metrics.
 
-The user soul rules loaded above in the CMS rules block are ABSOLUTE and override anything in this section that conflicts with them. If soul says no dashes, no dashes wins. If soul says no arithmetic shown, no arithmetic shown wins.`;
+The user soul rules in the CMS rules block override anything in this section that conflicts with them.`;
 
 export interface ClientConnectionFlags {
   ga4Connected: boolean;
@@ -407,13 +383,70 @@ export interface BuildSystemPromptOptions {
    */
   pinnedMemoryBlock?: string;
   /**
-   * Recent conversation messages used to decide whether to include the
-   * SCHEDULED_TASKS_GUIDE and DECK_GUIDE blocks. When omitted (older callers,
-   * tests), both guides are included for back-compat — the old behaviour. An
-   * explicitly-empty array opts INTO conditional inclusion and excludes both
-   * guides when no trigger keyword fires.
+   * Recent conversation messages used to decide which conditional guides to
+   * include (see selectAuditGuides). When omitted (older callers, tests),
+   * every guide is included for back-compat. An explicitly-empty array opts
+   * INTO conditional inclusion and excludes each guide whose trigger does not
+   * fire.
    */
   recentMessages?: Message[];
+}
+
+/** Which conditional guides an audit-mode prompt carries. */
+export interface AuditGuideSelection {
+  segmentation: boolean;
+  gmailDraft: boolean;
+  memory: boolean;
+  geoWalkthrough: boolean;
+  scheduledTasks: boolean;
+  deck: boolean;
+}
+
+/** Bundles whose tools take `segment` or are the metric-table tools. */
+const SEGMENTATION_BUNDLES: ReadonlySet<GoogleMateToolBundleName> = new Set([
+  "performance",
+  "negative_keywords",
+  "budget_email",
+]);
+
+/**
+ * Conditional guide inclusion. When recentMessages is undefined the caller
+ * didn't opt in, keep the old always-include behaviour. When it's an explicit
+ * array (even empty), include each guide only if its trigger fires. The
+ * segmentation and memory guides follow the tools they describe: they load
+ * with the bundles that carry those tools, and a mid-run bundle request gets
+ * them through guidanceForRequestedBundles instead.
+ */
+export function selectAuditGuides(recentMessages: Message[] | undefined): AuditGuideSelection {
+  if (recentMessages === undefined) {
+    return { segmentation: true, gmailDraft: true, memory: true, geoWalkthrough: true, scheduledTasks: true, deck: true };
+  }
+  const bundles = detectGoogleMateToolBundles(recentMessages);
+  return {
+    segmentation: bundles.some((bundle) => SEGMENTATION_BUNDLES.has(bundle)),
+    gmailDraft: shouldIncludeGuide(recentMessages, GMAIL_DRAFT_TRIGGERS),
+    memory: shouldAttachMemoryTools(recentMessages),
+    geoWalkthrough: shouldIncludeGuide(recentMessages, GEO_WALKTHROUGH_TRIGGERS),
+    scheduledTasks: shouldIncludeGuide(recentMessages, SCHEDULED_TASKS_TRIGGERS),
+    deck: shouldIncludeGuide(recentMessages, DECK_TRIGGERS),
+  };
+}
+
+/**
+ * Guide text for bundles the model attaches mid-run, returned in the
+ * request_googlemate_tool_bundle result so it arrives with the tools. Guides
+ * already in the system prompt are skipped.
+ */
+export function guidanceForRequestedBundles(
+  bundles: readonly GoogleMateToolBundleName[],
+  loaded: Pick<AuditGuideSelection, "segmentation" | "memory">,
+): string | undefined {
+  const parts: string[] = [];
+  if (!loaded.segmentation && bundles.some((bundle) => SEGMENTATION_BUNDLES.has(bundle))) {
+    parts.push(SEGMENTATION_GUIDE);
+  }
+  if (!loaded.memory && bundles.includes("memory")) parts.push(MEMORY_GUIDE);
+  return parts.length > 0 ? parts.join("\n\n") : undefined;
 }
 
 export function buildSystemPromptForAudit(
@@ -444,35 +477,21 @@ export function buildSystemPromptForAudit(
       ? `${cmsRules}\n\n${options.pinnedMemoryBlock}\n\nThe soul rules above are ABSOLUTE. If any example or rule later in this prompt conflicts with a soul rule, the soul rule wins. This applies especially to formatting, tone, and what to show vs hide in user-visible replies.`
       : cmsRules;
 
-  // Conditional guide inclusion. When recentMessages is undefined the caller
-  // didn't opt in, keep the old always-include behaviour. When it's an
-  // explicit array (even empty), include each guide only if a trigger fires.
-  const includeScheduledTasks =
-    options.recentMessages === undefined
-      ? true
-      : shouldIncludeGuide(options.recentMessages, SCHEDULED_TASKS_TRIGGERS);
-  const includeDeck =
-    options.recentMessages === undefined
-      ? true
-      : shouldIncludeGuide(options.recentMessages, DECK_TRIGGERS);
-  const includeGeoWalkthrough =
-    options.recentMessages === undefined
-      ? true
-      : shouldIncludeGuide(options.recentMessages, GEO_WALKTHROUGH_TRIGGERS);
-
+  const guides = selectAuditGuides(options.recentMessages);
+  // Each heavy guide keeps its original position, so a turn that triggers it
+  // sees the same prompt as before; TOOL_INVENTORY keeps the one-line routing.
   const guideBlocks: string[] = [
     TOOL_INVENTORY,
     DATE_RANGE_GUIDE,
-    SEGMENTATION_GUIDE,
-    // Always included: these workflows are common enough or lightweight enough
-    // that keeping them loaded preserves quality across routine chat turns.
-    GMAIL_DRAFT_GUIDE,
+    ...(guides.segmentation ? [SEGMENTATION_GUIDE] : []),
+    ...(guides.gmailDraft ? [GMAIL_DRAFT_GUIDE] : []),
+    // Always included: lightweight enough to keep loaded on every turn.
     ATTACHED_EMAIL_GUIDE,
-    MEMORY_GUIDE,
+    ...(guides.memory ? [MEMORY_GUIDE] : []),
   ];
-  if (includeGeoWalkthrough) guideBlocks.push(GEO_WALKTHROUGH);
-  if (includeScheduledTasks) guideBlocks.push(SCHEDULED_TASKS_GUIDE);
-  if (includeDeck) guideBlocks.push(DECK_GUIDE);
+  if (guides.geoWalkthrough) guideBlocks.push(GEO_WALKTHROUGH);
+  if (guides.scheduledTasks) guideBlocks.push(SCHEDULED_TASKS_GUIDE);
+  if (guides.deck) guideBlocks.push(DECK_GUIDE);
 
   return buildSystemPrompt({
     agentRole: ROLE,
@@ -498,7 +517,14 @@ export function buildSystemPromptForPortfolio(options: BuildSystemPromptOptions 
     agentRole: PORTFOLIO_ROLE,
     cmsRulesBlock: cmsRulesWithMemory,
     guardrails: GUARDRAILS,
-    toolInventory: [PORTFOLIO_TOOL_GUIDE, GMAIL_DRAFT_GUIDE, ATTACHED_EMAIL_GUIDE, MEMORY_GUIDE].join("\n\n"),
+    // Portfolio attaches memory tools only for explicit memory requests, so
+    // the memory guide follows the same rule.
+    toolInventory: [
+      PORTFOLIO_TOOL_GUIDE,
+      GMAIL_DRAFT_GUIDE,
+      ATTACHED_EMAIL_GUIDE,
+      ...(options.recentMessages === undefined || shouldAttachMemoryTools(options.recentMessages) ? [MEMORY_GUIDE] : []),
+    ].join("\n\n"),
     outputFormat: OUTPUT_FORMAT,
   });
 }

@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mockPayload = {
   auth: vi.fn(),
 }
-type VoiceDefaults = { voiceRealtimeModel: string; voiceAuthMethod?: string }
+type VoiceDefaults = { voiceRealtimeModel: string; voiceApiKeyEnabled?: boolean; voiceAuthMethod?: string }
+const OAUTH = {
+  source: 'oauth',
+  authHeader: { Authorization: 'Bearer oauth-token', 'chatgpt-account-id': 'acct_1' },
+}
 const getDefaults = vi.fn(
   async (_payload?: unknown): Promise<VoiceDefaults> => ({ voiceRealtimeModel: 'gpt-realtime-mini' }),
 )
@@ -40,6 +44,7 @@ beforeEach(() => {
   getDefaults.mockReset()
   getDefaults.mockResolvedValue({ voiceRealtimeModel: 'gpt-realtime-mini' })
   resolveCredential.mockReset()
+  resolveCredential.mockResolvedValue(OAUTH)
   process.env.OPENAI_API_KEY = 'sk-test'
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
@@ -81,15 +86,16 @@ describe('POST /api/optimate/realtime-secret', () => {
     expect(session.tools).toEqual([])
   })
 
-  it('requires OPENAI_API_KEY', async () => {
+  it('works without OPENAI_API_KEY, since voice only uses the ChatGPT plan', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
     delete process.env.OPENAI_API_KEY
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ value: 'ek_plan' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
 
     const res = await POST(makeRequest({ session: { instructions: 'hi' } }))
-    const body = await res.json()
 
-    expect(res.status).toBe(500)
-    expect(body.error).toMatch(/OPENAI_API_KEY/)
+    expect(res.status).toBe(200)
+    expect((await res.json()).billing).toBe('oauth')
   })
 
   it('mints a Realtime client secret using the configured mini voice model', async () => {
@@ -118,11 +124,12 @@ describe('POST /api/optimate/realtime-secret', () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body).toEqual({ value: 'ek_test_123', expires_at: 1756310470, model: 'gpt-realtime-mini', billing: 'api-key' })
+    expect(body).toEqual({ value: 'ek_test_123', expires_at: 1756310470, model: 'gpt-realtime-mini', billing: 'oauth' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(init.headers).toEqual({
-      Authorization: 'Bearer sk-test',
+      Authorization: 'Bearer oauth-token',
+      'chatgpt-account-id': 'acct_1',
       'Content-Type': 'application/json',
     })
     const payload = JSON.parse(String(init.body))
@@ -176,15 +183,11 @@ describe('POST /api/optimate/realtime-secret', () => {
     expect(payload.session.reasoning).toEqual({ effort: 'minimal' })
   })
 
-  it('uses the ChatGPT plan login instead of OPENAI_API_KEY when voice billing is codex-oauth', async () => {
+  it('ignores the legacy voiceAuthMethod value: only the toggle turns on API-key voice', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
     getDefaults.mockResolvedValue({
       voiceRealtimeModel: 'gpt-realtime-2.1',
-      voiceAuthMethod: 'codex-oauth',
-    })
-    resolveCredential.mockResolvedValue({
-      source: 'oauth',
-      authHeader: { Authorization: 'Bearer oauth-token', 'chatgpt-account-id': 'acct_1' },
+      voiceAuthMethod: 'api-key',
     })
     const fetchMock = vi.fn(async () =>
       new Response(
@@ -208,10 +211,6 @@ describe('POST /api/optimate/realtime-secret', () => {
 
   it('does not fall back to OPENAI_API_KEY when the ChatGPT plan login is missing', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    getDefaults.mockResolvedValue({
-      voiceRealtimeModel: 'gpt-realtime-2.1',
-      voiceAuthMethod: 'codex-oauth',
-    })
     resolveCredential.mockResolvedValue({
       source: 'api-key',
       authHeader: { Authorization: 'Bearer sk-test' },
@@ -224,6 +223,51 @@ describe('POST /api/optimate/realtime-secret', () => {
 
     expect(res.status).toBe(400)
     expect(body.error).toMatch(/ChatGPT/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to OPENAI_API_KEY when the ChatGPT plan sign-in fails', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, role: 'admin' } })
+    resolveCredential.mockRejectedValue(new Error('refresh token expired'))
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await POST(makeRequest({ mode: 'taskmate' }))
+    const body = await res.json()
+
+    expect(res.status).toBe(502)
+    expect(body.error).toMatch(/only uses the OpenAI API key when "Use OpenAI API key for voice" is on/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('bills OPENAI_API_KEY and reports api-key billing when the toggle is on', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    getDefaults.mockResolvedValue({ voiceRealtimeModel: 'gpt-realtime-mini', voiceApiKeyEnabled: true })
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ value: 'ek_key' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await POST(makeRequest({ session: { instructions: 'hi' } }))
+
+    expect(res.status).toBe(200)
+    expect((await res.json()).billing).toBe('api-key')
+    expect(resolveCredential).not.toHaveBeenCalled()
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(init.headers).toEqual({ Authorization: 'Bearer sk-test', 'Content-Type': 'application/json' })
+  })
+
+  it('points at the toggle when it is on but OPENAI_API_KEY is missing', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    getDefaults.mockResolvedValue({ voiceRealtimeModel: 'gpt-realtime-mini', voiceApiKeyEnabled: true })
+    delete process.env.OPENAI_API_KEY
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await POST(makeRequest({ session: { instructions: 'hi' } }))
+    const body = await res.json()
+
+    expect(res.status).toBe(500)
+    expect(body.error).toMatch(/OPENAI_API_KEY/)
+    expect(body.error).toMatch(/turn the toggle off in OptiMate Settings/)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import { runEmailChatTurn } from "@/lib/agents/optimate-email";
+import { detectEmailToolBundles } from "@/lib/agents/optimate-email/tool-bundles";
 import type { Message } from "@/lib/agents/_shared/llm/types";
 import { isCanonicalModel, type CanonicalModelName } from "@/lib/agents/_shared/llm/registry";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
@@ -120,9 +121,19 @@ export async function POST(request: Request) {
       },
     ];
 
+    // Tools are chosen from what the user typed, never from email content.
+    const toolBundles = detectEmailToolBundles([
+      ...compactedHistory.filter((h) => h.role === "user").map((h) => h.content),
+      message,
+    ]);
+    if (mode === "summarise" && !thread?.messages.length && !email.body && !toolBundles.includes("gmail_read")) {
+      toolBundles.push("gmail_read");
+    }
+
     const result = await runEmailChatTurn({
       messages,
       modelOverride,
+      toolBundles,
       userId: typeof user.id === "number" ? user.id : Number(user.id),
       draftAttachments: attachmentResult.attachments,
       ...(mode === "reply"
@@ -210,9 +221,13 @@ function buildUserMessage(args: {
   email: EmailContext;
   thread?: ThreadContext;
 }): string {
-  const parts: string[] = [
-    "You are GmailMate in text chat. Work back-and-forth with the user until they are happy with the email. By default, treat the user's words as rough instructions or notes to improve, not copy to paste. If they type a direct request or blunt response, rewrite it into a clear, polished, customer-facing email that preserves their intent. Preserve specific wording when the user frames a point as wording to include, for example 'say it this way', 'word it like', or quoted text they ask you to add. MANDATORY: whenever you produce or revise an email body, you MUST call stage_email_reply with the full finished customer-facing email body BEFORE explaining what changed in chat. The user cannot see any draft until you call this tool. Gmail is draft-only; never claim to send mail. Never put chat-only process notes like 'Done', 'I've covered', 'Want me to adjust', or a checklist of changes into the staged email body. Start drafts with a natural greeting, put the introduction immediately after it, and end on the final substantive sentence. Never add a manual sign-off or sender name (including 'Thanks', 'Regards', or 'Peter') because Gmail appends the user's automated signature. Never say 'I have staged', 'I've staged', or 'Done' in chat text — those statements are only true after you call stage_email_reply.",
-  ];
+  // The drafting rules live once in the system prompt and the
+  // stage_email_reply definition. This one-line reminder stays because it
+  // sits next to the request, where weaker models most often skipped the tool.
+  // Summarise turns get no drafting reminder: they must not draft.
+  const parts: string[] = args.mode === "summarise"
+    ? []
+    : ["Reminder: show any new or revised email body with stage_email_reply; the user cannot see a draft otherwise."];
 
   if (args.mode === "reply") {
     parts.push("Mode: reply to an existing Gmail message.");
@@ -268,7 +283,13 @@ function buildUserMessage(args: {
         ].join("\n"),
       );
     }
-    parts.push("INSTRUCTION: Summarise the thread above. Do NOT draft a reply. Call summarize_email_thread with the threadId to produce a structured summary. After returning the summary, wait for the user to explicitly request a reply draft.");
+    // The thread is already in this message when it loaded, so summarise it
+    // directly; calling summarize_email_thread would fetch and send it again.
+    parts.push(
+      args.thread?.messages.length || args.email.body
+        ? "INSTRUCTION: Summarise the email content above in chat: key points, participants, tone, and any action items or deadlines. Do NOT draft a reply and do not call any tool. Then wait for the user to explicitly request a reply draft."
+        : "INSTRUCTION: Call summarize_email_thread with the Thread ID above, then summarise it in chat: key points, participants, tone, and any action items or deadlines. Do NOT draft a reply. Then wait for the user to explicitly request a reply draft.",
+    );
   } else {
     parts.push("Mode: draft a brand-new outbound email.");
   }
