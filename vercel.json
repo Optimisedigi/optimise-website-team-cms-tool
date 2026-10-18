@@ -38,6 +38,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/mail/schedule/tick",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/mail/sync/cron",
       "schedule": "30 3 * * *"
     },

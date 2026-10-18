@@ -423,3 +423,45 @@
   background: #fffbeb;
   color: #92400e;
 }
+
+/* Scheduled tab: replaces the two panes with one list of queued emails. */
+.scheduled {
+  padding: 12px 0;
+}
+
+.scheduledList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--mail-border);
+  border-radius: 8px;
+}
+
+.scheduledRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--mail-soft);
+}
+
+.scheduledMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.scheduledActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.scheduledError {
+  color: #b3261e;
+  font-size: 12px;
+}

@@ -8,6 +8,7 @@ import { buildEmailDocument } from '../../lib/mail/email-html'
 import { markdownLiteToHtml } from '../../lib/email-draft-markdown'
 import { base64Bytes, extractInlineImages, type InlineImagePayload } from '../../lib/mail/compose-html'
 import { MAIL_ATTACHMENT_LIMITS } from '../../lib/mail/compose-limits'
+import { parseDatetimeLocal, schedulePresets, toDatetimeLocalValue } from '../../lib/mail/schedule-times'
 import { fitImageForChat } from '../chat-image-fit'
 
 /**
@@ -68,6 +69,8 @@ interface Props {
   title: string
   onClose: () => void
   onSend: (state: ComposeState, content: ComposeContent) => Promise<void>
+  /** Queue the email to send at `when` instead of now. */
+  onSchedule: (state: ComposeState, content: ComposeContent, when: Date) => Promise<void>
   /** Resolves to the Gmail draft id, so later saves update the same draft. */
   onSaveDraft: (state: ComposeState, content: ComposeContent) => Promise<string | undefined>
   /** Gmail signature HTML; '' when none is set, null while unknown. */
@@ -116,17 +119,19 @@ const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp
 const DISPLAY_WIDTH = 600
 const LIMIT_NOTE = `Images and attachments can total up to ${formatSize(MAIL_ATTACHMENT_LIMITS.maxTotalBytes)} per email.`
 
-export default function ComposeWindow({ initial, title, onClose, onSend, onSaveDraft, signatureHtml }: Props) {
+export default function ComposeWindow({ initial, title, onClose, onSend, onSchedule, onSaveDraft, signatureHtml }: Props) {
   const [state, setState] = useState<ComposeState>(initial)
   const [turns, setTurns] = useState<Turn[]>([])
   const [prompt, setPrompt] = useState('')
-  const [busy, setBusy] = useState<'' | 'ai' | 'send' | 'draft'>('')
+  const [busy, setBusy] = useState<'' | 'ai' | 'send' | 'draft' | 'schedule'>('')
   const [note, setNote] = useState('')
   const [minimised, setMinimised] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [showCc, setShowCc] = useState(Boolean(initial.cc))
   const [hasDraft, setHasDraft] = useState(Boolean(initial.html.trim()))
   const [tableOpen, setTableOpen] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [scheduleAt, setScheduleAt] = useState('')
   const [tableSize, setTableSize] = useState({ rows: 3, columns: 3 })
   // Opt-in: also give the AI the rest of this email's thread. Off by default.
   const [useThread, setUseThread] = useState(false)
@@ -279,6 +284,33 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
     } finally {
       setBusy('')
     }
+  }
+
+  async function runSchedule(when: Date | null) {
+    if (busy || !hasDraft) return
+    setNote('')
+    if (!when || when.getTime() < Date.now() + 60_000) {
+      setNote('Choose a send time at least a minute from now.')
+      return
+    }
+    const content = buildContent()
+    if (!content) return
+    setBusy('schedule')
+    try {
+      await onSchedule(state, content, when)
+    } catch (err) {
+      setNote((err as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  function toggleSchedule() {
+    if (!scheduleOpen && !scheduleAt) {
+      const first = schedulePresets(new Date())[0]
+      if (first) setScheduleAt(toDatetimeLocalValue(first.date))
+    }
+    setScheduleOpen((open) => !open)
   }
 
   function insertTable() {
@@ -525,6 +557,42 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
 
         {note ? <p className={styles.note}>{note}</p> : null}
 
+        {scheduleOpen ? (
+          <div className={styles.schedulePicker} role="group" aria-label="Schedule send">
+            <div className={styles.schedulePresets}>
+              {schedulePresets(new Date()).map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  className={styles.secondary}
+                  onClick={() => setScheduleAt(toDatetimeLocalValue(preset.date))}
+                  disabled={busy !== ''}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <label className={styles.scheduleCustom}>
+              <span>Send at</span>
+              <input
+                type="datetime-local"
+                value={scheduleAt}
+                min={toDatetimeLocalValue(new Date())}
+                onChange={(e) => setScheduleAt(e.target.value)}
+                aria-label="Send date and time"
+              />
+            </label>
+            <button
+              type="button"
+              className={styles.send}
+              onClick={() => void runSchedule(parseDatetimeLocal(scheduleAt))}
+              disabled={busy !== '' || !hasDraft || !scheduleAt || !state.to.trim()}
+            >
+              {busy === 'schedule' ? 'Scheduling…' : 'Schedule send'}
+            </button>
+          </div>
+        ) : null}
+
         <footer className={styles.footer}>
           <button
             type="button"
@@ -533,6 +601,15 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSaveD
             disabled={busy !== '' || !hasDraft || !state.to.trim()}
           >
             {busy === 'send' ? 'Sending…' : 'Send'}
+          </button>
+          <button
+            type="button"
+            className={styles.secondary}
+            onClick={toggleSchedule}
+            disabled={busy !== '' || !hasDraft}
+            aria-expanded={scheduleOpen}
+          >
+            Schedule send
           </button>
           <button type="button" className={styles.secondary} onClick={() => void run('draft')} disabled={busy !== '' || !hasDraft}>
             {busy === 'draft' ? 'Saving…' : 'Save as draft'}

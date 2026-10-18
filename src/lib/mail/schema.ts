@@ -20,6 +20,37 @@ function index(table: string, column: string, field: string, unique = false): [s
   return [name, `CREATE ${unique ? "UNIQUE " : ""}INDEX IF NOT EXISTS \`${name}\` ON \`${table}\` (\`${column}\`)`];
 }
 
+/**
+ * Emails composed in the Mail view to be sent later (2026-10-19). Gmail's API
+ * has no scheduled send, so the CMS keeps the email (body, inline images and
+ * attachments as JSON in `content`) and a cron sends it when `scheduled_for`
+ * passes. Additive; shared with src/migrations/20261019_120000_scheduled_emails.ts.
+ */
+export const SCHEDULED_EMAILS_SCHEMA: Array<[string, string]> = [
+  ["scheduled_emails", `CREATE TABLE IF NOT EXISTS \`scheduled_emails\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`owner_id\` integer NOT NULL,
+    \`status\` text DEFAULT 'pending' NOT NULL,
+    \`scheduled_for\` text NOT NULL,
+    \`to\` text,
+    \`cc\` text,
+    \`subject\` text,
+    \`reply_to_message_id\` text,
+    \`content\` text,
+    \`attempts\` numeric DEFAULT 0,
+    \`last_error\` text,
+    \`sent_at\` text,
+    \`sent_message_id\` text,
+    \`updated_at\` ${ts},
+    \`created_at\` ${ts},
+    FOREIGN KEY (\`owner_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`],
+  index("scheduled_emails", "owner_id", "owner"),
+  index("scheduled_emails", "status", "status"),
+  index("scheduled_emails", "scheduled_for", "scheduled_for"),
+  ...stamps("scheduled_emails"),
+];
+
 export const MAIL_SCHEMA: Array<[string, string]> = [
   ["client_emails", `CREATE TABLE IF NOT EXISTS \`client_emails\` (
     \`id\` integer PRIMARY KEY NOT NULL,
@@ -99,4 +130,6 @@ export const MAIL_SCHEMA: Array<[string, string]> = [
   )`],
   index("mail_sync_states", "user_id", "user", true),
   ...stamps("mail_sync_states"),
+
+  ...SCHEDULED_EMAILS_SCHEMA,
 ];

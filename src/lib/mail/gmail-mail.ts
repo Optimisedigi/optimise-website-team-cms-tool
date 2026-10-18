@@ -112,6 +112,23 @@ export async function listFolderThreads(
   return { threads, nextPageToken: list.data.nextPageToken ?? null };
 }
 
+export interface MailFolderCounts {
+  /** Inbox threads with unread mail (Gmail's own count, includes hidden senders). */
+  inboxUnread: number;
+  /** Draft threads, the same unit as the Drafts list rows. */
+  drafts: number;
+}
+
+/** Two label lookups, no message reads. Sent is deliberately not counted. */
+export async function getFolderCounts(accessToken: string): Promise<MailFolderCounts> {
+  const gmail = gmailApi(accessToken);
+  const [inbox, drafts] = await Promise.all([
+    gmail.users.labels.get({ userId: "me", id: FOLDER_LABELS.inbox }),
+    gmail.users.labels.get({ userId: "me", id: FOLDER_LABELS.drafts }),
+  ]);
+  return { inboxUnread: inbox.data.threadsUnread ?? 0, drafts: drafts.data.threadsTotal ?? 0 };
+}
+
 export async function listInboxThreads(
   accessToken: string,
   options: { pageToken?: string; q?: string; maxResults?: number } = {},

@@ -90,6 +90,7 @@ export interface Config {
     'client-email-summaries': ClientEmailSummary;
     'mail-ai-requests': MailAiRequest;
     'mail-sync-states': MailSyncState;
+    'scheduled-emails': ScheduledEmail;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
     'blog-ideas': BlogIdea;
@@ -218,6 +219,7 @@ export interface Config {
     'client-email-summaries': ClientEmailSummariesSelect<false> | ClientEmailSummariesSelect<true>;
     'mail-ai-requests': MailAiRequestsSelect<false> | MailAiRequestsSelect<true>;
     'mail-sync-states': MailSyncStatesSelect<false> | MailSyncStatesSelect<true>;
+    'scheduled-emails': ScheduledEmailsSelect<false> | ScheduledEmailsSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'blog-ideas': BlogIdeasSelect<false> | BlogIdeasSelect<true>;
@@ -8429,6 +8431,35 @@ export interface MailSyncState {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "scheduled-emails".
+ */
+export interface ScheduledEmail {
+  id: number;
+  owner: number | User;
+  status: 'pending' | 'sending' | 'sent' | 'failed';
+  scheduledFor: string;
+  to?: string | null;
+  cc?: string | null;
+  subject?: string | null;
+  replyToMessageId?: string | null;
+  content?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  attempts?: number | null;
+  lastError?: string | null;
+  sentAt?: string | null;
+  sentMessageId?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "blog-prompts".
  */
 export interface BlogPrompt {
@@ -13504,6 +13535,26 @@ export interface MailSyncStatesSelect<T extends boolean = true> {
   historyId?: T;
   lastSyncAt?: T;
   lastError?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "scheduled-emails_select".
+ */
+export interface ScheduledEmailsSelect<T extends boolean = true> {
+  owner?: T;
+  status?: T;
+  scheduledFor?: T;
+  to?: T;
+  cc?: T;
+  subject?: T;
+  replyToMessageId?: T;
+  content?: T;
+  attempts?: T;
+  lastError?: T;
+  sentAt?: T;
+  sentMessageId?: T;
   updatedAt?: T;
   createdAt?: T;
 }

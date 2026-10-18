@@ -13,10 +13,11 @@ import {
 } from '../../lib/mail/client-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
 import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
-import { MAIL_FOLDERS, type MailFolder } from '../../lib/mail/folders'
+import { MAIL_TABS, mailTabLabel, type MailFolder, type MailTab, type MailTabCounts } from '../../lib/mail/folders'
+import ScheduledPanel, { type ScheduledItem } from './ScheduledPanel'
 
 /**
- * CMS Mail view. Folder list (Inbox / Sent / Drafts) → reading pane (newest
+ * CMS Mail view. Folder list (Inbox / Sent / Drafts, plus the Scheduled queue) → reading pane (newest
  * message first) → Gmail-style compose window (bottom right) with an
  * OptiMate-style AI refine loop. A Drafts row opens in the compose window.
  *
@@ -33,6 +34,7 @@ export interface MailClientOption {
   name: string
 }
 
+const COUNTS_REFRESH_MS = 60_000
 const FOLDER_LABELS: Record<MailFolder, string> = { inbox: 'Inbox', sent: 'Sent', drafts: 'Drafts' }
 const FOLDER_EMPTY: Record<MailFolder, string> = { inbox: 'Inbox is empty.', sent: 'No sent emails.', drafts: 'No drafts.' }
 
@@ -137,6 +139,12 @@ function replySubject(subject: string): string {
 
 export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [folder, setFolder] = useState<MailFolder>('inbox')
+  // The Scheduled tab shows the send queue instead of a Gmail folder.
+  const [showScheduled, setShowScheduled] = useState(false)
+  const [scheduled, setScheduled] = useState<ScheduledItem[]>([])
+  const [scheduledLoading, setScheduledLoading] = useState(false)
+  // Badge numbers on the Inbox (unread) and Drafts tabs; null until first loaded.
+  const [counts, setCounts] = useState<MailTabCounts | null>(null)
   const [threads, setThreads] = useState<ThreadRow[]>([])
   const [account, setAccount] = useState('')
   // Senders hidden from the inbox list (stored in Payload user preferences; view-only).
@@ -239,15 +247,60 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }, [showError])
 
+  // Tab badges. Failures keep the last numbers; the list itself shows any Gmail error.
+  const loadCounts = useCallback(async () => {
+    try {
+      const data = await api<MailTabCounts>('/api/mail/counts')
+      if (typeof data.inboxUnread === 'number' && typeof data.drafts === 'number') {
+        setCounts({ inboxUnread: data.inboxUnread, drafts: data.drafts })
+      }
+    } catch {
+      // Keep the previous counts.
+    }
+  }, [])
+
+  const loadScheduled = useCallback(async () => {
+    setScheduledLoading(true)
+    try {
+      const data = await api<{ items: ScheduledItem[] }>('/api/mail/schedule')
+      setScheduled(data.items)
+      setError(null)
+    } catch (err) {
+      showError(err)
+    } finally {
+      setScheduledLoading(false)
+    }
+  }, [showError])
+
   const refresh = useCallback(async () => {
-    await Promise.all([runSync(), loadInbox({ folder, q: query })])
-  }, [folder, loadInbox, query, runSync])
+    await Promise.all([
+      runSync(),
+      showScheduled ? loadScheduled() : loadInbox({ folder, q: query }),
+      loadCounts(),
+    ])
+  }, [folder, loadCounts, loadInbox, loadScheduled, query, runSync, showScheduled])
 
   // Sync on open.
   useEffect(() => {
     void runSync()
     void loadInbox({ folder: 'inbox' })
-  }, [runSync, loadInbox])
+    void loadCounts()
+  }, [runSync, loadInbox, loadCounts])
+
+  // Keep the badges current while the tab is open.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadCounts()
+    }, COUNTS_REFRESH_MS)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void loadCounts()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [loadCounts])
 
   // Switching folders clears the list, the selection and the search; the
   // compose window stays so an in-progress draft is not lost.
@@ -273,6 +326,28 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     [folder, loadInbox],
   )
 
+  const selectTab = useCallback(
+    (tab: MailTab) => {
+      if (tab === 'scheduled') {
+        if (showScheduled) return
+        threadRequest.current++
+        setShowScheduled(true)
+        setSelectedThreadId(null)
+        setMessages([])
+        setThreadError('')
+        setActionNote('')
+        setSummary(null)
+        void loadScheduled()
+        return
+      }
+      setShowScheduled(false)
+      if (tab !== folder) switchFolder(tab)
+      else void loadInbox({ folder, q: query })
+      void loadCounts()
+    },
+    [folder, loadCounts, loadInbox, loadScheduled, query, showScheduled, switchFolder],
+  )
+
   const openThread = useCallback(
     async (thread: ThreadRow) => {
       const request = ++threadRequest.current
@@ -291,9 +366,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         setMessages(data.messages)
         if (thread.unread) {
           setThreads((current) => current.map((row) => (row.threadId === thread.threadId ? { ...row, unread: false } : row)))
-          api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: thread.threadId, action: 'read' }) }).catch(
-            (err) => setActionNote((err as Error).message),
-          )
+          api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: thread.threadId, action: 'read' }) })
+            .then(() => loadCounts())
+            .catch((err) => setActionNote((err as Error).message))
         }
       } catch (err) {
         if (request === threadRequest.current) setThreadError((err as Error).message)
@@ -301,7 +376,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         if (request === threadRequest.current) setThreadLoading(false)
       }
     },
-    [],
+    [loadCounts],
   )
 
   useEffect(() => {
@@ -525,6 +600,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         )
         setActionNote(action === 'unread' ? 'Marked unread' : 'Marked read')
       }
+      void loadCounts()
     } catch (err) {
       setActionNote((err as Error).message)
     }
@@ -573,7 +649,47 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     const thread = selectedThread
     if (thread && state.mode === 'reply') void openThread(thread)
     // The sent message now belongs in Sent, and a sent draft leaves Drafts.
-    if (folder !== 'inbox') void loadInbox({ folder, q: query })
+    if (folder !== 'inbox' && !showScheduled) void loadInbox({ folder, q: query })
+    void loadCounts()
+  }
+
+  // Queues the email; the server sends it at `when` (Gmail has no scheduled send).
+  async function scheduleComposed(state: ComposeState, content: ComposeContent, when: Date) {
+    const data = await api<{ draftNote?: string | null }>('/api/mail/schedule', {
+      method: 'POST',
+      body: JSON.stringify({
+        to: state.to,
+        cc: state.cc,
+        subject: state.subject,
+        html: content.html,
+        inlineImages: content.inlineImages,
+        attachments: content.attachments,
+        replyToMessageId: state.replyTo?.messageId ?? '',
+        scheduledFor: when.toISOString(),
+        ...(state.draftId ? { draftId: state.draftId } : {}),
+      }),
+    })
+    setComposer(null)
+    setActionNote([`Scheduled for ${longDate(when.toISOString())}.`, data.draftNote ?? ''].filter(Boolean).join(' '))
+    if (showScheduled) void loadScheduled()
+    else if (folder === 'drafts') void loadInbox({ folder, q: query })
+    void loadCounts()
+  }
+
+  async function sendScheduledNow(id: number) {
+    await api(`/api/mail/schedule/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'send-now' }) })
+    setActionNote('Sent.')
+    await loadScheduled()
+  }
+
+  async function rescheduleScheduled(id: number, when: Date) {
+    await api(`/api/mail/schedule/${id}`, { method: 'PATCH', body: JSON.stringify({ scheduledFor: when.toISOString() }) })
+    await loadScheduled()
+  }
+
+  async function cancelScheduled(id: number) {
+    await api(`/api/mail/schedule/${id}`, { method: 'DELETE' })
+    setScheduled((current) => current.filter((item) => item.id !== id))
   }
 
   async function saveComposedDraft(state: ComposeState, content: ComposeContent): Promise<string | undefined> {
@@ -589,7 +705,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         ...(state.draftId ? { draftId: state.draftId } : {}),
       }),
     })
-    if (folder === 'drafts') void loadInbox({ folder, q: query })
+    if (folder === 'drafts' && !showScheduled) void loadInbox({ folder, q: query })
+    void loadCounts()
     return data.draftId
   }
 
@@ -649,20 +766,23 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       <div className={styles.toolbar}>
         {account ? <span className={styles.muted}>{account}</span> : null}
         <div className={styles.folders} role="tablist" aria-label="Mail folders">
-          {MAIL_FOLDERS.map((entry) => (
-            <button
-              key={entry}
-              type="button"
-              role="tab"
-              className={`${styles.btn} ${styles.folderBtn} ${entry === folder ? styles.folderActive : ''}`}
-              aria-selected={entry === folder}
-              onClick={() => switchFolder(entry)}
-            >
-              {FOLDER_LABELS[entry]}
-            </button>
-          ))}
+          {MAIL_TABS.map((entry) => {
+            const active = entry === 'scheduled' ? showScheduled : !showScheduled && entry === folder
+            return (
+              <button
+                key={entry}
+                type="button"
+                role="tab"
+                className={`${styles.btn} ${styles.folderBtn} ${active ? styles.folderActive : ''}`}
+                aria-selected={active}
+                onClick={() => selectTab(entry)}
+              >
+                {mailTabLabel(entry, counts)}
+              </button>
+            )
+          })}
         </div>
-        <form
+        {showScheduled ? null : <form
           className={styles.search}
           onSubmit={(event) => {
             event.preventDefault()
@@ -676,7 +796,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             placeholder={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
             aria-label={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
           />
-        </form>
+        </form>}
         <span className={styles.muted}>{syncNote}</span>
         {/* Collapsed confirmation of the last hide, so it does not take a full row. */}
         {lastHidden ? (
@@ -845,7 +965,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         </div>
       ) : null}
 
-      <div className={styles.panes}>
+      {showScheduled ? (
+        <ScheduledPanel
+          items={scheduled}
+          loading={scheduledLoading}
+          onSendNow={sendScheduledNow}
+          onReschedule={rescheduleScheduled}
+          onCancel={cancelScheduled}
+        />
+      ) : null}
+
+      <div className={styles.panes} style={showScheduled ? { display: 'none' } : undefined}>
         <ul className={styles.list} aria-label={FOLDER_LABELS[folder]}>
           {threads.map((thread) => (
             <li key={thread.threadId}>
@@ -1081,6 +1211,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           }
           onClose={() => setComposer(null)}
           onSend={sendComposed}
+          onSchedule={scheduleComposed}
           onSaveDraft={saveComposedDraft}
           signatureHtml={signatureHtml}
         />

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { GmailFileAttachment, GmailInlineImage } from "@/lib/gmail-service";
 import { hasExpectedImageSignature } from "@/lib/gmail-draft-attachments";
 import { sanitizeEmailHtml } from "@/lib/mail/email-html";
+import { inlineEmailTableStyles } from "@/lib/mail/gmail-html";
 import { MAIL_ATTACHMENT_LIMITS } from "@/lib/mail/compose-limits";
 
 /**
@@ -123,9 +124,10 @@ export function parseMailComposeContent(input: unknown): MailComposeResult {
   }
 
   const contentIds = new Set(images.map((image) => image.contentId));
-  const cleaned = restrictImages(sanitizeEmailHtml(html), contentIds)
-    .replace(/\sclass\s*=\s*("[^"]*"|'[^']*')/gi, "")
-    .trim();
+  // Classes mean nothing to Gmail, so the editor's table look is written inline first.
+  const cleaned = inlineEmailTableStyles(
+    restrictImages(sanitizeEmailHtml(html), contentIds).replace(/\sclass\s*=\s*("[^"]*"|'[^']*')/gi, ""),
+  ).trim();
   // Only send the inline images the body still shows.
   const usedImages = images.filter((image) => cleaned.includes(`cid:${image.contentId}`));
   if (!visibleText(cleaned) && usedImages.length === 0) return { ok: false, error: "The email body is empty." };

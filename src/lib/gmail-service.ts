@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
+import { declarationProperty, splitDeclarations } from "@/lib/mail/gmail-html";
 import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
 
 /**
@@ -273,8 +274,54 @@ const GMAIL_DRAFT_FONT_STYLE = "font-family:Verdana,sans-serif;font-size:small;m
 const GMAIL_DRAFT_PARAGRAPH_BREAK = "<br><br>";
 const GMAIL_DRAFT_PARAGRAPH_BREAK_MARKER = "%%OPTIMATE_GMAIL_PARAGRAPH_BREAK%%";
 
+const TABLE_LAYOUT_TAGS = new Set(["table", "thead", "tbody", "tfoot", "tr", "td", "th", "colgroup", "col", "caption"]);
+const ANY_TAG_RE = /<(\/?)([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+const STYLE_ATTR_RE = /(\sstyle\s*=\s*)(?:"([^"]*)"|'([^']*)')/i;
+
+/**
+ * Gmail's native font for every element outside a table. Tables are left as
+ * authored: their cell sizes, fonts and spacing are layout, and rewriting them
+ * made Gmail's tables differ from the CMS. Quoted font names ('Open Sans') are
+ * handled declaration by declaration instead of by pattern.
+ */
+function normaliseFontStyles(html: string): string {
+  let tableDepth = 0;
+  return html.replace(ANY_TAG_RE, (tag: string, closing: string, name: string, attrs: string) => {
+    const lower = name.toLowerCase();
+    if (lower === "table") {
+      if (closing) tableDepth = Math.max(0, tableDepth - 1);
+      else if (!/\/\s*$/.test(attrs)) tableDepth++;
+      return tag;
+    }
+    if (closing || tableDepth > 0 || TABLE_LAYOUT_TAGS.has(lower)) return tag;
+    const match = attrs.match(STYLE_ATTR_RE);
+    if (!match) return tag;
+    const style = match[2] ?? match[3] ?? "";
+    if (!/font-(?:family|size)\s*:/i.test(style)) return tag;
+    const declarations = splitDeclarations(style).map((declaration) => {
+      const prop = declarationProperty(declaration);
+      if (prop === "font-family") return "font-family:Verdana,sans-serif";
+      if (prop === "font-size") return "font-size:small";
+      return declaration;
+    });
+    const quote = match[2] !== undefined ? '"' : "'";
+    const next = attrs.replace(STYLE_ATTR_RE, `${match[1]}${quote}${declarations.join(";")};${quote}`);
+    return `<${name}${next}>`;
+  });
+}
+
+/** Paragraphs in a table cell are separated by one line break, with none after the last (as in the CMS editor). */
+function normaliseCellParagraphs(html: string): string {
+  return html.replace(/(<(td|th)\b[^>]*>)([\s\S]*?)(<\/\2\s*>)/gi, (_m, open: string, _tag: string, inner: string, close: string) => {
+    if (!/<p\b/i.test(inner)) return `${open}${inner}${close}`;
+    const joined = inner.replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, (_p, content: string) => `${content}${GMAIL_DRAFT_PARAGRAPH_BREAK_MARKER}`);
+    const trimmed = joined.replace(new RegExp(`(?:${GMAIL_DRAFT_PARAGRAPH_BREAK_MARKER}\\s*)+$`), "");
+    return `${open}${trimmed.replaceAll(GMAIL_DRAFT_PARAGRAPH_BREAK_MARKER, "<br>")}${close}`;
+  });
+}
+
 function normaliseParagraphBreaks(html: string): string {
-  const withEditableBreaks = html.replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, (_, content: string) => {
+  const withEditableBreaks = normaliseCellParagraphs(html).replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, (_, content: string) => {
     return `${content}${GMAIL_DRAFT_PARAGRAPH_BREAK_MARKER}`;
   });
 
@@ -290,9 +337,7 @@ export function formatGmailDraftHtml(htmlBody: string): string {
   const trimmed = htmlBody.trim();
   if (!trimmed) return `<div style="${GMAIL_DRAFT_FONT_STYLE}"></div>`;
   if (trimmed.includes("data-optimate-gmail-draft-font")) return trimmed;
-  const normalised = normaliseParagraphBreaks(trimmed)
-    .replace(/font-family\s*:\s*[^;"']+;?/gi, "font-family:Verdana,sans-serif;")
-    .replace(/font-size\s*:\s*[^;"']+;?/gi, "font-size:small;");
+  const normalised = normaliseFontStyles(normaliseParagraphBreaks(trimmed));
   return `<div data-optimate-gmail-draft-font="true" style="${GMAIL_DRAFT_FONT_STYLE}">${normalised}</div>`;
 }
 

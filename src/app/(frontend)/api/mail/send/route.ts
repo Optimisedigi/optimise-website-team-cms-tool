@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendGmailMessage } from "@/lib/gmail-service";
 import { parseMailComposeContent } from "@/lib/mail/compose-content";
-import { buildGmailReplyContext } from "@/lib/gmail-reply-context";
-import { deleteDraft, getFullMessage } from "@/lib/mail/gmail-mail";
-import { matchMessageToClient } from "@/lib/mail/client-matching";
-import { loadClientDomainIndex, storeClientEmail, toClientEmailInput } from "@/lib/mail/store";
+import { deleteDraft } from "@/lib/mail/gmail-mail";
+import { deliverMail } from "@/lib/mail/deliver";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
@@ -52,33 +49,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const token = await requireGmailToken(ctx.user.id);
   if (token instanceof NextResponse) return token;
 
-  let reply: ReturnType<typeof buildGmailReplyContext> | undefined;
-  if (replyToMessageId) {
-    try {
-      reply = buildGmailReplyContext(await getFullMessage(token.accessToken, replyToMessageId));
-    } catch (err) {
-      return gmailErrorResponse(err, "Could not load the email you are replying to.");
-    }
-  }
-
-  const to = cleanHeader(body.to) || reply?.to || "";
-  if (!/@/.test(to)) return NextResponse.json({ error: "Add at least one recipient." }, { status: 400 });
-  const subject = cleanHeader(body.subject) || reply?.subject || "";
-
-  let sent;
-  try {
-    sent = await sendGmailMessage(token.accessToken, {
-      to,
-      cc: cleanHeader(body.cc) || undefined,
-      subject,
-      htmlBody: content.value.html,
-      ...(content.value.inlineImages.length > 0 ? { inlineImages: content.value.inlineImages } : {}),
-      ...(content.value.attachments.length > 0 ? { attachments: content.value.attachments } : {}),
-      ...(reply?.threadId ? { threadId: reply.threadId } : {}),
-      ...(reply?.inReplyTo ? { inReplyTo: reply.inReplyTo } : {}),
-    });
-  } catch (err) {
-    return gmailErrorResponse(err, "Gmail could not send the email.");
+  const result = await deliverMail({
+    payload: ctx.payload,
+    ownerId: ctx.user.id,
+    token,
+    to: cleanHeader(body.to),
+    cc: cleanHeader(body.cc),
+    subject: cleanHeader(body.subject),
+    content: content.value,
+    replyToMessageId,
+  });
+  if (!result.ok) {
+    if (result.stage === "recipient") return NextResponse.json({ error: "Add at least one recipient." }, { status: 400 });
+    return gmailErrorResponse(
+      result.error,
+      result.stage === "reply" ? "Could not load the email you are replying to." : "Gmail could not send the email.",
+    );
   }
 
   let draftNote: string | null = null;
@@ -90,30 +76,5 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Link the sent email to its client now rather than waiting for the next sync.
-  let storedClient: { id: number; name: string } | null = null;
-  try {
-    const ownAddresses = [token.email, token.userEmail].filter(Boolean);
-    const message = await getFullMessage(token.accessToken, sent.messageId);
-    const match = matchMessageToClient(await loadClientDomainIndex(ctx.payload, ownAddresses), message);
-    if (match) {
-      await storeClientEmail(
-        ctx.payload,
-        toClientEmailInput({
-          message,
-          clientId: match.clientId,
-          ownerId: ctx.user.id,
-          matchedBy: "auto",
-          matchedOn: match.matchedOn,
-          ownAddresses,
-          gmailAccount: token.email,
-        }),
-      );
-      storedClient = { id: match.clientId, name: match.clientName };
-    }
-  } catch {
-    // Sent fine; the next sync will link it.
-  }
-
-  return NextResponse.json({ messageId: sent.messageId, threadId: sent.threadId, client: storedClient, draftNote });
+  return NextResponse.json({ messageId: result.messageId, threadId: result.threadId, client: result.client, draftNote });
 }
