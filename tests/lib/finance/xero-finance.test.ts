@@ -50,6 +50,18 @@ describe('fetchXeroMonthlyFinance', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
+  it('applies the timeout even when the caller passes its own signal', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const fetchImpl = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+    })) as unknown as typeof fetch
+    const caller = new AbortController() // never aborted
+
+    const result = await fetchXeroMonthlyFinance(6, { env, fetchImpl, signal: caller.signal, timeoutMs: 20 })
+
+    expect(result).toEqual({ ok: false, reason: 'error' })
+  })
+
   it('treats network failures as unavailable', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const fetchImpl = vi.fn(async () => { throw new TypeError('fetch failed') })

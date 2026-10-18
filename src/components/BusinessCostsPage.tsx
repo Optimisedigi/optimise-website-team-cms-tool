@@ -59,7 +59,12 @@ interface CostData {
   totalLastMonth: number
   currentMonth: string
   categories: Category[]
+  /** 'xero' = from Xero (bills + reconciled bank transactions); 'bank' = imported statements / manual. */
+  source?: 'xero' | 'bank'
+  xeroUnavailable?: 'not_configured' | 'not_deployed' | 'not_connected' | 'scope_missing' | 'error'
 }
+
+type ViewSource = 'auto' | 'bank'
 
 // ─── Helpers ──────────────────────────────────────────────
 
@@ -199,14 +204,22 @@ const BusinessCostsPage = () => {
   const [deleting, setDeleting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const monthOptions = buildMonthOptions()
+  // 'auto' shows Xero when available; 'bank' shows imported statements.
+  const [viewSource, setViewSource] = useState<ViewSource>('auto')
+  // Once Xero has answered, keep offering the Xero / Imported CSV switch.
+  const [xeroSeen, setXeroSeen] = useState(false)
 
-  const fetchData = (month?: string) => {
-    const qs = month ? `?month=${month}` : ''
-    fetch(`/api/costs${qs}`)
+  const fetchData = (month?: string, source: ViewSource = viewSource) => {
+    const params = new URLSearchParams()
+    if (month) params.set('month', month)
+    if (source === 'bank') params.set('source', 'bank')
+    const qs = params.toString()
+    fetch(`/api/costs${qs ? `?${qs}` : ''}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         if (d && !d.error) {
           setData(d)
+          if (d.source === 'xero') setXeroSeen(true)
           if (!selectedMonth && d.currentMonth) setSelectedMonth(d.currentMonth)
         }
         setLoading(false)
@@ -221,12 +234,19 @@ const BusinessCostsPage = () => {
     const onImported = () => fetchData(selectedMonth)
     window.addEventListener(COSTS_IMPORTED_EVENT, onImported)
     return () => window.removeEventListener(COSTS_IMPORTED_EVENT, onImported)
-  }, [selectedMonth])
+  }, [selectedMonth, viewSource])
 
   const handleMonthChange = (val: string) => {
     setSelectedMonth(val)
     setLoading(true)
     fetchData(val)
+  }
+
+  const handleSourceChange = (source: ViewSource) => {
+    if (source === viewSource) return
+    setViewSource(source)
+    setLoading(true)
+    fetchData(selectedMonth, source)
   }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -362,6 +382,8 @@ const BusinessCostsPage = () => {
     }
   }
 
+  const isXero = data.source === 'xero'
+
   // Only show categories that have costs for the selected month
   const categoriesWithCosts = data.costsByCategory.filter((cb) => cb.total > 0 || cb.count > 0)
 
@@ -371,7 +393,26 @@ const BusinessCostsPage = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Business Costs</h1>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {xeroSeen && (
+            <div role="group" aria-label="Cost data source" style={{ display: 'flex', gap: 4 }}>
+              {([['auto', 'Xero'], ['bank', 'Imported CSV']] as const).map(([value, label]) => {
+                const active = viewSource === value
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => handleSourceChange(value)}
+                    style={{ ...btnStyle, fontSize: 12, padding: '6px 12px', ...(active ? { background: '#213843', color: '#fff', border: '1px solid #213843' } : {}) }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
           <select
+            aria-label="Month"
             value={selectedMonth}
             onChange={(e) => handleMonthChange(e.target.value)}
             style={selectStyle}
@@ -384,6 +425,17 @@ const BusinessCostsPage = () => {
       </div>
 
       <SalesVsCostsPanel />
+
+      {isXero ? (
+        <div role="note" style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-600)', marginBottom: 16, lineHeight: 1.5 }}>
+          Costs below come from Xero: bills and reconciled bank transactions, ex-GST, grouped by your Xero accounts. Bank feed lines appear once they&rsquo;re reconciled in Xero.
+          To set a budget, give a Cost Category the same name as the Xero account. Switch to <strong>Imported CSV</strong> to see uploaded statements.
+        </div>
+      ) : data.xeroUnavailable && data.xeroUnavailable !== 'not_configured' ? (
+        <div role="status" style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', marginBottom: 16 }}>
+          Xero isn&rsquo;t available right now, so the costs below come from imported bank statements and manual entries.
+        </div>
+      ) : null}
 
       {/* Alerts */}
       {data.costAlerts.length > 0 && (
@@ -421,7 +473,9 @@ const BusinessCostsPage = () => {
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.name}</span>
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>${cb.total.toFixed(2)}</div>
-                <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>{cb.count} transaction{cb.count !== 1 ? 's' : ''}</div>
+                {!isXero && (
+                  <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>{cb.count} transaction{cb.count !== 1 ? 's' : ''}</div>
+                )}
                 {budget != null && budget > 0 && (
                   <div style={{ marginTop: 8 }}>
                     <div style={{ height: 4, background: 'var(--theme-elevation-150)', borderRadius: 2, overflow: 'hidden' }}>
@@ -452,6 +506,8 @@ const BusinessCostsPage = () => {
         </div>
       </div>
 
+      {!isXero && (
+        <>
       {/* Actions: CSV Upload + Manual Add */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <label style={btnStyle}>
@@ -610,6 +666,8 @@ const BusinessCostsPage = () => {
           </tbody>
         </table>
       </div>
+        </>
+      )}
     </div>
   )
 }

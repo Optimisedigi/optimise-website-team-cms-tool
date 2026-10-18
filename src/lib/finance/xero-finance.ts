@@ -36,7 +36,13 @@ export type XeroFinanceResult =
 
 export async function fetchXeroMonthlyFinance(
   months: number,
-  options: { signal?: AbortSignal; env?: Record<string, string | undefined>; fetchImpl?: typeof fetch } = {},
+  options: {
+    signal?: AbortSignal;
+    /** Always applied, also when `signal` is given (default 25s). */
+    timeoutMs?: number;
+    env?: Record<string, string | undefined>;
+    fetchImpl?: typeof fetch;
+  } = {},
 ): Promise<XeroFinanceResult> {
   const env = options.env ?? process.env;
   const baseUrl = env.GROWTH_TOOLS_URL;
@@ -48,7 +54,9 @@ export async function fetchXeroMonthlyFinance(
     const res = await doFetch(`${baseUrl}/api/xero/finance/monthly?months=${months}`, {
       headers: { "x-internal-key": key },
       cache: "no-store",
-      signal: options.signal ?? AbortSignal.timeout(25_000),
+      signal: options.signal
+        ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs ?? 25_000)])
+        : AbortSignal.timeout(options.timeoutMs ?? 25_000),
     });
     if (res.status === 404) return { ok: false, reason: "not_deployed" };
     if (res.status === 409) {

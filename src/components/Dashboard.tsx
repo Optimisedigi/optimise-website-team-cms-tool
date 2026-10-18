@@ -183,6 +183,8 @@ interface DashboardData {
     totalThisMonth: number
     totalLastMonth?: number
     uncategorisedCount: number
+    /** 'xero' = bills + reconciled bank transactions from Xero; 'bank' = imported statements. */
+    source?: 'xero' | 'bank'
   }
   processes?: ProcessesData | null
   teamTasks?: TeamTasksData | null
@@ -911,15 +913,23 @@ const Dashboard = () => {
                       <div className="v">${data.businessCosts.totalThisMonth.toFixed(0)}</div>
                       <div className="d">Included in top MTD Costs</div>
                     </div>
-                    <div className="od-stat">
-                      <div className="k">Uncategorised</div>
-                      <div className="v" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
-                        {data.businessCosts.uncategorisedCount}
+                    {data.businessCosts.source === 'xero' ? (
+                      <div className="od-stat">
+                        <div className="k">Source</div>
+                        <div className="v">Xero</div>
+                        <div className="d">Bills + reconciled bank, ex-GST</div>
                       </div>
-                      <div className="d" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
-                        {data.businessCosts.uncategorisedCount > 0 ? '⚠ Needs review' : 'All categorised'}
+                    ) : (
+                      <div className="od-stat">
+                        <div className="k">Uncategorised</div>
+                        <div className="v" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
+                          {data.businessCosts.uncategorisedCount}
+                        </div>
+                        <div className="d" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
+                          {data.businessCosts.uncategorisedCount > 0 ? '⚠ Needs review' : 'All categorised'}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}

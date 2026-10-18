@@ -25,6 +25,11 @@ vi.mock('@/lib/access', () => ({
   userHasFeature: vi.fn(() => true),
 }))
 
+const mockFetchXero = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/finance/xero-finance', () => ({
+  fetchXeroMonthlyFinance: mockFetchXero,
+}))
+
 import { GET } from '@/app/(frontend)/api/dashboard/route'
 
 describe('GET /api/dashboard', () => {
@@ -32,6 +37,7 @@ describe('GET /api/dashboard', () => {
     vi.clearAllMocks()
     mockPayload.auth.mockResolvedValue({ user: { id: 1, role: 'admin', name: 'Test', email: 't@x' } })
     mockPayload.findGlobal.mockResolvedValue(null)
+    mockFetchXero.mockResolvedValue({ ok: false, reason: 'not_configured' })
     mockPayload.count.mockResolvedValue({ totalDocs: 0 })
 
     // Default: every find call returns an empty collection.
@@ -385,4 +391,42 @@ describe('GET /api/dashboard', () => {
     ])
   })
 
+
+  it('uses Xero business costs when available and skips the imported-statement queries', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 18, 12))
+    mockFetchXero.mockResolvedValue({
+      ok: true,
+      data: {
+        months: ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'].map((m, i) => ({
+          month: m, invoiced: 0, received: 0, costs: 1000 + i * 100, costsByAccount: [],
+        })),
+        fetchedAt: '2026-10-18T01:00:00.000Z',
+      },
+    })
+
+    const body = await (await GET()).json()
+
+    expect(mockFetchXero).toHaveBeenCalledWith(6, { timeoutMs: 8000 })
+    expect(body.businessCosts).toEqual({ totalThisMonth: 1500, totalLastMonth: 1400, uncategorisedCount: 0, source: 'xero' })
+    expect(body.costHistory.map((m: { business: number }) => m.business)).toEqual([1000, 1100, 1200, 1300, 1400, 1500])
+    const businessCostQueries = mockPayload.find.mock.calls.filter(([args]) => args?.collection === 'business-costs')
+    expect(businessCostQueries).toHaveLength(0)
+
+    // Fixed Vercel/Railway/domain estimates are already Xero bills: not added again.
+    expect(body.costs.infraTotal).toBe(0)
+    expect(body.costs.llmTotal).toBe(0)
+    expect(body.costs.infrastructure).toEqual({})
+    expect(body.costHistory.every((m: { infrastructure: number; llm: number }) => m.infrastructure === 0 && m.llm === 0)).toBe(true)
+    expect(body.costs.total).toBe(1400) // last month: Xero only (no API usage in this fixture)
+  })
+
+  it('falls back to imported statements when Xero is unavailable', async () => {
+    const body = await (await GET()).json()
+
+    expect(body.businessCosts.source).toBe('bank')
+    expect(mockPayload.find.mock.calls.some(([args]) => args?.collection === 'business-costs')).toBe(true)
+    // Statement figures don't include those bills reliably, so the estimates stay.
+    expect(body.costs.infraTotal).toBe(42.75)
+  })
 })

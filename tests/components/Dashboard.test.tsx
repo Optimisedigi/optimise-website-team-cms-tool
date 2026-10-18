@@ -121,6 +121,23 @@ describe('Dashboard MTD Costs KPI', () => {
   })
 })
 
+describe('Dashboard business costs source', () => {
+  it('shows Xero as the source instead of an uncategorised count', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      ok: true,
+      json: async () => url === '/api/dashboard'
+        ? { ...dashboardData, businessCosts: { totalThisMonth: 1500, totalLastMonth: 1400, uncategorisedCount: 0, source: 'xero' } }
+        : responseFor(url),
+    })))
+
+    render(<Dashboard />)
+
+    const label = await screen.findByText('Source')
+    expect(label.parentElement).toHaveTextContent('Xero')
+    expect(screen.queryByText('Uncategorised')).not.toBeInTheDocument()
+  })
+})
+
 describe('Dashboard activity panel', () => {
   it('places pending statements immediately after Action Items in the right column', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({ ok: true, json: async () => responseFor(url) })))

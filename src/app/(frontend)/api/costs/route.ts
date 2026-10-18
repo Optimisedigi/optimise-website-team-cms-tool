@@ -3,6 +3,10 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import { userHasFeature } from "@/lib/access";
+import { fetchXeroMonthlyFinance, type XeroUnavailableReason } from "@/lib/finance/xero-finance";
+import { buildXeroCostsView } from "@/lib/finance/xero-costs";
+
+const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,10 +21,39 @@ export async function GET(request: NextRequest) {
     }
 
     const url = new URL(request.url);
-    const queryMonth = url.searchParams.get("month"); // YYYY-MM or null for current
+    const rawMonth = url.searchParams.get("month"); // YYYY-MM or null for current
+    if (rawMonth && !MONTH_KEY.test(rawMonth)) {
+      return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });
+    }
+    const queryMonth = rawMonth;
+    // Default: Xero (bills + reconciled bank transactions). `source=bank`
+    // shows imported statements / manual costs instead.
+    const forceBank = url.searchParams.get("source") === "bank";
 
     const now = new Date();
     const currentMonth = queryMonth || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+    let xeroUnavailable: XeroUnavailableReason | undefined;
+    if (!forceBank) {
+      const xero = await fetchXeroMonthlyFinance(24, { signal: request.signal, timeoutMs: 20_000 });
+      if (xero.ok) {
+        const cmsCategories = await payload.find({
+          collection: "cost-categories",
+          limit: 100,
+          depth: 0,
+          overrideAccess: true,
+          select: { name: true, color: true, budget: true },
+        });
+        const view = buildXeroCostsView({
+          xeroMonths: xero.data.months,
+          selectedMonth: currentMonth,
+          cmsCategories: cmsCategories.docs,
+        });
+        if (view) return NextResponse.json({ ...view, source: "xero", fetchedAt: xero.data.fetchedAt });
+      } else {
+        xeroUnavailable = xero.reason;
+      }
+    }
 
     // Build last 6 month keys (including current)
     const [cYear, cMonth] = currentMonth.split("-").map(Number);
@@ -232,6 +265,8 @@ export async function GET(request: NextRequest) {
       totalLastMonth,
       currentMonth,
       categories,
+      source: "bank",
+      ...(xeroUnavailable ? { xeroUnavailable } : {}),
     });
   } catch (err) {
     console.error("[costs] error:", err);

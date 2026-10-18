@@ -147,7 +147,7 @@ export function SalesVsCostsPanel() {
               type="button"
               aria-pressed={range === r}
               onClick={() => setRange(r)}
-              style={{ ...rangeBtn, ...(range === r ? { background: '#213843', color: '#fff', borderColor: '#213843' } : {}) }}
+              style={{ ...rangeBtn, ...(range === r ? { background: '#213843', color: '#fff', border: '1px solid #213843' } : {}) }}
             >
               {r} months
             </button>

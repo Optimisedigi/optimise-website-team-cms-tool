@@ -12,6 +12,8 @@ import {
   setupFeeYTD,
 } from "@/lib/client-revenue";
 import { convertUsdToAud } from "@/lib/realtime/voice-costs";
+import { fetchXeroMonthlyFinance } from "@/lib/finance/xero-finance";
+import { xeroBusinessCostsSummary } from "@/lib/finance/xero-costs";
 
 // ── Default per-unit API costs in AUD (fallbacks if global not configured) ──
 const DEFAULT_COST_PER_AUD = {
@@ -139,6 +141,12 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Business costs come from Xero (bills + reconciled bank transactions,
+  // ex-GST) when Growth Tools can reach it; otherwise from imported bank
+  // statements / manual costs. Started here (after auth) so the Growth Tools
+  // round trip overlaps the cost-rate read below. Never rejects.
+  const xeroCostsPromise = fetchXeroMonthlyFinance(6, { timeoutMs: 8_000 });
+
   // Read configurable API cost rates from global, fallback to defaults
   let COST_PER_AUD = { ...DEFAULT_COST_PER_AUD };
   try {
@@ -167,8 +175,19 @@ export async function GET() {
 
   // Fetch business costs summaries for the dashboard: MTD for the topline KPI,
   // last completed month for the detailed Costs card.
-  let businessCostsSummary = { totalThisMonth: 0, totalLastMonth: 0, uncategorisedCount: 0 };
-  try {
+  let businessCostsSummary: {
+    totalThisMonth: number;
+    totalLastMonth: number;
+    uncategorisedCount: number;
+    source: "xero" | "bank";
+  } = { totalThisMonth: 0, totalLastMonth: 0, uncategorisedCount: 0, source: "bank" };
+  let xeroCostsByMonth: Map<string, number> | null = null;
+  const xeroCosts = await xeroCostsPromise;
+  if (xeroCosts.ok) {
+    const { byMonth, ...summary } = xeroBusinessCostsSummary(xeroCosts.data.months, thisMonthKeyForCosts, lastMonthKeyForCosts);
+    businessCostsSummary = summary;
+    xeroCostsByMonth = byMonth;
+  } else try {
     const [bcThisMonth, bcLastMonth, bcUncat] = await Promise.all([
       payload.find({
         collection: 'business-costs' as any,
@@ -200,10 +219,18 @@ export async function GET() {
       totalThisMonth: round(bcThisMonth.docs.reduce((sum: number, c: any) => sum + ((c.amount as number) || 0), 0)),
       totalLastMonth: round(bcLastMonth.docs.reduce((sum: number, c: any) => sum + ((c.amount as number) || 0), 0)),
       uncategorisedCount: bcUncat.totalDocs,
+      source: "bank",
     };
   } catch {
     // business-costs collection might not exist yet
   }
+
+  // Fixed monthly estimates (Vercel, Railway, domain, LLM subscriptions) are
+  // real bills that Xero already records, so they're only added when the
+  // business costs come from imported statements. With Xero as the source,
+  // adding them would count those bills twice.
+  const fixedInfra: Record<string, number> = xeroCostsByMonth ? {} : INFRA_MONTHLY_AUD;
+  const fixedLlm: Record<string, number> = xeroCostsByMonth ? {} : LLM_MONTHLY_AUD;
 
   const monthStart = thisMonthDate.toISOString();
 
@@ -639,13 +666,15 @@ export async function GET() {
         payload.count({ collection: "competitor-analyses", where }).catch(() => ({ totalDocs: 0 })),
         payload.count({ collection: "content-researches", where }).catch(() => ({ totalDocs: 0 })),
         payload.count({ collection: "media", where }).catch(() => ({ totalDocs: 0 })),
-        payload.find({
-          collection: 'business-costs' as any,
-          where: { month: { equals: monthKey } },
-          limit: 5000,
-          depth: 0,
-          overrideAccess: true,
-        }).catch(() => ({ docs: [] })),
+        xeroCostsByMonth
+          ? Promise.resolve({ docs: [] as any[] })
+          : payload.find({
+              collection: 'business-costs' as any,
+              where: { month: { equals: monthKey } },
+              limit: 5000,
+              depth: 0,
+              overrideAccess: true,
+            }).catch(() => ({ docs: [] })),
       ]);
       const apiCost =
         seo.totalDocs * COST_PER_AUD.seoAudit +
@@ -655,13 +684,15 @@ export async function GET() {
         content.totalDocs * COST_PER_AUD.contentResearch +
         media.totalDocs * COST_PER_AUD.blogImage;
 
-      const businessCostTotal = bcMonth.docs.reduce((sum: number, c: any) => sum + ((c.amount as number) || 0), 0);
+      const businessCostTotal = xeroCostsByMonth
+        ? xeroCostsByMonth.get(monthKey) ?? 0
+        : bcMonth.docs.reduce((sum: number, c: any) => sum + ((c.amount as number) || 0), 0);
 
       return {
         label: range.label,
-        infrastructure: round(Object.values(INFRA_MONTHLY_AUD).reduce((a, b) => a + b, 0)),
+        infrastructure: round(Object.values(fixedInfra).reduce((a, b) => a + b, 0)),
         api: round(apiCost),
-        llm: round(Object.values(LLM_MONTHLY_AUD).reduce((a, b) => a + b, 0)),
+        llm: round(Object.values(fixedLlm).reduce((a, b) => a + b, 0)),
         business: round(businessCostTotal),
       };
     }),
@@ -939,10 +970,10 @@ export async function GET() {
     blogImages: round(lastMonthMediaCount.totalDocs * COST_PER_AUD.blogImage),
   };
 
-  const infraTotal = round(Object.values(INFRA_MONTHLY_AUD).reduce((a, b) => a + b, 0));
+  const infraTotal = round(Object.values(fixedInfra).reduce((a, b) => a + b, 0));
   const currentMonthApiTotal = round(Object.values(currentMonthApiCosts).reduce((a, b) => a + b, 0));
   const lastMonthApiTotal = round(Object.values(lastMonthApiCosts).reduce((a, b) => a + b, 0));
-  const llmTotal = round(Object.values(LLM_MONTHLY_AUD).reduce((a, b) => a + b, 0));
+  const llmTotal = round(Object.values(fixedLlm).reduce((a, b) => a + b, 0));
   const currentMonthCost = round(infraTotal + currentMonthApiTotal + llmTotal);
   const lastMonthCost = round(infraTotal + lastMonthApiTotal + llmTotal + businessCostsSummary.totalLastMonth);
   const mtdCosts = round(currentMonthCost + businessCostsSummary.totalThisMonth);
@@ -1109,9 +1140,9 @@ export async function GET() {
       period: lastMonthDate.toLocaleString("en-AU", { month: "long", year: "numeric" }),
       api: lastMonthApiCosts,
       apiTotal: lastMonthApiTotal,
-      infrastructure: INFRA_MONTHLY_AUD,
+      infrastructure: fixedInfra,
       infraTotal,
-      llm: LLM_MONTHLY_AUD,
+      llm: fixedLlm,
       llmTotal,
       total: lastMonthCost,
     },
