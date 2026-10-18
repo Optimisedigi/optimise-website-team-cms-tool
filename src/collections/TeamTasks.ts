@@ -8,6 +8,8 @@ import type {
 import { adminOnlyDelete, hideUnlessFeature, userHasFeature } from "../lib/access";
 import { logActivity } from "../lib/activity-log";
 import { TEAM_TASK_PRIORITY_OPTIONS, TEAM_TASK_TYPE_OPTIONS } from "../lib/team-task-options";
+import { deferPostCommit } from "../lib/google-ads-audit-bootstrap";
+import { assigneeToNotify, sendTeamTaskAssignmentEmail } from "../lib/team-task-assignment-email";
 
 const STATUS_OPTIONS = [
   { label: "Not Started", value: "not_started" },
@@ -109,6 +111,18 @@ const logTeamTaskActivity: CollectionAfterChangeHook = async ({ doc, previousDoc
   }
 };
 
+// Email the assignee when a task is created for them or reassigned to them.
+// Deferred until after the save commits so a rolled-back save never emails
+// and a slow/failed send never holds the SQLite write lock.
+const emailTeamTaskAssignee: CollectionAfterChangeHook = ({ doc, previousDoc, operation, req }) => {
+  const assigneeId = assigneeToNotify(operation, doc, previousDoc);
+  if (assigneeId === undefined) return doc;
+  deferPostCommit(req.payload, "team task assignment email", () =>
+    sendTeamTaskAssignmentEmail(req.payload, doc, assigneeId),
+  );
+  return doc;
+};
+
 export const TeamTasks: CollectionConfig = {
   slug: "team-tasks",
   labels: {
@@ -139,7 +153,7 @@ export const TeamTasks: CollectionConfig = {
   defaultSort: "-updatedAt",
   hooks: {
     beforeChange: [prepareTeamTask],
-    afterChange: [logTeamTaskActivity],
+    afterChange: [logTeamTaskActivity, emailTeamTaskAssignee],
   },
   fields: [
     {
