@@ -54,6 +54,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     // codex-oauth: ChatGPT plan via Codex OAuth — no fallback to API key.
     // api-key: OPENAI_API_KEY per-hour billing.
     let authHeaders: Record<string, string>
+    // Reported to the browser so the voice UI can warn when a call bills API credits.
+    let billing: 'oauth' | 'api-key'
     if (voiceAuthMethod === 'codex-oauth') {
       try {
         const resolved = await resolveCredential('openai-codex')
@@ -67,6 +69,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           )
         }
         authHeaders = { ...resolved.authHeader, 'Content-Type': 'application/json' }
+        billing = 'oauth'
       } catch (err) {
         const reason = (err as Error).message || 'Unknown error'
         console.error('[optimate-realtime-secret] Codex OAuth resolution failed:', reason)
@@ -105,6 +108,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       }
+      billing = 'api-key'
     }
 
     const requestedSession = isRecord(body?.session) ? body.session : null
@@ -160,6 +164,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       value: raw.value,
       expires_at: typeof raw.expires_at === 'number' ? raw.expires_at : null,
       model: mintedModel,
+      billing,
     })
   } catch (err) {
     console.error('[optimate-realtime-secret] error:', err)

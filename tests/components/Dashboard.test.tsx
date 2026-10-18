@@ -122,7 +122,7 @@ describe('Dashboard MTD Costs KPI', () => {
 })
 
 describe('Dashboard finance cards', () => {
-  it('shows the yearly costs view in the Costs card', async () => {
+  it('shows the yearly figures in the Profit & Loss card', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
       ok: true,
       json: async () => url.startsWith('/api/costs/pnl')
@@ -138,7 +138,10 @@ describe('Dashboard finance cards', () => {
 
     const invoiced = await screen.findByText('Invoiced', { selector: '.k' })
     expect(invoiced.parentElement).toHaveTextContent('$9,000')
-    expect(screen.getByRole('button', { name: 'Financial year' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Calendar year' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Profit & Loss', { selector: '.od-box__title' })).toBeInTheDocument()
+    expect(screen.queryByText('Costs', { selector: '.od-box__title' })).toBeNull()
+    expect(await screen.findByText('Invoices', { selector: '.od-box__title' })).toBeInTheDocument()
   })
 
   it('keeps each outstanding invoice on a single line', async () => {

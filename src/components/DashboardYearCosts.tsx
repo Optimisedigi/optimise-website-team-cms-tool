@@ -40,15 +40,15 @@ const MODES = [
 ] as const
 
 /**
- * Dashboard Finance → Costs: invoiced, received, costs and profit for the
- * financial or calendar year to date, with a monthly bar chart. Clicking a
+ * Dashboard Finance → Profit & Loss: invoiced, received, costs and profit for the
+ * calendar (default) or financial year to date, with a monthly bar chart. Clicking a
  * month narrows the figures to that month; clicking it again (or "Whole year")
  * goes back to the year.
  */
 export function DashboardYearCosts() {
   // "Now" is fixed for the life of the card so the period doesn't shift.
   const [currentMonth] = useState(() => monthKeyOf(new Date()))
-  const [mode, setMode] = useState<PeriodMode>('fy')
+  const [mode, setMode] = useState<PeriodMode>('cy')
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
   const [data, setData] = useState<PnlResponse | null>(null)
   const [error, setError] = useState<string | null>(null)

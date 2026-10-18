@@ -18,6 +18,14 @@ export interface RealtimeSecret {
   expiresAt: number | null
   /** Realtime model id the secret was minted for. */
   model: string
+  /** How the secret was paid for: ChatGPT plan OAuth, OpenAI API credits, or not reported. */
+  billing: RealtimeBilling
+}
+
+export type RealtimeBilling = 'oauth' | 'api-key' | 'unknown'
+
+export function parseRealtimeBilling(value: unknown): RealtimeBilling {
+  return value === 'oauth' || value === 'api-key' ? value : 'unknown'
 }
 
 /** The session config minted against (instructions + tools come from OptiMate). */
@@ -67,6 +75,7 @@ export const apiKeyProvider: TokenProvider = {
       value?: unknown
       expires_at?: unknown
       model?: unknown
+      billing?: unknown
     }
     if (typeof raw.value !== 'string' || raw.value.length === 0) {
       throw new Error('OptiMate secret route did not include a secret value.')
@@ -75,6 +84,7 @@ export const apiKeyProvider: TokenProvider = {
       value: raw.value,
       expiresAt: typeof raw.expires_at === 'number' ? raw.expires_at : null,
       model: typeof raw.model === 'string' ? raw.model : 'gpt-realtime-mini',
+      billing: parseRealtimeBilling(raw.billing),
     }
   },
 
@@ -110,6 +120,7 @@ export const localBridgeProvider: TokenProvider = {
       value?: unknown
       expires_at?: unknown
       model?: unknown
+      billing?: unknown
     }
     if (typeof raw.value !== 'string' || raw.value.length === 0) {
       throw new Error('Voice helper response did not include a secret value.')
@@ -118,6 +129,7 @@ export const localBridgeProvider: TokenProvider = {
       value: raw.value,
       expiresAt: typeof raw.expires_at === 'number' ? raw.expires_at : null,
       model: typeof raw.model === 'string' ? raw.model : 'gpt-realtime-2',
+      billing: parseRealtimeBilling(raw.billing),
     }
   },
 

@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ApiCreditsNotice } from './ApiCreditsNotice'
 import { getTokenProvider } from '@/lib/realtime/token-provider'
 import { checkVoiceRunForCorrection, type VoiceToolCallRecord } from '@/lib/agents/optimate-google-ads/voice-run-checks'
 import type { AttachedEmailMeta } from './EmailAttachPicker'
@@ -422,6 +423,8 @@ export default function OptiMateVoice({
   const [error, setError] = useState<string | null>(null)
   const [helper, setHelper] = useState<HelperStatus>({ reachable: false, connected: false })
   const [muted, setMuted] = useState(false)
+  // True when the live call's secret was minted with OPENAI_API_KEY (billed API credits).
+  const [usingApiCredits, setUsingApiCredits] = useState(false)
   // Streams driving the waveform; kept in state so the canvas re-mounts on them.
   const [micStream, setMicStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
@@ -1035,6 +1038,7 @@ export default function OptiMateVoice({
     gmailDraftConfirmationReplyIdRef.current = null
     voiceTurnSafetyRef.current = null
     usageRef.current = null
+    setUsingApiCredits(false)
     setState('idle')
     setMicStream(null)
     setRemoteStream(null)
@@ -1135,6 +1139,7 @@ export default function OptiMateVoice({
           },
         },
       })
+      setUsingApiCredits(secret.billing === 'api-key')
       usageRef.current = {
         sessionId: `${mode}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
         startedAt: Date.now(),
@@ -1282,6 +1287,7 @@ export default function OptiMateVoice({
         active={state === 'connected'}
         muted={muted}
       />
+      {usingApiCredits && <ApiCreditsNotice />}
       {(state !== 'connected' || muted) && (
         <span style={{ fontSize: 11, color: muted ? '#9ca3af' : '#4b5563', whiteSpace: 'nowrap' }}>
           {state === 'connected' ? 'Muted' : 'Connecting…'}

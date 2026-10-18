@@ -83,6 +83,7 @@ describe('apiKeyProvider', () => {
             value: 'ek_test_api',
             expires_at: 1756310470,
             model: 'gpt-realtime-mini',
+            billing: 'api-key',
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
@@ -100,7 +101,7 @@ describe('apiKeyProvider', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ auditId: '7', session: { instructions: 'hi' } }),
     })
-    expect(secret).toEqual({ value: 'ek_test_api', expiresAt: 1756310470, model: 'gpt-realtime-mini' })
+    expect(secret).toEqual({ value: 'ek_test_api', expiresAt: 1756310470, model: 'gpt-realtime-mini', billing: 'api-key' })
   })
 })
 
@@ -147,7 +148,7 @@ describe('localBridgeProvider.getStatus', () => {
       ),
     )
     const secret = await localBridgeProvider.getSecret({ auditId: '7', session: {} })
-    expect(secret).toEqual({ value: 'ek_test_123', expiresAt: 1756310470, model: 'gpt-realtime-2' })
+    expect(secret).toEqual({ value: 'ek_test_123', expiresAt: 1756310470, model: 'gpt-realtime-2', billing: 'unknown' })
   })
 
   it('surfaces the helper error message on a non-OK secret response', async () => {

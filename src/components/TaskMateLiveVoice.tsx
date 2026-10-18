@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ApiCreditsNotice } from './ApiCreditsNotice'
 
 type VoiceEvent = {
   type?: string
@@ -21,6 +22,7 @@ interface TaskMateLiveVoiceProps {
 export default function TaskMateLiveVoice({ disabled = false, onTurn, onActiveChange }: TaskMateLiveVoiceProps): React.ReactElement {
   const [state, setState] = useState<VoiceState>('idle')
   const [error, setError] = useState('')
+  const [usingApiCredits, setUsingApiCredits] = useState(false)
   const peerRef = useRef<RTCPeerConnection | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const generationRef = useRef(0)
@@ -39,6 +41,7 @@ export default function TaskMateLiveVoice({ disabled = false, onTurn, onActiveCh
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
     if (audioRef.current) audioRef.current.srcObject = null
+    setUsingApiCredits(false)
     setState('idle')
     onActiveChangeRef.current(false)
   }, [])
@@ -66,6 +69,7 @@ export default function TaskMateLiveVoice({ disabled = false, onTurn, onActiveCh
       if (!secretResponse.ok || !isRecord(secret) || typeof secret.value !== 'string') {
         throw new Error(isRecord(secret) && typeof secret.error === 'string' ? secret.error : 'Could not start live voice.')
       }
+      setUsingApiCredits(secret.billing === 'api-key')
 
       const peer = new RTCPeerConnection()
       peerRef.current = peer
@@ -188,6 +192,7 @@ export default function TaskMateLiveVoice({ disabled = false, onTurn, onActiveCh
         </svg>
       </button>
       {state !== 'idle' && <span role="status" style={{ fontSize: 12 }}>{state === 'connecting' ? 'Connecting…' : state === 'finishing' ? 'Finishing transcript…' : 'GPT Live · listening'}</span>}
+      {state !== 'idle' && usingApiCredits && <ApiCreditsNotice />}
       {error && <span role="alert" style={{ fontSize: 12, color: '#b91c1c', maxWidth: 180 }}>{error}</span>}
       <audio ref={audioRef} autoPlay controls style={{ display: error.includes('audio player') ? 'block' : 'none', maxWidth: 160 }} aria-label="TaskMate live audio" />
     </div>

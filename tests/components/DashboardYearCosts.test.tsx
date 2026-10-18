@@ -34,13 +34,26 @@ function stubPnl() {
 const stat = (label: string) => screen.getByText(label, { selector: '.k' }).parentElement
 
 describe('DashboardYearCosts', () => {
-  it('shows the financial year to date, narrows to a clicked month and back to the year', async () => {
+  it('defaults to the calendar year to date', async () => {
     const fetchMock = stubPnl()
 
     render(<DashboardYearCosts />)
 
+    expect(await screen.findByText('2026, year to date')).toBeInTheDocument()
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/costs/pnl?from=2026-01&to=2026-10')
+    expect(screen.getByRole('button', { name: 'Calendar year' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Financial year' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('shows the financial year to date, narrows to a clicked month and back to the year', async () => {
+    const fetchMock = stubPnl()
+
+    render(<DashboardYearCosts />)
+    await screen.findByText('2026, year to date')
+    fireEvent.click(screen.getByRole('button', { name: 'Financial year' }))
+
     expect(await screen.findByText('FY 2026\u201327, year to date')).toBeInTheDocument()
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/costs/pnl?from=2026-07&to=2026-10')
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toBe('/api/costs/pnl?from=2026-07&to=2026-10')
     expect(stat('Invoiced')).toHaveTextContent('$31,000')
     expect(stat('Costs')).toHaveTextContent('$9,000')
     expect(stat('Profit')).toHaveTextContent('$22,000')
@@ -65,16 +78,16 @@ describe('DashboardYearCosts', () => {
     expect(stat('Invoiced')).toHaveTextContent('$31,000')
   })
 
-  it('switches to the calendar year and clears the selected month', async () => {
+  it('switches to the financial year and clears the selected month', async () => {
     const fetchMock = stubPnl()
 
     render(<DashboardYearCosts />)
     fireEvent.click(await screen.findByRole('button', { name: /^September 2026/ }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Calendar year' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Financial year' }))
 
-    expect(await screen.findByText('2026, year to date')).toBeInTheDocument()
-    expect(fetchMock.mock.calls.at(-1)?.[0]).toBe('/api/costs/pnl?from=2026-01&to=2026-10')
+    expect(await screen.findByText('FY 2026\u201327, year to date')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toBe('/api/costs/pnl?from=2026-07&to=2026-10')
     expect(screen.queryByRole('button', { name: 'Whole year' })).not.toBeInTheDocument()
   })
 

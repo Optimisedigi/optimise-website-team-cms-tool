@@ -89,4 +89,23 @@ describe('TaskMateLiveVoice', () => {
     expect(peer.close).toHaveBeenCalledOnce()
     expect(onActiveChange).toHaveBeenLastCalledWith(false)
   })
+
+  it('warns during the call when the secret was billed to API credits', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('realtime-secret')
+      ? { ok: true, json: async () => ({ value: 'ek_test', billing: 'api-key' }) }
+      : { ok: true, text: async () => 'answer' }))
+    render(<TaskMateLiveVoice onTurn={vi.fn()} onActiveChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start GPT Live with TaskMate' }))
+    await waitFor(() => expect(screen.getByText('Using API credits')).toBeTruthy())
+  })
+
+  it('shows no API credits warning when the secret came from the ChatGPT plan', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('realtime-secret')
+      ? { ok: true, json: async () => ({ value: 'ek_test', billing: 'oauth' }) }
+      : { ok: true, text: async () => 'answer' }))
+    render(<TaskMateLiveVoice onTurn={vi.fn()} onActiveChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start GPT Live with TaskMate' }))
+    await waitFor(() => expect(peer.setRemoteDescription).toHaveBeenCalled())
+    expect(screen.queryByText('Using API credits')).toBeNull()
+  })
 })

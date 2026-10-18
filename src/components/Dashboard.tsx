@@ -889,12 +889,12 @@ const Dashboard = () => {
           {/* Search Console */}
           <GscCard gsc={data.gsc} gscMonthly={data.gscMonthly} refreshing={gscRefreshing} onRefresh={handleGscRefresh} onSeed={handleGscSeed} seeding={gscSeeding} />
 
-          {/* Costs */}
+          {/* Profit & Loss */}
           <div className="od-box">
             <div className="od-box__head">
               <div>
                 <span className="od-box__eyebrow">Finance</span>
-                <span className="od-box__title">Costs</span>
+                <span className="od-box__title">Profit &amp; Loss</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <a href="/admin/finance/costs" style={{ fontSize: 12, color: 'var(--theme-elevation-500)', textDecoration: 'none' }}>
@@ -911,7 +911,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Outstanding Invoices & Scheduled Sends */}
+          {/* Invoices */}
           <XeroInvoicesCard invoices={xeroInvoices} scheduled={xeroScheduled} loading={xeroLoading} onRefresh={fetchXeroData} />
         </div>
 
@@ -1821,7 +1821,7 @@ function XeroInvoicesCard({
         <div className="od-box__head">
           <div>
             <span className="od-box__eyebrow">Finance</span>
-            <span className="od-box__title">Outstanding Invoices</span>
+            <span className="od-box__title">Invoices</span>
           </div>
         </div>
         <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
@@ -1839,7 +1839,7 @@ function XeroInvoicesCard({
         <div className="od-box__head">
           <div>
             <span className="od-box__eyebrow">Finance</span>
-            <span className="od-box__title">Outstanding Invoices</span>
+            <span className="od-box__title">Invoices</span>
           </div>
         </div>
         <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
@@ -1855,12 +1855,12 @@ function XeroInvoicesCard({
 
   return (
     <>
-      {/* Outstanding Invoices */}
+      {/* Invoices */}
       <div className="od-box">
         <div className="od-box__head">
           <div>
             <span className="od-box__eyebrow">Finance</span>
-            <span className="od-box__title">Outstanding Invoices & Scheduled Sends</span>
+            <span className="od-box__title">Invoices</span>
           </div>
           <button type="button" onClick={handleRefresh} disabled={refreshing} className="od-gsc__refresh">
             {refreshing ? 'Refreshing...' : '↻ Refresh'}

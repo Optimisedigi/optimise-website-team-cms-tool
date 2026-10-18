@@ -118,7 +118,7 @@ describe('POST /api/optimate/realtime-secret', () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body).toEqual({ value: 'ek_test_123', expires_at: 1756310470, model: 'gpt-realtime-mini' })
+    expect(body).toEqual({ value: 'ek_test_123', expires_at: 1756310470, model: 'gpt-realtime-mini', billing: 'api-key' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(init.headers).toEqual({
@@ -203,6 +203,7 @@ describe('POST /api/optimate/realtime-secret', () => {
     expect(headers.Authorization).toBe('Bearer oauth-token')
     expect(headers['chatgpt-account-id']).toBe('acct_1')
     expect(headers.Authorization).not.toContain('sk-test')
+    expect((await res.json()).billing).toBe('oauth')
   })
 
   it('does not fall back to OPENAI_API_KEY when the ChatGPT plan login is missing', async () => {
