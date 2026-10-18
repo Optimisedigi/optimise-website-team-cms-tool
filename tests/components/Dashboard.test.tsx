@@ -121,20 +121,44 @@ describe('Dashboard MTD Costs KPI', () => {
   })
 })
 
-describe('Dashboard business costs source', () => {
-  it('shows Xero as the source instead of an uncategorised count', async () => {
+describe('Dashboard finance cards', () => {
+  it('shows the yearly costs view in the Costs card', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
       ok: true,
-      json: async () => url === '/api/dashboard'
-        ? { ...dashboardData, businessCosts: { totalThisMonth: 1500, totalLastMonth: 1400, uncategorisedCount: 0, source: 'xero' } }
+      json: async () => url.startsWith('/api/costs/pnl')
+        ? {
+            source: 'xero',
+            months: [{ month: '2026-07', sales: 9000, received: 8000, costs: 2500, profitSales: 6500, profitReceived: 5500, noBankData: false }],
+            totals: { sales: 9000, received: 8000, costs: 2500, profitSales: 6500, profitReceived: 5500 },
+          }
         : responseFor(url),
     })))
 
     render(<Dashboard />)
 
-    const label = await screen.findByText('Source')
-    expect(label.parentElement).toHaveTextContent('Xero')
-    expect(screen.queryByText('Uncategorised')).not.toBeInTheDocument()
+    const invoiced = await screen.findByText('Invoiced', { selector: '.k' })
+    expect(invoiced.parentElement).toHaveTextContent('$9,000')
+    expect(screen.getByRole('button', { name: 'Financial year' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps each outstanding invoice on a single line', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      ok: true,
+      json: async () => url === '/api/xero/invoices'
+        ? {
+            totalOutstanding: 1100, totalOverdue: 0, overdueCount: 0, unpaidCount: 1, draftCount: 0,
+            recentInvoices: [{ invoiceId: 'a1', invoiceNumber: 'INV-0123', contact: { name: 'Acme' }, total: 1100, amountDue: 1100, date: '2026-07-01', dueDate: '2026-07-15', status: 'AUTHORISED', isOverdue: false, reference: 'A long monthly retainer description for July' }],
+          }
+        : responseFor(url),
+    })))
+
+    render(<Dashboard />)
+
+    const link = await screen.findByRole('link', { name: 'INV-0123' })
+    expect(link.closest('table')).toHaveClass('od-table--single-line')
+    const description = screen.getByText('A long monthly retainer description for July')
+    expect(description).toHaveClass('od-table__clip')
+    expect(description).toHaveAttribute('title', 'A long monthly retainer description for July')
   })
 })
 

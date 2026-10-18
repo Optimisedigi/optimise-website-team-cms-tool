@@ -8603,58 +8603,6 @@ body.od-client-record {
   row-gap: 6px;
 }
 
-// Collapsed by default so the Unassigned diagnostics never crowd the chart —
-// they only matter while someone is chasing a tagging problem.
-.od-unassigned {
-  margin-top: 12px;
-  border-top: 1px solid var(--theme-elevation-100);
-  padding-top: 10px;
-}
-
-.od-unassigned__summary {
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--theme-elevation-600);
-}
-
-.od-unassigned__note {
-  margin: 8px 0 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--theme-elevation-400);
-
-  code {
-    font-size: 11px;
-  }
-}
-
-.od-unassigned__table {
-  width: 100%;
-  margin-top: 8px;
-  border-collapse: collapse;
-  font-size: 11px;
-
-  th,
-  td {
-    padding: 4px 6px;
-    text-align: left;
-    border-bottom: 1px solid var(--theme-elevation-100);
-    // Long UTM values shouldn't force the card to scroll sideways.
-    word-break: break-word;
-  }
-
-  th {
-    color: var(--theme-elevation-500);
-    font-weight: 600;
-  }
-}
-
-.od-unassigned__num {
-  text-align: right;
-  white-space: nowrap;
-}
-
 // Twelve month columns leave ~20px per label on a phone, which clips
 // "Sep 26". Drop the year and tighten the type so the month still reads.
 // The label row's gap must stay in step with .od-gsc-bars or labels drift out
@@ -8824,6 +8772,173 @@ body.od-client-record {
   }
 }
 
+// Keep each row on one line (e.g. dashboard outstanding invoices); long text
+// cells marked .od-table__clip truncate with an ellipsis instead of wrapping.
+.od-table--single-line {
+  th,
+  td {
+    white-space: nowrap;
+  }
+
+  .od-table__clip {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+// ── Dashboard Finance → Costs: year view with clickable months ──
+.od-gsc-stats.od-gsc-stats--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 768px) {
+  .od-gsc-stats.od-gsc-stats--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.od-yearcosts {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #eef0f3;
+}
+
+.od-yearcosts__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.od-yearcosts__scope {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.od-yearcosts__updating {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #8b95a3;
+}
+
+.od-yearcosts__controls,
+.od-yearcosts__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.od-yearcosts__btn {
+  appearance: none;
+  border: 1px solid #e7e9ee;
+  background: #fff;
+  border-radius: 7px;
+  padding: 5px 10px;
+  color: #5b6573;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &.is-active {
+    background: #213843;
+    border-color: #213843;
+    color: #fff;
+  }
+}
+
+.od-yearcosts__message {
+  font-size: 13px;
+  color: #8b95a3;
+  padding: 8px 0;
+
+  &--error {
+    color: #991b1b;
+  }
+}
+
+.od-yearcosts__chart {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  height: 140px;
+}
+
+.od-yearcosts__month {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px 2px 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: opacity 150ms ease, background 150ms ease;
+
+  &:hover {
+    background: #f6f7f9;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #468d8b;
+    outline-offset: 1px;
+  }
+
+  &.is-active {
+    background: #eef6f5;
+    border-color: #74b3a8;
+  }
+
+  &.is-dimmed {
+    opacity: 0.45;
+  }
+}
+
+.od-yearcosts__bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  min-height: 0;
+}
+
+.od-yearcosts__bar {
+  display: block;
+  width: 35%;
+  max-width: 14px;
+  border-radius: 2px 2px 0 0;
+  transition: height 300ms ease;
+}
+
+.od-yearcosts__bar--sales {
+  background: #213843;
+}
+
+.od-yearcosts__bar--costs {
+  background: #ef4444;
+}
+
+.od-yearcosts__label {
+  font-size: 10px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.od-yearcosts__note {
+  font-size: 11px;
+  color: #8b95a3;
+  text-align: center;
+}
+
 .od-processes__pills {
   display: flex;
   flex-wrap: wrap;
@@ -8875,6 +8990,69 @@ body.od-client-record {
     height: 100%;
     border-radius: inherit;
     background: #468d8b;
+  }
+}
+
+// Dashboard "Unread client emails": one compact line per email —
+// sender on the left, subject filling the middle, date on the right.
+.od-mail-list {
+  list-style: none;
+  margin: -6px 0;
+  padding: 0;
+}
+
+.od-mail-list li + li {
+  border-top: 1px solid #f1f3f5;
+}
+
+.od-mail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 170px) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 12px;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover .od-mail-row__subject {
+    color: #111827;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #468d8b;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+.od-mail-row__sender,
+.od-mail-row__subject {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.od-mail-row__sender {
+  font-weight: 600;
+  color: #111827;
+}
+
+.od-mail-row__subject {
+  color: #5b6573;
+}
+
+.od-mail-row__date {
+  color: #8b95a3;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .od-mail-row {
+    grid-template-columns: minmax(0, 110px) minmax(0, 1fr) auto;
+    gap: 8px;
   }
 }
 

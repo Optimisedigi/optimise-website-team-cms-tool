@@ -4,10 +4,10 @@ import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import {
   fetchGa4MonthlySessionsByChannel,
-  fetchGa4UnassignedSources,
+  fetchGa4UnassignedSourcesByMonth,
   ensureValidToken,
-  GA4_UNASSIGNED_CHANNEL,
 } from "@/lib/ga4-service";
+import { GA4_UNASSIGNED_CHANNEL, reclassifyUnassignedSessions } from "@/lib/ga4-channel-reclassify";
 
 const MONTHS = 12;
 
@@ -20,6 +20,10 @@ const MONTHS = 12;
  *
  * Backs the dashboard's stacked monthly column chart, which always shows a
  * fixed 12-month window (unlike the main GA4 card's period toggle).
+ *
+ * Sessions GA4 leaves "Unassigned" are moved into Paid AI (OpenAI ads), AI
+ * Search (Perplexity) or Direct (nothing tagged) — see
+ * `reclassifyUnassignedSessions`.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -56,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     if (!client.ga4Connected || !client.ga4PropertyId || !client.ga4RefreshToken) {
       return NextResponse.json(
-        { ga4Connected: false, months: [], channels: [], unassignedSources: [] },
+        { ga4Connected: false, months: [], channels: [] },
         { status: 200 },
       );
     }
@@ -84,12 +88,29 @@ export async function GET(req: NextRequest) {
     const startDate = toIsoDate(rangeStart);
     const endDate = toIsoDate(now);
 
-    const rows = await fetchGa4MonthlySessionsByChannel(
+    const rawRows = await fetchGa4MonthlySessionsByChannel(
       tokenResult.accessToken,
       client.ga4PropertyId,
       startDate,
       endDate,
     );
+
+    // Only worth a second report when the property actually has Unassigned
+    // traffic to reclassify. If it fails, the chart still shows GA4's own buckets.
+    let rows = rawRows;
+    if (rawRows.some((r) => r.channel === GA4_UNASSIGNED_CHANNEL && r.sessions > 0)) {
+      try {
+        const unassigned = await fetchGa4UnassignedSourcesByMonth(
+          tokenResult.accessToken,
+          client.ga4PropertyId,
+          startDate,
+          endDate,
+        );
+        rows = reclassifyUnassignedSessions(rawRows, unassigned);
+      } catch (err) {
+        console.error("[ga4/monthly-channels] unassigned reclassification failed:", err);
+      }
+    }
 
     // Fixed 12-month skeleton so months with no data still render a slot.
     const months = Array.from({ length: MONTHS }, (_, i) => {
@@ -117,23 +138,6 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([channel, sessions]) => ({ channel, sessions }));
 
-    // Only worth a second report when the property actually has Unassigned
-    // traffic to explain.
-    let unassignedSources: Awaited<ReturnType<typeof fetchGa4UnassignedSources>> = [];
-    if ((channelTotals.get(GA4_UNASSIGNED_CHANNEL) || 0) > 0) {
-      try {
-        unassignedSources = await fetchGa4UnassignedSources(
-          tokenResult.accessToken,
-          client.ga4PropertyId,
-          startDate,
-          endDate,
-        );
-      } catch (err) {
-        // The breakdown is diagnostic extra — never fail the whole chart for it.
-        console.error("[ga4/monthly-channels] unassigned breakdown failed:", err);
-      }
-    }
-
     return NextResponse.json({
       ga4Connected: true,
       clientId: client.id,
@@ -142,7 +146,6 @@ export async function GET(req: NextRequest) {
       periodEnd: endDate,
       channels,
       months,
-      unassignedSources,
     });
   } catch (err) {
     console.error("[ga4/monthly-channels] error:", err);

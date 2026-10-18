@@ -149,26 +149,20 @@ export default function ClientUnreadMailCard() {
         ) : emails.length === 0 ? (
           <p style={mutedText}>No unread emails from clients.</p>
         ) : (
-          <ul className="od-processes__list" style={{ listStyle: 'none', margin: 0, padding: 0, gap: 12 }}>
-            {emails.map((email) => (
-              <li key={email.threadId}>
-                <a href={cmsMailThreadPath(email.threadId)} className="od-processes__item">
-                  <div className="od-processes__row" style={{ marginBottom: 2 }}>
-                    <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {senderLabel(email.from) || 'Unknown sender'}
-                    </b>
-                    <span style={{ flexShrink: 0, color: '#8b95a3' }}>{shortDate(email.date)}</span>
-                  </div>
-                  <div
-                    className="od-processes__meta"
-                    style={{ marginTop: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >
-                    {email.subject || '(no subject)'}
-                    {email.messageCount > 1 ? ` (${email.messageCount})` : ''}
-                  </div>
-                </a>
-              </li>
-            ))}
+          <ul className="od-mail-list">
+            {emails.map((email) => {
+              const sender = senderLabel(email.from) || 'Unknown sender'
+              const subject = `${email.subject || '(no subject)'}${email.messageCount > 1 ? ` (${email.messageCount})` : ''}`
+              return (
+                <li key={email.threadId}>
+                  <a href={cmsMailThreadPath(email.threadId)} className="od-mail-row" title={`${sender}: ${subject}`}>
+                    <b className="od-mail-row__sender">{sender}</b>
+                    <span className="od-mail-row__subject">{subject}</span>
+                    <span className="od-mail-row__date">{shortDate(email.date)}</span>
+                  </a>
+                </li>
+              )
+            })}
           </ul>
         )}
         {state.status === 'ready' && state.data.more ? (

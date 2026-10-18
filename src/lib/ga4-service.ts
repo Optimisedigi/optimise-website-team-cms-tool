@@ -1,5 +1,8 @@
 import { google } from "googleapis";
 import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
+import { GA4_UNASSIGNED_CHANNEL, type Ga4UnassignedMonthPoint } from "@/lib/ga4-channel-reclassify";
+
+export { GA4_UNASSIGNED_CHANNEL };
 
 const SCOPES = [
   "https://www.googleapis.com/auth/analytics.readonly",
@@ -313,35 +316,18 @@ export async function fetchGa4MonthlySessionsByChannel(
   });
 }
 
-export interface Ga4UnassignedSourcePoint {
-  /** GA4 session source, e.g. "google" or "(direct)". */
-  source: string;
-  /** GA4 session medium, e.g. "cpc" or "(none)". */
-  medium: string;
-  /** Campaign name where one was tagged, otherwise "(not set)". */
-  campaign: string;
-  sessions: number;
-}
-
-/** GA4's bucket for sessions that match no channel rule. */
-export const GA4_UNASSIGNED_CHANNEL = "Unassigned";
-
 /**
- * Fetch the source/medium/campaign combinations sitting behind GA4's
- * "Unassigned" channel bucket.
- *
- * Unassigned means the session matched no rule in the primary channel group —
- * almost always mis-tagged UTMs (`utm_medium=paid` instead of `cpc`, say) or a
- * custom channel group with no catch-all rule. Listing the raw source/medium
- * pairs is what makes that diagnosable without leaving the dashboard.
+ * Fetch the source/medium/campaign combinations behind GA4's "Unassigned"
+ * channel bucket, per calendar month, so the dashboard can move them into the
+ * right channel (see `reclassifyUnassignedSessions`).
  */
-export async function fetchGa4UnassignedSources(
+export async function fetchGa4UnassignedSourcesByMonth(
   accessToken: string,
   propertyId: string,
   startDate: string,
   endDate: string,
-  limit = 10,
-): Promise<Ga4UnassignedSourcePoint[]> {
+  limit = 10000,
+): Promise<Ga4UnassignedMonthPoint[]> {
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({ access_token: accessToken });
 
@@ -352,6 +338,7 @@ export async function fetchGa4UnassignedSources(
     requestBody: {
       dateRanges: [{ startDate, endDate }],
       dimensions: [
+        { name: "yearMonth" },
         { name: "sessionSource" },
         { name: "sessionMedium" },
         { name: "sessionCampaignName" },
@@ -368,12 +355,16 @@ export async function fetchGa4UnassignedSources(
     },
   });
 
-  return (res.data.rows || []).map((row) => ({
-    source: row.dimensionValues?.[0]?.value || "(not set)",
-    medium: row.dimensionValues?.[1]?.value || "(not set)",
-    campaign: row.dimensionValues?.[2]?.value || "(not set)",
-    sessions: parseInt(row.metricValues?.[0]?.value || "0", 10),
-  }));
+  return (res.data.rows || []).map((row) => {
+    const raw = row.dimensionValues?.[0]?.value || "";
+    return {
+      month: raw.length === 6 ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}` : raw,
+      source: row.dimensionValues?.[1]?.value || "(not set)",
+      medium: row.dimensionValues?.[2]?.value || "(not set)",
+      campaign: row.dimensionValues?.[3]?.value || "(not set)",
+      sessions: parseInt(row.metricValues?.[0]?.value || "0", 10),
+    };
+  });
 }
 
 /**

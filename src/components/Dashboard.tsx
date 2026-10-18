@@ -22,6 +22,7 @@ import RocketSplash from './RocketSplash'
 import SalesFunnelDashboard from './SalesFunnelDashboard'
 import DripEmailTracker from './DripEmailTracker'
 import ClientUnreadMailCard from './ClientUnreadMailCard'
+import { DashboardYearCosts } from './DashboardYearCosts'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -893,7 +894,7 @@ const Dashboard = () => {
             <div className="od-box__head">
               <div>
                 <span className="od-box__eyebrow">Finance</span>
-                <span className="od-box__title">Costs — {data.costs.period || data.month}</span>
+                <span className="od-box__title">Costs</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <a href="/admin/finance/costs" style={{ fontSize: 12, color: 'var(--theme-elevation-500)', textDecoration: 'none' }}>
@@ -905,35 +906,8 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="od-box__body">
-              {data.businessCosts && (
-                <div className="od-card-pad od-card-pad--bottom-tight">
-                  <div className="od-gsc-stats od-gsc-stats--2">
-                    <div className="od-stat">
-                      <div className="k">Business Costs MTD</div>
-                      <div className="v">${data.businessCosts.totalThisMonth.toFixed(0)}</div>
-                      <div className="d">Included in top MTD Costs</div>
-                    </div>
-                    {data.businessCosts.source === 'xero' ? (
-                      <div className="od-stat">
-                        <div className="k">Source</div>
-                        <div className="v">Xero</div>
-                        <div className="d">Bills + reconciled bank, ex-GST</div>
-                      </div>
-                    ) : (
-                      <div className="od-stat">
-                        <div className="k">Uncategorised</div>
-                        <div className="v" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
-                          {data.businessCosts.uncategorisedCount}
-                        </div>
-                        <div className="d" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
-                          {data.businessCosts.uncategorisedCount > 0 ? '⚠ Needs review' : 'All categorised'}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              <CostBreakdown data={data} open={costDetailsOpen} />
+              <DashboardYearCosts />
+              {costDetailsOpen && <CostBreakdown data={data} open />}
             </div>
           </div>
 
@@ -1034,22 +1008,11 @@ interface Ga4MonthBucket {
   sessions: Record<string, number>
 }
 
-interface Ga4UnassignedSource {
-  source: string
-  medium: string
-  campaign: string
-  sessions: number
-}
-
 interface Ga4MonthlyChannelsData {
   ga4Connected: boolean
   channels?: { channel: string; sessions: number }[]
   months?: Ga4MonthBucket[]
-  unassignedSources?: Ga4UnassignedSource[]
 }
-
-/** GA4's bucket for sessions matching no channel rule. */
-const GA4_UNASSIGNED_CHANNEL = 'Unassigned'
 
 // Stack colours, applied in the channel order returned by the API (largest
 // channel first). Wraps if a property somehow reports more channels.
@@ -1066,6 +1029,7 @@ const GA4_CHANNEL_COLORS = [
   '#0EA5E9',
   '#A16207',
   '#94A3B8',
+  '#C026D3',
 ]
 
 function Ga4MonthlyChannelsCard() {
@@ -1113,9 +1077,6 @@ function Ga4MonthlyChannelsCard() {
   const channels = data.channels ?? []
   const hasData = months.some((m) => m.total > 0)
   const colorFor = (index: number) => GA4_CHANNEL_COLORS[index % GA4_CHANNEL_COLORS.length]
-  const unassignedSources = data.unassignedSources ?? []
-  const unassignedSessions =
-    channels.find((c) => c.channel === GA4_UNASSIGNED_CHANNEL)?.sessions ?? 0
 
   return (
     <div className="od-box">
@@ -1128,12 +1089,7 @@ function Ga4MonthlyChannelsCard() {
       </div>
       <div className="od-box__body od-card-pad">
         {hasData ? (
-          <>
-            <Ga4MonthlyChannelsChart months={months} channels={channels} colorFor={colorFor} />
-            {unassignedSources.length > 0 ? (
-              <Ga4UnassignedBreakdown sources={unassignedSources} total={unassignedSessions} />
-            ) : null}
-          </>
+          <Ga4MonthlyChannelsChart months={months} channels={channels} colorFor={colorFor} />
         ) : (
           <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0, textAlign: 'center' }}>
             No GA4 sessions recorded in the last 12 months.
@@ -1198,59 +1154,6 @@ function Ga4MonthlyChannelsChart({
         ))}
       </div>
     </div>
-  )
-}
-
-// "Unassigned" is GA4's own bucket for sessions matching no channel rule —
-// usually mis-tagged UTMs. Listing the raw source/medium pairs behind it turns
-// an unexplained block in the chart into a fixable tagging list.
-function Ga4UnassignedBreakdown({
-  sources,
-  total,
-}: {
-  sources: Ga4UnassignedSource[]
-  total: number
-}) {
-  const listed = sources.reduce((sum, s) => sum + s.sessions, 0)
-
-  return (
-    <details className="od-unassigned">
-      <summary className="od-unassigned__summary">
-        What&rsquo;s in &ldquo;Unassigned&rdquo;?
-        {total > 0 ? ` (${total.toLocaleString()} sessions)` : null}
-      </summary>
-      <p className="od-unassigned__note">
-        GA4 puts a session here when it matches no rule in the primary channel group — usually a
-        mis-tagged UTM such as <code>utm_medium=paid</code> instead of <code>cpc</code>. Fix the
-        tagging, or add a rule in GA4 Admin → Channel groups.
-      </p>
-      <table className="od-unassigned__table">
-        <thead>
-          <tr>
-            <th>Source</th>
-            <th>Medium</th>
-            <th>Campaign</th>
-            <th className="od-unassigned__num">Sessions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sources.map((s) => (
-            <tr key={`${s.source}-${s.medium}-${s.campaign}`}>
-              <td>{s.source}</td>
-              <td>{s.medium}</td>
-              <td>{s.campaign}</td>
-              <td className="od-unassigned__num">{s.sessions.toLocaleString()}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {total > listed ? (
-        <p className="od-unassigned__note">
-          Top {sources.length} shown; {(total - listed).toLocaleString()} further Unassigned sessions
-          sit across smaller sources.
-        </p>
-      ) : null}
-    </details>
   )
 }
 
@@ -1990,7 +1893,7 @@ function XeroInvoicesCard({
         {/* Invoice table */}
         {displayedInvoices.length > 0 ? (
           <div style={{ overflowX: 'auto' }}>
-            <table className="od-table">
+            <table className="od-table od-table--single-line">
               <thead>
                 <tr>
                   <th>Client</th>
@@ -2014,7 +1917,7 @@ function XeroInvoicesCard({
                     <tr key={`${inv.status}-${inv.invoiceId || inv.invoiceNumber}`}>
                       <td className="t-strong">{inv.contact.name}</td>
                       <td className="t-muted">{invoiceLabel}</td>
-                      <td>{inv.description || inv.reference || (isDraft ? 'Draft invoice' : 'Outstanding invoice')}</td>
+                      <td className="od-table__clip" title={inv.description || inv.reference || undefined}>{inv.description || inv.reference || (isDraft ? 'Draft invoice' : 'Outstanding invoice')}</td>
                       <td>
                         <span className={`od-pill ${overdue ? 'od-pill--red' : isDraft ? 'od-pill--amber' : 'od-pill--green'}`}>
                           {overdue ? 'Overdue' : isDraft ? 'Draft' : 'Due'}

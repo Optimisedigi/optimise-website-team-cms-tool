@@ -30,6 +30,23 @@ describe('ClientUnreadMailCard', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/mail/client-unread', expect.objectContaining({ credentials: 'include' }))
   })
 
+  it('puts sender, subject and date on one compact row, sender first', async () => {
+    stubResponse(200, {
+      clientSenderCount: 1,
+      more: false,
+      emails: [{ threadId: 't1', from: 'Melissa Dingli <m@client.com>', subject: 'EPG Google Ads', date: '2026-09-22T01:00:00.000Z', messageCount: 2 }],
+    })
+
+    render(<ClientUnreadMailCard />)
+
+    const row = (await screen.findByRole('link', { name: /Melissa Dingli/ }))
+    expect(row).toHaveClass('od-mail-row')
+    const parts = Array.from(row.children).map((el) => el.className)
+    expect(parts).toEqual(['od-mail-row__sender', 'od-mail-row__subject', 'od-mail-row__date'])
+    expect(row.children[0]).toHaveTextContent('Melissa Dingli')
+    expect(row.children[1]).toHaveTextContent('EPG Google Ads (2)')
+  })
+
   it('shows an empty state when no client sender has unread mail', async () => {
     stubResponse(200, { clientSenderCount: 2, more: false, emails: [] })
     render(<ClientUnreadMailCard />)
