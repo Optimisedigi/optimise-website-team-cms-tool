@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SalesVsCostsPanel } from '@/components/SalesVsCostsPanel'
 
@@ -49,5 +49,40 @@ describe('SalesVsCostsPanel', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('needs reconnecting once')
     expect(screen.getByRole('columnheader', { name: 'Agreed sales' })).toBeInTheDocument()
     expect(screen.getByText('no statement imported')).toBeInTheDocument()
+  })
+
+  it('switches a Xero category off and on, updating the table and totals', async () => {
+    const withAccounts = (m: string, sales: number, received: number, wages: number, software: number) => ({
+      ...month(m, sales, received, wages + software),
+      costsByAccount: [{ account: 'Wages and Salaries', amount: wages }, { account: 'Software', amount: software }],
+    })
+    stubPnl({
+      source: 'xero',
+      months: [withAccounts('2026-09', 9000, 7000, 2000, 500), withAccounts('2026-10', 10000, 11000, 2500, 600)],
+      totals: { sales: 19000, received: 18000, costs: 5600, profitSales: 13400, profitReceived: 12400 },
+      costsByAccount: [{ account: 'Wages and Salaries', amount: 4500 }, { account: 'Software', amount: 1100 }],
+    })
+
+    render(<SalesVsCostsPanel />)
+
+    const table = await screen.findByRole('table', { name: 'Sales vs costs by month' })
+    const totalRow = () => within(table).getByRole('rowheader', { name: 'Total' }).closest('tr')
+    expect(totalRow()).toHaveTextContent('$5,600')
+
+    const wages = screen.getByRole('button', { name: /^Wages and Salaries/ })
+    expect(wages).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(wages)
+
+    expect(wages).toHaveAttribute('aria-pressed', 'false')
+    expect(totalRow()).toHaveTextContent('$1,100') // costs without wages
+    expect(totalRow()).toHaveTextContent('$17,900') // profit (invoiced) without wages
+    const oct = within(table).getByRole('rowheader', { name: /Oct 2026/ }).closest('tr')
+    expect(oct).toHaveTextContent('$600')
+    expect(screen.getByRole('status')).toHaveTextContent('excluding Wages and Salaries')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show all costs' }))
+    expect(totalRow()).toHaveTextContent('$5,600')
+    expect(wages).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })

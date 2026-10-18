@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agreedSalesForMonth, buildMonthlyPnl, buildMonthlyPnlFromXero, lastMonthKeys } from '@/lib/finance/monthly-pnl'
+import { agreedSalesForMonth, buildMonthlyPnl, buildMonthlyPnlFromXero, excludeCostAccounts, lastMonthKeys } from '@/lib/finance/monthly-pnl'
 
 const NOW = new Date(2026, 9, 17) // 17 Oct 2026, local time
 const month = (y: number, m: number) => new Date(y, m - 1, 1)
@@ -102,5 +102,35 @@ describe('buildMonthlyPnlFromXero', () => {
       { account: 'Contractors', amount: 4500 },
       { account: 'Software', amount: 1100 },
     ])
+  })
+})
+
+describe('excludeCostAccounts', () => {
+  const xero = buildMonthlyPnlFromXero({
+    monthKeys: ['2026-09', '2026-10'],
+    xeroMonths: [
+      { month: '2026-09', invoiced: 9000, received: 7000, costs: 2500, costsByAccount: [{ account: 'Wages and Salaries', amount: 2000 }, { account: 'Software', amount: 500 }] },
+      { month: '2026-10', invoiced: 10000, received: 11000, costs: 3100, costsByAccount: [{ account: 'Software', amount: 600 }, { account: 'Wages and Salaries', amount: 2500 }] },
+    ],
+  })
+
+  it('removes the switched-off category from every month and recomputes profit and totals', () => {
+    const result = excludeCostAccounts(xero.months, new Set(['Wages and Salaries']))
+
+    expect(result.months.map((m) => [m.month, m.costs, m.profitSales, m.profitReceived])).toEqual([
+      ['2026-09', 500, 8500, 6500],
+      ['2026-10', 600, 9400, 10400],
+    ])
+    expect(result.totals).toEqual({ sales: 19000, received: 18000, costs: 1100, profitSales: 17900, profitReceived: 16900 })
+  })
+
+  it('returns the original figures when nothing is switched off', () => {
+    const result = excludeCostAccounts(xero.months, new Set())
+    expect(result.totals).toEqual(xero.totals)
+  })
+
+  it('leaves bank-fallback months (no per-category split) unchanged', () => {
+    const bank = buildMonthlyPnl({ monthKeys: ['2026-10'], clients: [], costsByMonth: new Map([['2026-10', 100]]), receivedByMonth: new Map(), now: NOW })
+    expect(excludeCostAccounts(bank.months, new Set(['Software'])).months).toEqual(bank.months)
   })
 })

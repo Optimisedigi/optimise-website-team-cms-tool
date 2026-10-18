@@ -46,6 +46,8 @@ export interface PnlMonth {
   profitReceived: number;
   /** True when no bank rows exist for the month (statement probably not imported). */
   noBankData: boolean;
+  /** Xero only: this month's costs split by the Xero account they were coded to. */
+  costsByAccount?: Array<{ account: string; amount: number }>;
 }
 
 export interface PnlTotals {
@@ -183,6 +185,7 @@ export function buildMonthlyPnlFromXero(input: {
       profitSales: round(sales - costs),
       profitReceived: round(received - costs),
       noBankData: false,
+      costsByAccount: x?.costsByAccount ?? [],
     };
   });
   const costsByAccount = [...accountTotals.entries()]
@@ -218,4 +221,27 @@ export function buildMonthlyPnl(input: {
   });
 
   return { months, totals: totalsOf(months) };
+}
+
+/**
+ * "What if" view: drop the given Xero cost accounts from every month and
+ * recompute costs, both profits and the totals. Months without a per-account
+ * split (bank fallback) are returned unchanged.
+ */
+export function excludeCostAccounts(
+  months: PnlMonth[],
+  excluded: ReadonlySet<string>,
+): { months: PnlMonth[]; totals: PnlTotals } {
+  const adjusted = months.map((m): PnlMonth => {
+    if (excluded.size === 0 || !m.costsByAccount) return m;
+    const removed = m.costsByAccount.reduce((s, c) => (excluded.has(c.account) ? s + c.amount : s), 0);
+    const costs = round(m.costs - removed);
+    return {
+      ...m,
+      costs,
+      profitSales: round(m.sales - costs),
+      profitReceived: round(m.received - costs),
+    };
+  });
+  return { months: adjusted, totals: totalsOf(adjusted) };
 }

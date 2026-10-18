@@ -15,7 +15,9 @@ import { userHasFeature } from '../lib/access'
  * which section it is in from the URL, so the same component goes everywhere.
  */
 
-type Tab = { label: string; href: string; feature?: string; adminOnly?: boolean }
+// `aliases`: other URLs that render the same screen (e.g. the collection URL of
+// a custom hub page) and should show this section's tabs with this tab active.
+type Tab = { label: string; href: string; aliases?: string[]; feature?: string; adminOnly?: boolean }
 
 export const SECTIONS: Record<string, Tab[]> = {
   processes: [
@@ -28,9 +30,10 @@ export const SECTIONS: Record<string, Tab[]> = {
     { label: 'Billing settings', href: '/admin/globals/hosting-billing-settings', feature: 'hosting-billing-settings' },
   ],
   costs: [
-    { label: 'Overview', href: '/admin/collections/business-costs', feature: 'business-costs' },
+    { label: 'Overview', href: '/admin/finance/costs', aliases: ['/admin/collections/business-costs'], feature: 'business-costs' },
     { label: 'Categories', href: '/admin/collections/cost-categories', feature: 'cost-categories' },
     { label: 'Rules', href: '/admin/collections/cost-rules', feature: 'cost-rules' },
+    { label: 'Bank Receipts', href: '/admin/collections/bank-receipts', feature: 'business-costs' },
   ],
   blog: [
     { label: 'Blog Posts', href: '/admin/collections/blog-posts', feature: 'blog-posts' },
@@ -45,7 +48,7 @@ export const SECTIONS: Record<string, Tab[]> = {
 /** The section and active tab for a path, matching list and global screens only. */
 export function findSection(pathname: string): { tabs: Tab[]; active: string } | null {
   for (const tabs of Object.values(SECTIONS)) {
-    const hit = tabs.find((tab) => pathname === tab.href)
+    const hit = tabs.find((tab) => pathname === tab.href || tab.aliases?.includes(pathname))
     if (hit) return { tabs, active: hit.href }
   }
   return null

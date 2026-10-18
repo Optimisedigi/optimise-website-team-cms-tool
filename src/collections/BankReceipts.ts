@@ -13,6 +13,7 @@ export const BankReceipts: CollectionConfig = {
   // No payload_locked_documents_rels column needed (see bank-receipts schema).
   lockDocuments: false,
   admin: {
+    components: { beforeList: ["./components/SectionTabs"] },
     group: "Finance",
     useAsTitle: "description",
     defaultColumns: ["date", "description", "amount", "source"],

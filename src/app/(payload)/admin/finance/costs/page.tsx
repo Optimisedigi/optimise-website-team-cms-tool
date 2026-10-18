@@ -3,6 +3,7 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload, createLocalReq } from 'payload'
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import BusinessCostsPage from '../../../../../components/BusinessCostsPage'
+import SectionTabs from '../../../../../components/SectionTabs'
 import { getVisibleEntities, getCustomViewActions } from '../../../../../lib/visible-entities'
 import AdminStepNavSetter from "@/components/AdminStepNavSetter";
 
@@ -28,6 +29,7 @@ export default async function Page() {
     >
       <AdminStepNavSetter items={[{ label: "Costs" }]} />
       <div className="gutter--left gutter--right" style={{ maxWidth: 1440 }}>
+        <SectionTabs />
         <BusinessCostsPage />
       </div>
     </DefaultTemplate>

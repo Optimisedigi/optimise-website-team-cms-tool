@@ -49,6 +49,8 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
   invoiceStatements:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="14 3 14 8 19 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>',
+  costs:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
   clientPulse:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 12h4l3 8 4-16 3 8h4"/><circle cx="12" cy="12" r="10" opacity="0.25"/></svg>',
 }
@@ -85,6 +87,7 @@ const SidebarNavExtras = () => {
   const canContractorsCollection = useStickyFeature(user, 'contractors')
   const canContractorCosts = canContractorCostsNav || canContractorsCollection
   const canClientPulse = useStickyFeature(user, 'nav:client-pulse')
+  const canCosts = useStickyFeature(user, 'business-costs')
 
   // Watch for active nav link and apply highlight + keep icon visible
   useEffect(() => {
@@ -202,11 +205,11 @@ const SidebarNavExtras = () => {
       }
 
       // Finance sidebar order:
-      //   Invoices → Invoice Statements → Contractors → [auto] Contractor Time Entries
+      //   Invoices → Invoice Statements → Costs → Contractors → [auto] Contractor Time Entries
       //
       // Each prepend goes to index 0, so we inject bottom-up: Contractors first
-      // (sits above the auto contractor-time-entries link), then Invoice
-      // Statements, then Invoices (which lands at the very top).
+      // (sits above the auto contractor-time-entries link), then Costs, then
+      // Invoice Statements, then Invoices (which lands at the very top).
       if (canContractorCosts) {
         injectLink(
           '#nav-group-Finance .nav-group__content',
@@ -214,6 +217,19 @@ const SidebarNavExtras = () => {
           '/admin/contractor-costs',
           ICONS.contractorCosts,
           'Contractors',
+          'prepend',
+        )
+      }
+
+      // Costs hub (Sales vs Costs, CSV import, categories). Replaces the auto
+      // "Costs Overview" collection link, which renders the same page.
+      if (canCosts) {
+        injectLink(
+          '#nav-group-Finance .nav-group__content',
+          'costs',
+          '/admin/finance/costs',
+          ICONS.costs,
+          'Costs',
           'prepend',
         )
       }
@@ -276,6 +292,7 @@ const SidebarNavExtras = () => {
       '/admin/collections/contractors',
       '/admin/collections/contractor-payments',
       '/admin/collections/invoice-statement-drafts',
+      '/admin/collections/business-costs',
     ]
     const hideAutoCollectionLinks = () => {
       for (const href of HIDDEN_COLLECTION_HREFS) {
@@ -299,7 +316,7 @@ const SidebarNavExtras = () => {
       clearInterval(injectInterval)
       clearInterval(hideInterval)
     }
-  }, [canIntegrations, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts, canClientPulse])
+  }, [canIntegrations, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts, canClientPulse, canCosts])
 
   // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released
   useEffect(() => {

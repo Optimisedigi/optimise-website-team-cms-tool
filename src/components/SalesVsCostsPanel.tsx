@@ -1,25 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { COSTS_IMPORTED_EVENT } from '@/lib/finance/events'
-
-interface PnlMonth {
-  month: string
-  sales: number
-  received: number
-  costs: number
-  profitSales: number
-  profitReceived: number
-  noBankData: boolean
-}
-
-interface PnlTotals {
-  sales: number
-  received: number
-  costs: number
-  profitSales: number
-  profitReceived: number
-}
+import { excludeCostAccounts, type PnlMonth, type PnlTotals } from '@/lib/finance/monthly-pnl'
 
 type XeroUnavailableReason = 'not_configured' | 'not_deployed' | 'not_connected' | 'scope_missing' | 'error'
 
@@ -82,6 +65,9 @@ export function SalesVsCostsPanel() {
   const [data, setData] = useState<PnlResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // Xero cost categories switched off for a "what if" view. Kept across range
+  // changes (category names are stable); never persisted.
+  const [excluded, setExcluded] = useState<ReadonlySet<string>>(() => new Set())
 
   const load = useCallback((months: number, signal?: AbortSignal) => {
     setLoading(true)
@@ -115,8 +101,34 @@ export function SalesVsCostsPanel() {
   }, [range, load])
 
   const labels = LABELS[data?.source === 'xero' ? 'xero' : 'bank']
-  const maxValue = data
-    ? Math.max(1, ...data.months.flatMap((m) => [m.sales, m.received, m.costs]))
+
+  // Only exclude categories that exist in the current data.
+  const activeExcluded = useMemo(() => {
+    const present = new Set(data?.costsByAccount?.map((c) => c.account) ?? [])
+    return new Set([...excluded].filter((a) => present.has(a)))
+  }, [excluded, data])
+
+  const view = useMemo(() => {
+    if (!data) return null
+    if (data.source !== 'xero' || activeExcluded.size === 0) return { months: data.months, totals: data.totals }
+    return excludeCostAccounts(data.months, activeExcluded)
+  }, [data, activeExcluded])
+
+  const toggleAccount = (account: string) =>
+    setExcluded((prev) => {
+      const next = new Set(prev)
+      if (next.has(account)) next.delete(account)
+      else next.add(account)
+      return next
+    })
+
+  const excludedList = [...activeExcluded].sort((a, b) => a.localeCompare(b))
+  const excludedAmount = (data?.costsByAccount ?? [])
+    .filter((c) => activeExcluded.has(c.account))
+    .reduce((s, c) => s + c.amount, 0)
+
+  const maxValue = view
+    ? Math.max(1, ...view.months.flatMap((m) => [m.sales, m.received, m.costs]))
     : 1
 
   return (
@@ -152,20 +164,31 @@ export function SalesVsCostsPanel() {
         </div>
       )}
 
-      {!error && data && (
+      {!error && data && view && (
         <>
+          {excludedList.length > 0 && (
+            <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', fontSize: 12, padding: '8px 12px', borderRadius: 6, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', marginBottom: 14 }}>
+              <span>
+                What-if view: excluding {excludedList.join(', ')} ({money(excludedAmount)} over {range} months). Figures below don&rsquo;t match Xero.
+              </span>
+              <button type="button" onClick={() => setExcluded(new Set())} style={{ ...rangeBtn, fontSize: 11, padding: '3px 10px' }}>
+                Show all costs
+              </button>
+            </div>
+          )}
+
           {/* Totals */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
-            <Kpi label={labels.sales} value={money(data.totals.sales)} />
-            <Kpi label={labels.received} value={money(data.totals.received)} />
-            <Kpi label={labels.costs} value={money(data.totals.costs)} />
-            <Kpi label={labels.profitSales} value={money(data.totals.profitSales)} tone={data.totals.profitSales} />
-            <Kpi label={labels.profitReceived} value={money(data.totals.profitReceived)} tone={data.totals.profitReceived} />
+            <Kpi label={labels.sales} value={money(view.totals.sales)} />
+            <Kpi label={labels.received} value={money(view.totals.received)} />
+            <Kpi label={labels.costs} value={money(view.totals.costs)} />
+            <Kpi label={labels.profitSales} value={money(view.totals.profitSales)} tone={view.totals.profitSales} />
+            <Kpi label={labels.profitReceived} value={money(view.totals.profitReceived)} tone={view.totals.profitReceived} />
           </div>
 
           {/* Chart */}
           <div aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 140, marginBottom: 4 }}>
-            {data.months.map((m) => (
+            {view.months.map((m) => (
               <div key={m.month} style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 2, height: '100%' }}>
                 {([['agreed', m.sales], ['received', m.received], ['costs', m.costs]] as const).map(([k, v]) => (
                   <div
@@ -178,7 +201,7 @@ export function SalesVsCostsPanel() {
             ))}
           </div>
           <div aria-hidden="true" style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-            {data.months.map((m) => (
+            {view.months.map((m) => (
               <div key={m.month} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: 'var(--theme-elevation-400)' }}>{monthLabel(m.month, true)}</div>
             ))}
           </div>
@@ -205,7 +228,7 @@ export function SalesVsCostsPanel() {
                 </tr>
               </thead>
               <tbody>
-                {[...data.months].reverse().map((m) => (
+                {[...view.months].reverse().map((m) => (
                   <tr key={m.month} style={{ borderBottom: '1px solid var(--theme-elevation-100)' }}>
                     <th scope="row" style={{ ...td, fontWeight: 500, textAlign: 'left' }}>
                       {monthLabel(m.month)}
@@ -226,31 +249,80 @@ export function SalesVsCostsPanel() {
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--theme-elevation-150)', fontWeight: 700 }}>
                   <th scope="row" style={{ ...td, textAlign: 'left' }}>Total</th>
-                  <td style={tdNum}>{money(data.totals.sales)}</td>
-                  <td style={tdNum}>{money(data.totals.received)}</td>
-                  <td style={tdNum}>{money(data.totals.costs)}</td>
-                  <td style={{ ...tdNum, color: data.totals.profitSales < 0 ? '#dc2626' : undefined }}>{money(data.totals.profitSales)}</td>
-                  <td style={{ ...tdNum, color: data.totals.profitReceived < 0 ? '#dc2626' : undefined }}>{money(data.totals.profitReceived)}</td>
+                  <td style={tdNum}>{money(view.totals.sales)}</td>
+                  <td style={tdNum}>{money(view.totals.received)}</td>
+                  <td style={tdNum}>{money(view.totals.costs)}</td>
+                  <td style={{ ...tdNum, color: view.totals.profitSales < 0 ? '#dc2626' : undefined }}>{money(view.totals.profitSales)}</td>
+                  <td style={{ ...tdNum, color: view.totals.profitReceived < 0 ? '#dc2626' : undefined }}>{money(view.totals.profitReceived)}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
-          {data.source === 'xero' && data.costsByAccount && data.costsByAccount.length > 0 && (
-            <div style={{ marginTop: 18 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px' }}>Costs by Xero category ({range} months)</h3>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 4 }}>
-                {data.costsByAccount.map((c) => (
-                  <li key={c.account} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) 3fr auto', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                    <span>{c.account}</span>
-                    <span aria-hidden="true" style={{ height: 6, background: 'var(--theme-elevation-150)', borderRadius: 3, overflow: 'hidden' }}>
-                      <span style={{ display: 'block', height: '100%', width: `${data.totals.costs > 0 ? (c.amount / data.totals.costs) * 100 : 0}%`, background: COLORS.costs }} />
-                    </span>
-                    <span style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{money(c.amount)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {data.source === 'xero' && data.costsByAccount && data.costsByAccount.length > 0 && (() => {
+            const fullCosts = data.totals.costs
+            return (
+              <div style={{ marginTop: 18 }}>
+                <h3 id="xero-categories-title" style={{ fontSize: 14, fontWeight: 600, margin: '0 0 2px' }}>Costs by Xero category ({range} months)</h3>
+                <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)', marginBottom: 8 }}>
+                  Click a category to switch it off and see the table above without it. Click again to bring it back.
+                </div>
+                <ul aria-labelledby="xero-categories-title" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 4 }}>
+                  {data.costsByAccount.map((c) => {
+                    const off = activeExcluded.has(c.account)
+                    return (
+                      <li key={c.account}>
+                        <button
+                          type="button"
+                          aria-pressed={!off}
+                          aria-label={`${c.account}, ${money(c.amount)}. ${off ? 'Excluded' : 'Included'} in the table.`}
+                          title={off ? 'Excluded: click to include again' : 'Included: click to exclude'}
+                          onClick={() => toggleAccount(c.account)}
+                          style={{
+                            width: '100%',
+                            display: 'grid',
+                            gridTemplateColumns: '18px minmax(120px, 1fr) 3fr auto',
+                            alignItems: 'center',
+                            gap: 10,
+                            fontSize: 13,
+                            padding: '5px 8px',
+                            borderRadius: 6,
+                            border: '1px solid transparent',
+                            background: off ? 'transparent' : 'var(--theme-elevation-0)',
+                            color: 'inherit',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            opacity: off ? 0.55 : 1,
+                          }}
+                        >
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              width: 14,
+                              height: 14,
+                              borderRadius: 3,
+                              border: `1.5px solid ${off ? 'var(--theme-elevation-400)' : COLORS.costs}`,
+                              background: off ? 'transparent' : COLORS.costs,
+                              color: '#fff',
+                              fontSize: 10,
+                              lineHeight: '11px',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {off ? '' : '\u2713'}
+                          </span>
+                          <span style={{ textDecoration: off ? 'line-through' : undefined }}>{c.account}</span>
+                          <span aria-hidden="true" style={{ height: 6, background: 'var(--theme-elevation-150)', borderRadius: 3, overflow: 'hidden' }}>
+                            <span style={{ display: 'block', height: '100%', width: `${fullCosts > 0 ? (c.amount / fullCosts) * 100 : 0}%`, background: off ? 'var(--theme-elevation-300)' : COLORS.costs }} />
+                          </span>
+                          <span style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right', textDecoration: off ? 'line-through' : undefined }}>{money(c.amount)}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )
+          })()}
           <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 8, lineHeight: 1.5 }}>
             {data.source === 'xero'
               ? `Transfers, GST payments, loans and drawings aren\u2019t counted, matching Xero\u2019s Profit & Loss. Credit notes and manual journals aren\u2019t included yet.${data.fetchedAt ? ` Updated ${new Date(data.fetchedAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}.` : ''}`

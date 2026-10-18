@@ -14,6 +14,12 @@ describe('SectionTabs.findSection', () => {
     expect(findSection('/admin/collections/permission-profiles')?.tabs).toBe(SECTIONS.users)
   })
 
+  it('shows the costs tabs on the Costs hub and its collection URL, with Overview active', () => {
+    expect(findSection('/admin/finance/costs')).toEqual({ tabs: SECTIONS.costs, active: '/admin/finance/costs' })
+    expect(findSection('/admin/collections/business-costs')).toEqual({ tabs: SECTIONS.costs, active: '/admin/finance/costs' })
+    expect(findSection('/admin/collections/bank-receipts')?.active).toBe('/admin/collections/bank-receipts')
+  })
+
   it('only shows on list and global screens, not inside a record', () => {
     expect(findSection('/admin/collections/users/12')).toBeNull()
     expect(findSection('/admin/collections/clients')).toBeNull()
