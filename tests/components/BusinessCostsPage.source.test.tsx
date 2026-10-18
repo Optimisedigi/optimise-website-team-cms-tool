@@ -1,12 +1,25 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The Sales vs Costs panel has its own tests; keep this file about the costs list.
-vi.mock('@/components/SalesVsCostsPanel', () => ({ SalesVsCostsPanel: () => null }))
+// The Sales vs Costs panel has its own tests; here we only check which period it's given.
+const panelProps = vi.hoisted(() => ({ last: null as null | Record<string, unknown> }))
+vi.mock('@/components/SalesVsCostsPanel', () => ({
+  SalesVsCostsPanel: (props: Record<string, unknown>) => {
+    panelProps.last = props
+    return null
+  },
+}))
 
 import BusinessCostsPage from '@/components/BusinessCostsPage'
 
+beforeEach(() => {
+  // Pin "today" so the default period is stable: 18 Oct 2026 → FY 2026–27.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 9, 18, 12))
+})
+
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
@@ -67,5 +80,32 @@ describe('BusinessCostsPage data source', () => {
     expect(screen.getByText('Import CSV')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Imported CSV' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  it('defaults to the current financial year and switches between financial and calendar years', async () => {
+    const fetchMock = stubCosts()
+
+    render(<BusinessCostsPage />)
+    await screen.findByText('Software')
+
+    expect(screen.getByRole('button', { name: 'Financial year' })).toHaveAttribute('aria-pressed', 'true')
+    expect(panelProps.last).toEqual({ from: '2026-07', to: '2026-10', label: 'FY 2026\u201327', toDate: true })
+    const yearSelect = screen.getByRole('combobox', { name: 'Financial year' })
+    expect(yearSelect).toHaveDisplayValue('FY 2026\u201327 (Jul 2026 \u2013 Jun 2027)')
+    // Month menu lists only months in the financial year so far, newest first.
+    const monthOptions = Array.from((screen.getByRole('combobox', { name: 'Month' }) as HTMLSelectElement).options).map((o) => o.value)
+    expect(monthOptions).toEqual(['2026-10', '2026-09', '2026-08', '2026-07'])
+
+    // A past financial year: whole July–June, breakdown jumps to June.
+    fireEvent.change(yearSelect, { target: { value: '2024' } })
+    expect(panelProps.last).toEqual({ from: '2024-07', to: '2025-06', label: 'FY 2024\u201325', toDate: false })
+    await waitFor(() => expect(fetchMock.mock.calls.at(-1)?.[0]).toBe('/api/costs?month=2025-06'))
+
+    // Switch to calendar year: keeps the selected month (June 2025) → 2025.
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar year' }))
+    expect(screen.getByRole('button', { name: 'Calendar year' })).toHaveAttribute('aria-pressed', 'true')
+    expect(panelProps.last).toEqual({ from: '2025-01', to: '2025-12', label: '2025', toDate: false })
+    expect(screen.getByRole('combobox', { name: 'Calendar year' })).toHaveDisplayValue('2025')
+    expect(screen.getByRole('combobox', { name: 'Month' })).toHaveDisplayValue('June 2025')
   })
 })

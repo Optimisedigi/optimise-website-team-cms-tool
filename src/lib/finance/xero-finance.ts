@@ -5,6 +5,13 @@
  */
 
 import { z } from "zod";
+import { isMonthKey, monthKeysBetween } from "@/lib/finance/periods";
+
+/** Inclusive YYYY-MM window, e.g. a financial year. */
+export interface MonthRange {
+  from: string;
+  to: string;
+}
 
 const xeroMonthSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/),
@@ -35,7 +42,7 @@ export type XeroFinanceResult =
   | { ok: false; reason: XeroUnavailableReason };
 
 export async function fetchXeroMonthlyFinance(
-  months: number,
+  range: MonthRange,
   options: {
     signal?: AbortSignal;
     /** Always applied, also when `signal` is given (default 25s). */
@@ -48,10 +55,14 @@ export async function fetchXeroMonthlyFinance(
   const baseUrl = env.GROWTH_TOOLS_URL;
   const key = env.INTERNAL_API_KEY;
   if (!baseUrl || !key) return { ok: false, reason: "not_configured" };
+  if (!isMonthKey(range.from) || !isMonthKey(range.to) || range.from > range.to) {
+    throw new Error(`fetchXeroMonthlyFinance: invalid range ${range.from}..${range.to}`);
+  }
 
   const doFetch = options.fetchImpl ?? fetch;
+  const qs = new URLSearchParams({ from: range.from, to: range.to });
   try {
-    const res = await doFetch(`${baseUrl}/api/xero/finance/monthly?months=${months}`, {
+    const res = await doFetch(`${baseUrl}/api/xero/finance/monthly?${qs.toString()}`, {
       headers: { "x-internal-key": key },
       cache: "no-store",
       signal: options.signal
@@ -76,7 +87,16 @@ export async function fetchXeroMonthlyFinance(
       console.warn("[xero-finance] Unexpected response shape", parsed.error.issues.slice(0, 3));
       return { ok: false, reason: "error" };
     }
-    return { ok: true, data: parsed.data };
+    // An older Growth Tools ignores from/to and returns a rolling window:
+    // never present those months as the requested period.
+    const returned = new Set(parsed.data.months.map((m) => m.month));
+    const missing = monthKeysBetween(range.from, range.to).filter((m) => !returned.has(m));
+    if (missing.length > 0) {
+      console.warn("[xero-finance] Response does not cover the requested range", { range, missing: missing.slice(0, 3) });
+      return { ok: false, reason: "not_deployed" };
+    }
+    const wanted = new Set(monthKeysBetween(range.from, range.to));
+    return { ok: true, data: { ...parsed.data, months: parsed.data.months.filter((m) => wanted.has(m.month)) } };
   } catch (error) {
     console.warn("[xero-finance] Request failed", error instanceof Error ? error.message : error);
     return { ok: false, reason: "error" };

@@ -4,6 +4,14 @@ import { useEffect, useState, useRef } from 'react'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { COSTS_IMPORTED_EVENT } from '@/lib/finance/events'
 import { SalesVsCostsPanel } from '@/components/SalesVsCostsPanel'
+import {
+  monthKeyOf,
+  periodContaining,
+  periodLabel,
+  periodOptions,
+  periodRange,
+  type PeriodMode,
+} from '@/lib/finance/periods'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -68,16 +76,9 @@ type ViewSource = 'auto' | 'bank'
 
 // ─── Helpers ──────────────────────────────────────────────
 
-function buildMonthOptions(): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = []
-  const now = new Date()
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const lbl = d.toLocaleString('en-AU', { month: 'long', year: 'numeric' })
-    options.push({ value: val, label: lbl })
-  }
-  return options
+function monthLabel(key: string): string {
+  const [y = 0, m = 1] = key.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleString('en-AU', { month: 'long', year: 'numeric' })
 }
 
 const COLOR_PRESETS = [
@@ -192,7 +193,13 @@ function CategorySelect({
 const BusinessCostsPage = () => {
   const [data, setData] = useState<CostData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedMonth, setSelectedMonth] = useState('')
+  // "Now" is fixed for the life of the page so the period list doesn't shift.
+  const [currentMonth] = useState(() => monthKeyOf(new Date()))
+  // Reporting period for the whole page: Australian financial year (Jul–Jun) or calendar year.
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('fy')
+  const [periodStartYear, setPeriodStartYear] = useState(() => periodContaining('fy', currentMonth).startYear)
+  // Month shown in the category breakdown; always inside the selected period.
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
   const [uploading, setUploading] = useState(false)
   const [uploadResult, setUploadResult] = useState<any>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -203,7 +210,8 @@ const BusinessCostsPage = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set())
   const [deleting, setDeleting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const monthOptions = buildMonthOptions()
+  const period = { mode: periodMode, startYear: periodStartYear }
+  const range = periodRange(period, currentMonth)
   // 'auto' shows Xero when available; 'bank' shows imported statements.
   const [viewSource, setViewSource] = useState<ViewSource>('auto')
   // Once Xero has answered, keep offering the Xero / Imported CSV switch.
@@ -220,14 +228,13 @@ const BusinessCostsPage = () => {
         if (d && !d.error) {
           setData(d)
           if (d.source === 'xero') setXeroSeen(true)
-          if (!selectedMonth && d.currentMonth) setSelectedMonth(d.currentMonth)
         }
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData(selectedMonth) }, [])
 
   // Refresh when a CSV is dropped anywhere in the admin (CostCsvDropImport).
   useEffect(() => {
@@ -240,6 +247,20 @@ const BusinessCostsPage = () => {
     setSelectedMonth(val)
     setLoading(true)
     fetchData(val)
+  }
+
+  const handlePeriodModeChange = (mode: PeriodMode) => {
+    if (mode === periodMode) return
+    // Keep the selected month: switch to the period of the new kind containing it.
+    setPeriodMode(mode)
+    setPeriodStartYear(periodContaining(mode, selectedMonth).startYear)
+  }
+
+  const handlePeriodYearChange = (startYear: number) => {
+    setPeriodStartYear(startYear)
+    // Show the latest month of the newly chosen period.
+    const latest = periodRange({ mode: periodMode, startYear }, currentMonth).to
+    if (latest !== selectedMonth) handleMonthChange(latest)
   }
 
   const handleSourceChange = (source: ViewSource) => {
@@ -389,10 +410,47 @@ const BusinessCostsPage = () => {
 
   return (
     <div style={{ padding: '20px 0' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      {/* Header: reporting period for the whole page */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Business Costs</h1>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div role="group" aria-label="Year type" style={{ display: 'flex', gap: 4 }}>
+            {([['fy', 'Financial year'], ['cy', 'Calendar year']] as const).map(([value, label]) => {
+              const active = periodMode === value
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => handlePeriodModeChange(value)}
+                  style={{ ...btnStyle, fontSize: 12, padding: '6px 12px', ...(active ? activeBtn : {}) }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <select
+            aria-label={periodMode === 'fy' ? 'Financial year' : 'Calendar year'}
+            value={periodStartYear}
+            onChange={(e) => handlePeriodYearChange(Number(e.target.value))}
+            style={selectStyle}
+          >
+            {periodOptions(periodMode, currentMonth).map((p) => (
+              <option key={p.startYear} value={p.startYear}>
+                {periodLabel(p)}{p.mode === 'fy' ? ` (Jul ${p.startYear} \u2013 Jun ${p.startYear + 1})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <SalesVsCostsPanel from={range.from} to={range.to} label={range.label} toDate={range.toDate} />
+
+      {/* Monthly breakdown: one month of the selected period */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Monthly breakdown</h2>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {xeroSeen && (
             <div role="group" aria-label="Cost data source" style={{ display: 'flex', gap: 4 }}>
               {([['auto', 'Xero'], ['bank', 'Imported CSV']] as const).map(([value, label]) => {
@@ -403,7 +461,7 @@ const BusinessCostsPage = () => {
                     type="button"
                     aria-pressed={active}
                     onClick={() => handleSourceChange(value)}
-                    style={{ ...btnStyle, fontSize: 12, padding: '6px 12px', ...(active ? { background: '#213843', color: '#fff', border: '1px solid #213843' } : {}) }}
+                    style={{ ...btnStyle, fontSize: 12, padding: '6px 12px', ...(active ? activeBtn : {}) }}
                   >
                     {label}
                   </button>
@@ -417,14 +475,12 @@ const BusinessCostsPage = () => {
             onChange={(e) => handleMonthChange(e.target.value)}
             style={selectStyle}
           >
-            {monthOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+            {[...range.months].reverse().map((m) => (
+              <option key={m} value={m}>{monthLabel(m)}</option>
             ))}
           </select>
         </div>
       </div>
-
-      <SalesVsCostsPanel />
 
       {isXero ? (
         <div role="note" style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-600)', marginBottom: 16, lineHeight: 1.5 }}>
@@ -490,7 +546,7 @@ const BusinessCostsPage = () => {
         </div>
       ) : (
         <div style={{ padding: '16px 0', marginBottom: 24, textAlign: 'center', color: 'var(--theme-elevation-400)', fontSize: 13 }}>
-          No costs recorded for {monthOptions.find((o) => o.value === selectedMonth)?.label || 'this month'}. Try selecting a different month above.
+          No costs recorded for {monthLabel(selectedMonth)}. Try another month in the Monthly breakdown menu above.
         </div>
       )}
 
@@ -881,6 +937,8 @@ function StackedBarChart({ history }: { history: HistoryEntry[] }) {
 }
 
 // ─── Styles ───────────────────────────────────────────────
+
+const activeBtn: React.CSSProperties = { background: '#213843', color: '#fff', border: '1px solid #213843' }
 
 const btnStyle: React.CSSProperties = {
   background: 'var(--theme-elevation-100)',

@@ -53,6 +53,8 @@ describe('GET /api/costs', () => {
     expect(body.totalThisMonth).toBe(650)
     expect(body.totalLastMonth).toBe(500)
     expect(body.costsByCategory[0].category.name).toBe('Software')
+    // Selected month plus the five before it.
+    expect(mockFetchXero.mock.calls[0]?.[0]).toEqual({ from: '2026-05', to: '2026-10' })
     const collections = mockPayload.find.mock.calls.map(([args]) => args.collection)
     expect(collections).toEqual(['cost-categories'])
   })

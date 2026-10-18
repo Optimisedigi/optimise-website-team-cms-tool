@@ -42,8 +42,6 @@ const LABELS = {
   },
 } as const
 
-const RANGES = [6, 12, 24] as const
-
 const COLORS = { agreed: '#213843', received: '#74B3A8', costs: '#EF4444' }
 
 function money(n: number): string {
@@ -60,18 +58,29 @@ function isPnlResponse(body: unknown): body is PnlResponse {
   return typeof body === 'object' && body !== null && Array.isArray((body as PnlResponse).months) && typeof (body as PnlResponse).totals === 'object'
 }
 
-export function SalesVsCostsPanel() {
-  const [range, setRange] = useState<(typeof RANGES)[number]>(12)
+export interface SalesVsCostsPanelProps {
+  /** First month shown (YYYY-MM). */
+  from: string
+  /** Last month shown (YYYY-MM), inclusive. */
+  to: string
+  /** Period name for headings, e.g. "FY 2026–27" or "2026". */
+  label: string
+  /** True while the period is still running (figures are year to date). */
+  toDate?: boolean
+}
+
+export function SalesVsCostsPanel({ from, to, label, toDate = false }: SalesVsCostsPanelProps) {
   const [data, setData] = useState<PnlResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  // Xero cost categories switched off for a "what if" view. Kept across range
+  // Xero cost categories switched off for a "what if" view. Kept across period
   // changes (category names are stable); never persisted.
   const [excluded, setExcluded] = useState<ReadonlySet<string>>(() => new Set())
 
-  const load = useCallback((months: number, signal?: AbortSignal) => {
+  const load = useCallback((range: { from: string; to: string }, signal?: AbortSignal) => {
     setLoading(true)
-    fetch(`/api/costs/pnl?months=${months}`, { signal })
+    const qs = new URLSearchParams({ from: range.from, to: range.to })
+    fetch(`/api/costs/pnl?${qs.toString()}`, { signal })
       .then(async (res) => {
         const body: unknown = await res.json().catch(() => null)
         if (!res.ok || !isPnlResponse(body)) {
@@ -90,15 +99,17 @@ export function SalesVsCostsPanel() {
 
   useEffect(() => {
     const controller = new AbortController()
-    load(range, controller.signal)
+    load({ from, to }, controller.signal)
     return () => controller.abort()
-  }, [range, load])
+  }, [from, to, load])
 
   useEffect(() => {
-    const onImported = () => load(range)
+    const onImported = () => load({ from, to })
     window.addEventListener(COSTS_IMPORTED_EVENT, onImported)
     return () => window.removeEventListener(COSTS_IMPORTED_EVENT, onImported)
-  }, [range, load])
+  }, [from, to, load])
+
+  const periodText = toDate ? `${label}, year to date` : label
 
   const labels = LABELS[data?.source === 'xero' ? 'xero' : 'bank']
 
@@ -135,24 +146,14 @@ export function SalesVsCostsPanel() {
     <section aria-labelledby="sales-vs-costs-title" style={panelStyle}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
-          <h2 id="sales-vs-costs-title" style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Sales vs Costs</h2>
+          <h2 id="sales-vs-costs-title" style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Sales vs Costs: {periodText}</h2>
           <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', marginTop: 2 }}>
             {labels.subtitle}
           </div>
         </div>
-        <div role="group" aria-label="Range" style={{ display: 'flex', gap: 4 }}>
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              aria-pressed={range === r}
-              onClick={() => setRange(r)}
-              style={{ ...rangeBtn, ...(range === r ? { background: '#213843', color: '#fff', border: '1px solid #213843' } : {}) }}
-            >
-              {r} months
-            </button>
-          ))}
-        </div>
+        {loading && data && (
+          <span aria-live="polite" style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Updating…</span>
+        )}
       </div>
 
       {error && <div role="alert" style={{ fontSize: 13, color: '#991b1b' }}>{error}</div>}
@@ -169,7 +170,7 @@ export function SalesVsCostsPanel() {
           {excludedList.length > 0 && (
             <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', fontSize: 12, padding: '8px 12px', borderRadius: 6, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', marginBottom: 14 }}>
               <span>
-                What-if view: excluding {excludedList.join(', ')} ({money(excludedAmount)} over {range} months). Figures below don&rsquo;t match Xero.
+                What-if view: excluding {excludedList.join(', ')} ({money(excludedAmount)} in {periodText}). Figures below don&rsquo;t match Xero.
               </span>
               <button type="button" onClick={() => setExcluded(new Set())} style={{ ...rangeBtn, fontSize: 11, padding: '3px 10px' }}>
                 Show all costs
@@ -262,7 +263,7 @@ export function SalesVsCostsPanel() {
             const fullCosts = data.totals.costs
             return (
               <div style={{ marginTop: 18 }}>
-                <h3 id="xero-categories-title" style={{ fontSize: 14, fontWeight: 600, margin: '0 0 2px' }}>Costs by Xero category ({range} months)</h3>
+                <h3 id="xero-categories-title" style={{ fontSize: 14, fontWeight: 600, margin: '0 0 2px' }}>Costs by Xero category ({periodText})</h3>
                 <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)', marginBottom: 8 }}>
                   Click a category to switch it off and see the table above without it. Click again to bring it back.
                 </div>

@@ -3,10 +3,11 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import { userHasFeature } from "@/lib/access";
-import { buildMonthlyPnl, buildMonthlyPnlFromXero, lastMonthKeys, type PnlClient } from "@/lib/finance/monthly-pnl";
+import { buildMonthlyPnl, buildMonthlyPnlFromXero, type PnlClient } from "@/lib/finance/monthly-pnl";
 import { fetchXeroMonthlyFinance } from "@/lib/finance/xero-finance";
+import { isMonthKey, monthKeyOf, monthKeysBetween, periodContaining, periodRange } from "@/lib/finance/periods";
 
-const ALLOWED_MONTHS = [6, 12, 24] as const;
+const MAX_RANGE_MONTHS = 36;
 
 /**
  * Month-by-month Sales vs Costs with totals.
@@ -26,20 +27,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const requested = Number(new URL(request.url).searchParams.get("months"));
-    const monthCount = ALLOWED_MONTHS.find((m) => m === requested) ?? 12;
-
-    const xero = await fetchXeroMonthlyFinance(monthCount, { signal: request.signal });
-    if (xero.ok) {
-      const result = buildMonthlyPnlFromXero({
-        monthKeys: xero.data.months.map((m) => m.month),
-        xeroMonths: xero.data.months,
-      });
-      return NextResponse.json({ ...result, monthCount, source: "xero", fetchedAt: xero.data.fetchedAt });
+    // ?from=YYYY-MM&to=YYYY-MM (inclusive), e.g. a financial year. Defaults to
+    // the current financial year. Months after the current month are dropped.
+    const now = new Date();
+    const currentMonth = monthKeyOf(now);
+    const params = new URL(request.url).searchParams;
+    const rawFrom = params.get("from");
+    const rawTo = params.get("to");
+    let from: string;
+    let to: string;
+    if (rawFrom !== null || rawTo !== null) {
+      if (!isMonthKey(rawFrom) || !isMonthKey(rawTo) || rawFrom > rawTo) {
+        return NextResponse.json({ error: "from and to must be YYYY-MM with from <= to" }, { status: 400 });
+      }
+      from = rawFrom;
+      to = rawTo < currentMonth ? rawTo : currentMonth;
+      if (from > to) {
+        return NextResponse.json({ error: "from is in the future" }, { status: 400 });
+      }
+    } else {
+      ({ from, to } = periodRange(periodContaining("fy", currentMonth), currentMonth));
+    }
+    const monthKeys = monthKeysBetween(from, to);
+    if (monthKeys.length > MAX_RANGE_MONTHS) {
+      return NextResponse.json({ error: `range is limited to ${MAX_RANGE_MONTHS} months` }, { status: 400 });
     }
 
-    const now = new Date();
-    const monthKeys = lastMonthKeys(now, monthCount);
+    const xero = await fetchXeroMonthlyFinance({ from, to }, { signal: request.signal });
+    if (xero.ok) {
+      const result = buildMonthlyPnlFromXero({ monthKeys, xeroMonths: xero.data.months });
+      return NextResponse.json({ ...result, from, to, source: "xero", fetchedAt: xero.data.fetchedAt });
+    }
 
     const [clientsResult, costsResult, receiptsResult] = await Promise.all([
       payload.find({
@@ -101,7 +119,7 @@ export async function GET(request: NextRequest) {
       now,
     });
 
-    return NextResponse.json({ ...result, monthCount, source: "bank", xeroUnavailable: xero.reason });
+    return NextResponse.json({ ...result, from, to, source: "bank", xeroUnavailable: xero.reason });
   } catch (err) {
     console.error("[costs/pnl] error:", err);
     return NextResponse.json({ error: "Failed to load sales vs costs" }, { status: 500 });

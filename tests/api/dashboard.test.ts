@@ -407,7 +407,7 @@ describe('GET /api/dashboard', () => {
 
     const body = await (await GET()).json()
 
-    expect(mockFetchXero).toHaveBeenCalledWith(6, { timeoutMs: 8000 })
+    expect(mockFetchXero).toHaveBeenCalledWith({ from: '2026-05', to: '2026-10' }, { timeoutMs: 8000 })
     expect(body.businessCosts).toEqual({ totalThisMonth: 1500, totalLastMonth: 1400, uncategorisedCount: 0, source: 'xero' })
     expect(body.costHistory.map((m: { business: number }) => m.business)).toEqual([1000, 1100, 1200, 1300, 1400, 1500])
     const businessCostQueries = mockPayload.find.mock.calls.filter(([args]) => args?.collection === 'business-costs')

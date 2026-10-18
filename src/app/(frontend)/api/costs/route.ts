@@ -5,6 +5,7 @@ import { headers as nextHeaders } from "next/headers";
 import { userHasFeature } from "@/lib/access";
 import { fetchXeroMonthlyFinance, type XeroUnavailableReason } from "@/lib/finance/xero-finance";
 import { buildXeroCostsView } from "@/lib/finance/xero-costs";
+import { addMonths } from "@/lib/finance/periods";
 
 const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -35,7 +36,11 @@ export async function GET(request: NextRequest) {
 
     let xeroUnavailable: XeroUnavailableReason | undefined;
     if (!forceBank) {
-      const xero = await fetchXeroMonthlyFinance(24, { signal: request.signal, timeoutMs: 20_000 });
+      // Selected month plus the five before it (chart + month-on-month alerts).
+      const xero = await fetchXeroMonthlyFinance(
+        { from: addMonths(currentMonth, -5), to: currentMonth },
+        { signal: request.signal, timeoutMs: 20_000 },
+      );
       if (xero.ok) {
         const cmsCategories = await payload.find({
           collection: "cost-categories",

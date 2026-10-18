@@ -14,6 +14,7 @@ import {
 import { convertUsdToAud } from "@/lib/realtime/voice-costs";
 import { fetchXeroMonthlyFinance } from "@/lib/finance/xero-finance";
 import { xeroBusinessCostsSummary } from "@/lib/finance/xero-costs";
+import { addMonths, monthKeyOf } from "@/lib/finance/periods";
 
 // ── Default per-unit API costs in AUD (fallbacks if global not configured) ──
 const DEFAULT_COST_PER_AUD = {
@@ -145,7 +146,11 @@ export async function GET() {
   // ex-GST) when Growth Tools can reach it; otherwise from imported bank
   // statements / manual costs. Started here (after auth) so the Growth Tools
   // round trip overlaps the cost-rate read below. Never rejects.
-  const xeroCostsPromise = fetchXeroMonthlyFinance(6, { timeoutMs: 8_000 });
+  const xeroCostsMonth = monthKeyOf(new Date());
+  const xeroCostsPromise = fetchXeroMonthlyFinance(
+    { from: addMonths(xeroCostsMonth, -5), to: xeroCostsMonth },
+    { timeoutMs: 8_000 },
+  );
 
   // Read configurable API cost rates from global, fallback to defaults
   let COST_PER_AUD = { ...DEFAULT_COST_PER_AUD };
