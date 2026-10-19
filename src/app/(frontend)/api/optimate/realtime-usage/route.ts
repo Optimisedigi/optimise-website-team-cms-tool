@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 
 const MAX_REASONABLE_CALL_SECONDS = 6 * 60 * 60;
 
-type VoiceAgent = "google-ads" | "email" | "invoice";
+type VoiceAgent = "google-ads" | "email" | "invoice" | "adminmate";
 
 interface UsageSummaryRow {
   model: RealtimeVoiceModel;
@@ -30,7 +30,7 @@ interface UsageSummaryRow {
 }
 
 function resolveVoiceAgent(value: unknown): VoiceAgent {
-  return value === "email" || value === "invoice" ? value : "google-ads";
+  return value === "email" || value === "invoice" || value === "adminmate" ? value : "google-ads";
 }
 
 function monthStartIso(now = new Date()): string {

@@ -14,6 +14,10 @@ export const runtime = 'nodejs'
  * - short greeting + assistant readback audio
  *
  * All Google Ads reasoning runs through the normal typed backend routes.
+ *
+ * `mode=adminmate` (admins only) is the same speech layer for AdminMate: the
+ * browser sends each transcript to /api/optimate/adminmate/chat and Realtime
+ * reads the reply aloud.
  */
 export async function GET(request: Request) {
   try {
@@ -25,7 +29,15 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url)
-    const mode = url.searchParams.get('mode') === 'portfolio' ? 'portfolio' : 'audit'
+    const requestedMode = url.searchParams.get('mode')
+    if (requestedMode === 'adminmate') {
+      // Same gate as the AdminMate chat route.
+      if ((user as { role?: string }).role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      return NextResponse.json({ instructions: ADMINMATE_SPEECH_ONLY_INSTRUCTIONS, tools: [] })
+    }
+    const mode = requestedMode === 'portfolio' ? 'portfolio' : 'audit'
     const auditId = url.searchParams.get('auditId')
     const customerId = url.searchParams.get('customerId')
     const businessName = url.searchParams.get('businessName')
@@ -53,6 +65,16 @@ export async function GET(request: Request) {
     )
   }
 }
+
+const ADMINMATE_SPEECH_ONLY_INSTRUCTIONS =
+  '--- ADMINMATE SPEECH-ONLY MODE ---\n' +
+  'You are the live speech layer for AdminMate, the agency admin assistant. Greet the user once in one short sentence when the call opens, then wait silently for speech.\n' +
+  'Your job is transcription and audio readback only.\n' +
+  'Do not answer client, contract, proposal, meeting, invite, or payment questions yourself, and never say anything was created, sent, or saved.\n' +
+  'Do not call tools. No tools are available in this session.\n' +
+  'After the user speaks, wait for the app to provide the assistant reply text. When the app provides assistant text, read that text aloud exactly as written with no paraphrasing, no summarising, and no extra commentary.\n' +
+  'If no app-provided assistant text has arrived yet, stay silent.\n' +
+  'Never invent client details, amounts, dates, or email addresses.'
 
 function buildSpeechOnlyRealtimeInstructions(
   mode: 'audit' | 'portfolio',

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import OptiMateTranscribe from './OptiMateTranscribe'
+import OptiMateVoice from './OptiMateVoice'
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 import { CLIENT_SERVICE_OPTIONS, CLIENT_TYPE_OPTIONS } from '@/lib/client-field-options'
 import type { AdminMateClient, StagedClient } from '@/lib/agents/adminmate/tools'
@@ -130,6 +131,17 @@ export default function AdminMateChat({
   const voiceSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestDraft = useRef(draft)
   latestDraft.current = draft
+  // Desktop mic opens a GPT Realtime voice call; mobile keeps Apple/Web Speech
+  // dictation, matching GoogleMate.
+  const [isMobileViewport, setIsMobileViewport] = useState(false)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia('(max-width: 768px)')
+    const update = (): void => setIsMobileViewport(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
 
   useEffect(() => {
     sessionStorage.removeItem(STORAGE_KEY)
@@ -193,14 +205,16 @@ export default function AdminMateChat({
     if (imageInputRef.current) imageInputRef.current.value = ''
   }
 
-  const send = async (text = draft) => {
+  /** Resolves to the reply text (or error) so a voice call can read it aloud. */
+  const send = async (text = draft): Promise<string> => {
     if (voiceSendTimer.current) {
       clearTimeout(voiceSendTimer.current)
       voiceSendTimer.current = null
     }
     const typed = text.trim()
     const freshImages = text === draft ? images : []
-    if ((!typed && freshImages.length === 0) || sending) return
+    if (sending) return 'I’m still working on your last request.'
+    if (!typed && freshImages.length === 0) return ''
     const reusingEarlier = freshImages.length === 0 && earlierImages.length > 0
     const outgoingImages = reusingEarlier ? earlierImages : freshImages
     const message = typed || 'Please review the attached image.'
@@ -237,9 +251,10 @@ export default function AdminMateChat({
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json.error || 'AdminMate could not reply')
+      const reply: string = json.reply || 'Review the result below.'
       setMessages((current) => [...current, {
         role: 'assistant',
-        content: json.reply || 'Review the result below.',
+        content: reply,
         gmailDraft: json.gmailDraft,
         links: safeLinks(json.links),
       }])
@@ -265,10 +280,13 @@ export default function AdminMateChat({
         setClientChoices(json.clientChoices)
         setKnownClients((current) => [...current.filter((known) => !json.clientChoices.some((c: AdminMateClient) => c.id === known.id)), ...json.clientChoices])
       }
+      return reply
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'AdminMate could not reply')
+      const message = cause instanceof Error ? cause.message : 'AdminMate could not reply'
+      setError(message)
       setDraft(typed)
       if (freshImages.length > 0) setImages(freshImages)
+      return message
     } finally { setSending(false) }
   }
 
@@ -313,8 +331,8 @@ export default function AdminMateChat({
     } finally { setCreating(false) }
   }
 
-  const createMeeting = async () => {
-    if (!stagedMeeting || creating) return
+  const createMeeting = async (): Promise<string> => {
+    if (!stagedMeeting || creating) return ''
     setCreating(true)
     setError('')
     setSuccess('')
@@ -332,8 +350,11 @@ export default function AdminMateChat({
       setStagedMeeting(undefined)
       // Straight on to the send step: review, edit, then confirm.
       void loadInvites(String(json.id))
+      return `${text} Review the invites, then say send it.`
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not create the meeting scheduler')
+      const message = cause instanceof Error ? cause.message : 'Could not create the meeting scheduler'
+      setError(message)
+      return message
     } finally { setCreating(false) }
   }
 
@@ -356,8 +377,8 @@ export default function AdminMateChat({
     }
   }
 
-  const sendInvites = async () => {
-    if (!inviteEdits || creating) return
+  const sendInvites = async (): Promise<string> => {
+    if (!inviteEdits || creating) return ''
     setCreating(true)
     setError('')
     setSuccess('')
@@ -380,8 +401,11 @@ export default function AdminMateChat({
       setSuccessLink({ text, href: json.adminUrl })
       setInvitePreview(undefined)
       setInviteEdits(undefined)
+      return text
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not send the invites')
+      const message = cause instanceof Error ? cause.message : 'Could not send the invites'
+      setError(message)
+      return message
     } finally { setCreating(false) }
   }
 
@@ -418,6 +442,14 @@ export default function AdminMateChat({
       voiceSendTimer.current = null
       void sendRef.current(latestDraft.current)
     }, VOICE_SEND_DELAY_MS)
+  }
+
+  // Realtime voice turn: same spoken confirmations as dictation, otherwise the
+  // transcript goes straight to AdminMate. Resolves to the text to read aloud.
+  const onSpeechTurn = async (text: string): Promise<string> => {
+    if (hasStagedInvites.current && isSendConfirmation(text)) return sendInvitesRef.current()
+    if (hasStagedMeeting.current && isVoiceConfirmation(text)) return createMeetingRef.current()
+    return sendRef.current(text)
   }
 
   const createContract = async () => {
@@ -836,7 +868,11 @@ export default function AdminMateChat({
                 </svg>
               </button>
               <span style={{ flex: 1 }} />
-              <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={onDictation} />
+              {isMobileViewport ? (
+                <OptiMateTranscribe disabled={sending} triggerSize={36} onTranscript={onDictation} />
+              ) : (
+                <OptiMateVoice mode="adminmate" triggerSize={36} onSpeechTurn={onSpeechTurn} />
+              )}
               <OptiMateMetalSend>
                 <button type="button" disabled={sending || (!draft.trim() && images.length === 0)} onClick={() => void send()} aria-label="Send" title="Send" data-optimate-send="">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">

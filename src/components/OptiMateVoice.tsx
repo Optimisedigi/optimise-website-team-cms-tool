@@ -75,7 +75,7 @@ interface TypedChatResponse {
 
 interface OptiMateVoiceProps {
   auditId?: string | number
-  mode?: 'audit' | 'portfolio' | 'email' | 'invoice'
+  mode?: 'audit' | 'portfolio' | 'email' | 'invoice' | 'adminmate'
   customerId?: string
   businessName?: string
   selectedAccountRefs?: Array<string | number>
@@ -108,6 +108,10 @@ interface OptiMateVoiceProps {
   buildTypedChatRequest?: (text: string) => TypedChatRequestPayload
   /** Shared typed-chat response applier from OptiMateChatCore. */
   onTypedChatResponse?: (data: TypedChatResponse) => void
+  /** AdminMate mode: run the spoken request through the host's own chat
+   *  (which adds the turns and review cards) and resolve to the reply text
+   *  Realtime should read aloud. */
+  onSpeechTurn?: (transcript: string) => Promise<string>
 }
 
 type VoiceState = 'idle' | 'checking' | 'connecting' | 'connected' | 'error'
@@ -225,9 +229,11 @@ function sanitizeVoiceTranscript(text: string): string {
 }
 
 const VOICE_INTENT_KEYWORDS = /\b(account|ad|ads|approve|audit|budget|campaign|contact|cpa|cpc|ctr|conversion|conversions|draft|email|google|invoice|invoices|keyword|keywords|negative|pacing|report|schedule|search|send|spend|term|terms|waste|wasting|xero)\b/i
+// AdminMate also accepts short spoken confirmations ("yes, create it").
+const ADMINMATE_INTENT_KEYWORDS = /\b(client|clients|confirm|contract|contracts|create|meeting|meetings|payment|payments|proposal|proposals|yes)\b/i
 const COMMON_BACKGROUND_FRAGMENTS = /^(aber nicht|abe shinzo)[.!?。\s]*$/i
 
-function isLikelyIntentionalVoiceInput(text: string): boolean {
+function isLikelyIntentionalVoiceInput(text: string, mode: OptiMateVoiceProps['mode']): boolean {
   const trimmed = text.trim()
   if (!trimmed) return false
   if (COMMON_BACKGROUND_FRAGMENTS.test(trimmed)) return false
@@ -236,7 +242,19 @@ function isLikelyIntentionalVoiceInput(text: string): boolean {
   const words = trimmed.match(/[A-Za-z0-9$£€%]+/g) ?? []
   if (words.length >= 3) return true
   if (/[?]/.test(trimmed) && words.length >= 1) return true
+  if (mode === 'adminmate' && ADMINMATE_INTENT_KEYWORDS.test(trimmed)) return true
   return VOICE_INTENT_KEYWORDS.test(trimmed) && words.length >= 1
+}
+
+type VoiceAgent = 'google-ads' | 'email' | 'invoice' | 'adminmate'
+
+function voiceAgentForMode(mode: OptiMateVoiceProps['mode']): VoiceAgent {
+  return mode === 'email' || mode === 'invoice' || mode === 'adminmate' ? mode : 'google-ads'
+}
+
+/** Modes where Realtime only transcribes and reads back; the app owns the answer. */
+function isSpeechLayerMode(mode: OptiMateVoiceProps['mode']): boolean {
+  return mode === 'audit' || mode === 'portfolio' || mode === 'adminmate'
 }
 
 function createEmptyVoiceDevTrace(): VoiceDevTraceState {
@@ -418,6 +436,7 @@ export default function OptiMateVoice({
   typedChatContext,
   buildTypedChatRequest,
   onTypedChatResponse,
+  onSpeechTurn,
 }: OptiMateVoiceProps) {
   const [state, setState] = useState<VoiceState>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -452,14 +471,14 @@ export default function OptiMateVoice({
   } | null>(null)
   const googleMateTurnInFlightRef = useRef(false)
   const usageMetadataRef = useRef<{
-    agent: 'google-ads' | 'email' | 'invoice'
+    agent: VoiceAgent
     mode: OptiMateVoiceProps['mode']
     auditId?: string | number
     customerId?: string
     businessName?: string
     selectedAccountRefs: Array<string | number>
   }>({
-    agent: mode === 'email' ? 'email' : mode === 'invoice' ? 'invoice' : 'google-ads',
+    agent: voiceAgentForMode(mode),
     mode,
     auditId,
     customerId,
@@ -508,7 +527,7 @@ export default function OptiMateVoice({
 
   useEffect(() => {
     usageMetadataRef.current = {
-      agent: mode === 'email' ? 'email' : mode === 'invoice' ? 'invoice' : 'google-ads',
+      agent: voiceAgentForMode(mode),
       mode,
       auditId,
       customerId,
@@ -684,6 +703,23 @@ export default function OptiMateVoice({
       speakAssistantReply,
       typedChatContext,
     ],
+  )
+
+  const runHostSpeechTurn = useCallback(
+    async (transcript: string) => {
+      if (!onSpeechTurn) return
+      if (googleMateTurnInFlightRef.current) return
+      googleMateTurnInFlightRef.current = true
+      try {
+        const reply = await onSpeechTurn(transcript)
+        speakAssistantReply(reply || 'No response received.')
+      } catch (err) {
+        speakAssistantReply(err instanceof Error ? err.message : 'That request failed.')
+      } finally {
+        googleMateTurnInFlightRef.current = false
+      }
+    },
+    [onSpeechTurn, speakAssistantReply],
   )
 
   const runVoiceSafetyCheck = useCallback(() => {
@@ -922,17 +958,20 @@ export default function OptiMateVoice({
         event.transcript.trim()
       ) {
         const text = sanitizeVoiceTranscript(event.transcript.trim())
-        if (text && isLikelyIntentionalVoiceInput(text)) {
-          onTurn?.(`u_${Date.now()}`, 'user', text)
+        if (text && isLikelyIntentionalVoiceInput(text, mode)) {
+          // AdminMate's own chat adds the user turn when it sends the request.
+          if (mode !== 'adminmate') onTurn?.(`u_${Date.now()}`, 'user', text)
           if (isDevParityEnabled) {
             devTraceRef.current.transcript = text
             devTraceRef.current.userMessage = text
-            if (mode === 'audit' || mode === 'portfolio') {
+            if (isSpeechLayerMode(mode)) {
               devTraceRef.current.replyPath = 'typed-backend'
             }
             publishDevTrace()
           }
-          if (mode === 'audit' || mode === 'portfolio') {
+          if (mode === 'adminmate') {
+            void runHostSpeechTurn(text)
+          } else if (mode === 'audit' || mode === 'portfolio') {
             void runGoogleMateVoiceTurn(text)
           } else {
             voiceTurnSafetyRef.current = {
@@ -963,7 +1002,7 @@ export default function OptiMateVoice({
         const id = activeReplyIdRef.current
         if (id) {
           replyTextRef.current += event.delta
-          if (mode !== 'audit' && mode !== 'portfolio') {
+          if (!isSpeechLayerMode(mode)) {
             onTurn?.(id, 'assistant', sanitizeVoiceTranscript(replyTextRef.current))
           }
         }
@@ -984,7 +1023,7 @@ export default function OptiMateVoice({
           pendingGmailDraftRef.current = null
           gmailDraftConfirmationReplyIdRef.current = null
         }
-        if (isDevParityEnabled && mode !== 'audit' && mode !== 'portfolio') {
+        if (isDevParityEnabled && !isSpeechLayerMode(mode)) {
           devTraceRef.current.replyPath = 'realtime-model'
           devTraceRef.current.finalAssistantReply = sanitizeVoiceTranscript(replyTextRef.current.trim())
           if (!devTraceRef.current.finalAssistantReply) {
@@ -992,7 +1031,7 @@ export default function OptiMateVoice({
           }
           publishDevTrace()
         }
-        if (mode !== 'audit' && mode !== 'portfolio') {
+        if (!isSpeechLayerMode(mode)) {
           runVoiceSafetyCheck()
         }
         activeReplyIdRef.current = null
@@ -1008,7 +1047,7 @@ export default function OptiMateVoice({
         }
       }
     },
-    [sendEvent, executeToolCall, isDevParityEnabled, mode, onTurn, publishDevTrace, runGoogleMateVoiceTurn, runVoiceSafetyCheck],
+    [sendEvent, executeToolCall, isDevParityEnabled, mode, onTurn, publishDevTrace, runGoogleMateVoiceTurn, runHostSpeechTurn, runVoiceSafetyCheck],
   )
 
   useEffect(() => {
@@ -1070,8 +1109,8 @@ export default function OptiMateVoice({
       }
 
       // 1. Server-built session config (instructions + tools). Email and invoice
-      //    modes use focused endpoints; audit and portfolio modes use the Google
-      //    Ads session endpoint.
+      //    modes use focused endpoints; audit, portfolio and AdminMate modes use
+      //    the speech-only session endpoint.
       const sessionUrl = new URL(
         mode === 'email'
           ? '/api/optimate/email-realtime-session'
@@ -1080,7 +1119,9 @@ export default function OptiMateVoice({
             : '/api/optimate/realtime-session',
         window.location.origin,
       )
-      if (mode !== 'email' && mode !== 'invoice') {
+      if (mode === 'adminmate') {
+        sessionUrl.searchParams.set('mode', mode)
+      } else if (mode !== 'email' && mode !== 'invoice') {
         sessionUrl.searchParams.set('auditId', String(auditId))
         sessionUrl.searchParams.set('mode', mode)
         if (customerId) sessionUrl.searchParams.set('customerId', customerId)
@@ -1121,7 +1162,7 @@ export default function OptiMateVoice({
       //    Realtime owns response creation for spoken turns; we only create the
       //    controlled opening greeting and post-tool follow-up responses.
       const secret = await provider.getSecret({
-        auditId: mode === 'invoice' ? 'invoice' : String(auditId),
+        auditId: mode === 'invoice' || mode === 'adminmate' ? mode : String(auditId),
         session: {
           instructions: session.instructions,
           tools: session.tools,
@@ -1181,7 +1222,9 @@ export default function OptiMateVoice({
                 ? "Greet the user in one short sentence: say you're the OptiMate email assistant and ask what reply they'd like to draft. Do NOT draft anything yet. Then stop and wait for them to speak."
                 : mode === 'invoice'
                   ? "Greet the user in one short sentence: say you're InvoiceMate and ask how you can help with Xero invoices. Do NOT look anything up or take action yet. Then stop and wait for them to speak."
-                  : "Greet the user in one short sentence: say you're OptiMate and ask how you can help. Do NOT give any overview, summary, or data yet. Then stop and wait for their question.",
+                  : mode === 'adminmate'
+                    ? "Greet the user in one short sentence: say you're AdminMate and ask what they'd like to do with clients, contracts, proposals, meetings or payments. Do NOT take any action. Then stop and wait for them to speak."
+                    : "Greet the user in one short sentence: say you're OptiMate and ask how you can help. Do NOT give any overview, summary, or data yet. Then stop and wait for their question.",
           },
         })
         if (greeting) dc.send(JSON.stringify(greeting))

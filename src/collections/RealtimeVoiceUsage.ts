@@ -40,6 +40,7 @@ export const RealtimeVoiceUsage: CollectionConfig = {
         { label: "Google Ads", value: "google-ads" },
         { label: "Email", value: "email" },
         { label: "InvoiceMate", value: "invoice" },
+        { label: "AdminMate", value: "adminmate" },
       ],
     },
     {

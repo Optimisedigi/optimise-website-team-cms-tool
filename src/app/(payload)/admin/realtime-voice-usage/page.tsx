@@ -42,6 +42,7 @@ const agentLabels: Record<string, string> = {
   'google-ads': 'Google Ads',
   email: 'Email',
   invoice: 'InvoiceMate',
+  adminmate: 'AdminMate',
 }
 
 const modelLabels: Record<string, string> = {

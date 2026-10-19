@@ -10343,7 +10343,7 @@ export interface AgentSoul {
 export interface RealtimeVoiceUsage {
   id: number;
   sessionId: string;
-  agent: 'google-ads' | 'email' | 'invoice';
+  agent: 'google-ads' | 'email' | 'invoice' | 'adminmate';
   model: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-realtime-2.1';
   /**
    * Hourly rate used at the time this call was recorded.

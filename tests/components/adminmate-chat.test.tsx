@@ -9,6 +9,24 @@ vi.mock('@/components/OptiMateTranscribe', () => ({
   default: ({ onTranscript }: { onTranscript: (text: string) => void }) => <button type="button" onClick={() => onTranscript(dictation.phrase)}>Dictate</button>,
 }))
 
+const voice = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }))
+
+vi.mock('@/components/OptiMateVoice', () => ({
+  default: (props: Record<string, unknown>) => {
+    voice.props = props
+    return <button type="button">Start GPT voice</button>
+  },
+}))
+
+const stubViewport = (mobile: boolean) => {
+  vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+    matches: mobile,
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })))
+}
+
 vi.mock('@/components/EmailAttachPicker', () => ({
   default: ({ open, onSelect }: { open: boolean; onSelect: (email: Record<string, string>) => void }) => open ? (
     <button type="button" onClick={() => onSelect({
@@ -48,6 +66,32 @@ describe('AdminMateChat', () => {
     dictation.phrase = 'dictated client'
     sessionStorage.clear()
     vi.stubGlobal('fetch', fetchMock)
+    voice.props = null
+    // Dictation tests below run on the mobile layout, where the mic dictates.
+    stubViewport(true)
+  })
+
+  it('uses GPT Realtime voice for the desktop mic and reads back the AdminMate reply', async () => {
+    stubViewport(false)
+    fetchMock.mockImplementation((url: string) => {
+      if (url === '/api/optimate/adminmate/chat') return Promise.resolve(response({ reply: 'Acme Corp is ready to review.', stagedClient: staged }))
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+    render(<AdminMateChat />)
+
+    expect(await screen.findByRole('button', { name: 'Start GPT voice' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Dictate' })).not.toBeInTheDocument()
+    expect(voice.props?.mode).toBe('adminmate')
+
+    const onSpeechTurn = voice.props?.onSpeechTurn as (text: string) => Promise<string>
+    let spoken = ''
+    await act(async () => { spoken = await onSpeechTurn('Create a client called Acme Corp') })
+
+    expect(spoken).toBe('Acme Corp is ready to review.')
+    expect(screen.getByText('Create a client called Acme Corp')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create Acme Corp' })).toBeInTheDocument()
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }]
+    expect(JSON.parse(init.body)).toMatchObject({ message: 'Create a client called Acme Corp' })
   })
 
   it('resumes a chat handed off from the launcher when popped out', async () => {
