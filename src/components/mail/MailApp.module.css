@@ -265,21 +265,151 @@
   overscroll-behavior: contain;
 }
 
+/* Mobile: list full-width; the reading pane is a full-screen panel that
+   slides in from the right over the list. */
+.mobileBar,
+.replyBar {
+  display: none;
+}
+
 @media (max-width: 900px) {
+  .app {
+    gap: 8px;
+    padding-top: 8px;
+  }
+
+  .toolbar > * {
+    min-height: 40px;
+  }
+
+  .folders {
+    width: 100%;
+  }
+
+  .folderBtn {
+    flex: 1;
+    min-height: 40px;
+  }
+
+  .toolbar .search {
+    flex-basis: 100%;
+  }
+
+  .btn,
+  .linkBtn {
+    min-height: 40px;
+  }
+
+  .linkBtn {
+    padding: 0 4px;
+  }
+
   .panes {
     position: static;
-    grid-template-columns: 1fr;
+    display: block;
     height: auto;
     padding: 0;
   }
 
   .list {
-    max-height: 60vh;
+    max-height: none;
+    border-radius: 8px;
+  }
+
+  .row {
+    min-height: 64px;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .reader {
-    overflow: visible;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    padding: 0 12px calc(84px + env(safe-area-inset-bottom));
+    background: var(--theme-bg, var(--theme-elevation-0));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0s linear 0.25s;
   }
+
+  .readerOpen {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform 0.25s ease, visibility 0s;
+  }
+
+  .mobileBar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 -12px 8px;
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+    background: var(--theme-bg, var(--theme-elevation-0));
+    border-bottom: 1px solid var(--mail-border);
+  }
+
+  .backBtn {
+    min-height: 44px;
+    padding: 0 12px 0 4px;
+    border: 0;
+    background: none;
+    color: var(--mail-accent);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .replyBar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
+    display: block;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    background: var(--theme-bg, var(--theme-elevation-0));
+    border-top: 1px solid var(--mail-border);
+  }
+
+  .replyBtn {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  /* Reply sits in the bottom bar; keep the header actions to secondary ones. */
+  .readerHead .actions > .primary {
+    display: none;
+  }
+
+  .readerHead .actions {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    width: 100%;
+    padding-bottom: 4px;
+  }
+
+  .messageHead {
+    flex-direction: column;
+  }
+
+  .search input,
+  .instruction,
+  .assign select {
+    font-size: 16px; /* stops iOS zooming on focus */
+  }
+}
+
+/* Lock the page behind the open reader so only the panel scrolls. */
+.appReaderOpen {
+  --mail-reader-open: 1;
 }
 
 .readerHead {

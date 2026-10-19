@@ -304,6 +304,13 @@
   background: var(--theme-elevation-50);
 }
 
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
 .history {
   display: flex;
   flex-wrap: wrap;
@@ -446,11 +453,163 @@
     transform: none;
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     border-radius: 0;
   }
 
   .minimised {
     height: auto;
+  }
+
+  /* Same controls as desktop, sized for thumbs. */
+  .header {
+    padding: calc(6px + env(safe-area-inset-top)) 8px 6px 16px;
+  }
+
+  .minimised .header {
+    padding-top: 6px;
+  }
+
+  .headerButtons button {
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
+  }
+
+  .field input,
+  .tablePicker input,
+  .scheduleCustom input,
+  .prompt {
+    font-size: 16px; /* stops iOS zooming on focus */
+  }
+
+  .field input {
+    min-height: 44px;
+  }
+
+  .ccToggle {
+    min-height: 44px;
+    padding: 0 8px;
+  }
+
+  /* Attach / image / table + AI prompt chips scroll sideways instead of wrapping. */
+  .aiTools {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .aiTools::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+
+  .toolButton,
+  .history .linkBtn {
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Prompt chips scroll in the space left; Undo last and Use whole thread stay on the same line. */
+  .metaRow {
+    flex-wrap: nowrap;
+    width: 100%;
+    flex-shrink: 0;
+    gap: 10px;
+  }
+
+  .history {
+    flex: 1;
+    min-width: 0;
+    flex-wrap: nowrap;
+    max-height: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .history::-webkit-scrollbar {
+    display: none;
+  }
+
+  .metaRow .linkBtn {
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+
+  .chip {
+    flex-shrink: 0;
+  }
+
+  .promptRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .prompt {
+    min-height: 56px;
+  }
+
+  .aiButton {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .threadToggle {
+    flex-shrink: 0;
+    min-height: 40px;
+    margin: 0 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .threadToggle input {
+    width: 20px;
+    height: 20px;
+  }
+
+  .schedulePicker {
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+
+  .schedulePresets .secondary,
+  .scheduleCustom input {
+    min-height: 40px;
+  }
+
+  /* Send stays reachable above the keyboard / home indicator. */
+  .footer {
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--theme-elevation-100);
+    background: var(--theme-elevation-0);
+  }
+
+  /* Send, Schedule send and Save as draft share one row. */
+  .send {
+    flex: 1.1;
+    min-height: 48px;
+    padding: 0 10px;
+    font-size: 15px;
+  }
+
+  .secondary {
+    flex: 1;
+    min-width: 0;
+    min-height: 48px;
+    padding: 0 8px;
+    font-size: 13px;
+    white-space: nowrap;
   }
 }
 
@@ -458,7 +617,6 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 8px;
   color: var(--theme-elevation-800);
   font-size: 13px;
   cursor: pointer;

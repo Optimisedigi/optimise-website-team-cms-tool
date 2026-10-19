@@ -87,7 +87,7 @@ describe('OptiMateChatCore image attachments', () => {
   it('keeps compact model controls together below the typing surface', () => {
     render(<OptiMateChatCore auditId="audit-1" customerId="customer-1" />)
 
-    const reasoning = screen.getByDisplayValue('Reasoning off')
+    const reasoning = screen.getByRole('button', { name: /^Reasoning off/ })
     const model = screen.getByTitle('Model used for the next message')
     const attach = screen.getByRole('button', { name: 'Attach image screenshot' })
 

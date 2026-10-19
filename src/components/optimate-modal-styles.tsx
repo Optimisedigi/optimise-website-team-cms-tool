@@ -625,7 +625,23 @@ export const OPTIMATE_MODAL_CSS = `
   color: var(--om-ink-3);
   cursor: pointer;
 }
-.om-select--wide { flex: 1.4; }
+.om-select--wide { flex: 1 1 0; min-width: 0; }
+.om-reasoning {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0 10px;
+}
+.om-reasoning:disabled { opacity: 0.6; }
+.om-reasoning-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #3f3f46;
+  transition: background 0.18s, box-shadow 0.18s;
+}
 
 /* ---------- dark OptiMate window ---------- */
 .om-panel, .om-page, .om-popout, .om-chatui {
@@ -672,6 +688,40 @@ export const OPTIMATE_MODAL_CSS = `
 .om-tool.is-attached { background: #17392a; color: #86efac; }
 .om-select { background: #29292c; color: var(--om-ink-2); }
 .om-send:disabled { background: #3f3f46; color: #8f8f98; }
+
+
+/* ---------- phones: OptiMate fills the screen like a native app ---------- */
+@media (max-width: 768px) {
+  .om-panel {
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .om-head {
+    padding: calc(12px + env(safe-area-inset-top)) 12px 12px;
+  }
+  /* Keep the desktop icons/buttons as designed; just widen the tap area. */
+  .om-iconbtn, .om-headlink { position: relative; }
+  .om-iconbtn::after, .om-headlink::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+  }
+  .om-inputwrap {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .om-inputwrap textarea, .om-search input, .om-select {
+    font-size: 16px; /* stops iOS zooming on focus */
+  }
+}
 
 @keyframes om-bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
 @media (prefers-reduced-motion: reduce) {

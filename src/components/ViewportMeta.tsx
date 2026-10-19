@@ -21,7 +21,7 @@ const ViewportMeta: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     }
     // Keep maximum-scale=1 permanently to prevent iOS auto-zoom on input
     // focus (inputs < 16px font-size). Pinch-zoom is not needed in the admin.
-    meta.content = 'width=device-width, initial-scale=1, maximum-scale=1'
+    meta.content = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover'
   }, [pathname])
 
   // PWA manifest, apple-touch-icon, theme-color — inject once

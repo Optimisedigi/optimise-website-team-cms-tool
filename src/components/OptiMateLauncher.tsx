@@ -12,6 +12,7 @@ import InvoiceAssistantChat from './InvoiceAssistantChat'
 import GmailReplyChat from './GmailReplyChat'
 import TaskMateChat from './TaskMateChat'
 import AdminMateChat from './AdminMateChat'
+import { useIsMobileViewport, useSwipeBack } from '@/lib/swipe'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
 import RocketSplash from './RocketSplash'
@@ -132,9 +133,26 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   }, [user])
 
   // Reset to agent step when closing the panel.
-  const close = () => {
+  const close = useCallback(() => {
     setOpen(false)
-  }
+  }, [])
+
+  // Mobile: the panel is full-screen, so the phone's back button / back swipe
+  // closes it instead of leaving the page.
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const isMobile = useIsMobileViewport(768)
+  const panelFullscreen = isMobile && open
+  useSwipeBack(panelRef, close, panelFullscreen, { edgeZone: 32 })
+  useEffect(() => {
+    if (!panelFullscreen) return
+    window.history.pushState({ optimatePanel: true }, '')
+    const onPop = () => close()
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      if (window.history.state?.optimatePanel) window.history.back()
+    }
+  }, [panelFullscreen, close])
 
   if (!user) return <>{children}</>
 
@@ -271,6 +289,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       {/* Expanded panel */}
       {open && (
         <div
+          ref={panelRef}
           className="om-panel"
           style={{
             position: 'fixed',
@@ -807,6 +826,14 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
           transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
         .om-launcher:hover .om-orb { transform: scale(1.06); }
+        @media (max-width: 768px) {
+          /* Sit above the bottom tab bar and the iPhone home indicator. */
+          .om-launcher {
+            bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+            right: 14px !important;
+          }
+          .om-launcher .om-tip { display: none; }
+        }
         .om-launcher:focus-visible { outline: none; }
         .om-launcher:focus-visible .om-orb {
           box-shadow: 0 0 0 3px #7fb6e8, 0 10px 30px rgba(46, 92, 140, 0.26);

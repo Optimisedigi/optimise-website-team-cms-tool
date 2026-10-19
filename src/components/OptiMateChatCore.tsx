@@ -53,6 +53,7 @@ import type { CanonicalModelName } from '@/lib/agents/_shared/llm/registry'
 import OptiMateToolsHelp from './OptiMateToolsHelp'
 import OptiMateVoice from './OptiMateVoice'
 import OptiMateTranscribe from './OptiMateTranscribe'
+import OptiMateReasoningDots from './OptiMateReasoningDots'
 import { isVoiceEnabled } from '@/lib/realtime/token-provider'
 import { fitImageForChat } from './chat-image-fit'
 import {
@@ -2605,7 +2606,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 style={{
                   position: 'absolute',
                   left: 14,
-                  bottom: 8,
+                  bottom: 11, // +3px breathing room under the buttons
                   display: 'flex',
                   gap: 7,
                 }}
@@ -2707,7 +2708,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 style={{
                   position: 'absolute',
                   right: 14,
-                  bottom: 8,
+                  bottom: 11, // +3px breathing room under the buttons
                   display: 'flex',
                   gap: 7,
                   alignItems: 'center',
@@ -2794,39 +2795,17 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 marginBottom: fluid ? 4 : 8,
               }}
             >
-              <select
+              <OptiMateReasoningDots
                 value={reasoningMode}
-                onChange={(e) => {
-                  const next = e.target.value as ReasoningMode
-                  // The current model needs reasoning on (e.g. Kimi K3); ignore
-                  // an attempt to turn it off and keep at least the lowest level.
-                  if (next === 'off' && modelRequiresReasoning(selectedModel)) {
-                    setReasoningMode('low')
-                    return
-                  }
-                  setReasoningMode(next)
-                }}
+                onChange={setReasoningMode}
                 disabled={loading}
+                offAllowed={!modelRequiresReasoning(selectedModel)}
                 title={
                   modelRequiresReasoning(selectedModel)
                     ? 'This model requires reasoning on. Off is unavailable.'
-                    : 'Reasoning mode for the next request. Off is fastest/cheapest.'
+                    : undefined
                 }
-                className="om-select"
-                data-optimate-select=""
-                style={{
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  flex: '0 1 auto',
-                  width: 'auto',
-                }}
-              >
-                <option value="off" disabled={modelRequiresReasoning(selectedModel)}>
-                  Reasoning off
-                </option>
-                <option value="low">Reasoning low</option>
-                <option value="medium">Reasoning medium</option>
-                <option value="high">Reasoning high</option>
-              </select>
+              />
               <select
                 value={selectedModel}
                 onChange={(e) => {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './MailApp.module.css'
+import { useIsMobileViewport, useSwipeBack } from '../../lib/swipe'
 import EmailBody from './EmailBody'
 import ComposeWindow, { type ComposeContent, type ComposeFile, type ComposeState } from './ComposeWindow'
 import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
@@ -166,6 +167,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [query, setQuery] = useState('')
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
+  const isMobile = useIsMobileViewport()
+  const readerRef = useRef<HTMLElement | null>(null)
   const [messages, setMessages] = useState<ThreadMessage[]>([])
   const [threadLoading, setThreadLoading] = useState(false)
   const [threadError, setThreadError] = useState('')
@@ -761,8 +764,31 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }
 
+  // Mobile: the reader slides over the list. Back = close the panel, which also
+  // gives the phone's back button / back swipe a history entry to pop.
+  const readerOpen = isMobile && !!selectedThreadId && !showScheduled
+  const closeReader = useCallback(() => {
+    threadRequest.current++
+    setSelectedThreadId(null)
+    setMessages([])
+    setThreadLoading(false)
+    setThreadError('')
+    setSummary(null)
+  }, [])
+  useSwipeBack(readerRef, closeReader, readerOpen)
+  useEffect(() => {
+    if (!readerOpen) return
+    window.history.pushState({ mailReader: true }, '')
+    const onPop = () => closeReader()
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      if (window.history.state?.mailReader) window.history.back()
+    }
+  }, [readerOpen, closeReader])
+
   return (
-    <div className={styles.app}>
+    <div className={`${styles.app} ${readerOpen ? styles.appReaderOpen : ''}`}>
       <div className={styles.toolbar}>
         {account ? <span className={styles.muted}>{account}</span> : null}
         <div className={styles.folders} role="tablist" aria-label="Mail folders">
@@ -1022,7 +1048,20 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           ) : null}
         </ul>
 
-        <section className={styles.reader} aria-label="Reading pane">
+        <section
+          ref={readerRef}
+          className={`${styles.reader} ${readerOpen ? styles.readerOpen : ''}`}
+          aria-label="Reading pane"
+          aria-hidden={isMobile && !readerOpen ? true : undefined}
+          data-testid="mail-reader"
+        >
+          {isMobile && selectedThreadId ? (
+            <div className={styles.mobileBar}>
+              <button type="button" className={styles.backBtn} onClick={() => window.history.state?.mailReader ? window.history.back() : closeReader()} aria-label="Back to inbox">
+                ‹ Inbox
+              </button>
+            </div>
+          ) : null}
           {!selectedThreadId ? (
             <p className={styles.empty}>Select an email to read it.</p>
           ) : threadLoading ? (
@@ -1197,6 +1236,13 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             </div>
           ) : null}
 
+          {readerOpen && latest && !threadLoading && !composer ? (
+            <div className={styles.replyBar} data-testid="mail-reply-bar">
+              <button type="button" className={`${styles.btn} ${styles.primary} ${styles.replyBtn}`} onClick={() => startReply(latest)}>
+                Reply with AI
+              </button>
+            </div>
+          ) : null}
         </section>
       </div>
 

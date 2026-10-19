@@ -436,17 +436,29 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
 
         <div className={styles.ai}>
           <div className={styles.aiTools}>
-            {turns.length > 0 ? (
-              <div className={styles.history} aria-label="AI prompts so far">
-                {turns.map((turn, index) => (
-                  <span key={index} className={styles.chip} title={turn.instruction}>
-                    {turn.instruction}
-                  </span>
-                ))}
-                <button type="button" className={styles.linkBtn} onClick={undoLast} disabled={busy !== ''}>
-                  Undo last
-                </button>
-                <div ref={historyEnd} />
+            {turns.length > 0 || state.mode === 'reply' ? (
+              <div className={styles.metaRow}>
+                {turns.length > 0 ? (
+                  <>
+                    <div className={styles.history} aria-label="AI prompts so far">
+                      {turns.map((turn, index) => (
+                        <span key={index} className={styles.chip} title={turn.instruction}>
+                          {turn.instruction}
+                        </span>
+                      ))}
+                      <div ref={historyEnd} />
+                    </div>
+                    <button type="button" className={styles.linkBtn} onClick={undoLast} disabled={busy !== ''}>
+                      Undo last
+                    </button>
+                  </>
+                ) : null}
+                {state.mode === 'reply' ? (
+                  <label className={styles.threadToggle}>
+                    <input type="checkbox" checked={useThread} onChange={(e) => setUseThread(e.target.checked)} disabled={busy !== ''} />
+                    <span>Use whole thread</span>
+                  </label>
+                ) : null}
               </div>
             ) : null}
             <div className={styles.toolbar}>
@@ -547,12 +559,6 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               {busy === 'ai' ? 'Writing…' : hasDraft ? 'Revise' : 'Write with AI'}
             </button>
           </div>
-          {state.mode === 'reply' ? (
-            <label className={styles.threadToggle}>
-              <input type="checkbox" checked={useThread} onChange={(e) => setUseThread(e.target.checked)} disabled={busy !== ''} />
-              <span>Use whole thread</span>
-            </label>
-          ) : null}
         </div>
 
         {note ? <p className={styles.note}>{note}</p> : null}
