@@ -162,15 +162,27 @@ export interface MessageHeadersOnly {
   listUnsubscribe?: string;
 }
 
+/**
+ * Headers for each message id. Messages Gmail no longer has (404: deleted
+ * forever after they were listed or recorded in history) are left out, so one
+ * vanished email cannot fail the whole sync and pin the history cursor.
+ */
 export async function getMessageHeaders(accessToken: string, ids: string[]): Promise<MessageHeadersOnly[]> {
   const gmail = gmailApi(accessToken);
-  return mapLimited(ids, 8, async (id) => {
-    const res = await gmail.users.messages.get({
-      userId: "me",
-      id,
-      format: "metadata",
-      metadataHeaders: ["From", "To", "Cc", "Auto-Submitted", "Precedence", "List-Id", "List-Unsubscribe"],
-    });
+  const results = await mapLimited(ids, 8, async (id): Promise<MessageHeadersOnly | null> => {
+    const res = await gmail.users.messages
+      .get({
+        userId: "me",
+        id,
+        format: "metadata",
+        metadataHeaders: ["From", "To", "Cc", "Auto-Submitted", "Precedence", "List-Id", "List-Unsubscribe"],
+      })
+      .catch((err: unknown) => {
+        const status = Number((err as { code?: number; status?: number }).code ?? (err as { status?: number }).status ?? 0);
+        if (status === 404) return null;
+        throw err;
+      });
+    if (!res) return null;
     const headers = res.data.payload?.headers;
     return {
       messageId: res.data.id ?? id,
@@ -185,6 +197,7 @@ export async function getMessageHeaders(accessToken: string, ids: string[]): Pro
       listUnsubscribe: readGmailHeader(headers, "List-Unsubscribe"),
     };
   });
+  return results.filter((header): header is MessageHeadersOnly => header !== null);
 }
 
 /** Archive = remove INBOX. Read/unread = remove/add UNREAD. Needs gmail.modify. */

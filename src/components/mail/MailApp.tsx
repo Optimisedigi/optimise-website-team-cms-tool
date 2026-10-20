@@ -14,7 +14,7 @@ import {
 } from '../../lib/mail/client-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
 import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
-import { MAIL_TABS, mailTabLabel, type MailFolder, type MailTab, type MailTabCounts } from '../../lib/mail/folders'
+import { MAIL_TABS, mailTabLabel, unreadFirst, type MailFolder, type MailTab, type MailTabCounts } from '../../lib/mail/folders'
 import ScheduledPanel, { type ScheduledItem } from './ScheduledPanel'
 
 /**
@@ -221,7 +221,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         setAccount(data.account)
         if (Array.isArray(data.hiddenSenders)) setHiddenSenders(data.hiddenSenders)
         if (Array.isArray(data.clientSenders)) setClientSenders(data.clientSenders)
-        setThreads((current) => (opts.append ? [...current, ...data.threads] : data.threads))
+        // Inbox: unread on top (across loaded pages); other folders keep Gmail's order.
+        setThreads((current) => {
+          const next = opts.append ? [...current, ...data.threads] : data.threads
+          return opts.folder === 'inbox' ? unreadFirst(next) : next
+        })
         setNextPageToken(data.nextPageToken)
         setError(null)
       } catch (err) {
@@ -1011,6 +1015,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                 onClick={() => (folder === 'drafts' ? void openDraft(thread.messageId) : void openThread(thread))}
               >
                 <span className={styles.rowTop}>
+                  <span className={styles.senderLine}>
                   <span className={styles.sender}>
                     {folder === 'inbox' ? (
                       <>
@@ -1029,11 +1034,16 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                     )}
                     {thread.messageCount > 1 ? <span className={styles.count}>{thread.messageCount}</span> : null}
                   </span>
+                  {thread.client ? (
+                    <span className={styles.badge} title={thread.client.name}>
+                      {thread.client.name}
+                    </span>
+                  ) : null}
+                  </span>
                   <span className={styles.date}>{shortDate(thread.date)}</span>
                 </span>
                 <span className={styles.subject}>{thread.subject || '(no subject)'}</span>
                 <span className={styles.snippet}>{thread.snippet}</span>
-                {thread.client ? <span className={styles.badge}>{thread.client.name}</span> : null}
               </button>
             </li>
           ))}

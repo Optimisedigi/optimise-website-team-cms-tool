@@ -192,6 +192,27 @@
   gap: 8px;
 }
 
+/* Sender name with the client pill beside it; the name truncates first. */
+.senderLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.senderLine .sender {
+  min-width: 0;
+}
+
+.senderLine .badge {
+  align-self: center;
+  flex-shrink: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sender,
 .subject,
 .snippet {

@@ -34,3 +34,12 @@ export function mailTabLabel(tab: MailTab, counts: MailTabCounts | null): string
   const count = tab === "inbox" ? counts?.inboxUnread : tab === "drafts" ? counts?.drafts : undefined;
   return typeof count === "number" && Number.isFinite(count) && count > 0 ? `${TAB_LABELS[tab]} (${Math.floor(count)})` : TAB_LABELS[tab];
 }
+
+/**
+ * Unread threads first, otherwise keeping Gmail's newest-first order (stable).
+ * Applied when a list loads, not when a thread is opened, so a row that was
+ * just read stays where it is until the next refresh.
+ */
+export function unreadFirst<T extends { unread: boolean }>(threads: readonly T[]): T[] {
+  return [...threads.filter((thread) => thread.unread), ...threads.filter((thread) => !thread.unread)];
+}
