@@ -163,6 +163,28 @@
   margin-top: auto;
 }
 
+.rowItem {
+  position: relative;
+}
+
+.deleteDraft {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--mail-muted);
+  cursor: pointer;
+}
+
+.deleteDraft:hover {
+  background: var(--mail-soft);
+  color: #e5484d;
+}
+
 .row {
   display: flex;
   flex-direction: column;

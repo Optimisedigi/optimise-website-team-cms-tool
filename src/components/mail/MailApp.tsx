@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './MailApp.module.css'
 import { useIsMobileViewport, useSwipeBack } from '../../lib/swipe'
 import EmailBody from './EmailBody'
+import CalendarInviteCard from './CalendarInviteCard'
+import type { ThreadInvite } from '../../lib/mail/calendar-invite'
 import ComposeWindow, { type ComposeContent, type ComposeFile, type ComposeState } from './ComposeWindow'
 import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
 import {
@@ -171,6 +173,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const isMobile = useIsMobileViewport()
   const readerRef = useRef<HTMLElement | null>(null)
   const [messages, setMessages] = useState<ThreadMessage[]>([])
+  // Calendar invite in the open thread; shown only while its message is loaded.
+  const [threadInvite, setThreadInvite] = useState<ThreadInvite | null>(null)
   const [threadLoading, setThreadLoading] = useState(false)
   const [threadError, setThreadError] = useState('')
   const [actionNote, setActionNote] = useState('')
@@ -395,9 +399,12 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       setThreadLoading(true)
       setAssignClientId('')
       try {
-        const data = await api<{ messages: ThreadMessage[] }>(`/api/mail/thread/${encodeURIComponent(thread.threadId)}`)
+        const data = await api<{ messages: ThreadMessage[]; invite?: ThreadInvite | null }>(
+          `/api/mail/thread/${encodeURIComponent(thread.threadId)}`,
+        )
         if (request !== threadRequest.current) return
         setMessages(data.messages)
+        setThreadInvite(data.invite ?? null)
         if (thread.unread) {
           setThreads((current) => current.map((row) => (row.threadId === thread.threadId ? { ...row, unread: false } : row)))
           api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: thread.threadId, action: 'read' }) })
@@ -726,6 +733,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     setScheduled((current) => current.filter((item) => item.id !== id))
   }
 
+  async function deleteDraftRow(thread: ThreadRow) {
+    if (!window.confirm('Delete this draft?')) return
+    try {
+      await api(`/api/gmail/draft?messageId=${encodeURIComponent(thread.messageId)}`, { method: 'DELETE' })
+      setThreads((current) => current.filter((row) => row.threadId !== thread.threadId))
+      void loadCounts()
+    } catch (err) {
+      showError(err)
+    }
+  }
+
   async function saveComposedDraft(state: ComposeState, content: ComposeContent): Promise<string | undefined> {
     const data = await api<{ draftId?: string }>('/api/gmail/draft', {
       method: 'POST',
@@ -1035,7 +1053,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       <div className={styles.panes} style={showScheduled ? { display: 'none' } : undefined}>
         <ul className={styles.list} aria-label={FOLDER_LABELS[folder]}>
           {threads.map((thread) => (
-            <li key={thread.threadId}>
+            <li key={thread.threadId} className={styles.rowItem}>
               <button
                 type="button"
                 className={`${styles.row} ${thread.unread ? styles.unread : ''} ${thread.threadId === selectedThreadId ? styles.selected : ''}`}
@@ -1072,6 +1090,19 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                 <span className={styles.subject}>{thread.subject || '(no subject)'}</span>
                 <span className={styles.snippet}>{thread.snippet}</span>
               </button>
+              {folder === 'drafts' ? (
+                <button
+                  type="button"
+                  className={styles.deleteDraft}
+                  aria-label="Delete draft"
+                  title="Delete draft"
+                  onClick={() => void deleteDraftRow(thread)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
+                  </svg>
+                </button>
+              ) : null}
             </li>
           ))}
           {listLoading ? <li className={styles.empty}>Loading…</li> : null}
@@ -1195,6 +1226,10 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                 </div>
               </div>
               {actionNote ? <p className={styles.note}>{actionNote}</p> : null}
+
+              {threadInvite && messages.some((message) => message.messageId === threadInvite.messageId) ? (
+                <CalendarInviteCard key={threadInvite.messageId} data={threadInvite} />
+              ) : null}
 
               {/* Newest message first, like the latest sender at the top. */}
               {[...messages].reverse().map((message) => (

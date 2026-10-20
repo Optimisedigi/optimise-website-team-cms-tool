@@ -38,7 +38,7 @@ export default async function Page() {
       visibleEntities={getVisibleEntities(payload, user)}
     >
       <AdminStepNavSetter items={[{ label: 'Mail' }]} />
-      <div className="gutter--left gutter--right" style={{ maxWidth: 1480 }}>
+      <div className="gutter--left gutter--right" style={{ maxWidth: 1480, paddingLeft: 12 }}>
         <MailApp clients={clients} />
       </div>
     </DefaultTemplate>

@@ -140,6 +140,17 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const editorRef = useRef<RichEmailEditorHandle>(null)
   const attachInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  // Autosave: the latest state, the Gmail draft id, and the in-flight save.
+  const stateRef = useRef(state)
+  stateRef.current = state
+  const draftIdRef = useRef(initial.draftId)
+  const savingRef = useRef<Promise<void> | null>(null)
+  const dirtyRef = useRef(false)
+  const closedRef = useRef(false)
+  const [edits, setEdits] = useState(0)
+  const baselineHtml = useRef<string | null>(null)
+  const fieldsMounted = useRef(false)
+  const [autoStatus, setAutoStatus] = useState('')
 
   useEffect(() => {
     promptRef.current?.focus()
@@ -215,6 +226,72 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     [addAttachments, addInlineImages],
   )
 
+  /** Save whatever is typed to Gmail Drafts; never throws, never overlaps itself. */
+  const autosave = useCallback(async (): Promise<void> => {
+    if (closedRef.current) return
+    if (savingRef.current) {
+      dirtyRef.current = true
+      return
+    }
+    const current = stateRef.current
+    const { html, inlineImages } = extractInlineImages(editorRef.current?.getHtml() ?? '')
+    const hasText = html.replace(/<[^>]*>/g, '').trim() !== '' || inlineImages.length > 0
+    if (!hasText && !current.to.trim() && !current.subject.trim() && current.attachments.length === 0) return
+    const total = inlineImages.reduce((sum, image) => sum + base64Bytes(image.data), 0) + attachmentBytesRef.current
+    if (total > MAIL_ATTACHMENT_LIMITS.maxTotalBytes) return
+    dirtyRef.current = false
+    setAutoStatus('Saving…')
+    const job = (async () => {
+      try {
+        const draftId = await onSaveDraftRef.current(
+          { ...current, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) },
+          { html, inlineImages, attachments: current.attachments },
+        )
+        if (draftId) draftIdRef.current = draftId
+        setAutoStatus('Saved')
+      } catch {
+        setAutoStatus('Not saved')
+      }
+    })()
+    savingRef.current = job
+    await job
+    savingRef.current = null
+    if (dirtyRef.current) void autosave()
+  }, [])
+
+  const attachmentBytesRef = useRef(attachmentBytes)
+  attachmentBytesRef.current = attachmentBytes
+  const onSaveDraftRef = useRef(onSaveDraft)
+  onSaveDraftRef.current = onSaveDraft
+
+  // Save shortly after typing stops, and when the tab is hidden or closed.
+  useEffect(() => {
+    if (edits === 0) return
+    const timer = window.setTimeout(() => void autosave(), 1500)
+    return () => window.clearTimeout(timer)
+  }, [edits, autosave])
+
+  // Recipients, subject and attachments count as edits too (not the initial values).
+  useEffect(() => {
+    if (!fieldsMounted.current) {
+      fieldsMounted.current = true
+      return
+    }
+    setEdits((n) => n + 1)
+  }, [state.to, state.cc, state.subject, state.attachments])
+
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === 'hidden') void autosave()
+    }
+    document.addEventListener('visibilitychange', flush)
+    window.addEventListener('pagehide', flush)
+    return () => {
+      document.removeEventListener('visibilitychange', flush)
+      window.removeEventListener('pagehide', flush)
+    }
+  }, [autosave])
+
   function setBodyFromText(text: string) {
     editorRef.current?.setHtml(text ? markdownLiteToHtml(text) : '')
   }
@@ -272,14 +349,19 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     if (!content) return
     setBusy(kind)
     try {
+      await savingRef.current
+      const withId = { ...state, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }
       if (kind === 'send') {
-        await onSend(state, content)
+        closedRef.current = true
+        await onSend(withId, content)
       } else {
-        const draftId = await onSaveDraft(state, content)
-        if (draftId) setState((current) => ({ ...current, draftId }))
+        const draftId = await onSaveDraft(withId, content)
+        if (draftId) draftIdRef.current = draftId
+        setAutoStatus('Saved')
         setNote('Saved to Gmail Drafts.')
       }
     } catch (err) {
+      closedRef.current = false
       setNote((err as Error).message)
     } finally {
       setBusy('')
@@ -297,8 +379,11 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     if (!content) return
     setBusy('schedule')
     try {
-      await onSchedule(state, content, when)
+      await savingRef.current
+      closedRef.current = true
+      await onSchedule({ ...state, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }, content, when)
     } catch (err) {
+      closedRef.current = false
       setNote((err as Error).message)
     } finally {
       setBusy('')
@@ -328,7 +413,10 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   return (
     <div className={windowClass} role="dialog" aria-label={title}>
       <header className={styles.header} onClick={() => minimised && setMinimised(false)}>
-        <span className={styles.title}>{title}</span>
+        <span className={styles.title}>
+          {title}
+          {autoStatus ? <span aria-live="polite"> · {autoStatus}</span> : null}
+        </span>
         <span className={styles.headerButtons}>
           <button
             type="button"
@@ -352,8 +440,11 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             title="Close"
             onClick={(e) => {
               e.stopPropagation()
-              if ((hasDraft || state.attachments.length > 0) && !window.confirm('Discard this draft?')) return
-              onClose()
+              // Typed text is autosaved to Gmail Drafts, so closing never loses it.
+              void autosave().then(() => savingRef.current).finally(() => {
+                closedRef.current = true
+                onClose()
+              })
             }}
           >
             ✕
@@ -396,7 +487,16 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             initialHtml={initial.html}
             ariaLabel="Email body"
             placeholder="Write here, or ask the AI below. Cmd+B, I and U format text. Paste images and tables straight in. Nothing is sent until you click Send."
-            onContentChange={setHasDraft}
+            onContentChange={(has) => {
+              setHasDraft(has)
+              // The first change report is the editor loading its initial body, not an edit.
+              const html = editorRef.current?.getHtml() ?? ''
+              if (baselineHtml.current === null) baselineHtml.current = html
+              else if (html !== baselineHtml.current) {
+                baselineHtml.current = html
+                setEdits((n) => n + 1)
+              }
+            }}
             onPasteFiles={onPasteFiles}
           />
 

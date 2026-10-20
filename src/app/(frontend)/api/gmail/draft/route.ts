@@ -11,7 +11,7 @@ import {
   extractEmailHeaders,
   stripAgentSignOff,
 } from "@/lib/gmail-draft-parsing";
-import { findDraftIdByMessageId, getFullMessage, getMessageContentParts, getThreadMessages } from "@/lib/mail/gmail-mail";
+import { deleteDraft, findDraftIdByMessageId, getFullMessage, getMessageContentParts, getThreadMessages } from "@/lib/mail/gmail-mail";
 import { buildEditableDraft } from "@/lib/mail/draft-content";
 import { parseMailComposeContent, type MailComposeContent } from "@/lib/mail/compose-content";
 import { MAIL_ATTACHMENT_LIMITS } from "@/lib/mail/compose-limits";
@@ -253,5 +253,28 @@ export async function POST(req: NextRequest) {
       { error: e.message ?? "Gmail draft creation failed." },
       { status: 500 },
     );
+  }
+}
+
+/**
+ * DELETE /api/gmail/draft?messageId=<draft message id>
+ *
+ * Permanently deletes one of the user's Gmail drafts (Mail view trash icon).
+ */
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
+  const ctx = await requireMailUser(req);
+  if (ctx instanceof NextResponse) return ctx;
+  const messageId = parseGmailId(req.nextUrl.searchParams.get("messageId"));
+  if (!messageId) return NextResponse.json({ error: "Invalid draft message id." }, { status: 400 });
+  const token = await requireGmailToken(ctx.user.id);
+  if (token instanceof NextResponse) return token;
+
+  try {
+    const draftId = await findDraftIdByMessageId(token.accessToken, messageId);
+    if (!draftId) return NextResponse.json({ error: "This draft has already been sent or discarded." }, { status: 404 });
+    await deleteDraft(token.accessToken, draftId);
+    return NextResponse.json({ ok: true, draftId });
+  } catch (err) {
+    return gmailErrorResponse(err, "Could not delete the Gmail draft.");
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getThreadMessages } from "@/lib/mail/gmail-mail";
+import { getThreadMessagesWithCalendar } from "@/lib/mail/gmail-mail";
+import { pickThreadInvite } from "@/lib/mail/calendar-invite";
 import { matchMessageToClient } from "@/lib/mail/client-matching";
 import { loadClientDomainIndex } from "@/lib/mail/store";
 import { buildEmailDocument } from "@/lib/mail/email-html";
@@ -9,7 +10,8 @@ import { gmailErrorResponse, parseGmailId, requireGmailToken, requireMailUser } 
  * GET /api/mail/thread/[threadId]
  *
  * Full thread for the reading pane, plus for each message the stored
- * client-email row (if any) and the deterministic client match. Display only;
+ * client-email row (if any) and the deterministic client match, and the
+ * calendar invite in the thread (if any). Display only;
  * nothing here goes to a model.
  */
 export async function GET(
@@ -25,7 +27,7 @@ export async function GET(
 
   try {
     const [messages, index] = await Promise.all([
-      getThreadMessages(token.accessToken, threadId),
+      getThreadMessagesWithCalendar(token.accessToken, threadId),
       loadClientDomainIndex(ctx.payload, [token.email, token.userEmail].filter(Boolean)),
     ]);
     const stored = await ctx.payload.find({
@@ -44,6 +46,8 @@ export async function GET(
 
     return NextResponse.json({
       threadId,
+      // Calendar invite card for the top of the reading pane, or null.
+      invite: pickThreadInvite(messages, [token.email, token.userEmail]),
       messages: messages.map((message) => {
         const saved = byMessage.get(message.messageId);
         const match = matchMessageToClient(index, message);

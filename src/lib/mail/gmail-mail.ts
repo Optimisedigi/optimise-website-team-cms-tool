@@ -151,6 +151,65 @@ export async function getThreadMessages(accessToken: string, threadId: string): 
   return (res.data.messages ?? []).map(parseGmailFullMessage);
 }
 
+const CALENDAR_MAX_BYTES = 256 * 1024;
+
+/** The iCalendar text of a message (text/calendar part or .ics file), or "". */
+async function readCalendarText(gmail: gmail_v1.Gmail, message: gmail_v1.Schema$Message): Promise<string> {
+  const parts: gmail_v1.Schema$MessagePart[] = [];
+  const walk = (part: gmail_v1.Schema$MessagePart) => {
+    parts.push(part);
+    part.parts?.forEach(walk);
+  };
+  if (message.payload) walk(message.payload);
+  const isIcs = (part: gmail_v1.Schema$MessagePart) =>
+    part.mimeType === "application/ics" || /\.ics$/i.test(part.filename ?? "");
+  // Prefer the inline text/calendar part; it carries the METHOD.
+  const part = parts.find((p) => p.mimeType === "text/calendar") ?? parts.find(isIcs);
+  if (!part?.body || (part.body.size ?? 0) > CALENDAR_MAX_BYTES) return "";
+  let data = part.body.data ?? "";
+  if (!data && part.body.attachmentId && message.id) {
+    const attachment = await gmail.users.messages.attachments.get({
+      userId: "me",
+      messageId: message.id,
+      id: part.body.attachmentId,
+    });
+    data = attachment.data.data ?? "";
+  }
+  return data ? Buffer.from(data, "base64url").toString("utf-8") : "";
+}
+
+/** Thread messages plus each one's iCalendar text ("" when it has none). For the reading pane. */
+export async function getThreadMessagesWithCalendar(
+  accessToken: string,
+  threadId: string,
+): Promise<Array<GmailFullMessage & { calendarIcs: string }>> {
+  const gmail = gmailApi(accessToken);
+  const res = await gmail.users.threads.get({ userId: "me", id: threadId, format: "full" });
+  return Promise.all(
+    (res.data.messages ?? []).map(async (message) => ({
+      ...parseGmailFullMessage(message),
+      calendarIcs: await readCalendarText(gmail, message).catch(() => ""),
+    })),
+  );
+}
+
+/** One message plus its iCalendar text ("" when it has none). */
+export async function getMessageWithCalendar(
+  accessToken: string,
+  messageId: string,
+): Promise<GmailFullMessage & { calendarIcs: string }> {
+  const gmail = gmailApi(accessToken);
+  const res = await gmail.users.messages.get({ userId: "me", id: messageId, format: "full" });
+  return { ...parseGmailFullMessage(res.data), calendarIcs: await readCalendarText(gmail, res.data) };
+}
+
+/** Send a prebuilt base64url MIME message (calendar RSVPs). Needs gmail.compose. */
+export async function sendRawMessage(accessToken: string, raw: string, threadId?: string): Promise<string> {
+  const gmail = gmailApi(accessToken);
+  const res = await gmail.users.messages.send({ userId: "me", requestBody: threadId ? { raw, threadId } : { raw } });
+  return res.data.id ?? "";
+}
+
 export async function getFullMessage(accessToken: string, messageId: string): Promise<GmailFullMessage> {
   const gmail = gmailApi(accessToken);
   const res = await gmail.users.messages.get({ userId: "me", id: messageId, format: "full" });
