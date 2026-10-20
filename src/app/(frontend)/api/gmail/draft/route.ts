@@ -13,6 +13,7 @@ import {
 } from "@/lib/gmail-draft-parsing";
 import { deleteDraft, findDraftIdByMessageId, getFullMessage, getMessageContentParts, getThreadMessages } from "@/lib/mail/gmail-mail";
 import { buildEditableDraft } from "@/lib/mail/draft-content";
+import { cleanSignOff } from "@/lib/mail/signature";
 import { parseMailComposeContent, type MailComposeContent } from "@/lib/mail/compose-content";
 import { MAIL_ATTACHMENT_LIMITS } from "@/lib/mail/compose-limits";
 import { gmailErrorResponse, parseGmailId, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
@@ -49,6 +50,8 @@ interface DraftBody {
   /** Mail compose window only. */
   cc?: unknown;
   bcc?: unknown;
+  /** Edited sign-off (Mail compose window only). */
+  signOff?: unknown;
   /** Gmail thread id for in-thread replies. */
   threadId?: unknown;
   /** RFC 822 Message-ID of the message being replied to. */
@@ -112,6 +115,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       subject: message.subject,
       html: editable.html,
       attachments: editable.attachments,
+      ...(editable.signOff !== undefined ? { signOff: editable.signOff } : {}),
       threadId: original ? message.threadId : "",
       replyTo: original
         ? { messageId: original.messageId, from: original.from, subject: original.subject }
@@ -229,6 +233,7 @@ export async function POST(req: NextRequest) {
     const result = await createGmailDraft(tokenResult.accessToken, {
       to,
       ...(rich ? { cc: cleanHeader(body.cc), bcc: cleanHeader(body.bcc) } : {}),
+      ...(rich && cleanSignOff(body.signOff) !== undefined ? { signOff: cleanSignOff(body.signOff) } : {}),
       subject,
       htmlBody: html,
       ...(rich && rich.inlineImages.length > 0 ? { inlineImages: rich.inlineImages } : {}),

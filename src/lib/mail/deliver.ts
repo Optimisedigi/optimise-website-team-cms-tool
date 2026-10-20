@@ -20,6 +20,8 @@ export interface DeliverInput {
   to: string;
   cc?: string;
   bcc?: string;
+  /** Edited sign-off (compose window); undefined appends the Gmail signature unchanged. */
+  signOff?: string;
   subject: string;
   content: MailComposeContent;
   replyToMessageId?: string | null;
@@ -50,6 +52,7 @@ export async function deliverMail(input: DeliverInput): Promise<DeliverResult> {
       to,
       cc: input.cc || undefined,
       bcc: input.bcc || undefined,
+      ...(input.signOff !== undefined ? { signOff: input.signOff } : {}),
       subject,
       htmlBody: content.html,
       ...(content.inlineImages.length > 0 ? { inlineImages: content.inlineImages } : {}),

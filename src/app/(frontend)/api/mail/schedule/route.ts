@@ -1,3 +1,4 @@
+import { cleanSignOff } from "@/lib/mail/signature";
 import { NextRequest, NextResponse } from "next/server";
 import { parseMailComposeContent } from "@/lib/mail/compose-content";
 import { deleteDraft } from "@/lib/mail/gmail-mail";
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     to?: unknown;
     cc?: unknown;
     bcc?: unknown;
+    signOff?: unknown;
     subject?: unknown;
     html?: unknown;
     inlineImages?: unknown;
@@ -91,6 +93,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     content: {
       // Bcc lives with the content (not its own column) so no schema change was needed.
       bcc: cleanHeader(body.bcc),
+      ...(cleanSignOff(body.signOff) !== undefined ? { signOff: cleanSignOff(body.signOff) } : {}),
       html: content.value.html,
       inlineImages: body.inlineImages ?? [],
       attachments: body.attachments ?? [],

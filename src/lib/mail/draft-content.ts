@@ -1,6 +1,7 @@
 import { formatGmailDraftHtml } from "@/lib/gmail-service";
 import { sanitizeEmailHtml } from "@/lib/mail/email-html";
 import type { MessageContentParts } from "@/lib/mail/gmail-mail";
+import { splitSignatureSignOff, takeTrailingSignOff } from "@/lib/mail/signature";
 
 /**
  * Turns a saved Gmail draft back into what the Mail compose window edits:
@@ -21,6 +22,8 @@ export interface EditableDraftFile {
 export interface EditableDraft {
   html: string;
   attachments: EditableDraftFile[];
+  /** Sign-off as edited in the compose window, when the draft was saved with one. */
+  signOff?: string;
 }
 
 function unwrap(html: string): string {
@@ -50,10 +53,34 @@ export function stripAppendedSignature(html: string, signatureHtml: string): str
   return body;
 }
 
+function trimTrailingBreaks(html: string): string {
+  return html.replace(/(?:\s*<br\s*\/?>)+\s*$/i, "").trimEnd();
+}
+
+/**
+ * Remove a signature saved with an edited sign-off (see withEditedSignOff):
+ * the rest of the Gmail signature, then the marked sign-off before it.
+ */
+export function stripEditedSignature(html: string, signatureHtml: string): { html: string; signOff: string } | null {
+  const parts = splitSignatureSignOff(signatureHtml);
+  if (!parts) return null;
+  let body = unwrap(html).trimEnd();
+  if (parts.rest) {
+    const candidates = [unwrap(formatGmailDraftHtml(parts.rest)), parts.rest.trim()];
+    const candidate = candidates.find((c) => c && body.endsWith(c));
+    if (!candidate) return null;
+    body = body.slice(0, body.length - candidate.length);
+  }
+  const taken = takeTrailingSignOff(trimTrailingBreaks(body));
+  if (!taken) return null;
+  return { html: trimTrailingBreaks(taken.html), signOff: taken.signOff };
+}
+
 export function buildEditableDraft(parts: MessageContentParts, signatureHtml: string): EditableDraft {
   const source = parts.html || escapeHtml(parts.text).replace(/\r?\n/g, "<br>");
+  const edited = parts.html ? stripEditedSignature(source, signatureHtml) : null;
   // Sanitise before the image data goes in: sanitizeEmailHtml caps the length.
-  let html = sanitizeEmailHtml(stripAppendedSignature(source, signatureHtml));
+  let html = sanitizeEmailHtml(edited ? edited.html : stripAppendedSignature(source, signatureHtml));
 
   const attachments: EditableDraftFile[] = parts.attachments.map((file) => ({
     name: file.filename,
@@ -68,5 +95,5 @@ export function buildEditableDraft(parts: MessageContentParts, signatureHtml: st
       attachments.push({ name: image.filename, mediaType: image.mimeType, data: image.data });
     }
   }
-  return { html, attachments };
+  return { html, attachments, ...(edited ? { signOff: edited.signOff } : {}) };
 }

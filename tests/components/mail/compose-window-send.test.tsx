@@ -140,3 +140,61 @@ describe('ComposeWindow AI subject', () => {
     expect(body).toMatchObject({ action: 'draft', suggestSubject: true })
   })
 })
+
+describe('ComposeWindow sign-off', () => {
+  const SIGNATURE = '<div><div>Thanks,</div><div>Peter</div><div><br></div><div>+61 493 053 188</div></div>'
+
+  it('shows the sign-off as editable text and sends the edited version', async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ComposeWindow
+        initial={REPLY}
+        title="Reply"
+        onClose={vi.fn()}
+        onSend={onSend}
+        onSchedule={vi.fn()}
+        onSaveDraft={vi.fn().mockResolvedValue('draft1')}
+        onDeleteDraft={vi.fn()}
+        signatureHtml={SIGNATURE}
+      />,
+    )
+    const signOff = screen.getByLabelText('Sign-off') as HTMLTextAreaElement
+    expect(signOff.value).toBe('Thanks,\nPeter')
+    // The rest of the signature is still previewed, without the sign-off.
+    const preview = screen.getByTitle('Your Gmail signature (added automatically)') as HTMLIFrameElement
+    expect(preview.getAttribute('srcdoc')).toContain('+61 493 053 188')
+    expect(preview.getAttribute('srcdoc')).not.toContain('Thanks,')
+
+    fireEvent.change(signOff, { target: { value: 'Cheers,\nPete' } })
+    await waitForBody()
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_SEND_MS)
+    })
+    expect(onSend.mock.calls[0]?.[0]).toMatchObject({ signOff: 'Cheers,\nPete' })
+  })
+
+  it('sends the unedited sign-off too, so the email matches the preview', async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ComposeWindow
+        initial={REPLY}
+        title="Reply"
+        onClose={vi.fn()}
+        onSend={onSend}
+        onSchedule={vi.fn()}
+        onSaveDraft={vi.fn().mockResolvedValue('draft1')}
+        onDeleteDraft={vi.fn()}
+        signatureHtml={SIGNATURE}
+      />,
+    )
+    await waitForBody()
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_SEND_MS)
+    })
+    expect(onSend.mock.calls[0]?.[0]).toMatchObject({ signOff: 'Thanks,\nPeter' })
+  })
+})

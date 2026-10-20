@@ -478,6 +478,33 @@
   padding: 0 16px 12px;
 }
 
+/* The signature's sign-off, editable per email, in the body font (Verdana, Normal). */
+.signOff {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 2px;
+  padding: 2px;
+  overflow: hidden;
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  outline: none;
+  resize: none;
+  background: none;
+  color: inherit;
+  font-family: Verdana, sans-serif;
+  font-size: small;
+  line-height: 1.5;
+}
+
+.signOff:hover {
+  border-color: var(--theme-elevation-200);
+}
+
+.signOff:focus {
+  border-color: #2c97c9;
+}
+
 .signatureLabel {
   display: block;
   margin-bottom: 4px;

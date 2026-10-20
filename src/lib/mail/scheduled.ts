@@ -1,3 +1,4 @@
+import { cleanSignOff } from "@/lib/mail/signature";
 import { sql } from "@payloadcms/db-sqlite";
 import type { Payload } from "payload";
 import { parseMailComposeContent } from "@/lib/mail/compose-content";
@@ -36,6 +37,8 @@ export interface StoredMailContent {
   html: string;
   /** Blind copy recipients (kept here rather than in a column). */
   bcc?: string;
+  /** Edited sign-off from the compose window. */
+  signOff?: string;
   inlineImages?: unknown;
   attachments?: unknown;
 }
@@ -286,6 +289,7 @@ export async function sendScheduledEmail(
     to: text(row.to),
     cc: text(row.cc),
     bcc: text(stored?.bcc),
+    signOff: cleanSignOff(stored?.signOff),
     subject: text(row.subject),
     content: parsed.value,
     replyToMessageId: text(row.reply_to_message_id) || null,

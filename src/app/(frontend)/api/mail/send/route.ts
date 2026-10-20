@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseMailComposeContent } from "@/lib/mail/compose-content";
 import { deleteDraft } from "@/lib/mail/gmail-mail";
 import { deliverMail } from "@/lib/mail/deliver";
+import { cleanSignOff } from "@/lib/mail/signature";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
  * POST /api/mail/send
- * Body: { to, cc?, bcc?, subject, html, inlineImages?, attachments?, replyToMessageId?, draftId? }
+ * Body: { to, cc?, bcc?, signOff?, subject, html, inlineImages?, attachments?, replyToMessageId?, draftId? }
  *
  * Sends mail. Only reachable from the Send button: the user's edited HTML
  * is sent as-is after validation (the model never calls this route). Inline
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     to?: unknown;
     cc?: unknown;
     bcc?: unknown;
+    signOff?: unknown;
     subject?: unknown;
     html?: unknown;
     inlineImages?: unknown;
@@ -57,6 +59,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     to: cleanHeader(body.to),
     cc: cleanHeader(body.cc),
     bcc: cleanHeader(body.bcc),
+    signOff: cleanSignOff(body.signOff),
     subject: cleanHeader(body.subject),
     content: content.value,
     replyToMessageId,

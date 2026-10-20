@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styles from './ComposeWindow.module.css'
 import EmailBody from './EmailBody'
 import RichEmailEditor, { type EmailSelectionFormat, type RichEmailEditorHandle } from './RichEmailEditor'
 import FormatBar from './FormatBar'
 import { buildEmailDocument } from '../../lib/mail/email-html'
+import { MAX_SIGN_OFF_CHARS, splitSignatureSignOff } from '../../lib/mail/signature'
 import { markdownLiteToHtml } from '../../lib/email-draft-markdown'
 import { base64Bytes, extractInlineImages, type InlineImagePayload } from '../../lib/mail/compose-html'
 import { MAIL_ATTACHMENT_LIMITS } from '../../lib/mail/compose-limits'
@@ -24,7 +25,8 @@ import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
  * enforced) plus this conversation. Nothing is sent until Send is clicked.
  * The user's Gmail signature is previewed at the end of the scrolling draft;
  * the server appends it on Send and Save as draft, so it is never part of the
- * editable text.
+ * editable text. Its sign-off ("Thanks, Peter") is the exception: it is shown
+ * in the body font and can be edited for each email (see lib/mail/signature).
  *
  * The body is a rich editor (see RichEmailEditor), always Verdana at Gmail's
  * Normal size: Cmd/Ctrl+B/I/U, text colour, bulleted and numbered lists (the
@@ -60,6 +62,11 @@ export interface ComposeState {
   cc: string
   /** Blind copy; shown with Cc. */
   bcc?: string
+  /**
+   * The signature's sign-off ("Thanks,\nPeter") as edited for this email.
+   * Undefined until edited: the Gmail signature's own sign-off is used.
+   */
+  signOff?: string
   subject: string
   /** Starting body HTML (the editor owns it after that). */
   html: string
@@ -139,6 +146,15 @@ const LIMIT_NOTE = `Images and attachments can total up to ${formatSize(MAIL_ATT
 
 export default function ComposeWindow({ initial, title, onClose, onSend, onSchedule, onSaveDraft, onDeleteDraft, signatureHtml }: Props) {
   const [state, setState] = useState<ComposeState>(initial)
+  const signatureParts = useMemo(() => (signatureHtml ? splitSignatureSignOff(signatureHtml) : null), [signatureHtml])
+  const signatureRef = useRef(signatureParts)
+  signatureRef.current = signatureParts
+  /** What is sent: always the shown sign-off, so the email matches the preview (Verdana, Normal). */
+  const outgoing = useCallback((s: ComposeState): ComposeState => {
+    const parts = signatureRef.current
+    if (!parts) return s
+    return { ...s, signOff: s.signOff ?? parts.signOff }
+  }, [])
   const [turns, setTurns] = useState<Turn[]>([])
   // The unsent AI instruction is kept in this browser as you type (see ai-prompt-store).
   const [prompt, setPrompt] = useState(() =>
@@ -305,7 +321,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     const job = (async () => {
       try {
         const draftId = await onSaveDraftRef.current(
-          { ...current, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) },
+          outgoing({ ...current, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }),
           { html, inlineImages, attachments: current.attachments },
         )
         if (draftId && draftId !== draftIdRef.current) {
@@ -321,7 +337,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     await job
     savingRef.current = null
     if (dirtyRef.current) void autosave()
-  }, [persistPrompt])
+  }, [persistPrompt, outgoing])
 
   const attachmentBytesRef = useRef(attachmentBytes)
   attachmentBytesRef.current = attachmentBytes
@@ -347,7 +363,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       return
     }
     setEdits((n) => n + 1)
-  }, [state.to, state.cc, state.bcc, state.subject, state.attachments])
+  }, [state.to, state.cc, state.bcc, state.subject, state.signOff, state.attachments])
 
   useEffect(() => {
     const flush = () => {
@@ -457,7 +473,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     try {
       await savingRef.current
       const current = stateRef.current
-      await onSend({ ...current, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }, content)
+      await onSend(outgoing({ ...current, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }), content)
       clearPrompt(browserStorage(), currentPromptKeys())
     } catch (err) {
       closedRef.current = false
@@ -475,7 +491,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     setBusy('draft')
     try {
       await savingRef.current
-      const draftId = await onSaveDraft({ ...state, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }, content)
+      const draftId = await onSaveDraft(outgoing({ ...state, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }), content)
       if (draftId && draftId !== draftIdRef.current) {
         draftIdRef.current = draftId
         persistPrompt()
@@ -532,7 +548,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     try {
       await savingRef.current
       closedRef.current = true
-      await onSchedule({ ...state, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }, content, when)
+      await onSchedule(outgoing({ ...state, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }), content, when)
       clearPrompt(browserStorage(), currentPromptKeys())
     } catch (err) {
       closedRef.current = false
@@ -684,9 +700,24 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           />
 
           {signatureHtml === null ? null : (
-            <div className={styles.signature} title="Signature (added automatically)">
-              {signatureHtml ? (
-                <EmailBody html={buildEmailDocument(signatureHtml)} title="Your Gmail signature (added automatically)" />
+            <div className={styles.signature}>
+              {signatureParts ? (
+                <textarea
+                  className={styles.signOff}
+                  value={state.signOff ?? signatureParts.signOff}
+                  rows={Math.max(1, (state.signOff ?? signatureParts.signOff).split('\n').length)}
+                  maxLength={MAX_SIGN_OFF_CHARS}
+                  onChange={(e) => setState((current) => ({ ...current, signOff: e.target.value }))}
+                  aria-label="Sign-off"
+                  title="Sign-off for this email. Edit it here; the rest of your signature is added from Gmail."
+                  spellCheck
+                />
+              ) : null}
+              {signatureParts && !signatureParts.rest ? null : signatureHtml ? (
+                <EmailBody
+                  html={buildEmailDocument(signatureParts ? signatureParts.rest : signatureHtml)}
+                  title="Your Gmail signature (added automatically)"
+                />
               ) : (
                 <span className={styles.signatureLabel}>No Gmail signature set. Add one in Gmail settings, then reopen this window.</span>
               )}

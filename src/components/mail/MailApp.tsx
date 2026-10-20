@@ -78,6 +78,7 @@ interface DraftResponse {
   to: string
   cc: string
   bcc?: string
+  signOff?: string
   subject: string
   html: string
   attachments: ComposeFile[]
@@ -460,6 +461,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           to: draft.to,
           cc: draft.cc,
           bcc: draft.bcc ?? '',
+          ...(draft.signOff !== undefined ? { signOff: draft.signOff } : {}),
           subject: draft.subject,
           html: draft.html,
           attachments: draft.attachments,
@@ -679,6 +681,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         to: state.to,
         cc: state.cc,
         bcc: state.bcc ?? '',
+        ...(state.signOff !== undefined ? { signOff: state.signOff } : {}),
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,
@@ -706,6 +709,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         to: state.to,
         cc: state.cc,
         bcc: state.bcc ?? '',
+        ...(state.signOff !== undefined ? { signOff: state.signOff } : {}),
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,
@@ -765,6 +769,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         to: state.to,
         cc: state.cc,
         bcc: state.bcc ?? '',
+        ...(state.signOff !== undefined ? { signOff: state.signOff } : {}),
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,

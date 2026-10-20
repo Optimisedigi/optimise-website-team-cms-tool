@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
 import { declarationProperty, splitDeclarations } from "@/lib/mail/gmail-html";
+import { withEditedSignOff } from "@/lib/mail/signature";
 import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
 
 /**
@@ -347,6 +348,11 @@ export function formatGmailDraftHtml(htmlBody: string): string {
   return `<div data-optimate-gmail-draft-font="true" style="${GMAIL_DRAFT_FONT_STYLE}">${normalised}</div>`;
 }
 
+/** The Gmail signature, with the compose window's edited sign-off when one was sent. */
+function signatureFor(signatureHtml: string, signOff: string | undefined): string {
+  return signOff === undefined ? signatureHtml : withEditedSignOff(signatureHtml, removeForbiddenDashes(signOff));
+}
+
 export function appendGmailSignature(htmlBody: string, signatureHtml: string): string {
   const signature = signatureHtml.trim();
   if (!signature) return htmlBody;
@@ -369,6 +375,8 @@ export async function createGmailDraft(
     htmlBody: string;
     cc?: string;
     bcc?: string;
+    /** Edited sign-off from the compose window: replaces the signature's own "Thanks, Peter" lines. */
+    signOff?: string;
     /** Gmail thread id to attach the draft to (in-thread reply). */
     threadId?: string;
     /** RFC 822 Message-ID of the message being replied to. */
@@ -390,7 +398,7 @@ export async function createGmailDraft(
   const htmlBodyWithoutForbiddenDashes = removeForbiddenDashes(args.htmlBody);
   const signedHtmlBody = args.appendSignature === false
     ? htmlBodyWithoutForbiddenDashes
-    : appendGmailSignature(htmlBodyWithoutForbiddenDashes, await getPrimaryGmailSignature(accessToken));
+    : appendGmailSignature(htmlBodyWithoutForbiddenDashes, signatureFor(await getPrimaryGmailSignature(accessToken), args.signOff));
   const htmlBody = formatGmailDraftHtml(signedHtmlBody);
   const raw = buildMimeMessage({
     to: args.to,
@@ -436,6 +444,8 @@ export async function sendGmailMessage(
     bcc?: string;
     subject: string;
     htmlBody: string;
+    /** Edited sign-off from the compose window (see createGmailDraft). */
+    signOff?: string;
     threadId?: string;
     inReplyTo?: string;
     appendSignature?: boolean;
@@ -449,7 +459,7 @@ export async function sendGmailMessage(
   const body = removeForbiddenDashes(args.htmlBody);
   const signed = args.appendSignature === false
     ? body
-    : appendGmailSignature(body, await getPrimaryGmailSignature(accessToken));
+    : appendGmailSignature(body, signatureFor(await getPrimaryGmailSignature(accessToken), args.signOff));
   const raw = buildMimeMessage({
     to: args.to,
     cc: args.cc,
