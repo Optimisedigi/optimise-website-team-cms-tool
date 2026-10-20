@@ -76,6 +76,89 @@ export function generateSigningInviteEmail(opts: {
   return baseTemplate(content);
 }
 
+export function generateReviewInviteEmail(opts: {
+  recipientName: string;
+  contractTitle: string;
+  reviewUrl: string;
+  senderName: string;
+  expiresInDays: number;
+}): string {
+  const content = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">Hi ${escapeHtml(opts.recipientName)},</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      Here's the draft agreement for you to look over before it goes out for signing.
+    </p>
+    <p style="margin:0 0 8px;font-size:14px;color:#64748b;">
+      <strong style="color:#1e293b;">Contract:</strong> ${escapeHtml(opts.contractTitle)}
+    </p>
+    <p style="margin:0 0 24px;font-size:14px;color:#64748b;">
+      If anything needs changing, you can highlight the wording and leave a note right on the page. This link is valid for ${opts.expiresInDays} days.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <a href="${escapeHtml(opts.reviewUrl)}" style="display:inline-block;background:#1b4332;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:600;">
+            View Draft Contract
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:24px 0 0;font-size:12px;color:#94a3b8;text-align:center;">
+      Questions? Reply to this email or contact ${escapeHtml(opts.senderName)} directly.
+    </p>
+`;
+
+  return baseTemplate(content);
+}
+
+export function generateReviewCommentsEmail(opts: {
+  recipientName: string;
+  reviewerName: string;
+  contractTitle: string;
+  comments: Array<{ quote: string; section: string; comment: string }>;
+  adminUrl: string;
+  reviewUrl: string;
+}): string {
+  const items = opts.comments
+    .map(
+      (c, i) => `
+    <tr>
+      <td style="padding:14px 0;border-top:1px solid #e2e8f0;">
+        <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">${i + 1}.${c.section ? ` ${escapeHtml(c.section)}` : ""}</p>
+        <p style="margin:0 0 8px;padding:8px 12px;background:#fef9c3;border-left:3px solid #ca8a04;font-size:13px;color:#475569;font-style:italic;">&ldquo;${escapeHtml(c.quote)}&rdquo;</p>
+        <p style="margin:0;font-size:14px;color:#1e293b;white-space:pre-wrap;">${escapeHtml(c.comment)}</p>
+      </td>
+    </tr>`,
+    )
+    .join("");
+
+  const content = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">Hi ${escapeHtml(opts.recipientName)},</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      ${escapeHtml(opts.reviewerName)} left ${opts.comments.length} comment${opts.comments.length === 1 ? "" : "s"} on the draft contract.
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#64748b;">
+      <strong style="color:#1e293b;">Contract:</strong> ${escapeHtml(opts.contractTitle)}
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0">${items}
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;">
+      <tr>
+        <td align="center">
+          <a href="${escapeHtml(opts.adminUrl)}" style="display:inline-block;background:#1e293b;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:600;">
+            Open Contract in CMS
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;text-align:center;">
+      <a href="${escapeHtml(opts.reviewUrl)}" style="color:#64748b;">See the comments on the draft</a>
+    </p>
+`;
+
+  return baseTemplate(content);
+}
+
 export function generateCompletionEmail(opts: {
   recipientName: string;
   contractTitle: string;

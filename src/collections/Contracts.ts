@@ -160,6 +160,16 @@ export const Contracts: CollectionConfig = {
           );
         }
       },
+      // Purge the contract's draft review comments with it, so the
+      // NOT NULL contract reference never dangles.
+      async ({ req, id }) => {
+        await req.payload.delete({
+          collection: "contract-review-comments",
+          where: { contract: { equals: id } },
+          overrideAccess: true,
+          req,
+        });
+      },
     ],
     afterChange: [
       async ({ doc, previousDoc, operation, req }) => {
@@ -391,6 +401,28 @@ export const Contracts: CollectionConfig = {
                   "Client business address. Optional — when set, a 'Business address' line renders on the contract cover page. The client can fill this in themselves on the signing page.",
                 rows: 2,
               },
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "accountManagerName",
+                  type: "text",
+                  label: "Account Manager",
+                  admin: {
+                    description:
+                      "Your day-to-day contact at the client (often not the signatory). CMS only — never shown on the contract.",
+                  },
+                },
+                {
+                  name: "accountManagerEmail",
+                  type: "email",
+                  label: "Account Manager Email",
+                  admin: {
+                    description: "Where the draft review link is emailed. Send it from the Draft Review tab.",
+                  },
+                },
+              ],
             },
             {
               name: "contractDate",
@@ -713,6 +745,22 @@ export const Contracts: CollectionConfig = {
           ],
         },
         {
+          label: "Draft Review",
+          description:
+            "Send the account manager a link to review the draft and leave inline comments before it goes out for signing.",
+          fields: [
+            {
+              name: "draftReviewPanel",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ContractReviewPanel",
+                },
+              },
+            },
+          ],
+        },
+        {
           label: "Agency Contact",
           fields: [
             {
@@ -932,6 +980,44 @@ export const Contracts: CollectionConfig = {
       admin: {
         readOnly: true,
         description: "When the signing link expires",
+      },
+    },
+    {
+      name: "reviewToken",
+      type: "text",
+      unique: true,
+      hooks: {
+        // A copy is a new draft; it must never share or inherit a review link.
+        beforeDuplicate: [() => null],
+      },
+      admin: {
+        hidden: true,
+      },
+    },
+    {
+      name: "reviewTokenExpiresAt",
+      type: "date",
+      hooks: {
+        // A copy is a new draft; it must never share or inherit a review link.
+        beforeDuplicate: [() => null],
+      },
+      admin: {
+        readOnly: true,
+        description: "When the draft review link expires",
+        condition: (data) => Boolean(data?.reviewTokenExpiresAt),
+      },
+    },
+    {
+      name: "reviewSentAt",
+      type: "date",
+      hooks: {
+        // A copy is a new draft; it must never share or inherit a review link.
+        beforeDuplicate: [() => null],
+      },
+      admin: {
+        readOnly: true,
+        description: "When the draft review link was last created or emailed",
+        condition: (data) => Boolean(data?.reviewSentAt),
       },
     },
     {

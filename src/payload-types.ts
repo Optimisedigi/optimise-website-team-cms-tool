@@ -75,6 +75,7 @@ export interface Config {
     'client-proposal-keyword-research-jobs': ClientProposalKeywordResearchJob;
     'client-discovery-briefings': ClientDiscoveryBriefing;
     contracts: Contract;
+    'contract-review-comments': ContractReviewComment;
     'sales-leads': SalesLead;
     'process-templates': ProcessTemplate;
     'deck-templates': DeckTemplate;
@@ -205,6 +206,7 @@ export interface Config {
     'client-proposal-keyword-research-jobs': ClientProposalKeywordResearchJobsSelect<false> | ClientProposalKeywordResearchJobsSelect<true>;
     'client-discovery-briefings': ClientDiscoveryBriefingsSelect<false> | ClientDiscoveryBriefingsSelect<true>;
     contracts: ContractsSelect<false> | ContractsSelect<true>;
+    'contract-review-comments': ContractReviewCommentsSelect<false> | ContractReviewCommentsSelect<true>;
     'sales-leads': SalesLeadsSelect<false> | SalesLeadsSelect<true>;
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
     'deck-templates': DeckTemplatesSelect<false> | DeckTemplatesSelect<true>;
@@ -1747,6 +1749,14 @@ export interface Contract {
    */
   clientBusinessAddress?: string | null;
   /**
+   * Your day-to-day contact at the client (often not the signatory). CMS only — never shown on the contract.
+   */
+  accountManagerName?: string | null;
+  /**
+   * Where the draft review link is emailed. Send it from the Draft Review tab.
+   */
+  accountManagerEmail?: string | null;
+  /**
    * Date of contract
    */
   contractDate: string;
@@ -2050,6 +2060,15 @@ export interface Contract {
    * When the signing link expires
    */
   signingTokenExpiresAt?: string | null;
+  reviewToken?: string | null;
+  /**
+   * When the draft review link expires
+   */
+  reviewTokenExpiresAt?: string | null;
+  /**
+   * When the draft review link was last created or emailed
+   */
+  reviewSentAt?: string | null;
   /**
    * When contract was sent to client
    */
@@ -7369,6 +7388,32 @@ export interface ClientDiscoveryBriefing {
    * Link to client proposal (optional).
    */
   clientProposal?: (number | null) | ClientProposal;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contract-review-comments".
+ */
+export interface ContractReviewComment {
+  id: number;
+  contract: number | Contract;
+  /**
+   * The contract text the reviewer highlighted.
+   */
+  quote: string;
+  /**
+   * Which match of the quote on the page (0 = first).
+   */
+  occurrence?: number | null;
+  section?: string | null;
+  comment: string;
+  authorName?: string | null;
+  /**
+   * When this comment was emailed to the agency contact.
+   */
+  emailedAt?: string | null;
+  resolved?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -13078,6 +13123,8 @@ export interface ContractsSelect<T extends boolean = true> {
   clientAcn?: T;
   clientWebsite?: T;
   clientBusinessAddress?: T;
+  accountManagerName?: T;
+  accountManagerEmail?: T;
   contractDate?: T;
   contractStartDate?: T;
   contractEndDate?: T;
@@ -13129,10 +13176,29 @@ export interface ContractsSelect<T extends boolean = true> {
   status?: T;
   signingToken?: T;
   signingTokenExpiresAt?: T;
+  reviewToken?: T;
+  reviewTokenExpiresAt?: T;
+  reviewSentAt?: T;
   sentAt?: T;
   isTemplate?: T;
   templateLabel?: T;
   deletedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contract-review-comments_select".
+ */
+export interface ContractReviewCommentsSelect<T extends boolean = true> {
+  contract?: T;
+  quote?: T;
+  occurrence?: T;
+  section?: T;
+  comment?: T;
+  authorName?: T;
+  emailedAt?: T;
+  resolved?: T;
   updatedAt?: T;
   createdAt?: T;
 }

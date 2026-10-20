@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { userHasFeature } from "@/lib/access";
 
 export async function GET(
   req: NextRequest,
@@ -14,6 +15,10 @@ export async function GET(
   const { user } = await payload.auth({ headers: req.headers });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // Contracts hold client PII and pricing: require the Contracts feature, not just a login.
+  if (!userHasFeature(user, "contracts")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let doc: any;

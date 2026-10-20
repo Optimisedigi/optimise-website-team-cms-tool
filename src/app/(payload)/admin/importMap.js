@@ -123,6 +123,7 @@ import { default as default_94eaeab32c437efb583ff77d2696f2b2 } from '../../../co
 import { default as default_dc498ed93a93c18e4342ff8a50ddd9ec } from '../../../components/AgencySignButton'
 import { default as default_f67cf31d207033ac38b6ce6f5f074fb6 } from '../../../components/SendContractButton'
 import { default as default_f9eade6f7f767ed2b3c678a2659ef9d2 } from '../../../components/SendContractEmailButton'
+import { default as default_contract_review_panel } from '../../../components/ContractReviewPanel'
 import { default as default_dd37952574b774c5a30f482eff630855 } from '../../../components/ContractPreviewButton'
 import { default as default_876a41240e98fb91b048fbca8e3bedba } from '../../../components/CreateFromTemplateButton'
 import { default as default_29da3f8f6bcc3dfd99d69b1d9120e145 } from '../../../components/ContractsTrashToggle'
@@ -372,6 +373,7 @@ export const importMap = {
   "./components/AgencySignButton#default": default_dc498ed93a93c18e4342ff8a50ddd9ec,
   "./components/SendContractButton#default": default_f67cf31d207033ac38b6ce6f5f074fb6,
   "./components/SendContractEmailButton#default": default_f9eade6f7f767ed2b3c678a2659ef9d2,
+  "./components/ContractReviewPanel#default": default_contract_review_panel,
   "./components/ContractPreviewButton#default": default_dd37952574b774c5a30f482eff630855,
   "./components/CreateFromTemplateButton#default": default_876a41240e98fb91b048fbca8e3bedba,
   "./components/ContractsTrashToggle#default": default_29da3f8f6bcc3dfd99d69b1d9120e145,

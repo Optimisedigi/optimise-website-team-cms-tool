@@ -78,6 +78,7 @@ import { MonthlyKeywordSelectionRows } from "./collections/MonthlyKeywordSelecti
 import { MonthlyKeywordTermsCache } from "./collections/MonthlyKeywordTermsCache";
 import KeywordDeepDiveSessions from "./collections/KeywordDeepDiveSessions";
 import { Contracts } from "./collections/Contracts";
+import { ContractReviewComments } from "./collections/ContractReviewComments";
 import { SalesLeads } from "./collections/SalesLeads";
 import { ProcessTemplates } from "./collections/ProcessTemplates";
 import { DeckTemplates } from "./collections/DeckTemplates";
@@ -174,7 +175,7 @@ export default buildConfig({
   // (server-written logs, offers, rate limits). A test guards the ceiling.
   collections: [
     // Clients
-    Clients, ClientWishlistItems, HostingPaymentOffers, HostingOneOffPayments, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
+    Clients, ClientWishlistItems, HostingPaymentOffers, HostingOneOffPayments, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, ContractReviewComments, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
     // Mail
     ClientEmails, ClientEmailSummaries, MailAiRequests, MailSyncStates, ScheduledEmails, GoogleAdsChangePreviews,
     // Content
