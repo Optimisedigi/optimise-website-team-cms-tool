@@ -26,9 +26,11 @@ export function changePreviewDb(payload: Payload): ChangePreviewDb {
   return payload.db.drizzle as unknown as ChangePreviewDb;
 }
 
-/** Request metadata the tool adds for Growth Tools logging; hidden from the change card. */
+/** Request metadata and flags the tools add; hidden from the change card. */
 const METADATA_KEYS = new Set([
   "customerId",
+  "validateOnly",
+  "confirm",
   "action",
   "summary",
   "agentRunId",

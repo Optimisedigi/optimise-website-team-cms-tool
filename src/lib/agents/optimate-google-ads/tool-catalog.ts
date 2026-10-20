@@ -184,6 +184,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   get_keyword_ideas: "read-google-ads",
   growth_tools_read: "read-google-ads",
   get_weekly_trend_note: "read-google-ads",
+  google_ads_query: "read-google-ads",
 
   // Read — Search Console / GA4 / SERP / AI Visibility
   get_ga4_overview: "read-search-and-ai",
@@ -218,6 +219,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   create_goal_run: "actions",
   create_account_efficiency_goal_run: "actions",
   execute_google_ads_action: "actions",
+  google_ads_mutate_preview: "actions",
   execute_ga4_action: "actions",
   execute_gtm_action: "actions",
   review_tracking_changes: "actions",

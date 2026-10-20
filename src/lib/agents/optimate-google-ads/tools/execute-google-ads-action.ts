@@ -104,12 +104,12 @@ function appendQuery(path: string, params: Record<string, unknown>): string {
   return query ? `${base}?${query}` : base;
 }
 
-function optionalId(value: unknown): number | undefined {
+export function optionalId(value: unknown): number | undefined {
   const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
   return Number.isFinite(n) ? n : undefined;
 }
 
-async function defaultPreviewDb(): Promise<ChangePreviewDb> {
+export async function defaultPreviewDb(): Promise<ChangePreviewDb> {
   return changePreviewDb(await getPayload({ config: await payloadConfig }));
 }
 

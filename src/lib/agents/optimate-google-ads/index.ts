@@ -78,6 +78,8 @@ import { proposeScheduledTask } from "./tools/propose-scheduled-task";
 import { listScheduledTasks } from "./tools/list-scheduled-tasks";
 import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-update";
 import { executeGoogleAdsAction } from "./tools/execute-google-ads-action";
+import { googleAdsQuery } from "./tools/google-ads-query";
+import { googleAdsMutatePreview } from "./tools/google-ads-mutate-preview";
 import { executeGa4Action } from "./tools/execute-ga4-action";
 import { executeGtmAction } from "./tools/execute-gtm-action";
 import { reviewTrackingChanges } from "./tools/review-tracking-changes";
@@ -136,6 +138,7 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "propose_scheduled_task_update",
   "propose_stakeholder_deck",
   "propose_deck_from_template",
+  "google_ads_mutate_preview",
 ]);
 
 const TOOL_BUNDLE_NAMES = GOOGLEMATE_TOOL_BUNDLE_NAMES;
@@ -248,6 +251,8 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
     proposeStakeholderDeck as unknown as CanonicalTool<unknown>,
     proposeDeckFromTemplateTool as unknown as CanonicalTool<unknown>,
     executeGoogleAdsAction as unknown as CanonicalTool<unknown>,
+    googleAdsMutatePreview as unknown as CanonicalTool<unknown>,
+    googleAdsQuery as unknown as CanonicalTool<unknown>,
     executeGa4Action as unknown as CanonicalTool<unknown>,
     executeGtmAction as unknown as CanonicalTool<unknown>,
     reviewTrackingChanges as unknown as CanonicalTool<unknown>,
@@ -293,7 +298,7 @@ function applyToolRestrictions(
 }
 
 const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown>[]> = {
-  performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, growthToolsRead, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
+  performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, growthToolsRead, googleAdsQuery, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
   negative_keywords: [getSearchTerms, getNegativeKeywordLists, proposeNegativeKeywords, proposeNklCreate, proposeNklUpdate, proposeNklPushLive] as unknown as CanonicalTool<unknown>[],
   budget_email: [createWeeklyBudgetGmailDraftTool, createMonthlyBudgetGmailDraftTool, getBudgetManagementEmail, getDashboardEmailComponents, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool] as unknown as CanonicalTool<unknown>[],
   // Split out of budget_email and performance: never called in production
@@ -307,7 +312,7 @@ const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown
   goals: [listGoalRuns, getGoalRun, getGoalProgressSummary, createGoalRun, createAccountEfficiencyGoalRun] as unknown as CanonicalTool<unknown>[],
   scheduled_tasks: [proposeScheduledTask, listScheduledTasks, proposeScheduledTaskUpdate] as unknown as CanonicalTool<unknown>[],
   decks: [proposeStakeholderDeck, proposeDeckFromTemplateTool] as unknown as CanonicalTool<unknown>[],
-  actions: [executeGoogleAdsAction, executeGa4Action, executeGtmAction, reviewTrackingChanges] as unknown as CanonicalTool<unknown>[],
+  actions: [executeGoogleAdsAction, googleAdsMutatePreview, googleAdsQuery, executeGa4Action, executeGtmAction, reviewTrackingChanges] as unknown as CanonicalTool<unknown>[],
   memory: [memorySearch, remember, soulSet] as unknown as CanonicalTool<unknown>[],
 };
 
