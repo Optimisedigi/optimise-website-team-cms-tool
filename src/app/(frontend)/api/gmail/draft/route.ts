@@ -258,19 +258,35 @@ export async function POST(req: NextRequest) {
 
 /**
  * DELETE /api/gmail/draft?messageId=<draft message id>
+ *     or /api/gmail/draft?draftId=<gmail draft id>
  *
- * Permanently deletes one of the user's Gmail drafts (Mail view trash icon).
+ * Permanently deletes one of the user's Gmail drafts (Mail view trash icons:
+ * the Drafts list passes the message id, the compose window the draft id).
+ * A draft that is already gone counts as deleted for draftId.
  */
 export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
   if (ctx instanceof NextResponse) return ctx;
-  const messageId = parseGmailId(req.nextUrl.searchParams.get("messageId"));
-  if (!messageId) return NextResponse.json({ error: "Invalid draft message id." }, { status: 400 });
+  const params = req.nextUrl.searchParams;
+  const directDraftId = params.has("draftId") ? parseGmailId(params.get("draftId")) : null;
+  const messageId = directDraftId ? null : parseGmailId(params.get("messageId"));
+  if (!directDraftId && !messageId) return NextResponse.json({ error: "Invalid draft id." }, { status: 400 });
   const token = await requireGmailToken(ctx.user.id);
   if (token instanceof NextResponse) return token;
 
+  if (directDraftId) {
+    try {
+      await deleteDraft(token.accessToken, directDraftId);
+      return NextResponse.json({ ok: true, draftId: directDraftId });
+    } catch (err) {
+      const status = Number((err as { code?: number; status?: number }).code ?? (err as { status?: number }).status ?? 0);
+      if (status === 404) return NextResponse.json({ ok: true, draftId: directDraftId, alreadyGone: true });
+      return gmailErrorResponse(err, "Could not delete the Gmail draft.");
+    }
+  }
+
   try {
-    const draftId = await findDraftIdByMessageId(token.accessToken, messageId);
+    const draftId = await findDraftIdByMessageId(token.accessToken, messageId ?? "");
     if (!draftId) return NextResponse.json({ error: "This draft has already been sent or discarded." }, { status: 404 });
     await deleteDraft(token.accessToken, draftId);
     return NextResponse.json({ ok: true, draftId });

@@ -419,6 +419,33 @@
   cursor: pointer;
 }
 
+/* Delete-draft trash icon, pushed to the far right of the footer like Gmail. */
+.trash {
+  display: inline-flex;
+  margin-left: auto;
+  padding: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--theme-elevation-500);
+  cursor: pointer;
+}
+
+.trash:hover:not(:disabled) {
+  background: var(--theme-elevation-50);
+  color: #e5484d;
+}
+
+.trash:focus-visible {
+  outline: 2px solid #2c97c9;
+  outline-offset: 2px;
+}
+
+.trash:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .secondary {
   padding: 8px 16px;
   border: 1px solid var(--theme-elevation-150);

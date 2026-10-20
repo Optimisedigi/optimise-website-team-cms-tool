@@ -6,6 +6,7 @@ import { useIsMobileViewport, useSwipeBack } from '../../lib/swipe'
 import EmailBody from './EmailBody'
 import CalendarInviteCard from './CalendarInviteCard'
 import type { ThreadInvite } from '../../lib/mail/calendar-invite'
+import { browserStorage, clearPrompt, promptKeys } from '../../lib/mail/ai-prompt-store'
 import ComposeWindow, { type ComposeContent, type ComposeFile, type ComposeState } from './ComposeWindow'
 import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
 import {
@@ -736,12 +737,21 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   async function deleteDraftRow(thread: ThreadRow) {
     if (!window.confirm('Delete this draft?')) return
     try {
-      await api(`/api/gmail/draft?messageId=${encodeURIComponent(thread.messageId)}`, { method: 'DELETE' })
+      const data = await api<{ draftId?: string }>(`/api/gmail/draft?messageId=${encodeURIComponent(thread.messageId)}`, {
+        method: 'DELETE',
+      })
+      if (data.draftId) clearPrompt(browserStorage(), promptKeys({ mode: 'new', draftId: data.draftId, startedNew: false }))
       setThreads((current) => current.filter((row) => row.threadId !== thread.threadId))
       void loadCounts()
     } catch (err) {
       showError(err)
     }
+  }
+
+  async function deleteComposedDraft(draftId: string): Promise<void> {
+    await api(`/api/gmail/draft?draftId=${encodeURIComponent(draftId)}`, { method: 'DELETE' })
+    if (folder === 'drafts' && !showScheduled) void loadInbox({ folder, q: query })
+    void loadCounts()
   }
 
   async function saveComposedDraft(state: ComposeState, content: ComposeContent): Promise<string | undefined> {
@@ -1331,6 +1341,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           onSend={sendComposed}
           onSchedule={scheduleComposed}
           onSaveDraft={saveComposedDraft}
+          onDeleteDraft={deleteComposedDraft}
           signatureHtml={signatureHtml}
         />
       ) : null}

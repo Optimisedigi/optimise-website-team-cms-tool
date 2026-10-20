@@ -11,6 +11,7 @@ import { base64Bytes, extractInlineImages, type InlineImagePayload } from '../..
 import { MAIL_ATTACHMENT_LIMITS } from '../../lib/mail/compose-limits'
 import { parseDatetimeLocal, schedulePresets, toDatetimeLocalValue } from '../../lib/mail/schedule-times'
 import { fitImageForChat } from '../chat-image-fit'
+import { browserStorage, clearPrompt, loadPrompt, promptKeys, savePrompt } from '../../lib/mail/ai-prompt-store'
 
 /**
  * Gmail-style compose window docked bottom right, just left of the OptiMate orb.
@@ -74,6 +75,8 @@ interface Props {
   onSchedule: (state: ComposeState, content: ComposeContent, when: Date) => Promise<void>
   /** Resolves to the Gmail draft id, so later saves update the same draft. */
   onSaveDraft: (state: ComposeState, content: ComposeContent) => Promise<string | undefined>
+  /** Permanently delete the Gmail draft this window saved or opened. */
+  onDeleteDraft: (draftId: string) => Promise<void>
   /** Gmail signature HTML; '' when none is set, null while unknown. */
   signatureHtml: string | null
 }
@@ -120,11 +123,23 @@ const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp
 const DISPLAY_WIDTH = 600
 const LIMIT_NOTE = `Images and attachments can total up to ${formatSize(MAIL_ATTACHMENT_LIMITS.maxTotalBytes)} per email.`
 
-export default function ComposeWindow({ initial, title, onClose, onSend, onSchedule, onSaveDraft, signatureHtml }: Props) {
+export default function ComposeWindow({ initial, title, onClose, onSend, onSchedule, onSaveDraft, onDeleteDraft, signatureHtml }: Props) {
   const [state, setState] = useState<ComposeState>(initial)
   const [turns, setTurns] = useState<Turn[]>([])
-  const [prompt, setPrompt] = useState('')
-  const [busy, setBusy] = useState<'' | 'ai' | 'send' | 'draft' | 'schedule'>('')
+  // The unsent AI instruction is kept in this browser as you type (see ai-prompt-store).
+  const [prompt, setPrompt] = useState(() =>
+    loadPrompt(
+      browserStorage(),
+      promptKeys({
+        mode: initial.mode,
+        replyToMessageId: initial.replyTo?.messageId,
+        draftId: initial.draftId,
+        startedNew: !initial.draftId,
+      }),
+      Date.now(),
+    ),
+  )
+  const [busy, setBusy] = useState<'' | 'ai' | 'send' | 'draft' | 'schedule' | 'delete'>('')
   const [note, setNote] = useState('')
   const [minimised, setMinimised] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -148,6 +163,22 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const savingRef = useRef<Promise<void> | null>(null)
   const dirtyRef = useRef(false)
   const closedRef = useRef(false)
+  const promptTextRef = useRef(prompt)
+  promptTextRef.current = prompt
+
+  const currentPromptKeys = useCallback(
+    () =>
+      promptKeys({
+        mode: initial.mode,
+        replyToMessageId: initial.replyTo?.messageId,
+        draftId: draftIdRef.current,
+        startedNew: !initial.draftId,
+      }),
+    [initial.mode, initial.replyTo?.messageId, initial.draftId],
+  )
+  const persistPrompt = useCallback(() => {
+    savePrompt(browserStorage(), currentPromptKeys(), promptTextRef.current, Date.now())
+  }, [currentPromptKeys])
   const [edits, setEdits] = useState(0)
   const baselineHtml = useRef<string | null>(null)
   const fieldsMounted = useRef(false)
@@ -248,7 +279,10 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           { ...current, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) },
           { html, inlineImages, attachments: current.attachments },
         )
-        if (draftId) draftIdRef.current = draftId
+        if (draftId && draftId !== draftIdRef.current) {
+          draftIdRef.current = draftId
+          persistPrompt()
+        }
         setAutoStatus('Saved')
       } catch {
         setAutoStatus('Not saved')
@@ -258,12 +292,17 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     await job
     savingRef.current = null
     if (dirtyRef.current) void autosave()
-  }, [])
+  }, [persistPrompt])
 
   const attachmentBytesRef = useRef(attachmentBytes)
   attachmentBytesRef.current = attachmentBytes
   const onSaveDraftRef = useRef(onSaveDraft)
   onSaveDraftRef.current = onSaveDraft
+
+  // Save the AI instruction on every keystroke (localStorage is synchronous and cheap).
+  useEffect(() => {
+    persistPrompt()
+  }, [prompt, persistPrompt])
 
   // Save shortly after typing stops, and when the tab is hidden or closed.
   useEffect(() => {
@@ -355,9 +394,13 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       if (kind === 'send') {
         closedRef.current = true
         await onSend(withId, content)
+        clearPrompt(browserStorage(), currentPromptKeys())
       } else {
         const draftId = await onSaveDraft(withId, content)
-        if (draftId) draftIdRef.current = draftId
+        if (draftId && draftId !== draftIdRef.current) {
+          draftIdRef.current = draftId
+          persistPrompt()
+        }
         setAutoStatus('Saved')
         setNote('Saved to Gmail Drafts.')
       }
@@ -383,10 +426,31 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       await savingRef.current
       closedRef.current = true
       await onSchedule({ ...state, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }, content, when)
+      clearPrompt(browserStorage(), currentPromptKeys())
     } catch (err) {
       closedRef.current = false
       setNote((err as Error).message)
     } finally {
+      setBusy('')
+    }
+  }
+
+  /** Trash icon: stop autosaving, delete the Gmail draft (if one was saved) and close. */
+  async function discardDraft() {
+    if (busy) return
+    if (!window.confirm("Delete this draft? This can't be undone.")) return
+    setBusy('delete')
+    setNote('')
+    closedRef.current = true
+    try {
+      await savingRef.current
+      const draftId = draftIdRef.current
+      if (draftId) await onDeleteDraft(draftId)
+      clearPrompt(browserStorage(), currentPromptKeys())
+      onClose()
+    } catch (err) {
+      closedRef.current = false
+      setNote((err as Error).message)
       setBusy('')
     }
   }
@@ -722,6 +786,18 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           </button>
           <button type="button" className={styles.secondary} onClick={() => void run('draft')} disabled={busy !== '' || !hasDraft}>
             {busy === 'draft' ? 'Saving…' : 'Save as draft'}
+          </button>
+          <button
+            type="button"
+            className={styles.trash}
+            onClick={() => void discardDraft()}
+            disabled={busy !== ''}
+            aria-label="Delete draft"
+            title="Delete draft"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
+            </svg>
           </button>
         </footer>
       </div>

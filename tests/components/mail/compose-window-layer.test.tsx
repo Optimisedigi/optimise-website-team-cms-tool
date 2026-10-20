@@ -17,6 +17,7 @@ describe('ComposeWindow layering', () => {
           onSend={vi.fn()}
           onSchedule={vi.fn()}
           onSaveDraft={vi.fn()}
+          onDeleteDraft={vi.fn()}
           signatureHtml=""
         />
       </div>,
