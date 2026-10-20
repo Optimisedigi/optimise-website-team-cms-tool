@@ -158,7 +158,6 @@ export function ContractHeaderAndCover({ contract, clientDisplayName }: { contra
 
       <section className="contract-cover" aria-labelledby="contract-title">
         <div className="contract-cover-copy">
-          <p className="contract-kicker">Contract Agreement</p>
           <h1 id="contract-title">{contract.contractTitle || 'Contract Agreement'}</h1>
           <p className="contract-intro">
             Between Optimise Digital Pty Ltd and {clientDisplayName}.
@@ -501,7 +500,6 @@ export function ContractDocumentStyles() {
         min-height: 420px;
         padding: 64px 0 50px;
       }
-      .contract-kicker,
       .contract-action-title {
         margin: 0 0 12px;
         color: #1b4332;
