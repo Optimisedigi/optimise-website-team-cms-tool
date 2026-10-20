@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import styles from './ComposeWindow.module.css'
 import EmailBody from './EmailBody'
 import RichEmailEditor, { type RichEmailEditorHandle } from './RichEmailEditor'
@@ -410,7 +411,9 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     .filter(Boolean)
     .join(' ')
 
-  return (
+  // Portalled to <body>: inside the admin layout an ancestor's stacking context
+  // capped the z-index, so the OptiMate orb and client-email alert covered it.
+  return createPortal(
     <div className={windowClass} role="dialog" aria-label={title}>
       <header className={styles.header} onClick={() => minimised && setMinimised(false)}>
         <span className={styles.title}>
@@ -722,6 +725,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           </button>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
