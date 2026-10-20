@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 const threadsList = vi.fn()
 const threadsGet = vi.fn()
+const messagesList = vi.fn()
 vi.mock('googleapis', () => ({
   google: {
     auth: { OAuth2: class { setCredentials() {} } },
-    gmail: () => ({ users: { threads: { list: threadsList, get: threadsGet } } }),
+    gmail: () => ({ users: { threads: { list: threadsList, get: threadsGet }, messages: { list: messagesList } } }),
   },
 }))
 
@@ -49,10 +50,32 @@ describe('listFolderThreads', () => {
   it('lists the inbox by its label and shows the latest message', async () => {
     threadsList.mockReset().mockResolvedValueOnce({ data: { threads: [{ id: 't1' }], nextPageToken: 'next' } })
     threadsGet.mockReset().mockResolvedValueOnce({ data: thread })
-    const result = await listFolderThreads('tok', 'inbox', { q: '-from:x.com' })
-    expect(threadsList).toHaveBeenCalledWith(expect.objectContaining({ labelIds: ['INBOX'], q: '-from:x.com' }))
+    const result = await listFolderThreads('tok', 'inbox')
+    expect(threadsList).toHaveBeenCalledWith(expect.objectContaining({ labelIds: ['INBOX'] }))
     expect(result.nextPageToken).toBe('next')
     expect(result.threads[0]).toMatchObject({ threadId: 't1', messageId: 'm3', unread: true, messageCount: 3 })
+  })
+
+  // Regression: threads.list with a query returned threads out of date order and
+  // dropped recent ones, so hidden-sender filtering hid new mail from the inbox.
+  it('lists filtered folders via messages.list, newest first, one row per thread', async () => {
+    threadsList.mockReset()
+    messagesList.mockReset().mockResolvedValueOnce({
+      data: {
+        messages: [
+          { id: 'a', threadId: 't2' },
+          { id: 'b', threadId: 't1' },
+          { id: 'c', threadId: 't2' },
+        ],
+        nextPageToken: 'p2',
+      },
+    })
+    threadsGet.mockReset().mockResolvedValue({ data: thread })
+    const result = await listFolderThreads('tok', 'inbox', { q: '-from:x.com' })
+    expect(threadsList).not.toHaveBeenCalled()
+    expect(messagesList).toHaveBeenCalledWith(expect.objectContaining({ labelIds: ['INBOX'], q: '-from:x.com' }))
+    expect(result.threads.map((row) => row.threadId)).toEqual(['t2', 't1'])
+    expect(result.nextPageToken).toBe('p2')
   })
 
   it('shows the latest sent message in Sent, not the incoming reply or the draft', async () => {

@@ -12,6 +12,7 @@ vi.mock('@/lib/mail/store', () => ({ loadClientDomainIndex: vi.fn(async () => ({
 vi.mock('@/lib/mail/hidden-senders', () => ({
   loadHiddenSenders: vi.fn(async () => ['@news.com']),
   hiddenSendersQuery: vi.fn(() => '-from:news.com'),
+  isHiddenSender: vi.fn((from: string) => from.endsWith('@news.com>')),
 }))
 vi.mock('@/lib/mail/client-senders', () => ({ loadClientSenders: vi.fn(async () => []) }))
 vi.mock('@/lib/mail/route-helpers', () => ({

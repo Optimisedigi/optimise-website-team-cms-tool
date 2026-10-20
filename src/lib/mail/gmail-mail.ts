@@ -73,14 +73,23 @@ export async function listFolderThreads(
 ): Promise<{ threads: InboxThreadSummary[]; nextPageToken: string | null }> {
   const gmail = gmailApi(accessToken);
   const label = FOLDER_LABELS[folder];
-  const list = await gmail.users.threads.list({
-    userId: "me",
-    labelIds: [label],
-    maxResults: Math.min(Math.max(options.maxResults ?? 25, 1), 50),
-    ...(options.pageToken ? { pageToken: options.pageToken } : {}),
-    ...(options.q ? { q: options.q } : {}),
-  });
-  const ids = (list.data.threads ?? []).map((thread) => thread.id).filter((id): id is string => Boolean(id));
+  const maxResults = Math.min(Math.max(options.maxResults ?? 25, 1), 50);
+  const page = options.pageToken ? { pageToken: options.pageToken } : {};
+  let ids: string[];
+  let nextPageToken: string | null;
+  if (options.q) {
+    // threads.list with any `q` (even "in:inbox") returns threads out of date
+    // order and silently drops some recent ones; messages.list with the same
+    // query is newest first. Rows are its threads in first-seen order. A thread
+    // can reappear on a later page, so callers dedupe when appending.
+    const list = await gmail.users.messages.list({ userId: "me", labelIds: [label], maxResults, q: options.q, ...page });
+    ids = [...new Set((list.data.messages ?? []).map((message) => message.threadId).filter((id): id is string => Boolean(id)))];
+    nextPageToken = list.data.nextPageToken ?? null;
+  } else {
+    const list = await gmail.users.threads.list({ userId: "me", labelIds: [label], maxResults, ...page });
+    ids = (list.data.threads ?? []).map((thread) => thread.id).filter((id): id is string => Boolean(id));
+    nextPageToken = list.data.nextPageToken ?? null;
+  }
   const threads = await mapLimited(ids, 8, async (id) => {
     const res = await gmail.users.threads.get({
       userId: "me",
@@ -109,7 +118,7 @@ export async function listFolderThreads(
       messageCount: messages.length,
     } satisfies InboxThreadSummary;
   });
-  return { threads, nextPageToken: list.data.nextPageToken ?? null };
+  return { threads, nextPageToken };
 }
 
 export interface MailFolderCounts {

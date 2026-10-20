@@ -16,6 +16,7 @@ import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-m
 import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
 import { MAIL_TABS, mailTabLabel, unreadFirst, type MailFolder, type MailTab, type MailTabCounts } from '../../lib/mail/folders'
 import ScheduledPanel, { type ScheduledItem } from './ScheduledPanel'
+import { MAIL_AUTO_REFRESH_MS, isMailAutoRefreshWindow } from '../../lib/mail/auto-refresh'
 
 /**
  * CMS Mail view. Folder list (Inbox / Sent / Drafts, plus the Scheduled queue) → reading pane (newest
@@ -189,6 +190,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [signatureHtml, setSignatureHtml] = useState<string | null>(null)
   const threadRequest = useRef(0)
   const listRequest = useRef(0)
+  // True once "Load more" added a page; auto-refresh then waits so the extra rows aren't dropped.
+  const listAppended = useRef(false)
   const composeKey = useRef(0)
 
   const showError = useCallback((err: unknown) => {
@@ -222,8 +225,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         if (Array.isArray(data.hiddenSenders)) setHiddenSenders(data.hiddenSenders)
         if (Array.isArray(data.clientSenders)) setClientSenders(data.clientSenders)
         // Inbox: unread on top (across loaded pages); other folders keep Gmail's order.
+        listAppended.current = Boolean(opts.append)
         setThreads((current) => {
-          const next = opts.append ? [...current, ...data.threads] : data.threads
+          // Search results are message-based, so a thread can repeat on the next page.
+          const seen = new Set(opts.append ? current.map((row) => row.threadId) : [])
+          const fresh: ThreadRow[] = []
+          for (const row of data.threads) {
+            if (seen.has(row.threadId)) continue
+            seen.add(row.threadId)
+            fresh.push(row)
+          }
+          const next = opts.append ? [...current, ...fresh] : fresh
           return opts.folder === 'inbox' ? unreadFirst(next) : next
         })
         setNextPageToken(data.nextPageToken)
@@ -286,6 +298,21 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       loadCounts(),
     ])
   }, [folder, loadCounts, loadInbox, loadScheduled, query, runSync, showScheduled])
+
+  // Auto-refresh every 5 minutes on Sydney weekdays 6:30am–6:30pm, only while
+  // Mail is on screen. Skips while composing, loading, or after "Load more", so
+  // the list never reshuffles mid-task. Refs keep one stable timer.
+  const autoRefreshState = useRef({ refresh, composing: false, loading: false })
+  autoRefreshState.current = { refresh, composing: composer !== null, loading: listLoading }
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const { refresh: run, composing, loading } = autoRefreshState.current
+      if (document.visibilityState !== 'visible' || composing || loading || listAppended.current) return
+      if (!isMailAutoRefreshWindow(new Date())) return
+      void run()
+    }, MAIL_AUTO_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [])
 
   // Sync on open.
   useEffect(() => {

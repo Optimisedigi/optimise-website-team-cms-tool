@@ -3,7 +3,7 @@ import { listFolderThreads } from "@/lib/mail/gmail-mail";
 import { parseMailFolder } from "@/lib/mail/folders";
 import { matchMessageToClient } from "@/lib/mail/client-matching";
 import { loadClientDomainIndex } from "@/lib/mail/store";
-import { hiddenSendersQuery, loadHiddenSenders } from "@/lib/mail/hidden-senders";
+import { hiddenSendersQuery, isHiddenSender, loadHiddenSenders } from "@/lib/mail/hidden-senders";
 import { loadClientSenders } from "@/lib/mail/client-senders";
 import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
@@ -46,10 +46,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       hiddenSenders,
       clientSenders,
       nextPageToken,
-      threads: threads.map((thread) => {
-        const match = matchMessageToClient(index, thread);
-        return { ...thread, client: match ? { id: match.clientId, name: match.clientName } : null };
-      }),
+      // A thread with older mail from others still matches the search, so drop
+      // rows whose shown (latest) message is from a hidden sender.
+      threads: threads
+        .filter((thread) => folder !== "inbox" || !isHiddenSender(thread.from, hiddenSenders))
+        .map((thread) => {
+          const match = matchMessageToClient(index, thread);
+          return { ...thread, client: match ? { id: match.clientId, name: match.clientName } : null };
+        }),
     });
   } catch (err) {
     return gmailErrorResponse(err, `Could not load ${folder === "inbox" ? "the inbox" : folder} from Gmail.`);
