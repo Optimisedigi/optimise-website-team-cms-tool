@@ -2,6 +2,11 @@
 
 import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
 import { useState } from 'react'
+import { SIGNING_LINK_TTL_DAYS, signingLinkExpiry } from '../lib/contract-signing-link'
+
+function formatExpiry(date: Date): string {
+  return date.toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' })
+}
 
 const SendContractButton = () => {
   const { id } = useDocumentInfo()
@@ -10,6 +15,8 @@ const SendContractButton = () => {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [signingUrl, setSigningUrl] = useState<string | null>(null)
+  // Expiry of a link generated in this session (the saved field updates on reload).
+  const [newExpiresAt, setNewExpiresAt] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   // Inline email-send state. We send via the same /send-email route the
   // sibling SendContractEmailButton uses, but inline so the user sees the
@@ -22,6 +29,7 @@ const SendContractButton = () => {
   const sentAt = fields?.['sentAt']?.value as string
   const clientEmail = fields?.['clientEmail']?.value as string
   const agencySignature = fields?.['agencySignature']?.value
+  const savedExpiresAt = fields?.['signingTokenExpiresAt']?.value as string | undefined
 
   if (!id) return null
 
@@ -34,6 +42,7 @@ const SendContractButton = () => {
     setError(null)
     setMessage(null)
     setSigningUrl(null)
+    setNewExpiresAt(null)
     setCopied(false)
     try {
       const res = await fetch(`/api/contracts/${id}/send-to-client`, {
@@ -44,6 +53,7 @@ const SendContractButton = () => {
       if (!res.ok) throw new Error(data.error || 'Failed to generate link')
 
       setSigningUrl(data.signingUrl)
+      setNewExpiresAt(typeof data.expiresAt === 'string' ? data.expiresAt : null)
       setMessage('Signing link generated. You can email it to the client (button below) or copy and share it manually.')
     } catch (e: any) {
       setError(e.message)
@@ -100,6 +110,24 @@ const SendContractButton = () => {
           Link generated for {clientEmail} on {new Date(sentAt).toLocaleDateString('en-AU')}
         </p>
       )}
+      {status === 'sent' && !signingUrl && (() => {
+        const expiry = signingLinkExpiry(savedExpiresAt, new Date())
+        if (expiry.state === 'active') {
+          return (
+            <p style={{ margin: '0 0 8px', fontSize: 13, color: '#64748b' }}>
+              Link active until {formatExpiry(expiry.expiresAt)}
+            </p>
+          )
+        }
+        if (expiry.state === 'expired') {
+          return (
+            <p style={{ margin: '0 0 8px', fontSize: 13, color: '#b45309', fontWeight: 600 }}>
+              Link expired on {formatExpiry(expiry.expiresAt)}. Regenerate it to send the client a new one.
+            </p>
+          )
+        }
+        return null
+      })()}
 
       <button
         type="button"
@@ -173,7 +201,13 @@ const SendContractButton = () => {
             </button>
           </div>
           <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>
-            This link expires in 7 days. The client can view, verify details, and sign.
+            {(() => {
+              const expiry = signingLinkExpiry(newExpiresAt, new Date())
+              return expiry.state === 'none'
+                ? `This link expires in ${SIGNING_LINK_TTL_DAYS} days.`
+                : `This link is active until ${formatExpiry(expiry.expiresAt)}.`
+            })()}{' '}
+            The client can view, verify details, and sign.
           </p>
 
           {/* Inline email-send. Lets the operator email the link to the

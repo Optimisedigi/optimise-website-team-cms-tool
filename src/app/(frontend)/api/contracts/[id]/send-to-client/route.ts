@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import crypto from "crypto";
 import { logActivity } from "@/lib/activity-log";
+import { SIGNING_LINK_TTL_DAYS } from "@/lib/contract-signing-link";
 
 export async function POST(
   req: NextRequest,
@@ -47,7 +48,7 @@ export async function POST(
     // Generate or refresh signing token
     const signingToken = crypto.randomBytes(48).toString("hex");
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + SIGNING_LINK_TTL_DAYS);
 
     const now = new Date().toISOString();
     await payload.update({
@@ -81,6 +82,7 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       signingUrl,
+      expiresAt: expiresAt.toISOString(),
     });
   } catch (e: any) {
     console.error("[send-to-client] Error:", e.message);
