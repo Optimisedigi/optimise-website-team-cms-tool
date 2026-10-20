@@ -19,6 +19,7 @@ export interface DeliverInput {
   token: { accessToken: string; email: string; userEmail: string };
   to: string;
   cc?: string;
+  bcc?: string;
   subject: string;
   content: MailComposeContent;
   replyToMessageId?: string | null;
@@ -48,6 +49,7 @@ export async function deliverMail(input: DeliverInput): Promise<DeliverResult> {
     sent = await sendGmailMessage(token.accessToken, {
       to,
       cc: input.cc || undefined,
+      bcc: input.bcc || undefined,
       subject,
       htmlBody: content.html,
       ...(content.inlineImages.length > 0 ? { inlineImages: content.inlineImages } : {}),

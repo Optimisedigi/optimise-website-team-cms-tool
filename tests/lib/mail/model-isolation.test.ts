@@ -112,6 +112,44 @@ describe("POST /api/mail/ai", () => {
   });
 });
 
+describe("AI greeting and suggested subject", () => {
+  it("replies open with Hi and the sender's first name", async () => {
+    mockGetFullMessage.mockResolvedValueOnce({
+      messageId: "selected", threadId: "t1", rfcMessageId: "<x@y>", to: "peter@optimisedigital.online", cc: "", date: "",
+      snippet: "", labelIds: [], from: "Helena Smith <helena@flipside.com.au>", subject: "Paid ads", body: "Next steps?",
+    });
+    mockCallLLM.mockResolvedValueOnce({ message: { content: [{ type: "text", text: "Dear Helena,\n\nHappy to help." }] }, model: "m" });
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const res = await POST(post("/api/mail/ai", { action: "reply", gmailMessageId: "selected" }));
+    expect(await res.json()).toMatchObject({ text: "Hi Helena,\n\nHappy to help." });
+    expect(modelInput()).toContain("Always open with 'Hi'");
+  });
+
+  it("splits a suggested subject off the first draft of a new email", async () => {
+    mockCallLLM.mockResolvedValueOnce({
+      message: { content: [{ type: "text", text: "Subject: Call next week?\n\nHi Jo,\n\nFancy a call next week?" }] },
+      model: "m",
+    });
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const res = await POST(post("/api/mail/ai", { action: "draft", instruction: "invite Jo to a call", suggestSubject: true }));
+    expect(await res.json()).toMatchObject({ subject: "Call next week?", text: "Hi Jo,\n\nFancy a call next week?" });
+    expect(modelInput()).toContain("'Subject: <a short, specific subject line>'");
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "draft" }) }));
+  });
+
+  it("asks for a subject only on the first request of a new email", () => {
+    expect(buildMailModelRequest({ action: "draft", instruction: "x", suggestSubject: true }).suggestSubject).toBe(true);
+    expect(buildMailModelRequest({ action: "draft", instruction: "x" }).suggestSubject).toBe(false);
+    expect(
+      buildMailModelRequest({ action: "draft", instruction: "shorter", currentDraft: "Hi Jo", suggestSubject: true }).suggestSubject,
+    ).toBe(false);
+    expect(
+      buildMailModelRequest({ action: "reply", email: { gmailMessageId: "a", from: "x", subject: "s", body: "b" }, suggestSubject: true })
+        .suggestSubject,
+    ).toBe(false);
+  });
+});
+
 describe("POST /api/mail/summarise", () => {
   it("summarises only the one stored email and saves nothing to the timeline", async () => {
     mockPayload.findByID.mockResolvedValue({ id: 5, gmailMessageId: "selected", ...INBOX.selected });

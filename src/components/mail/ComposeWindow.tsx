@@ -29,8 +29,16 @@ import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
  * The body is a rich editor (see RichEmailEditor), always Verdana at Gmail's
  * Normal size: Cmd/Ctrl+B/I/U, text colour, bulleted and numbered lists (the
  * formatting bar under the body), pasted or inserted tables, inline images,
- * and attached files (3 MB in total).
+ * and attached files (3 MB in total). Files dropped anywhere on the window
+ * are attached (listed under the signature); pasted images go inline.
+ *
+ * Send waits UNDO_SEND_MS before sending, like Gmail's undo send: the button
+ * shows it is sending and an Undo button stops it. Closing the window during
+ * the wait sends straight away (Send was pressed; only Undo cancels).
  */
+
+/** How long Send waits, with Undo available, before the email actually goes. */
+export const UNDO_SEND_MS = 3100
 
 export interface ComposeReplyTarget {
   messageId: string
@@ -50,6 +58,8 @@ export interface ComposeState {
   replyTo: ComposeReplyTarget | null
   to: string
   cc: string
+  /** Blind copy; shown with Cc. */
+  bcc?: string
   subject: string
   /** Starting body HTML (the editor owns it after that). */
   html: string
@@ -147,7 +157,12 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const [note, setNote] = useState('')
   const [minimised, setMinimised] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const [showCc, setShowCc] = useState(Boolean(initial.cc))
+  const [showCc, setShowCc] = useState(Boolean(initial.cc || initial.bcc))
+  // Waiting out the undo window after Send; the timer is in sendTimerRef.
+  const [sendPending, setSendPending] = useState(false)
+  const sendTimerRef = useRef<number | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const dragDepth = useRef(0)
   const [hasDraft, setHasDraft] = useState(Boolean(initial.html.trim()))
   const [tableOpen, setTableOpen] = useState(false)
   const [selectionFormat, setSelectionFormat] = useState<EmailSelectionFormat>({ list: null, color: null })
@@ -157,7 +172,6 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   // Opt-in: also give the AI the rest of this email's thread. Off by default.
   const [useThread, setUseThread] = useState(false)
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const historyEnd = useRef<HTMLDivElement>(null)
   const editorRef = useRef<RichEmailEditorHandle>(null)
   const attachInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -200,9 +214,13 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     return () => window.removeEventListener(OPTIMATE_OPENED_EVENT, minimise)
   }, [])
 
-  useEffect(() => {
-    historyEnd.current?.scrollIntoView({ block: 'nearest' })
-  }, [turns.length])
+  // Leaving the page (or closing another way) mid-wait cancels the timer; nothing is sent.
+  useEffect(
+    () => () => {
+      if (sendTimerRef.current !== null) window.clearTimeout(sendTimerRef.current)
+    },
+    [],
+  )
 
   const attachmentBytes = state.attachments.reduce((sum, file) => sum + base64Bytes(file.data), 0)
 
@@ -330,7 +348,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       return
     }
     setEdits((n) => n + 1)
-  }, [state.to, state.cc, state.subject, state.attachments])
+  }, [state.to, state.cc, state.bcc, state.subject, state.attachments])
 
   useEffect(() => {
     const flush = () => {
@@ -359,15 +377,21 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     setNote('')
     try {
       const currentDraft = hasDraft ? (editorRef.current?.getMarkdown() ?? '') : ''
-      const data = await postJson<{ text: string }>('/api/mail/ai', {
+      // First AI request on a new email with no subject yet: the AI suggests one too.
+      const suggestSubject = state.mode === 'new' && turns.length === 0 && !currentDraft && !state.subject.trim()
+      const data = await postJson<{ text: string; subject?: string }>('/api/mail/ai', {
         action: state.mode === 'reply' ? 'reply' : 'draft',
         ...(state.mode === 'reply' ? { gmailMessageId: state.replyTo?.messageId, includeThread: useThread } : {}),
+        ...(suggestSubject ? { suggestSubject: true } : {}),
         instruction,
         history: turns,
         currentDraft,
       })
       setTurns((current) => [...current, { instruction: instruction || 'Draft a reply', draft: data.text }])
       setBodyFromText(data.text)
+      const subject = data.subject?.trim()
+      // Never overwrite a subject typed while the AI was writing.
+      if (subject) setState((current) => (current.subject.trim() ? current : { ...current, subject }))
       setPrompt('')
       promptRef.current?.focus()
     } catch (err) {
@@ -375,13 +399,6 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     } finally {
       setBusy('')
     }
-  }
-
-  function undoLast() {
-    if (turns.length === 0) return
-    const previous = turns.slice(0, -1)
-    setTurns(previous)
-    setBodyFromText(previous[previous.length - 1]?.draft ?? '')
   }
 
   function buildContent(): ComposeContent | null {
@@ -394,34 +411,113 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     return { html, inlineImages, attachments: state.attachments }
   }
 
-  async function run(kind: 'send' | 'draft') {
+  /** Send button: check the email, then wait UNDO_SEND_MS (Undo stops it) before sending. */
+  function startSend() {
     if (busy || !hasDraft) return
     setNote('')
+    if (!buildContent()) return
+    setBusy('send')
+    setSendPending(true)
+    // No autosave during the wait: it would re-create the draft that Send removes.
+    closedRef.current = true
+    sendTimerRef.current = window.setTimeout(() => {
+      sendTimerRef.current = null
+      void deliverNow()
+    }, UNDO_SEND_MS)
+  }
+
+  function undoSend() {
+    if (sendTimerRef.current === null) return
+    window.clearTimeout(sendTimerRef.current)
+    sendTimerRef.current = null
+    setSendPending(false)
+    setBusy('')
+    closedRef.current = false
+    setNote('Sending undone.')
+    editorRef.current?.focus()
+  }
+
+  /** Close during the wait: Send was pressed, so send now rather than lose it. */
+  function flushSend(): boolean {
+    if (sendTimerRef.current === null) return false
+    window.clearTimeout(sendTimerRef.current)
+    sendTimerRef.current = null
+    void deliverNow()
+    return true
+  }
+
+  async function deliverNow() {
+    setSendPending(false)
+    // Built again so edits made during the wait are what gets sent.
     const content = buildContent()
-    if (!content) return
-    setBusy(kind)
+    if (!content) {
+      closedRef.current = false
+      setBusy('')
+      return
+    }
     try {
       await savingRef.current
-      const withId = { ...state, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }
-      if (kind === 'send') {
-        closedRef.current = true
-        await onSend(withId, content)
-        clearPrompt(browserStorage(), currentPromptKeys())
-      } else {
-        const draftId = await onSaveDraft(withId, content)
-        if (draftId && draftId !== draftIdRef.current) {
-          draftIdRef.current = draftId
-          persistPrompt()
-        }
-        setAutoStatus('Saved')
-        setNote('Saved to Gmail Drafts.')
-      }
+      const current = stateRef.current
+      await onSend({ ...current, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }, content)
+      clearPrompt(browserStorage(), currentPromptKeys())
     } catch (err) {
       closedRef.current = false
       setNote((err as Error).message)
     } finally {
       setBusy('')
     }
+  }
+
+  async function saveDraftNow() {
+    if (busy || !hasDraft) return
+    setNote('')
+    const content = buildContent()
+    if (!content) return
+    setBusy('draft')
+    try {
+      await savingRef.current
+      const draftId = await onSaveDraft({ ...state, ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}) }, content)
+      if (draftId && draftId !== draftIdRef.current) {
+        draftIdRef.current = draftId
+        persistPrompt()
+      }
+      setAutoStatus('Saved')
+      setNote('Saved to Gmail Drafts.')
+    } catch (err) {
+      setNote((err as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  // Files dragged onto the window are attached (images too); pasted images go inline instead.
+  const hasFiles = (event: React.DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files')
+  const dragHandlers = {
+    onDragEnter: (event: React.DragEvent) => {
+      if (!hasFiles(event) || minimised) return
+      event.preventDefault()
+      dragDepth.current += 1
+      setDragging(true)
+    },
+    onDragOver: (event: React.DragEvent) => {
+      if (!hasFiles(event) || minimised) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'copy'
+    },
+    onDragLeave: (event: React.DragEvent) => {
+      if (!hasFiles(event)) return
+      dragDepth.current = Math.max(0, dragDepth.current - 1)
+      if (dragDepth.current === 0) setDragging(false)
+    },
+    onDrop: (event: React.DragEvent) => {
+      dragDepth.current = 0
+      setDragging(false)
+      const files = Array.from(event.dataTransfer?.files ?? [])
+      if (files.length === 0 || minimised) return
+      event.preventDefault()
+      if (busy !== '') return
+      void addAttachments(files)
+    },
   }
 
   async function runSchedule(when: Date | null) {
@@ -490,7 +586,12 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   // Portalled to <body>: inside the admin layout an ancestor's stacking context
   // capped the z-index, so the OptiMate orb and client-email alert covered it.
   return createPortal(
-    <div className={windowClass} role="dialog" aria-label={title}>
+    <div className={windowClass} role="dialog" aria-label={title} {...dragHandlers}>
+      {dragging ? (
+        <div className={styles.dropOverlay} aria-hidden="true">
+          Drop files to attach
+        </div>
+      ) : null}
       <header className={styles.header} onClick={() => minimised && setMinimised(false)}>
         <span className={styles.title}>
           {title}
@@ -519,6 +620,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             title="Close"
             onClick={(e) => {
               e.stopPropagation()
+              if (flushSend()) return
               // Typed text is autosaved to Gmail Drafts, so closing never loses it.
               void autosave().then(() => savingRef.current).finally(() => {
                 closedRef.current = true
@@ -538,16 +640,22 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             <span>To</span>
             <input value={state.to} onChange={(e) => setState({ ...state, to: e.target.value })} />
             {!showCc ? (
-              <button type="button" className={styles.ccToggle} onClick={() => setShowCc(true)}>
+              <button type="button" className={styles.ccToggle} onClick={() => setShowCc(true)} title="Add Cc and Bcc recipients">
                 Cc
               </button>
             ) : null}
           </label>
           {showCc ? (
-            <label className={styles.field}>
-              <span>Cc</span>
-              <input value={state.cc} onChange={(e) => setState({ ...state, cc: e.target.value })} />
-            </label>
+            <>
+              <label className={styles.field}>
+                <span>Cc</span>
+                <input value={state.cc} onChange={(e) => setState({ ...state, cc: e.target.value })} />
+              </label>
+              <label className={styles.field}>
+                <span>Bcc</span>
+                <input value={state.bcc ?? ''} onChange={(e) => setState({ ...state, bcc: e.target.value })} />
+              </label>
+            </>
           ) : null}
           <label className={styles.field}>
             <input
@@ -589,6 +697,30 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               )}
             </div>
           )}
+
+          {/* Attachments sit under the signature, as in Gmail. */}
+          {state.attachments.length > 0 ? (
+            <ul className={styles.attachments} aria-label="Attachments">
+              {state.attachments.map((file, index) => (
+                <li key={`${index}-${file.name}`} className={styles.attachment}>
+                  <span className={styles.attachmentName} title={file.name}>
+                    {file.name}
+                  </span>
+                  <span className={styles.signatureLabel}>{formatSize(base64Bytes(file.data))}</span>
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    aria-label={`Remove ${file.name}`}
+                    onClick={() =>
+                      setState((current) => ({ ...current, attachments: current.attachments.filter((_, i) => i !== index) }))
+                    }
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
 
         <FormatBar
@@ -598,62 +730,29 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           onList={(type) => editorRef.current?.toggleList(type)}
         />
 
-        {state.attachments.length > 0 ? (
-          <ul className={styles.attachments} aria-label="Attachments">
-            {state.attachments.map((file, index) => (
-              <li key={`${index}-${file.name}`} className={styles.attachment}>
-                <span className={styles.attachmentName} title={file.name}>
-                  {file.name}
-                </span>
-                <span className={styles.signatureLabel}>{formatSize(base64Bytes(file.data))}</span>
-                <button
-                  type="button"
-                  className={styles.linkBtn}
-                  aria-label={`Remove ${file.name}`}
-                  onClick={() =>
-                    setState((current) => ({ ...current, attachments: current.attachments.filter((_, i) => i !== index) }))
-                  }
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
         <div className={styles.ai}>
+          {/* Attach / image / table, with "Use whole thread" on the same row (right). */}
           <div className={styles.aiTools}>
-            {turns.length > 0 || state.mode === 'reply' ? (
-              <div className={styles.metaRow}>
-                {turns.length > 0 ? (
-                  <>
-                    <div className={styles.history} aria-label="AI prompts so far">
-                      {turns.map((turn, index) => (
-                        <span key={index} className={styles.chip} title={turn.instruction}>
-                          {turn.instruction}
-                        </span>
-                      ))}
-                      <div ref={historyEnd} />
-                    </div>
-                    <button type="button" className={styles.linkBtn} onClick={undoLast} disabled={busy !== ''}>
-                      Undo last
-                    </button>
-                  </>
-                ) : null}
-                {state.mode === 'reply' ? (
-                  <label className={styles.threadToggle}>
-                    <input type="checkbox" checked={useThread} onChange={(e) => setUseThread(e.target.checked)} disabled={busy !== ''} />
-                    <span>Use whole thread</span>
-                  </label>
-                ) : null}
-              </div>
-            ) : null}
             <div className={styles.toolbar}>
-              <button type="button" className={styles.toolButton} onClick={() => attachInputRef.current?.click()} disabled={busy !== ''}>
-                📎 Attach files
+              <button
+                type="button"
+                className={`${styles.toolButton} ${styles.iconButton}`}
+                onClick={() => attachInputRef.current?.click()}
+                disabled={busy !== ''}
+                aria-label="Attach files"
+                title="Attach files"
+              >
+                <span aria-hidden="true">📎</span>
               </button>
-              <button type="button" className={styles.toolButton} onClick={() => imageInputRef.current?.click()} disabled={busy !== ''}>
-                🖼 Insert image
+              <button
+                type="button"
+                className={`${styles.toolButton} ${styles.iconButton}`}
+                onClick={() => imageInputRef.current?.click()}
+                disabled={busy !== ''}
+                aria-label="Insert image"
+                title="Insert image"
+              >
+                <span aria-hidden="true">🖼</span>
               </button>
               <button
                 type="button"
@@ -719,6 +818,12 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
                 }}
               />
             </div>
+            {state.mode === 'reply' ? (
+              <label className={styles.threadToggle}>
+                <input type="checkbox" checked={useThread} onChange={(e) => setUseThread(e.target.checked)} disabled={busy !== ''} />
+                <span>Use whole thread</span>
+              </label>
+            ) : null}
           </div>
           <div className={styles.promptRow}>
             <textarea
@@ -790,11 +895,24 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           <button
             type="button"
             className={styles.send}
-            onClick={() => void run('send')}
+            onClick={startSend}
             disabled={busy !== '' || !hasDraft || !state.to.trim()}
+            aria-busy={busy === 'send'}
           >
-            {busy === 'send' ? 'Sending…' : 'Send'}
+            {busy === 'send' ? (
+              <>
+                <span className={styles.spinner} aria-hidden="true" />
+                Sending…
+              </>
+            ) : (
+              'Send'
+            )}
           </button>
+          {sendPending ? (
+            <button type="button" className={styles.undoSend} onClick={undoSend} autoFocus>
+              Undo
+            </button>
+          ) : null}
           <button
             type="button"
             className={styles.secondary}
@@ -804,7 +922,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           >
             Schedule send
           </button>
-          <button type="button" className={styles.secondary} onClick={() => void run('draft')} disabled={busy !== '' || !hasDraft}>
+          <button type="button" className={styles.secondary} onClick={() => void saveDraftNow()} disabled={busy !== '' || !hasDraft}>
             {busy === 'draft' ? 'Saving…' : 'Save as draft'}
           </button>
           <button

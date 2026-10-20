@@ -77,6 +77,7 @@ interface DraftResponse {
   draftId: string
   to: string
   cc: string
+  bcc?: string
   subject: string
   html: string
   attachments: ComposeFile[]
@@ -458,6 +459,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           replyTo: draft.replyTo,
           to: draft.to,
           cc: draft.cc,
+          bcc: draft.bcc ?? '',
           subject: draft.subject,
           html: draft.html,
           attachments: draft.attachments,
@@ -676,6 +678,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       body: JSON.stringify({
         to: state.to,
         cc: state.cc,
+        bcc: state.bcc ?? '',
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,
@@ -702,6 +705,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       body: JSON.stringify({
         to: state.to,
         cc: state.cc,
+        bcc: state.bcc ?? '',
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,
@@ -759,6 +763,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       method: 'POST',
       body: JSON.stringify({
         to: state.to,
+        cc: state.cc,
+        bcc: state.bcc ?? '',
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,

@@ -34,6 +34,8 @@ export function scheduleDb(payload: Payload): ScheduleDb {
 /** What the compose window posted, kept so the cron can rebuild the email. */
 export interface StoredMailContent {
   html: string;
+  /** Blind copy recipients (kept here rather than in a column). */
+  bcc?: string;
   inlineImages?: unknown;
   attachments?: unknown;
 }
@@ -283,6 +285,7 @@ export async function sendScheduledEmail(
     token,
     to: text(row.to),
     cc: text(row.cc),
+    bcc: text(stored?.bcc),
     subject: text(row.subject),
     content: parsed.value,
     replyToMessageId: text(row.reply_to_message_id) || null,

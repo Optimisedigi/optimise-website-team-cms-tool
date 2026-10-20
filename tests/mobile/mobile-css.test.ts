@@ -36,7 +36,9 @@ describe('mobile styles', () => {
     expect(phone).toContain('.aiButton')
     expect(phone).toContain('.footer')
     expect(phone).toMatch(/\.footer\s*\{[^}]*flex-wrap:\s*nowrap/)
-    expect(phone).toContain('.metaRow')
+    // Icon-only attach/image buttons and the thread toggle (same row) stay thumb-sized.
+    expect(phone).toMatch(/\.iconButton\s*\{[^}]*min-width:\s*44px/)
+    expect(phone).toContain('.threadToggle')
     expect(phone).toContain('env(safe-area-inset-bottom)')
     expect(phone).toMatch(/\.prompt[\s\S]*font-size:\s*16px/)
   })

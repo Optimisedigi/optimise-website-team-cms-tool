@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getFullMessage, getThreadMessages } from "@/lib/mail/gmail-mail";
 import { buildMailModelRequest, cleanDraftHistory, MailModelRequestError } from "@/lib/mail/model-request";
 import { runMailModel } from "@/lib/mail/run-model";
+import { extractEmailHeaders } from "@/lib/gmail-draft-parsing";
+import { cleanSuggestedSubject, ensureHiGreeting, greetingName } from "@/lib/mail/greeting";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
  * POST /api/mail/ai
  * Body: { action: "reply", gmailMessageId: string, instruction?: string, history?, currentDraft? }
- *     | { action: "draft", instruction: string, history?, currentDraft? }
+ *     | { action: "draft", instruction: string, history?, currentDraft?, suggestSubject? }
+ *
+ * Returns { text, subject?, model }. suggestSubject (new email, first request,
+ * empty subject line) also asks for a subject, returned separately. The body
+ * always opens with "Hi" (plus the sender's first name for replies).
  *
  * history/currentDraft let the user keep refining the draft (OptiMate-style):
  * earlier instructions + drafts and the draft as currently edited. They are the
@@ -31,6 +37,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     history?: unknown;
     currentDraft?: unknown;
     includeThread?: unknown;
+    suggestSubject?: unknown;
   }>(req);
   if (!body) return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
 
@@ -41,12 +48,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const currentDraft = typeof body.currentDraft === "string" ? body.currentDraft : "";
 
   let request;
+  // First name for the "Hi <name>," greeting: the person being replied to.
+  let name = "";
   try {
     if (action === "draft") {
       if (body.gmailMessageId !== undefined && body.gmailMessageId !== null && body.gmailMessageId !== "") {
         return NextResponse.json({ error: "A new draft does not take an email." }, { status: 400 });
       }
-      request = buildMailModelRequest({ action: "draft", instruction, history, currentDraft });
+      request = buildMailModelRequest({
+        action: "draft",
+        instruction,
+        history,
+        currentDraft,
+        suggestSubject: body.suggestSubject === true,
+      });
     } else {
       const gmailMessageId = parseGmailId(body.gmailMessageId);
       if (!gmailMessageId) {
@@ -64,6 +79,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       } catch (err) {
         return gmailErrorResponse(err, "Could not load that email from Gmail.");
       }
+      // Replying to our own sent message goes to its recipient, so greet them instead.
+      const own = [token.email, token.userEmail].filter(Boolean).map((address) => address.toLowerCase());
+      const fromOwn = own.some((address) => message.from.toLowerCase().includes(address));
+      name = greetingName(fromOwn ? message.to : message.from);
       const toModelEmail = (m: typeof message) => ({
         gmailMessageId: m.messageId,
         from: m.from,
@@ -89,7 +108,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const result = await runMailModel({ payload: ctx.payload, userId: ctx.user.id, request });
-    return NextResponse.json({ text: result.text, model: result.model });
+    let text = result.text;
+    let subject = "";
+    if (request.suggestSubject) {
+      const headers = extractEmailHeaders(text.replace(/^\s+/, ""));
+      subject = cleanSuggestedSubject(headers.subject);
+      if (headers.subject !== undefined) text = headers.body;
+    }
+    text = ensureHiGreeting(text, name);
+    return NextResponse.json({ text, ...(subject ? { subject } : {}), model: result.model });
   } catch (err) {
     const message = err instanceof Error ? err.message : "AI request failed.";
     return NextResponse.json({ error: message.slice(0, 300) }, { status: 502 });

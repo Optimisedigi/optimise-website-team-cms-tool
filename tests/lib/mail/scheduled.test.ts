@@ -123,6 +123,21 @@ describe('managing scheduled emails', () => {
 })
 
 describe('sending scheduled emails', () => {
+  it('sends to the Bcc stored with the content', async () => {
+    const id = await createScheduledEmail(scheduleDb(payload), {
+      ownerId: 1,
+      to: 'jo@client.com',
+      cc: '',
+      subject: 'Hi',
+      replyToMessageId: null,
+      scheduledFor: minutes(-1),
+      content: { html: HTML, bcc: 'boss@od.com', inlineImages: [], attachments: [] },
+    })
+    const deliver = delivered()
+    await sendScheduledEmail(payload, id, deps(deliver), { onlyDue: true })
+    expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ bcc: 'boss@od.com' }))
+  })
+
   it('sends a due email once, records it and clears the stored body', async () => {
     const id = await queue({ when: minutes(-1) })
     const deliver = delivered()

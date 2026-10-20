@@ -1,4 +1,4 @@
-import { MAIL_PROMPTS, type MailModelAction } from "./prompts";
+import { MAIL_DRAFT_WITH_SUBJECT_SYSTEM, MAIL_PROMPTS, type MailModelAction } from "./prompts";
 
 /**
  * The only way the Mail view builds model input. It takes at most ONE email
@@ -47,6 +47,8 @@ export interface MailModelRequest {
   gmailMessageId: string | null;
   /** Emails included: 0 (new draft), 1 (default) or the thread size when opted in. Logged with every call. */
   emailCount: number;
+  /** The reply starts with a "Subject:" line to split off (first draft of a new email only). */
+  suggestSubject: boolean;
 }
 
 export const MAX_EMAIL_BODY_CHARS = 20_000;
@@ -140,6 +142,8 @@ export function buildMailModelRequest(args: {
   history?: MailDraftTurn[];
   /** The draft as it stands now, including the user's own edits. */
   currentDraft?: string | null;
+  /** New email, first request only: also ask the model for a subject line ("Subject: ..." first line). */
+  suggestSubject?: boolean;
 }): MailModelRequest {
   const prompt = MAIL_PROMPTS[args.action];
   if (!prompt) throw new MailModelRequestError(`Unknown mail action: ${String(args.action)}`);
@@ -203,9 +207,11 @@ export function buildMailModelRequest(args: {
     });
   }
 
+  const withSubject = args.action === "draft" && args.suggestSubject === true && !refining;
   return {
     action: args.action,
-    system: prompt.system,
+    system: withSubject ? MAIL_DRAFT_WITH_SUBJECT_SYSTEM : prompt.system,
+    suggestSubject: withSubject,
     messages,
     gmailMessageId: email?.gmailMessageId ?? null,
     emailCount: email ? 1 + threadContext.length : 0,

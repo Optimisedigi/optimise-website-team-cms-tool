@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import {
   $createParagraphNode,
+  $getNodeByKey,
   $getRoot,
   $getSelection,
   $insertNodes,
@@ -10,8 +11,13 @@ import {
   $isRangeSelection,
   $isTextNode,
   $nodesOfType,
+  $setSelection,
+  COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
+  DROP_COMMAND,
+  PASTE_COMMAND,
   TextNode,
+  type BaseSelection,
   type DOMConversionMap,
   type DOMConversionOutput,
   type EditorState,
@@ -64,9 +70,13 @@ import styles from './ComposeWindow.module.css'
  * - Tables: pasted tables (Sheets, Excel, Docs, web pages) are kept, and
  *   insertTable() adds an empty one. Copying out of the editor gives HTML
  *   tables other apps understand.
- * - Images: pasted image files and images in pasted HTML are shown inline
- *   (see EmailImageNode). Pasted non-image files go to onPasteFiles so the
- *   compose window can attach them.
+ * - Images: pasted images (screenshots, copied images) go inline where the
+ *   cursor is (see EmailImageNode; click one to resize it). When the
+ *   clipboard holds an image file plus HTML or text with no words of its own
+ *   (a copied web image, or a file copied in Finder), the image file wins,
+ *   so the real picture is embedded. Pasted non-image files go to
+ *   onPasteFiles so the compose window can attach them. Files dropped on the
+ *   body are left to the compose window, which attaches them.
  *
  * Pasted HTML only becomes nodes Lexical knows about, so scripts, event
  * handlers and unknown markup never reach the body.
@@ -250,16 +260,38 @@ function blockToMarkdown(node: LexicalNode): string {
   return $isElementNode(node) ? node.getTextContent().trim() : ''
 }
 
+const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+
+function visibleText(html: string): string {
+  return new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? ''
+}
+
+/**
+ * Files to paste instead of the clipboard's HTML/text: only when it holds an
+ * image and the HTML/text adds no words (otherwise, e.g. a table copied from
+ * Excel, which also carries a picture of itself, the HTML is pasted).
+ */
+export function clipboardImageFiles(data: Pick<DataTransfer, 'files' | 'getData'>): File[] | null {
+  const files = Array.from(data.files)
+  if (!files.some((file) => IMAGE_TYPES.has(file.type))) return null
+  const html = data.getData('text/html')
+  const text = (html ? visibleText(html) : data.getData('text/plain')).trim()
+  if (text === '' || files.some((file) => file.name === text)) return files
+  return null
+}
+
 function EditorBridge({
   handleRef,
   initialHtml,
   onPasteFiles,
   onFormatChange,
+  pasteSelectionRef,
 }: {
   handleRef: React.MutableRefObject<LexicalEditor | null>
   initialHtml: string
   onPasteFiles: (files: File[]) => void
   onFormatChange?: (format: EmailSelectionFormat) => void
+  pasteSelectionRef: React.MutableRefObject<BaseSelection | null>
 }) {
   const [editor] = useLexicalComposerContext()
   const pasteRef = useRef(onPasteFiles)
@@ -296,18 +328,49 @@ function EditorBridge({
     // initialHtml is only the starting content; later changes go through setHtml.
   }, [editor])
 
-  useEffect(
-    () =>
-      editor.registerCommand(
-        DRAG_DROP_PASTE,
-        (files) => {
-          pasteRef.current(Array.from(files))
-          return true
-        },
-        COMMAND_PRIORITY_LOW,
-      ),
-    [editor],
-  )
+  useEffect(() => {
+    // Images are read and resized asynchronously; remember where the cursor was so they land there.
+    const pasteFiles = (files: File[]) => {
+      const selection = $getSelection()
+      pasteSelectionRef.current = selection ? selection.clone() : null
+      pasteRef.current(files)
+    }
+    const offPaste = editor.registerCommand(
+      PASTE_COMMAND,
+      (event) => {
+        const data = 'clipboardData' in event ? event.clipboardData : null
+        const files = data ? clipboardImageFiles(data) : null
+        if (!files) return false
+        event.preventDefault()
+        pasteFiles(files)
+        return true
+      },
+      COMMAND_PRIORITY_HIGH,
+    )
+    const offFiles = editor.registerCommand(
+      DRAG_DROP_PASTE,
+      (files) => {
+        pasteFiles(Array.from(files))
+        return true
+      },
+      COMMAND_PRIORITY_LOW,
+    )
+    // Dropped files become attachments: the compose window's drop handler takes them.
+    const offDrop = editor.registerCommand(
+      DROP_COMMAND,
+      (event) => {
+        if ((event.dataTransfer?.files.length ?? 0) === 0) return false
+        event.preventDefault()
+        return true
+      },
+      COMMAND_PRIORITY_HIGH,
+    )
+    return () => {
+      offPaste()
+      offFiles()
+      offDrop()
+    }
+  }, [editor, pasteSelectionRef])
   return null
 }
 
@@ -316,6 +379,7 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
   ref,
 ) {
   const editorRef = useRef<LexicalEditor | null>(null)
+  const pasteSelectionRef = useRef<BaseSelection | null>(null)
 
   useImperativeHandle(
     ref,
@@ -350,6 +414,18 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
       },
       insertImage: (src, alt, width) => {
         editorRef.current?.update(() => {
+          // A pasted image goes where the cursor was at paste time, even if focus moved since.
+          const saved = pasteSelectionRef.current
+          pasteSelectionRef.current = null
+          // Only if both ends still exist; otherwise insert at the current position.
+          if (
+            $isRangeSelection(saved) &&
+            !$isRangeSelection($getSelection()) &&
+            $getNodeByKey(saved.anchor.key) &&
+            $getNodeByKey(saved.focus.key)
+          ) {
+            $setSelection(saved)
+          }
           $insertNodes([$createEmailImageNode(src, alt, width)])
         })
       },
@@ -400,7 +476,13 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
       <ListPlugin />
       <TablePlugin />
       <OnChangePlugin onChange={onChange} ignoreSelectionChange />
-      <EditorBridge handleRef={editorRef} initialHtml={initialHtml} onPasteFiles={onPasteFiles} onFormatChange={onFormatChange} />
+      <EditorBridge
+        handleRef={editorRef}
+        initialHtml={initialHtml}
+        onPasteFiles={onPasteFiles}
+        onFormatChange={onFormatChange}
+        pasteSelectionRef={pasteSelectionRef}
+      />
     </LexicalComposer>
   )
 })

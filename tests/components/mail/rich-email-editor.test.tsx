@@ -1,7 +1,8 @@
 import React, { createRef } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { act, render, waitFor } from '@testing-library/react'
-import RichEmailEditor, { type EmailSelectionFormat, type RichEmailEditorHandle } from '@/components/mail/RichEmailEditor'
+import RichEmailEditor, { clipboardImageFiles, type EmailSelectionFormat, type RichEmailEditorHandle } from '@/components/mail/RichEmailEditor'
+import { clampImageWidth, MIN_IMAGE_WIDTH } from '@/components/mail/EmailImageNode'
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
@@ -92,5 +93,29 @@ describe('RichEmailEditor', () => {
       ref.current?.insertTable(2, 3)
     })
     await waitFor(() => expect((ref.current?.getHtml().match(/<td|<th/g) ?? []).length).toBe(6))
+  })
+
+  it('pastes a copied image as the image itself, but keeps tables and text as HTML', () => {
+    const png = new File([new Uint8Array([1])], 'image.png', { type: 'image/png' })
+    const clip = (html: string, text = '') => ({ files: [png] as unknown as FileList, getData: (type: string) => (type === 'text/html' ? html : text) })
+    // Screenshot, copied web image, image file copied in Finder.
+    expect(clipboardImageFiles(clip(''))).toEqual([png])
+    expect(clipboardImageFiles(clip('<meta charset="utf-8"><img src="http://x/a.png">'))).toEqual([png])
+    expect(clipboardImageFiles(clip('', 'image.png'))).toEqual([png])
+    // Excel/Docs also put a picture of the selection on the clipboard: the HTML wins.
+    expect(clipboardImageFiles(clip('<table><tr><td>Clicks</td></tr></table>'))).toBeNull()
+    expect(clipboardImageFiles({ files: [] as unknown as FileList, getData: () => '' })).toBeNull()
+  })
+
+  it('inserts images inline at the cursor and resizes them', async () => {
+    const { ref } = await mount('<p>Before after</p>')
+    act(() => {
+      ref.current?.focus()
+      ref.current?.insertImage(`data:image/png;base64,${PNG}`, 'shot', 300)
+    })
+    await waitFor(() => expect(ref.current?.getHtml()).toMatch(/<p[^>]*>[^]*<img[^>]*width="300"/))
+    expect(clampImageWidth(10, 500)).toBe(MIN_IMAGE_WIDTH)
+    expect(clampImageWidth(900, 500)).toBe(500)
+    expect(clampImageWidth(250.4, 500)).toBe(250)
   })
 })

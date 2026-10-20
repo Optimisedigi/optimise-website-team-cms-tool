@@ -172,6 +172,8 @@ function wrapBase64(content: Buffer): string {
 export function buildMimeMessage(args: {
   to: string;
   cc?: string;
+  /** Blind copy: Gmail delivers to these and removes the header from what other recipients get. */
+  bcc?: string;
   subject: string;
   htmlBody: string;
   /** RFC 822 Message-ID of the message being replied to, for threading. */
@@ -180,7 +182,7 @@ export function buildMimeMessage(args: {
   /** Images embedded in the body (multipart/related), referenced as cid: URLs. */
   inlineImages?: GmailInlineImage[];
 }): string {
-  const { to, cc, subject, htmlBody, inReplyTo, attachments = [], inlineImages = [] } = args;
+  const { to, cc, bcc, subject, htmlBody, inReplyTo, attachments = [], inlineImages = [] } = args;
   // Encode subject as RFC 2047 if it contains non-ASCII to keep Gmail happy.
   const isAscii = /^[\x20-\x7E]*$/.test(subject);
   const encodedSubject = isAscii
@@ -189,6 +191,7 @@ export function buildMimeMessage(args: {
 
   const lines = [`To: ${to}`];
   if (cc && cc.trim()) lines.push(`Cc: ${cc.replace(/[\r\n]+/g, " ").trim()}`);
+  if (bcc && bcc.trim()) lines.push(`Bcc: ${bcc.replace(/[\r\n]+/g, " ").trim()}`);
   lines.push(`Subject: ${encodedSubject}`, "MIME-Version: 1.0");
   // In-thread replies: setting In-Reply-To / References lets Gmail group the
   // draft into the original conversation alongside threadId on the message.
@@ -361,6 +364,8 @@ export async function createGmailDraft(
     to: string;
     subject: string;
     htmlBody: string;
+    cc?: string;
+    bcc?: string;
     /** Gmail thread id to attach the draft to (in-thread reply). */
     threadId?: string;
     /** RFC 822 Message-ID of the message being replied to. */
@@ -386,6 +391,8 @@ export async function createGmailDraft(
   const htmlBody = formatGmailDraftHtml(signedHtmlBody);
   const raw = buildMimeMessage({
     to: args.to,
+    cc: args.cc,
+    bcc: args.bcc,
     subject: removeForbiddenDashes(args.subject),
     htmlBody,
     inReplyTo: args.inReplyTo,
@@ -423,6 +430,7 @@ export async function sendGmailMessage(
   args: {
     to: string;
     cc?: string;
+    bcc?: string;
     subject: string;
     htmlBody: string;
     threadId?: string;
@@ -442,6 +450,7 @@ export async function sendGmailMessage(
   const raw = buildMimeMessage({
     to: args.to,
     cc: args.cc,
+    bcc: args.bcc,
     subject: removeForbiddenDashes(args.subject),
     htmlBody: formatGmailDraftHtml(signed),
     inReplyTo: args.inReplyTo,

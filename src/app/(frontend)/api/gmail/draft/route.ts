@@ -25,7 +25,7 @@ import { gmailErrorResponse, parseGmailId, requireGmailToken, requireMailUser } 
  * replies retain their thread recipient. We create drafts but never send mail.
  *
  * Body: { subject?: string, body: string, to?: string, attachments?: ImageAttachment[], replyToMessageId?: string, draftId?: string }
- *    or, from the CMS Mail compose window: { html, inlineImages?, attachments?, to?, subject?, replyToMessageId?, draftId? }
+ *    or, from the CMS Mail compose window: { html, inlineImages?, attachments?, to?, cc?, bcc?, subject?, replyToMessageId?, draftId? }
  *  - draftId: update this existing draft in place instead of creating a new one.
  *  - html: rich body from the Mail editor (validated by parseMailComposeContent);
  *    replaces `body`, and `attachments` may then be any file type Gmail allows.
@@ -38,10 +38,17 @@ import { gmailErrorResponse, parseGmailId, requireGmailToken, requireMailUser } 
  *    to pick someone before sending.
  */
 
+function cleanHeader(value: unknown): string {
+  return typeof value === "string" ? value.replace(/[\r\n]+/g, " ").trim().slice(0, 2000) : "";
+}
+
 interface DraftBody {
   subject?: unknown;
   body?: unknown;
   to?: unknown;
+  /** Mail compose window only. */
+  cc?: unknown;
+  bcc?: unknown;
   /** Gmail thread id for in-thread replies. */
   threadId?: unknown;
   /** RFC 822 Message-ID of the message being replied to. */
@@ -101,6 +108,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       messageId,
       to: message.to,
       cc: message.cc,
+      bcc: message.bcc,
       subject: message.subject,
       html: editable.html,
       attachments: editable.attachments,
@@ -220,6 +228,7 @@ export async function POST(req: NextRequest) {
     const html = rich ? rich.html : markdownLiteToHtml(text);
     const result = await createGmailDraft(tokenResult.accessToken, {
       to,
+      ...(rich ? { cc: cleanHeader(body.cc), bcc: cleanHeader(body.bcc) } : {}),
       subject,
       htmlBody: html,
       ...(rich && rich.inlineImages.length > 0 ? { inlineImages: rich.inlineImages } : {}),

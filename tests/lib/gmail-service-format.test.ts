@@ -112,3 +112,13 @@ describe("formatGmailDraftHtml", () => {
     ).toThrow("Invalid inline image Content-ID");
   });
 });
+
+describe("buildMimeMessage Bcc", () => {
+  it("writes Cc and Bcc headers on their own lines", () => {
+    const decode = (encoded: string) => Buffer.from(encoded, "base64url").toString("utf8");
+    const mime = decode(buildMimeMessage({ to: "a@x.com", cc: "b@x.com", bcc: "c@x.com,\r\nd@x.com", subject: "Hi", htmlBody: "<p>x</p>" }));
+    expect(mime).toContain("Cc: b@x.com\r\n");
+    expect(mime).toContain("Bcc: c@x.com, d@x.com\r\n");
+    expect(decode(buildMimeMessage({ to: "a@x.com", subject: "Hi", htmlBody: "x" }))).not.toContain("Bcc:");
+  });
+});

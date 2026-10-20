@@ -41,6 +41,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const body = await readJson<{
     to?: unknown;
     cc?: unknown;
+    bcc?: unknown;
     subject?: unknown;
     html?: unknown;
     inlineImages?: unknown;
@@ -88,6 +89,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     replyToMessageId,
     scheduledFor: when.date,
     content: {
+      // Bcc lives with the content (not its own column) so no schema change was needed.
+      bcc: cleanHeader(body.bcc),
       html: content.value.html,
       inlineImages: body.inlineImages ?? [],
       attachments: body.attachments ?? [],

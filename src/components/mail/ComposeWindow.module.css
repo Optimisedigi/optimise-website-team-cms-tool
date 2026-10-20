@@ -379,6 +379,14 @@
   background: var(--theme-elevation-100);
 }
 
+/* Attach files / Insert image: icon only (the name is the aria-label and tooltip). */
+.iconButton {
+  min-width: 32px;
+  font-size: 15px;
+  line-height: 1.2;
+  text-align: center;
+}
+
 .toolButton:disabled {
   opacity: 0.5;
   cursor: default;
@@ -454,34 +462,6 @@
   padding: 10px 16px 6px;
   border-top: 1px solid var(--theme-elevation-100);
   background: var(--theme-elevation-50);
-}
-
-.metaRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-}
-
-.history {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  max-height: 64px;
-  overflow-y: auto;
-}
-
-.chip {
-  max-width: 220px;
-  padding: 2px 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(44, 151, 201, 0.14);
-  color: #2c97c9;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .promptRow {
@@ -607,12 +587,115 @@
   cursor: pointer;
 }
 
+/* Undo send: Send shows a spinner while the email waits to go. */
+.send[aria-busy='true'] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: composeSpin 0.8s linear infinite;
+}
+
+@keyframes composeSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.undoSend {
+  padding: 8px 18px;
+  border: 1px solid #0b57d0;
+  border-radius: 18px;
+  background: var(--theme-elevation-0);
+  color: #0b57d0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  animation: composePop 0.15s ease-out;
+}
+
+.undoSend:hover {
+  background: rgba(11, 87, 208, 0.08);
+}
+
+.undoSend:focus-visible {
+  outline: 2px solid #0b57d0;
+  outline-offset: 2px;
+}
+
+@keyframes composePop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* Shown while files are dragged over the window. */
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #0b57d0;
+  border-radius: inherit;
+  background: rgba(11, 87, 208, 0.08);
+  color: #0b57d0;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* Inline image in the body: click to select, drag the corner to resize. */
+.imageFrame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.imageSelected img {
+  outline: 2px solid #1a73e8;
+  outline-offset: 1px;
+}
+
+.imageHandle {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid #fff;
+  background: #1a73e8;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
 .send:disabled,
 .secondary:disabled,
 .aiButton:disabled,
 .linkBtn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Sending is a loading state, not a disabled one. */
+.send[aria-busy='true']:disabled {
+  opacity: 1;
+  cursor: progress;
 }
 
 .linkBtn {
@@ -685,7 +768,7 @@
     padding: 0 8px;
   }
 
-  /* Attach / image / table + AI prompt chips scroll sideways instead of wrapping. */
+  /* Attach / image / table + Use whole thread scroll sideways instead of wrapping. */
   .aiTools {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -702,8 +785,7 @@
     flex-shrink: 0;
   }
 
-  .toolButton,
-  .history .linkBtn {
+  .toolButton {
     flex-shrink: 0;
     min-height: 40px;
     padding: 0 12px;
@@ -711,36 +793,8 @@
     white-space: nowrap;
   }
 
-  /* Prompt chips scroll in the space left; Undo last and Use whole thread stay on the same line. */
-  .metaRow {
-    flex-wrap: nowrap;
-    width: 100%;
-    flex-shrink: 0;
-    gap: 10px;
-  }
-
-  .history {
-    flex: 1;
-    min-width: 0;
-    flex-wrap: nowrap;
-    max-height: none;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .history::-webkit-scrollbar {
-    display: none;
-  }
-
-  .metaRow .linkBtn {
-    flex-shrink: 0;
-    min-height: 40px;
-    padding: 0 4px;
-    white-space: nowrap;
-  }
-
-  .chip {
-    flex-shrink: 0;
+  .iconButton {
+    min-width: 44px;
   }
 
   .promptRow {
@@ -789,6 +843,19 @@
   }
 
   /* Send, Schedule send and Save as draft share one row. */
+  .imageHandle {
+    width: 18px;
+    height: 18px;
+    right: -9px;
+    bottom: -9px;
+  }
+
+  .undoSend {
+    flex-shrink: 0;
+    min-height: 48px;
+    padding: 0 12px;
+  }
+
   .send {
     flex: 1.1;
     min-height: 48px;
@@ -810,6 +877,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
   color: var(--theme-elevation-800);
   font-size: 13px;
   cursor: pointer;
