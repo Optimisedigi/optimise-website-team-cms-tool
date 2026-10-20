@@ -8,8 +8,9 @@
   z-index: 100000;
   display: flex;
   flex-direction: column;
-  width: min(560px, calc(100vw - 128px));
-  height: min(640px, calc(100vh - 80px));
+  /* 22% larger than the original 560 x 640. */
+  width: min(683px, calc(100vw - 128px));
+  height: min(781px, calc(100vh - 80px));
   border-radius: 10px 10px 0 0;
   background: var(--theme-elevation-0);
   color: var(--theme-elevation-1000);
@@ -185,14 +186,41 @@
   text-decoration: underline;
 }
 
-/* Gmail's list look: no gap above/below, 40px indent, items another 15px in. */
+/* Gmail's list look: visible markers (the admin's global reset hides them), a small
+   indent with the bullet sitting just inside the text edge, and a slight gap above and
+   below the list. Must match inlineEmailListStyles (src/lib/mail/gmail-html.ts). */
+.editorList,
+.editorListNumber {
+  margin: 6px 0;
+  padding: 0 0 0 22px;
+}
+
 .editorList {
+  list-style: disc outside;
+}
+
+.editorListNumber {
+  list-style: decimal outside;
+}
+
+/* Nested lists sit tight under their item, with Gmail's second-level markers. */
+.editorListItem .editorList,
+.editorListItem .editorListNumber {
   margin: 0;
-  padding: 0 0 0 40px;
+}
+
+.editorListItem .editorList {
+  list-style-type: circle;
+}
+
+.editorListItem .editorListNumber {
+  list-style-type: lower-alpha;
 }
 
 .editorListItem {
-  margin-left: 15px;
+  display: list-item;
+  margin-left: 12px;
+  padding-left: 2px;
 }
 
 /* An item that only holds a nested list shows no marker of its own. */
@@ -221,13 +249,14 @@
   font-weight: 700;
 }
 
-/* Gmail-style formatting bar between the body and the AI prompt, left aligned. */
+/* Colour / numbered / bulleted list buttons, in the tool row after Insert table. */
 .formatBar {
-  display: flex;
+  display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 2px;
-  padding: 4px 12px;
-  border-top: 1px solid var(--theme-elevation-100);
+  padding-left: 4px;
+  border-left: 1px solid var(--theme-elevation-150);
 }
 
 .formatButton {
@@ -235,9 +264,9 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-width: 30px;
-  height: 30px;
-  padding: 0 4px;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 3px;
   border: 0;
   border-radius: 4px;
   background: none;
@@ -292,12 +321,10 @@
   font-size: 10px;
 }
 
-/* Opens upward: the bar sits near the bottom of the window. */
+/* Portalled to <body>, opening upward from the button (left/bottom set inline). */
 .colorPalette {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
-  z-index: 2;
+  position: fixed;
+  z-index: 100001;
   padding: 8px;
   border: 1px solid var(--theme-elevation-150);
   border-radius: 6px;
@@ -504,8 +531,8 @@
 .footer {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px 14px;
+  gap: 8px;
+  padding: 6px 16px 8px;
 }
 
 .schedulePicker {
@@ -518,29 +545,238 @@
   font-size: 12px;
 }
 
-.schedulePresets {
+/* Today / Tomorrow and the quick send times: compact pills. */
+.scheduleQuick {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-}
-
-.scheduleCustom {
-  display: inline-flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
 }
 
-.scheduleCustom input {
-  padding: 3px 6px;
+.pill {
+  padding: 3px 9px;
   border: 1px solid var(--theme-elevation-150);
-  border-radius: 4px;
+  border-radius: 999px;
   background: none;
   color: inherit;
   font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.pill:hover:not(:disabled) {
+  background: var(--theme-elevation-100);
+}
+
+.pill[aria-pressed='true'] {
+  border-color: #0b57d0;
+  background: rgba(11, 87, 208, 0.1);
+  color: #0b57d0;
+}
+
+.quickTime {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.plusTwo {
+  padding: 2px 6px;
+  border: 1px dashed var(--theme-elevation-200);
+  border-radius: 999px;
+  background: none;
+  color: var(--theme-elevation-700);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.plusTwo:hover:not(:disabled) {
+  background: var(--theme-elevation-100);
+}
+
+.pill:focus-visible,
+.plusTwo:focus-visible,
+.dateBox:focus-visible,
+.timeBox:focus-visible,
+.calendarNav:focus-visible,
+.calendarDay:focus-visible {
+  outline: 2px solid #0b57d0;
+  outline-offset: 2px;
+}
+
+.pill:disabled,
+.plusTwo:disabled,
+.dateBox:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.scheduleFields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The whole box opens the calendar / time picker, not just an icon. */
+.dateBox,
+.timeBox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 8px;
+  background: var(--theme-elevation-0);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dateBox:hover:not(:disabled),
+.timeBox:hover:not(:disabled) {
+  border-color: var(--theme-elevation-300);
+}
+
+.dateBox[aria-expanded='true'] {
+  border-color: #0b57d0;
+}
+
+/* Calendar (shadcn / react-day-picker look). */
+.calendar {
+  width: fit-content;
+  padding: 8px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 10px;
+  background: var(--theme-elevation-0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.calendarCaption {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  margin-bottom: 4px;
+}
+
+.calendarLabel {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.calendarNav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--theme-elevation-500);
+  cursor: pointer;
+}
+
+.calendarNav:hover:not(:disabled) {
+  background: var(--theme-elevation-100);
+  color: var(--theme-elevation-1000);
+}
+
+.calendarNav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.calendarGrid {
+  border-collapse: collapse;
+}
+
+.calendarWeekday {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--theme-elevation-500);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.calendarCell {
+  padding: 0;
+}
+
+.calendarDay {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--theme-elevation-1000);
+  font: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 150ms,
+    background-color 150ms;
+}
+
+.calendarDay:hover:not(:disabled) {
+  background: var(--theme-elevation-100);
+}
+
+.calendarOutside {
+  color: var(--theme-elevation-300);
+}
+
+.calendarDay:disabled {
+  color: var(--theme-elevation-300);
+  text-decoration: line-through;
+  pointer-events: none;
+}
+
+.calendarDay[aria-pressed='true'] {
+  background: #0b57d0;
+  color: #fff;
+}
+
+/* Dot under today. */
+.calendarToday::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #0b57d0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.calendarToday[aria-pressed='true']::after {
+  background: #fff;
+}
+
+.calendarToday:disabled::after {
+  background: var(--theme-elevation-300);
 }
 
 .send {
-  padding: 9px 24px;
+  padding: 6px 22px;
   border: 0;
   border-radius: 18px;
   background: #0b57d0;
@@ -578,7 +814,7 @@
 }
 
 .secondary {
-  padding: 8px 16px;
+  padding: 5px 14px;
   border: 1px solid var(--theme-elevation-150);
   border-radius: 18px;
   background: none;
@@ -616,7 +852,7 @@
 }
 
 .undoSend {
-  padding: 8px 18px;
+  padding: 5px 16px;
   border: 1px solid #0b57d0;
   border-radius: 18px;
   background: var(--theme-elevation-0);
@@ -674,14 +910,49 @@
 
 .imageHandle {
   position: absolute;
-  right: -5px;
-  bottom: -5px;
+  z-index: 1;
   width: 10px;
   height: 10px;
   border: 1px solid #fff;
   background: #1a73e8;
-  cursor: nwse-resize;
   touch-action: none;
+}
+
+.imageHandle_nw {
+  top: -5px;
+  left: -5px;
+  cursor: nwse-resize;
+}
+
+.imageHandle_ne {
+  top: -5px;
+  right: -5px;
+  cursor: nesw-resize;
+}
+
+.imageHandle_sw {
+  bottom: -5px;
+  left: -5px;
+  cursor: nesw-resize;
+}
+
+.imageHandle_se {
+  right: -5px;
+  bottom: -5px;
+  cursor: nwse-resize;
+}
+
+/* Width readout while dragging. */
+.imageSize {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 11px;
+  pointer-events: none;
 }
 
 .send:disabled,
@@ -740,7 +1011,7 @@
 
   .field input,
   .tablePicker input,
-  .scheduleCustom input,
+  .timeBox,
   .prompt {
     font-size: 16px; /* stops iOS zooming on focus */
   }
@@ -828,8 +1099,10 @@
     overflow-y: auto;
   }
 
-  .schedulePresets .secondary,
-  .scheduleCustom input {
+  .pill,
+  .plusTwo,
+  .dateBox,
+  .timeBox {
     min-height: 40px;
   }
 
@@ -837,7 +1110,7 @@
   .footer {
     flex-wrap: nowrap;
     gap: 6px;
-    padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--theme-elevation-100);
     background: var(--theme-elevation-0);
   }
@@ -846,19 +1119,37 @@
   .imageHandle {
     width: 18px;
     height: 18px;
-    right: -9px;
+  }
+
+  .imageHandle_nw,
+  .imageHandle_ne {
+    top: -9px;
+  }
+
+  .imageHandle_sw,
+  .imageHandle_se {
     bottom: -9px;
+  }
+
+  .imageHandle_nw,
+  .imageHandle_sw {
+    left: -9px;
+  }
+
+  .imageHandle_ne,
+  .imageHandle_se {
+    right: -9px;
   }
 
   .undoSend {
     flex-shrink: 0;
-    min-height: 48px;
+    min-height: 44px;
     padding: 0 12px;
   }
 
   .send {
     flex: 1.1;
-    min-height: 48px;
+    min-height: 44px;
     padding: 0 10px;
     font-size: 15px;
   }
@@ -866,7 +1157,7 @@
   .secondary {
     flex: 1;
     min-width: 0;
-    min-height: 48px;
+    min-height: 44px;
     padding: 0 8px;
     font-size: 13px;
     white-space: nowrap;

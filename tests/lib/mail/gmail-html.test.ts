@@ -120,19 +120,36 @@ describe('compose body font', () => {
 })
 
 describe('inlineEmailListStyles', () => {
-  it('writes Gmail’s list indent inline, keeping the author’s own values', () => {
+  const UL = 'margin-top:6px;margin-bottom:6px;padding-left:22px;list-style-type:disc'
+  const LI = 'margin-left:12px;padding-left:2px'
+
+  it('writes the editor’s list look inline: markers, small indent, a slight gap, kept author values', () => {
     expect(inlineEmailListStyles('<ul><li>a</li></ul><ol start="3"><li style="margin-left:0">b</li></ol>')).toBe(
-      '<ul style="margin-top:0;margin-bottom:0;padding-left:40px"><li style="margin-left:15px">a</li></ul>' +
-        '<ol start="3" style="margin-top:0;margin-bottom:0;padding-left:40px"><li style="margin-left:0">b</li></ol>',
+      `<ul style="${UL}"><li style="${LI}">a</li></ul>` +
+        '<ol start="3" style="margin-top:6px;margin-bottom:6px;padding-left:22px;list-style-type:decimal"><li style="margin-left:0;padding-left:2px">b</li></ol>',
     )
     expect(inlineEmailListStyles('<p>No list</p>')).toBe('<p>No list</p>')
   })
 
+  it('gives nested lists no gap and second-level markers', () => {
+    const out = inlineEmailListStyles('<ul><li>a<ul><li>b</li></ul></li></ul><ol><li>c</li></ol>')
+    expect(out).toContain('<ul style="margin-top:0;margin-bottom:0;padding-left:22px;list-style-type:circle">')
+    // Back at the top level after the nested list closes.
+    expect(out).toContain('<ol style="margin-top:6px;margin-bottom:6px;padding-left:22px;list-style-type:decimal">')
+  })
+
   it('is applied to bulleted and numbered lists from the editor', () => {
-    const html = compose('<ul class="editorList"><li class="editorListItem" value="1"><span>One</span></li></ul><ol class="editorList"><li value="1">Two</li></ol>')
+    const html = compose('<ul class="editorList"><li class="editorListItem" value="1"><span>One</span></li></ul><ol class="editorListNumber"><li value="1">Two</li></ol>')
     expect(html).toBe(
-      '<ul style="margin-top:0;margin-bottom:0;padding-left:40px"><li value="1" style="margin-left:15px"><span>One</span></li></ul>' +
-        '<ol style="margin-top:0;margin-bottom:0;padding-left:40px"><li value="1" style="margin-left:15px">Two</li></ol>',
+      `<ul style="${UL}"><li value="1" style="${LI}"><span>One</span></li></ul>` +
+        `<ol style="margin-top:6px;margin-bottom:6px;padding-left:22px;list-style-type:decimal"><li value="1" style="${LI}">Two</li></ol>`,
     )
+  })
+
+  it('leaves an even gap above and below a list in the sent email', () => {
+    const html = formatGmailDraftHtml(compose('<p>See below:</p><ul><li>one</li></ul><p>After</p>'))
+    expect(html).toContain(`See below:<ul style="${UL}">`)
+    expect(html).toContain('</ul>After')
+    expect(html).not.toMatch(/<br><br><ul/)
   })
 })

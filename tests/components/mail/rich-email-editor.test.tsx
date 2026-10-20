@@ -2,7 +2,7 @@ import React, { createRef } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { act, render, waitFor } from '@testing-library/react'
 import RichEmailEditor, { clipboardImageFiles, type EmailSelectionFormat, type RichEmailEditorHandle } from '@/components/mail/RichEmailEditor'
-import { clampImageWidth, MIN_IMAGE_WIDTH } from '@/components/mail/EmailImageNode'
+import { clampImageWidth, MIN_IMAGE_WIDTH, resizedImageWidth } from '@/components/mail/EmailImageNode'
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
@@ -117,5 +117,18 @@ describe('RichEmailEditor', () => {
     expect(clampImageWidth(10, 500)).toBe(MIN_IMAGE_WIDTH)
     expect(clampImageWidth(900, 500)).toBe(500)
     expect(clampImageWidth(250.4, 500)).toBe(250)
+    // Right corners grow when dragged right, left corners when dragged left.
+    expect(resizedImageWidth(300, 50, 'se', 600)).toBe(350)
+    expect(resizedImageWidth(300, 50, 'ne', 600)).toBe(350)
+    expect(resizedImageWidth(300, -50, 'nw', 600)).toBe(350)
+    expect(resizedImageWidth(300, 50, 'sw', 600)).toBe(250)
+    expect(resizedImageWidth(300, 900, 'se', 600)).toBe(600)
+
+    // Clicking the image selects it and shows a handle on every corner.
+    const img = document.querySelector('img[alt="shot"]') as HTMLImageElement
+    act(() => {
+      img.click()
+    })
+    await waitFor(() => expect(document.querySelectorAll('[data-corner]')).toHaveLength(4))
   })
 })

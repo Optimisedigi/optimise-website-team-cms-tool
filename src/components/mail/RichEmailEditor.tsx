@@ -215,7 +215,7 @@ const theme = {
   tableCellHeader: styles.editorTableHeader,
   list: {
     ul: styles.editorList,
-    ol: styles.editorList,
+    ol: styles.editorListNumber,
     listitem: styles.editorListItem,
     nested: { listitem: styles.editorNestedListItem },
   },

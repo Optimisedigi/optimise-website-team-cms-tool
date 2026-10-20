@@ -122,7 +122,7 @@ export function stripEmailFonts(html: string): string {
   });
 }
 
-const LIST_TAG_RE = /<(ul|ol|li)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
+const LIST_TAG_RE = /<(\/?)(ul|ol|li)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
 
 function addStyleDefaults(attrs: string, defaults: Array<[string, string]>): string {
   const match = attrs.match(STYLE_ATTR_RE);
@@ -137,23 +137,34 @@ function addStyleDefaults(attrs: string, defaults: Array<[string, string]>): str
 }
 
 /**
- * Lists as Gmail writes them: items indented 15px inside the list's own
- * 40px, no extra gap above or below (matching the compose editor's CSS,
- * which Gmail never sees).
+ * Lists as the compose editor shows them (its CSS never reaches Gmail):
+ * markers on, a small indent (22px list + 12px item, so the bullet sits just
+ * inside the text edge, as in Gmail) and a slight gap above and below a
+ * top-level list. Nested lists get no gap. Values the HTML already sets are kept.
  */
 export function inlineEmailListStyles(html: string): string {
   if (!/<(ul|ol)\b/i.test(html)) return html;
-  return html.replace(LIST_TAG_RE, (_match, tag: string, attrs: string) => {
-    const lower = tag.toLowerCase();
-    const defaults: Array<[string, string]> =
-      lower === "li"
-        ? [["margin-left", "15px"]]
-        : [
-            ["margin-top", "0"],
-            ["margin-bottom", "0"],
-            ["padding-left", "40px"],
-          ];
-    return `<${lower}${addStyleDefaults(attrs, defaults)}>`;
+  let depth = 0;
+  return html.replace(LIST_TAG_RE, (tag: string, closing: string, name: string, attrs: string) => {
+    const lower = name.toLowerCase();
+    if (closing) {
+      if (lower !== "li") depth = Math.max(0, depth - 1);
+      return tag;
+    }
+    if (lower === "li") {
+      return `<li${addStyleDefaults(attrs, [
+        ["margin-left", "12px"],
+        ["padding-left", "2px"],
+      ])}>`;
+    }
+    const gap = depth === 0 ? "6px" : "0";
+    depth++;
+    return `<${lower}${addStyleDefaults(attrs, [
+      ["margin-top", gap],
+      ["margin-bottom", gap],
+      ["padding-left", "22px"],
+      ["list-style-type", lower === "ol" ? (depth > 1 ? "lower-alpha" : "decimal") : depth > 1 ? "circle" : "disc"],
+    ])}>`;
   });
 }
 

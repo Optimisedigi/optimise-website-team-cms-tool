@@ -90,6 +90,11 @@ describe('ComposeWindow layout', () => {
     expect(screen.queryByLabelText('AI prompts so far')).toBeNull()
     const toggle = screen.getByText('Use whole thread').closest('label')
     expect(toggle?.parentElement).toBe(attach.parentElement?.parentElement)
+    // Colour and list buttons share the row with Insert table.
+    const toolbar = screen.getByRole('button', { name: /Insert table/ }).parentElement
+    expect(toolbar?.contains(screen.getByRole('button', { name: 'Text colour' }))).toBe(true)
+    expect(toolbar?.contains(screen.getByRole('button', { name: 'Bulleted list' }))).toBe(true)
+    expect(toolbar?.contains(screen.getByRole('button', { name: 'Numbered list' }))).toBe(true)
   })
 
   it('shows Bcc with Cc and sends it', async () => {

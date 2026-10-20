@@ -333,6 +333,9 @@ function normaliseParagraphBreaks(html: string): string {
       new RegExp(`${GMAIL_DRAFT_PARAGRAPH_BREAK_MARKER}(?=\\s*(?:</div>|$))`, "g"),
       "",
     )
+    // A list starts on its own line and brings its own small gap (its margin), so the
+    // paragraph before it gets no blank line; otherwise the gap above is bigger than below.
+    .replace(new RegExp(`${GMAIL_DRAFT_PARAGRAPH_BREAK_MARKER}(?=\\s*<(?:ul|ol)\\b)`, "gi"), "")
     .replaceAll(GMAIL_DRAFT_PARAGRAPH_BREAK_MARKER, GMAIL_DRAFT_PARAGRAPH_BREAK);
 }
 

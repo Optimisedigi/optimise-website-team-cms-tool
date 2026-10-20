@@ -30,9 +30,9 @@ import styles from './ComposeWindow.module.css'
  * src/lib/mail/compose-html.ts); images pasted from web pages keep their
  * https URL. Any other src (javascript:, http:, other data: types) is dropped.
  *
- * Click an image to select it; drag the corner handle to resize it (the
- * width is kept, height follows the aspect ratio) and Delete/Backspace
- * removes it.
+ * Click an image to select it; drag any of its four corner handles to
+ * resize it (the width is kept, height follows the aspect ratio) and
+ * Delete/Backspace removes it.
  */
 
 const SAFE_SRC_RE = /^(https:\/\/|data:image\/(png|jpeg|gif|webp);base64,)/i
@@ -44,6 +44,27 @@ export const MIN_IMAGE_WIDTH = 40
 export function clampImageWidth(width: number, maxWidth: number): number {
   const max = Math.max(MIN_IMAGE_WIDTH, Math.min(maxWidth, MAX_WIDTH))
   return Math.round(Math.min(Math.max(width, MIN_IMAGE_WIDTH), max))
+}
+
+export type ImageCorner = 'nw' | 'ne' | 'sw' | 'se'
+export const IMAGE_CORNERS: readonly ImageCorner[] = ['nw', 'ne', 'sw', 'se']
+
+/**
+ * New width after dragging a corner `dx` pixels. Right corners grow the image
+ * when dragged right, left corners when dragged left; height follows the
+ * aspect ratio.
+ */
+export function resizedImageWidth(startWidth: number, dx: number, corner: ImageCorner, maxWidth: number): number {
+  const grow = corner === 'ne' || corner === 'se' ? dx : -dx
+  return clampImageWidth(startWidth + grow, maxWidth)
+}
+
+/** The body's content width (padding excluded), so an image can't be dragged wider than the email. */
+function bodyContentWidth(root: HTMLElement | null): number {
+  if (!root || root.clientWidth <= 0) return MAX_WIDTH
+  const style = window.getComputedStyle(root)
+  const padding = Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight)
+  return root.clientWidth - (Number.isFinite(padding) ? padding : 0)
 }
 
 function EmailImageView({ nodeKey, src, alt, width }: { nodeKey: NodeKey; src: string; alt: string; width: number | null }) {
@@ -84,57 +105,85 @@ function EmailImageView({ nodeKey, src, alt, width }: { nodeKey: NodeKey; src: s
     [editor, clearSelection, setSelected, removeIfSelected],
   )
 
-  const startResize = (event: React.PointerEvent<HTMLSpanElement>) => {
-    const img = imgRef.current
-    if (!img) return
-    event.preventDefault()
-    event.stopPropagation()
-    const startX = event.clientX
-    const startWidth = img.getBoundingClientRect().width
-    const root = editor.getRootElement()
-    // The body's content width (padding excluded), so an image can't be dragged wider than the email.
-    const rootStyle = root ? window.getComputedStyle(root) : null
-    const padding = rootStyle ? Number.parseFloat(rootStyle.paddingLeft) + Number.parseFloat(rootStyle.paddingRight) : 0
-    const maxWidth = root && root.clientWidth > 0 ? root.clientWidth - (Number.isFinite(padding) ? padding : 0) : MAX_WIDTH
-    let latest = startWidth
-    const move = (e: PointerEvent) => {
-      latest = clampImageWidth(startWidth + (e.clientX - startX), maxWidth)
-      setDragWidth(latest)
+  // Native listeners on the handles: Lexical's own listeners on the editable root see
+  // events before React's, and would turn a drag on a handle into a text selection.
+  const frameRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const frame = frameRef.current
+    if (!frame || !isSelected) return
+    const handles = Array.from(frame.querySelectorAll<HTMLElement>('[data-corner]'))
+    const swallow = (event: Event) => {
+      event.preventDefault()
+      event.stopPropagation()
     }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      window.removeEventListener('pointercancel', up)
-      setDragWidth(null)
-      editor.update(() => {
-        const node = $getNodeByKey(nodeKey)
-        if ($isEmailImageNode(node)) node.setWidth(clampImageWidth(latest, maxWidth))
-      })
+    const start = (event: PointerEvent) => {
+      const img = imgRef.current
+      const handle = event.currentTarget as HTMLElement
+      if (!img) return
+      swallow(event)
+      handle.setPointerCapture?.(event.pointerId)
+      const corner = handle.dataset.corner as ImageCorner
+      const startX = event.clientX
+      const startWidth = img.getBoundingClientRect().width
+      const maxWidth = bodyContentWidth(editor.getRootElement())
+      let latest = startWidth
+      const move = (e: PointerEvent) => {
+        latest = resizedImageWidth(startWidth, e.clientX - startX, corner, maxWidth)
+        setDragWidth(latest)
+      }
+      const up = () => {
+        handle.removeEventListener('pointermove', move)
+        handle.removeEventListener('pointerup', up)
+        handle.removeEventListener('pointercancel', up)
+        setDragWidth(null)
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if ($isEmailImageNode(node)) node.setWidth(latest)
+        })
+      }
+      handle.addEventListener('pointermove', move)
+      handle.addEventListener('pointerup', up)
+      handle.addEventListener('pointercancel', up)
     }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    window.addEventListener('pointercancel', up)
-  }
+    for (const handle of handles) {
+      handle.addEventListener('pointerdown', start)
+      handle.addEventListener('mousedown', swallow)
+      handle.addEventListener('click', swallow)
+    }
+    return () => {
+      for (const handle of handles) {
+        handle.removeEventListener('pointerdown', start)
+        handle.removeEventListener('mousedown', swallow)
+        handle.removeEventListener('click', swallow)
+      }
+    }
+  }, [editor, isSelected, nodeKey])
 
   const shownWidth = dragWidth ?? width
+  const editable = editor.isEditable()
   return (
-    <span className={`${styles.imageFrame} ${isSelected ? styles.imageSelected : ''}`}>
+    <span ref={frameRef} className={`${styles.imageFrame} ${isSelected ? styles.imageSelected : ''}`}>
       <img
         ref={imgRef}
         src={src}
         alt={alt}
         width={shownWidth ?? undefined}
         draggable={false}
+        title={editable && !isSelected ? 'Click to resize' : undefined}
         style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
       />
-      {isSelected && editor.isEditable() ? (
-        <span
-          className={styles.imageHandle}
-          role="presentation"
-          title="Drag to resize"
-          onPointerDown={startResize}
-        />
-      ) : null}
+      {isSelected && editable
+        ? IMAGE_CORNERS.map((corner) => (
+            <span
+              key={corner}
+              data-corner={corner}
+              className={`${styles.imageHandle} ${styles[`imageHandle_${corner}`] ?? ''}`}
+              role="presentation"
+              title="Drag to resize"
+            />
+          ))
+        : null}
+      {dragWidth !== null ? <span className={styles.imageSize}>{dragWidth}px</span> : null}
     </span>
   )
 }

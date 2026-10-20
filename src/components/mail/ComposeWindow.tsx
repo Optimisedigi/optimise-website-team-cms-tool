@@ -10,7 +10,7 @@ import { buildEmailDocument } from '../../lib/mail/email-html'
 import { markdownLiteToHtml } from '../../lib/email-draft-markdown'
 import { base64Bytes, extractInlineImages, type InlineImagePayload } from '../../lib/mail/compose-html'
 import { MAIL_ATTACHMENT_LIMITS } from '../../lib/mail/compose-limits'
-import { parseDatetimeLocal, schedulePresets, toDatetimeLocalValue } from '../../lib/mail/schedule-times'
+import SchedulePicker from './SchedulePicker'
 import { fitImageForChat } from '../chat-image-fit'
 import { browserStorage, clearPrompt, loadPrompt, promptKeys, savePrompt } from '../../lib/mail/ai-prompt-store'
 import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
@@ -167,7 +167,6 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const [tableOpen, setTableOpen] = useState(false)
   const [selectionFormat, setSelectionFormat] = useState<EmailSelectionFormat>({ list: null, color: null })
   const [scheduleOpen, setScheduleOpen] = useState(false)
-  const [scheduleAt, setScheduleAt] = useState('')
   const [tableSize, setTableSize] = useState({ rows: 3, columns: 3 })
   // Opt-in: also give the AI the rest of this email's thread. Off by default.
   const [useThread, setUseThread] = useState(false)
@@ -564,10 +563,6 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   }
 
   function toggleSchedule() {
-    if (!scheduleOpen && !scheduleAt) {
-      const first = schedulePresets(new Date())[0]
-      if (first) setScheduleAt(toDatetimeLocalValue(first.date))
-    }
     setScheduleOpen((open) => !open)
   }
 
@@ -723,15 +718,8 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           ) : null}
         </div>
 
-        <FormatBar
-          format={selectionFormat}
-          disabled={busy !== ''}
-          onColor={(color) => editorRef.current?.setTextColor(color)}
-          onList={(type) => editorRef.current?.toggleList(type)}
-        />
-
         <div className={styles.ai}>
-          {/* Attach / image / table, with "Use whole thread" on the same row (right). */}
+          {/* Attach / image / table / colour / lists, with "Use whole thread" on the same row (right). */}
           <div className={styles.aiTools}>
             <div className={styles.toolbar}>
               <button
@@ -763,6 +751,12 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               >
                 ⊞ Insert table
               </button>
+              <FormatBar
+                format={selectionFormat}
+                disabled={busy !== ''}
+                onColor={(color) => editorRef.current?.setTextColor(color)}
+                onList={(type) => editorRef.current?.toggleList(type)}
+              />
               {tableOpen ? (
                 <span className={styles.tablePicker}>
                   <label>
@@ -856,39 +850,12 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
         {note ? <p className={styles.note}>{note}</p> : null}
 
         {scheduleOpen ? (
-          <div className={styles.schedulePicker} role="group" aria-label="Schedule send">
-            <div className={styles.schedulePresets}>
-              {schedulePresets(new Date()).map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  className={styles.secondary}
-                  onClick={() => setScheduleAt(toDatetimeLocalValue(preset.date))}
-                  disabled={busy !== ''}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-            <label className={styles.scheduleCustom}>
-              <span>Send at</span>
-              <input
-                type="datetime-local"
-                value={scheduleAt}
-                min={toDatetimeLocalValue(new Date())}
-                onChange={(e) => setScheduleAt(e.target.value)}
-                aria-label="Send date and time"
-              />
-            </label>
-            <button
-              type="button"
-              className={styles.send}
-              onClick={() => void runSchedule(parseDatetimeLocal(scheduleAt))}
-              disabled={busy !== '' || !hasDraft || !scheduleAt || !state.to.trim()}
-            >
-              {busy === 'schedule' ? 'Scheduling…' : 'Schedule send'}
-            </button>
-          </div>
+          <SchedulePicker
+            busy={busy !== ''}
+            scheduling={busy === 'schedule'}
+            canSchedule={hasDraft && state.to.trim() !== ''}
+            onSchedule={(when) => void runSchedule(when)}
+          />
         ) : null}
 
         <footer className={styles.footer}>
