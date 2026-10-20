@@ -85,6 +85,15 @@ export async function growthToolsRequest<T>(options: {
     if (!text.trim()) {
       return { ok: true, data: undefined as T };
     }
+    // Growth Tools serves its web app for any path it has no route for, with
+    // HTTP 200. That is a missing endpoint (often not deployed yet), never a
+    // successful API call, so it must not be read as success.
+    if (/^\s*<(!doctype html|html)\b/i.test(text)) {
+      return {
+        ok: false,
+        error: `Growth Tools has no API route for ${method} ${path.split("?", 1)[0]} (it returned its web page). The endpoint may not be deployed yet.`,
+      };
+    }
     try {
       return { ok: true, data: JSON.parse(text) as T };
     } catch {

@@ -127,6 +127,24 @@ describe("google_ads_mutate_preview", () => {
     expect(await listChangePreviewsForRun(db, "run-9", 1)).toEqual([]);
   });
 
+  it("stores nothing when Growth Tools answers with its web page (endpoint not deployed)", async () => {
+    vi.stubEnv("INTERNAL_API_KEY", "test-key");
+    vi.stubEnv("GROWTH_TOOLS_URL", "https://growth-tools.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<!DOCTYPE html>\n<html lang=\"en\"><head></head></html>", { status: 200, headers: { "content-type": "text/html" } })),
+    );
+    const tool = createGoogleAdsMutatePreviewTool(async () => db, undefined, () => NOW);
+
+    const result = await tool.execute(tool.validate!({ operations: [pauseOp], summary: "Pause campaign 111" }), ctx);
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("no API route for POST /api/google-ads/mutate") });
+    expect(await listChangePreviewsForRun(db, "run-9", 1)).toEqual([]);
+
+    const query = await googleAdsQuery.execute(googleAdsQuery.validate!({ query: "SELECT campaign.id FROM campaign" }), ctx);
+    expect(query).toMatchObject({ ok: false, error: expect.stringContaining("may not be deployed") });
+  });
+
   it("refuses without a signed-in user and never calls Google", async () => {
     const send = vi.fn();
     const tool = createGoogleAdsMutatePreviewTool(async () => db, send, () => NOW);
