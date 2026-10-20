@@ -144,9 +144,19 @@
   outline: none;
   background: none;
   color: inherit;
-  font: inherit;
-  line-height: 1.55;
+  /* Fixed, like Gmail's default: Verdana at "Normal" (Gmail writes it as the keyword small). */
+  font-family: Verdana, sans-serif;
+  font-size: small;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+/* Nothing in the body may change the font or size (tables, lists, pasted text). */
+.body * {
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .editorPlaceholder {
@@ -175,9 +185,23 @@
   text-decoration: underline;
 }
 
+/* Gmail's list look: no gap above/below, 40px indent, items another 15px in. */
 .editorList {
-  margin: 0 0 0 20px;
-  padding: 0;
+  margin: 0;
+  padding: 0 0 0 40px;
+}
+
+.editorListItem {
+  margin-left: 15px;
+}
+
+/* An item that only holds a nested list shows no marker of its own. */
+.editorNestedListItem {
+  list-style-type: none;
+}
+
+.editorNestedListItem::marker {
+  content: none;
 }
 
 .editorTable {
@@ -195,6 +219,133 @@
 .editorTableHeader {
   background: var(--theme-elevation-100);
   font-weight: 700;
+}
+
+/* Gmail-style formatting bar between the body and the AI prompt, left aligned. */
+.formatBar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--theme-elevation-100);
+}
+
+.formatButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--theme-elevation-800);
+  font: inherit;
+  cursor: pointer;
+}
+
+.formatButton:hover:not(:disabled) {
+  background: var(--theme-elevation-100);
+}
+
+.formatButton[aria-pressed='true'],
+.formatButton[aria-expanded='true'] {
+  background: var(--theme-elevation-150);
+}
+
+.formatButton:focus-visible,
+.colorCell:focus-visible,
+.colorDefault:focus-visible {
+  outline: 2px solid #2c97c9;
+  outline-offset: 1px;
+}
+
+.formatButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.colorPicker {
+  position: relative;
+}
+
+.colorGlyph {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: Verdana, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.colorSwatchBar {
+  width: 16px;
+  height: 3px;
+  margin-top: 2px;
+  border: 1px solid var(--theme-elevation-200);
+}
+
+.caret {
+  font-size: 10px;
+}
+
+/* Opens upward: the bar sits near the bottom of the window. */
+.colorPalette {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 2;
+  padding: 8px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 6px;
+  background: var(--theme-elevation-0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.colorDefault {
+  display: block;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.colorDefault:hover {
+  background: var(--theme-elevation-100);
+}
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(8, 18px);
+  gap: 3px;
+}
+
+.colorCell {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.colorCell:hover {
+  transform: scale(1.15);
+}
+
+.colorCell[aria-pressed='true'] {
+  outline: 2px solid #0b57d0;
+  outline-offset: 1px;
 }
 
 /* Undo history and the attach/image/table buttons share one row above the prompt. */
@@ -513,6 +664,20 @@
 
   .field input {
     min-height: 44px;
+  }
+
+  .formatButton {
+    min-width: 44px;
+    height: 44px;
+  }
+
+  .colorGrid {
+    grid-template-columns: repeat(8, 28px);
+  }
+
+  .colorCell {
+    width: 28px;
+    height: 28px;
   }
 
   .ccToggle {

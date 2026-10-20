@@ -46,8 +46,19 @@ export function declarationProperty(declaration: string): string {
   return declaration.slice(0, Math.max(declaration.indexOf(":"), 0)).trim().toLowerCase();
 }
 
+/** Gmail's default body font: Verdana at "Normal", which Gmail writes as the keyword `small`. */
+export const EMAIL_FONT_FAMILY = "Verdana,sans-serif";
+export const EMAIL_FONT_SIZE = "small";
+
 function defaultsFor(tag: string): Array<[string, string]> {
-  if (tag === "table") return [["border-collapse", "collapse"]];
+  // Font on the table too: some mail clients do not inherit body fonts into tables.
+  if (tag === "table") {
+    return [
+      ["border-collapse", "collapse"],
+      ["font-family", EMAIL_FONT_FAMILY],
+      ["font-size", EMAIL_FONT_SIZE],
+    ];
+  }
   const cell: Array<[string, string]> = [
     ["border", CELL_BORDER],
     ["padding", "4px 8px"],
@@ -80,6 +91,70 @@ function withDefaults(tag: string, attrs: string): string {
   // Older mail clients read spacing from the attribute, not CSS.
   if (tag === "table" && !/\scellspacing\s*=/i.test(next)) next += ' cellspacing="0"';
   return next;
+}
+
+const OPEN_TAG_RE = /<([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+const FONT_PROPERTIES = new Set(["font", "font-family", "font-size"]);
+
+/**
+ * The compose body has one font: Verdana, Normal, set once on the wrapper by
+ * formatGmailDraftHtml. Any font or size inside the body (pasted, or from an
+ * older draft) is removed so nothing overrides it; colour, weight and the
+ * rest are kept. CSS custom properties (Lexical's list-marker variables) are
+ * dropped too, as mail clients ignore them.
+ */
+export function stripEmailFonts(html: string): string {
+  return html.replace(OPEN_TAG_RE, (tag: string, name: string, attrs: string) => {
+    let next = name.toLowerCase() === "font" ? attrs.replace(/\s(?:face|size)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "") : attrs;
+    const match = next.match(STYLE_ATTR_RE);
+    if (match) {
+      const declarations = splitDeclarations(match[2] ?? match[3] ?? "");
+      const kept = declarations.filter((declaration) => {
+        const prop = declarationProperty(declaration);
+        return !FONT_PROPERTIES.has(prop) && !prop.startsWith("--");
+      });
+      if (kept.length !== declarations.length) {
+        const quote = match[2] !== undefined ? '"' : "'";
+        next = kept.length > 0 ? next.replace(STYLE_ATTR_RE, () => `${match[1]}${quote}${kept.join(";")}${quote}`) : next.replace(STYLE_ATTR_RE, "");
+      }
+    }
+    return next === attrs ? tag : `<${name}${next}>`;
+  });
+}
+
+const LIST_TAG_RE = /<(ul|ol|li)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
+
+function addStyleDefaults(attrs: string, defaults: Array<[string, string]>): string {
+  const match = attrs.match(STYLE_ATTR_RE);
+  const existing = splitDeclarations(match?.[2] ?? match?.[3] ?? "");
+  const props = existing.map(declarationProperty);
+  const added = defaults.filter(([prop]) => !props.some((p) => p === prop)).map(([prop, value]) => `${prop}:${value}`);
+  if (added.length === 0) return attrs;
+  const style = [...existing, ...added].join(";");
+  if (!match) return `${attrs} style="${style}"`;
+  const quote = match[2] !== undefined ? '"' : "'";
+  return attrs.replace(STYLE_ATTR_RE, () => `${match[1]}${quote}${style}${quote}`);
+}
+
+/**
+ * Lists as Gmail writes them: items indented 15px inside the list's own
+ * 40px, no extra gap above or below (matching the compose editor's CSS,
+ * which Gmail never sees).
+ */
+export function inlineEmailListStyles(html: string): string {
+  if (!/<(ul|ol)\b/i.test(html)) return html;
+  return html.replace(LIST_TAG_RE, (_match, tag: string, attrs: string) => {
+    const lower = tag.toLowerCase();
+    const defaults: Array<[string, string]> =
+      lower === "li"
+        ? [["margin-left", "15px"]]
+        : [
+            ["margin-top", "0"],
+            ["margin-bottom", "0"],
+            ["padding-left", "40px"],
+          ];
+    return `<${lower}${addStyleDefaults(attrs, defaults)}>`;
+  });
 }
 
 export function inlineEmailTableStyles(html: string): string {

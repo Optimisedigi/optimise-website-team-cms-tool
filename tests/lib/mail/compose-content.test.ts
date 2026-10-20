@@ -30,7 +30,7 @@ describe('parseMailComposeContent', () => {
     if (!result.ok) return
     // Classes are dropped; the table look the editor gave via CSS is written inline for Gmail.
     expect(result.value.html).toBe(
-      '<p><b>Hi</b> <i>there</i> <u>Sam</u></p><table style="border-collapse:collapse" cellspacing="0"><tr><td style="border:1px solid #9aa0a6;padding:4px 8px;vertical-align:top">A</td></tr></table><img src="cid:image1@optimate.mail">',
+      '<p><b>Hi</b> <i>there</i> <u>Sam</u></p><table style="border-collapse:collapse;font-family:Verdana,sans-serif;font-size:small" cellspacing="0"><tr><td style="border:1px solid #9aa0a6;padding:4px 8px;vertical-align:top">A</td></tr></table><img src="cid:image1@optimate.mail">',
     )
     expect(result.value.inlineImages).toHaveLength(1)
     expect(result.value.attachments[0]).toMatchObject({ filename: 'quote.pdf', mimeType: 'application/pdf' })

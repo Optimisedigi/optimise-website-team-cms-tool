@@ -4,10 +4,16 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import {
   $createParagraphNode,
   $getRoot,
+  $getSelection,
   $insertNodes,
   $isElementNode,
+  $isRangeSelection,
+  $isTextNode,
   $nodesOfType,
   COMMAND_PRIORITY_LOW,
+  TextNode,
+  type DOMConversionMap,
+  type DOMConversionOutput,
   type EditorState,
   type LexicalEditor,
   type LexicalNode,
@@ -23,7 +29,15 @@ import { TablePlugin } from '@lexical/react/LexicalTablePlugin'
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin'
 import { DRAG_DROP_PASTE } from '@lexical/rich-text'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { $isListItemNode, $isListNode, ListItemNode, ListNode } from '@lexical/list'
+import {
+  $isListItemNode,
+  $isListNode,
+  INSERT_ORDERED_LIST_COMMAND,
+  INSERT_UNORDERED_LIST_COMMAND,
+  ListItemNode,
+  ListNode,
+  REMOVE_LIST_COMMAND,
+} from '@lexical/list'
 import {
   $isTableCellNode,
   $isTableNode,
@@ -39,8 +53,14 @@ import styles from './ComposeWindow.module.css'
 /**
  * Rich email body for the Mail compose window, built on Lexical.
  *
+ * - One font, always: the body is Verdana at Gmail's "Normal" size (CSS
+ *   `small`) and cannot be changed. Pasted text keeps bold, italic,
+ *   underline, lists, tables and colour, but never its font or size (Lexical
+ *   does not import them, and inline code is turned back into plain text).
  * - Bold / italic / underline: Cmd/Ctrl+B, I, U (Lexical's built-in shortcuts;
  *   there are deliberately no toolbar buttons for them).
+ * - Text colour, bulleted and numbered lists: setTextColor() and toggleList(),
+ *   driven by the compose window's formatting bar.
  * - Tables: pasted tables (Sheets, Excel, Docs, web pages) are kept, and
  *   insertTable() adds an empty one. Copying out of the editor gives HTML
  *   tables other apps understand.
@@ -61,7 +81,19 @@ export interface RichEmailEditorHandle {
   setHtml: (html: string) => void
   insertTable: (rows: number, columns: number) => void
   insertImage: (src: string, alt: string, width: number | null) => void
+  /** Colour the selected text (or what is typed next); null restores the default colour. */
+  setTextColor: (color: string | null) => void
+  /** Turn the selected blocks into a list of this type, or back into text if they already are one. */
+  toggleList: (type: EmailListType) => void
   focus: () => void
+}
+
+export type EmailListType = 'bullet' | 'number'
+
+/** Formatting at the cursor, for the formatting bar's pressed states. */
+export interface EmailSelectionFormat {
+  list: EmailListType | null
+  color: string | null
 }
 
 interface Props {
@@ -70,6 +102,99 @@ interface Props {
   ariaLabel: string
   onContentChange: (hasContent: boolean) => void
   onPasteFiles: (files: File[]) => void
+  onFormatChange?: (format: EmailSelectionFormat) => void
+}
+
+// Hex, rgb()/rgba() or a colour keyword; anything else is not imported.
+const COLOR_RE = /^(?:#[0-9a-f]{3,8}|rgba?\(\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?\s*(?:,\s*[\d.]+%?\s*)?\)|[a-z]{3,20})$/i
+// Inline wrappers a colour can come from; block elements (p, div, td) do not colour text in the editor.
+const INLINE_COLOR_TAGS = new Set(['SPAN', 'FONT', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'SUB', 'SUP', 'A', 'MARK', 'CODE'])
+
+function safeColor(value: string | null | undefined): string | null {
+  const color = (value ?? '').trim()
+  return color && color.toLowerCase() !== 'inherit' && COLOR_RE.test(color) ? color : null
+}
+
+/** Text style with its colour replaced (or removed). Text styles only ever hold a colour here. */
+function styleWithColor(style: string, color: string | null): string {
+  const kept = style
+    .split(';')
+    .map((declaration) => declaration.trim())
+    .filter((declaration) => declaration !== '' && !/^color\s*:/i.test(declaration))
+  if (color) kept.push(`color: ${color}`)
+  return kept.join('; ')
+}
+
+function colorOfStyle(style: string): string | null {
+  const match = style.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i)
+  return safeColor(match?.[1])
+}
+
+/** Colour set on this element or the nearest inline wrapper around it (nested spans replace each other's forChild). */
+function inlineColor(element: HTMLElement): string | null {
+  for (let node: HTMLElement | null = element; node && INLINE_COLOR_TAGS.has(node.nodeName); node = node.parentElement) {
+    const color = safeColor(node.style.color) ?? (node.nodeName === 'FONT' ? safeColor(node.getAttribute('color')) : null)
+    if (color) return color
+  }
+  return null
+}
+
+function withColorForChild(output: DOMConversionOutput | null, color: string | null): DOMConversionOutput | null {
+  if (!color) return output
+  const base = output ?? { node: null }
+  const forChild = base.forChild
+  return {
+    ...base,
+    forChild: (child, parent) => {
+      const next = forChild ? forChild(child, parent) : child
+      if ($isTextNode(next)) next.setStyle(styleWithColor(next.getStyle(), color))
+      return next
+    },
+  }
+}
+
+/**
+ * Keep pasted/loaded text colour. Lexical's own <span> import only reads bold,
+ * italic and so on, so this runs it and then applies the colour; <font color>
+ * (Outlook) is handled the same way. Fonts and sizes are still never imported.
+ */
+const colorImport: DOMConversionMap = {
+  span: () => ({
+    priority: 1,
+    conversion: (element: HTMLElement) => {
+      const base = TextNode.importDOM?.()?.span?.(element)?.conversion(element) ?? null
+      return withColorForChild(base, inlineColor(element))
+    },
+  }),
+  font: () => ({
+    priority: 1,
+    conversion: (element: HTMLElement) => withColorForChild(null, inlineColor(element)),
+  }),
+}
+
+function $selectionFormat(): EmailSelectionFormat {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection)) return { list: null, color: null }
+  const anchor = selection.anchor.getNode()
+  const list = [anchor, ...anchor.getParents()].find($isListNode)
+  const color = selection.isCollapsed() && selection.style ? colorOfStyle(selection.style) : null
+  return {
+    list: list ? (list.getListType() === 'number' ? 'number' : list.getListType() === 'bullet' ? 'bullet' : null) : null,
+    color: color ?? ($isTextNode(anchor) ? colorOfStyle(anchor.getStyle()) : null),
+  }
+}
+
+function $setTextColor(color: string | null): void {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection)) return
+  if (selection.isCollapsed()) {
+    // Applies to the next text typed at the cursor.
+    selection.setStyle(styleWithColor(selection.style, color))
+    return
+  }
+  for (const node of selection.extract()) {
+    if ($isTextNode(node)) node.setStyle(styleWithColor(node.getStyle(), color))
+  }
 }
 
 const theme = {
@@ -78,7 +203,12 @@ const theme = {
   table: styles.editorTable,
   tableCell: styles.editorTableCell,
   tableCellHeader: styles.editorTableHeader,
-  list: { ul: styles.editorList, ol: styles.editorList },
+  list: {
+    ul: styles.editorList,
+    ol: styles.editorList,
+    listitem: styles.editorListItem,
+    nested: { listitem: styles.editorNestedListItem },
+  },
 }
 
 function $replaceWithHtml(editor: LexicalEditor, html: string): void {
@@ -124,14 +254,38 @@ function EditorBridge({
   handleRef,
   initialHtml,
   onPasteFiles,
+  onFormatChange,
 }: {
   handleRef: React.MutableRefObject<LexicalEditor | null>
   initialHtml: string
   onPasteFiles: (files: File[]) => void
+  onFormatChange?: (format: EmailSelectionFormat) => void
 }) {
   const [editor] = useLexicalComposerContext()
   const pasteRef = useRef(onPasteFiles)
   pasteRef.current = onPasteFiles
+  const formatRef = useRef(onFormatChange)
+  formatRef.current = onFormatChange
+
+  // Inline code would render in a monospace font; the body only ever uses one font.
+  useEffect(
+    () =>
+      editor.registerNodeTransform(TextNode, (node) => {
+        if (node.hasFormat('code')) node.toggleFormat('code')
+      }),
+    [editor],
+  )
+
+  useEffect(() => {
+    let last = ''
+    return editor.registerUpdateListener(({ editorState }) => {
+      const format = editorState.read($selectionFormat, { editor })
+      const key = `${format.list ?? ''}|${format.color ?? ''}`
+      if (key === last) return
+      last = key
+      formatRef.current?.(format)
+    })
+  }, [editor])
 
   useEffect(() => {
     handleRef.current = editor
@@ -158,7 +312,7 @@ function EditorBridge({
 }
 
 const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEmailEditor(
-  { initialHtml, placeholder, ariaLabel, onContentChange, onPasteFiles },
+  { initialHtml, placeholder, ariaLabel, onContentChange, onPasteFiles, onFormatChange },
   ref,
 ) {
   const editorRef = useRef<LexicalEditor | null>(null)
@@ -199,6 +353,18 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
           $insertNodes([$createEmailImageNode(src, alt, width)])
         })
       },
+      setTextColor: (color) => {
+        const safe = color === null ? null : safeColor(color)
+        if (color !== null && !safe) return
+        editorRef.current?.update(() => $setTextColor(safe))
+      },
+      toggleList: (type) => {
+        const editor = editorRef.current
+        if (!editor) return
+        const current = editor.getEditorState().read(() => $selectionFormat().list, { editor })
+        if (current === type) editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined)
+        else editor.dispatchCommand(type === 'number' ? INSERT_ORDERED_LIST_COMMAND : INSERT_UNORDERED_LIST_COMMAND, undefined)
+      },
       focus: () => editorRef.current?.focus(),
     }),
     [],
@@ -217,6 +383,7 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
         namespace: 'mail-compose',
         theme,
         nodes: [ListNode, ListItemNode, TableNode, TableRowNode, TableCellNode, EmailImageNode],
+        html: { import: colorImport },
         onError: (error) => {
           console.error('[mail-editor]', error.message)
         },
@@ -233,7 +400,7 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
       <ListPlugin />
       <TablePlugin />
       <OnChangePlugin onChange={onChange} ignoreSelectionChange />
-      <EditorBridge handleRef={editorRef} initialHtml={initialHtml} onPasteFiles={onPasteFiles} />
+      <EditorBridge handleRef={editorRef} initialHtml={initialHtml} onPasteFiles={onPasteFiles} onFormatChange={onFormatChange} />
     </LexicalComposer>
   )
 })

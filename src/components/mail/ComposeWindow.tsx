@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styles from './ComposeWindow.module.css'
 import EmailBody from './EmailBody'
-import RichEmailEditor, { type RichEmailEditorHandle } from './RichEmailEditor'
+import RichEmailEditor, { type EmailSelectionFormat, type RichEmailEditorHandle } from './RichEmailEditor'
+import FormatBar from './FormatBar'
 import { buildEmailDocument } from '../../lib/mail/email-html'
 import { markdownLiteToHtml } from '../../lib/email-draft-markdown'
 import { base64Bytes, extractInlineImages, type InlineImagePayload } from '../../lib/mail/compose-html'
@@ -25,8 +26,10 @@ import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
  * the server appends it on Send and Save as draft, so it is never part of the
  * editable text.
  *
- * The body is a rich editor (see RichEmailEditor): Cmd/Ctrl+B/I/U, pasted or
- * inserted tables, inline images, and attached files (3 MB in total).
+ * The body is a rich editor (see RichEmailEditor), always Verdana at Gmail's
+ * Normal size: Cmd/Ctrl+B/I/U, text colour, bulleted and numbered lists (the
+ * formatting bar under the body), pasted or inserted tables, inline images,
+ * and attached files (3 MB in total).
  */
 
 export interface ComposeReplyTarget {
@@ -147,6 +150,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const [showCc, setShowCc] = useState(Boolean(initial.cc))
   const [hasDraft, setHasDraft] = useState(Boolean(initial.html.trim()))
   const [tableOpen, setTableOpen] = useState(false)
+  const [selectionFormat, setSelectionFormat] = useState<EmailSelectionFormat>({ list: null, color: null })
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [scheduleAt, setScheduleAt] = useState('')
   const [tableSize, setTableSize] = useState({ rows: 3, columns: 3 })
@@ -573,6 +577,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               }
             }}
             onPasteFiles={onPasteFiles}
+            onFormatChange={setSelectionFormat}
           />
 
           {signatureHtml === null ? null : (
@@ -585,6 +590,13 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             </div>
           )}
         </div>
+
+        <FormatBar
+          format={selectionFormat}
+          disabled={busy !== ''}
+          onColor={(color) => editorRef.current?.setTextColor(color)}
+          onList={(type) => editorRef.current?.toggleList(type)}
+        />
 
         {state.attachments.length > 0 ? (
           <ul className={styles.attachments} aria-label="Attachments">

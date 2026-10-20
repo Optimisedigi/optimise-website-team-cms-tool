@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { formatGmailDraftHtml } from '@/lib/gmail-service'
 import { parseMailComposeContent } from '@/lib/mail/compose-content'
-import { inlineEmailTableStyles, splitDeclarations } from '@/lib/mail/gmail-html'
+import { inlineEmailListStyles, inlineEmailTableStyles, splitDeclarations, stripEmailFonts } from '@/lib/mail/gmail-html'
 
 // What the compose editor (Lexical) produces for a small table: look comes from CSS classes.
 const EDITOR_TABLE =
@@ -20,14 +20,14 @@ const compose = (html: string) => {
 describe('inlineEmailTableStyles', () => {
   it('writes borders, padding and collapse inline on table, th and td', () => {
     const out = inlineEmailTableStyles('<table><tr><th>A</th><td>B</td></tr></table>')
-    expect(out).toContain('<table style="border-collapse:collapse" cellspacing="0">')
+    expect(out).toContain('<table style="border-collapse:collapse;font-family:Verdana,sans-serif;font-size:small" cellspacing="0">')
     expect(out).toMatch(/<td style="border:1px solid #9aa0a6;padding:4px 8px;vertical-align:top">/)
     expect(out).toMatch(/<th style="[^"]*border:1px solid #9aa0a6[^"]*background-color:#f1f3f4[^"]*font-weight:700/)
   })
 
   it('keeps the author’s own styles and does not override them', () => {
     const out = inlineEmailTableStyles('<table style="width:100%;border-collapse:separate"><tr><td style="border:2px dashed red;padding:0">x</td><td style="border-bottom:1px solid #000">y</td></tr></table>')
-    expect(out).toContain('<table style="width:100%;border-collapse:separate" cellspacing="0">')
+    expect(out).toContain('<table style="width:100%;border-collapse:separate;font-family:Verdana,sans-serif;font-size:small" cellspacing="0">')
     expect(out).toContain('<td style="border:2px dashed red;padding:0;vertical-align:top">')
     // A side-specific border means "styled": no shorthand is stacked on top of it.
     expect(out).toContain('<td style="border-bottom:1px solid #000;padding:4px 8px;vertical-align:top">')
@@ -54,7 +54,7 @@ describe('compose HTML to Gmail', () => {
     const html = formatGmailDraftHtml(compose(EDITOR_TABLE))
     expect(html).not.toMatch(/class=/)
     expect(html).not.toContain('<colgroup')
-    expect(html).toContain('<table style="border-collapse:collapse" cellspacing="0">')
+    expect(html).toContain('<table style="border-collapse:collapse;font-family:Verdana,sans-serif;font-size:small" cellspacing="0">')
     expect(html.match(/<td style="border:1px solid #9aa0a6;padding:4px 8px;vertical-align:top">/g)).toHaveLength(2)
     // The editor's own header shading is kept, not replaced.
     expect(html).toContain('background-color:rgb(242,243,245)')
@@ -95,5 +95,44 @@ describe('compose HTML to Gmail', () => {
 
   it('still turns top-level paragraphs into Gmail blank lines', () => {
     expect(formatGmailDraftHtml('<p>Hi</p>' + compose(EDITOR_TABLE) + '<p>Thanks</p>')).toContain('</table>Thanks')
+  })
+})
+
+describe('compose body font', () => {
+  it('strips every font and size from the body but keeps colour and weight', () => {
+    expect(
+      stripEmailFonts(
+        `<p style="font-family:Arial;font-size:20px;color:red">a</p><span style='font:12px Georgia;font-weight:700'>b</span><font face="Arial" size="5" color="blue">c</font><li style="--listitem-marker-color:red">d</li>`,
+      ),
+    ).toBe(`<p style="color:red">a</p><span style='font-weight:700'>b</span><font color="blue">c</font><li>d</li>`)
+  })
+
+  it('sends pasted tables and text in Verdana, Normal, even when they carried their own font', () => {
+    const html = formatGmailDraftHtml(
+      compose('<p style="font-size:24px">Big</p><table><tr><td style="font-family:Arial;font-size:9px"><span style="font-size:30px;color:#cc0000">Cell</span></td></tr></table>'),
+    )
+    expect(html).toContain('<div data-optimate-gmail-draft-font="true" style="font-family:Verdana,sans-serif;font-size:small;')
+    expect(html).toContain('font-family:Verdana,sans-serif;font-size:small" cellspacing="0">')
+    expect(html).not.toMatch(/font-size:(?!small)/)
+    expect(html).not.toContain('Arial')
+    expect(html).toContain('<span style="color:#cc0000">Cell</span>')
+  })
+})
+
+describe('inlineEmailListStyles', () => {
+  it('writes Gmail’s list indent inline, keeping the author’s own values', () => {
+    expect(inlineEmailListStyles('<ul><li>a</li></ul><ol start="3"><li style="margin-left:0">b</li></ol>')).toBe(
+      '<ul style="margin-top:0;margin-bottom:0;padding-left:40px"><li style="margin-left:15px">a</li></ul>' +
+        '<ol start="3" style="margin-top:0;margin-bottom:0;padding-left:40px"><li style="margin-left:0">b</li></ol>',
+    )
+    expect(inlineEmailListStyles('<p>No list</p>')).toBe('<p>No list</p>')
+  })
+
+  it('is applied to bulleted and numbered lists from the editor', () => {
+    const html = compose('<ul class="editorList"><li class="editorListItem" value="1"><span>One</span></li></ul><ol class="editorList"><li value="1">Two</li></ol>')
+    expect(html).toBe(
+      '<ul style="margin-top:0;margin-bottom:0;padding-left:40px"><li value="1" style="margin-left:15px"><span>One</span></li></ul>' +
+        '<ol style="margin-top:0;margin-bottom:0;padding-left:40px"><li value="1" style="margin-left:15px">Two</li></ol>',
+    )
   })
 })
