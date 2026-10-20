@@ -3,6 +3,8 @@ import { sql } from "@payloadcms/db-sqlite";
 import type { Payload } from "payload";
 import { parseMailComposeContent } from "@/lib/mail/compose-content";
 import { deliverMail, type DeliverInput, type DeliverResult } from "@/lib/mail/deliver";
+import { createFollowUp, followUpDb, parseFollowUpDays } from "@/lib/mail/follow-ups";
+import { addBusinessDaysInZone } from "@/lib/mail/schedule-times";
 
 /**
  * Scheduled send for the Mail view. Gmail's API cannot schedule, so the email
@@ -39,6 +41,12 @@ export interface StoredMailContent {
   bcc?: string;
   /** Edited sign-off from the compose window. */
   signOff?: string;
+  /**
+   * "Remind me if no reply" in business days, counted from when the email
+   * actually goes out (the send time can still move). Computed on send in
+   * Sydney time (AEST/AEDT), skipping Sydney weekends.
+   */
+  followUpDays?: number;
   inlineImages?: unknown;
   attachments?: unknown;
 }
@@ -197,6 +205,8 @@ export interface EditableScheduledContent {
   attachments: Array<{ name: string; mediaType: string; data: string }>;
   bcc: string;
   signOff?: string;
+  /** "Remind me if no reply" business days, when set. */
+  followUpDays?: number;
 }
 
 /** Stored content turned back into what the compose window edits (like reopening a Gmail draft). */
@@ -216,7 +226,14 @@ export function toEditableScheduledContent(stored: StoredMailContent | null): Ed
     .map((file) => ({ name: text(file?.name), mediaType: text(file?.mediaType), data: text(file?.data) }))
     .filter((file) => file.name && BASE64_RE.test(file.data));
   const signOff = cleanSignOff(stored.signOff);
-  return { html, attachments, bcc: text(stored.bcc), ...(signOff !== undefined ? { signOff } : {}) };
+  const followUpDays = parseFollowUpDays(stored.followUpDays);
+  return {
+    html,
+    attachments,
+    bcc: text(stored.bcc),
+    ...(signOff !== undefined ? { signOff } : {}),
+    ...(followUpDays !== null ? { followUpDays } : {}),
+  };
 }
 
 /** Remove an email that has not been claimed by a sender. False if it already went out or is gone. */
@@ -367,7 +384,22 @@ export async function sendScheduledEmail(
     replyToMessageId: text(row.reply_to_message_id) || null,
   });
   if (result.ok) {
-    await finish(db, id, deps.now(), { status: "sent", messageId: result.messageId });
+    const sentAt = deps.now();
+    await finish(db, id, sentAt, { status: "sent", messageId: result.messageId });
+    const followUpDays = parseFollowUpDays(stored?.followUpDays);
+    if (followUpDays !== null) {
+      // The email is sent either way; a tracking failure only loses the reminder.
+      await createFollowUp(followUpDb(payload), {
+        ownerId,
+        clientId: result.client?.id ?? null,
+        threadId: result.threadId,
+        sentMessageId: result.messageId,
+        to: text(row.to),
+        subject: text(row.subject),
+        sentAt,
+        remindAt: addBusinessDaysInZone(sentAt, followUpDays),
+      }).catch((err: unknown) => console.warn("[mail] follow-up tracking failed:", (err as Error).message?.slice(0, 200)));
+    }
     return { status: "sent", messageId: result.messageId };
   }
   if (result.stage === "recipient") return fail("There is no recipient on this email.");

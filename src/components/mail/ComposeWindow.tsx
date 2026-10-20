@@ -15,6 +15,7 @@ import SchedulePicker from './SchedulePicker'
 import { fitImageForChat } from '../chat-image-fit'
 import { browserStorage, clearPrompt, loadPrompt, promptKeys, savePrompt } from '../../lib/mail/ai-prompt-store'
 import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
+import { DEFAULT_FOLLOW_UP_DAYS, FOLLOW_UP_DAY_OPTIONS } from '../../lib/mail/schedule-times'
 
 /**
  * Gmail-style compose window docked bottom right, just left of the OptiMate orb.
@@ -49,6 +50,8 @@ export interface ComposeReplyTarget {
   messageId: string
   from: string
   subject: string
+  /** CMS client the message is stored against or matches, if any (offers "Use client data"). */
+  client?: { id: number; name: string } | null
 }
 
 export interface ComposeFile {
@@ -84,6 +87,14 @@ export interface ComposeState {
   scheduledId?: number
   /** Its current send time (ISO), preselected in the schedule picker. */
   scheduledFor?: string
+  /**
+   * "Remind me if no reply" in business days (0 = off). Undefined until
+   * chosen: then it defaults to DEFAULT_FOLLOW_UP_DAYS when a recipient is a
+   * CMS client, otherwise off. Always resolved before onSend/onSchedule.
+   */
+  followUpDays?: number
+  /** Pre-filled Write with AI instruction (e.g. Awaiting reply → Draft follow-up). */
+  aiPrompt?: string
 }
 
 /** What Send / Save as draft post to the server. */
@@ -160,15 +171,19 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const signatureParts = useMemo(() => (signatureHtml ? splitSignatureSignOff(signatureHtml) : null), [signatureHtml])
   const signatureRef = useRef(signatureParts)
   signatureRef.current = signatureParts
+  // The reminder choice as shown (the client default applied), read when sending.
+  const followUpDaysRef = useRef(0)
   /** What is sent: always the shown sign-off, so the email matches the preview (Verdana, Normal). */
   const outgoing = useCallback((s: ComposeState): ComposeState => {
+    const withFollowUp = { ...s, followUpDays: followUpDaysRef.current }
     const parts = signatureRef.current
-    if (!parts) return s
-    return { ...s, signOff: s.signOff ?? parts.signOff }
+    if (!parts) return withFollowUp
+    return { ...withFollowUp, signOff: s.signOff ?? parts.signOff }
   }, [])
   const [turns, setTurns] = useState<Turn[]>([])
   // The unsent AI instruction is kept in this browser as you type (see ai-prompt-store).
   const [prompt, setPrompt] = useState(() =>
+    initial.aiPrompt ??
     loadPrompt(
       browserStorage(),
       promptKeys({
@@ -198,6 +213,13 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const [tableSize, setTableSize] = useState({ rows: 3, columns: 3 })
   // Opt-in: also give the AI the rest of this email's thread. Off by default.
   const [useThread, setUseThread] = useState(false)
+  // Opt-in: also give the AI client facts from the CMS. Off by default; the
+  // server resolves the client itself (never from this id).
+  const [useClientData, setUseClientData] = useState(false)
+  // New email: the client the recipients match (checked server-side, debounced).
+  const [recipientClient, setRecipientClient] = useState<{ id: number; name: string } | null>(null)
+  // Shown under the AI box after a draft that used client data.
+  const [clientDataUsed, setClientDataUsed] = useState('')
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const editorRef = useRef<RichEmailEditorHandle>(null)
   const attachInputRef = useRef<HTMLInputElement>(null)
@@ -390,6 +412,34 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     }
   }, [autosave])
 
+  const linkedClient = state.mode === 'reply' ? (initial.replyTo?.client ?? null) : recipientClient
+  const followUpDays = state.followUpDays ?? (linkedClient ? DEFAULT_FOLLOW_UP_DAYS : 0)
+  followUpDaysRef.current = followUpDays
+
+  useEffect(() => {
+    if (state.mode !== 'new') return
+    const to = state.to.trim()
+    const cc = state.cc.trim()
+    if (!to && !cc) {
+      setRecipientClient(null)
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      postJson<{ client: { id: number; name: string } | null }>('/api/mail/client-match', { to, cc })
+        .then((data) => {
+          if (!cancelled) setRecipientClient(data.client ?? null)
+        })
+        .catch(() => {
+          if (!cancelled) setRecipientClient(null)
+        })
+    }, 500)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [state.mode, state.to, state.cc])
+
   function setBodyFromText(text: string) {
     editorRef.current?.setHtml(text ? markdownLiteToHtml(text) : '')
   }
@@ -407,9 +457,13 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       const currentDraft = hasDraft ? (editorRef.current?.getMarkdown() ?? '') : ''
       // First AI request on a new email with no subject yet: the AI suggests one too.
       const suggestSubject = state.mode === 'new' && turns.length === 0 && !currentDraft && !state.subject.trim()
-      const data = await postJson<{ text: string; subject?: string }>('/api/mail/ai', {
+      const withClientData = useClientData && linkedClient !== null
+      const data = await postJson<{ text: string; subject?: string; clientContext?: { id: number; name: string } | null }>('/api/mail/ai', {
         action: state.mode === 'reply' ? 'reply' : 'draft',
         ...(state.mode === 'reply' ? { gmailMessageId: state.replyTo?.messageId, includeThread: useThread } : {}),
+        ...(withClientData
+          ? { includeClientData: true, ...(state.mode === 'new' ? { to: state.to, cc: state.cc } : {}) }
+          : {}),
         ...(suggestSubject ? { suggestSubject: true } : {}),
         instruction,
         history: turns,
@@ -417,6 +471,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       })
       setTurns((current) => [...current, { instruction: instruction || 'Draft a reply', draft: data.text }])
       setBodyFromText(data.text)
+      setClientDataUsed(data.clientContext ? data.clientContext.name || 'this client' : '')
       const subject = data.subject?.trim()
       // Never overwrite a subject typed while the AI was writing.
       if (subject) setState((current) => (current.subject.trim() ? current : { ...current, subject }))
@@ -863,6 +918,17 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
                 <span>Use whole thread</span>
               </label>
             ) : null}
+            {linkedClient ? (
+              <label className={styles.threadToggle}>
+                <input
+                  type="checkbox"
+                  checked={useClientData}
+                  onChange={(e) => setUseClientData(e.target.checked)}
+                  disabled={busy !== ''}
+                />
+                <span>Use client data{linkedClient.name ? ` (${linkedClient.name})` : ''}</span>
+              </label>
+            ) : null}
           </div>
           <div className={styles.promptRow}>
             <textarea
@@ -890,6 +956,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               {busy === 'ai' ? 'Writing…' : hasDraft ? 'Revise' : 'Write with AI'}
             </button>
           </div>
+          {clientDataUsed ? <p className={styles.clientDataNote}>Used CMS data for {clientDataUsed}</p> : null}
         </div>
 
         {note ? <p className={styles.note}>{note}</p> : null}
@@ -936,6 +1003,21 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           >
             {editingScheduled ? 'Change schedule' : 'Schedule send'}
           </button>
+          <label className={styles.followUp}>
+            <span>Remind me if no reply</span>
+            <select
+              value={followUpDays}
+              onChange={(e) => setState((current) => ({ ...current, followUpDays: Number(e.target.value) }))}
+              disabled={busy !== ''}
+            >
+              <option value={0}>Off</option>
+              {FOLLOW_UP_DAY_OPTIONS.map((days) => (
+                <option key={days} value={days}>
+                  {days} business day{days === 1 ? '' : 's'}
+                </option>
+              ))}
+            </select>
+          </label>
           {editingScheduled ? null : (
             <button type="button" className={styles.secondary} onClick={() => void saveDraftNow()} disabled={busy !== '' || !hasDraft}>
               {busy === 'draft' ? 'Saving…' : 'Save as draft'}

@@ -2,7 +2,7 @@ import { createClient, type Client } from '@libsql/client'
 import { drizzle } from 'drizzle-orm/libsql'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Payload } from 'payload'
-import { SCHEDULED_EMAILS_SCHEMA } from '@/lib/mail/schema'
+import { FOLLOW_UPS_SCHEMA, SCHEDULED_EMAILS_SCHEMA } from '@/lib/mail/schema'
 import {
   cancelScheduledEmail,
   countScheduledEmails,
@@ -60,6 +60,8 @@ beforeEach(async () => {
   await client.execute('create table users (id integer primary key)')
   await client.execute('insert into users (id) values (1), (2)')
   for (const [, statement] of SCHEDULED_EMAILS_SCHEMA) await client.execute(statement)
+  await client.execute('create table clients (id integer primary key, name text)')
+  for (const [, statement] of FOLLOW_UPS_SCHEMA) await client.execute(statement)
   payload = { db: { drizzle: drizzle(client) } } as unknown as Payload
 })
 afterEach(() => client.close())
@@ -199,6 +201,25 @@ describe('sending scheduled emails', () => {
     const deliver = delivered()
     await sendScheduledEmail(payload, id, deps(deliver), { onlyDue: true })
     expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ bcc: 'boss@od.com' }))
+  })
+
+  it('sets the follow-up reminder in Sydney business days from when it actually sent', async () => {
+    const id = await createScheduledEmail(scheduleDb(payload), {
+      ownerId: 1,
+      to: 'jo@client.com',
+      cc: '',
+      subject: 'Hi',
+      replyToMessageId: null,
+      scheduledFor: minutes(-1),
+      content: { html: HTML, followUpDays: 1, inlineImages: [], attachments: [] },
+    })
+    // 9am Fri 23 Oct 2026 in Sydney (still Thursday in UTC).
+    const sentAt = new Date('2026-10-22T22:00:00.000Z')
+    await sendScheduledEmail(payload, id, deps(delivered(), sentAt), { onlyDue: true })
+    const rows = await client.execute('select owner_id, gmail_thread_id, sent_message_id, remind_at, status from mail_follow_ups')
+    expect(rows.rows).toHaveLength(1)
+    // One business day later is 9am Monday Sydney time, not Friday.
+    expect(rows.rows[0]).toMatchObject({ owner_id: 1, gmail_thread_id: 'gt1', sent_message_id: 'gm1', remind_at: '2026-10-25T22:00:00.000Z', status: 'waiting' })
   })
 
   it('sends a due email once, records it and clears the stored body', async () => {

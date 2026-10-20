@@ -8,13 +8,14 @@ import type { MailModelRequest } from "./model-request";
 /**
  * The team's writing-style rules from OptiMate Settings → OptiMate Soul
  * ("Email drafting" + "All" rows), loaded exactly as GmailMate does: soul only,
- * no pinned account facts, so no client data enters the prompt this way.
+ * no pinned account facts, so no client data enters the prompt this way
+ * (opt-in client facts come only from the request's own CMS facts block).
  */
 export async function loadEmailSoulBlock(): Promise<string> {
   try {
     const { text } = await loadPinnedMemoryBlock([], { includePinnedFacts: false, soulAgentKeys: ["email"] });
     if (!text.trim()) return "";
-    return `\n\n${text}\n\nThe soul rules above are ABSOLUTE for writing this email. If an instruction conflicts with a soul rule, the soul rule wins. They never authorise adding facts that are not in the email or the user's instruction.`;
+    return `\n\n${text}\n\nThe soul rules above are ABSOLUTE for writing this email. If an instruction conflicts with a soul rule, the soul rule wins. They never authorise adding facts that are not in the email, the user's instruction or the CMS facts block.`;
   } catch (err) {
     // Non-fatal: draft without soul rather than failing the click.
     console.warn("[mail] soul lookup failed:", (err as Error).message);
@@ -27,7 +28,8 @@ export async function loadEmailSoulBlock(): Promise<string> {
  * (callLLM + the OptiMate Email Assistant model, falling back to the
  * autonomous default, as GmailMate does; no new provider) and writes one
  * mail-ai-requests audit row per call: action, the single Gmail id, the
- * email count (0 or 1) and the model. Email content is never logged.
+ * email count, the model and, when client data was opted in, the client id.
+ * Email content and client facts are never logged.
  */
 export async function runMailModel(args: {
   payload: Payload;
@@ -45,6 +47,7 @@ export async function runMailModel(args: {
           action: request.action,
           gmailMessageId: request.gmailMessageId ?? "",
           emailCount: request.emailCount,
+          client: request.clientId ?? null,
           model: data.model,
           status: data.status,
           error: data.error ?? null,

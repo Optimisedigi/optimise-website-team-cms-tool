@@ -3,6 +3,7 @@ import type { CollectionConfig } from "payload";
 /**
  * Audit log of every model call made from the Mail view. One row per click.
  * Records which single email (if any) was sent, never its content.
+ * When client data was opted in, also records which client's facts were sent.
  */
 export const MailAiRequests: CollectionConfig = {
   slug: "mail-ai-requests",
@@ -39,6 +40,9 @@ export const MailAiRequests: CollectionConfig = {
       ],
     },
     { name: "gmailMessageId", type: "text", index: true },
+    // Set only when the user opted in to "Use client data": the client whose
+    // CMS facts were sent to the model (resolved server-side).
+    { name: "client", type: "relationship", relationTo: "clients", index: true },
     { name: "emailCount", type: "number", required: true },
     { name: "model", type: "text" },
     {

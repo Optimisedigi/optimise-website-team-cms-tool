@@ -633,3 +633,39 @@
   color: #b3261e;
   font-size: 12px;
 }
+
+/* Awaiting reply tab: one column of sent emails with their actions inline. */
+.awaiting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.awaitingList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--mail-border);
+  border-radius: 8px;
+}
+
+.awaitingRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--mail-border);
+}
+
+.awaitingRow:last-child {
+  border-bottom: 0;
+}
+
+.awaitingInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}

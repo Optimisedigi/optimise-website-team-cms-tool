@@ -199,6 +199,7 @@ import * as migration_20261018_120000_voice_api_key_toggle from './20261018_1200
 import * as migration_20261019_120000_scheduled_emails from './20261019_120000_scheduled_emails'
 import * as migration_20261020_120000_google_ads_change_previews from './20261020_120000_google_ads_change_previews'
 import * as migration_20261020_130000_contract_draft_review from './20261020_130000_contract_draft_review'
+import * as migration_20261021_120000_mail_ai_client_and_follow_ups from './20261021_120000_mail_ai_client_and_follow_ups'
 
 export const migrations = [
   {
@@ -1199,5 +1200,10 @@ export const migrations = [
     up: migration_20261020_130000_contract_draft_review.up,
     down: migration_20261020_130000_contract_draft_review.down,
     name: '20261020_130000_contract_draft_review',
+  },
+  {
+    up: migration_20261021_120000_mail_ai_client_and_follow_ups.up,
+    down: migration_20261021_120000_mail_ai_client_and_follow_ups.down,
+    name: '20261021_120000_mail_ai_client_and_follow_ups',
   },
 ]

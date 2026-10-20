@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getFolderCounts } from "@/lib/mail/gmail-mail";
 import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 import { countScheduledEmails, scheduleDb } from "@/lib/mail/scheduled";
+import { countDueFollowUps, followUpDb } from "@/lib/mail/follow-ups";
 
 /**
  * GET /api/mail/counts
  * Badge numbers for the Mail tabs: unread Inbox threads, Drafts, and emails
- * waiting in the Scheduled queue. Sent is not counted. Two Gmail label
- * lookups and one count query; no message content is read.
+ * waiting in the Scheduled queue, plus follow-up reminders that are due
+ * (Awaiting reply). Sent is not counted. Two Gmail label lookups and two
+ * count queries; no message content is read.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
@@ -15,11 +17,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const token = await requireGmailToken(ctx.user.id);
   if (token instanceof NextResponse) return token;
   try {
-    const [folders, scheduled] = await Promise.all([
+    const [folders, scheduled, followUpsDue] = await Promise.all([
       getFolderCounts(token.accessToken),
       countScheduledEmails(scheduleDb(ctx.payload), ctx.user.id),
+      countDueFollowUps(followUpDb(ctx.payload), ctx.user.id, new Date()),
     ]);
-    return NextResponse.json({ ...folders, scheduled });
+    return NextResponse.json({ ...folders, scheduled, followUpsDue });
   } catch (err) {
     return gmailErrorResponse(err, "Could not load the mail counts.");
   }

@@ -16,6 +16,12 @@ import { MAIL_DRAFT_WITH_SUBJECT_SYSTEM, MAIL_PROMPTS, type MailModelAction } fr
  * the earlier instructions and drafts the user already saw, plus the current
  * draft text as the user may have edited it. That history is the user's own
  * text, not mailbox content, so the one-email rule still holds.
+ *
+ * Opt-in client data: when the user ticks "Use client data", a reply or new
+ * draft may also include a short block of client facts from the CMS (see
+ * client-context.ts). The client is always resolved server-side from the
+ * selected message or the recipients, never from a client-supplied id, and
+ * only client-safe facts are included. Summaries never take client data.
  */
 
 export interface MailModelEmail {
@@ -49,6 +55,15 @@ export interface MailModelRequest {
   emailCount: number;
   /** The reply starts with a "Subject:" line to split off (first draft of a new email only). */
   suggestSubject: boolean;
+  /** Client whose CMS facts were included (opt-in), or null. Logged with every call. */
+  clientId: number | null;
+}
+
+/** Opt-in CMS facts for one server-resolved client. */
+export interface MailClientContextInput {
+  clientId: number;
+  clientName: string;
+  text: string;
 }
 
 export const MAX_EMAIL_BODY_CHARS = 20_000;
@@ -132,6 +147,17 @@ function threadBlock(thread: MailModelEmail[]): string {
   ].join("\n");
 }
 
+function clientContextBlock(context: MailClientContextInput): string {
+  return [
+    `Facts about ${context.clientName} from our CMS, for reference only. Use a fact only if it helps answer this email; never invent or estimate numbers, and never mention that these facts came from a CMS or that you were given them:`,
+    "",
+    context.text,
+    "",
+    "--- End of CMS facts ---",
+    "",
+  ].join("\n");
+}
+
 export function buildMailModelRequest(args: {
   action: MailModelAction;
   email?: MailModelEmail | null;
@@ -144,6 +170,8 @@ export function buildMailModelRequest(args: {
   currentDraft?: string | null;
   /** New email, first request only: also ask the model for a subject line ("Subject: ..." first line). */
   suggestSubject?: boolean;
+  /** Opt-in (reply/draft only): CMS facts for the server-resolved client. */
+  clientContext?: MailClientContextInput | null;
 }): MailModelRequest {
   const prompt = MAIL_PROMPTS[args.action];
   if (!prompt) throw new MailModelRequestError(`Unknown mail action: ${String(args.action)}`);
@@ -156,6 +184,11 @@ export function buildMailModelRequest(args: {
   const refining = history.length > 0 || currentDraft.length > 0;
 
   let email: MailModelEmail | null = null;
+  if (args.clientContext && args.action === "summarise") {
+    throw new MailModelRequestError("Client data is only used for replies and new emails.");
+  }
+  const clientContext = args.clientContext?.text.trim() ? args.clientContext : null;
+  const clientPrefix = clientContext ? clientContextBlock(clientContext) : "";
   if (args.thread && args.action !== "reply") {
     throw new MailModelRequestError("Thread context is only used for replies.");
   }
@@ -171,8 +204,8 @@ export function buildMailModelRequest(args: {
 
   const opening = (firstInstruction: string) =>
     args.action === "draft"
-      ? `My instruction for the new email:\n${firstInstruction}`
-      : `${threadContext.length ? threadBlock(threadContext) : ""}${emailBlock(email!)}\n\nMy instruction:\n${firstInstruction || prompt.defaultInstruction}`;
+      ? `${clientPrefix}My instruction for the new email:\n${firstInstruction}`
+      : `${clientPrefix}${threadContext.length ? threadBlock(threadContext) : ""}${emailBlock(email!)}\n\nMy instruction:\n${firstInstruction || prompt.defaultInstruction}`;
 
   const messages: MailModelMessage[] = [];
   if (!refining) {
@@ -215,5 +248,6 @@ export function buildMailModelRequest(args: {
     messages,
     gmailMessageId: email?.gmailMessageId ?? null,
     emailCount: email ? 1 + threadContext.length : 0,
+    clientId: clientContext?.clientId ?? null,
   };
 }

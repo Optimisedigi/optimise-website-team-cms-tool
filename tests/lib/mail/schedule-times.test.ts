@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addBusinessDays,
+  addBusinessDaysInZone,
   addMinutesToTime,
   calendarWeeks,
   combineDateAndTime,
   dateKey,
   defaultScheduleChoice,
+  followUpDueLabel,
   formatTime12,
   parseDateKey,
   parseDatetimeLocal,
@@ -63,5 +66,43 @@ describe('datetime-local helpers', () => {
     expect(parseDatetimeLocal('')).toBeNull()
     expect(parseDatetimeLocal('2026-12-05')).toBeNull()
     expect(parseDatetimeLocal('2026-02-31T10:00')).toBeNull()
+  })
+})
+
+describe('follow-up reminder times', () => {
+  it('adds business days in local time, skipping weekends and keeping the time of day', () => {
+    const thu = new Date(2026, 9, 22, 9, 30) // Thursday
+    expect(addBusinessDays(thu, 1)).toEqual(new Date(2026, 9, 23, 9, 30)) // Friday
+    expect(addBusinessDays(thu, 2)).toEqual(new Date(2026, 9, 26, 9, 30)) // Monday
+    expect(addBusinessDays(thu, 5)).toEqual(new Date(2026, 9, 29, 9, 30)) // next Thursday
+    const sat = new Date(2026, 9, 24, 15, 0)
+    expect(addBusinessDays(sat, 1)).toEqual(new Date(2026, 9, 26, 15, 0)) // Monday
+    expect(addBusinessDays(thu, 0)).toEqual(thu)
+  })
+
+  it('counts scheduled-send reminders on Sydney days, whatever the server zone', () => {
+    // 9am Fri 23 Oct in Sydney (AEDT, UTC+11) is still Thursday in UTC.
+    const friSydney = new Date('2026-10-22T22:00:00.000Z')
+    expect(addBusinessDaysInZone(friSydney, 1).toISOString()).toBe('2026-10-25T22:00:00.000Z') // Mon 9am Sydney
+    expect(addBusinessDaysInZone(friSydney, 3).toISOString()).toBe('2026-10-27T22:00:00.000Z') // Wed 9am Sydney
+    // 9am Sat in Sydney: one business day is Monday 9am.
+    expect(addBusinessDaysInZone(new Date('2026-10-23T22:00:00.000Z'), 1).toISOString()).toBe('2026-10-25T22:00:00.000Z')
+  })
+
+  it('keeps the Sydney clock time across daylight-saving changes', () => {
+    // 9am Fri 3 Apr 2026 AEDT (UTC+11) -> 9am Mon 6 Apr AEST (UTC+10), after DST ends on 5 Apr.
+    expect(addBusinessDaysInZone(new Date('2026-04-02T22:00:00.000Z'), 1).toISOString()).toBe('2026-04-05T23:00:00.000Z')
+    // 9am Fri 2 Oct 2026 AEST -> 9am Mon 5 Oct AEDT, after DST starts on 4 Oct.
+    expect(addBusinessDaysInZone(new Date('2026-10-01T23:00:00.000Z'), 1).toISOString()).toBe('2026-10-04T22:00:00.000Z')
+  })
+
+  it('labels how soon a reminder is due or how late it is', () => {
+    const now = new Date('2026-10-21T02:00:00.000Z')
+    const at = (hours: number) => new Date(now.getTime() + hours * 3_600_000).toISOString()
+    expect(followUpDueLabel(at(5), now)).toBe('Due today')
+    expect(followUpDueLabel(at(30), now)).toBe('Due in 2 days')
+    expect(followUpDueLabel(at(-2), now)).toBe('Overdue')
+    expect(followUpDueLabel(at(-26), now)).toBe('Overdue 1 day')
+    expect(followUpDueLabel('nope', now)).toBe('')
   })
 })

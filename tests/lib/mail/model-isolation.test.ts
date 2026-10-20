@@ -6,7 +6,17 @@ import { MAIL_PROMPTS } from "@/lib/mail/prompts";
 const mockPayload = { auth: vi.fn(), find: vi.fn(), findByID: vi.fn(), create: vi.fn(), update: vi.fn() };
 vi.mock("payload", () => ({ getPayload: vi.fn(() => Promise.resolve(mockPayload)) }));
 vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
-vi.mock("@/lib/access", () => ({ userHasFeature: () => true }));
+const mockHasFeature = vi.fn((_user: unknown, _slug: string) => true);
+vi.mock("@/lib/access", () => ({ userHasFeature: (user: unknown, slug: string) => mockHasFeature(user, slug) }));
+const CLIENT_NAMES: Record<number, string> = { 7: "Acme Pty Ltd", 8: "In The Picture" };
+const mockProfile = vi.fn(async (_payload: unknown, args: { id: number }) =>
+  CLIENT_NAMES[args.id]
+    ? { id: args.id, name: CLIENT_NAMES[args.id], contracts: { totalCount: 1, returned: 1, items: [], latest: { contractTitle: `CONTRACT-FOR-${args.id}`, status: "signed", contractStartDate: null, contractEndDate: null, contractTerm: null, clientSignedAt: null } } }
+    : null,
+);
+vi.mock("@/lib/optimate-client-profile", () => ({
+  buildOptimateClientProfile: (payload: unknown, args: { id: number }) => mockProfile(payload, args),
+}));
 vi.mock("@/lib/agents/_shared/user-gmail-tokens", () => ({
   getValidGmailToken: vi.fn(async () => ({ ok: true, accessToken: "tok", email: "peter@optimisedigital.online", userEmail: "" })),
 }));
@@ -34,7 +44,8 @@ const mockGetThreadMessages = vi.fn(async (_token: string, threadId: string) => 
   { messageId: "selected", threadId, rfcMessageId: "", from: "jo@inthepicture.com.au", to: "peter@optimisedigital.online", cc: "", subject: "Meeting", date: "", snippet: "", labelIds: [], bodyHtml: "", ...INBOX.selected },
   { messageId: "stray", threadId: "some-other-thread", rfcMessageId: "", from: "sam@other.com", to: "", cc: "", subject: "x", date: "", snippet: "", labelIds: [], bodyHtml: "", body: "OTHER-EMAIL-BODY" },
 ]);
-vi.mock("@/lib/mail/gmail-mail", () => ({
+vi.mock("@/lib/mail/gmail-mail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/mail/gmail-mail")>()),
   getFullMessage: (t: string, id: string) => mockGetFullMessage(t, id),
   getThreadMessages: (t: string, id: string) => mockGetThreadMessages(t, id),
 }));
@@ -267,3 +278,99 @@ describe("opt-in whole thread", () => {
   });
 });
 
+
+describe("opt-in client data", () => {
+  // Client 8 matches the sender's domain; client 7 is a manual assignment stored for "selected".
+  function payloadWith(opts: { storedClient?: number | null } = {}) {
+    mockPayload.find.mockImplementation(async (args: { collection: string }) => {
+      if (args.collection === "client-emails") {
+        return { docs: opts.storedClient ? [{ client: { id: opts.storedClient, name: CLIENT_NAMES[opts.storedClient] } }] : [] };
+      }
+      if (args.collection === "clients") {
+        return { docs: [{ id: 8, name: "In The Picture", websiteUrl: "https://inthepicture.com.au", isActive: true }] };
+      }
+      return { docs: [] };
+    });
+  }
+  const findCollections = () => mockPayload.find.mock.calls.map((call) => (call[0] as { collection: string }).collection);
+
+  it("sends no client facts and reads no client data unless the box is ticked", async () => {
+    payloadWith({ storedClient: 7 });
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const res = await POST(post("/api/mail/ai", { action: "reply", gmailMessageId: "selected", instruction: "ok" }));
+    expect(res.status).toBe(200);
+    expect(modelInput()).not.toMatch(/from our CMS\n|CONTRACT-FOR-/);
+    expect(findCollections()).toEqual([]);
+    expect(mockProfile).not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ clientContext: null });
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ client: null }) }));
+  });
+
+  it("uses the client stored for the selected message, never a client id from the body", async () => {
+    payloadWith({ storedClient: 7 });
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const res = await POST(
+      post("/api/mail/ai", { action: "reply", gmailMessageId: "selected", instruction: "ok", includeClientData: true, clientId: 8 }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ clientContext: { id: 7, name: "Acme Pty Ltd" } });
+    const input = modelInput();
+    expect(input).toContain("Facts about Acme Pty Ltd from our CMS");
+    expect(input).toContain("CONTRACT-FOR-7");
+    expect(input).not.toContain("CONTRACT-FOR-8");
+    expect(mockProfile).toHaveBeenCalledTimes(1);
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ client: 7 }) }));
+  });
+
+  it("falls back to the sender's domain match when the message is not stored", async () => {
+    payloadWith();
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const res = await POST(post("/api/mail/ai", { action: "reply", gmailMessageId: "selected", includeClientData: true }));
+    expect(res.status).toBe(200);
+    expect(modelInput()).toContain("CONTRACT-FOR-8");
+  });
+
+  it("matches a new email's client from its recipients", async () => {
+    payloadWith();
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const res = await POST(
+      post("/api/mail/ai", { action: "draft", instruction: "Update Jo", includeClientData: true, to: "Jo <jo@inthepicture.com.au>", cc: "" }),
+    );
+    expect(res.status).toBe(200);
+    expect(modelInput()).toContain("CONTRACT-FOR-8");
+    expect(await res.json()).toMatchObject({ clientContext: { id: 8 } });
+  });
+
+  it("returns 400 without calling the model when no client resolves", async () => {
+    payloadWith();
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const res = await POST(post("/api/mail/ai", { action: "draft", instruction: "Hi", includeClientData: true, to: "x@unknown.com" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This email isn't linked to a client.");
+    expect(mockCallLLM).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for users without the clients feature", async () => {
+    payloadWith({ storedClient: 7 });
+    mockHasFeature.mockImplementation((_user, slug) => slug !== "clients");
+    try {
+      const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+      const res = await POST(post("/api/mail/ai", { action: "reply", gmailMessageId: "selected", includeClientData: true }));
+      expect(res.status).toBe(403);
+      expect(mockCallLLM).not.toHaveBeenCalled();
+      expect(mockProfile).not.toHaveBeenCalled();
+    } finally {
+      mockHasFeature.mockImplementation(() => true);
+    }
+  });
+
+  it("summaries never take client context", () => {
+    const email = { gmailMessageId: "a", from: "x@y.com", subject: "S", body: "B" };
+    expect(() =>
+      buildMailModelRequest({ action: "summarise", email, clientContext: { clientId: 7, clientName: "Acme", text: "facts" } }),
+    ).toThrow(MailModelRequestError);
+    const reply = buildMailModelRequest({ action: "reply", email, clientContext: { clientId: 7, clientName: "Acme", text: "facts" } });
+    expect(reply.clientId).toBe(7);
+    expect(reply.messages[0]!.text.indexOf("Facts about Acme")).toBeLessThan(reply.messages[0]!.text.indexOf("The email:"));
+  });
+});

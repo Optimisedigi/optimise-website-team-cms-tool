@@ -92,6 +92,7 @@ export interface Config {
     'mail-ai-requests': MailAiRequest;
     'mail-sync-states': MailSyncState;
     'scheduled-emails': ScheduledEmail;
+    'mail-follow-ups': MailFollowUp;
     'google-ads-change-previews': GoogleAdsChangePreview;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
@@ -223,6 +224,7 @@ export interface Config {
     'mail-ai-requests': MailAiRequestsSelect<false> | MailAiRequestsSelect<true>;
     'mail-sync-states': MailSyncStatesSelect<false> | MailSyncStatesSelect<true>;
     'scheduled-emails': ScheduledEmailsSelect<false> | ScheduledEmailsSelect<true>;
+    'mail-follow-ups': MailFollowUpsSelect<false> | MailFollowUpsSelect<true>;
     'google-ads-change-previews': GoogleAdsChangePreviewsSelect<false> | GoogleAdsChangePreviewsSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
@@ -8455,6 +8457,7 @@ export interface MailAiRequest {
   user?: (number | null) | User;
   action: 'reply' | 'draft' | 'summarise';
   gmailMessageId?: string | null;
+  client?: (number | null) | Client;
   emailCount: number;
   model?: string | null;
   status?: ('ok' | 'error') | null;
@@ -8502,6 +8505,26 @@ export interface ScheduledEmail {
   lastError?: string | null;
   sentAt?: string | null;
   sentMessageId?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mail-follow-ups".
+ */
+export interface MailFollowUp {
+  id: number;
+  owner: number | User;
+  client?: (number | null) | Client;
+  gmailThreadId?: string | null;
+  sentMessageId?: string | null;
+  to?: string | null;
+  subject?: string | null;
+  sentAt?: string | null;
+  remindAt?: string | null;
+  status?: ('waiting' | 'due' | 'replied' | 'dismissed') | null;
+  notifiedAt?: string | null;
+  lastCheckedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -11396,7 +11419,8 @@ export interface Notification {
     | 'meeting-confirmed'
     | 'team-task-mention'
     | 'hosting-duplicate-subscription'
-    | 'client-email-received';
+    | 'client-email-received'
+    | 'mail-follow-up-due';
   title: string;
   /**
    * Short summary line.
@@ -13626,6 +13650,7 @@ export interface MailAiRequestsSelect<T extends boolean = true> {
   user?: T;
   action?: T;
   gmailMessageId?: T;
+  client?: T;
   emailCount?: T;
   model?: T;
   status?: T;
@@ -13663,6 +13688,25 @@ export interface ScheduledEmailsSelect<T extends boolean = true> {
   lastError?: T;
   sentAt?: T;
   sentMessageId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mail-follow-ups_select".
+ */
+export interface MailFollowUpsSelect<T extends boolean = true> {
+  owner?: T;
+  client?: T;
+  gmailThreadId?: T;
+  sentMessageId?: T;
+  to?: T;
+  subject?: T;
+  sentAt?: T;
+  remindAt?: T;
+  status?: T;
+  notifiedAt?: T;
+  lastCheckedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

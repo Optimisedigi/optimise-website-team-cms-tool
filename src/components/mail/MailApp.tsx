@@ -19,6 +19,8 @@ import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-m
 import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
 import { MAIL_TABS, mailTabLabel, unreadFirst, type MailFolder, type MailTab, type MailTabCounts } from '../../lib/mail/folders'
 import ScheduledPanel, { type ScheduledDetail, type ScheduledItem } from './ScheduledPanel'
+import AwaitingPanel, { type FollowUpItem } from './AwaitingPanel'
+import { addBusinessDays } from '../../lib/mail/schedule-times'
 import { MAIL_AUTO_REFRESH_MS, isMailAutoRefreshWindow } from '../../lib/mail/auto-refresh'
 
 /**
@@ -151,6 +153,12 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([])
   const [scheduledLoading, setScheduledLoading] = useState(false)
   const [selectedScheduledId, setSelectedScheduledId] = useState<number | null>(null)
+  // The Awaiting reply tab lists sent emails with a follow-up reminder (CMS-held).
+  const [showAwaiting, setShowAwaiting] = useState(false)
+  const [followUps, setFollowUps] = useState<FollowUpItem[]>([])
+  const [followUpsLoading, setFollowUpsLoading] = useState(false)
+  // A CMS tab (Scheduled / Awaiting reply) is shown instead of a Gmail folder.
+  const panelOpen = showScheduled || showAwaiting
   // Badge numbers on the Inbox (unread) and Drafts tabs; null until first loaded.
   const [counts, setCounts] = useState<MailTabCounts | null>(null)
   const [threads, setThreads] = useState<ThreadRow[]>([])
@@ -283,6 +291,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           inboxUnread: data.inboxUnread,
           drafts: data.drafts,
           ...(typeof data.scheduled === 'number' ? { scheduled: data.scheduled } : {}),
+          ...(typeof data.followUpsDue === 'number' ? { followUpsDue: data.followUpsDue } : {}),
         })
       }
     } catch {
@@ -305,13 +314,26 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }, [showError])
 
+  const loadFollowUps = useCallback(async () => {
+    setFollowUpsLoading(true)
+    try {
+      const data = await api<{ items: FollowUpItem[] }>('/api/mail/follow-ups')
+      setFollowUps(data.items)
+      setError(null)
+    } catch (err) {
+      showError(err)
+    } finally {
+      setFollowUpsLoading(false)
+    }
+  }, [showError])
+
   const refresh = useCallback(async () => {
     await Promise.all([
       runSync(),
-      showScheduled ? loadScheduled() : loadInbox({ folder, q: query }),
+      showScheduled ? loadScheduled() : showAwaiting ? loadFollowUps() : loadInbox({ folder, q: query }),
       loadCounts(),
     ])
-  }, [folder, loadCounts, loadInbox, loadScheduled, query, runSync, showScheduled])
+  }, [folder, loadCounts, loadFollowUps, loadInbox, loadScheduled, query, runSync, showAwaiting, showScheduled])
 
   // Auto-refresh every 5 minutes on Sydney weekdays 6:30am–6:30pm, only while
   // Mail is on screen. Skips while composing, loading, or after "Load more", so
@@ -376,9 +398,25 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   const selectTab = useCallback(
     (tab: MailTab) => {
+      if (tab === 'awaiting') {
+        if (showAwaiting) return
+        threadRequest.current++
+        setShowAwaiting(true)
+        setShowScheduled(false)
+        setSelectedScheduledId(null)
+        setSelectedThreadId(null)
+        setMessages([])
+        setThreadError('')
+        setActionNote('')
+        setSummary(null)
+        void loadFollowUps()
+        void loadCounts()
+        return
+      }
       if (tab === 'scheduled') {
         if (showScheduled) return
         threadRequest.current++
+        setShowAwaiting(false)
         setShowScheduled(true)
         setSelectedScheduledId(null)
         setSelectedThreadId(null)
@@ -390,11 +428,12 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         return
       }
       setShowScheduled(false)
+      setShowAwaiting(false)
       if (tab !== folder) switchFolder(tab)
       else void loadInbox({ folder, q: query })
       void loadCounts()
     },
-    [folder, loadCounts, loadInbox, loadScheduled, query, showScheduled, switchFolder],
+    [folder, loadCounts, loadFollowUps, loadInbox, loadScheduled, query, showAwaiting, showScheduled, switchFolder],
   )
 
   const openThread = useCallback(
@@ -667,7 +706,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     setComposer({
       key: ++composeKey.current,
       mode: 'reply',
-      replyTo: { messageId: message.messageId, from: message.from, subject: message.subject },
+      replyTo: {
+        messageId: message.messageId,
+        from: message.from,
+        subject: message.subject,
+        // Offers "Use client data"; the server re-resolves the client itself.
+        client: message.stored
+          ? { id: message.stored.clientId, name: message.stored.clientName }
+          : message.match
+            ? { id: message.match.id, name: message.match.name }
+            : null,
+      },
       to: ownMessage && message.to ? message.to : senderAddress(message.from),
       cc: '',
       subject: replySubject(message.subject),
@@ -694,7 +743,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       void loadCounts()
       return
     }
-    const data = await api<{ client: { name: string } | null; draftNote?: string | null }>('/api/mail/send', {
+    const data = await api<{ client: { name: string } | null; draftNote?: string | null; followUpNote?: string | null }>('/api/mail/send', {
       method: 'POST',
       body: JSON.stringify({
         to: state.to,
@@ -707,16 +756,28 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         attachments: content.attachments,
         replyToMessageId: state.replyTo?.messageId ?? '',
         ...(state.draftId ? { draftId: state.draftId } : {}),
+        // Business days are counted in this browser's local time.
+        ...(state.followUpDays ? { followUpAt: addBusinessDays(new Date(), state.followUpDays).toISOString() } : {}),
       }),
     })
     setComposer(null)
     setActionNote(
-      [data.client ? `Sent. Saved to ${data.client.name}'s emails.` : 'Sent.', data.draftNote ?? ''].filter(Boolean).join(' '),
+      [
+        data.client ? `Sent. Saved to ${data.client.name}'s emails.` : 'Sent.',
+        state.followUpDays && !data.followUpNote
+          ? `You'll be reminded in ${state.followUpDays} business day${state.followUpDays === 1 ? '' : 's'} if there's no reply.`
+          : '',
+        data.draftNote ?? '',
+        data.followUpNote ?? '',
+      ]
+        .filter(Boolean)
+        .join(' '),
     )
+    if (showAwaiting) void loadFollowUps()
     const thread = selectedThread
     if (thread && state.mode === 'reply') void openThread(thread)
     // The sent message now belongs in Sent, and a sent draft leaves Drafts.
-    if (folder !== 'inbox' && !showScheduled) void loadInbox({ folder, q: query })
+    if (folder !== 'inbox' && !panelOpen) void loadInbox({ folder, q: query })
     void loadCounts()
   }
 
@@ -735,6 +796,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         inlineImages: content.inlineImages,
         attachments: content.attachments,
         ...(when ? { scheduledFor: when.toISOString() } : {}),
+        followUpDays: state.followUpDays ?? 0,
       }),
     })
   }
@@ -762,6 +824,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         replyToMessageId: state.replyTo?.messageId ?? '',
         scheduledFor: when.toISOString(),
         ...(state.draftId ? { draftId: state.draftId } : {}),
+        ...(state.followUpDays ? { followUpDays: state.followUpDays } : {}),
       }),
     })
     setComposer(null)
@@ -814,7 +877,60 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       attachments: detail.attachments,
       scheduledId: item.id,
       scheduledFor: item.scheduledFor,
+      // Keep the reminder exactly as queued (off stays off; no client default).
+      followUpDays: detail.followUpDays ?? 0,
     })
+  }
+
+  /** Awaiting reply → Draft follow-up: a reply to the sent email with the AI instruction pre-filled. */
+  function startFollowUp(item: FollowUpItem) {
+    setSummary(null)
+    setComposer({
+      key: ++composeKey.current,
+      mode: 'reply',
+      replyTo: {
+        messageId: item.sentMessageId,
+        from: account,
+        subject: item.subject,
+        client: item.clientId !== null ? { id: item.clientId, name: item.clientName } : null,
+      },
+      to: item.to,
+      cc: '',
+      subject: replySubject(item.subject),
+      html: '',
+      attachments: [],
+      aiPrompt: 'Write a short, polite follow-up nudging for a reply',
+    })
+  }
+
+  /** Awaiting reply → Open thread: show it in Sent, where the email lives. */
+  function openFollowUpThread(item: FollowUpItem) {
+    selectTab('sent')
+    void openThread({
+      threadId: item.threadId,
+      messageId: item.sentMessageId,
+      from: account,
+      to: item.to,
+      subject: item.subject,
+      snippet: '',
+      date: item.sentAt,
+      unread: false,
+      messageCount: 0,
+      client: item.clientId !== null ? { id: item.clientId, name: item.clientName } : null,
+    })
+  }
+
+  async function snoozeFollowUp(id: number, when: Date) {
+    await api(`/api/mail/follow-ups/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'snooze', remindAt: when.toISOString() }) })
+    setActionNote(`Reminder moved to ${longDate(when.toISOString())}.`)
+    await loadFollowUps()
+    void loadCounts()
+  }
+
+  async function dismissFollowUp(id: number) {
+    await api(`/api/mail/follow-ups/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'dismiss' }) })
+    setFollowUps((current) => current.filter((item) => item.id !== id))
+    void loadCounts()
   }
 
   async function deleteDraftRow(thread: ThreadRow) {
@@ -833,7 +949,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   async function deleteComposedDraft(draftId: string): Promise<void> {
     await api(`/api/gmail/draft?draftId=${encodeURIComponent(draftId)}`, { method: 'DELETE' })
-    if (folder === 'drafts' && !showScheduled) void loadInbox({ folder, q: query })
+    if (folder === 'drafts' && !panelOpen) void loadInbox({ folder, q: query })
     void loadCounts()
   }
 
@@ -853,7 +969,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         ...(state.draftId ? { draftId: state.draftId } : {}),
       }),
     })
-    if (folder === 'drafts' && !showScheduled) void loadInbox({ folder, q: query })
+    if (folder === 'drafts' && !panelOpen) void loadInbox({ folder, q: query })
     void loadCounts()
     return data.draftId
   }
@@ -939,7 +1055,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         {account ? <span className={styles.muted}>{account}</span> : null}
         <div className={styles.folders} role="tablist" aria-label="Mail folders">
           {MAIL_TABS.map((entry) => {
-            const active = entry === 'scheduled' ? showScheduled : !showScheduled && entry === folder
+            const active =
+              entry === 'scheduled' ? showScheduled : entry === 'awaiting' ? showAwaiting : !panelOpen && entry === folder
             return (
               <button
                 key={entry}
@@ -954,7 +1071,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             )
           })}
         </div>
-        {showScheduled ? null : <form
+        {panelOpen ? null : <form
           className={styles.search}
           onSubmit={(event) => {
             event.preventDefault()
@@ -1137,7 +1254,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         </div>
       ) : null}
 
-      {showScheduled && actionNote ? <p className={styles.note}>{actionNote}</p> : null}
+      {panelOpen && actionNote ? <p className={styles.note}>{actionNote}</p> : null}
+      {showAwaiting ? (
+        <AwaitingPanel
+          items={followUps}
+          loading={followUpsLoading}
+          onDraftFollowUp={startFollowUp}
+          onOpenThread={openFollowUpThread}
+          onSnooze={snoozeFollowUp}
+          onDismiss={dismissFollowUp}
+        />
+      ) : null}
       {showScheduled ? (
         <ScheduledPanel
           items={scheduled}
@@ -1156,7 +1283,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         />
       ) : null}
 
-      <div className={styles.panes} style={showScheduled ? { display: 'none' } : undefined}>
+      <div className={styles.panes} style={panelOpen ? { display: 'none' } : undefined}>
         <ul className={styles.list} aria-label={FOLDER_LABELS[folder]}>
           {threads.map((thread) => (
             <li key={thread.threadId} className={styles.rowItem}>

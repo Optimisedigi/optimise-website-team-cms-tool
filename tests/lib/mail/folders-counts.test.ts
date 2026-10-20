@@ -22,8 +22,14 @@ describe('mailTabLabel', () => {
     expect(mailTabLabel('drafts', { inboxUnread: 1, drafts: Number.NaN })).toBe('Drafts')
   })
 
-  it('adds Scheduled as a tab without changing the Gmail folders', () => {
+  it('adds Scheduled and Awaiting reply as tabs without changing the Gmail folders', () => {
     expect(MAIL_FOLDERS).toEqual(['inbox', 'sent', 'drafts'])
-    expect(MAIL_TABS).toEqual(['inbox', 'sent', 'drafts', 'scheduled'])
+    expect(MAIL_TABS).toEqual(['inbox', 'sent', 'drafts', 'scheduled', 'awaiting'])
+  })
+
+  it('labels Awaiting reply and badges it with the reminders that are due', () => {
+    expect(mailTabLabel('awaiting', { inboxUnread: 1, drafts: 0, followUpsDue: 2 })).toBe('Awaiting reply (2)')
+    expect(mailTabLabel('awaiting', { inboxUnread: 1, drafts: 0, followUpsDue: 0 })).toBe('Awaiting reply')
+    expect(mailTabLabel('awaiting', null)).toBe('Awaiting reply')
   })
 })

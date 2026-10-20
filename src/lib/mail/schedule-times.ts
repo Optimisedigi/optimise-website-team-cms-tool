@@ -39,6 +39,97 @@ export function addDays(date: Date, days: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 }
 
+/**
+ * `date` moved forward by `days` business days in local time, skipping
+ * Saturdays and Sundays and keeping the time of day (follow-up reminders).
+ * From a weekend, one business day lands on Monday.
+ */
+export function addBusinessDays(date: Date, days: number): Date {
+  const result = new Date(date.getTime());
+  let remaining = Math.max(0, Math.floor(days));
+  while (remaining > 0) {
+    result.setDate(result.getDate() + 1);
+    const weekday = result.getDay();
+    if (weekday !== 0 && weekday !== 6) remaining -= 1;
+  }
+  return result;
+}
+
+/** "Remind me if no reply" choices in business days (0 = off). */
+export const FOLLOW_UP_DAY_OPTIONS = [1, 2, 3, 5, 7] as const;
+/** Preselected when a recipient is a CMS client; otherwise reminders start off. */
+export const DEFAULT_FOLLOW_UP_DAYS = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "Due in 2 days", "Due today", "Overdue", "Overdue 3 days" for a reminder time. */
+export function followUpDueLabel(remindAtIso: string, now: Date): string {
+  const remindAt = new Date(remindAtIso);
+  if (Number.isNaN(remindAt.getTime())) return "";
+  const diff = remindAt.getTime() - now.getTime();
+  if (diff > 0) {
+    const days = Math.ceil(diff / DAY_MS);
+    return diff < DAY_MS ? "Due today" : `Due in ${days} day${days === 1 ? "" : "s"}`;
+  }
+  const late = Math.floor(-diff / DAY_MS);
+  return late === 0 ? "Overdue" : `Overdue ${late} day${late === 1 ? "" : "s"}`;
+}
+
+/** The team's time zone: AEST, or AEDT during daylight saving. */
+export const MAIL_TIME_ZONE = "Australia/Sydney";
+
+/** Wall-clock parts of an instant in `timeZone`. */
+function zonedParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { year: part("year"), month: part("month"), day: part("day"), hour: part("hour"), minute: part("minute"), second: part("second") };
+}
+
+/** Minutes `timeZone` is ahead of UTC at `date` (+600 for AEST, +660 for AEDT). */
+function zoneOffsetMinutes(date: Date, timeZone: string): number {
+  const p = zonedParts(date, timeZone);
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return Math.round((asUtc - Math.floor(date.getTime() / 1000) * 1000) / 60_000);
+}
+
+/**
+ * Same as addBusinessDays, counted in `timeZone` (default Sydney) rather than
+ * the machine's zone: server-side, for scheduled sends. Skips that zone's
+ * Saturdays and Sundays and keeps its clock time across daylight-saving changes.
+ */
+export function addBusinessDaysInZone(date: Date, days: number, timeZone: string = MAIL_TIME_ZONE): Date {
+  const start = zonedParts(date, timeZone);
+  // Walk calendar days on the zone's own date (noon UTC avoids any day-edge slip).
+  const cursor = new Date(Date.UTC(start.year, start.month - 1, start.day, 12));
+  let remaining = Math.max(0, Math.floor(days));
+  while (remaining > 0) {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    const weekday = cursor.getUTCDay();
+    if (weekday !== 0 && weekday !== 6) remaining -= 1;
+  }
+  // Same wall-clock time on the target day, converted back with that day's offset.
+  const wall = Date.UTC(
+    cursor.getUTCFullYear(),
+    cursor.getUTCMonth(),
+    cursor.getUTCDate(),
+    start.hour,
+    start.minute,
+    start.second,
+    date.getMilliseconds(),
+  );
+  let result = wall - zoneOffsetMinutes(new Date(wall), timeZone) * 60_000;
+  result = wall - zoneOffsetMinutes(new Date(result), timeZone) * 60_000;
+  return new Date(result);
+}
+
 /** The instant of a local day (YYYY-MM-DD) at a local time (HH:MM). */
 export function combineDateAndTime(day: string, time: string): Date | null {
   return parseDatetimeLocal(`${day}T${time}`);

@@ -11,6 +11,7 @@ const getScheduledEmail = vi.fn(
   async (): Promise<Found> => ({ item: { id: 7, status: 'pending', scheduledFor: '2026-12-01T08:00:00.000Z' }, replyToMessageId: null, content: { html: '<p>Hi</p>' } }),
 )
 const updateScheduledEmail = vi.fn(async () => true)
+const countDueFollowUps = vi.fn(async () => 1)
 
 vi.mock('@/lib/mail/gmail-mail', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mail/gmail-mail')>()),
@@ -25,6 +26,11 @@ vi.mock('@/lib/mail/scheduled', async (importOriginal) => ({
   getScheduledEmail,
   updateScheduledEmail,
   scheduleDb: vi.fn(() => ({})),
+}))
+vi.mock('@/lib/mail/follow-ups', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/mail/follow-ups')>()),
+  countDueFollowUps,
+  followUpDb: vi.fn(() => ({})),
 }))
 vi.mock('@/lib/agents/_shared/user-gmail-tokens', () => ({
   getValidGmailToken: vi.fn(async () => ({ ok: true, accessToken: 'tok', email: 'me@od.com', userEmail: 'me@od.com' })),
@@ -50,10 +56,11 @@ const valid = { to: 'jo@client.com', subject: 'Hi', html: '<p>Hello</p>', schedu
 afterEach(() => vi.clearAllMocks())
 
 describe('GET /api/mail/counts', () => {
-  it('returns the Inbox unread, Drafts and Scheduled counts', async () => {
+  it('returns the Inbox unread, Drafts, Scheduled and due follow-up counts', async () => {
     countScheduledEmails.mockResolvedValueOnce(3)
     const res = await counts.GET(new NextRequest('https://cms.test/api/mail/counts'))
-    expect(await res.json()).toEqual({ inboxUnread: 4, drafts: 2, scheduled: 3 })
+    expect(await res.json()).toEqual({ inboxUnread: 4, drafts: 2, scheduled: 3, followUpsDue: 1 })
+    expect(countDueFollowUps).toHaveBeenCalledWith({}, 5, expect.any(Date))
     expect(getFolderCounts).toHaveBeenCalledWith('tok')
     expect(countScheduledEmails).toHaveBeenCalledWith({}, 5)
   })

@@ -42,6 +42,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/mail/follow-ups/cron",
+      "schedule": "0 * * * *"
+    },
+    {
       "path": "/api/mail/sync/cron",
       "schedule": "30 3 * * *"
     },
@@ -103,6 +107,9 @@
     }
   ],
   "functions": {
+    "src/app/(frontend)/api/mail/follow-ups/cron/route.ts": {
+      "maxDuration": 300
+    },
     "src/app/(payload)/admin/[[...segments]]/page.tsx": {
       "maxDuration": 30
     },

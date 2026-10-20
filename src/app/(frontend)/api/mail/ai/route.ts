@@ -5,6 +5,17 @@ import { runMailModel } from "@/lib/mail/run-model";
 import { extractEmailHeaders } from "@/lib/gmail-draft-parsing";
 import { cleanSuggestedSubject, ensureHiGreeting, greetingName } from "@/lib/mail/greeting";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
+import { userHasFeature } from "@/lib/access";
+import {
+  buildMailClientContext,
+  resolveRecipientClient,
+  resolveReplyClient,
+  type MailClientContext,
+  type ResolvedMailClient,
+} from "@/lib/mail/client-context";
+
+const MAX_RECIPIENTS_CHARS = 4_000;
+const NOT_LINKED = "This email isn't linked to a client.";
 
 /**
  * POST /api/mail/ai
@@ -23,6 +34,13 @@ import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireM
  * the selected email's thread. The thread id comes from the selected message as
  * Gmail returns it, never from the request, so no other thread can be pulled in.
  *
+ * includeClientData (opt-in checkbox, needs the `clients` feature): also send a
+ * short block of client-safe CMS facts (client-context.ts). The client is
+ * resolved server-side: for a reply, the client-emails row stored for the
+ * selected message, else its domain match; for a draft, the first To/Cc
+ * address that matches a client. A client id is never read from the body.
+ * Returns clientContext: { id, name } | null.
+ *
  * Runs only when the user clicks "Reply with AI" / "Draft with AI". For a
  * reply, the server fetches exactly the one selected message by id; nothing
  * else from the mailbox is loaded or sent. Returns editable text. Never sends.
@@ -38,6 +56,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     currentDraft?: unknown;
     includeThread?: unknown;
     suggestSubject?: unknown;
+    includeClientData?: unknown;
+    to?: unknown;
+    cc?: unknown;
   }>(req);
   if (!body) return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
 
@@ -46,6 +67,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const instruction = typeof body.instruction === "string" ? body.instruction : "";
   const history = cleanDraftHistory(body.history);
   const currentDraft = typeof body.currentDraft === "string" ? body.currentDraft : "";
+  const includeClientData = body.includeClientData === true;
+  if (includeClientData && !userHasFeature(ctx.user, "clients")) {
+    return NextResponse.json({ error: "Client data is not enabled for your account." }, { status: 403 });
+  }
+  const recipients = (raw: unknown) => (typeof raw === "string" ? raw.slice(0, MAX_RECIPIENTS_CHARS) : "");
+
+  // Load the facts for a server-resolved client; errors become a JSON response.
+  const loadClientContext = async (client: ResolvedMailClient | null): Promise<MailClientContext | NextResponse> => {
+    if (!client) return NextResponse.json({ error: NOT_LINKED }, { status: 400 });
+    try {
+      const context = await buildMailClientContext(ctx.payload, client.id, new Date());
+      if (!context) return NextResponse.json({ error: NOT_LINKED }, { status: 400 });
+      return context;
+    } catch (err) {
+      console.error("[mail] client context failed:", (err as Error).message?.slice(0, 200));
+      return NextResponse.json({ error: "Could not load the client's data. Try again or untick Use client data." }, { status: 502 });
+    }
+  };
+  let clientContext: MailClientContext | null = null;
 
   let request;
   // First name for the "Hi <name>," greeting: the person being replied to.
@@ -55,12 +95,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (body.gmailMessageId !== undefined && body.gmailMessageId !== null && body.gmailMessageId !== "") {
         return NextResponse.json({ error: "A new draft does not take an email." }, { status: 400 });
       }
+      if (includeClientData) {
+        const token = await requireGmailToken(ctx.user.id);
+        if (token instanceof NextResponse) return token;
+        const client = await resolveRecipientClient({
+          payload: ctx.payload,
+          message: { to: recipients(body.to), cc: recipients(body.cc) },
+          ownAddresses: [token.email, token.userEmail].filter(Boolean),
+        });
+        const loaded = await loadClientContext(client);
+        if (loaded instanceof NextResponse) return loaded;
+        clientContext = loaded;
+      }
       request = buildMailModelRequest({
         action: "draft",
         instruction,
         history,
         currentDraft,
         suggestSubject: body.suggestSubject === true,
+        clientContext,
       });
     } else {
       const gmailMessageId = parseGmailId(body.gmailMessageId);
@@ -83,6 +136,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const own = [token.email, token.userEmail].filter(Boolean).map((address) => address.toLowerCase());
       const fromOwn = own.some((address) => message.from.toLowerCase().includes(address));
       name = greetingName(fromOwn ? message.to : message.from);
+      if (includeClientData) {
+        const client = await resolveReplyClient({
+          payload: ctx.payload,
+          user: ctx.user,
+          message,
+          ownAddresses: [token.email, token.userEmail].filter(Boolean),
+        });
+        const loaded = await loadClientContext(client);
+        if (loaded instanceof NextResponse) return loaded;
+        clientContext = loaded;
+      }
       const toModelEmail = (m: typeof message) => ({
         gmailMessageId: m.messageId,
         from: m.from,
@@ -99,6 +163,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         currentDraft,
         email: toModelEmail(message),
         thread: thread ? thread.filter((m) => m.threadId === message.threadId).map(toModelEmail) : null,
+        clientContext,
       });
     }
   } catch (err) {
@@ -116,7 +181,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (headers.subject !== undefined) text = headers.body;
     }
     text = ensureHiGreeting(text, name);
-    return NextResponse.json({ text, ...(subject ? { subject } : {}), model: result.model });
+    return NextResponse.json({
+      text,
+      ...(subject ? { subject } : {}),
+      model: result.model,
+      clientContext: clientContext ? { id: clientContext.clientId, name: clientContext.clientName } : null,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "AI request failed.";
     return NextResponse.json({ error: message.slice(0, 300) }, { status: 502 });

@@ -3,11 +3,12 @@ import { parseMailComposeContent } from "@/lib/mail/compose-content";
 import { deleteDraft } from "@/lib/mail/gmail-mail";
 import { deliverMail } from "@/lib/mail/deliver";
 import { cleanSignOff } from "@/lib/mail/signature";
+import { createFollowUp, followUpDb, parseRemindAt } from "@/lib/mail/follow-ups";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
  * POST /api/mail/send
- * Body: { to, cc?, bcc?, signOff?, subject, html, inlineImages?, attachments?, replyToMessageId?, draftId? }
+ * Body: { to, cc?, bcc?, signOff?, subject, html, inlineImages?, attachments?, replyToMessageId?, draftId?, followUpAt? }
  *
  * Sends mail. Only reachable from the Send button: the user's edited HTML
  * is sent as-is after validation (the model never calls this route). Inline
@@ -16,6 +17,11 @@ import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireM
  * The sent message is matched and stored straight away if it is to a client.
  * When the email was opened from a Gmail draft, that draft is deleted after
  * sending so it does not linger in Drafts.
+ *
+ * followUpAt (ISO, 1 hour to 60 days ahead, computed in the browser from the
+ * "Remind me if no reply" business days): track the sent email so the
+ * follow-up cron can remind the user. Tracking failing never fails the send;
+ * it only adds a followUpNote.
  */
 const HEADER_MAX = 2000;
 
@@ -37,6 +43,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     attachments?: unknown;
     replyToMessageId?: unknown;
     draftId?: unknown;
+    followUpAt?: unknown;
   }>(req);
   if (!body) return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
 
@@ -48,6 +55,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const hasDraft = typeof body.draftId === "string" && body.draftId !== "";
   const draftId = hasDraft ? parseGmailId(body.draftId) : null;
   if (hasDraft && !draftId) return NextResponse.json({ error: "Invalid draft id." }, { status: 400 });
+  const wantsFollowUp = body.followUpAt !== undefined && body.followUpAt !== null && body.followUpAt !== "";
+  const followUp = wantsFollowUp ? parseRemindAt(body.followUpAt, new Date()) : null;
+  if (followUp && !followUp.ok) return NextResponse.json({ error: followUp.error }, { status: 400 });
 
   const token = await requireGmailToken(ctx.user.id);
   if (token instanceof NextResponse) return token;
@@ -81,5 +91,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({ messageId: result.messageId, threadId: result.threadId, client: result.client, draftNote });
+  let followUpNote: string | null = null;
+  if (followUp?.ok) {
+    try {
+      await createFollowUp(followUpDb(ctx.payload), {
+        ownerId: ctx.user.id,
+        clientId: result.client?.id ?? null,
+        threadId: result.threadId,
+        sentMessageId: result.messageId,
+        to: cleanHeader(body.to),
+        subject: cleanHeader(body.subject),
+        sentAt: new Date(),
+        remindAt: followUp.date,
+      });
+    } catch (err) {
+      console.warn("[mail] follow-up tracking failed:", (err as Error).message?.slice(0, 200));
+      followUpNote = "Sent, but the follow-up reminder could not be set.";
+    }
+  }
+
+  return NextResponse.json({
+    messageId: result.messageId,
+    threadId: result.threadId,
+    client: result.client,
+    draftNote,
+    followUpNote,
+  });
 }

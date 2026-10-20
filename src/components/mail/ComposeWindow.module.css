@@ -557,6 +557,7 @@
 
 .footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 6px 16px 8px;
@@ -1204,4 +1205,32 @@
 .threadToggle input {
   margin: 0;
   cursor: pointer;
+}
+
+.threadToggle + .threadToggle {
+  margin-left: 12px;
+}
+
+.followUp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--theme-elevation-800);
+  font-size: 13px;
+}
+
+.followUp select {
+  min-height: 32px;
+  padding: 2px 6px;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 4px;
+  background: var(--theme-elevation-0);
+  color: inherit;
+  font: inherit;
+}
+
+.clientDataNote {
+  margin: 4px 0 0;
+  color: var(--theme-elevation-600);
+  font-size: 12px;
 }

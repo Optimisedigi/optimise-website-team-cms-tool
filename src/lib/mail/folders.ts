@@ -11,12 +11,21 @@ export function parseMailFolder(raw: unknown): MailFolder | null {
   return typeof raw === "string" && (MAIL_FOLDERS as readonly string[]).includes(raw) ? (raw as MailFolder) : null;
 }
 
-/** Tabs in the Mail view: the Gmail folders plus the CMS-held Scheduled queue. */
-export type MailTab = MailFolder | "scheduled";
+/**
+ * Tabs in the Mail view: the Gmail folders plus the CMS-held Scheduled queue
+ * and Awaiting reply (sent emails with a follow-up reminder).
+ */
+export type MailTab = MailFolder | "scheduled" | "awaiting";
 
-export const MAIL_TABS: readonly MailTab[] = ["inbox", "sent", "drafts", "scheduled"];
+export const MAIL_TABS: readonly MailTab[] = ["inbox", "sent", "drafts", "scheduled", "awaiting"];
 
-const TAB_LABELS: Record<MailTab, string> = { inbox: "Inbox", sent: "Sent", drafts: "Drafts", scheduled: "Scheduled" };
+const TAB_LABELS: Record<MailTab, string> = {
+  inbox: "Inbox",
+  sent: "Sent",
+  drafts: "Drafts",
+  scheduled: "Scheduled",
+  awaiting: "Awaiting reply",
+};
 
 export interface MailTabCounts {
   /** Unread Inbox threads. */
@@ -25,16 +34,23 @@ export interface MailTabCounts {
   drafts: number;
   /** Emails waiting in the Scheduled queue. */
   scheduled?: number;
+  /** Follow-up reminders whose time has come with no reply. */
+  followUpsDue?: number;
 }
 
 /**
- * Tab text with its badge, e.g. "Inbox (3)". Inbox (unread), Drafts and
- * Scheduled (waiting to send) carry a count, and a zero or unknown count
- * shows no badge, like Gmail. Sent never does.
+ * Tab text with its badge, e.g. "Inbox (3)". Inbox (unread), Drafts,
+ * Scheduled (waiting to send) and Awaiting reply (reminders due) carry a
+ * count, and a zero or unknown count shows no badge, like Gmail. Sent never does.
  */
 export function mailTabLabel(tab: MailTab, counts: MailTabCounts | null): string {
-  const count =
-    tab === "inbox" ? counts?.inboxUnread : tab === "drafts" ? counts?.drafts : tab === "scheduled" ? counts?.scheduled : undefined;
+  const byTab: Partial<Record<MailTab, number | undefined>> = {
+    inbox: counts?.inboxUnread,
+    drafts: counts?.drafts,
+    scheduled: counts?.scheduled,
+    awaiting: counts?.followUpsDue,
+  };
+  const count = byTab[tab];
   return typeof count === "number" && Number.isFinite(count) && count > 0 ? `${TAB_LABELS[tab]} (${Math.floor(count)})` : TAB_LABELS[tab];
 }
 

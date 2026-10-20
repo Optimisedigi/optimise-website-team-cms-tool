@@ -51,6 +51,50 @@ export const SCHEDULED_EMAILS_SCHEMA: Array<[string, string]> = [
   ...stamps("scheduled_emails"),
 ];
 
+/**
+ * Mail AI requests that opted in to client data (2026-10-21) record which
+ * client's CMS facts were sent to the model. Additive; shared with
+ * src/migrations/20261021_120000_mail_ai_client_and_follow_ups.ts.
+ */
+export const MAIL_AI_CLIENT_SCHEMA: Array<[string, string]> = [
+  ["mail_ai_requests.client_id", "ALTER TABLE `mail_ai_requests` ADD `client_id` integer REFERENCES clients(id)"],
+  index("mail_ai_requests", "client_id", "client"),
+];
+
+/**
+ * Follow-up reminders (2026-10-21): sent emails the user wants a nudge on if
+ * nobody replies. A cron checks the Gmail thread and raises one notification
+ * when `remind_at` passes. Additive; shared with
+ * src/migrations/20261021_120000_mail_ai_client_and_follow_ups.ts.
+ */
+export const FOLLOW_UPS_SCHEMA: Array<[string, string]> = [
+  ["mail_follow_ups", `CREATE TABLE IF NOT EXISTS \`mail_follow_ups\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`owner_id\` integer NOT NULL,
+    \`client_id\` integer,
+    \`gmail_thread_id\` text,
+    \`sent_message_id\` text,
+    \`to\` text,
+    \`subject\` text,
+    \`sent_at\` text,
+    \`remind_at\` text,
+    \`status\` text DEFAULT 'waiting',
+    \`notified_at\` text,
+    \`last_checked_at\` text,
+    \`updated_at\` ${ts},
+    \`created_at\` ${ts},
+    FOREIGN KEY (\`owner_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`],
+  index("mail_follow_ups", "owner_id", "owner"),
+  index("mail_follow_ups", "client_id", "client"),
+  index("mail_follow_ups", "gmail_thread_id", "gmail_thread_id"),
+  index("mail_follow_ups", "sent_message_id", "sent_message_id", true),
+  index("mail_follow_ups", "remind_at", "remind_at"),
+  index("mail_follow_ups", "status", "status"),
+  ...stamps("mail_follow_ups"),
+];
+
 export const MAIL_SCHEMA: Array<[string, string]> = [
   ["client_emails", `CREATE TABLE IF NOT EXISTS \`client_emails\` (
     \`id\` integer PRIMARY KEY NOT NULL,
@@ -132,4 +176,6 @@ export const MAIL_SCHEMA: Array<[string, string]> = [
   ...stamps("mail_sync_states"),
 
   ...SCHEDULED_EMAILS_SCHEMA,
+  ...MAIL_AI_CLIENT_SCHEMA,
+  ...FOLLOW_UPS_SCHEMA,
 ];

@@ -131,6 +131,12 @@ export const Notifications: CollectionConfig = {
           label: "Client email received",
           value: "client-email-received",
         },
+        {
+          // Raised by /api/mail/follow-ups/cron when a sent email the user
+          // asked to be reminded about still has no reply.
+          label: "Mail follow-up due",
+          value: "mail-follow-up-due",
+        },
       ],
     },
     {

@@ -268,6 +268,53 @@ export async function getMessageHeaders(accessToken: string, ids: string[]): Pro
   return results.filter((header): header is MessageHeadersOnly => header !== null);
 }
 
+export interface ThreadReplyHeader {
+  messageId: string;
+  from: string;
+  /** Gmail internalDate in ms since the epoch (0 if missing). */
+  internalDate: number;
+  labelIds: string[];
+  autoSubmitted?: string;
+  precedence?: string;
+  listId?: string;
+  listUnsubscribe?: string;
+}
+
+/**
+ * Just enough of every message in a thread to tell whether someone replied
+ * (follow-up reminders): sender, time and bulk/auto headers, no bodies.
+ * A thread Gmail no longer has (404) returns [].
+ */
+export async function getThreadReplyHeaders(accessToken: string, threadId: string): Promise<ThreadReplyHeader[]> {
+  const gmail = gmailApi(accessToken);
+  const res = await gmail.users.threads
+    .get({
+      userId: "me",
+      id: threadId,
+      format: "metadata",
+      metadataHeaders: ["From", "Auto-Submitted", "Precedence", "List-Id", "List-Unsubscribe"],
+    })
+    .catch((err: unknown) => {
+      const status = Number((err as { code?: number; status?: number }).code ?? (err as { status?: number }).status ?? 0);
+      if (status === 404) return null;
+      throw err;
+    });
+  if (!res) return [];
+  return (res.data.messages ?? []).map((message) => {
+    const headers = message.payload?.headers;
+    return {
+      messageId: message.id ?? "",
+      from: readGmailHeader(headers, "From"),
+      internalDate: Number(message.internalDate ?? 0) || 0,
+      labelIds: message.labelIds ?? [],
+      autoSubmitted: readGmailHeader(headers, "Auto-Submitted"),
+      precedence: readGmailHeader(headers, "Precedence"),
+      listId: readGmailHeader(headers, "List-Id"),
+      listUnsubscribe: readGmailHeader(headers, "List-Unsubscribe"),
+    };
+  });
+}
+
 /** Archive = remove INBOX. Read/unread = remove/add UNREAD. Needs gmail.modify. */
 export async function modifyThreadLabels(
   accessToken: string,
