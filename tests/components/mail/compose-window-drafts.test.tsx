@@ -1,7 +1,8 @@
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import ComposeWindow, { type ComposeState } from '@/components/mail/ComposeWindow'
+import { OPTIMATE_OPENED_EVENT } from '@/lib/optimate-events'
 
 const REPLY: ComposeState = {
   mode: 'reply',
@@ -55,6 +56,15 @@ describe('ComposeWindow drafts', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled())
     expect(onDeleteDraft).toHaveBeenCalledWith('draft1')
     expect(localStorage.getItem('mail-ai-prompt:reply:msg1')).toBeNull()
+  })
+
+  it('minimises when OptiMate opens so the panel is not covered', () => {
+    mount()
+    expect(screen.getByRole('button', { name: 'Minimise' })).toBeTruthy()
+    act(() => {
+      window.dispatchEvent(new Event(OPTIMATE_OPENED_EVENT))
+    })
+    expect(screen.getByRole('button', { name: 'Restore' })).toBeTruthy()
   })
 
   it('keeps the window open and shows the error when deleting fails', async () => {

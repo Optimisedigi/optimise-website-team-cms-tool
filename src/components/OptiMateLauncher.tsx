@@ -8,6 +8,7 @@ import OptiMateMultiChat, {
 } from './OptiMateMultiChat'
 import { buildGoogleMatePopoutUrl } from '@/lib/optimate-popout-url'
 import { stashChatHandoff, type ChatHandoffRef } from '@/lib/optimate-chat-handoff'
+import { OPTIMATE_OPENED_EVENT } from '@/lib/optimate-events'
 import InvoiceAssistantChat from './InvoiceAssistantChat'
 import GmailReplyChat from './GmailReplyChat'
 import TaskMateChat from './TaskMateChat'
@@ -131,6 +132,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
     window.addEventListener('optimate:open-taskmate', openTaskMate)
     return () => window.removeEventListener('optimate:open-taskmate', openTaskMate)
   }, [user])
+
+  // Tell floating windows (mail compose) to minimise so they don't cover OptiMate.
+  useEffect(() => {
+    if (open) window.dispatchEvent(new Event(OPTIMATE_OPENED_EVENT))
+  }, [open])
 
   // Reset to agent step when closing the panel.
   const close = useCallback(() => {

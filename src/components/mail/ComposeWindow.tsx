@@ -12,6 +12,7 @@ import { MAIL_ATTACHMENT_LIMITS } from '../../lib/mail/compose-limits'
 import { parseDatetimeLocal, schedulePresets, toDatetimeLocalValue } from '../../lib/mail/schedule-times'
 import { fitImageForChat } from '../chat-image-fit'
 import { browserStorage, clearPrompt, loadPrompt, promptKeys, savePrompt } from '../../lib/mail/ai-prompt-store'
+import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
 
 /**
  * Gmail-style compose window docked bottom right, just left of the OptiMate orb.
@@ -186,6 +187,13 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
 
   useEffect(() => {
     promptRef.current?.focus()
+  }, [])
+
+  // Opening OptiMate minimises this window so it doesn't cover the panel.
+  useEffect(() => {
+    const minimise = () => setMinimised(true)
+    window.addEventListener(OPTIMATE_OPENED_EVENT, minimise)
+    return () => window.removeEventListener(OPTIMATE_OPENED_EVENT, minimise)
   }, [])
 
   useEffect(() => {
