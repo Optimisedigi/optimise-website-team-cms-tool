@@ -185,6 +185,12 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   growth_tools_read: "read-google-ads",
   get_weekly_trend_note: "read-google-ads",
   google_ads_query: "read-google-ads",
+  get_conversion_actions: "read-google-ads",
+  get_change_history: "read-google-ads",
+  get_keyword_report: "read-google-ads",
+  get_quality_snapshot: "read-google-ads",
+  get_budget_audit: "read-google-ads",
+  get_audience: "read-google-ads",
 
   // Read — Search Console / GA4 / SERP / AI Visibility
   get_ga4_overview: "read-search-and-ai",

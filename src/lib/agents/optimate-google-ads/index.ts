@@ -81,6 +81,14 @@ import { executeGoogleAdsAction } from "./tools/execute-google-ads-action";
 import { googleAdsQuery } from "./tools/google-ads-query";
 import { googleAdsMutatePreview } from "./tools/google-ads-mutate-preview";
 import { googleAdsRsaAddHeadline } from "./tools/google-ads-rsa-add-headline";
+import {
+  getAudience,
+  getBudgetAudit,
+  getChangeHistory,
+  getConversionActions,
+  getKeywordReport,
+  getQualitySnapshot,
+} from "./tools/google-ads-account-reads";
 import { executeGa4Action } from "./tools/execute-ga4-action";
 import { executeGtmAction } from "./tools/execute-gtm-action";
 import { reviewTrackingChanges } from "./tools/review-tracking-changes";
@@ -147,7 +155,7 @@ const TOOL_BUNDLE_NAMES = GOOGLEMATE_TOOL_BUNDLE_NAMES;
 
 const GOOGLEMATE_TOOL_ROUTER_PROMPT = `
 
-Tool routing: you are starting with a lean GoogleMate tool set. If the user asks for specialist work and the needed tool is not visible, first call request_googlemate_tool_bundle with one or more bundles, then use the newly attached tools on the next turn. Available bundles: ${TOOL_BUNDLE_NAMES.join(", ")}. Use performance when the user asks a Google Ads/GA4/GSC data question and the exact built-in report is not visible; the performance bundle includes growth_tools_read as the future-proof read-only Growth Tools bridge. Use budget_changes to queue budget updates or push budgets live, and keyword_research for Keyword Planner ideas and search volume. Use actions when the user asks to apply, create, update, pause, enable, publish, deploy, push, or set up live changes via Growth Tools; use campaign_build to queue campaign, ad group, keyword or status changes for approval.${memoryToolRoutingPrompt("GoogleMate")}`;
+Tool routing: you are starting with a lean GoogleMate tool set. If the user asks for specialist work and the needed tool is not visible, first call request_googlemate_tool_bundle with one or more bundles, then use the newly attached tools on the next turn. Available bundles: ${TOOL_BUNDLE_NAMES.join(", ")}. Use performance when the user asks a Google Ads/GA4/GSC data question and the exact built-in report is not visible; the performance bundle includes growth_tools_read as the future-proof read-only Growth Tools bridge. Use account_details for conversion actions, change history (what changed and who changed it), keyword and quality score reports, budget audits and audiences. Use budget_changes to queue budget updates or push budgets live, and keyword_research for Keyword Planner ideas and search volume. Use actions when the user asks to apply, create, update, pause, enable, publish, deploy, push, or set up live changes via Growth Tools; use campaign_build to queue campaign, ad group, keyword or status changes for approval.${memoryToolRoutingPrompt("GoogleMate")}`;
 
 const requestGoogleMateToolBundle: CanonicalTool<{ bundles: GoogleMateToolBundleName[]; reason?: string }> = {
   name: "request_googlemate_tool_bundle",
@@ -256,6 +264,12 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
     googleAdsMutatePreview as unknown as CanonicalTool<unknown>,
     googleAdsRsaAddHeadline as unknown as CanonicalTool<unknown>,
     googleAdsQuery as unknown as CanonicalTool<unknown>,
+    getConversionActions as unknown as CanonicalTool<unknown>,
+    getChangeHistory as unknown as CanonicalTool<unknown>,
+    getKeywordReport as unknown as CanonicalTool<unknown>,
+    getQualitySnapshot as unknown as CanonicalTool<unknown>,
+    getBudgetAudit as unknown as CanonicalTool<unknown>,
+    getAudience as unknown as CanonicalTool<unknown>,
     executeGa4Action as unknown as CanonicalTool<unknown>,
     executeGtmAction as unknown as CanonicalTool<unknown>,
     reviewTrackingChanges as unknown as CanonicalTool<unknown>,
@@ -301,6 +315,7 @@ function applyToolRestrictions(
 }
 
 const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown>[]> = {
+  account_details: [getConversionActions, getChangeHistory, getKeywordReport, getQualitySnapshot, getBudgetAudit, getAudience, googleAdsQuery] as unknown as CanonicalTool<unknown>[],
   performance: [getCampaignPerformance, getAdGroupPerformance, getSearchTerms, getAdAssetPerformance, getWeeklyMetricTable, getMonthlyMetricTable, growthToolsRead, googleAdsQuery, getWeeklyTrendNote] as unknown as CanonicalTool<unknown>[],
   negative_keywords: [getSearchTerms, getNegativeKeywordLists, proposeNegativeKeywords, proposeNklCreate, proposeNklUpdate, proposeNklPushLive] as unknown as CanonicalTool<unknown>[],
   budget_email: [createWeeklyBudgetGmailDraftTool, createMonthlyBudgetGmailDraftTool, getBudgetManagementEmail, getDashboardEmailComponents, getWeeklyTrendNote, getWeeklyMetricTable, getMonthlyMetricTable, createGmailDraftTool] as unknown as CanonicalTool<unknown>[],

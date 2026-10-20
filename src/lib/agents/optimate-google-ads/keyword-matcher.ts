@@ -151,6 +151,7 @@ export const GMAIL_DRAFT_TRIGGERS: readonly string[] = [
 /** Specialist GoogleMate tool bundles the model can request mid-run. */
 export const GOOGLEMATE_TOOL_BUNDLE_NAMES = [
   "performance",
+  "account_details",
   "negative_keywords",
   "budget_email",
   "budget_changes",
@@ -189,6 +190,10 @@ const TOOL_BUNDLE_PATTERNS: ReadonlyArray<readonly [GoogleMateToolBundleName, Re
   ],
   ["keyword_research", /keyword planner|keyword idea|search volume|keyword research/],
   ["ad_copy", /ad copy|\brsas?\b|responsive search ad|headline|creative/],
+  [
+    "account_details",
+    /conversion actions?|conversion tracking|change history|what changed|who changed|changes? (made|this week|last week|recently)|quality scores?|audiences?|remarketing|user lists?|keyword report|budget audit|limited by budget/,
+  ],
   ["seo_organic", /\bga4\b|\bgsc\b|search console|organic|\bseo\b|\bserp\b|indexing|ai visibility/],
   [
     "campaign_build",
