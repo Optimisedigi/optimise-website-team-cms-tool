@@ -147,6 +147,78 @@ export async function countScheduledEmails(db: ScheduleDb, ownerId: number): Pro
   return Number(rowsOf(result)[0]?.n ?? 0);
 }
 
+/** One queued email with its content, for the Scheduled tab's reading pane and Edit. Null if not the owner's or already sent. */
+export async function getScheduledEmail(
+  db: ScheduleDb,
+  id: number,
+  ownerId: number,
+): Promise<{ item: ScheduledEmailItem; replyToMessageId: string | null; content: StoredMailContent | null } | null> {
+  const row = rowsOf(
+    await db.run(
+      sql`select id, "to", cc, subject, scheduled_for, status, last_error, reply_to_message_id, content
+          from scheduled_emails
+          where id = ${id} and owner_id = ${ownerId} and status in ('pending', 'sending', 'failed')`,
+    ),
+  )[0];
+  if (!row) return null;
+  return { item: toItem(row), replyToMessageId: text(row.reply_to_message_id) || null, content: parseStored(row.content) };
+}
+
+/**
+ * Replace an unsent (or failed) email's recipients, subject and content, and
+ * optionally its time; it is queued again. The reply it belongs to is kept.
+ * False if it is sending, sent, cancelled or not the owner's.
+ */
+export async function updateScheduledEmail(
+  db: ScheduleDb,
+  id: number,
+  ownerId: number,
+  input: { to: string; cc: string; subject: string; content: StoredMailContent; scheduledFor: Date | null },
+  now: Date,
+): Promise<boolean> {
+  const time = input.scheduledFor ? sql`, scheduled_for = ${input.scheduledFor.toISOString()}` : sql``;
+  return changed(
+    await db.run(
+      sql`update scheduled_emails
+          set "to" = ${input.to}, cc = ${input.cc}, subject = ${input.subject}, content = ${JSON.stringify(input.content)},
+              status = 'pending', attempts = 0, last_error = null, updated_at = ${now.toISOString()}${time}
+          where id = ${id} and owner_id = ${ownerId} and status in ('pending', 'failed')`,
+    ),
+  );
+}
+
+const EDITABLE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
+const CONTENT_ID_RE = /^[A-Za-z0-9._-]{1,128}@[A-Za-z0-9.-]{1,128}$/;
+
+export interface EditableScheduledContent {
+  /** Body HTML with inline images as data: URLs, as the compose editor holds them. */
+  html: string;
+  attachments: Array<{ name: string; mediaType: string; data: string }>;
+  bcc: string;
+  signOff?: string;
+}
+
+/** Stored content turned back into what the compose window edits (like reopening a Gmail draft). */
+export function toEditableScheduledContent(stored: StoredMailContent | null): EditableScheduledContent {
+  if (!stored) return { html: "", attachments: [], bcc: "" };
+  let html = stored.html;
+  const images = Array.isArray(stored.inlineImages) ? (stored.inlineImages as Array<Record<string, unknown>>) : [];
+  for (const image of images) {
+    const contentId = text(image?.contentId);
+    const mediaType = text(image?.mediaType);
+    const data = text(image?.data);
+    if (!CONTENT_ID_RE.test(contentId) || !EDITABLE_IMAGE_TYPES.has(mediaType) || !BASE64_RE.test(data)) continue;
+    html = html.split(`cid:${contentId}`).join(`data:${mediaType};base64,${data}`);
+  }
+  const files = Array.isArray(stored.attachments) ? (stored.attachments as Array<Record<string, unknown>>) : [];
+  const attachments = files
+    .map((file) => ({ name: text(file?.name), mediaType: text(file?.mediaType), data: text(file?.data) }))
+    .filter((file) => file.name && BASE64_RE.test(file.data));
+  const signOff = cleanSignOff(stored.signOff);
+  return { html, attachments, bcc: text(stored.bcc), ...(signOff !== undefined ? { signOff } : {}) };
+}
+
 /** Remove an email that has not been claimed by a sender. False if it already went out or is gone. */
 export async function cancelScheduledEmail(db: ScheduleDb, id: number, ownerId: number): Promise<boolean> {
   return changed(

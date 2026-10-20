@@ -6,6 +6,11 @@ const deleteDraft = vi.fn(async () => undefined)
 const createScheduledEmail = vi.fn(async () => 7)
 const countScheduledEmails = vi.fn(async () => 0)
 const listScheduledEmails = vi.fn(async () => [{ id: 7 }])
+type Found = { item: { id: number; status: string; scheduledFor: string }; replyToMessageId: string | null; content: unknown } | null
+const getScheduledEmail = vi.fn(
+  async (): Promise<Found> => ({ item: { id: 7, status: 'pending', scheduledFor: '2026-12-01T08:00:00.000Z' }, replyToMessageId: null, content: { html: '<p>Hi</p>' } }),
+)
+const updateScheduledEmail = vi.fn(async () => true)
 
 vi.mock('@/lib/mail/gmail-mail', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mail/gmail-mail')>()),
@@ -17,6 +22,8 @@ vi.mock('@/lib/mail/scheduled', async (importOriginal) => ({
   createScheduledEmail,
   countScheduledEmails,
   listScheduledEmails,
+  getScheduledEmail,
+  updateScheduledEmail,
   scheduleDb: vi.fn(() => ({})),
 }))
 vi.mock('@/lib/agents/_shared/user-gmail-tokens', () => ({
@@ -30,6 +37,10 @@ vi.mock('@/lib/mail/route-helpers', async (importOriginal) => ({
 
 const counts = await import('@/app/(frontend)/api/mail/counts/route')
 const schedule = await import('@/app/(frontend)/api/mail/schedule/route')
+const scheduleItem = await import('@/app/(frontend)/api/mail/schedule/[id]/route')
+const params = (id: string) => ({ params: Promise.resolve({ id }) })
+const put = (body: unknown) =>
+  new NextRequest('https://cms.test/api/mail/schedule/7', { method: 'PUT', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } })
 
 const post = (body: unknown) =>
   new NextRequest('https://cms.test/api/mail/schedule', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } })
@@ -39,10 +50,12 @@ const valid = { to: 'jo@client.com', subject: 'Hi', html: '<p>Hello</p>', schedu
 afterEach(() => vi.clearAllMocks())
 
 describe('GET /api/mail/counts', () => {
-  it('returns the Inbox unread and Drafts counts only', async () => {
+  it('returns the Inbox unread, Drafts and Scheduled counts', async () => {
+    countScheduledEmails.mockResolvedValueOnce(3)
     const res = await counts.GET(new NextRequest('https://cms.test/api/mail/counts'))
-    expect(await res.json()).toEqual({ inboxUnread: 4, drafts: 2 })
+    expect(await res.json()).toEqual({ inboxUnread: 4, drafts: 2, scheduled: 3 })
     expect(getFolderCounts).toHaveBeenCalledWith('tok')
+    expect(countScheduledEmails).toHaveBeenCalledWith({}, 5)
   })
 })
 
@@ -87,5 +100,36 @@ describe('GET /api/mail/schedule', () => {
     const res = await schedule.GET(new NextRequest('https://cms.test/api/mail/schedule'))
     expect(await res.json()).toEqual({ items: [{ id: 7 }] })
     expect(listScheduledEmails).toHaveBeenCalledWith({}, 5)
+  })
+})
+
+describe('/api/mail/schedule/:id', () => {
+  it('GET returns the email with its editable content, only the owner’s', async () => {
+    const res = await scheduleItem.GET(new NextRequest('https://cms.test/api/mail/schedule/7'), params('7'))
+    expect(await res.json()).toMatchObject({ item: { id: 7 }, html: '<p>Hi</p>', attachments: [], bcc: '' })
+    expect(getScheduledEmail).toHaveBeenCalledWith({}, 7, 5)
+    getScheduledEmail.mockResolvedValueOnce(null)
+    expect((await scheduleItem.GET(new NextRequest('https://cms.test/api/mail/schedule/8'), params('8'))).status).toBe(404)
+  })
+
+  it('PUT saves validated edits, keeping the time when none is sent', async () => {
+    const res = await scheduleItem.PUT(put({ to: 'sam@x.com', subject: 'New', html: '<p>Edited</p>', bcc: 'b@x.com' }), params('7'))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, scheduledFor: '2026-12-01T08:00:00.000Z' })
+    expect(updateScheduledEmail).toHaveBeenCalledWith(
+      {},
+      7,
+      5,
+      expect.objectContaining({ to: 'sam@x.com', subject: 'New', scheduledFor: null, content: expect.objectContaining({ html: '<p>Edited</p>', bcc: 'b@x.com' }) }),
+      expect.any(Date),
+    )
+  })
+
+  it('PUT rejects bad edits and emails that are already sending', async () => {
+    expect((await scheduleItem.PUT(put({ to: 'sam@x.com', html: '<p> </p>' }), params('7'))).status).toBe(400)
+    expect((await scheduleItem.PUT(put({ to: 'sam@x.com', html: '<p>x</p>', scheduledFor: inHours(-1) }), params('7'))).status).toBe(400)
+    getScheduledEmail.mockResolvedValueOnce({ item: { id: 7, status: 'sending', scheduledFor: '' }, replyToMessageId: null, content: null })
+    expect((await scheduleItem.PUT(put({ to: 'sam@x.com', html: '<p>x</p>' }), params('7'))).status).toBe(409)
+    expect(updateScheduledEmail).not.toHaveBeenCalled()
   })
 })

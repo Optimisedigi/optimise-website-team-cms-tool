@@ -26,6 +26,10 @@ interface Props {
   scheduling: boolean
   canSchedule: boolean
   onSchedule: (when: Date | null) => void
+  /** Preselected send time (editing a scheduled email); defaults to the next quick time. */
+  initial?: Date
+  /** Text on the confirm button. */
+  actionLabel?: string
   /** Injected for tests; defaults to the real clock. */
   now?: () => Date
 }
@@ -38,8 +42,24 @@ function openNativePicker(input: HTMLInputElement) {
   }
 }
 
-export default function SchedulePicker({ busy, scheduling, canSchedule, onSchedule, now = () => new Date() }: Props) {
-  const [choice, setChoice] = useState(() => defaultScheduleChoice(now()))
+function pad(value: number): string {
+  return String(value).padStart(2, '0')
+}
+
+export default function SchedulePicker({
+  busy,
+  scheduling,
+  canSchedule,
+  onSchedule,
+  initial,
+  actionLabel = 'Schedule send',
+  now = () => new Date(),
+}: Props) {
+  const [choice, setChoice] = useState(() =>
+    initial && !Number.isNaN(initial.getTime())
+      ? { day: dateKey(initial), time: `${pad(initial.getHours())}:${pad(initial.getMinutes())}` }
+      : defaultScheduleChoice(now()),
+  )
   const [quickTimes, setQuickTimes] = useState<string[]>(() => [...QUICK_SEND_TIMES])
   const [calendarOpen, setCalendarOpen] = useState(false)
   const timeRef = useRef<HTMLInputElement>(null)
@@ -126,7 +146,7 @@ export default function SchedulePicker({ busy, scheduling, canSchedule, onSchedu
           onClick={() => onSchedule(combineDateAndTime(choice.day, choice.time))}
           disabled={busy || !canSchedule || !choice.time}
         >
-          {scheduling ? 'Scheduling…' : 'Schedule send'}
+          {scheduling ? 'Scheduling…' : actionLabel}
         </button>
       </div>
 

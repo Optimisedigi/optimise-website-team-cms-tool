@@ -8,10 +8,11 @@ describe('mailTabLabel', () => {
     expect(mailTabLabel('drafts', counts)).toBe('Drafts (3)')
   })
 
-  it('never badges Sent or Scheduled', () => {
-    const counts = { inboxUnread: 12, drafts: 3 }
-    expect(mailTabLabel('sent', counts)).toBe('Sent')
-    expect(mailTabLabel('scheduled', counts)).toBe('Scheduled')
+  it('badges Scheduled with the emails waiting to send, and never badges Sent', () => {
+    expect(mailTabLabel('scheduled', { inboxUnread: 12, drafts: 3, scheduled: 2 })).toBe('Scheduled (2)')
+    expect(mailTabLabel('scheduled', { inboxUnread: 12, drafts: 3 })).toBe('Scheduled')
+    expect(mailTabLabel('scheduled', { inboxUnread: 0, drafts: 0, scheduled: 0 })).toBe('Scheduled')
+    expect(mailTabLabel('sent', { inboxUnread: 12, drafts: 3, scheduled: 2 })).toBe('Sent')
   })
 
   it('shows no badge for zero, unknown or invalid counts', () => {

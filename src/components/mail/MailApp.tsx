@@ -18,7 +18,7 @@ import {
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
 import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
 import { MAIL_TABS, mailTabLabel, unreadFirst, type MailFolder, type MailTab, type MailTabCounts } from '../../lib/mail/folders'
-import ScheduledPanel, { type ScheduledItem } from './ScheduledPanel'
+import ScheduledPanel, { type ScheduledDetail, type ScheduledItem } from './ScheduledPanel'
 import { MAIL_AUTO_REFRESH_MS, isMailAutoRefreshWindow } from '../../lib/mail/auto-refresh'
 
 /**
@@ -150,6 +150,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [showScheduled, setShowScheduled] = useState(false)
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([])
   const [scheduledLoading, setScheduledLoading] = useState(false)
+  const [selectedScheduledId, setSelectedScheduledId] = useState<number | null>(null)
   // Badge numbers on the Inbox (unread) and Drafts tabs; null until first loaded.
   const [counts, setCounts] = useState<MailTabCounts | null>(null)
   const [threads, setThreads] = useState<ThreadRow[]>([])
@@ -278,7 +279,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     try {
       const data = await api<MailTabCounts>('/api/mail/counts')
       if (typeof data.inboxUnread === 'number' && typeof data.drafts === 'number') {
-        setCounts({ inboxUnread: data.inboxUnread, drafts: data.drafts })
+        setCounts({
+          inboxUnread: data.inboxUnread,
+          drafts: data.drafts,
+          ...(typeof data.scheduled === 'number' ? { scheduled: data.scheduled } : {}),
+        })
       }
     } catch {
       // Keep the previous counts.
@@ -290,6 +295,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     try {
       const data = await api<{ items: ScheduledItem[] }>('/api/mail/schedule')
       setScheduled(data.items)
+      // Drop the open email if it left the queue (sent or cancelled).
+      setSelectedScheduledId((id) => (id !== null && data.items.some((item) => item.id === id) ? id : null))
       setError(null)
     } catch (err) {
       showError(err)
@@ -373,6 +380,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         if (showScheduled) return
         threadRequest.current++
         setShowScheduled(true)
+        setSelectedScheduledId(null)
         setSelectedThreadId(null)
         setMessages([])
         setThreadError('')
@@ -675,6 +683,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   // Send is only ever reached from the compose window's Send button.
   async function sendComposed(state: ComposeState, content: ComposeContent) {
+    if (state.scheduledId !== undefined) {
+      // Save the edits to the queued email, then send that one now: the queue's
+      // claim means it can only ever go out once, and a failure leaves it in the queue.
+      await saveScheduledEdit(state.scheduledId, state, content, null)
+      await api(`/api/mail/schedule/${state.scheduledId}`, { method: 'PATCH', body: JSON.stringify({ action: 'send-now' }) })
+      setComposer(null)
+      setActionNote('Sent.')
+      void loadScheduled()
+      void loadCounts()
+      return
+    }
     const data = await api<{ client: { name: string } | null; draftNote?: string | null }>('/api/mail/send', {
       method: 'POST',
       body: JSON.stringify({
@@ -702,7 +721,33 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   }
 
   // Queues the email; the server sends it at `when` (Gmail has no scheduled send).
+  /** PUT the compose window's edits to a scheduled email; `when` null keeps its time. */
+  async function saveScheduledEdit(id: number, state: ComposeState, content: ComposeContent, when: Date | null) {
+    await api(`/api/mail/schedule/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        to: state.to,
+        cc: state.cc,
+        bcc: state.bcc ?? '',
+        ...(state.signOff !== undefined ? { signOff: state.signOff } : {}),
+        subject: state.subject,
+        html: content.html,
+        inlineImages: content.inlineImages,
+        attachments: content.attachments,
+        ...(when ? { scheduledFor: when.toISOString() } : {}),
+      }),
+    })
+  }
+
   async function scheduleComposed(state: ComposeState, content: ComposeContent, when: Date) {
+    if (state.scheduledId !== undefined) {
+      await saveScheduledEdit(state.scheduledId, state, content, when)
+      setComposer(null)
+      setActionNote(`Updated. Sends ${longDate(when.toISOString())}.`)
+      void loadScheduled()
+      void loadCounts()
+      return
+    }
     const data = await api<{ draftNote?: string | null }>('/api/mail/schedule', {
       method: 'POST',
       body: JSON.stringify({
@@ -727,19 +772,49 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   }
 
   async function sendScheduledNow(id: number) {
-    await api(`/api/mail/schedule/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'send-now' }) })
-    setActionNote('Sent.')
-    await loadScheduled()
+    try {
+      await api(`/api/mail/schedule/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'send-now' }) })
+      setActionNote('Sent.')
+    } finally {
+      // Sent, or failed and marked so: either way the list changed.
+      await loadScheduled()
+      void loadCounts()
+    }
   }
 
   async function rescheduleScheduled(id: number, when: Date) {
     await api(`/api/mail/schedule/${id}`, { method: 'PATCH', body: JSON.stringify({ scheduledFor: when.toISOString() }) })
     await loadScheduled()
+    void loadCounts()
   }
 
   async function cancelScheduled(id: number) {
     await api(`/api/mail/schedule/${id}`, { method: 'DELETE' })
     setScheduled((current) => current.filter((item) => item.id !== id))
+    setSelectedScheduledId((current) => (current === id ? null : current))
+    void loadCounts()
+  }
+
+  const loadScheduledDetail = useCallback((id: number) => api<ScheduledDetail>(`/api/mail/schedule/${id}`), [])
+
+  /** Scheduled tab → Edit: open the queued email in the compose window. */
+  function editScheduled(detail: ScheduledDetail) {
+    setSummary(null)
+    const { item } = detail
+    setComposer({
+      key: ++composeKey.current,
+      mode: detail.replyToMessageId ? 'reply' : 'new',
+      replyTo: detail.replyToMessageId ? { messageId: detail.replyToMessageId, from: item.to, subject: item.subject } : null,
+      to: item.to,
+      cc: item.cc,
+      bcc: detail.bcc,
+      ...(detail.signOff !== undefined ? { signOff: detail.signOff } : {}),
+      subject: item.subject,
+      html: detail.html,
+      attachments: detail.attachments,
+      scheduledId: item.id,
+      scheduledFor: item.scheduledFor,
+    })
   }
 
   async function deleteDraftRow(thread: ThreadRow) {
@@ -836,8 +911,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   // Mobile: the reader slides over the list. Back = close the panel, which also
   // gives the phone's back button / back swipe a history entry to pop.
-  const readerOpen = isMobile && !!selectedThreadId && !showScheduled
+  const readerOpen = isMobile && (showScheduled ? selectedScheduledId !== null : !!selectedThreadId)
   const closeReader = useCallback(() => {
+    setSelectedScheduledId(null)
     threadRequest.current++
     setSelectedThreadId(null)
     setMessages([])
@@ -1061,10 +1137,19 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         </div>
       ) : null}
 
+      {showScheduled && actionNote ? <p className={styles.note}>{actionNote}</p> : null}
       {showScheduled ? (
         <ScheduledPanel
           items={scheduled}
           loading={scheduledLoading}
+          selectedId={selectedScheduledId}
+          onSelect={(id) => {
+            if (id === null && window.history.state?.mailReader) window.history.back()
+            else setSelectedScheduledId(id)
+          }}
+          isMobile={isMobile}
+          loadDetail={loadScheduledDetail}
+          onEdit={editScheduled}
           onSendNow={sendScheduledNow}
           onReschedule={rescheduleScheduled}
           onCancel={cancelScheduled}
@@ -1344,9 +1429,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           key={composer.key}
           initial={composer}
           title={
-            composer.mode === 'reply'
-              ? `Reply to ${senderName(composer.replyTo?.from ?? '')}`
-              : 'New message'
+            composer.scheduledId !== undefined
+              ? 'Edit scheduled email'
+              : composer.mode === 'reply'
+                ? `Reply to ${senderName(composer.replyTo?.from ?? '')}`
+                : 'New message'
           }
           onClose={() => setComposer(null)}
           onSend={sendComposed}

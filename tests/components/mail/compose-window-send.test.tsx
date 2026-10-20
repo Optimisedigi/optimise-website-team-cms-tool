@@ -198,3 +198,35 @@ describe('ComposeWindow sign-off', () => {
     expect(onSend.mock.calls[0]?.[0]).toMatchObject({ signOff: 'Thanks,\nPeter' })
   })
 })
+
+describe('ComposeWindow editing a scheduled email', () => {
+  it('opens on its send time, updates it in place and never autosaves to Drafts', async () => {
+    const onSchedule = vi.fn().mockResolvedValue(undefined)
+    const onSaveDraft = vi.fn().mockResolvedValue('draft1')
+    const when = new Date(Date.now() + 2 * 86_400_000)
+    when.setHours(9, 30, 0, 0)
+    render(
+      <ComposeWindow
+        initial={{ ...REPLY, mode: 'new', replyTo: null, scheduledId: 7, scheduledFor: when.toISOString() }}
+        title="Edit scheduled email"
+        onClose={vi.fn()}
+        onSend={vi.fn()}
+        onSchedule={onSchedule}
+        onSaveDraft={onSaveDraft}
+        onDeleteDraft={vi.fn()}
+        signatureHtml=""
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Save as draft' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Delete draft' })).toBeNull()
+    expect((screen.getByLabelText('Send time') as HTMLInputElement).value).toBe('09:30')
+    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Re: Hi (edited)' } })
+    await waitForBody()
+    fireEvent.click(screen.getByRole('button', { name: 'Update schedule' }))
+    await waitFor(() => expect(onSchedule).toHaveBeenCalled())
+    expect(onSchedule.mock.calls[0]?.[0]).toMatchObject({ scheduledId: 7, subject: 'Re: Hi (edited)' })
+    expect((onSchedule.mock.calls[0]?.[2] as Date).getTime()).toBe(when.getTime())
+    await new Promise((resolve) => setTimeout(resolve, 1700))
+    expect(onSaveDraft).not.toHaveBeenCalled()
+  })
+})

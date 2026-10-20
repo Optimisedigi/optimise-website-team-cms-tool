@@ -597,41 +597,36 @@
   color: #92400e;
 }
 
-/* Scheduled tab: replaces the two panes with one list of queued emails. */
-.scheduled {
-  padding: 12px 0;
+/* Scheduled tab: same two panes as Drafts (queue left, the open email right). */
+.scheduledTag {
+  margin-right: 6px;
+  color: #0b57d0;
+  font-weight: 600;
 }
 
-.scheduledList {
-  margin: 0;
+/* The sign-off as it will be sent (Verdana, Normal), under the body preview. */
+.scheduledSignOff {
+  margin: 8px 2px 4px;
+  font-family: Verdana, sans-serif;
+  font-size: small;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.scheduledFiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
+  font-size: 13px;
+}
+
+.scheduledFiles li {
+  padding: 2px 8px;
   border: 1px solid var(--mail-border);
-  border-radius: 8px;
-}
-
-.scheduledRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--mail-soft);
-}
-
-.scheduledMain {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.scheduledActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  border-radius: 12px;
 }
 
 .scheduledError {

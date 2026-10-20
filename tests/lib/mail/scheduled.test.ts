@@ -8,12 +8,15 @@ import {
   countScheduledEmails,
   createScheduledEmail,
   failStaleSending,
+  getScheduledEmail,
   listScheduledEmails,
   parseScheduledFor,
   rescheduleScheduledEmail,
   scheduleDb,
   sendDueScheduledEmails,
   sendScheduledEmail,
+  toEditableScheduledContent,
+  updateScheduledEmail,
   type SendDeps,
 } from '@/lib/mail/scheduled'
 
@@ -94,6 +97,66 @@ describe('storing and listing scheduled emails', () => {
     const failed = await queue()
     await client.execute({ sql: "update scheduled_emails set status = 'failed' where id = ?", args: [failed] })
     expect(await countScheduledEmails(scheduleDb(payload), 1)).toBe(1)
+  })
+})
+
+describe('editing scheduled emails', () => {
+  const PNG = 'iVBORw0KGgo='
+  const content = {
+    html: '<p>New</p><img src="cid:image1@optimate.mail">',
+    bcc: 'boss@od.com',
+    signOff: 'Cheers,\nPeter',
+    inlineImages: [{ contentId: 'image1@optimate.mail', name: 'a.png', mediaType: 'image/png', data: PNG }],
+    attachments: [{ name: 'q.pdf', mediaType: 'application/pdf', data: 'QUJD' }],
+  }
+
+  it('loads one email with its content, only for its owner', async () => {
+    const id = await queue()
+    const found = await getScheduledEmail(scheduleDb(payload), id, 1)
+    expect(found?.item).toMatchObject({ id, to: 'jo@client.com', subject: 'Hi', status: 'pending' })
+    expect(found?.content?.html).toBe(HTML)
+    expect(await getScheduledEmail(scheduleDb(payload), id, 2)).toBeNull()
+  })
+
+  it('replaces recipients, subject and content, keeping the time unless one is given', async () => {
+    const id = await queue({ replyTo: 'm1' })
+    const db = scheduleDb(payload)
+    expect(await updateScheduledEmail(db, id, 1, { to: 'sam@x.com', cc: 'c@x.com', subject: 'New', content, scheduledFor: null }, NOW)).toBe(true)
+    const found = await getScheduledEmail(db, id, 1)
+    expect(found).toMatchObject({ replyToMessageId: 'm1', item: { to: 'sam@x.com', cc: 'c@x.com', subject: 'New', scheduledFor: minutes(10).toISOString() } })
+    expect(found?.content).toEqual(content)
+    await updateScheduledEmail(db, id, 1, { to: 'sam@x.com', cc: '', subject: 'New', content, scheduledFor: minutes(90) }, NOW)
+    expect((await getScheduledEmail(db, id, 1))?.item.scheduledFor).toBe(minutes(90).toISOString())
+    // Not the owner's: unchanged.
+    expect(await updateScheduledEmail(db, id, 2, { to: 'x@y.z', cc: '', subject: 'X', content, scheduledFor: null }, NOW)).toBe(false)
+  })
+
+  it('re-queues a failed email when edited, but cannot edit one that is sending or sent', async () => {
+    const db = scheduleDb(payload)
+    const failed = await queue()
+    await client.execute({ sql: "update scheduled_emails set status = 'failed', last_error = 'x', attempts = 3 where id = ?", args: [failed] })
+    expect(await updateScheduledEmail(db, failed, 1, { to: 'a@b.c', cc: '', subject: 'S', content, scheduledFor: null }, NOW)).toBe(true)
+    expect(await statusOf(failed)).toMatchObject({ status: 'pending', attempts: 0, last_error: null })
+
+    const sending = await queue()
+    await client.execute({ sql: "update scheduled_emails set status = 'sending' where id = ?", args: [sending] })
+    expect(await updateScheduledEmail(db, sending, 1, { to: 'a@b.c', cc: '', subject: 'S', content, scheduledFor: null }, NOW)).toBe(false)
+  })
+
+  it('turns stored content back into what the compose window edits', () => {
+    expect(toEditableScheduledContent(content)).toEqual({
+      html: `<p>New</p><img src="data:image/png;base64,${PNG}">`,
+      attachments: [{ name: 'q.pdf', mediaType: 'application/pdf', data: 'QUJD' }],
+      bcc: 'boss@od.com',
+      signOff: 'Cheers,\nPeter',
+    })
+    // Unsafe image types are never turned into data URLs.
+    const svg = toEditableScheduledContent({
+      html: '<img src="cid:x@y.z">',
+      inlineImages: [{ contentId: 'x@y.z', mediaType: 'image/svg+xml', data: 'PHN2Zz4=' }],
+    })
+    expect(svg.html).toBe('<img src="cid:x@y.z">')
+    expect(toEditableScheduledContent(null)).toEqual({ html: '', attachments: [], bcc: '' })
   })
 })
 

@@ -34,6 +34,9 @@ import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
  * and attached files (3 MB in total). Files dropped anywhere on the window
  * are attached (listed under the signature); pasted images go inline.
  *
+ * Opened from the Scheduled tab (scheduledId set), the schedule picker opens
+ * on the email's send time and Schedule send updates it in place.
+ *
  * Send waits UNDO_SEND_MS before sending, like Gmail's undo send: the button
  * shows it is sending and an Undo button stops it. Closing the window during
  * the wait sends straight away (Send was pressed; only Undo cancels).
@@ -73,6 +76,14 @@ export interface ComposeState {
   attachments: ComposeFile[]
   /** Gmail draft this compose window is editing (opened from OptiMate or saved once). */
   draftId?: string
+  /**
+   * Scheduled email this window is editing (Scheduled tab → Edit). It stays
+   * queued as it was until Update schedule or Send; nothing is autosaved to
+   * Gmail Drafts, and closing keeps the scheduled version.
+   */
+  scheduledId?: number
+  /** Its current send time (ISO), preselected in the schedule picker. */
+  scheduledFor?: string
 }
 
 /** What Send / Save as draft post to the server. */
@@ -182,7 +193,8 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const [hasDraft, setHasDraft] = useState(Boolean(initial.html.trim()))
   const [tableOpen, setTableOpen] = useState(false)
   const [selectionFormat, setSelectionFormat] = useState<EmailSelectionFormat>({ list: null, color: null })
-  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const editingScheduled = initial.scheduledId !== undefined
+  const [scheduleOpen, setScheduleOpen] = useState(editingScheduled)
   const [tableSize, setTableSize] = useState({ rows: 3, columns: 3 })
   // Opt-in: also give the AI the rest of this email's thread. Off by default.
   const [useThread, setUseThread] = useState(false)
@@ -305,7 +317,8 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
 
   /** Save whatever is typed to Gmail Drafts; never throws, never overlaps itself. */
   const autosave = useCallback(async (): Promise<void> => {
-    if (closedRef.current) return
+    // A scheduled email is saved with Update schedule, never to Gmail Drafts.
+    if (closedRef.current || stateRef.current.scheduledId !== undefined) return
     if (savingRef.current) {
       dirtyRef.current = true
       return
@@ -632,6 +645,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             onClick={(e) => {
               e.stopPropagation()
               if (flushSend()) return
+              if (editingScheduled && edits > 0 && !window.confirm('Close without saving? The scheduled email stays as it was.')) return
               // Typed text is autosaved to Gmail Drafts, so closing never loses it.
               void autosave().then(() => savingRef.current).finally(() => {
                 closedRef.current = true
@@ -884,8 +898,10 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           <SchedulePicker
             busy={busy !== ''}
             scheduling={busy === 'schedule'}
-            canSchedule={hasDraft && state.to.trim() !== ''}
+            canSchedule={hasDraft && (state.to.trim() !== '' || editingScheduled)}
             onSchedule={(when) => void runSchedule(when)}
+            {...(initial.scheduledFor ? { initial: new Date(initial.scheduledFor) } : {})}
+            {...(editingScheduled ? { actionLabel: 'Update schedule' } : {})}
           />
         ) : null}
 
@@ -918,12 +934,14 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             disabled={busy !== '' || !hasDraft}
             aria-expanded={scheduleOpen}
           >
-            Schedule send
+            {editingScheduled ? 'Change schedule' : 'Schedule send'}
           </button>
-          <button type="button" className={styles.secondary} onClick={() => void saveDraftNow()} disabled={busy !== '' || !hasDraft}>
-            {busy === 'draft' ? 'Saving…' : 'Save as draft'}
-          </button>
-          <button
+          {editingScheduled ? null : (
+            <button type="button" className={styles.secondary} onClick={() => void saveDraftNow()} disabled={busy !== '' || !hasDraft}>
+              {busy === 'draft' ? 'Saving…' : 'Save as draft'}
+            </button>
+          )}
+          {editingScheduled ? null : <button
             type="button"
             className={styles.trash}
             onClick={() => void discardDraft()}
@@ -934,7 +952,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
             </svg>
-          </button>
+          </button>}
         </footer>
       </div>
     </div>,
