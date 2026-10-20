@@ -91,6 +91,7 @@ export interface Config {
     'mail-ai-requests': MailAiRequest;
     'mail-sync-states': MailSyncState;
     'scheduled-emails': ScheduledEmail;
+    'google-ads-change-previews': GoogleAdsChangePreview;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
     'blog-ideas': BlogIdea;
@@ -220,6 +221,7 @@ export interface Config {
     'mail-ai-requests': MailAiRequestsSelect<false> | MailAiRequestsSelect<true>;
     'mail-sync-states': MailSyncStatesSelect<false> | MailSyncStatesSelect<true>;
     'scheduled-emails': ScheduledEmailsSelect<false> | ScheduledEmailsSelect<true>;
+    'google-ads-change-previews': GoogleAdsChangePreviewsSelect<false> | GoogleAdsChangePreviewsSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'blog-ideas': BlogIdeasSelect<false> | BlogIdeasSelect<true>;
@@ -8460,6 +8462,46 @@ export interface ScheduledEmail {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-change-previews".
+ */
+export interface GoogleAdsChangePreview {
+  id: number;
+  owner: number | User;
+  status: 'pending' | 'applying' | 'applied' | 'failed' | 'cancelled';
+  customerId: string;
+  auditId?: number | null;
+  clientId?: number | null;
+  agentRunId?: string | null;
+  action: string;
+  method: string;
+  path: string;
+  requestBody?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  summary?: string | null;
+  expiresAt: string;
+  appliedAt?: string | null;
+  result?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  lastError?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "blog-prompts".
  */
 export interface BlogPrompt {
@@ -13555,6 +13597,29 @@ export interface ScheduledEmailsSelect<T extends boolean = true> {
   lastError?: T;
   sentAt?: T;
   sentMessageId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-change-previews_select".
+ */
+export interface GoogleAdsChangePreviewsSelect<T extends boolean = true> {
+  owner?: T;
+  status?: T;
+  customerId?: T;
+  auditId?: T;
+  clientId?: T;
+  agentRunId?: T;
+  action?: T;
+  method?: T;
+  path?: T;
+  requestBody?: T;
+  summary?: T;
+  expiresAt?: T;
+  appliedAt?: T;
+  result?: T;
+  lastError?: T;
   updatedAt?: T;
   createdAt?: T;
 }

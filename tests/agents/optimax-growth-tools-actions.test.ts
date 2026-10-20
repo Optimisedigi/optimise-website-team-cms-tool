@@ -46,51 +46,8 @@ describe("OptiMax Growth Tools execute actions", () => {
     expect(source).toContain("https://www.googleapis.com/auth/analytics.edit");
   });
 
-  it("constructs Google Ads action payloads with selected-client customer ID and metadata", async () => {
-    vi.stubEnv("INTERNAL_API_KEY", "test-key");
-    vi.stubEnv("GROWTH_TOOLS_URL", "https://growth-tools.test");
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ changed: 1, resourceIds: ["123"] }), { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
+  // Google Ads action payload construction (selected-client customer ID and
+  // metadata) is covered in google-ads-change-previews.test.ts: the tool now
+  // stores a preview instead of calling Growth Tools.
 
-    const tool = getTools().find((candidate) => candidate.name === "execute_google_ads_action");
-    expect(tool).toBeTruthy();
-
-    const validated = tool!.validate!({
-      action: "campaign_status_update",
-      payload: { campaignId: "111", status: "PAUSED" },
-      summary: "Pause underperforming campaign",
-    });
-    const result = await tool!.execute(validated as never, {
-      agentName: "optimate-google-ads",
-      agentRunId: "run-1",
-      context: {
-        customerId: "123-456-7890",
-        clientId: 42,
-        auditId: 99,
-        userId: 7,
-      },
-      log: () => undefined,
-    });
-
-    expect(result.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://growth-tools.test/api/google-ads/campaigns/status",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ "x-internal-key": "test-key" }),
-      }),
-    );
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body).toMatchObject({
-      action: "campaign_status_update",
-      customerId: "1234567890",
-      campaignId: "111",
-      status: "PAUSED",
-      agentRunId: "run-1",
-      clientId: 42,
-      auditId: 99,
-      userId: 7,
-      source: "optimax",
-    });
-  });
 });

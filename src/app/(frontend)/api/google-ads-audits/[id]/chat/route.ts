@@ -270,6 +270,7 @@ export async function POST(
       source: result.source,
       proposals: result.proposals,
       confirmRequests: result.confirmRequests,
+      changePreviews: result.changePreviews ?? [],
       sessionId,
       persisted,
     });
@@ -292,6 +293,7 @@ export async function POST(
         source: "api-key",
         proposals: [],
         confirmRequests: [],
+        changePreviews: [],
         sessionId: "",
         persisted: false,
         error_kind: translated.kind,

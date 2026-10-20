@@ -1,5 +1,8 @@
+import { getPayload } from "payload";
+import payloadConfig from "@/payload.config";
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
-import { ensureCustomerId, growthToolsRequest } from "./_growth-tools";
+import { changePreviewDb, createChangePreview, type ChangePreviewDb } from "../change-previews";
+import { ensureCustomerId } from "./_growth-tools";
 
 const GOOGLE_ADS_ACTIONS = [
   "campaign_status_update",
@@ -101,73 +104,126 @@ function appendQuery(path: string, params: Record<string, unknown>): string {
   return query ? `${base}?${query}` : base;
 }
 
-export const executeGoogleAdsAction: CanonicalTool<ExecuteGoogleAdsActionArgs> = {
-  name: "execute_google_ads_action",
-  description:
-    "Execute a live Google Ads change through Growth Tools for the selected client. Uses the selected client customerId from agent context, never a manually supplied customer ID. Use mapped actions for common writes, or growth_tools_request for any existing Growth Tools /api/google-ads/* endpoint. Use only when the user directly asks to create, update, pause, enable, apply, push, deploy, or otherwise make a live Google Ads change.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      action: { type: "string", enum: [...GOOGLE_ADS_ACTIONS] },
-      payload: {
-        type: "object",
-        description: "Action-specific payload, excluding customerId/clientId/auditId/userId metadata because the tool injects those from context. For growth_tools_request, include method, path, and optional body for any /api/google-ads/* Growth Tools endpoint.",
-        additionalProperties: true,
+function optionalId(value: unknown): number | undefined {
+  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}
+
+async function defaultPreviewDb(): Promise<ChangePreviewDb> {
+  return changePreviewDb(await getPayload({ config: await payloadConfig }));
+}
+
+/**
+ * Builds the tool. `openDb` is injectable so tests can use an in-memory
+ * database; production opens the Payload database.
+ */
+export function createExecuteGoogleAdsActionTool(
+  openDb: () => Promise<ChangePreviewDb> = defaultPreviewDb,
+  now: () => Date = () => new Date(),
+): CanonicalTool<ExecuteGoogleAdsActionArgs> {
+  return {
+    name: "execute_google_ads_action",
+    description:
+      "Prepare a live Google Ads change through Growth Tools for the selected client. This does NOT change the account: it saves the exact request as a preview and shows the user a change card with Apply live and Cancel buttons. The change only happens when the user taps Apply live. Uses the selected client customerId from agent context, never a manually supplied customer ID. Use mapped actions for common writes, or growth_tools_request for any existing Growth Tools /api/google-ads/* endpoint. Use only when the user directly asks to create, update, pause, enable, apply, push, deploy, or otherwise make a live Google Ads change.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: [...GOOGLE_ADS_ACTIONS] },
+        payload: {
+          type: "object",
+          description: "Action-specific payload, excluding customerId/clientId/auditId/userId metadata because the tool injects those from context. For growth_tools_request, include method, path, and optional body for any /api/google-ads/* Growth Tools endpoint.",
+          additionalProperties: true,
+        },
+        summary: { type: "string", maxLength: 500 },
       },
-      summary: { type: "string", maxLength: 500 },
+      required: ["action", "payload"],
+      additionalProperties: false,
     },
-    required: ["action", "payload"],
-    additionalProperties: false,
-  },
-  validate(raw) {
-    const obj = assertObject(raw, "input");
-    const action = String(obj.action ?? "").trim();
-    if (!isGoogleAdsAction(action)) throw new Error(`Unsupported Google Ads action: ${action}`);
-    const payload = assertObject(obj.payload, "payload");
-    return {
-      action,
-      payload,
-      ...(typeof obj.summary === "string" && obj.summary.trim() ? { summary: obj.summary.trim() } : {}),
-    };
-  },
-  async execute(args, ctx) {
-    let customerId: string;
-    try {
-      customerId = ensureCustomerId(ctx.context.customerId);
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
+    // Each call stores a preview row; identical repeats in one run reuse the first.
+    sideEffect: true,
+    validate(raw) {
+      const obj = assertObject(raw, "input");
+      const action = String(obj.action ?? "").trim();
+      if (!isGoogleAdsAction(action)) throw new Error(`Unsupported Google Ads action: ${action}`);
+      const payload = assertObject(obj.payload, "payload");
+      return {
+        action,
+        payload,
+        ...(typeof obj.summary === "string" && obj.summary.trim() ? { summary: obj.summary.trim() } : {}),
+      };
+    },
+    async execute(args, ctx) {
+      let customerId: string;
+      try {
+        customerId = ensureCustomerId(ctx.context.customerId);
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
+      const ownerId = optionalId(ctx.context.userId);
+      if (ownerId === undefined) {
+        return { ok: false, error: "Live Google Ads changes need a signed-in user to review and apply them." };
+      }
 
-    let endpoint: ReturnType<typeof resolveEndpoint>;
-    let payload: Record<string, unknown>;
-    try {
-      endpoint = resolveEndpoint(args.action, args.payload);
-      payload = actionPayload(args.action, args.payload);
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
+      let endpoint: ReturnType<typeof resolveEndpoint>;
+      let payload: Record<string, unknown>;
+      try {
+        endpoint = resolveEndpoint(args.action, args.payload);
+        payload = actionPayload(args.action, args.payload);
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
 
-    const requestBody = {
-      ...payload,
-      customerId,
-      action: args.action,
-      ...(args.summary ? { summary: args.summary } : {}),
-    };
-    const result = await growthToolsRequest<unknown>({
-      method: endpoint.method,
-      path: endpoint.method === "GET" ? appendQuery(endpoint.path, requestBody) : endpoint.path,
-      body: endpoint.method === "GET" ? undefined : requestBody,
-      metadata: {
+      const clientId = optionalId(ctx.context.clientId);
+      const auditId = optionalId(ctx.context.auditId);
+      // Same body growthToolsRequest would send, metadata included, so the
+      // stored request is exactly what Apply live sends.
+      const requestBody: Record<string, unknown> = {
+        ...payload,
+        customerId,
+        action: args.action,
+        ...(args.summary ? { summary: args.summary } : {}),
         agentRunId: ctx.agentRunId,
-        clientId: ctx.context.clientId as string | number | undefined,
-        auditId: ctx.context.auditId as string | number | undefined,
-        userId: ctx.context.userId as string | number | undefined,
+        ...(clientId !== undefined ? { clientId } : {}),
+        ...(auditId !== undefined ? { auditId } : {}),
+        userId: ownerId,
         source: "optimax",
-      },
-      timeoutMs: 90_000,
-    });
+      };
+      const isGet = endpoint.method === "GET";
 
-    if (!result.ok) return { ok: false, error: result.error };
-    return { ok: true, data: { action: args.action, endpoint: endpoint.path, customerId, result: result.data } };
-  },
-};
+      let preview: { id: number; expiresAt: string };
+      try {
+        preview = await createChangePreview(await openDb(), {
+          ownerId,
+          customerId,
+          ...(auditId !== undefined ? { auditId } : {}),
+          ...(clientId !== undefined ? { clientId } : {}),
+          agentRunId: ctx.agentRunId,
+          action: args.action,
+          method: endpoint.method,
+          path: isGet ? appendQuery(endpoint.path, requestBody) : endpoint.path,
+          ...(isGet ? {} : { requestBody }),
+          ...(args.summary ? { summary: args.summary } : {}),
+          now: now(),
+        });
+      } catch (err) {
+        return { ok: false, error: `Could not save the change preview: ${(err as Error).message}` };
+      }
+
+      return {
+        ok: true,
+        data: {
+          previewed: true,
+          applied: false,
+          changeId: preview.id,
+          action: args.action,
+          endpoint: endpoint.path,
+          expiresAt: preview.expiresAt,
+          nextStep:
+            "Nothing has changed in Google Ads yet. Tell the user the change is ready in the change card and that they need to tap Apply live to make it live (or Cancel). Do not say it is live or applied.",
+        },
+      };
+    },
+  };
+}
+
+export const executeGoogleAdsAction = createExecuteGoogleAdsActionTool();

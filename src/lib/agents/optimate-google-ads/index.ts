@@ -98,6 +98,7 @@ import { readClientConnectionFlags } from "./tools/_client-tokens";
 import { loadPinnedMemoryBlock } from "./memory-loader";
 import { checkRunForCorrection, type CorrectionRequest } from "./post-run-checks";
 import { verifyApprovalReply } from "./verify-approval-reply";
+import { changePreviewDb, listChangePreviewsForRun, type ChangePreviewSummary } from "./change-previews";
 import { logAgentStep } from "../_shared/activity-log";
 import { memoryToolRoutingPrompt, shouldAttachMemoryTools } from "../_shared/memory-tool-routing";
 import { getPayload } from "payload";
@@ -485,6 +486,8 @@ export interface RunChatTurnResult {
   proposals: ProposalSummary[];
   /** request_confirm payloads emitted during this turn, in call order. */
   confirmRequests: ConfirmRequestSummary[];
+  /** Live Google Ads changes prepared this turn, waiting for the user to tap Apply live. */
+  changePreviews?: ChangePreviewSummary[];
 }
 
 const DEFAULT_FALLBACKS = DEFAULT_AUTONOMOUS_FALLBACKS;
@@ -763,6 +766,10 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   // before passing it back to the LLM; we parse it back here.
   const confirmRequests = extractConfirmRequests(result.steps);
 
+  // Live changes prepared by execute_google_ads_action, read back from the
+  // ledger (not the model's output) so the change card shows what is stored.
+  const changePreviews = userId !== undefined ? await fetchChangePreviewsForRun(result.runId, userId) : [];
+
   return {
     reply: verifyApprovalReply(reply, proposals),
     runId: result.runId,
@@ -772,7 +779,18 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     totalUsage: result.totalUsage,
     proposals,
     confirmRequests,
+    changePreviews,
   };
+}
+
+async function fetchChangePreviewsForRun(agentRunId: string, userId: number): Promise<ChangePreviewSummary[]> {
+  try {
+    const payload = await getPayload({ config: await payloadConfig });
+    return await listChangePreviewsForRun(changePreviewDb(payload), agentRunId, userId);
+  } catch (err) {
+    console.error("[optimate-google-ads] change preview lookup failed:", err);
+    return [];
+  }
 }
 
 /**

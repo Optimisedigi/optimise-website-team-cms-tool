@@ -44,6 +44,10 @@ function savePersistedSessionId(auditId: string | number, sid: string): void {
 }
 
 import OptiMateProposalCard, { type OptiMateProposal } from './OptiMateProposalCard'
+import OptiMateChangePreviewCard, {
+  type ChangeCardState,
+  type OptiMateChangePreview,
+} from './OptiMateChangePreviewCard'
 import OptiMateConfirmBubble, {
   type OptiMateConfirmRequest,
   type ConfirmResolution,
@@ -107,6 +111,10 @@ interface ChatMessage {
   confirmRequests?: OptiMateConfirmRequest[]
   /** Per-confirmId resolution. Missing key = pending. */
   confirmResolutions?: Record<string, ConfirmResolution>
+  /** Live Google Ads changes prepared this turn; nothing is sent until Apply live. */
+  changePreviews?: OptiMateChangePreview[]
+  /** Per-change card state. Missing key = pending. */
+  changeStates?: Record<number, ChangeCardState>
   /** True when the server reported `persisted: false` for this turn —
    *  the chat-turns DB write failed (typically because `/api/migrate`
    *  hasn't been run after a deploy that added the table). Drives an
@@ -146,6 +154,7 @@ interface TypedChatResponse {
   modelRequested?: string
   proposals?: Array<Record<string, unknown>>
   confirmRequests?: Array<Record<string, unknown>>
+  changePreviews?: Array<Record<string, unknown>>
   sessionId?: string
   persisted?: boolean
 }
@@ -1268,6 +1277,26 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 draftSettings: c.draftSettings as Record<string, unknown>,
               }))
           : []
+        const changePreviews: OptiMateChangePreview[] = Array.isArray(data.changePreviews)
+          ? data.changePreviews
+              .filter(
+                (c) =>
+                  c &&
+                  Number.isFinite(Number(c.id)) &&
+                  c.status === 'pending' &&
+                  typeof c.action === 'string' &&
+                  c.details &&
+                  typeof c.details === 'object' &&
+                  !Array.isArray(c.details),
+              )
+              .map((c) => ({
+                id: Number(c.id),
+                action: String(c.action),
+                summary: typeof c.summary === 'string' ? c.summary : '',
+                details: c.details as Record<string, unknown>,
+                expiresAt: typeof c.expiresAt === 'string' ? c.expiresAt : '',
+              }))
+          : []
         const turnPersisted = data.persisted !== false
         if (!turnPersisted) setPersistenceFailedSeen(true)
         const assistantMsg: ChatMessage = {
@@ -1281,6 +1310,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           proposals: proposals.length > 0 ? proposals : undefined,
           confirmRequests: confirmRequests.length > 0 ? confirmRequests : undefined,
           confirmResolutions: confirmRequests.length > 0 ? {} : undefined,
+          changePreviews: changePreviews.length > 0 ? changePreviews : undefined,
+          changeStates: changePreviews.length > 0 ? {} : undefined,
           historyNotSaved: !turnPersisted,
         }
         setMessages((prev) => [...prev, assistantMsg])
@@ -1465,6 +1496,74 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       const typeLabel = proposalType ?? 'proposal'
       const synthetic = `User declined the ${typeLabel}. Give them a plain-text answer instead — describe what you would have proposed, but do NOT call the propose tool.`
       sendMessage(synthetic)
+    }
+
+    const setChangeState = (changeId: number, state: ChangeCardState) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.changePreviews?.some((c) => c.id === changeId)
+            ? { ...m, changeStates: { ...(m.changeStates ?? {}), [changeId]: state } }
+            : m,
+        ),
+      )
+    }
+
+    /**
+     * Apply live: the only way an OptiMate-prepared Google Ads change reaches
+     * the account. The server sends the stored request once. A short assistant
+     * note records the outcome in the thread so later turns know it is live,
+     * without spending another model call.
+     */
+    const handleApplyChange = async (change: OptiMateChangePreview) => {
+      setChangeState(change.id, { kind: 'applying' })
+      let message: string
+      try {
+        const res = await fetch(`/api/optimate/google-ads-changes/${change.id}/apply`, {
+          method: 'POST',
+          credentials: 'include',
+        })
+        const data = (await res.json().catch(() => ({}))) as { error?: unknown }
+        if (!res.ok) {
+          message = typeof data.error === 'string' && data.error ? data.error : `Apply failed (${res.status})`
+          setChangeState(change.id, { kind: 'error', message })
+          return
+        }
+      } catch (err) {
+        message = err instanceof Error ? err.message : 'Apply failed'
+        setChangeState(change.id, { kind: 'error', message })
+        return
+      }
+      setChangeState(change.id, { kind: 'applied' })
+      const description = change.summary || change.action.replace(/_/g, ' ')
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Applied live (change #${change.id}): ${description}.` },
+      ])
+    }
+
+    const handleCancelChange = async (change: OptiMateChangePreview) => {
+      try {
+        const res = await fetch(`/api/optimate/google-ads-changes/${change.id}/cancel`, {
+          method: 'POST',
+          credentials: 'include',
+        })
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: unknown }
+          setChangeState(change.id, {
+            kind: 'error',
+            message: typeof data.error === 'string' && data.error ? data.error : `Cancel failed (${res.status})`,
+          })
+          return
+        }
+      } catch (err) {
+        setChangeState(change.id, { kind: 'error', message: err instanceof Error ? err.message : 'Cancel failed' })
+        return
+      }
+      setChangeState(change.id, { kind: 'cancelled' })
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Cancelled change #${change.id}. Nothing was changed in Google Ads.` },
+      ])
     }
 
     const readImageAttachment = async (file: File, nameOverride?: string): Promise<ImageAttachment> => {
@@ -2028,6 +2127,21 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                         resolution={msg.confirmResolutions?.[c.confirmId] ?? 'pending'}
                         onConfirm={handleConfirmYes}
                         onReject={handleConfirmNo}
+                      />
+                    ))}
+                  </div>
+                )}
+              {msg.role === 'assistant' &&
+                msg.changePreviews &&
+                msg.changePreviews.length > 0 && (
+                  <div style={{ width: '100%', maxWidth: messageBubbleMaxWidth }}>
+                    {msg.changePreviews.map((c) => (
+                      <OptiMateChangePreviewCard
+                        key={c.id}
+                        change={c}
+                        state={msg.changeStates?.[c.id] ?? { kind: 'pending' }}
+                        onApply={(change) => void handleApplyChange(change)}
+                        onCancel={(change) => void handleCancelChange(change)}
                       />
                     ))}
                   </div>

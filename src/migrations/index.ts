@@ -197,6 +197,7 @@ import * as migration_20261016_120000_blog_post_sources from './20261016_120000_
 import * as migration_20261017_120000_bank_receipts from './20261017_120000_bank_receipts'
 import * as migration_20261018_120000_voice_api_key_toggle from './20261018_120000_voice_api_key_toggle'
 import * as migration_20261019_120000_scheduled_emails from './20261019_120000_scheduled_emails'
+import * as migration_20261020_120000_google_ads_change_previews from './20261020_120000_google_ads_change_previews'
 
 export const migrations = [
   {
@@ -1187,5 +1188,10 @@ export const migrations = [
     up: migration_20261019_120000_scheduled_emails.up,
     down: migration_20261019_120000_scheduled_emails.down,
     name: '20261019_120000_scheduled_emails',
+  },
+  {
+    up: migration_20261020_120000_google_ads_change_previews.up,
+    down: migration_20261020_120000_google_ads_change_previews.down,
+    name: '20261020_120000_google_ads_change_previews',
   },
 ]

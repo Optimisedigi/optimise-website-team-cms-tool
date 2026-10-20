@@ -47,6 +47,7 @@ import { ClientEmailSummaries } from "./collections/ClientEmailSummaries";
 import { MailAiRequests } from "./collections/MailAiRequests";
 import { MailSyncStates } from "./collections/MailSyncStates";
 import { ScheduledEmails } from "./collections/ScheduledEmails";
+import { GoogleAdsChangePreviews } from "./collections/GoogleAdsChangePreviews";
 import { GoogleAdsAuditSnapshotChunks } from "./collections/GoogleAdsAuditSnapshotChunks";
 import { GoogleAdsCampaignBudgets } from "./collections/GoogleAdsCampaignBudgets";
 import { GoogleAdsAdExtensions } from "./collections/GoogleAdsAdExtensions";
@@ -175,7 +176,7 @@ export default buildConfig({
     // Clients
     Clients, ClientWishlistItems, HostingPaymentOffers, HostingOneOffPayments, ClientProposals, ClientProposalKeywordResearchJobs, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, SharedWorkingDocs, SharedWorkingDocRevisions, ClientProcesses, TeamTasks, TeamTaskComments, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
     // Mail
-    ClientEmails, ClientEmailSummaries, MailAiRequests, MailSyncStates, ScheduledEmails,
+    ClientEmails, ClientEmailSummaries, MailAiRequests, MailSyncStates, ScheduledEmails, GoogleAdsChangePreviews,
     // Content
     BlogPosts, BlogPrompts, BlogIdeas, BlogSyncEvents, JobPosts, Media,
     // SEO
