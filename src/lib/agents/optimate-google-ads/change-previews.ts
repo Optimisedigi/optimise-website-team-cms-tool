@@ -31,6 +31,8 @@ const METADATA_KEYS = new Set([
   "customerId",
   "validateOnly",
   "confirm",
+  "fingerprint",
+  "sourceFingerprint",
   "action",
   "summary",
   "agentRunId",

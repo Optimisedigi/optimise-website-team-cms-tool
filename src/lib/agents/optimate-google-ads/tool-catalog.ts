@@ -220,6 +220,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   create_account_efficiency_goal_run: "actions",
   execute_google_ads_action: "actions",
   google_ads_mutate_preview: "actions",
+  google_ads_rsa_add_headline: "actions",
   execute_ga4_action: "actions",
   execute_gtm_action: "actions",
   review_tracking_changes: "actions",

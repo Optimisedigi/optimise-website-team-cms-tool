@@ -80,6 +80,7 @@ import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-updat
 import { executeGoogleAdsAction } from "./tools/execute-google-ads-action";
 import { googleAdsQuery } from "./tools/google-ads-query";
 import { googleAdsMutatePreview } from "./tools/google-ads-mutate-preview";
+import { googleAdsRsaAddHeadline } from "./tools/google-ads-rsa-add-headline";
 import { executeGa4Action } from "./tools/execute-ga4-action";
 import { executeGtmAction } from "./tools/execute-gtm-action";
 import { reviewTrackingChanges } from "./tools/review-tracking-changes";
@@ -139,6 +140,7 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "propose_stakeholder_deck",
   "propose_deck_from_template",
   "google_ads_mutate_preview",
+  "google_ads_rsa_add_headline",
 ]);
 
 const TOOL_BUNDLE_NAMES = GOOGLEMATE_TOOL_BUNDLE_NAMES;
@@ -252,6 +254,7 @@ function allAuditTools(options?: { attachMemoryTools?: boolean }): CanonicalTool
     proposeDeckFromTemplateTool as unknown as CanonicalTool<unknown>,
     executeGoogleAdsAction as unknown as CanonicalTool<unknown>,
     googleAdsMutatePreview as unknown as CanonicalTool<unknown>,
+    googleAdsRsaAddHeadline as unknown as CanonicalTool<unknown>,
     googleAdsQuery as unknown as CanonicalTool<unknown>,
     executeGa4Action as unknown as CanonicalTool<unknown>,
     executeGtmAction as unknown as CanonicalTool<unknown>,
@@ -306,13 +309,13 @@ const AUDIT_TOOL_BUNDLES: Record<GoogleMateToolBundleName, CanonicalTool<unknown
   // performance question.
   budget_changes: [proposeBudgetUpdate, proposeBudgetPushLive, proposeAllCampaignBudgetPush] as unknown as CanonicalTool<unknown>[],
   keyword_research: [getKeywordIdeas] as unknown as CanonicalTool<unknown>[],
-  ad_copy: [getAdAssetPerformance, proposeAdCopyGenerate, proposeAdCopyDeploy] as unknown as CanonicalTool<unknown>[],
+  ad_copy: [getAdAssetPerformance, proposeAdCopyGenerate, proposeAdCopyDeploy, googleAdsRsaAddHeadline, googleAdsQuery] as unknown as CanonicalTool<unknown>[],
   seo_organic: [getGa4Overview, getGscOverview, getGscBrandedSplit, getGscIndexingStatus, getSerpDisplacement, getSerpDisplacementAlerts, getAiVisibility] as unknown as CanonicalTool<unknown>[],
   campaign_build: [proposeCampaignRestructure, proposeCampaignBuild, proposeGeoCampaignSplit, proposeCampaignStatusChange, proposeAdGroupCreate, proposeAdGroupStatusChange, proposeKeywordsAdd, getCampaignProposalStatus, requestConfirmTool] as unknown as CanonicalTool<unknown>[],
   goals: [listGoalRuns, getGoalRun, getGoalProgressSummary, createGoalRun, createAccountEfficiencyGoalRun] as unknown as CanonicalTool<unknown>[],
   scheduled_tasks: [proposeScheduledTask, listScheduledTasks, proposeScheduledTaskUpdate] as unknown as CanonicalTool<unknown>[],
   decks: [proposeStakeholderDeck, proposeDeckFromTemplateTool] as unknown as CanonicalTool<unknown>[],
-  actions: [executeGoogleAdsAction, googleAdsMutatePreview, googleAdsQuery, executeGa4Action, executeGtmAction, reviewTrackingChanges] as unknown as CanonicalTool<unknown>[],
+  actions: [executeGoogleAdsAction, googleAdsMutatePreview, googleAdsRsaAddHeadline, googleAdsQuery, executeGa4Action, executeGtmAction, reviewTrackingChanges] as unknown as CanonicalTool<unknown>[],
   memory: [memorySearch, remember, soulSet] as unknown as CanonicalTool<unknown>[],
 };
 
