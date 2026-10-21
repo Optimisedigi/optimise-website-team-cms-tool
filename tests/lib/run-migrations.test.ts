@@ -27,6 +27,24 @@ describe("runMigrations", () => {
     expect(statements).not.toContain("ALTER TABLE `agency_kpi_snapshots` ADD `retainer_y_t_d` numeric DEFAULT 0 NOT NULL");
   });
 
+  it("adds the scheduled retainer change columns before the production schema-marker shortcut", async () => {
+    // Same production shape as above: marker present, landing schema complete.
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("sqlite_master") && sql.includes("landing_")) return { rows: [{ name: "landing_events" }] };
+      if (sql === "PRAGMA table_info(`landing_events`)") return { rows: [{ name: "market" }] };
+      return { rows: [] };
+    });
+
+    const results = await runMigrations({ db: { client: { execute } } } as any);
+    const statements = execute.mock.calls.map(([sql]) => String(sql));
+
+    expect(results).toContainEqual({ label: "mark_migration:20260814_133000_add_landing_lock_relations", status: "skip", message: "already applied" });
+    expect(statements).toContain("ALTER TABLE `clients` ADD `retainer_change_action` text");
+    expect(statements).toContain("ALTER TABLE `clients` ADD `retainer_change_date` text");
+    expect(statements).toContain("ALTER TABLE `clients` ADD `retainer_change_amount` numeric");
+  });
+
   it("keeps stored KPI values and skips the repair when run twice", async () => {
     const db = createClient({ url: ":memory:" });
     try {

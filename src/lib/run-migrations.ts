@@ -635,6 +635,17 @@ export async function runMigrations(
     await run("clients.target_customer", "ALTER TABLE `clients` ADD `target_customer` text");
   }
 
+  // Scheduled retainer change on clients (2026-10-23): from retainer_change_date
+  // the retainer ends or becomes retainer_change_amount. Payload selects these
+  // on every client read, so a missing column breaks every client page. Runs
+  // before the marker short-circuit so production receives it. Keep in sync
+  // with src/migrations/20261023_120000_client_retainer_change.ts.
+  async function addClientRetainerChange(): Promise<void> {
+    await run("clients.retainer_change_action", "ALTER TABLE `clients` ADD `retainer_change_action` text");
+    await run("clients.retainer_change_date", "ALTER TABLE `clients` ADD `retainer_change_date` text");
+    await run("clients.retainer_change_amount", "ALTER TABLE `clients` ADD `retainer_change_amount` numeric");
+  }
+
   // Payload 3.90 security upgrade (2026-10-10): framework-owned columns Payload
   // selects on every users/media read. Runs before the marker short-circuit so
   // production receives it. Keep in sync with
@@ -993,6 +1004,7 @@ export async function runMigrations(
     await addMonthlyKeywordSelectionColumns();
     await addClientCampaignStartDate();
     await addClientTargetCustomer();
+    await addClientRetainerChange();
     await addPayload390Columns();
     await repairAgencyKpiSnapshotColumns();
     await addOptiMateVoiceAuthMethod();
@@ -6026,12 +6038,9 @@ export async function runMigrations(
       "ALTER TABLE `clients` ADD `retainer_start_date` text",
     );
 
-    // ── Scheduled retainer change on clients (2026-10-23) ──
-    // Ports migration 20261023_120000. From retainer_change_date the retainer
-    // ends or becomes retainer_change_amount; revenue helpers apply it.
-    await run("clients.retainer_change_action", "ALTER TABLE `clients` ADD `retainer_change_action` text");
-    await run("clients.retainer_change_date", "ALTER TABLE `clients` ADD `retainer_change_date` text");
-    await run("clients.retainer_change_amount", "ALTER TABLE `clients` ADD `retainer_change_amount` numeric");
+    // Scheduled retainer change columns: applied by addClientRetainerChange()
+    // above, before the marker short-circuit, so production receives them too.
+    await addClientRetainerChange();
 
     // ── AI Visibility / SERP Monitor groups on clients (2026-04-20) ──
     // Ports migration 20260420_140000. Group fields flatten to snake_case
