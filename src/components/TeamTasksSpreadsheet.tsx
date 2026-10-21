@@ -6,6 +6,7 @@ import AdminStepNavSetter from './AdminStepNavSetter'
 import { TEAM_TASK_TYPE_OPTIONS } from '@/lib/team-task-options'
 import { isEmptyTeamTaskPlaceholder } from '@/lib/team-task-placeholder'
 import { applyLinkShortcut } from '@/lib/rich-text-links'
+import { handleTeamTaskPaste } from '@/lib/team-task-paste'
 import { escapeHtml } from '@/lib/html-escape'
 import { relationshipIdString } from '@/lib/relationship-id'
 
@@ -233,6 +234,8 @@ function NotesEditor({ value, onSave, minWidth = 320 }: { value: string; onSave:
           e.preventDefault()
           window.open(link.href, '_blank', 'noopener,noreferrer')
         }}
+        // Pasted text always comes in black (white text from dark apps was invisible).
+        onPaste={handleTeamTaskPaste}
         onBlur={(e) => {
           const next = autolinkHtml(e.currentTarget.innerHTML)
           e.currentTarget.innerHTML = next

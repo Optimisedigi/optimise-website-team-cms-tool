@@ -1933,6 +1933,24 @@ body:has(.global-edit--hosting-billing-settings) {
   color: #ffffff;
 }
 
+// Client names in KPI tooltips open the client record.
+.od-stat-tooltip__client {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.35);
+  text-underline-offset: 2px;
+
+  &:hover {
+    text-decoration-color: currentColor;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
 .od-stat-tooltip__share {
   font-size: 10px;
   font-weight: 500;

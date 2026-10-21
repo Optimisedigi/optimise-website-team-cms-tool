@@ -167,6 +167,8 @@ describe('GET /api/dashboard', () => {
     const json = await res.json()
     const names = json.breakdowns.monthlyRetainer.map((r: any) => r.clientName)
     expect(names).toEqual(['Big Co', 'Mid Co', 'Small Co'])
+    // Each row carries the client id so the dashboard tooltips can link to the client.
+    expect(json.breakdowns.monthlyRetainer.map((r: any) => r.clientId)).toEqual([2, 3, 1])
   })
 
   it('deducts an 8% monthly commission from a $1350 retainer in monthlyRetainerNet', async () => {

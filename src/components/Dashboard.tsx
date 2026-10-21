@@ -218,6 +218,7 @@ interface DashboardData {
   }
   breakdowns?: {
     monthlyRetainer: Array<{
+      clientId?: string | number
       clientName: string
       gross: number
       commission: number
@@ -225,12 +226,14 @@ interface DashboardData {
       revenueSharePercent?: number | null
     }>
     oneOffYTD: Array<{
+      clientId?: string | number
       clientName: string
       projectName: string
       amount: number
       date: string
     }>
     retainerYTD: Array<{
+      clientId?: string | number
       clientName: string
       monthlyNetSum: number
       setupFee: number
@@ -474,7 +477,10 @@ function KpiCardTooltip({
           <div
             ref={tipRef}
             className="od-stat-tooltip od-stat-tooltip--portal"
-            role="tooltip"
+            // Holds client links, so it's a labelled group rather than role="tooltip"
+            // (tooltips can't contain interactive content).
+            role="group"
+            aria-label={label}
             onMouseEnter={cancelHide}
             onMouseLeave={scheduleHide}
             style={{ top: coords.top, left: tipLeft ?? coords.left, minWidth: coords.width }}
@@ -489,6 +495,16 @@ function KpiCardTooltip({
 }
 
 // ─── Helpers ──────────────────────────────────────────────
+
+/** Client name in a KPI tooltip, linking to the client's record when the row has an id. */
+function TooltipClientName({ id, name }: { id?: string | number; name: string }) {
+  if (id == null || id === '') return <>{name}</>
+  return (
+    <a className="od-stat-tooltip__client" href={`/admin/collections/clients/${encodeURIComponent(String(id))}`}>
+      {name}
+    </a>
+  )
+}
 
 const hiddenActivityTypes = new Set([
   'agent_reasoning',
@@ -805,11 +821,25 @@ const Dashboard = () => {
               value={String(data.activeLeads ?? data.totalLeads ?? 0)}
               delta={data.kpiMom?.activeLeads}
             />
-            <KpiCard
+            <KpiCardTooltip
               label="ARR"
               dotColor="#0d9488"
               value={`$${fmt0(data.annualisedAgencyRevenue ?? 0)}`}
               delta={data.kpiMom?.arr}
+              // ARR is this month's net retainers × 12, so each row is one of them.
+              rows={(data.breakdowns?.monthlyRetainer ?? []).map((row, i) => (
+                <div key={i} className="od-stat-tooltip__row">
+                  <span className="od-stat-tooltip__name">
+                    <TooltipClientName id={row.clientId} name={row.clientName} />
+                    {row.revenueSharePercent != null && (
+                      <span className="od-stat-tooltip__share"> ({row.revenueSharePercent}% share)</span>
+                    )}
+                  </span>
+                  <span className="od-stat-tooltip__detail">
+                    ${fmt0(row.net)}/mo × 12{' → '}<strong>${fmt0(row.net * 12)}</strong>
+                  </span>
+                </div>
+              ))}
             />
             <KpiCardTooltip
               label="Monthly Retainer"
@@ -819,7 +849,7 @@ const Dashboard = () => {
               rows={(data.breakdowns?.monthlyRetainer ?? []).map((row, i) => (
                 <div key={i} className="od-stat-tooltip__row">
                   <span className="od-stat-tooltip__name">
-                    {row.clientName}
+                    <TooltipClientName id={row.clientId} name={row.clientName} />
                     {row.revenueSharePercent != null && (
                       <span className="od-stat-tooltip__share"> ({row.revenueSharePercent}% share)</span>
                     )}
@@ -843,7 +873,7 @@ const Dashboard = () => {
               rows={(data.breakdowns?.retainerYTD ?? []).map((row, i) => (
                 <div key={i} className="od-stat-tooltip__row">
                   <span className="od-stat-tooltip__name">
-                    {row.clientName}
+                    <TooltipClientName id={row.clientId} name={row.clientName} />
                     {row.revenueSharePercent != null && (
                       <span className="od-stat-tooltip__share"> ({row.revenueSharePercent}% share)</span>
                     )}
@@ -880,7 +910,9 @@ const Dashboard = () => {
               delta={data.kpiMom?.oneOffYTD}
               rows={(data.breakdowns?.oneOffYTD ?? []).map((row, i) => (
                 <div key={i} className="od-stat-tooltip__row">
-                  <span className="od-stat-tooltip__name">{row.clientName}</span>
+                  <span className="od-stat-tooltip__name">
+                    <TooltipClientName id={row.clientId} name={row.clientName} />
+                  </span>
                   <span className="od-stat-tooltip__detail">
                     {row.projectName} — <strong>${fmt0(row.amount)}</strong>
                   </span>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Dashboard, { activityDescription, activityHref, activityIcon } from '@/components/Dashboard'
 
@@ -118,6 +118,65 @@ describe('Dashboard MTD Costs KPI', () => {
     const card = label.closest('.od-kpi') ?? label.parentElement?.parentElement
     expect(card).toHaveTextContent('$443')
     expect(card).not.toHaveTextContent('$1,400')
+  })
+})
+
+describe('Dashboard KPI tooltips', () => {
+  const breakdowns = {
+    monthlyRetainer: [
+      { clientId: 2, clientName: 'Big Co', gross: 2000, commission: 160, net: 1840, revenueSharePercent: null },
+      { clientId: 9, clientName: 'Shared Co', gross: 2300, commission: 0, net: 2300, revenueSharePercent: 50 },
+    ],
+    retainerYTD: [{ clientId: 2, clientName: 'Big Co', monthlyNetSum: 18400, setupFee: 0, retainerOneOffs: [], total: 18400, revenueSharePercent: null }],
+    oneOffYTD: [{ clientId: 4, clientName: 'Project Co', projectName: 'Website build', amount: 5000, date: '2026-05-01' }],
+  }
+
+  function renderWithBreakdowns() {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      ok: true,
+      json: async () => url === '/api/dashboard'
+        ? { ...dashboardData, monthlyRetainerNet: 4140, annualisedAgencyRevenue: 49680, breakdowns }
+        : responseFor(url),
+    })))
+    render(<Dashboard />)
+  }
+
+  async function kpiCard(label: string) {
+    const labels = await screen.findAllByText(label, { selector: '.od-kpi__label' })
+    return labels[0]?.closest('.od-kpi') as HTMLElement
+  }
+
+  async function openTooltip(label: string) {
+    fireEvent.mouseEnter(await kpiCard(label))
+    return screen.getByRole('group', { name: label })
+  }
+
+  it('lists the monthly retainers that make up ARR', async () => {
+    renderWithBreakdowns()
+
+    const tip = await openTooltip('ARR')
+    expect(tip).toHaveTextContent('Big Co')
+    expect(tip).toHaveTextContent('$1,840/mo × 12 → $22,080')
+    expect(tip).toHaveTextContent('Shared Co (50% share)')
+    expect(tip).toHaveTextContent('$2,300/mo × 12 → $27,600')
+  })
+
+  it.each([
+    ['ARR', 'Big Co', '/admin/collections/clients/2'],
+    ['Monthly Retainer', 'Shared Co', '/admin/collections/clients/9'],
+    ['Retainer Rev. YTD', 'Big Co', '/admin/collections/clients/2'],
+    ['One-Off Projects YTD', 'Project Co', '/admin/collections/clients/4'],
+  ])('links client names in the %s tooltip to the client', async (label, client, href) => {
+    renderWithBreakdowns()
+
+    const tip = await openTooltip(label)
+    const link = within(tip).getByRole('link', { name: client })
+    expect(link).toHaveAttribute('href', href)
+    // Moving into the tooltip to click keeps it open.
+    fireEvent.mouseLeave(await kpiCard(label))
+    fireEvent.mouseEnter(tip)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(screen.getByRole('group', { name: label })).toBeInTheDocument()
   })
 })
 

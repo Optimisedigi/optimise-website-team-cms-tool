@@ -846,6 +846,7 @@ export async function GET() {
       const share = shareOf(c);
       const sharePct = Number(c.revenueSharePercent);
       return {
+        clientId: c.id,
         clientName: String(c.name ?? `#${c.id}`),
         gross: round(proratedGross * share),
         commission: round((proratedGross - net) * share),
@@ -857,6 +858,7 @@ export async function GET() {
     .sort((a: any, b: any) => b.net - a.net);
 
   const oneOffYTDBreakdown: Array<{
+    clientId: string | number;
     clientName: string;
     projectName: string;
     amount: number;
@@ -869,6 +871,7 @@ export async function GET() {
     if (setupFee > 0) {
       const setupDate = c.retainerStartDate ?? c.clientStartDate ?? now.toISOString();
       oneOffYTDBreakdown.push({
+        clientId: c.id,
         clientName: String(c.name ?? `#${c.id}`),
         projectName: "Setup fee",
         amount: round(setupFee * share),
@@ -882,6 +885,7 @@ export async function GET() {
       if (isNaN(d.getTime())) continue;
       if (d < yearStartIso || d > now) continue;
       oneOffYTDBreakdown.push({
+        clientId: c.id,
         clientName: String(c.name ?? `#${c.id}`),
         projectName: String(p.projectName ?? ""),
         amount: round((Number(p.amount) || 0) * share),
@@ -950,6 +954,7 @@ export async function GET() {
       );
       if (total <= 0) return null;
       return {
+        clientId: c.id,
         clientName: String(c.name ?? `#${c.id}`),
         monthlyNetSum: round(monthlyOnly * share),
         setupFee: round(setupFee * share),

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { applyLinkShortcut } from '@/lib/rich-text-links'
+import { handleTeamTaskPaste } from '@/lib/team-task-paste'
 import { escapeHtml } from '@/lib/html-escape'
 import { relationshipIdString } from '@/lib/relationship-id'
 
@@ -189,6 +190,8 @@ function RichBox({ value, onSave, placeholder }: { value: string; onSave: (value
         e.preventDefault()
         window.open(link.href, '_blank', 'noopener,noreferrer')
       }}
+      // Pasted text always comes in black (white text from dark apps was invisible).
+      onPaste={handleTeamTaskPaste}
       onBlur={(e) => onSave(e.currentTarget.innerHTML)}
       style={{ ...fieldStyle, minHeight: 90, lineHeight: 1.45, outline: 'none', overflowWrap: 'anywhere' }}
     />

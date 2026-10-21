@@ -52,4 +52,23 @@ describe('Cmd/Ctrl+K link shortcut in task notes', () => {
       expect(JSON.parse(patches[0][1].body).instructions).toContain('href="https://optimisedigital.online/brief"')
     })
   })
+
+  it('pastes white text into task notes as black, keeping bold', async () => {
+    const { container } = render(<TeamTasksSpreadsheet />)
+    await screen.findByDisplayValue('write audit')
+    const notes = container.querySelector('[contenteditable]') as HTMLElement
+
+    const range = document.createRange()
+    range.selectNodeContents(notes)
+    range.collapse(false)
+    window.getSelection()!.removeAllRanges()
+    window.getSelection()!.addRange(range)
+
+    fireEvent.paste(notes, {
+      clipboardData: { getData: (type: string) => (type === 'text/html' ? '<b style="color:#ffffff">white text</b>' : 'white text') },
+    })
+
+    expect(notes.innerHTML).toContain('<b><span style="color:#000000">white text</span></b>')
+    expect(notes.innerHTML).not.toContain('#ffffff')
+  })
 })
