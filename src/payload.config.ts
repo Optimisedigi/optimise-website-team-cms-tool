@@ -35,6 +35,7 @@ import { CostCategories } from "./collections/CostCategories";
 import { CostRules } from "./collections/CostRules";
 import { BusinessCosts } from "./collections/BusinessCosts";
 import { BankReceipts } from "./collections/BankReceipts";
+import { EstimateAdjustments } from "./collections/EstimateAdjustments";
 import { Contractors } from "./collections/Contractors";
 import { ContractorTimeEntries } from "./collections/ContractorTimeEntries";
 import { ContractorPayments } from "./collections/ContractorPayments";
@@ -191,7 +192,7 @@ export default buildConfig({
     // Landing experiments
     LandingProperties, LandingExperiments, LandingEvents, LandingDomains, LandingConversionUploads,
     // Finance
-    BusinessCosts, BankReceipts, CostCategories, CostRules, InvoiceStatementDrafts,
+    BusinessCosts, BankReceipts, EstimateAdjustments, CostCategories, CostRules, InvoiceStatementDrafts,
     Contractors, ContractorTimeEntries, ContractorPayments,
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,

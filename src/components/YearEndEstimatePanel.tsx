@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { InfoNote } from './InfoNote'
+import { HoverBreakdown, type BreakdownRow } from './HoverBreakdown'
 import {
   CostCategoryToggles,
   Kpi,
@@ -17,7 +18,9 @@ import {
   type XeroUnavailableReason,
 } from './SalesVsCostsPanel'
 import {
+  MANUAL_COST_ACCOUNT,
   excludeProjectionAccounts,
+  type ProjectionAdjustment,
   type ProjectionClientRow,
   type ProjectionMonth,
   type ProjectionMonthKind,
@@ -71,6 +74,74 @@ function clientNote(row: ProjectionClientRow): string {
   return parts.join(' \u00b7 ')
 }
 
+function adjustmentAccount(a: ProjectionAdjustment): string {
+  return a.account?.trim() || MANUAL_COST_ACCOUNT
+}
+
+/** What a month's invoiced figure is made of. */
+function invoicedBreakdown(m: ProjectionMonth): BreakdownRow[] {
+  const rows: BreakdownRow[] = []
+  const retainerRows = (): BreakdownRow[] =>
+    m.retainers.map((r) => ({ label: r.name, value: money(r.amount), note: 'Expected retainer' }))
+  if (m.kind === 'actual') {
+    rows.push({ label: 'Xero invoices', value: money(m.invoicedActual), note: 'Approved and paid invoices dated this month' })
+  } else if (m.kind === 'current') {
+    const xeroWins = m.invoicedActual >= m.invoicedExpected
+    rows.push({ label: 'Xero so far', value: money(m.invoicedActual), note: xeroWins ? 'Counted: higher than expected retainers' : 'Not counted: lower than expected retainers' })
+    rows.push({ label: 'Expected retainers', value: money(m.invoicedExpected), note: xeroWins ? 'Not counted: Xero so far is higher' : 'Counted: higher than Xero so far' })
+    if (!xeroWins) rows.push(...retainerRows())
+  } else {
+    rows.push(...retainerRows())
+  }
+  for (const a of m.adjustments) {
+    if (a.kind === 'invoiced') rows.push({ label: a.description, value: money(a.amount), note: 'Added manually' })
+  }
+  rows.push({ label: 'Total', value: money(m.invoiced), total: true })
+  return rows
+}
+
+/** What a month's cost figure is made of, leaving out switched-off categories. */
+function costsBreakdown(m: ProjectionMonth, excluded: ReadonlySet<string>, averageLabel: string): BreakdownRow[] {
+  // Manual cost entries are merged into their category; list them on their own.
+  const manual = new Map<string, number>()
+  for (const a of m.adjustments) {
+    if (a.kind === 'cost') manual.set(adjustmentAccount(a), (manual.get(adjustmentAccount(a)) ?? 0) + a.amount)
+  }
+  const basis =
+    m.kind === 'actual'
+      ? 'From Xero'
+      : m.kind === 'current'
+        ? `Higher of Xero so far and the ${averageLabel || 'recent'} monthly average`
+        : `${averageLabel || 'Recent'} monthly average`
+  const rows: BreakdownRow[] = []
+  let hidden = 0
+  for (const c of m.costsByAccount) {
+    if (excluded.has(c.account)) {
+      hidden += 1
+      continue
+    }
+    const base = Math.round((c.amount - (manual.get(c.account) ?? 0)) * 100) / 100
+    if (Math.abs(base) >= 0.5) rows.push({ label: c.account, value: money(base) })
+  }
+  if (rows.length > 0) rows.unshift({ label: basis, value: '', note: undefined })
+  for (const a of m.adjustments) {
+    if (a.kind !== 'cost' || excluded.has(adjustmentAccount(a))) continue
+    rows.push({ label: a.description, value: money(a.amount), note: `Added manually \u00b7 ${adjustmentAccount(a)}` })
+  }
+  if (hidden > 0) rows.push({ label: `${hidden} switched-off ${hidden === 1 ? 'category' : 'categories'} not counted`, value: '' })
+  rows.push({ label: 'Total', value: money(m.costs), total: true })
+  return rows
+}
+
+const inputStyle: React.CSSProperties = {
+  fontSize: 13,
+  padding: '5px 8px',
+  borderRadius: 4,
+  border: '1px solid var(--theme-elevation-200)',
+  background: 'var(--theme-input-bg, var(--theme-elevation-0))',
+  color: 'inherit',
+}
+
 export interface YearEndEstimatePanelProps {
   /** First month of the period (YYYY-MM). */
   from: string
@@ -92,6 +163,8 @@ export function YearEndEstimatePanel({ from, to, label, excluded, onExcludedChan
   const [data, setData] = useState<EstimateResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // Bumped after adding/removing a manual estimate to reload the projection.
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -115,7 +188,7 @@ export function YearEndEstimatePanel({ from, to, label, excluded, onExcludedChan
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [from, to])
+  }, [from, to, reloadKey])
 
   const estimate = data?.available ? data : null
 
@@ -154,6 +227,8 @@ export function YearEndEstimatePanel({ from, to, label, excluded, onExcludedChan
   const restLabel = monthSpan(futureMonths)
   const averageLabel = monthSpan(estimate?.costAverage.months ?? [])
   const excludedList = [...activeExcluded].sort((a, b) => a.localeCompare(b))
+  const openMonths = estimate?.months.filter((m) => m.kind !== 'actual').map((m) => m.month) ?? []
+  const adjustments = estimate?.months.flatMap((m) => m.adjustments) ?? []
 
   return (
     <section aria-labelledby="year-end-estimate-title" style={panelStyle}>
@@ -219,9 +294,20 @@ export function YearEndEstimatePanel({ from, to, label, excluded, onExcludedChan
                   return (
                     <tr key={m.month} style={{ borderBottom: '1px solid var(--theme-elevation-100)', fontStyle: m.kind === 'estimate' ? 'italic' : undefined }}>
                       <th scope="row" style={{ ...td, fontWeight: 500, textAlign: 'left' }}>{monthLabel(m.month)}</th>
-                      <td style={{ ...td, fontSize: 12, color: isEstimate ? '#92400e' : 'var(--theme-elevation-500)' }}>{KIND_TEXT[m.kind]}</td>
-                      <td style={tdNum}>{money(m.invoiced)}</td>
-                      <td style={tdNum}>{money(m.costs)}</td>
+                      <td style={{ ...td, fontSize: 12, color: isEstimate ? '#92400e' : 'var(--theme-elevation-500)' }}>
+                        {KIND_TEXT[m.kind]}
+                        {m.adjustments.length > 0 ? ' + manual' : ''}
+                      </td>
+                      <td style={tdNum}>
+                        <HoverBreakdown title={`Invoiced \u00b7 ${monthLabel(m.month)}`} rows={invoicedBreakdown(m)}>
+                          {money(m.invoiced)}
+                        </HoverBreakdown>
+                      </td>
+                      <td style={tdNum}>
+                        <HoverBreakdown title={`Costs \u00b7 ${monthLabel(m.month)}`} rows={costsBreakdown(m, activeExcluded, averageLabel)}>
+                          {money(m.costs)}
+                        </HoverBreakdown>
+                      </td>
                       <td style={{ ...tdNum, color: m.profit < 0 ? '#dc2626' : undefined }}>{money(m.profit)}</td>
                     </tr>
                   )
@@ -247,6 +333,15 @@ export function YearEndEstimatePanel({ from, to, label, excluded, onExcludedChan
               total={categoriesTotal}
               excluded={activeExcluded}
               onToggle={toggleAccount}
+            />
+          )}
+
+          {openMonths.length > 0 && (
+            <ManualEstimates
+              months={openMonths}
+              adjustments={adjustments}
+              categories={categories.map((c) => c.account).filter((a) => a !== MANUAL_COST_ACCOUNT)}
+              onChange={() => setReloadKey((k) => k + 1)}
             />
           )}
 
@@ -285,10 +380,174 @@ export function YearEndEstimatePanel({ from, to, label, excluded, onExcludedChan
           )}
 
           <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 8, lineHeight: 1.5 }}>
-            Retainers are full invoice amounts, before revenue share and commissions (those payouts sit in costs). One-off projects and inactive clients aren&rsquo;t included. This month counts the higher of Xero so far and the estimate.
+            Retainers are full invoice amounts, before revenue share and commissions (those payouts sit in costs). One-off projects and inactive clients aren&rsquo;t included. Xero figures are approved and paid invoices by invoice date: draft and scheduled Xero invoices aren&rsquo;t counted, so add any you expect as manual estimates. This month counts the higher of Xero so far and the estimate. Hover a figure to see what it&rsquo;s made of.
           </div>
         </>
       )}
     </section>
+  )
+}
+
+/**
+ * Manually entered estimated invoices and costs for this or later months,
+ * added on top of the estimate for that month.
+ */
+function ManualEstimates({
+  months,
+  adjustments,
+  categories,
+  onChange,
+}: {
+  months: string[]
+  adjustments: ProjectionAdjustment[]
+  categories: string[]
+  onChange: () => void
+}) {
+  const [month, setMonth] = useState(months[0] ?? '')
+  const [kind, setKind] = useState<'invoiced' | 'cost'>('invoiced')
+  const [description, setDescription] = useState('')
+  const [amount, setAmount] = useState('')
+  const [account, setAccount] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [removing, setRemoving] = useState<string | number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const selectedMonth = months.includes(month) ? month : (months[0] ?? '')
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    const value = Number(amount)
+    if (!description.trim()) return setError('Add a description.')
+    if (!Number.isFinite(value) || value === 0) return setError('Enter an amount other than 0.')
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/costs/projection/adjustments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month: selectedMonth, kind, amount: value, description: description.trim(), account: kind === 'cost' && account ? account : null }),
+      })
+      if (!res.ok) {
+        const body: unknown = await res.json().catch(() => null)
+        const message = typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string' ? (body as { error: string }).error : null
+        setError(message ?? 'Could not add the estimate.')
+        return
+      }
+      setDescription('')
+      setAmount('')
+      onChange()
+    } catch {
+      setError('Could not add the estimate.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async (id: string | number) => {
+    setRemoving(id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/costs/projection/adjustments/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setError('Could not remove the estimate.')
+        return
+      }
+      onChange()
+    } catch {
+      setError('Could not remove the estimate.')
+    } finally {
+      setRemoving(null)
+    }
+  }
+
+  const sorted = [...adjustments].sort((a, b) => a.month.localeCompare(b.month) || a.description.localeCompare(b.description))
+
+  return (
+    <div style={{ marginTop: 18 }}>
+      <h3 id="estimate-manual-title" style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Manual estimates</h3>
+      <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', marginBottom: 8 }}>
+        Add an expected invoice or cost to a month, ex-GST. It&rsquo;s added on top of that month&rsquo;s estimate. Use a negative amount to reduce it.
+      </div>
+
+      {sorted.length > 0 && (
+        <div style={{ overflowX: 'auto', marginBottom: 10 }}>
+          <table aria-labelledby="estimate-manual-title" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--theme-elevation-150)' }}>
+                <th scope="col" style={th}>Month</th>
+                <th scope="col" style={th}>Type</th>
+                <th scope="col" style={th}>Description</th>
+                <th scope="col" style={thNum}>Amount</th>
+                <th scope="col" style={th}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((a) => (
+                <tr key={a.id} style={{ borderBottom: '1px solid var(--theme-elevation-100)' }}>
+                  <td style={td}>{monthLabel(a.month)}</td>
+                  <td style={{ ...td, fontSize: 12, color: 'var(--theme-elevation-500)' }}>
+                    {a.kind === 'invoiced' ? 'Invoice' : `Cost \u00b7 ${adjustmentAccount(a)}`}
+                  </td>
+                  <th scope="row" style={{ ...td, fontWeight: 500, textAlign: 'left' }}>{a.description}</th>
+                  <td style={tdNum}>{money(a.amount)}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={() => void remove(a.id)}
+                      disabled={removing === a.id}
+                      aria-label={`Remove ${a.description} (${monthLabel(a.month)})`}
+                      style={{ ...rangeBtn, fontSize: 11, padding: '3px 10px' }}
+                    >
+                      {removing === a.id ? 'Removing\u2026' : 'Remove'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <form onSubmit={(e) => void submit(e)} aria-label="Add a manual estimate" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+          Month
+          <select value={selectedMonth} onChange={(e) => setMonth(e.target.value)} style={inputStyle}>
+            {months.map((m) => (
+              <option key={m} value={m}>{monthLabel(m)}</option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+          Type
+          <select value={kind} onChange={(e) => setKind(e.target.value === 'cost' ? 'cost' : 'invoiced')} style={inputStyle}>
+            <option value="invoiced">Invoice</option>
+            <option value="cost">Cost</option>
+          </select>
+        </label>
+        {kind === 'cost' && (
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+            Category
+            <select value={account} onChange={(e) => setAccount(e.target.value)} style={inputStyle}>
+              <option value="">{MANUAL_COST_ACCOUNT}</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--theme-elevation-500)', flex: '1 1 180px' }}>
+          Description
+          <input type="text" value={description} maxLength={200} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Website build deposit" style={inputStyle} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+          Amount (ex-GST)
+          <input type="number" inputMode="decimal" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} style={{ ...inputStyle, width: 120 }} />
+        </label>
+        <button type="submit" disabled={saving} style={{ ...rangeBtn, fontSize: 12 }}>
+          {saving ? 'Adding\u2026' : 'Add estimate'}
+        </button>
+      </form>
+      {error && <div role="alert" style={{ fontSize: 12, color: '#991b1b', marginTop: 6 }}>{error}</div>}
+    </div>
   )
 }

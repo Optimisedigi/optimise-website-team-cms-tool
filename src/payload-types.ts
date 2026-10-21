@@ -137,6 +137,7 @@ export interface Config {
     'landing-conversion-uploads': LandingConversionUpload;
     'business-costs': BusinessCost;
     'bank-receipts': BankReceipt;
+    'estimate-adjustments': EstimateAdjustment;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
     'invoice-statement-drafts': InvoiceStatementDraft;
@@ -270,6 +271,7 @@ export interface Config {
     'landing-conversion-uploads': LandingConversionUploadsSelect<false> | LandingConversionUploadsSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'bank-receipts': BankReceiptsSelect<false> | BankReceiptsSelect<true>;
+    'estimate-adjustments': EstimateAdjustmentsSelect<false> | EstimateAdjustmentsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
     'invoice-statement-drafts': InvoiceStatementDraftsSelect<false> | InvoiceStatementDraftsSelect<true>;
@@ -9985,6 +9987,31 @@ export interface BankReceipt {
   createdAt: string;
 }
 /**
+ * Manual estimated invoices and costs for the year-end estimate on the Costs page.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "estimate-adjustments".
+ */
+export interface EstimateAdjustment {
+  id: number;
+  /**
+   * YYYY-MM
+   */
+  month: string;
+  kind: 'invoiced' | 'cost';
+  /**
+   * Ex-GST AUD. Negative reduces the month.
+   */
+  amount: number;
+  description: string;
+  /**
+   * Xero cost category (costs only). Empty = "Manual estimates".
+   */
+  account?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "cost-rules".
  */
@@ -15169,6 +15196,19 @@ export interface BankReceiptsSelect<T extends boolean = true> {
   month?: T;
   year?: T;
   importBatch?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "estimate-adjustments_select".
+ */
+export interface EstimateAdjustmentsSelect<T extends boolean = true> {
+  month?: T;
+  kind?: T;
+  amount?: T;
+  description?: T;
+  account?: T;
   updatedAt?: T;
   createdAt?: T;
 }

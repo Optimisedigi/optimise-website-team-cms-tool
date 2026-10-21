@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitForElementToBeRemoved, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
 import { YearEndEstimatePanel } from '@/components/YearEndEstimatePanel'
@@ -16,6 +16,9 @@ const row = (month: string, kind: string, invoiced: number, invoicedActual: numb
   costsActual: actualWages + actualOther,
   costsByAccount: [{ account: 'Wages and Salaries', amount: wages }, { account: 'Software', amount: other }],
   costsActualByAccount: [{ account: 'Wages and Salaries', amount: actualWages }, { account: 'Software', amount: actualOther }],
+  retainers: kind === 'actual' ? [] : [{ id: 1, name: 'Steady Co', amount: 6000 }],
+  invoicedExpected: kind === 'actual' ? 0 : 6000,
+  adjustments: [] as unknown[],
   profit: invoiced - wages - other,
 })
 
@@ -91,6 +94,68 @@ describe('YearEndEstimatePanel', () => {
     fireEvent.click(wages)
     expect(wages).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('Estimated costs').nextSibling).toHaveTextContent('$13,000')
+  })
+
+  it('shows what a month\u2019s invoiced and costs figures are made of on hover', async () => {
+    const nov = { ...row('2026-11', 'estimate', 7500, 0, 3000, 1000), retainers: [{ id: 1, name: 'Steady Co', amount: 6000 }, { id: 3, name: 'New Co', amount: 1500 }], invoicedExpected: 7500 }
+    stub({ ...estimate, months: [estimate.months[0], estimate.months[1], nov] })
+    render(<YearEndEstimatePanel {...props} excluded={new Set(['Software'])} />)
+
+    const table = await screen.findByRole('table', { name: 'Year-end estimate by month' })
+    const novRow = within(table).getByRole('rowheader', { name: 'Nov 2026' }).closest('tr') as HTMLElement
+    fireEvent.mouseEnter(within(novRow).getByText('$7,500'))
+    const invoiced = await screen.findByRole('tooltip')
+    expect(invoiced).toHaveTextContent('Invoiced \u00b7 Nov 2026')
+    expect(invoiced).toHaveTextContent('Steady Co$6,000')
+    expect(invoiced).toHaveTextContent('New Co$1,500')
+    fireEvent.mouseLeave(within(novRow).getByText('$7,500'))
+    await waitForElementToBeRemoved(invoiced)
+
+    const octRow = within(table).getByRole('rowheader', { name: 'Oct 2026' }).closest('tr') as HTMLElement
+    fireEvent.focus(within(octRow).getByText('$3,000'))
+    const costs = await screen.findByRole('tooltip')
+    expect(costs).toHaveTextContent('Costs \u00b7 Oct 2026')
+    expect(costs).toHaveTextContent('Wages and Salaries$3,000')
+    expect(costs).not.toHaveTextContent('Software')
+    expect(costs).toHaveTextContent('1 switched-off category not counted')
+  })
+
+  it('adds and removes manual estimates, then reloads the estimate', async () => {
+    const withManual = {
+      ...estimate,
+      months: [
+        estimate.months[0],
+        estimate.months[1],
+        { ...row('2026-11', 'estimate', 9500, 0, 3000, 1000), adjustments: [{ id: 9, month: '2026-11', kind: 'invoiced', amount: 2000, description: 'Website build', account: null }] },
+      ],
+    }
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/costs/projection?')) return { ok: true, status: 200, json: async () => withManual }
+      return { ok: true, status: 200, json: async () => ({ ok: true, id: 10, init }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<YearEndEstimatePanel {...props} />)
+
+    const manual = await screen.findByRole('table', { name: 'Manual estimates' })
+    expect(within(manual).getByRole('rowheader', { name: 'Website build' }).closest('tr')).toHaveTextContent('Nov 2026')
+    const table = screen.getByRole('table', { name: 'Year-end estimate by month' })
+    expect(within(table).getByRole('rowheader', { name: 'Nov 2026' }).closest('tr')).toHaveTextContent('Estimate + manual')
+
+    const form = screen.getByRole('form', { name: 'Add a manual estimate' })
+    fireEvent.change(within(form).getByLabelText('Month'), { target: { value: '2026-11' } })
+    fireEvent.change(within(form).getByLabelText('Type'), { target: { value: 'cost' } })
+    fireEvent.change(within(form).getByLabelText('Category'), { target: { value: 'Software' } })
+    fireEvent.change(within(form).getByLabelText('Description'), { target: { value: 'New tool' } })
+    fireEvent.change(within(form).getByLabelText('Amount (ex-GST)'), { target: { value: '250' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Add estimate' }))
+
+    await vi.waitFor(() => expect(fetchMock.mock.calls.filter(([u]) => String(u).startsWith('/api/costs/projection?'))).toHaveLength(2))
+    const post = fetchMock.mock.calls.find(([u]) => u === '/api/costs/projection/adjustments')
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ month: '2026-11', kind: 'cost', amount: 250, description: 'New tool', account: 'Software' })
+
+    fireEvent.click(within(manual).getByRole('button', { name: 'Remove Website build (Nov 2026)' }))
+    await vi.waitFor(() => expect(fetchMock.mock.calls.filter(([u]) => String(u).startsWith('/api/costs/projection?'))).toHaveLength(3))
+    expect(fetchMock).toHaveBeenCalledWith('/api/costs/projection/adjustments/9', { method: 'DELETE' })
   })
 
   it('explains when Xero is unavailable', async () => {

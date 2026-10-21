@@ -3,6 +3,7 @@ import {
   buildYearProjection,
   excludeProjectionAccounts,
   expectedRetainerForMonth,
+  MANUAL_COST_ACCOUNT,
 } from '@/lib/finance/year-projection'
 import { monthKeysBetween } from '@/lib/finance/periods'
 
@@ -103,6 +104,50 @@ describe('buildYearProjection', () => {
     expect(m.get('2026-11')?.costs).toBe(1000)
     expect(totals.costs).toBe(6 * 1000 + 2000 + 2 * 1000)
     expect(totals.costsActual).toBe(6 * 1000 + 2000)
+  })
+
+  it('lists the expected retainers behind each open month', () => {
+    expect(byMonth.get('2026-06')?.retainers).toEqual([])
+    expect(byMonth.get('2026-11')).toMatchObject({
+      invoicedExpected: 7500,
+      retainers: [
+        { id: 1, name: 'Steady', amount: 4000 },
+        { id: 2, name: 'Leaving', amount: 2000 },
+        { id: 3, name: 'New', amount: 1500 },
+      ],
+    })
+    expect(byMonth.get('2026-10')).toMatchObject({ invoicedExpected: 6000, invoiced: 9000 })
+  })
+
+  it('adds manual estimated invoices and costs on top of their month only', () => {
+    const adjusted = buildYearProjection({
+      monthKeys: YEAR,
+      currentMonth: CURRENT,
+      actual,
+      averageMonths: AVERAGE,
+      clients,
+      adjustments: [
+        { id: 1, month: '2026-11', kind: 'invoiced', amount: 5000, description: 'Website build' },
+        { id: 2, month: '2026-11', kind: 'cost', amount: 1200, description: 'Freelancer', account: 'Wages and Salaries' },
+        { id: 3, month: '2026-12', kind: 'cost', amount: 300, description: 'Event', account: null },
+        { id: 4, month: '2026-10', kind: 'invoiced', amount: 1000, description: 'Extra' },
+        { id: 5, month: '2027-01', kind: 'invoiced', amount: 9999, description: 'Outside the period' },
+      ],
+    })
+    const m = new Map(adjusted.months.map((x) => [x.month, x]))
+    expect(m.get('2026-11')).toMatchObject({ invoiced: 12500, costs: 5200, profit: 7300 })
+    expect(m.get('2026-11')?.costsByAccount).toContainEqual({ account: 'Wages and Salaries', amount: 4200 })
+    expect(m.get('2026-12')).toMatchObject({ invoiced: 7000, costs: 4300 })
+    expect(m.get('2026-12')?.costsByAccount).toContainEqual({ account: MANUAL_COST_ACCOUNT, amount: 300 })
+    // This month: on top of the higher of Xero so far (9000) and retainers (6000).
+    expect(m.get('2026-10')).toMatchObject({ invoiced: 10000, invoicedActual: 9000 })
+    expect(adjusted.totals.invoiced).toBe(projection.totals.invoiced + 5000 + 1000)
+    expect(adjusted.totals.costs).toBe(projection.totals.costs + 1500)
+    // Manual costs never move the run rate.
+    expect(adjusted.costAverage).toEqual(projection.costAverage)
+    // Switched-off categories drop their manual costs too.
+    const { months } = excludeProjectionAccounts(adjusted.months, new Set(['Wages and Salaries']))
+    expect(months.find((x) => x.month === '2026-11')?.costs).toBe(1000)
   })
 
   it('skips months without any Xero activity when averaging costs', () => {

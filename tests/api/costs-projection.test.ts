@@ -36,10 +36,14 @@ describe('GET /api/costs/projection', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 9, 18, 12)) // 18 Oct 2026
     mockPayload.auth.mockResolvedValue({ user: { id: 1, role: 'admin' } })
-    mockPayload.find.mockResolvedValue({
-      docs: [{ id: 7, name: 'Acme', isActive: true, monthlyRetainer: 2000, clientStartDate: '2025-01-01T12:00:00.000Z' }],
-      totalDocs: 1,
-    })
+    mockPayload.find.mockImplementation(async ({ collection }: { collection: string }) =>
+      collection === 'estimate-adjustments'
+        ? { docs: [{ id: 3, month: '2026-11', kind: 'invoiced', amount: 500, description: 'Extra report', account: null }], totalDocs: 1 }
+        : {
+            docs: [{ id: 7, name: 'Acme', isActive: true, monthlyRetainer: 2000, clientStartDate: '2025-01-01T12:00:00.000Z' }],
+            totalDocs: 1,
+          },
+    )
   })
 
   afterEach(() => {
@@ -55,8 +59,11 @@ describe('GET /api/costs/projection', () => {
     expect(mockFetchXero.mock.calls[0]?.[0]).toEqual({ from: '2026-01', to: '2026-10' })
     expect(body.available).toBe(true)
     expect(body.months.map((m: { kind: string }) => m.kind)).toEqual([...Array(9).fill('actual'), 'current', 'estimate', 'estimate'])
-    expect(body.months[10]).toMatchObject({ month: '2026-11', invoiced: 2000, costs: 400 })
-    expect(body.totals.invoiced).toBe(10 * 1000 + 1000 + 2 * 2000)
+    expect(body.months[10]).toMatchObject({ month: '2026-11', invoiced: 2500, costs: 400 })
+    expect(body.months[10].adjustments).toEqual([{ id: 3, month: '2026-11', kind: 'invoiced', amount: 500, description: 'Extra report', account: null }])
+    expect(body.totals.invoiced).toBe(10 * 1000 + 1000 + 2 * 2000 + 500)
+    const adjustmentsQuery = mockPayload.find.mock.calls.find(([args]) => args.collection === 'estimate-adjustments')?.[0]
+    expect(adjustmentsQuery.where).toEqual({ month: { in: monthKeysBetween('2026-01', '2026-12') } })
     expect(body.clients).toEqual([{ id: 7, name: 'Acme', monthlyRetainer: 2000, restOfPeriod: 4000, startsOn: null, change: null }])
   })
 
@@ -70,6 +77,21 @@ describe('GET /api/costs/projection', () => {
     expect(body.to).toBe('2027-06')
     expect(body.months).toHaveLength(12)
     expect(body.costAverage.months).toEqual(monthKeysBetween('2026-04', '2026-09'))
+  })
+
+  it('still estimates when the manual estimates table is missing', async () => {
+    mockFetchXero.mockResolvedValue({ ok: true, data: { months: monthKeysBetween('2026-01', '2026-10').map(xeroMonth), fetchedAt: 'x' } })
+    mockPayload.find.mockImplementation(async ({ collection }: { collection: string }) => {
+      if (collection === 'estimate-adjustments') throw new Error('no such table: estimate_adjustments')
+      return { docs: [], totalDocs: 0 }
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const body = await (await GET(req('?from=2026-01&to=2026-12'))).json()
+
+    expect(body.available).toBe(true)
+    expect(body.months[10].adjustments).toEqual([])
+    warn.mockRestore()
   })
 
   it('says why when Xero is unavailable instead of guessing', async () => {

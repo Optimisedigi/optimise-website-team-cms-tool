@@ -202,6 +202,7 @@ import * as migration_20261020_130000_contract_draft_review from './20261020_130
 import * as migration_20261021_120000_mail_ai_client_and_follow_ups from './20261021_120000_mail_ai_client_and_follow_ups'
 import * as migration_20261022_120000_mail_accounts from './20261022_120000_mail_accounts'
 import * as migration_20261023_120000_client_retainer_change from './20261023_120000_client_retainer_change'
+import * as migration_20261024_120000_estimate_adjustments from './20261024_120000_estimate_adjustments'
 
 export const migrations = [
   {
@@ -1217,5 +1218,10 @@ export const migrations = [
     up: migration_20261023_120000_client_retainer_change.up,
     down: migration_20261023_120000_client_retainer_change.down,
     name: '20261023_120000_client_retainer_change',
+  },
+  {
+    up: migration_20261024_120000_estimate_adjustments.up,
+    down: migration_20261024_120000_estimate_adjustments.down,
+    name: '20261024_120000_estimate_adjustments',
   },
 ]

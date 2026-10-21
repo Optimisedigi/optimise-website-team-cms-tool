@@ -5,11 +5,45 @@ import { headers as nextHeaders } from "next/headers";
 import { userHasFeature } from "@/lib/access";
 import { fetchXeroMonthlyFinance } from "@/lib/finance/xero-finance";
 import { addMonths, isMonthKey, monthKeyOf, monthKeysBetween, periodContaining } from "@/lib/finance/periods";
-import { buildYearProjection, type ProjectionClient } from "@/lib/finance/year-projection";
+import {
+  buildYearProjection,
+  type ProjectionAdjustment,
+  type ProjectionClient,
+} from "@/lib/finance/year-projection";
 
 const MAX_RANGE_MONTHS = 24;
 /** Complete months behind the cost run rate. */
 const AVERAGE_MONTHS = 6;
+
+type PayloadClient = Awaited<ReturnType<typeof getPayload>>;
+
+/**
+ * Manual estimated invoices/costs for the period. A missing table (migration
+ * not run yet) shouldn't take the whole estimate down, so it reads as none.
+ */
+async function loadAdjustments(payload: PayloadClient, monthKeys: string[]): Promise<ProjectionAdjustment[]> {
+  try {
+    const result = await payload.find({
+      collection: "estimate-adjustments",
+      where: { month: { in: monthKeys } },
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+      sort: "createdAt",
+    });
+    return result.docs.map((d) => ({
+      id: d.id,
+      month: d.month,
+      kind: d.kind === "cost" ? "cost" : "invoiced",
+      amount: Number(d.amount) || 0,
+      description: d.description,
+      account: d.account ?? null,
+    }));
+  } catch (err) {
+    console.warn("[costs/projection] could not load estimate adjustments:", err instanceof Error ? err.message : err);
+    return [];
+  }
+}
 
 /**
  * Year-end estimate for a financial or calendar year: Xero so far, plus
@@ -67,7 +101,7 @@ export async function GET(request: NextRequest) {
     const fetchFrom = running && averageMonths[0] && averageMonths[0] < from ? averageMonths[0] : from;
     const fetchTo = running ? currentMonth : to;
 
-    const [xero, clientsResult] = await Promise.all([
+    const [xero, clientsResult, adjustments] = await Promise.all([
       fetchXeroMonthlyFinance({ from: fetchFrom, to: fetchTo }, { signal: request.signal }),
       payload.find({
         collection: "clients",
@@ -103,6 +137,7 @@ export async function GET(request: NextRequest) {
           retainerChangeAmount: true,
         },
       }),
+      loadAdjustments(payload, monthKeys),
     ]);
 
     if (!xero.ok) {
@@ -115,6 +150,7 @@ export async function GET(request: NextRequest) {
       actual: xero.data.months,
       averageMonths,
       clients: clientsResult.docs as ProjectionClient[],
+      adjustments,
     });
 
     return NextResponse.json({

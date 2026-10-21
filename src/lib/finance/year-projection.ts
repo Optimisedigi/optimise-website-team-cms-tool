@@ -14,6 +14,12 @@
  * - The current month counts the higher of Xero so far and the expected
  *   amount, per figure (and per cost category), so a half-finished month
  *   isn't treated as the whole month.
+ * - Manual adjustments (estimated invoices or costs entered on the Costs
+ *   page) are added on top of their month. Cost adjustments sit in their
+ *   chosen Xero category (or "Manual estimates") so the what-if toggles
+ *   apply to them too. They never feed the cost run rate.
+ * - Xero draft and scheduled invoices are not counted: Xero figures are
+ *   approved/paid invoices by invoice date.
  */
 
 import {
@@ -46,6 +52,29 @@ export interface ActualMonth {
 
 export type ProjectionMonthKind = "actual" | "current" | "estimate";
 
+export type ProjectionAdjustmentKind = "invoiced" | "cost";
+
+/** A manually entered estimated invoice or cost for one month. */
+export interface ProjectionAdjustment {
+  id: string | number;
+  month: string; // YYYY-MM
+  kind: ProjectionAdjustmentKind;
+  /** Ex-GST; negative reduces the month. */
+  amount: number;
+  description: string;
+  /** Cost category the amount belongs to (costs only); defaults to MANUAL_COST_ACCOUNT. */
+  account?: string | null;
+}
+
+/** Cost category for manual cost adjustments without a Xero category. */
+export const MANUAL_COST_ACCOUNT = "Manual estimates";
+
+export interface ProjectionRetainer {
+  id: string | number;
+  name: string;
+  amount: number;
+}
+
 export interface ProjectionMonth {
   month: string;
   kind: ProjectionMonthKind;
@@ -58,6 +87,12 @@ export interface ProjectionMonth {
   costsByAccount: Array<{ account: string; amount: number }>;
   /** Xero costs so far by category (empty for future months). */
   costsActualByAccount: Array<{ account: string; amount: number }>;
+  /** Expected retainer invoices by client (empty for past months). */
+  retainers: ProjectionRetainer[];
+  /** Sum of `retainers`. */
+  invoicedExpected: number;
+  /** Manual adjustments for this month, already included in invoiced/costs. */
+  adjustments: ProjectionAdjustment[];
   profit: number;
 }
 
@@ -178,6 +213,8 @@ export function buildYearProjection(input: {
   /** Complete months used for the cost run rate (months with no Xero activity are skipped). */
   averageMonths: string[];
   clients: ProjectionClient[];
+  /** Manual estimated invoices/costs; months outside `monthKeys` are ignored. */
+  adjustments?: ProjectionAdjustment[];
 }): YearProjection {
   const byMonth = new Map(input.actual.map((m) => [m.month, m]));
 
@@ -194,7 +231,20 @@ export function buildYearProjection(input: {
   const averageCosts = [...averageByAccount.values()].reduce((s, v) => s + v, 0);
 
   const clients = input.clients.filter(countsRetainer);
-  const expectedFor = (key: string) => clients.reduce((s, c) => s + expectedRetainerForMonth(c, key), 0);
+  const retainersFor = (key: string): ProjectionRetainer[] =>
+    clients
+      .map((c) => ({ id: c.id, name: String(c.name ?? `#${c.id}`), amount: round(expectedRetainerForMonth(c, key)) }))
+      .filter((r) => r.amount > 0)
+      .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+
+  const adjustmentsByMonth = new Map<string, ProjectionAdjustment[]>();
+  for (const a of input.adjustments ?? []) {
+    const amount = Number(a.amount);
+    if (!Number.isFinite(amount) || amount === 0) continue;
+    const list = adjustmentsByMonth.get(a.month) ?? [];
+    list.push({ ...a, amount: round(amount) });
+    adjustmentsByMonth.set(a.month, list);
+  }
 
   const months = input.monthKeys.map((key): ProjectionMonth => {
     const actual = byMonth.get(key);
@@ -204,26 +254,42 @@ export function buildYearProjection(input: {
     let kind: ProjectionMonthKind;
     let invoiced: number;
     let accounts: Map<string, number>;
+    const retainers = key < input.currentMonth ? [] : retainersFor(key);
+    const invoicedExpected = round(retainers.reduce((s, r) => s + r.amount, 0));
     if (key < input.currentMonth) {
       kind = "actual";
       invoiced = invoicedActual;
       accounts = accountsOf(actual);
     } else if (key === input.currentMonth) {
       kind = "current";
-      invoiced = Math.max(invoicedActual, expectedFor(key));
+      invoiced = Math.max(invoicedActual, invoicedExpected);
       accounts = accountsOf(actual);
       for (const [account, avg] of averageByAccount) {
         accounts.set(account, Math.max(accounts.get(account) ?? 0, avg));
       }
     } else {
       kind = "estimate";
-      invoiced = expectedFor(key);
+      invoiced = invoicedExpected;
       accounts = new Map(averageByAccount);
     }
+    const baseCosts =
+      kind === "actual" ? costsActual : [...accounts.values()].reduce((s, v) => s + round(v), 0);
+
+    const adjustments = adjustmentsByMonth.get(key) ?? [];
+    let costAdjustments = 0;
+    for (const a of adjustments) {
+      if (a.kind === "invoiced") {
+        invoiced += a.amount;
+      } else {
+        const account = a.account?.trim() || MANUAL_COST_ACCOUNT;
+        accounts.set(account, (accounts.get(account) ?? 0) + a.amount);
+        costAdjustments += a.amount;
+      }
+    }
+
     const costsByAccount = sortedAccounts(accounts);
     const costsActualByAccount = key <= input.currentMonth ? sortedAccounts(accountsOf(actual)) : [];
-    const costs =
-      kind === "actual" ? costsActual : round(costsByAccount.reduce((s, c) => s + c.amount, 0));
+    const costs = round(baseCosts + costAdjustments);
     invoiced = round(invoiced);
     return {
       month: key,
@@ -234,6 +300,9 @@ export function buildYearProjection(input: {
       costsActual,
       costsByAccount,
       costsActualByAccount,
+      retainers,
+      invoicedExpected,
+      adjustments,
       profit: round(invoiced - costs),
     };
   });
