@@ -640,6 +640,50 @@ export async function runMigrations(
   // on every client read, so a missing column breaks every client page. Runs
   // before the marker short-circuit so production receives it. Keep in sync
   // with src/migrations/20261023_120000_client_retainer_change.ts.
+  // Columns and one table the current collections expect but production never
+  // received: their statements sat after the marker short-circuit (or were never
+  // ported). Called from the current-marker branch (production) and the full sweep. Payload selects every column on a read, so each gap breaks that
+  // collection's pages. Additive only: nullable columns, or NOT NULL with a
+  // default, so existing rows are untouched. Found by diffing production against
+  // a database built fresh from the current config (2026-10-22).
+  async function addMissingCollectionSchema(): Promise<void> {
+    // Monthly keyword selection comment tags (array table holds live rows).
+    await run("monthly_keyword_selections_selections.outcome_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `outcome_comment_tagged_user_ids` text");
+    await run("monthly_keyword_selections_selections.removed_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_comment_tagged_user_ids` text");
+    // Job posts: client sign-off flag, on the collection and its versions table.
+    await run("job_posts.client_confirmed", "ALTER TABLE `job_posts` ADD `client_confirmed` integer DEFAULT false");
+    await run("_job_posts_v.version_client_confirmed", "ALTER TABLE `_job_posts_v` ADD `version_client_confirmed` integer DEFAULT false");
+    // Client metric snapshots: assessment fields.
+    await run("client_metric_snapshots.assessments_completed", "ALTER TABLE `client_metric_snapshots` ADD `assessments_completed` numeric DEFAULT 0 NOT NULL");
+    await run("client_metric_snapshots.assessment_target", "ALTER TABLE `client_metric_snapshots` ADD `assessment_target` numeric DEFAULT 500 NOT NULL");
+    // Google Ads proposal negatives: per-negative scope.
+    await run("gads_proposal_negatives.scope", "ALTER TABLE `gads_proposal_negatives` ADD `scope` text DEFAULT 'global'");
+    // Usage reports: current report fields (`year` is required in Payload; nullable here so the ALTER is allowed).
+    await run("usage_reports.label", "ALTER TABLE `usage_reports` ADD `label` text");
+    await run("usage_reports.year", "ALTER TABLE `usage_reports` ADD `year` numeric");
+    await run("usage_reports.seo_audits", "ALTER TABLE `usage_reports` ADD `seo_audits` numeric DEFAULT 0");
+    await run("usage_reports.cro_audits", "ALTER TABLE `usage_reports` ADD `cro_audits` numeric DEFAULT 0");
+    await run("usage_reports.keyword_snapshots", "ALTER TABLE `usage_reports` ADD `keyword_snapshots` numeric DEFAULT 0");
+    await run("usage_reports.total_keywords_tracked", "ALTER TABLE `usage_reports` ADD `total_keywords_tracked` numeric DEFAULT 0");
+    await run("usage_reports.estimated_costs", "ALTER TABLE `usage_reports` ADD `estimated_costs` text");
+    await run("usage_reports.total_estimated_cost", "ALTER TABLE `usage_reports` ADD `total_estimated_cost` numeric");
+    // Consolidation candidates: relationship columns (required in Payload;
+    // nullable here so the ALTER is allowed) and the exact-negatives array table.
+    await run("consolidation_candidates.client_id", "ALTER TABLE `consolidation_candidates` ADD `client_id` integer REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE set null");
+    await run("consolidation_candidates.nkl_id", "ALTER TABLE `consolidation_candidates` ADD `nkl_id` integer REFERENCES `negative_keyword_lists`(`id`) ON UPDATE no action ON DELETE set null");
+    await run("consolidation_candidates.approved_by_id", "ALTER TABLE `consolidation_candidates` ADD `approved_by_id` integer REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null");
+    await run("consolidation_candidates_client_idx", "CREATE INDEX IF NOT EXISTS `consolidation_candidates_client_idx` ON `consolidation_candidates` (`client_id`)");
+    await run("consolidation_candidates_nkl_idx", "CREATE INDEX IF NOT EXISTS `consolidation_candidates_nkl_idx` ON `consolidation_candidates` (`nkl_id`)");
+    await run("consolidation_candidates_approved_by_idx", "CREATE INDEX IF NOT EXISTS `consolidation_candidates_approved_by_idx` ON `consolidation_candidates` (`approved_by_id`)");
+    await run("consolidation_candidates_exact_negatives_to_remove", `CREATE TABLE IF NOT EXISTS \`consolidation_candidates_exact_negatives_to_remove\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL, \`keyword\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`consolidation_candidates\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("consolidation_candidates_exact_negatives_to_remove_order_idx", "CREATE INDEX IF NOT EXISTS `consolidation_candidates_exact_negatives_to_remove_order_idx` ON `consolidation_candidates_exact_negatives_to_remove` (`_order`)");
+    await run("consolidation_candidates_exact_negatives_to_remove_parent_id_idx", "CREATE INDEX IF NOT EXISTS `consolidation_candidates_exact_negatives_to_remove_parent_id_idx` ON `consolidation_candidates_exact_negatives_to_remove` (`_parent_id`)");
+  }
+
   async function addClientRetainerChange(): Promise<void> {
     await run("clients.retainer_change_action", "ALTER TABLE `clients` ADD `retainer_change_action` text");
     await run("clients.retainer_change_date", "ALTER TABLE `clients` ADD `retainer_change_date` text");
@@ -1038,6 +1082,10 @@ export async function runMigrations(
       // Newest landing table: domain mappings, added after the marker shipped.
       (await tableExists("landing_domains"))
     ) {
+      // Current production takes this branch, so schema it is missing is
+      // applied here (kept out of the shared pre-check above, which must stay
+      // small for the older-marker fast path's timeout budget).
+      await addMissingCollectionSchema();
       const result: MigrationResult = { label: `mark_migration:${currentSchemaMarker}`, status: "skip", message: "already applied" };
       opts?.onProgress?.(result);
       results.push(result);
@@ -6041,6 +6089,8 @@ export async function runMigrations(
     // Scheduled retainer change columns: applied by addClientRetainerChange()
     // above, before the marker short-circuit, so production receives them too.
     await addClientRetainerChange();
+    // Production receives these in the marker branch above; fresh databases here.
+    await addMissingCollectionSchema();
 
     // ── AI Visibility / SERP Monitor groups on clients (2026-04-20) ──
     // Ports migration 20260420_140000. Group fields flatten to snake_case

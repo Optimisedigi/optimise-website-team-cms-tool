@@ -45,6 +45,33 @@ describe("runMigrations", () => {
     expect(statements).toContain("ALTER TABLE `clients` ADD `retainer_change_amount` numeric");
   });
 
+  it("adds the columns production was missing before the schema-marker shortcut", async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.startsWith("SELECT") && sql.includes("20260814_133000_add_landing_lock_relations")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("sqlite_master") && sql.includes("landing_")) return { rows: [{ name: "landing_events" }] };
+      if (sql === "PRAGMA table_info(`landing_events`)") return { rows: [{ name: "market" }] };
+      return { rows: [] };
+    });
+
+    const results = await runMigrations({ db: { client: { execute } } } as any);
+    const labels = results.map((r) => r.label);
+
+    expect(labels).toContain("mark_migration:20260814_133000_add_landing_lock_relations");
+    for (const label of [
+      "monthly_keyword_selections_selections.outcome_comment_tagged_user_ids",
+      "monthly_keyword_selections_selections.removed_comment_tagged_user_ids",
+      "job_posts.client_confirmed",
+      "_job_posts_v.version_client_confirmed",
+      "client_metric_snapshots.assessment_target",
+      "gads_proposal_negatives.scope",
+      "usage_reports.year",
+      "consolidation_candidates.client_id",
+      "consolidation_candidates_exact_negatives_to_remove",
+    ]) {
+      expect(labels).toContain(label);
+    }
+  });
+
   it("keeps stored KPI values and skips the repair when run twice", async () => {
     const db = createClient({ url: ":memory:" });
     try {
