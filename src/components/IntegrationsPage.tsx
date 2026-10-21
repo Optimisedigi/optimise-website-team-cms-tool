@@ -178,7 +178,7 @@ const IntegrationsPage = () => {
   }
 
   return (
-    <div className="od-settings">
+    <div className="od-settings od-integrations">
       <h2 className="od-settings__title">Integrations</h2>
       <p className="od-settings__subtitle">Manage platform connections for your agency.</p>
 

@@ -113,6 +113,63 @@
   font: inherit;
 }
 
+.recipientBox {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.recipientBox input {
+  width: 100%;
+}
+
+.recipientList {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 264px;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
+}
+
+.recipientOption {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.recipientOption[aria-selected='true'] {
+  background: var(--theme-elevation-100);
+}
+
+.field .recipientName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field .recipientEmail {
+  font-size: 13px;
+  color: var(--theme-elevation-650);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ccToggle {
   border: 0;
   background: none;
@@ -1129,6 +1186,11 @@
   .colorCell {
     width: 28px;
     height: 28px;
+  }
+
+  .recipientOption {
+    min-height: 44px;
+    justify-content: center;
   }
 
   .ccToggle {

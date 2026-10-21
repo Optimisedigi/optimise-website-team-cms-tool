@@ -193,6 +193,17 @@
   border-bottom: 1px solid rgba(122, 106, 88, 0.35);
 }
 
+/* A 44px tap area without changing how the link looks. */
+.od-launch .od-launch__forgot {
+  position: relative;
+}
+
+.od-launch .od-launch__forgot::after {
+  content: '';
+  position: absolute;
+  inset: -12px -8px;
+}
+
 .od-launch .od-launch__forgot:hover {
   color: var(--od-ink);
 }

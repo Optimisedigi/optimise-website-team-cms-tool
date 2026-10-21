@@ -13,11 +13,11 @@ import { getVisibleEntities, getCustomViewActions } from "@/lib/visible-entities
 import AdminStepNavSetter from "@/components/AdminStepNavSetter";
 import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import AgentApprovalsBulkActions from "./BulkActions";
+import styles from "./approvals.module.css";
 
 export const dynamic = "force-dynamic";
 
 const CMS_BLUE = "#0b5394";
-const CMS_GOLD = "#f2b705";
 
 const PAGE_STYLE: React.CSSProperties = {
   fontFamily: "var(--font-body, system-ui, -apple-system, sans-serif)",
@@ -120,6 +120,7 @@ export default async function AgentApprovalsListPage({
   });
 
   const rows = result.docs as unknown as ApprovalListRow[];
+  const now = Date.now();
 
   const req = await createLocalReq({ user: user ?? undefined }, payload);
 
@@ -136,27 +137,16 @@ export default async function AgentApprovalsListPage({
       <AdminStepNavSetter items={[{ label: "OptiMate Approvals" }]} />
       <div className="gutter--left gutter--right">
         <div style={PAGE_STYLE}>
-          <div
-            style={{
-              background: `linear-gradient(135deg, ${CMS_BLUE}, #083763)`,
-              color: "#fff",
-              borderRadius: 16,
-              padding: 22,
-              marginBottom: 18,
-              boxShadow: "0 14px 40px rgba(11, 83, 148, 0.22)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div className={styles.hero}>
+            <div className={styles.heroRow}>
               <div>
-                <div style={{ color: CMS_GOLD, fontSize: 12, fontWeight: 700, letterSpacing: 0.7, textTransform: "uppercase" }}>
-                  Optimise Digital CMS
-                </div>
-                <h1 style={{ fontSize: 28, margin: "4px 0 6px" }}>OptiMate approvals</h1>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.82)", margin: 0 }}>
+                <div className={styles.heroEyebrow}>Optimise Digital CMS</div>
+                <h1 className={styles.heroTitle}>OptiMate approvals</h1>
+                <p className={styles.heroLede}>
                   Review OptiMate recommendations before anything changes in a client account.
                 </p>
               </div>
-              <a href="/admin/agent-auth" style={{ fontSize: 12, color: "#fff", textDecoration: "none", fontWeight: 700 }}>
+              <a href="/admin/agent-auth" className={styles.heroLink}>
                 Agent auth →
               </a>
             </div>
@@ -164,6 +154,7 @@ export default async function AgentApprovalsListPage({
 
           <form
             method="get"
+            className={styles.desktopOnly}
             style={{
               display: "flex",
               gap: 8,
@@ -212,7 +203,44 @@ export default async function AgentApprovalsListPage({
             </button>
           </form>
 
-          <AgentApprovalsBulkActions rows={rows.map((row) => ({ id: row.id, title: row.title, status: row.status }))} />
+          <details className={`${styles.phoneOnly} ${styles.filters}`}>
+            <summary>Filters</summary>
+            <form method="get" className={styles.filtersForm}>
+              <label>
+                Status
+                <select name="status" defaultValue={status}>
+                  {STATUS_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Agent
+                <input type="text" name="agentName" defaultValue={agentName} placeholder="optimate-google-ads" />
+              </label>
+              <label>
+                Client ID
+                <input type="text" name="client" defaultValue={clientFilter} inputMode="numeric" />
+              </label>
+              <button type="submit" className={styles.filtersSubmit}>
+                Filter
+              </button>
+            </form>
+          </details>
+
+          <AgentApprovalsBulkActions
+            rows={rows.map((row) => ({
+              id: row.id,
+              title: row.title,
+              status: row.status,
+              agentName: row.agentName,
+              clientLabel: renderClient(row.client),
+              age: formatAge(row.createdAt, now),
+              href: agentApprovalPath(row.id),
+            }))}
+          />
 
           {rows.length === 0 ? (
             <div
@@ -228,7 +256,7 @@ export default async function AgentApprovalsListPage({
               No approvals found for the current filter.
             </div>
           ) : (
-            <table style={TABLE_STYLE}>
+            <table className={styles.desktopOnly} style={TABLE_STYLE}>
               <thead>
                 <tr>
                   <th style={TH}>Title</th>
@@ -293,6 +321,27 @@ export default async function AgentApprovalsListPage({
       </div>
     </DefaultTemplate>
   );
+}
+
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "applied", label: "Applied" },
+  { value: "failed", label: "Failed" },
+  { value: "all", label: "All" },
+] as const;
+
+/** Short relative age for the phone cards ("5m ago", "3h ago", "2d ago"). */
+function formatAge(createdAt: string, now: number): string {
+  const ms = now - new Date(createdAt).getTime();
+  if (!Number.isFinite(ms)) return "";
+  const minutes = Math.max(0, Math.floor(ms / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 function renderClient(client: ApprovalListRow["client"]): string {

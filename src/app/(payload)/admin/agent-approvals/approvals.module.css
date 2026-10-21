@@ -1,0 +1,268 @@
+/* OptiMate approvals list. Desktop keeps the table; phones (≤768px) get cards. */
+
+.hero {
+  background: linear-gradient(135deg, #0b5394, #083763);
+  color: #fff;
+  border-radius: 16px;
+  padding: 22px;
+  margin-bottom: 18px;
+  box-shadow: 0 14px 40px rgba(11, 83, 148, 0.22);
+}
+
+.heroRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.heroEyebrow {
+  color: #f2b705;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  font-size: 28px;
+  margin: 4px 0 6px;
+}
+
+.heroLede {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+  margin: 0;
+}
+
+.heroLink {
+  font-size: 12px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.phoneOnly {
+  display: none;
+}
+
+/* ── Phone cards ── */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--theme-elevation-150, #dfe3ea);
+  border-radius: 12px;
+  background: var(--theme-elevation-0, #fff);
+}
+
+.cardSelected {
+  border-color: #0b5394;
+  box-shadow: 0 0 0 1px #0b5394;
+}
+
+.cardMain {
+  display: flex;
+  gap: 8px;
+  cursor: pointer;
+}
+
+div.cardMain {
+  cursor: default;
+}
+
+.cardSelect {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  height: 44px;
+  margin: -10px 0 0 -10px;
+}
+
+.cardSelect input {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: #0b5394;
+}
+
+.cardBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cardTitle {
+  display: block;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--theme-elevation-50, #f3f4f6);
+  color: var(--theme-elevation-700, #374151);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 8px;
+  background: #0b5394;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.stickyBar {
+  position: sticky;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--theme-elevation-150, #dfe3ea);
+  border-radius: 12px;
+  background: var(--theme-elevation-0, #fff);
+  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.12);
+}
+
+.stickyBar button {
+  flex: 1;
+  min-height: 44px;
+  font-size: 15px;
+}
+
+/* ── Phone filters ── */
+.filters {
+  margin-bottom: 12px;
+  border: 1px solid var(--theme-elevation-150, #dfe3ea);
+  border-radius: 12px;
+  background: var(--theme-elevation-0, #fff);
+}
+
+.filters summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filtersForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.filtersForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.filtersForm input,
+.filtersForm select,
+.filtersForm button {
+  width: 100%;
+  min-height: 44px;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  /* !important: the desktop form/bar carry inline display styles. */
+  .desktopOnly {
+    display: none !important;
+  }
+
+  .phoneOnly {
+    display: block;
+  }
+
+  .hero {
+    background: none;
+    color: inherit;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 12px;
+    box-shadow: none;
+  }
+
+  .heroEyebrow,
+  .heroLede {
+    display: none;
+  }
+
+  .heroRow {
+    align-items: center;
+  }
+
+  .heroTitle {
+    font-size: 22px;
+    margin: 0;
+  }
+
+  .heroLink {
+    color: #0b5394;
+  }
+}
+
+.filtersForm input,
+.filtersForm select {
+  padding: 0 10px;
+  border: 1px solid var(--theme-elevation-200, #d1d5db);
+  border-radius: 8px;
+  background: var(--theme-elevation-0, #fff);
+  color: inherit;
+}
+
+.filtersSubmit {
+  border: none;
+  border-radius: 8px;
+  background: #0b5394;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}

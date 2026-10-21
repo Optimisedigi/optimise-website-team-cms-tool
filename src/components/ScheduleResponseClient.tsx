@@ -436,7 +436,7 @@ export default function ScheduleResponseClient({
         Once everyone has responded, we'll match availability and send a calendar invite for the first slot that works for all attendees.
       </p>
 
-      <div style={styles.declinePrompt}>
+      <div style={styles.declinePrompt} data-testid="schedule-decline-row">
         <span style={styles.declinePromptText}>
           Can't make this meeting? No need to pick a time.
         </span>
@@ -974,15 +974,19 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#f8fafc',
     border: '1px solid #e7edf6',
     borderRadius: 12,
-    flexWrap: 'wrap' as const,
+    flexWrap: 'nowrap' as const,
   },
   declinePromptText: {
+    flex: '1 1 auto',
+    minWidth: 0,
     fontSize: 13,
     color: '#476788',
     fontWeight: 500,
   },
   declineButton: {
-    padding: '4px 14px',
+    flex: '0 0 auto',
+    minHeight: 44,
+    padding: '4px 16px',
     background: '#ffffff',
     color: '#b91c1c',
     border: '1px solid #fca5a5',

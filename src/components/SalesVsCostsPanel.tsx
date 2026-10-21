@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { InfoNote } from './InfoNote'
 import { COSTS_IMPORTED_EVENT } from '@/lib/finance/events'
 import { excludeCostAccounts, type PnlMonth, type PnlTotals } from '@/lib/finance/monthly-pnl'
 
@@ -160,9 +161,9 @@ export function SalesVsCostsPanel({ from, to, label, toDate = false }: SalesVsCo
       {!error && !data && loading && <div style={{ fontSize: 13, color: 'var(--theme-elevation-400)' }}>Loading…</div>}
 
       {!error && data?.source === 'bank' && data.xeroUnavailable && (
-        <div role="status" style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', marginBottom: 14 }}>
+        <InfoNote role="status" label="About these figures" style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', marginBottom: 14 }}>
           Showing bank statement and client record figures. {XERO_UNAVAILABLE_TEXT[data.xeroUnavailable]}
-        </div>
+        </InfoNote>
       )}
 
       {!error && data && view && (

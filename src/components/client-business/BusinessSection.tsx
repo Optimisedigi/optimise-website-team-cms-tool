@@ -25,6 +25,10 @@ import type { ClientField, GroupFieldClientComponent } from 'payload'
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { BusinessPanelContext } from './business-panel-context'
 import { WeCanQuitSyncedLabel } from './WeCanQuitStatsField'
+import { useIsMobileViewport } from '../../lib/swipe'
+
+/** On phones every plain section except this one starts collapsed. */
+const PHONE_OPEN_SECTION = 'identity'
 
 type SectionConfig = {
   id: string
@@ -120,9 +124,28 @@ const BusinessSection: GroupFieldClientComponent = (props) => {
 
   const [open, setOpen] = useState(!config.collapsible)
   const switchOn = useSwitchValue(config.switchPath)
-  const bodyVisible = open && (!config.hideBodyWhenOff || switchOn)
-
   const childFields = field.fields
+
+  // Phones: plain sections collapse to their header so the Business tab is a
+  // short list; Identity stays open. A failed save opens any section that
+  // holds an error, so a message is never hidden.
+  const isPhone = useIsMobileViewport(768)
+  const phoneCollapsible = isPhone && !config.collapsible && config.id !== PHONE_OPEN_SECTION
+  const [phoneOpen, setPhoneOpen] = useState(false)
+  const sectionNames = useMemo(() => dataNamesOf(childFields), [childFields])
+  const sectionSubmitted = useFormSubmitted()
+  const sectionHasError = useFormFields(([fields]) =>
+    Object.entries(fields).some(
+      ([key, state]) =>
+        state?.valid === false && sectionNames.some((n) => key === n || key.startsWith(`${n}.`)),
+    ),
+  )
+  useEffect(() => {
+    if (sectionSubmitted && sectionHasError) setPhoneOpen(true)
+  }, [sectionSubmitted, sectionHasError])
+
+  const bodyVisible = open && (!config.hideBodyWhenOff || switchOn) && (!phoneCollapsible || phoneOpen)
+
   const panels = useMemo(
     () =>
       config.panels
@@ -233,15 +256,42 @@ const BusinessSection: GroupFieldClientComponent = (props) => {
       </header>
     )
   } else {
+    const phoneTitleBlock = (
+      <span className="od-biz-section__titles">
+        <h2 className="od-biz-section__title" id={headingId}>
+          <button
+            type="button"
+            className="od-biz-section__phone-toggle"
+            aria-expanded={phoneOpen}
+            aria-controls={bodyId}
+            onClick={() => setPhoneOpen((v) => !v)}
+          >
+            {title}
+            <svg
+              className="od-biz-section__phone-chev"
+              data-open={phoneOpen}
+              viewBox="0 0 20 20"
+              width="16"
+              height="16"
+              aria-hidden
+              focusable="false"
+            >
+              <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          </button>
+        </h2>
+        {description && phoneOpen && <span className="od-biz-section__desc">{description}</span>}
+      </span>
+    )
     header = (
       <header
         className={`od-biz-section__header${panels.length ? ' od-biz-section__header--tabs' : ''}`}
       >
         <div className="od-biz-section__header-row">
-          {titleBlock}
+          {phoneCollapsible ? phoneTitleBlock : titleBlock}
           {headerExtras}
         </div>
-        {panels.length > 0 && (
+        {panels.length > 0 && (!phoneCollapsible || phoneOpen) && (
           <div className="od-biz-subtabs" role="tablist" aria-labelledby={headingId}>
             {panels.map((panel) => {
               const selected = panel.id === activePanel

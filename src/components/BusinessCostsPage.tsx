@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { InfoNote } from './InfoNote'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { COSTS_IMPORTED_EVENT } from '@/lib/finance/events'
 import { SalesVsCostsPanel } from '@/components/SalesVsCostsPanel'
@@ -413,8 +414,8 @@ const BusinessCostsPage = () => {
       {/* Header: reporting period for the whole page */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Business Costs</h1>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div role="group" aria-label="Year type" style={{ display: 'flex', gap: 4 }}>
+        <div className="od-costs-period" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div role="group" aria-label="Year type" className="od-costs-period__toggle" style={{ display: 'flex', gap: 4 }}>
             {([['fy', 'Financial year'], ['cy', 'Calendar year']] as const).map(([value, label]) => {
               const active = periodMode === value
               return (
@@ -445,7 +446,9 @@ const BusinessCostsPage = () => {
         </div>
       </div>
 
-      <SalesVsCostsPanel from={range.from} to={range.to} label={range.label} toDate={range.toDate} />
+      <div className="od-costs-sales">
+        <SalesVsCostsPanel from={range.from} to={range.to} label={range.label} toDate={range.toDate} />
+      </div>
 
       {/* Monthly breakdown: one month of the selected period */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -483,14 +486,14 @@ const BusinessCostsPage = () => {
       </div>
 
       {isXero ? (
-        <div role="note" style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-600)', marginBottom: 16, lineHeight: 1.5 }}>
+        <InfoNote role="note" label="About these costs" style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-600)', marginBottom: 16, lineHeight: 1.5 }}>
           Costs below come from Xero: bills and reconciled bank transactions, ex-GST, grouped by your Xero accounts. Bank feed lines appear once they&rsquo;re reconciled in Xero.
           To set a budget, give a Cost Category the same name as the Xero account. Switch to <strong>Imported CSV</strong> to see uploaded statements.
-        </div>
+        </InfoNote>
       ) : data.xeroUnavailable && data.xeroUnavailable !== 'not_configured' ? (
-        <div role="status" style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', marginBottom: 16 }}>
+        <InfoNote role="status" label="About the cost source" style={{ fontSize: 12, padding: '8px 12px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', marginBottom: 16 }}>
           Xero isn&rsquo;t available right now, so the costs below come from imported bank statements and manual entries.
-        </div>
+        </InfoNote>
       ) : null}
 
       {/* Alerts */}

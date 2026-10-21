@@ -36,6 +36,30 @@ type CardState =
 
 const GMAIL_SETUP_ERRORS = new Set(['gmail-not-connected', 'scope-insufficient'])
 
+/** The API reason is also read by agents/tools, so it is reworded here rather than on the server. */
+const GMAIL_NOT_CONNECTED_COPY = 'Gmail isn\u2019t connected yet. Connect it to see client emails here.'
+
+function setupMessage(error: string, reason: string | undefined): string {
+  if (error === 'gmail-not-connected' || (reason && /gmail not connected for this user/i.test(reason))) {
+    return GMAIL_NOT_CONNECTED_COPY
+  }
+  return reason || 'Connect Gmail to see unread client emails.'
+}
+
+const connectButton = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: 44,
+  padding: '0 18px',
+  borderRadius: 8,
+  background: '#0b5394',
+  color: '#fff',
+  fontSize: 14,
+  fontWeight: 600,
+  textDecoration: 'none',
+} as const
+
 function isClientUnreadResponse(value: unknown): value is ClientUnreadResponse {
   const v = value as Partial<ClientUnreadResponse> | null
   return Boolean(v) && typeof v?.clientSenderCount === 'number' && Array.isArray(v?.emails)
@@ -64,7 +88,7 @@ async function loadClientUnread(signal: AbortSignal): Promise<CardState> {
   if (body?.error && GMAIL_SETUP_ERRORS.has(body.error)) {
     return {
       status: 'error',
-      message: body.reason || 'Connect Gmail to see unread client emails.',
+      message: setupMessage(body.error, body.reason),
       connectUrl: body.connectUrl,
     }
   }
@@ -127,9 +151,11 @@ export default function ClientUnreadMailCard() {
           <p style={mutedText}>Loading unread client emails...</p>
         ) : state.status === 'error' ? (
           <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <p style={{ ...mutedText, color: 'var(--theme-error-500, #dc2626)' }}>{state.message}</p>
+            <p style={{ ...mutedText, color: state.connectUrl ? 'var(--theme-elevation-800)' : 'var(--theme-error-500, #dc2626)' }}>
+              {state.message}
+            </p>
             {state.connectUrl ? (
-              <a href={state.connectUrl} style={{ ...headLink, textDecoration: 'underline' }}>
+              <a href={state.connectUrl} style={connectButton}>
                 Connect Gmail
               </a>
             ) : (

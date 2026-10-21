@@ -100,10 +100,13 @@
 }
 
 .blog-prompter__client-form label {
-  font-size: 12px;
-  color: var(--bp-faint);
-  font-family: var(--bp-mono);
+  color: var(--bp-ink);
+  font-size: 13px;
+  font-weight: 500;
 }
+
+.blog-prompter__client-control { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.blog-prompter__client-hint { color: var(--bp-faint); font-size: 12px; }
 
 .blog-prompter__client-form select,
 .blog-prompter__filter-select {
@@ -251,7 +254,7 @@
 .blog-prompter__card-pad { padding: 22px 24px 24px; }
 .blog-prompter__form-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
@@ -291,8 +294,7 @@
 .blog-prompter .voice-field-textarea { min-height: 84px; line-height: 1.5; resize: vertical; }
 .blog-prompter .mic-icon { inset-inline-end: 8px; color: #68727b; }
 
-.blog-prompter__idea-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
-.blog-prompter__idea-field { flex: 1 1 320px; min-width: 0; }
+.blog-prompter__idea-helper { padding: 14px; border: 1px solid var(--bp-line-soft); border-radius: 10px; background: #fafcfb; }
 .blog-prompter__grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
 
 .blog-prompter button { font: inherit; cursor: pointer; }
@@ -386,6 +388,11 @@
   .blog-prompter__row-actions { margin-inline-start: auto; }
   .blog-prompter__card-pad { padding: 20px 16px; }
   .blog-prompter__actions > * { flex: 1 1 145px; }
+}
+
+/* Phones: keep the last fields (Title idea mic etc.) clear of the floating OptiMate launcher. */
+@media (max-width: 768px) {
+  .blog-prompter { padding-bottom: 96px; }
 }
 
 @media (max-width: 420px) {

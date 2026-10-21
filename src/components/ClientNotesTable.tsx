@@ -168,6 +168,8 @@ function ClientNotesTable(props: any) {
         <table
           style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}
         >
+          {/* Column headings only once there is something to label. */}
+          {entries.length > 0 && (
           <thead>
             <tr>
               <th style={headerStyle}>Note</th>
@@ -175,6 +177,7 @@ function ClientNotesTable(props: any) {
               <th style={{ ...headerStyle, width: 44, textAlign: 'center' }}></th>
             </tr>
           </thead>
+          )}
           <tbody>
             {entries.length === 0 && (
               <tr>
@@ -188,7 +191,7 @@ function ClientNotesTable(props: any) {
                     fontStyle: 'italic',
                   }}
                 >
-                  No notes yet — click &quot;+ Add Note&quot; to add one
+                  No notes yet — tap &ldquo;+ Add Note&rdquo; to add one
                 </td>
               </tr>
             )}

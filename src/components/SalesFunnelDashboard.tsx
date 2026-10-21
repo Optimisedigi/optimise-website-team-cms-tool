@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useIsMobileViewport } from '../lib/swipe'
 
 interface FunnelStage {
   stage: string
@@ -83,6 +84,7 @@ function winRateClass(rate: number): string {
 const SalesFunnelDashboard = () => {
   const [data, setData] = useState<SalesFunnelData | null>(null)
   const [loading, setLoading] = useState(true)
+  const isPhone = useIsMobileViewport(768)
 
   useEffect(() => {
     setLoading(true)
@@ -112,6 +114,7 @@ const SalesFunnelDashboard = () => {
   }
 
   const stages = buildMockStages(data)
+  const totalChannelLeads = data.channels.reduce((sum, channel) => sum + channel.total, 0)
   const maxCount = Math.max(...stages.map((stage) => stage.count), 1)
   const conversions = [
     { label: 'Lead → Qualified', rate: safeRate(stages[1]?.count || 0, stages[0]?.count || 0) },
@@ -182,6 +185,36 @@ const SalesFunnelDashboard = () => {
         <div className="od-box__head">
           <span className="od-box__title">Lead Channel Performance</span>
         </div>
+        {isPhone ? (
+          // Phones: a ranked list instead of the 8-column table.
+          <ol className="od-channel-rank" aria-label="Lead channels ranked by leads">
+            {[...data.channels]
+              .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
+              .map((channel) => {
+                const share = totalChannelLeads > 0 ? Math.round((channel.total / totalChannelLeads) * 100) : 0
+                return (
+                  <li key={channel.channel} className="od-channel-rank__row">
+                    <div className="od-channel-rank__top">
+                      <span className="od-mock-funnel__channel">
+                        <span style={{ background: channel.color }} />
+                        {channel.label}
+                      </span>
+                      <span className="od-channel-rank__leads">
+                        <b>{channel.total}</b> lead{channel.total === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <div className="od-channel-rank__bar" role="img" aria-label={`${share}% of leads`}>
+                      <span style={{ width: `${share}%`, background: channel.color }} />
+                    </div>
+                    <div className="od-channel-rank__meta">
+                      {share}% of leads · {channel.won} won ·{' '}
+                      <span className={winRateClass(channel.conversionRate)}>{channel.conversionRate}% win rate</span>
+                    </div>
+                  </li>
+                )
+              })}
+          </ol>
+        ) : (
         <div style={{ overflowX: 'auto' }}>
           <table className="od-table">
             <thead>
@@ -223,6 +256,7 @@ const SalesFunnelDashboard = () => {
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>
   )

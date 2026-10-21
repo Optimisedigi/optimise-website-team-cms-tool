@@ -1,5 +1,7 @@
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/components/AdminStepNavSetter', () => ({ default: () => null }))
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import TeamTasksSpreadsheet from '@/components/TeamTasksSpreadsheet'
 

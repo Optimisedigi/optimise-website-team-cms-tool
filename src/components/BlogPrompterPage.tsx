@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { buildBlogPrompt, findCategoryTone, parsePromptLines } from '@/lib/blog-prompter'
 import VoiceField from './VoiceField'
+import BlogIdeaVoiceChat from './BlogIdeaVoiceChat'
+import type { BlogIdeaDraft } from '@/lib/contentmate/blog-idea'
 import './BlogPrompterPage.css'
 
 // ─── Types ────────────────────────────────────────────────
@@ -181,6 +183,7 @@ const BlogPrompterPage = () => {
   const [showPublishedProposed, setShowPublishedProposed] = useState(false)
   const [proposedTagFilter, setProposedTagFilter] = useState('')
   const [suggesting, setSuggesting] = useState(false)
+  const [ideaHelperOpen, setIdeaHelperOpen] = useState(false)
   const [suggestMsg, setSuggestMsg] = useState('')
   const [suggestElapsed, setSuggestElapsed] = useState(0)
   const suggestTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -243,6 +246,25 @@ const BlogPrompterPage = () => {
       category: cats.length > 0 ? (cats.includes(prev.category) ? prev.category : '') : prev.category,
       tag: tags.length > 0 ? (tags.includes(prev.tag) ? prev.tag : '') : prev.tag,
     }))
+  }
+
+  // Runs only after the user presses Confirm in the AI suggest panel.
+  const applyIdeaDraft = (draft: BlogIdeaDraft): string => {
+    setFields((prev) => ({
+      ...prev,
+      blogIdea: draft.blogIdea || prev.blogIdea,
+      titleIdea: draft.titleIdea || prev.titleIdea,
+      category: draft.category && (clientCategories.length === 0 || clientCategories.includes(draft.category)) ? draft.category : prev.category,
+      tag: draft.tag && (clientTags.length === 0 || clientTags.includes(draft.tag)) ? draft.tag : prev.tag,
+      targetAudience: draft.targetAudience || prev.targetAudience,
+      mainPoint: draft.mainPoint || prev.mainPoint,
+      keyPoints: draft.keyPoints || prev.keyPoints,
+      primaryKeywords: draft.primaryKeywords || prev.primaryKeywords,
+      secondaryKeywords: draft.secondaryKeywords || prev.secondaryKeywords,
+      pointsToAvoid: draft.pointsToAvoid || prev.pointsToAvoid,
+      supportingContent: draft.supportingContent || prev.supportingContent,
+    }))
+    return 'Blog idea added to the brief.'
   }
 
   const handleGenerate = () => {
@@ -526,6 +548,7 @@ const BlogPrompterPage = () => {
             </div>
             <div className="blog-prompter__client-form">
               <label htmlFor="blog-prompter-client">Client</label>
+              <div className="blog-prompter__client-control">
               <select
                 id="blog-prompter-client"
                 value={selectedClientId}
@@ -536,6 +559,8 @@ const BlogPrompterPage = () => {
                   <option key={client.id} value={String(client.id)}>{client.name}</option>
                 ))}
               </select>
+              {!selectedClient && <span className="blog-prompter__client-hint">Select a client before saving</span>}
+              </div>
             </div>
           </div>
 
@@ -676,32 +701,48 @@ const BlogPrompterPage = () => {
         <section className="blog-prompter__card blog-prompter__card-pad" aria-labelledby="brief-details-heading">
           <div className="blog-prompter__form-head">
             <h2 id="brief-details-heading">Brief details</h2>
-            <span className="blog-prompter__meta">{selectedClient ? selectedClient.name : 'Select a client before saving'}</span>
+            <button
+              className="blog-prompter__button blog-prompter__button--purple"
+              type="button"
+              aria-expanded={ideaHelperOpen}
+              aria-controls="blog-prompter-idea-helper"
+              onClick={() => setIdeaHelperOpen((open) => !open)}
+              title="Talk or type your blog idea with GPT Live; confirm before it fills the brief"
+            >
+              {ideaHelperOpen ? 'Close AI suggest' : 'AI suggest'}
+            </button>
           </div>
 
           <div className="blog-prompter__form-body">
-            <Field label="Blog idea" required>
-              <div className="blog-prompter__idea-row">
-                <div className="blog-prompter__idea-field">
-                  <VoiceField
-                    value={fields.blogIdea}
-                    ariaLabel="Blog idea"
-                    required
-                    onChange={(value) => setFields((previous) => ({ ...previous, blogIdea: value }))}
-                    placeholder="e.g. Why page speed matters for local SEO"
-                    autoGrow
-                  />
-                </div>
-                <button
-                  className="blog-prompter__button blog-prompter__button--purple"
-                  type="button"
-                  onClick={handleSuggest}
-                  disabled={suggesting}
-                  title="Let AI recommend the rest of the brief from your blog idea"
-                >
-                  {suggesting ? `Thinking... ${suggestElapsed}s` : 'AI suggest'}
-                </button>
+            {ideaHelperOpen && (
+              <div id="blog-prompter-idea-helper" className="blog-prompter__idea-helper">
+                <BlogIdeaVoiceChat
+                  clientName={selectedClient?.name}
+                  confirmLabel="Confirm & fill brief"
+                  onConfirm={applyIdeaDraft}
+                  extraActions={(
+                    <button
+                      className="blog-prompter__button blog-prompter__button--ghost"
+                      type="button"
+                      onClick={handleSuggest}
+                      disabled={suggesting}
+                      title="Let AI recommend the rest of the brief from your blog idea"
+                    >
+                      {suggesting ? `Thinking... ${suggestElapsed}s` : 'Suggest for me'}
+                    </button>
+                  )}
+                />
               </div>
+            )}
+            <Field label="Blog idea" required>
+              <VoiceField
+                value={fields.blogIdea}
+                ariaLabel="Blog idea"
+                required
+                onChange={(value) => setFields((previous) => ({ ...previous, blogIdea: value }))}
+                placeholder="e.g. Why page speed matters for local SEO"
+                autoGrow
+              />
               {suggestMsg && (
                 <span
                   className="blog-prompter__message"

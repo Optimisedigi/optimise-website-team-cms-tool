@@ -390,15 +390,22 @@ export default function XeroInvoicesPage() {
       <div style={{ padding: '40px 0' }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Xero Invoices</h2>
         <div style={{ ...card, padding: '40px 20px', textAlign: 'center' }}>
-          <p style={{ color: '#ef4444', fontSize: 14, margin: '0 0 12px' }}>
-            {error || 'Could not load Xero data'}
+          <p role="alert" style={{ color: 'var(--theme-text)', fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>
+            Invoices couldn’t load right now.
           </p>
-          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
-            Check that Growth Tools is running and Xero OAuth tokens are valid.
-          </p>
-          <button type="button" onClick={handleRefresh} style={{ ...refreshBtn, marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{ ...refreshBtn, minHeight: 44, padding: '0 20px', marginTop: 12 }}
+          >
             {refreshing ? 'Retrying...' : 'Retry'}
           </button>
+          <details style={{ marginTop: 16, fontSize: 13, color: 'var(--theme-elevation-500)' }}>
+            <summary style={{ cursor: 'pointer', minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Details</summary>
+            <p style={{ margin: '8px 0 4px' }}>{error || 'Could not load Xero data'}</p>
+            <p style={{ margin: 0 }}>Check that Growth Tools is running and Xero OAuth tokens are valid.</p>
+          </details>
         </div>
       </div>
     )

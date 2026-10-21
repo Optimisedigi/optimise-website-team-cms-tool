@@ -13,13 +13,15 @@ import InvoiceAssistantChat from './InvoiceAssistantChat'
 import GmailReplyChat from './GmailReplyChat'
 import TaskMateChat from './TaskMateChat'
 import AdminMateChat from './AdminMateChat'
+import ContentMateChat from './ContentMateChat'
+import { hasBlogAccess } from '@/lib/access'
 import { useIsMobileViewport, useSwipeBack } from '@/lib/swipe'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
 import RocketSplash from './RocketSplash'
 import ClientEmailAlert from './ClientEmailAlert'
 
-type AgentKey = 'google-ads' | 'invoices' | 'taskmate' | 'adminmate'
+type AgentKey = 'google-ads' | 'invoices' | 'taskmate' | 'adminmate' | 'contentmate'
 
 interface AgentDef {
   key: AgentKey
@@ -36,6 +38,7 @@ const AGENTS: AgentDef[] = [
   { key: 'invoices', label: 'InvoiceMate', icon: '/invoicemate-orb.png', iconSize: 28, enabled: true },
   { key: 'taskmate', label: 'TaskMate', icon: '/taskmate-orb.png', iconSize: 28, enabled: true },
   { key: 'adminmate', label: 'AdminMate', icon: '/adminmate-orb.webp', iconSize: 28, enabled: true },
+  { key: 'contentmate', label: 'ContentMate', icon: '/optimate-orb.png', enabled: true },
 ]
 
 /** Gmail shortcuts on the agent step. Tints match the Gmail palette. */
@@ -57,7 +60,7 @@ interface AuditOption {
   customerId: string
 }
 
-type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'taskmate' | 'adminmate' | 'gmail' | 'email-reply' | 'email-summarise' | 'pomodoro'
+type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'taskmate' | 'adminmate' | 'contentmate' | 'gmail' | 'email-reply' | 'email-summarise' | 'pomodoro'
 
 const PILL_RIGHT = 24 // pixels — pomodoro pill is gone, sit bottom-right alone
 const PILL_BOTTOM = 24
@@ -194,6 +197,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       setStep('adminmate')
       return
     }
+    if (key === 'contentmate') {
+      setStep('contentmate')
+      return
+    }
     setStep('audit')
   }
 
@@ -233,6 +240,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
           ? 'TaskMate'
           : step === 'adminmate'
             ? 'AdminMate'
+            : step === 'contentmate'
+              ? 'ContentMate'
             : step === 'pomodoro'
               ? 'Pomodoro'
               : 'OptiMate'
@@ -336,6 +345,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 step === 'invoice-chat' ||
                 step === 'taskmate' ||
                 step === 'adminmate' ||
+                step === 'contentmate' ||
                 step === 'gmail' ||
                 step === 'email-reply' ||
                 step === 'email-summarise') && (
@@ -355,6 +365,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               {(step === 'invoice-chat' ||
                 step === 'taskmate' ||
                 step === 'adminmate' ||
+                step === 'contentmate' ||
                 step === 'gmail' ||
                 step === 'email-reply' ||
                 step === 'email-summarise') && (
@@ -381,8 +392,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                           ? '/optimate-popout?agent=taskmate'
                           : step === 'adminmate'
                             ? '/optimate-popout?agent=adminmate'
-                            : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
-                    const name = step === 'invoice-chat' ? 'invoices' : step === 'taskmate' ? 'taskmate' : step === 'adminmate' ? 'adminmate' : `gmail-${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
+                            : step === 'contentmate'
+                              ? '/optimate-popout?agent=contentmate'
+                              : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
+                    const name = step === 'invoice-chat' ? 'invoices' : step === 'taskmate' ? 'taskmate' : step === 'adminmate' ? 'adminmate' : step === 'contentmate' ? 'contentmate' : `gmail-${step === 'email-reply' ? 'reply' : step === 'email-summarise' ? 'summarise' : 'compose'}`
                     const handoffAgent = step === 'adminmate' ? 'adminmate' : step === 'invoice-chat' ? 'invoices' : null
                     const snapshot =
                       step === 'adminmate'
@@ -576,8 +589,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   <div className="om-agents">
                     {AGENTS.filter(
                       (a) =>
-                        (a.key !== 'taskmate' && a.key !== 'adminmate') ||
-                        (user as { role?: string }).role === 'admin',
+                        (a.key === 'contentmate'
+                          ? hasBlogAccess(user)
+                          : (a.key !== 'taskmate' && a.key !== 'adminmate') ||
+                            (user as { role?: string }).role === 'admin'),
                     ).map((a) => (
                       <button
                         key={a.key}
@@ -760,6 +775,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
             {step === 'adminmate' && <AdminMateChat handoffRef={adminMateHandoffRef} />}
 
+            {step === 'contentmate' && hasBlogAccess(user) && <ContentMateChat />}
+
             {step === 'gmail' && <GmailReplyChat initialPhase="compose" />}
 
             {step === 'email-reply' && <GmailReplyChat initialPhase="search" />}
@@ -833,12 +850,16 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
         }
         .om-launcher:hover .om-orb { transform: scale(1.06); }
         @media (max-width: 768px) {
-          /* Sit above the bottom tab bar and the iPhone home indicator. */
+          /* Phones: a smaller orb in the corner, clear of the home indicator. */
           .om-launcher {
-            bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+            bottom: calc(16px + env(safe-area-inset-bottom)) !important;
             right: 14px !important;
           }
           .om-launcher .om-tip { display: none; }
+          .om-launcher .om-orb,
+          .om-launcher .om-orb img { width: 52px; height: 52px; }
+          /* Hidden while the nav drawer is open so it never covers the menu. */
+          body:has(.nav--nav-open) .om-launcher { display: none; }
         }
         .om-launcher:focus-visible { outline: none; }
         .om-launcher:focus-visible .om-orb {

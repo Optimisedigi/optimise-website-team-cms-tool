@@ -1,0 +1,105 @@
+// Phone-only refinements (≤768px) for the app shell: header, nav drawer,
+// breadcrumb menus, OptiMate launcher. See .gg/mobile-audit/report.html.
+
+@media (max-width: 768px) {
+  // ── Nav drawer ────────────────────────────────────────────────
+  // Only the group holding the current page starts open (AdminNavSetup sets
+  // data-od-phone-collapsed on the others). Payload's own closed state is
+  // ignored on phones so a tapped header always opens.
+  .nav .nav-group .rah-static {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .nav .nav-group .rah-static > div {
+    display: block !important;
+  }
+
+  .nav .nav-group[data-od-phone-collapsed] .nav-group__content {
+    display: none !important;
+  }
+
+  .nav .nav-group .nav-group__toggle {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .nav .nav-group:not([data-od-phone-collapsed]) .nav-group__indicator svg,
+  .nav .nav-group:not([data-od-phone-collapsed]) svg.nav-group__indicator {
+    transform: rotate(180deg) !important;
+  }
+
+  .nav .nav-group[data-od-phone-collapsed] .nav-group__indicator svg,
+  .nav .nav-group[data-od-phone-collapsed] svg.nav-group__indicator {
+    transform: none !important;
+  }
+
+  // The scrolled group chevrons slid over the sticky logo row.
+  .nav .sidebar-sticky-head {
+    z-index: 20;
+    background: #1a1a2e;
+  }
+
+  .nav .nav-group__toggle,
+  .nav .nav-group__indicator {
+    position: relative;
+    z-index: 1;
+  }
+
+  // The notifications sheet covers the OptiMate launcher while open.
+  body:has([data-sheet='bottom']) .om-launcher {
+    visibility: hidden;
+  }
+
+  // ── Breadcrumb dropdown ("Dashboard ▾" → "Edit Dashboard") ───
+  // It rendered pale grey on grey and slid under the greeting.
+  .step-nav .rs__menu {
+    z-index: 60 !important;
+    min-width: 200px;
+    background: var(--theme-elevation-0) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18) !important;
+    overflow: hidden;
+  }
+
+  .step-nav .rs__option {
+    min-height: 44px;
+    display: flex !important;
+    align-items: center;
+    padding: 0 14px !important;
+    color: var(--theme-text) !important;
+    opacity: 1 !important;
+    font-size: 15px !important;
+    background: var(--theme-elevation-0) !important;
+  }
+
+  .step-nav .rs__option--is-focused {
+    background: var(--theme-elevation-100) !important;
+  }
+
+  // ── Small phones: breadcrumb shows only the last crumb ─────────
+  @media (max-width: 480px) {
+    .step-nav {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .step-nav > *:not(:first-child):not(:last-child),
+    .step-nav__home + span {
+      display: none;
+    }
+
+    .step-nav > :last-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}

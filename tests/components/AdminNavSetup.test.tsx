@@ -9,9 +9,11 @@ vi.mock('@payloadcms/ui', () => ({
     getPreference: mockGetPreference,
     setPreference: mockSetPreference,
   }),
+  useNav: () => ({ navOpen: false }),
 }))
+vi.mock('next/navigation', () => ({ usePathname: () => '/admin/collections/clients' }))
 
-import { AdminNavSetup } from '@/components/AdminNavSetup'
+import { AdminNavSetup, collapseOtherNavGroups, PHONE_COLLAPSED_ATTR } from '@/components/AdminNavSetup'
 
 describe('AdminNavSetup', () => {
   beforeEach(() => {
@@ -40,5 +42,23 @@ describe('AdminNavSetup', () => {
 
     await waitFor(() => expect(mockGetPreference).toHaveBeenCalledWith('nav'))
     expect(mockSetPreference).not.toHaveBeenCalled()
+  })
+})
+
+describe('collapseOtherNavGroups (phone drawer)', () => {
+  it('keeps only the group holding the current page open', () => {
+    document.body.innerHTML = `
+      <nav class="nav">
+        <div class="nav-group" id="g-perf"><button class="nav-group__toggle">Performance</button>
+          <div class="nav-group__content"><a href="/admin/performance/analytics">GA</a></div></div>
+        <div class="nav-group" id="g-clients"><button class="nav-group__toggle">Clients</button>
+          <div class="nav-group__content"><a href="/admin/collections/clients">Clients</a></div></div>
+        <div class="nav-group" id="g-mail"><div class="nav-group__content"><a href="/admin/mail">Mail</a></div></div>
+      </nav>`
+    collapseOtherNavGroups(document, '/admin/collections/clients/3')
+    expect(document.getElementById('g-perf')?.hasAttribute(PHONE_COLLAPSED_ATTR)).toBe(true)
+    expect(document.getElementById('g-clients')?.hasAttribute(PHONE_COLLAPSED_ATTR)).toBe(false)
+    // Untitled groups (Mail) have no header to reopen them, so they never collapse.
+    expect(document.getElementById('g-mail')?.hasAttribute(PHONE_COLLAPSED_ATTR)).toBe(false)
   })
 })

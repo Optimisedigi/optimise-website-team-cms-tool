@@ -20,13 +20,16 @@ describe('mobile styles', () => {
   it('viewport covers the notch so safe-area insets work in the home-screen app', () => {
     expect(read('src/components/ViewportMeta.tsx')).toContain('viewport-fit=cover')
   })
-  it('tab bar is hidden by default and only shown on phones', () => {
+  it('there is no phone bottom tab bar any more', () => {
     const scss = read('src/app/(payload)/custom.scss')
-    expect(scss).toMatch(/\.mobile-tabbar\s*\{\s*display:\s*none;/)
+    expect(scss).not.toContain('.mobile-tabbar')
   })
-  it('OptiMate keeps its desktop controls on phones (pop-out stays, no hidden buttons)', () => {
+  it('OptiMate on phones: 44px header icons, no pop-out, two-column agents, 16px composer', () => {
     const phone = OPTIMATE_MODAL_CSS.slice(OPTIMATE_MODAL_CSS.indexOf('@media (max-width: 768px)'), OPTIMATE_MODAL_CSS.indexOf('@keyframes om-bob'))
-    expect(phone).not.toContain('display: none')
+    expect(phone).toMatch(/\.om-iconbtn\s*\{[^}]*width:\s*44px/)
+    expect(phone).toContain("[aria-label='Pop out to a separate window']")
+    expect(phone).toMatch(/\.om-agents\s*\{[^}]*repeat\(2/)
+    expect(phone).toMatch(/\[data-optimate-input\]\s*\{[^}]*font-size:\s*16px/)
   })
   it('compose keeps every AI/attach/send control on phones and only resizes them', () => {
     const css = read('src/components/mail/ComposeWindow.module.css')

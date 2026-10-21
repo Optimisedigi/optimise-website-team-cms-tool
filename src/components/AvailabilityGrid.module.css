@@ -114,6 +114,17 @@
   border-radius: 4px;
 }
 
+/* Phone tap targets: client time slots are 44px tall. */
+@media (max-width: 768px) {
+  .client .cell {
+    height: 44px;
+  }
+
+  .client .time {
+    line-height: 44px;
+  }
+}
+
 .cell:hover {
   background: var(--ag-free-hover);
 }

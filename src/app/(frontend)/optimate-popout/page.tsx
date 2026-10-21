@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import { redirect } from 'next/navigation'
 import OptimatePopoutClient from './OptimatePopoutClient'
 import { parsePopoutId } from '@/lib/optimate-popout-url'
+import { hasBlogAccess } from '@/lib/access'
 
 interface PageProps {
   searchParams: Promise<{
@@ -67,6 +68,11 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
 
   if (agent === 'taskmate') {
     return <OptimatePopoutClient agent="taskmate" />
+  }
+
+  if (agent === 'contentmate') {
+    if (!hasBlogAccess(user)) redirect('/admin')
+    return <OptimatePopoutClient agent="contentmate" />
   }
 
   if (agent === 'adminmate') {

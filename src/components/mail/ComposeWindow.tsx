@@ -17,6 +17,8 @@ import { browserStorage, clearPrompt, loadPrompt, promptKeys, savePrompt } from 
 import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
 import { FOLLOW_UP_DAY_OPTIONS } from '../../lib/mail/schedule-times'
 import { mailAccountHeaders } from '../../lib/mail/accounts-shared'
+import type { MailContact } from '../../lib/mail/contacts-shared'
+import { RecipientInput } from './RecipientInput'
 import { appendReplyQuote, replyQuoteHeader, replyQuoteStartHtml, type ReplyQuote } from '../../lib/mail/reply-quote'
 import {
   MAIL_VOICE_GREETING,
@@ -226,6 +228,21 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const [minimised, setMinimised] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [showCc, setShowCc] = useState(Boolean(initial.cc || initial.bcc))
+  // To/Cc/Bcc suggestions, loaded once the first recipient field is focused.
+  const [contacts, setContacts] = useState<MailContact[] | null>(null)
+  const contactsRequested = useRef(false)
+  const loadContacts = useCallback(() => {
+    if (contactsRequested.current) return
+    contactsRequested.current = true
+    fetch('/api/mail/contacts', { credentials: 'include', headers: mailAccountHeaders(initial.account) })
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as { contacts?: unknown } | null
+        const list = res.ok && Array.isArray(data?.contacts) ? (data.contacts as MailContact[]) : []
+        setContacts(list.filter((c) => typeof c?.email === 'string' && typeof c?.name === 'string'))
+      })
+      // Suggestions are a convenience: without them the fields work as plain text.
+      .catch(() => setContacts([]))
+  }, [initial.account])
   // Waiting out the undo window after Send; the timer is in sendTimerRef.
   const [sendPending, setSendPending] = useState(false)
   const sendTimerRef = useRef<number | null>(null)
@@ -826,7 +843,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
         <div className={styles.fields}>
           <label className={styles.field}>
             <span>To</span>
-            <input value={state.to} onChange={(e) => setState({ ...state, to: e.target.value })} />
+            <RecipientInput label="To" value={state.to} onChange={(to) => setState((s) => ({ ...s, to }))} contacts={contacts} onWantContacts={loadContacts} />
             {!showCc ? (
               <button type="button" className={styles.ccToggle} onClick={() => setShowCc(true)} title="Add Cc and Bcc recipients">
                 Cc
@@ -837,11 +854,11 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             <>
               <label className={styles.field}>
                 <span>Cc</span>
-                <input value={state.cc} onChange={(e) => setState({ ...state, cc: e.target.value })} />
+                <RecipientInput label="Cc" value={state.cc} onChange={(cc) => setState((s) => ({ ...s, cc }))} contacts={contacts} onWantContacts={loadContacts} />
               </label>
               <label className={styles.field}>
                 <span>Bcc</span>
-                <input value={state.bcc ?? ''} onChange={(e) => setState({ ...state, bcc: e.target.value })} />
+                <RecipientInput label="Bcc" value={state.bcc ?? ''} onChange={(bcc) => setState((s) => ({ ...s, bcc }))} contacts={contacts} onWantContacts={loadContacts} />
               </label>
             </>
           ) : null}

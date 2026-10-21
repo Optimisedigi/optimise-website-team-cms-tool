@@ -6,17 +6,6 @@ import { userHasFeature, type FeatureSlug } from '../lib/access'
 
 const MINI_WIDTH = 64
 
-/** Hrefs shown in the phone bottom tab bar, in order; the rest live behind "Menu". */
-export const MOBILE_TAB_HREFS = ['/admin', '/admin/mail', '/admin/clients', '/admin/agent-approvals']
-
-export function pickMobileTabs<T extends { href: string }>(items: T[]): T[] {
-  return MOBILE_TAB_HREFS.map((href) => items.find((item) => item.href === href)).filter((item): item is T => !!item)
-}
-
-export function isTabActive(href: string, pathname: string | null | undefined): boolean {
-  if (!pathname) return false
-  return href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
-}
 const BG = '#1a1a2e'
 
 type MiniIcon = {
@@ -311,45 +300,6 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
         >
           <CollapseIcon />
         </button>
-      )}
-
-      {/* Phone bottom tab bar (shown by CSS at <= 768px). Thumb-reachable
-          shortcuts plus a Menu button that opens the full drawer. */}
-      {isLoggedIn && (
-        <nav className="mobile-tabbar" aria-label="Primary" data-testid="mobile-tabbar">
-          {pickMobileTabs(visibleIcons).map((item) => {
-            const active = isTabActive(item.href, pathname)
-            return (
-              <button
-                key={item.href}
-                type="button"
-                onClick={() => router.push(item.href)}
-                className={`mobile-tabbar__item${active ? ' mobile-tabbar__item--active' : ''}`}
-                aria-current={active ? 'page' : undefined}
-                aria-label={item.label}
-              >
-                <span className="mobile-tabbar__icon">{item.svg}</span>
-                <span className="mobile-tabbar__label">{item.shortLabel}</span>
-              </button>
-            )
-          })}
-          <button
-            type="button"
-            onClick={toggleNav}
-            className={`mobile-tabbar__item${navOpen ? ' mobile-tabbar__item--active' : ''}`}
-            aria-label="Menu"
-            aria-expanded={navOpen}
-          >
-            <span className="mobile-tabbar__icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                <line x1="4" y1="7" x2="20" y2="7" />
-                <line x1="4" y1="12" x2="20" y2="12" />
-                <line x1="4" y1="17" x2="20" y2="17" />
-              </svg>
-            </span>
-            <span className="mobile-tabbar__label">Menu</span>
-          </button>
-        </nav>
       )}
 
       {children}

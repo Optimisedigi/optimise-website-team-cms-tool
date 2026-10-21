@@ -6,6 +6,7 @@ import InvoiceAssistantChat from '@/components/InvoiceAssistantChat'
 import GmailReplyChat from '@/components/GmailReplyChat'
 import TaskMateChat from '@/components/TaskMateChat'
 import AdminMateChat from '@/components/AdminMateChat'
+import ContentMateChat from '@/components/ContentMateChat'
 import RocketSplash from '@/components/RocketSplash'
 import { OPTIMATE_MODAL_CSS } from '@/components/optimate-modal-styles'
 
@@ -20,6 +21,7 @@ type Props =
   | { agent: 'gmail'; phase?: 'compose' | 'reply' | 'summarise'; targets?: undefined }
   | { agent: 'taskmate'; targets?: undefined }
   | { agent: 'adminmate'; targets?: undefined; handoffId?: string }
+  | { agent: 'contentmate'; targets?: undefined }
 
 interface AccountOption {
   id: string | number
@@ -46,7 +48,8 @@ export default function OptimatePopoutClient(props: Props) {
   const isGmail = props.agent === 'gmail'
   const isTaskmate = props.agent === 'taskmate'
   const isAdminmate = props.agent === 'adminmate'
-  const isStandaloneAgent = isInvoices || isGmail || isTaskmate || isAdminmate
+  const isContentmate = props.agent === 'contentmate'
+  const isStandaloneAgent = isInvoices || isGmail || isTaskmate || isAdminmate || isContentmate
   const targets = isStandaloneAgent ? [] : props.targets
   const isPortfolio = !isStandaloneAgent && targets.some((t) => t.mode === 'portfolio')
 
@@ -108,7 +111,7 @@ export default function OptimatePopoutClient(props: Props) {
               fontSize: 11,
             }}
           >
-            {isInvoices ? '· Invoices' : isGmail ? '· Gmail' : isTaskmate ? '· TaskMate' : isAdminmate ? '· AdminMate' : '· Google Ads'}
+            {isInvoices ? '· Invoices' : isGmail ? '· Gmail' : isTaskmate ? '· TaskMate' : isAdminmate ? '· AdminMate' : isContentmate ? '· ContentMate' : '· Google Ads'}
           </span>
         </div>
         {!isStandaloneAgent && (
@@ -167,6 +170,8 @@ export default function OptimatePopoutClient(props: Props) {
           <TaskMateChat />
         ) : isAdminmate ? (
           <AdminMateChat handoffId={props.agent === 'adminmate' ? props.handoffId : undefined} />
+        ) : isContentmate ? (
+          <ContentMateChat />
         ) : (
           <OptiMateMultiChat
             targets={targets}

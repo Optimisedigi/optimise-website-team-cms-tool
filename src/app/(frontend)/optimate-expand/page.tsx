@@ -3,6 +3,7 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload } from 'payload'
 import { redirect } from 'next/navigation'
 import OptiMateExpandClient from './OptiMateExpandClient'
+import { hasBlogAccess } from '@/lib/access'
 
 /**
  * Full-window OptiMate UI. Opened from the launcher's expand button so the
@@ -17,5 +18,5 @@ export default async function OptiMateExpandPage() {
     redirect('/admin/login?redirect=/optimate-expand')
   }
 
-  return <OptiMateExpandClient userRole={(user as { role?: string }).role ?? ''} />
+  return <OptiMateExpandClient userRole={(user as { role?: string }).role ?? ''} canUseContentMate={hasBlogAccess(user)} />
 }

@@ -57,6 +57,14 @@ const destinationFor = (c: ClientRow): string => {
   return `/admin/collections/clients/${c.id}#tab-${TAB_INDEX_GOOGLE_ADS}`
 }
 
+const countAutomation = (c: ClientRow): number =>
+  [
+    c.automation.dashboardEnabled,
+    c.automation.weeklyReportEnabled,
+    c.automation.negativeSweepEnabled,
+    c.automation.reauditEnabled,
+  ].filter(Boolean).length
+
 const trendIcon = (trend: string | null, change: number | null) => {
   if (!trend || trend === 'flat' || change == null || change === 0) {
     return <span style={{ color: '#9ca3af' }}>—</span>
@@ -121,12 +129,10 @@ const GoogleAdsHubPage = () => {
   if (loading) return <RocketSplash />
 
   return (
-    <div className="od-settings od-admin-list-style" style={{ maxWidth: 'none', width: '100%' }}>
+    <div className="od-settings od-admin-list-style od-gads-hub" style={{ maxWidth: 'none', width: '100%' }}>
       <h2 className="od-settings__title">Google Ads</h2>
       <p className="od-settings__subtitle">
-        Manage Google Ads work across all clients. Click a client to open their
-        Google Ads tab — audits, negative keyword lists, deep dive sessions,
-        budgets, and automation settings.
+        Manage Google Ads across all clients. Tap a client for audits, negative keywords, deep dives, budgets and automation.
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
         <button
@@ -151,16 +157,16 @@ const GoogleAdsHubPage = () => {
 
       {/* Summary stats */}
       <div className="od-box" style={{ marginBottom: 16 }}>
-        <div className="od-box__stats od-box__stats--4">
+        <div className="od-box__stats od-box__stats--4 od-gads-hub__stats">
           <div className="od-box__stat">
             <span className="od-box__stat-value">{stats.total}</span>
             <span className="od-box__stat-label">Active clients</span>
           </div>
-          <div className="od-box__stat">
+          <div className="od-box__stat od-gads-hub__stat--desktop">
             <span className="od-box__stat-value">{stats.configured}</span>
             <span className="od-box__stat-label">Customer ID set</span>
           </div>
-          <div className="od-box__stat">
+          <div className="od-box__stat od-gads-hub__stat--desktop">
             <span className="od-box__stat-value">{stats.audited}</span>
             <span className="od-box__stat-label">Audited</span>
           </div>
@@ -173,6 +179,7 @@ const GoogleAdsHubPage = () => {
 
       {/* Filters */}
       <div
+        className="od-gads-hub__filters"
         style={{
           display: 'flex',
           gap: 12,
@@ -186,10 +193,11 @@ const GoogleAdsHubPage = () => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search clients…"
-          className="od-gsc-page__date-input"
+          aria-label="Search clients"
+          className="od-gsc-page__date-input od-gads-hub__search"
           style={{ minWidth: 240 }}
         />
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div className="od-gads-hub__filter-pills" style={{ display: 'flex', gap: 6 }}>
           {(
             [
               { key: 'all', label: `All (${clients.length})` },
@@ -220,8 +228,64 @@ const GoogleAdsHubPage = () => {
         </div>
       </div>
 
+      {/* Client cards (phones) */}
+      <ul className="od-gads-hub__cards" aria-label="Google Ads clients">
+        {filtered.length === 0 && (
+          <li className="od-gads-hub__card od-cell-muted">No clients match the current filter.</li>
+        )}
+        {filtered.map((c) => {
+          const score = c.latestAudit?.overallScore ?? c.scoreTrajectory.latest
+          const automationCount = countAutomation(c)
+          return (
+            <li key={c.id}>
+              <a className="od-gads-hub__card" href={destinationFor(c)}>
+                <span className="od-gads-hub__card-head">
+                  <span className="od-client-cell__avatar" style={{ background: avatarColor(c.id, c.name) }}>
+                    {avatarInitial(c.name)}
+                  </span>
+                  <span className="od-client-cell__text">
+                    <span className="od-client-cell__name">{c.name}</span>
+                    <span className="od-client-cell__domain">{c.slug}</span>
+                  </span>
+                </span>
+                <dl className="od-gads-hub__card-meta">
+                  <div>
+                    <dt>Customer ID</dt>
+                    <dd>{c.googleAdsCustomerId ? <code className="od-cell-slug">{c.googleAdsCustomerId}</code> : <span className="od-cell-muted">Not set</span>}</dd>
+                  </div>
+                  <div>
+                    <dt>Latest score</dt>
+                    <dd>
+                      {score != null ? (
+                        <span className={`od-pill ${score >= 80 ? 'od-pill--green' : score >= 60 ? 'od-pill--amber' : 'od-pill--red'}`}>{score}/100</span>
+                      ) : (
+                        <span className="od-cell-muted">—</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Last audit</dt>
+                    <dd>
+                      {c.latestAudit ? (
+                        new Date(c.latestAudit.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                      ) : (
+                        <span className="od-cell-muted">Never run</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Automation</dt>
+                    <dd>{automationCount === 0 ? <span className="od-cell-muted">None</span> : `${automationCount} / 4`}</dd>
+                  </div>
+                </dl>
+              </a>
+            </li>
+          )
+        })}
+      </ul>
+
       {/* Client table */}
-      <div className="table">
+      <div className="table od-gads-hub__table">
         <table>
           <thead>
             <tr>
@@ -245,12 +309,7 @@ const GoogleAdsHubPage = () => {
             )}
             {filtered.map((c) => {
               const score = c.latestAudit?.overallScore ?? c.scoreTrajectory.latest
-              const automationCount = [
-                c.automation.dashboardEnabled,
-                c.automation.weeklyReportEnabled,
-                c.automation.negativeSweepEnabled,
-                c.automation.reauditEnabled,
-              ].filter(Boolean).length
+              const automationCount = countAutomation(c)
               const href = destinationFor(c)
               return (
                 <tr

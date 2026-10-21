@@ -61,6 +61,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+// "Suggest for me" (the original text suggestion) now lives inside the AI suggest panel.
 describe("BlogPrompterPage AI Suggest status", () => {
   it("shows an elapsed-seconds counter while the suggestion is in flight", async () => {
     let release: (v: unknown) => void = () => {};
@@ -76,6 +77,9 @@ describe("BlogPrompterPage AI Suggest status", () => {
     await renderWithIdea();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "AI suggest" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Suggest for me" }));
       await Promise.resolve();
     });
 
@@ -98,7 +102,7 @@ describe("BlogPrompterPage AI Suggest status", () => {
     });
 
     // Counter is replaced by the idle label once the request settles.
-    expect(screen.getByRole("button", { name: "AI suggest" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Suggest for me" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Thinking/ })).toBeNull();
 
     // Flush the success auto-clear timer inside act so no stray update leaks.
@@ -123,6 +127,9 @@ describe("BlogPrompterPage AI Suggest status", () => {
     await renderWithIdea();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "AI suggest" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Suggest for me" }));
       await Promise.resolve();
     });
 
@@ -149,6 +156,9 @@ describe("BlogPrompterPage AI Suggest status", () => {
     await renderWithIdea();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "AI suggest" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Suggest for me" }));
       await Promise.resolve();
     });
     expect(screen.getByText(/AI suggestion timed out/)).toBeTruthy();
@@ -177,6 +187,9 @@ describe("BlogPrompterPage AI Suggest status", () => {
     await renderWithIdea();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "AI suggest" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Suggest for me" }));
       await Promise.resolve();
     });
     expect(screen.getByText(/Recommendations added to empty fields/)).toBeTruthy();

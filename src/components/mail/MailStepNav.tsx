@@ -155,6 +155,8 @@ export default function MailStepNav(props: MailAccountMenuProps) {
   const accountsKey = props.accounts.map((account) => `${account.main ? '*' : ''}${account.email}`).join(',')
   const nav = useMemo<StepNavItem[]>(() => {
     const items: StepNavItem[] = [{ label: 'Mail', url: '/admin/mail' }]
+    // No account yet: an empty switcher would render as a blank pill.
+    if (!props.current && props.accounts.length === 0) return items
     items.push({
       label: (
         <MailAccountMenu

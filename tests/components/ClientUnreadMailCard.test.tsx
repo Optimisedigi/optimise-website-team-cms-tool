@@ -65,6 +65,18 @@ describe('ClientUnreadMailCard', () => {
     expect(await screen.findByRole('link', { name: 'Connect Gmail' })).toHaveAttribute('href', '/api/gmail/connect')
   })
 
+  it('rewords the server not-connected reason and shows a 44px Connect Gmail button', async () => {
+    stubResponse(403, {
+      error: 'gmail-not-connected',
+      reason: 'Gmail not connected for this user. Connect via /api/gmail/connect from the admin UI before scheduling tasks.',
+      connectUrl: '/api/gmail/connect',
+    })
+    render(<ClientUnreadMailCard />)
+    expect(await screen.findByText('Gmail isn\u2019t connected yet. Connect it to see client emails here.')).toBeInTheDocument()
+    expect(screen.queryByText(/api\/gmail\/connect from the admin UI/)).toBeNull()
+    expect(screen.getByRole('link', { name: 'Connect Gmail' }).style.minHeight).toBe('44px')
+  })
+
   it('renders nothing for users without the Mail feature', async () => {
     const fetchMock = stubResponse(403, { error: 'Mail is not enabled for your account.' })
     const { container } = render(<ClientUnreadMailCard />)

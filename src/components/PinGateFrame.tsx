@@ -112,6 +112,9 @@ export function PinGateFrame({ eyebrow, title, subtitle, children }: PinGateFram
           letterSpacing: "0.02em",
           color: "#8b90ad",
           marginTop: 30,
+          textAlign: "center",
+          maxWidth: 420,
+          paddingInline: 16,
         }}
       >
         {subtitle}

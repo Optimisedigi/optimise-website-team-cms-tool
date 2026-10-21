@@ -402,6 +402,24 @@ export async function listRecentMessageIds(accessToken: string, days: number, ma
   return ids.slice(0, maxIds);
 }
 
+/** Message ids matching a Gmail search, newest first, up to `maxIds`. */
+export async function listMessageIdsMatching(accessToken: string, q: string, maxIds: number): Promise<string[]> {
+  const gmail = gmailApi(accessToken);
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await gmail.users.messages.list({
+      userId: "me",
+      q,
+      maxResults: Math.min(100, maxIds - ids.length),
+      ...(pageToken ? { pageToken } : {}),
+    });
+    for (const message of res.data.messages ?? []) if (message.id) ids.push(message.id);
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken && ids.length < maxIds);
+  return ids.slice(0, maxIds);
+}
+
 export interface MessageFilePart {
   filename: string;
   mimeType: string;

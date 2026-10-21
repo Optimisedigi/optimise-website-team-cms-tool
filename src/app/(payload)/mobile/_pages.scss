@@ -1,0 +1,357 @@
+// Phone-only refinements (≤768px) for the pages area. See .gg/mobile-audit/report.html.
+
+// ── All widths ──────────────────────────────────────────────
+
+// Search Console: selected KPI card uses an inset ring so it never shifts layout.
+.od-gsc-page .od-box__stat--selectable {
+  border: 0 !important;
+  box-shadow: none;
+
+  &:hover {
+    box-shadow: inset 0 0 0 1px #d1d5db;
+  }
+}
+
+.od-gsc-page .od-box__stat--selected,
+.od-gsc-page .od-box__stat--selected:hover {
+  box-shadow: inset 0 0 0 2px #213843;
+}
+
+// Google Ads hub: phone cards are hidden on desktop.
+.od-gads-hub__cards {
+  display: none;
+}
+
+// Business Costs info notes: the ⓘ toggle only exists on phones.
+.od-costs-note__toggle {
+  display: none;
+}
+
+// Integrations: status = coloured dot + label.
+.od-integrations .od-settings__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #9ca3af;
+    flex-shrink: 0;
+  }
+}
+
+.od-integrations .od-settings__status--connected::before {
+  background: #22c55e;
+}
+
+// ── Phones (≤768px) ─────────────────────────────────────────
+@media (max-width: 768px) {
+  // 1. Search Console
+  .od-gsc-page .od-gsc-page__presets {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    gap: 4px;
+    max-width: 100%;
+    padding: 3px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #f9fafb;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .od-gsc-page .od-gsc-page__preset {
+    flex: 0 0 auto;
+    min-height: 44px;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .od-gsc-page .od-gsc-page__preset--active {
+    background: #eef2ff;
+    border-color: #6366f1;
+  }
+
+  .od-gsc-page .od-gsc-page__date-input,
+  .od-gsc-page select {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  // 2. Google Ads hub
+  .od-gads-hub .od-gads-hub__stat--desktop {
+    display: none !important;
+  }
+
+  .od-gads-hub .od-gads-hub__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .od-gads-hub .od-gads-hub__filters > .od-gads-hub__search {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0 !important;
+    min-height: 44px;
+    font-size: 16px;
+    box-sizing: border-box;
+  }
+
+  .od-gads-hub .od-gads-hub__filter-pills {
+    overflow-x: auto;
+    max-width: 100%;
+
+    button {
+      flex: 0 0 auto;
+      min-height: 44px;
+    }
+  }
+
+  .od-gads-hub .od-gads-hub__table {
+    display: none;
+  }
+
+  .od-gads-hub .od-gads-hub__cards {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .od-gads-hub__card {
+    display: block;
+    padding: 12px 14px;
+    border: 1px solid var(--theme-elevation-150, #e5e7eb);
+    border-radius: 10px;
+    background: var(--theme-elevation-0, #fff);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .od-gads-hub__card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .od-gads-hub__card-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+    margin: 10px 0 0;
+
+    div {
+      min-width: 0;
+    }
+
+    dt {
+      font-size: 11px;
+      color: var(--theme-elevation-500, #6b7280);
+    }
+
+    dd {
+      margin: 2px 0 0;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  // 4. Finance › Costs
+  .od-section-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    width: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .od-section-tabs__tab {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  .od-costs-period {
+    flex-wrap: nowrap !important;
+    width: 100%;
+    gap: 6px !important;
+
+    button,
+    select {
+      min-height: 44px;
+    }
+
+    select {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 16px;
+    }
+  }
+
+  .od-costs-period__toggle {
+    flex: 0 0 auto;
+
+    button {
+      padding: 6px 8px !important;
+    }
+  }
+
+  // A lone last KPI card spans the full row of the 2-col grid.
+  .od-costs-sales div[style*='grid-template-columns'] > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .od-costs-note {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+  }
+
+  .od-costs-note__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .od-costs-note__text {
+    display: none;
+    margin-top: 6px;
+  }
+
+  .od-costs-note[data-open='true'] .od-costs-note__text {
+    display: block;
+  }
+
+  // 5. Contractor costs
+  .od-contractor-costs .od-contractor-costs__intro {
+    display: none;
+  }
+
+  .od-contractor-costs .od-contractor-costs__stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+
+    .od-box__stat {
+      min-width: 0;
+      padding: 6px 2px;
+      text-align: center;
+    }
+
+    .od-box__stat-value {
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .od-box__stat-label {
+      font-size: 10px;
+      line-height: 1.2;
+    }
+  }
+
+  .od-contractor-costs select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .od-contractor-costs .od-contractor-costs__count {
+    flex: 1 1 100%;
+    padding-bottom: 0 !important;
+  }
+
+  .od-contractor-costs__summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 !important;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: rotate(-45deg);
+      transition: transform 150ms;
+    }
+  }
+
+  .od-contractor-costs__contractors[open] > .od-contractor-costs__summary::before {
+    transform: rotate(45deg);
+  }
+
+  // 6. Integrations: compact cards
+  .od-integrations .od-settings__card-header {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .od-integrations .od-settings__card-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .od-integrations .od-settings__card-footer {
+    padding: 6px 12px;
+  }
+
+  .od-integrations .od-settings__btn {
+    min-height: 44px;
+  }
+
+  .od-integrations select {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  // 7. Team Tasks
+  .od-team-tasks-filters input,
+  .od-team-tasks-filters select {
+    height: 44px !important;
+    font-size: 16px !important;
+  }
+
+  .od-team-tasks-mobile-actions {
+    grid-template-columns: 3fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .od-team-tasks-mobile-actions button:last-child {
+    padding-inline: 6px;
+    white-space: nowrap;
+  }
+}

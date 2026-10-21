@@ -1,0 +1,559 @@
+// Phone-only refinements (≤768px) for Payload's own list and edit views.
+// See .gg/mobile-audit/report.html.
+
+@media (max-width: 768px) {
+  // ── Save bar ──────────────────────────────────────────────────
+  // A full-width white bar at the bottom (left of the OptiMate launcher) so
+  // Save is always visible and easy to tap.
+  .doc-controls .doc-controls__controls-wrapper {
+    left: 12px !important;
+    right: 76px !important;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 6px !important;
+    gap: 6px !important;
+    justify-content: stretch !important;
+    background: #fff !important;
+    border: 1px solid #e7e9ee !important;
+    border-radius: 12px !important;
+    box-shadow:
+      0 6px 20px rgba(16, 24, 40, 0.12),
+      0 2px 6px rgba(16, 24, 40, 0.06) !important;
+  }
+
+  .doc-controls .doc-controls__controls {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: stretch !important;
+    gap: 6px;
+    min-width: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .doc-controls .form-submit {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    margin: 0 !important;
+  }
+
+  .doc-controls .form-submit .btn,
+  .doc-controls #action-save {
+    width: 100%;
+    min-height: 44px;
+    margin: 0 !important;
+    font-size: 15px;
+  }
+
+  .doc-controls .doc-controls__dots,
+  .doc-controls .popup-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  // Payload's sticky-bar blur layer would sit over the page header on create
+  // screens (the "blurred" title); the save bar is fixed at the bottom here.
+  .doc-controls::before,
+  .doc-controls::after {
+    content: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .document-fields {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+  }
+
+  // ── Dropdown options and radio rows: 44px rows ────────────────
+  .rs__option {
+    min-height: 44px;
+    display: flex !important;
+    align-items: center;
+  }
+
+  .radio-group .radio-input,
+  .radio-input {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .radio-group--layout-horizontal ul,
+  .radio-group--layout-horizontal .radio-group__group {
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+
+  // ── Clients and Client Proposals lists as compact row cards ───
+  .collection-list--clients,
+  .collection-list--client-proposals {
+    // Space: no description, no Columns/Filters dropdowns on phones.
+    .list-header__after-header-content,
+    .collection-list__sub-header,
+    .list-header .custom-view-description,
+    .search-bar__actions,
+    .list-controls__columns,
+    .list-controls__where,
+    .list-controls__group-by {
+      display: none !important;
+    }
+
+    .list-header {
+      margin-bottom: 10px;
+    }
+
+    .list-header__title-and-actions {
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .list-header__title {
+      font-size: 26px;
+      line-height: 1.15;
+    }
+
+    .list-create-new-doc__create-new-button {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 16px !important;
+      border-radius: 10px !important;
+      background: #2c97c9 !important;
+      color: #fff !important;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .list-controls {
+      margin-bottom: 10px;
+    }
+
+    .search-filter__input {
+      font-size: 16px !important; // stops iOS zooming on focus
+    }
+
+    .collection-list__tables,
+    .collection-list__tables .table {
+      overflow: visible !important;
+      margin: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      border-radius: 12px;
+    }
+
+    .collection-list__tables table {
+      display: block;
+      width: 100% !important;
+      min-width: 0 !important;
+      table-layout: auto;
+    }
+
+    .collection-list__tables thead {
+      display: none;
+    }
+
+    .collection-list__tables tbody {
+      display: block;
+    }
+
+    .collection-list__tables tbody tr {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 56px;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--theme-elevation-100);
+    }
+
+    .collection-list__tables tbody td {
+      display: none;
+      padding: 0 !important;
+      border: 0 !important;
+      background: none !important;
+      min-width: 0 !important;
+      width: auto !important;
+    }
+
+    .collection-list__tables tbody td.cell-name,
+    .collection-list__tables tbody td.cell-businessName {
+      display: block;
+      flex: 1 1 auto;
+      min-width: 0 !important;
+    }
+
+    .collection-list__tables tbody td.cell-isActive,
+    .collection-list__tables tbody td.cell-proposalStatus {
+      display: block;
+      flex: 0 0 auto;
+    }
+
+    .od-client-cell__avatar {
+      width: 32px !important;
+      height: 32px !important;
+      font-size: 13px !important;
+    }
+
+    .od-client-cell__name {
+      font-size: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  // Clients: "Client Wishlist" and the Active/Inactive toggle share one row.
+  .collection-list--clients .collection-list__wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
+
+    > * {
+      flex: 1 1 100%;
+      min-width: 0;
+      order: 0;
+    }
+
+    > .client-wishlist-list-action + div {
+      flex: 1 1 auto;
+      order: 1;
+      margin-bottom: 12px !important;
+    }
+
+    > .client-wishlist-list-action {
+      flex: 0 0 auto;
+      order: 2;
+      margin: 0 0 12px !important;
+    }
+
+    > .client-wishlist-list-action + div ~ * {
+      order: 3;
+    }
+  }
+
+  // ── Client record ─────────────────────────────────────────────
+  // Billing sub-tabs (Retainer, Projects, Commissions, History) scroll
+  // sideways instead of clipping.
+  .od-biz-subtabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .od-biz-subtabs__tab {
+    flex: 0 0 auto;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  // Long tab intros (e.g. Integrations) show one line; tap to read it all.
+  .tabs-field__tab > .field-description[data-od-clamp] {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .tabs-field__tab > .field-description[data-od-clamp='open'] {
+    display: block;
+    -webkit-line-clamp: unset;
+  }
+
+  .od-desc-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin: -6px 0 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #2c97c9;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  // Customer / property IDs are typed on a number pad; 16px avoids iOS zoom.
+  #field-googleAdsCustomerId,
+  #field-ga4PropertyId,
+  #field-metaAdAccountId {
+    font-size: 16px !important;
+  }
+
+  // Create/edit client: short fields share a row (Name + Trading name,
+  // Slug + Client PIN).
+  .od-biz-section--identity .od-biz-block--grid > .render-fields {
+    display: flex !important;
+    flex-wrap: wrap;
+    column-gap: 12px !important;
+  }
+
+  .od-biz-section--identity .od-biz-block--grid > .render-fields > .field-type {
+    flex: 1 1 100%;
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .od-biz-section--identity .od-biz-block--grid > .render-fields > .field-type:has(#field-name),
+  .od-biz-section--identity .od-biz-block--grid > .render-fields > .field-type:has(#field-tradingName),
+  .od-biz-section--identity .od-biz-block--grid > .render-fields > .field-type:has(#field-slug),
+  .od-biz-section--identity .od-biz-block--grid > .render-fields > .field-type:has(#field-clientPin) {
+    flex: 1 1 calc(50% - 12px);
+    max-width: calc(50% - 6px);
+  }
+
+  // Website URL follows Slug + Client PIN so the two short fields pair up.
+  .od-biz-section--identity .od-biz-block--grid > .render-fields > .field-type:has(#field-websiteUrl) {
+    order: 1;
+  }
+
+  .od-biz-section--identity .od-biz-block--grid > .render-fields > .field-type:not(:has(#field-name)):not(:has(#field-tradingName)):not(:has(#field-slug)):not(:has(#field-clientPin)):not(:has(#field-websiteUrl)) {
+    order: 2;
+  }
+
+  // New client: a plain "New client" title instead of "[Untitled]".
+  // (the doc header sits outside .collection-edit, hence :has)
+  body:has(.collection-edit--clients) .doc-header__title[title='[Untitled]'] {
+    font-size: 0 !important;
+    filter: none !important;
+
+    &::after {
+      content: 'New client';
+      font-size: 26px;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  // ── Client record header: one compact row until "Show figures" ─
+  .od-client-head:not(.od-client-head--expanded) {
+    .od-client-head__services,
+    .od-client-head__strip,
+    .od-client-head__meta-item,
+    .od-client-head__pill--recurring,
+    .od-client-head__pill--agency {
+      display: none !important;
+    }
+  }
+
+  .od-client-head {
+    padding: 12px 14px !important;
+  }
+
+  // The PIN chip sits top-right; keep the name and overview pill clear of it.
+  .od-client-head__identity {
+    padding-right: 88px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .od-client-head__more {
+    order: 10;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #2c97c9;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .od-client-head__services .od-svc-pill {
+    white-space: nowrap;
+  }
+
+  // ── Client record tabs: sticky "Section ▾" picker ──────────────
+  body.od-client-tab-picker .document-fields .tabs-field__tabs-wrap {
+    position: sticky;
+    top: var(--app-header-height, 44px);
+    z-index: 30;
+    background: var(--theme-bg, #f5f6f8);
+    padding: 6px 30px; // the tabs field bleeds 30px past the gutter
+  }
+
+  body.od-client-tab-picker .document-fields .tabs-field__tabs-wrap > .tabs-field__tabs {
+    display: none !important;
+  }
+
+  .od-tab-picker__button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 14px;
+    border: 1px solid var(--theme-elevation-150);
+    border-radius: 12px;
+    background: var(--theme-elevation-0);
+    color: var(--theme-text);
+    font: inherit;
+    text-align: left;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    cursor: pointer;
+  }
+
+  .od-tab-picker__eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--theme-elevation-500);
+  }
+
+  .od-tab-picker__current {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 16px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .od-tab-picker__chev {
+    color: var(--theme-elevation-500);
+  }
+
+  // Sheets cover the save bar and the OptiMate launcher while open.
+  body:has(.od-tab-picker__sheet) .doc-controls__controls-wrapper,
+  body:has(.od-tab-picker__sheet) .om-launcher {
+    visibility: hidden;
+  }
+
+  .od-tab-picker__scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 100001;
+    background: rgba(15, 23, 42, 0.4);
+  }
+
+  .od-tab-picker__sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100002;
+    max-height: 80dvh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--theme-elevation-0);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+  }
+
+  .od-tab-picker__sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 6px 6px 18px;
+    font-size: 16px;
+    font-weight: 700;
+    border-bottom: 1px solid var(--theme-elevation-100);
+  }
+
+  .od-tab-picker__close {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    background: none;
+    font-size: 20px;
+    color: var(--theme-elevation-600);
+    cursor: pointer;
+  }
+
+  .od-tab-picker__groups {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px 0 10px;
+  }
+
+  .od-tab-picker__group-title {
+    padding: 12px 18px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--theme-elevation-500);
+  }
+
+  .od-tab-picker__item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 18px;
+    border: 0;
+    background: none;
+    color: var(--theme-text);
+    font: inherit;
+    font-size: 16px;
+    text-align: left;
+    cursor: pointer;
+
+    &[aria-current='true'] {
+      color: #2c97c9;
+      font-weight: 700;
+      background: rgba(44, 151, 201, 0.08);
+    }
+  }
+
+  // ── Business tab: sections collapse to their headers ───────────
+  .od-biz-section__header-row > .od-biz-section__titles:has(.od-biz-section__phone-toggle) {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .od-biz-section__title:has(.od-biz-section__phone-toggle) {
+    width: 100%;
+  }
+
+  .od-biz-section__phone-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .od-biz-section__phone-chev {
+    margin-left: auto;
+    flex: 0 0 auto;
+    color: var(--theme-elevation-500);
+    transition: transform 150ms;
+
+    &[data-open='true'] {
+      transform: rotate(180deg);
+    }
+  }
+}
+
+// Desktop never shows the phone-only header toggle.
+@media (min-width: 769px) {
+  .od-client-head__more {
+    display: none;
+  }
+}

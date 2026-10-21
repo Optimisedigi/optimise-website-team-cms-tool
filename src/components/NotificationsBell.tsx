@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, type ReactElement } from "react";
+import type React from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@payloadcms/ui";
 import RocketSplash from "./RocketSplash";
@@ -160,7 +161,7 @@ const NotificationsBell = (): ReactElement | null => {
     };
   }, [user, loadList]);
 
-  // Close on outside click.
+  // Close on outside click and on Escape.
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent): void => {
@@ -168,9 +169,32 @@ const NotificationsBell = (): ReactElement | null => {
         setOpen(false);
       }
     };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
+
+  // Phone bottom sheet: drag the handle (or header) down to dismiss.
+  const [dragY, setDragY] = useState(0);
+  const dragStart = useRef<number | null>(null);
+  const onDragStart = (e: React.TouchEvent): void => {
+    dragStart.current = e.touches[0]?.clientY ?? null;
+  };
+  const onDragMove = (e: React.TouchEvent): void => {
+    if (dragStart.current === null) return;
+    setDragY(Math.max(0, (e.touches[0]?.clientY ?? dragStart.current) - dragStart.current));
+  };
+  const onDragEnd = (): void => {
+    if (dragY > 80) setOpen(false);
+    dragStart.current = null;
+    setDragY(0);
+  };
 
   const onToggle = (): void => {
     const next = !open;
@@ -231,7 +255,9 @@ const NotificationsBell = (): ReactElement | null => {
           border: "none",
           cursor: "pointer",
           padding: "6px 8px",
-          borderRadius: 6,
+          // Phones: a full 44px tap target.
+          ...(isMobile ? { width: 44, height: 44, justifyContent: "center", padding: 0, borderRadius: 10 } : {}),
+          borderRadius: isMobile ? 10 : 6,
           // Brighten the bell colour when there's anything unread —
           // muted grey -> red. Goes back to neutral once everything's read.
           color: unreadCount > 0 ? "#dc2626" : "var(--theme-elevation-800)",
@@ -274,8 +300,9 @@ const NotificationsBell = (): ReactElement | null => {
           <span
             style={{
               position: "absolute",
-              top: 0,
-              right: 0,
+              // Phones: sit on the corner so the bell icon stays visible.
+              top: isMobile ? 4 : 0,
+              right: isMobile ? 2 : 0,
               background: "#dc2626",
               color: "#fff",
               borderRadius: 999,
@@ -299,30 +326,63 @@ const NotificationsBell = (): ReactElement | null => {
         )}
       </button>
 
+      {open && isMobile && (
+        <div
+          aria-hidden="true"
+          data-testid="notifications-scrim"
+          onClick={() => setOpen(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.4)", zIndex: 9999 }}
+        />
+      )}
       {open && (
         <div
+          role="dialog"
+          aria-label="Notifications"
+          data-sheet={isMobile ? "bottom" : undefined}
           style={{
-            // Desktop: anchored popover beneath the bell. Mobile: fixed to the
-            // viewport just under the header so it can't be clipped or pushed
-            // off-screen by the header's edge.
+            // Desktop: anchored popover beneath the bell. Phones: a bottom
+            // sheet with a drag handle, dismissed by dragging down, tapping
+            // the dimmed page, the close button or Escape.
             position: isMobile ? "fixed" : "absolute",
-            top: isMobile ? "calc(var(--app-header-height, 50px) + 4px)" : "calc(100% + 4px)",
-            right: isMobile ? 12 : 0,
-            left: isMobile ? 12 : "auto",
+            top: isMobile ? "auto" : "calc(100% + 4px)",
+            bottom: isMobile ? 0 : "auto",
+            right: 0,
+            left: isMobile ? 0 : "auto",
             background: "var(--theme-elevation-0, #fff)",
             border: "1px solid var(--theme-elevation-150, #ddd)",
-            borderRadius: 8,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            borderRadius: isMobile ? "16px 16px 0 0" : 8,
+            boxShadow: isMobile ? "0 -8px 30px rgba(0,0,0,0.18)" : "0 4px 16px rgba(0,0,0,0.12)",
             width: isMobile ? "auto" : "min(400px, calc(100vw - 24px))",
             minWidth: 0,
             maxWidth: isMobile ? "none" : "calc(100vw - 24px)",
+            height: isMobile ? "min(85dvh, 640px)" : undefined,
+            display: isMobile ? "flex" : undefined,
+            flexDirection: isMobile ? "column" : undefined,
+            paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : undefined,
+            transform: isMobile && dragY ? `translateY(${dragY}px)` : undefined,
+            transition: dragStart.current === null ? "transform 180ms ease" : undefined,
             zIndex: 10000,
             overflow: "hidden",
           }}
         >
+          {isMobile && (
+            <div
+              data-testid="notifications-handle"
+              onTouchStart={onDragStart}
+              onTouchMove={onDragMove}
+              onTouchEnd={onDragEnd}
+              style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", touchAction: "none", flex: "0 0 auto" }}
+            >
+              <span style={{ width: 40, height: 5, borderRadius: 999, background: "var(--theme-elevation-200, #d4d7dd)" }} />
+            </div>
+          )}
           <div
+            onTouchStart={isMobile ? onDragStart : undefined}
+            onTouchMove={isMobile ? onDragMove : undefined}
+            onTouchEnd={isMobile ? onDragEnd : undefined}
             style={{
-              padding: "10px 14px",
+              flex: "0 0 auto",
+              padding: isMobile ? "4px 8px 8px 16px" : "10px 14px",
               borderBottom: "1px solid var(--theme-elevation-100, #eee)",
               display: "flex",
               alignItems: "center",
@@ -332,27 +392,40 @@ const NotificationsBell = (): ReactElement | null => {
               color: "var(--theme-elevation-800)",
             }}
           >
-            <span>Notifications</span>
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={onMarkAllRead}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "#1a73e8",
-                  padding: 0,
-                }}
-              >
-                Mark all read
-              </button>
-            )}
+            <span style={{ fontSize: isMobile ? 16 : undefined }}>Notifications</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={onMarkAllRead}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: isMobile ? 14 : 12,
+                    fontWeight: 500,
+                    color: "#1a73e8",
+                    padding: isMobile ? "0 10px" : 0,
+                    minHeight: isMobile ? 44 : undefined,
+                  }}
+                >
+                  Mark all read
+                </button>
+              )}
+              {isMobile && (
+                <button
+                  type="button"
+                  aria-label="Close notifications"
+                  onClick={() => setOpen(false)}
+                  style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: "var(--theme-elevation-600, #555)" }}
+                >
+                  ✕
+                </button>
+              )}
+            </span>
           </div>
 
-          <div style={{ maxHeight: 400, overflowY: "auto" }}>
+          <div style={{ maxHeight: isMobile ? undefined : 400, flex: isMobile ? "1 1 auto" : undefined, overflowY: "auto", overscrollBehavior: "contain" }}>
             {loading && (
               <div style={{ padding: 16, fontSize: 13, color: "var(--theme-elevation-500)" }}>
                 Loading…
@@ -392,8 +465,8 @@ const NotificationsBell = (): ReactElement | null => {
                       display: "block",
                       width: "100%",
                       textAlign: "left",
-                      padding: "10px 14px 10px 14px",
-                      paddingLeft: unread ? 11 : 14,
+                      padding: isMobile ? "12px 16px" : "10px 14px 10px 14px",
+                      paddingLeft: unread ? (isMobile ? 13 : 11) : (isMobile ? 16 : 14),
                       background: baseBg,
                       borderLeft: unread ? "3px solid #1a73e8" : "3px solid transparent",
                       borderTop: "none",
@@ -497,10 +570,12 @@ const NotificationsBell = (): ReactElement | null => {
                             color: "#1a73e8",
                             fontWeight: 600,
                             cursor: "pointer",
-                            padding: "2px 0",
+                            padding: isMobile ? "0 12px" : "2px 0",
+                            marginRight: isMobile ? -12 : undefined,
+                            minHeight: isMobile ? 44 : undefined,
                             border: "none",
                             background: "none",
-                            fontSize: 11,
+                            fontSize: isMobile ? 13 : 11,
                           }}
                         >
                           Mark as read

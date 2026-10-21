@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import RocketSplash from './RocketSplash'
 
 // ─── Types ────────────────────────────────────────────────
@@ -933,8 +933,35 @@ function bucketBrandDaily(brandDaily: DailyBrandEntry[], granularity: BucketGran
     .map(([, v]) => v)
 }
 
+/** Minimum horizontal room (px) an x-axis label needs so neighbours don't overprint. */
+const X_LABEL_MIN_PX = 44
+
+/**
+ * How often to show an x-axis tick label. Daily ranges keep the existing ~10-label
+ * cap; on narrow plots we additionally thin labels so each gets X_LABEL_MIN_PX.
+ */
+export function xLabelEvery(bucketCount: number, granularity: 'day' | 'week' | 'month', plotWidthPx: number | null): number {
+  if (bucketCount <= 0) return 1
+  const base = granularity === 'day' && bucketCount > 14 ? Math.ceil(bucketCount / 10) : 1
+  if (!plotWidthPx || plotWidthPx <= 0) return base
+  const fit = Math.ceil((bucketCount * X_LABEL_MIN_PX) / plotWidthPx)
+  return Math.max(base, fit, 1)
+}
+
 function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate, rightMetric = 'impressions', clickFilter = 'all' }: { daily: DailyEntry[]; dailyBrand?: DailyBrandEntry[]; dailyGeneric?: DailyBrandEntry[]; startDate: string; endDate: string; rightMetric?: 'impressions' | 'ctr'; clickFilter?: 'all' | 'brand' | 'generic' }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const labelsRef = useRef<HTMLDivElement | null>(null)
+  const [labelsWidth, setLabelsWidth] = useState<number | null>(null)
+  useEffect(() => {
+    const el = labelsRef.current
+    if (!el) return
+    const measure = () => setLabelsWidth(el.clientWidth || null)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const granularity = getGranularity(startDate, endDate)
   const buckets = bucketDaily(daily, granularity)
 
@@ -975,8 +1002,8 @@ function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate,
     ? [0, Math.round(maxLineVal / 2), Math.round(maxLineVal)]
     : [0, (maxLineVal / 2).toFixed(1), maxLineVal.toFixed(1)]
 
-  // Only skip labels for daily granularity with many bars
-  const labelEvery = granularity === 'day' && bucketCount > 14 ? Math.ceil(bucketCount / 10) : 1
+  // Skip labels for long daily ranges, and thin further when the plot is narrow
+  const labelEvery = xLabelEvery(bucketCount, granularity, labelsWidth)
 
   const granLabel = granularity === 'month' ? 'Monthly' : granularity === 'week' ? 'Weekly' : 'Daily'
   const lineLabel = rightMetric === 'impressions' ? 'Impressions' : 'CTR'
@@ -1111,7 +1138,7 @@ function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate,
       </div>
 
       {/* X-axis labels */}
-      <div className="od-perf-chart__labels" style={{ marginLeft: 40, marginRight: 48 }}>
+      <div ref={labelsRef} className="od-perf-chart__labels" style={{ marginLeft: 40, marginRight: 48 }}>
         {buckets.map((bucket, i) => (
           i % labelEvery === 0 ? (
             <div key={i} className="od-perf-chart__label" style={{ left: `${(i + 0.5) * step}%` }}>

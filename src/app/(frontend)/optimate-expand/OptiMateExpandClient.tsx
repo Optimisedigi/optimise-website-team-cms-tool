@@ -6,10 +6,11 @@ import InvoiceAssistantChat from '@/components/InvoiceAssistantChat'
 import GmailReplyChat from '@/components/GmailReplyChat'
 import TaskMateChat from '@/components/TaskMateChat'
 import AdminMateChat from '@/components/AdminMateChat'
+import ContentMateChat from '@/components/ContentMateChat'
 import { OPTIMATE_MODAL_CSS } from '@/components/optimate-modal-styles'
 import RocketSplash from '@/components/RocketSplash'
 
-type Step = 'agent' | 'audit' | 'chat' | 'invoices' | 'taskmate' | 'adminmate' | 'gmail-compose' | 'gmail-reply' | 'gmail-summarise'
+type Step = 'agent' | 'audit' | 'chat' | 'invoices' | 'taskmate' | 'adminmate' | 'contentmate' | 'gmail-compose' | 'gmail-reply' | 'gmail-summarise'
 
 interface AgentDef {
   key: string
@@ -24,6 +25,7 @@ const AGENTS: AgentDef[] = [
   { key: 'invoices', label: 'InvoiceMate', icon: '/invoicemate-orb.png', iconSize: 28, enabled: true },
   { key: 'taskmate', label: 'TaskMate', icon: '/taskmate-orb.png', iconSize: 28, enabled: true },
   { key: 'adminmate', label: 'AdminMate', icon: '/adminmate-orb.webp', iconSize: 28, enabled: true },
+  { key: 'contentmate', label: 'ContentMate', icon: '/optimate-orb.png', enabled: true },
 ]
 
 const QUICK_ACTIONS = [
@@ -38,7 +40,7 @@ interface AuditOption {
   customerId: string
 }
 
-export default function OptiMateExpandClient({ userRole }: { userRole: string }) {
+export default function OptiMateExpandClient({ userRole, canUseContentMate = false }: { userRole: string; canUseContentMate?: boolean }) {
   const isAdmin = userRole === 'admin'
 
   const [step, setStep] = useState<Step>('agent')
@@ -80,6 +82,7 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
     if (key === 'invoices') { setStep('invoices'); return }
     if (key === 'taskmate') { setStep('taskmate'); return }
     if (key === 'adminmate') { setStep('adminmate'); return }
+    if (key === 'contentmate') { setStep('contentmate'); return }
     setStep('audit')
   }
 
@@ -106,6 +109,7 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
       : step === 'invoices' ? 'InvoiceMate'
         : step === 'taskmate' ? 'TaskMate'
           : step === 'adminmate' ? 'AdminMate'
+          : step === 'contentmate' ? 'ContentMate'
             : step === 'audit' ? 'Google Ads'
               : 'OptiMate'
 
@@ -142,7 +146,7 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
             ← Accounts
           </button>
         )}
-        {(step === 'invoices' || step === 'taskmate' || step === 'adminmate' || step === 'gmail-compose' || step === 'gmail-reply' || step === 'gmail-summarise') && (
+        {(step === 'invoices' || step === 'taskmate' || step === 'adminmate' || step === 'contentmate' || step === 'gmail-compose' || step === 'gmail-reply' || step === 'gmail-summarise') && (
           <button
             type="button"
             onClick={() => setStep('agent')}
@@ -162,14 +166,14 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: step === 'agent' || step === 'audit' ? 16 : '6px 14px 14px', display: step === 'chat' || step === 'invoices' || step === 'taskmate' || step === 'adminmate' || step === 'gmail-compose' || step === 'gmail-reply' || step === 'gmail-summarise' ? 'flex' : 'block', flexDirection: 'column', width: '100%' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: step === 'agent' || step === 'audit' ? 16 : '6px 14px 14px', display: step === 'chat' || step === 'invoices' || step === 'taskmate' || step === 'adminmate' || step === 'contentmate' || step === 'gmail-compose' || step === 'gmail-reply' || step === 'gmail-summarise' ? 'flex' : 'block', flexDirection: 'column', width: '100%' }}>
         {/* ---- Agent picker ---- */}
         {step === 'agent' && (
           <div className="om-s1">
             <div className="om-group">
               <span className="om-label">Choose an agent</span>
               <div className="om-agents">
-                {AGENTS.filter((a) => (a.key !== 'taskmate' && a.key !== 'adminmate') || isAdmin).map((a) => (
+                {AGENTS.filter((a) => (a.key === 'contentmate' ? canUseContentMate : (a.key !== 'taskmate' && a.key !== 'adminmate') || isAdmin)).map((a) => (
                   <button
                     key={a.key}
                     type="button"
@@ -302,6 +306,7 @@ export default function OptiMateExpandClient({ userRole }: { userRole: string })
         {step === 'invoices' && <InvoiceAssistantChat />}
         {step === 'taskmate' && <TaskMateChat />}
         {step === 'adminmate' && <AdminMateChat />}
+        {step === 'contentmate' && canUseContentMate && <ContentMateChat />}
         {step === 'gmail-compose' && <GmailReplyChat initialPhase="compose" />}
         {step === 'gmail-reply' && <GmailReplyChat initialPhase="search" />}
         {step === 'gmail-summarise' && <GmailReplyChat initialPhase="search" initialSummariseMode />}

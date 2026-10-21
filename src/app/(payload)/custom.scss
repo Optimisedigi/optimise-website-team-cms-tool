@@ -9986,57 +9986,12 @@ body.od-client-record {
 
 
 // ============================================================
-// Phone bottom tab bar (PWA / small screens)
+// Phones (no bottom tab bar: navigation is the header menu button)
 // ============================================================
-.mobile-tabbar {
-  display: none;
-}
-
 @media (max-width: 768px) {
-  .mobile-tabbar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 50; // under full-screen panels (mail reader) and the nav drawer
-    display: flex;
-    background: #1a1a2e;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .mobile-tabbar__item {
-    flex: 1;
-    min-width: 0;
-    min-height: 56px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    border: 0;
-    background: none;
-    color: rgba(255, 255, 255, 0.6);
-    font: inherit;
-    font-size: 11px;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-
-  .mobile-tabbar__item--active {
-    color: #fff;
-  }
-
-  .mobile-tabbar__label {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  // Keep page content clear of the bar.
+  // Keep the last content clear of the floating OptiMate launcher.
   .template-default__wrap {
-    padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
   }
 
   // PWA: keep the fixed header out from under the iOS status bar / notch.
@@ -10044,3 +9999,9 @@ body.od-client-record {
     padding-top: env(safe-area-inset-top);
   }
 }
+
+// Mobile audit refinements, loaded last so they override the rules above.
+@import './mobile/_shell.scss';
+@import './mobile/_dashboard.scss';
+@import './mobile/_payload-views.scss';
+@import './mobile/_pages.scss';

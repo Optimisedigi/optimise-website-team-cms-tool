@@ -77,4 +77,53 @@ describe('MailApp on a phone', () => {
     expect(screen.queryByRole('button', { name: 'Back to inbox' })).toBeNull()
     expect(screen.queryByTestId('mail-reply-bar')).toBeNull()
   })
+
+  it('moves Hidden, Clients and Refresh into a ⋯ menu and floats Draft with AI on phones', async () => {
+    setViewport(true)
+    render(<MailApp clients={[]} />)
+    await screen.findByText('Hello there')
+    expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
+    const compose = screen.getByRole('button', { name: 'Draft with AI' })
+    expect(compose.className).toMatch(/composeFab/)
+
+    const more = screen.getByRole('button', { name: 'More mail actions' })
+    expect(more).toHaveAttribute('aria-haspopup', 'menu')
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(more)
+    expect(more).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('menuitem', { name: 'Refresh' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Hidden/ })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Clients/ })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(more).toHaveAttribute('aria-expanded', 'false'))
+    fireEvent.click(more)
+    fireEvent.mouseDown(document.body)
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+  it('keeps the toolbar buttons inline on desktop', async () => {
+    setViewport(false)
+    render(<MailApp clients={[]} />)
+    await screen.findByText('Hello there')
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Draft with AI' }).className).not.toMatch(/composeFab/)
+    expect(screen.queryByRole('button', { name: 'More mail actions' })).toBeNull()
+  })
+
+  it('rewords the Gmail not-connected reason with a Connect Gmail button', async () => {
+    setViewport(true)
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        error: 'gmail-not-connected',
+        reason: 'Gmail not connected for this user. Connect via /api/gmail/connect from the admin UI before scheduling tasks.',
+        connectUrl: '/api/gmail/connect',
+      }),
+    }) as Response) as unknown as typeof fetch
+    render(<MailApp clients={[]} />)
+    expect(await screen.findByText('Gmail isn\u2019t connected yet. Connect it to see client emails here.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Connect Gmail' })).toHaveAttribute('href', '/api/gmail/connect')
+  })
 })

@@ -70,6 +70,17 @@ describe('POST /api/optimate/realtime-secret', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('denies ContentMate voice secrets to users without blog access', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 3, role: 'specialist', featureAccess: ['clients'] } })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await POST(makeRequest({ mode: 'contentmate', session: { instructions: 'x', tools: [] } }))
+
+    expect(res.status).toBe(403)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('mints a server-configured, tool-free TaskMate voice session for an admin', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1, role: 'admin' } })
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ value: 'ek_taskmate' }), { status: 200 }))

@@ -708,15 +708,26 @@ export const OPTIMATE_MODAL_CSS = `
   .om-head {
     padding: calc(12px + env(safe-area-inset-top)) 12px 12px;
   }
-  /* Keep the desktop icons/buttons as designed; just widen the tap area. */
-  .om-iconbtn, .om-headlink { position: relative; }
-  .om-iconbtn::after, .om-headlink::after {
+  /* Header icons are full 44px tap targets on phones. */
+  .om-iconbtn { width: 44px !important; height: 44px !important; }
+  .om-headlink { position: relative; min-height: 44px; }
+  .om-headlink::after {
     content: '';
     position: absolute;
     inset: -8px;
   }
+  /* A separate window does nothing on a phone. */
+  .om-iconbtn[aria-label='Pop out to a separate window'] { visibility: hidden; width: 0 !important; padding: 0 !important; margin: 0 !important; overflow: hidden; }
+  /* Two agent tiles per row, so no lone tile on its own line. */
+  .om-agents { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .om-inputwrap {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+  .om-panel [data-optimate-input] {
+    font-size: 16px !important; /* stops iOS zooming on focus */
+  }
+  .om-panel [class*='OptiMateBeamComposer'][class*='beam'] {
+    margin-bottom: env(safe-area-inset-bottom);
   }
   .om-inputwrap textarea, .om-search input, .om-select {
     font-size: 16px; /* stops iOS zooming on focus */

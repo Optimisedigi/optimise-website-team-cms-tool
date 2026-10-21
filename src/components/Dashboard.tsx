@@ -23,6 +23,14 @@ import SalesFunnelDashboard from './SalesFunnelDashboard'
 import DripEmailTracker from './DripEmailTracker'
 import ClientUnreadMailCard from './ClientUnreadMailCard'
 import { DashboardYearCosts } from './DashboardYearCosts'
+import { useIsMobileViewport } from '../lib/swipe'
+
+/** Phone layout breakpoint (matches the admin's 768px phone styles). */
+const PHONE_MAX_WIDTH = 768
+/** KPI cards shown on phones before "More metrics". */
+export const PHONE_KPI_LIMIT = 6
+/** Activity entries shown on phones before "See all". */
+export const PHONE_ACTIVITY_LIMIT = 5
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -650,6 +658,21 @@ const Dashboard = () => {
   const [xeroLoading, setXeroLoading] = useState(true)
   const [costDetailsOpen, setCostDetailsOpen] = useState(false)
   const [statementsSummary, setStatementsSummary] = useState<{ pendingCount: number; totalOutstanding: number } | null>(null)
+  const [pendingApprovals, setPendingApprovals] = useState<number | null>(null)
+  const [kpisExpanded, setKpisExpanded] = useState(false)
+  const isPhone = useIsMobileViewport(PHONE_MAX_WIDTH)
+
+  // Pending OptiMate approvals, for the Action Items row. Count only.
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/agent-approval-queue?where[status][equals]=pending&limit=1&depth=0', { credentials: 'include', signal: controller.signal })
+      .then(async (res) => (res.ok ? ((await res.json()) as { totalDocs?: unknown }) : null))
+      .then((body) => {
+        if (typeof body?.totalDocs === 'number') setPendingApprovals(body.totalDocs)
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [])
 
   const fetchDashboard = () => {
     return fetch('/api/dashboard')
@@ -759,8 +782,21 @@ const Dashboard = () => {
         </a>
       </div>
 
-      {/* Topline KPI strip — 8 individual cards, full width above layout grid */}
-      <div className="od-kpi-strip">
+      {/* Phones lead with what needs action, above the KPIs. */}
+      {isPhone && (
+        <div className="od-dash__priority">
+          <ActionItems
+            uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}
+            pendingStatements={statementsSummary?.pendingCount ?? 0}
+            pendingApprovals={pendingApprovals}
+          />
+          <ClientUnreadMailCard />
+        </div>
+      )}
+
+      {/* Topline KPI strip — 8 individual cards, full width above layout grid.
+          Phones show the first PHONE_KPI_LIMIT, three per row, until "More metrics". */}
+      <div id="od-kpi-strip" className={`od-kpi-strip${kpisExpanded ? ' od-kpi-strip--expanded' : ''}`}>
             <KpiCard
               label="Active Clients"
               dotColor="#6366f1"
@@ -867,6 +903,15 @@ const Dashboard = () => {
               delta={data.kpiMom?.mtdCosts}
             />
       </div>
+      <button
+        type="button"
+        className="od-kpi-more"
+        aria-controls="od-kpi-strip"
+        aria-expanded={kpisExpanded}
+        onClick={() => setKpisExpanded((open) => !open)}
+      >
+        {kpisExpanded ? 'Fewer metrics' : 'More metrics'}
+      </button>
 
       {/* Yearly Sales Target Progress Bar */}
       {data.salesTarget && data.salesTarget.target > 0 && (
@@ -883,8 +928,8 @@ const Dashboard = () => {
           {/* GA4 sessions by channel (monthly, stacked) */}
           <Ga4MonthlyChannelsCard />
 
-          {/* Unread emails from starred client senders (Mail) */}
-          <ClientUnreadMailCard />
+          {/* Unread emails from starred client senders (Mail); on phones it sits at the top. */}
+          {!isPhone && <ClientUnreadMailCard />}
 
           {/* Search Console */}
           <GscCard gsc={data.gsc} gscMonthly={data.gscMonthly} refreshing={gscRefreshing} onRefresh={handleGscRefresh} onSeed={handleGscSeed} seeding={gscSeeding} />
@@ -925,16 +970,19 @@ const Dashboard = () => {
             />
           )}
 
-          <ActivityFeed entries={data.activity} onNavigate={handleActivityNavigation} />
+          <ActivityFeed entries={data.activity} onNavigate={handleActivityNavigation} limit={isPhone ? PHONE_ACTIVITY_LIMIT : undefined} />
 
           {/* Team Tasks */}
           <TeamTasksCard teamTasks={data.teamTasks} />
 
-          {/* Action Items */}
-          <ActionItems
-            uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}
-            pendingStatements={statementsSummary?.pendingCount ?? 0}
-          />
+          {/* Action Items (on phones it sits at the top) */}
+          {!isPhone && (
+            <ActionItems
+              uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}
+              pendingStatements={statementsSummary?.pendingCount ?? 0}
+              pendingApprovals={pendingApprovals}
+            />
+          )}
 
           {/* Pending Statements banner */}
           {statementsSummary && statementsSummary.pendingCount > 0 && (
@@ -1566,11 +1614,15 @@ export function activityHref(entry: ActivityEntry): string {
 function ActivityFeed({
   entries,
   onNavigate,
+  limit,
 }: {
   entries: ActivityEntry[]
   onNavigate: (event: MouseEvent<HTMLAnchorElement>, href: string) => void
+  /** Show at most this many (phones); "See all" opens the full log. */
+  limit?: number
 }) {
-  const visibleEntries = entries.filter(isDashboardActivityVisible)
+  const allVisible = entries.filter(isDashboardActivityVisible)
+  const visibleEntries = limit ? allVisible.slice(0, limit) : allVisible
 
   return (
     <div className="od-box od-box--feed">
@@ -2158,16 +2210,24 @@ function Ga4Chart({ data }: { data: { date: string; users: number; sessions: num
 function ActionItems({
   uncategorisedCosts,
   pendingStatements,
+  pendingApprovals = null,
 }: {
   uncategorisedCosts: number
   pendingStatements: number
+  /** Pending OptiMate approvals; null while unknown. */
+  pendingApprovals?: number | null
 }) {
   const items: { label: string; detail: string; href: string; pill?: string; pillClass: string }[] = [
     {
       label: 'Review OptiMate approvals',
-      detail: 'Agent actions awaiting sign-off',
+      detail:
+        pendingApprovals === null
+          ? 'Agent actions awaiting sign-off'
+          : pendingApprovals > 0
+            ? `${pendingApprovals} approval${pendingApprovals === 1 ? '' : 's'} waiting`
+            : 'No approvals waiting',
       href: '/admin/collections/agent-approval-queue',
-      pill: 'Open',
+      pill: pendingApprovals === 0 ? undefined : pendingApprovals ? String(pendingApprovals) : 'Open',
       pillClass: 'od-pill--blue',
     },
     {

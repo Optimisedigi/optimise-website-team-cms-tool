@@ -56,4 +56,13 @@ describe('ScheduleResponseClient availability grid', () => {
     expect(screen.getByText('3 times selected')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Clear all' })).toBeInTheDocument()
   })
+
+  it('keeps Decline on the same row as the prompt with a 44px tap target', () => {
+    render(<ScheduleResponseClient token="t" previewData={meeting} />)
+    const row = screen.getByTestId('schedule-decline-row')
+    expect(row.style.flexWrap).toBe('nowrap')
+    expect(within(row).getByText(/Can't make this meeting\?/)).toBeInTheDocument()
+    const decline = within(row).getByRole('button', { name: 'Decline' })
+    expect(decline.style.minHeight).toBe('44px')
+  })
 })

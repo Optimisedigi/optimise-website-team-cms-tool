@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import ClientBreadcrumbSwitcher from './ClientBreadcrumbSwitcher'
 import GoogleAdsClientSwitcher from './GoogleAdsClientSwitcher'
 import ClientOverviewPill from './client-business/ClientOverviewPill'
+import ClientTabPicker from './client-business/ClientTabPicker'
 import {
   firstMonthProrationFactor,
   historicalRevenueTotal,
@@ -395,8 +396,8 @@ function ClientRecordHeaderForClient() {
     [servicesValue, setServices],
   )
 
-  // New (unsaved) documents have no id.
-  if (!id || !data) return null
+  // New (unsaved) documents have no id; the phone section picker still helps.
+  if (!id || !data) return id ? null : <ClientTabPicker />
 
   const showRevenue = !data.isAgency && !isAgency
 
@@ -422,6 +423,7 @@ function ClientRecordHeaderForClient() {
         overviewEditable
         liveOverview={liveOverview}
       />
+      <ClientTabPicker />
     </>
   )
 }
@@ -454,6 +456,9 @@ function ClientHeaderCard({
   liveOverview?: unknown
 }) {
   const { name, websiteUrl, slug, isActive, logoThumbUrl } = data
+  // Phones: the card collapses to one row (logo, name, status, PIN); this
+  // reveals the website, services and revenue figures. Desktop ignores it.
+  const [expanded, setExpanded] = useState(false)
   const domain = displayDomain(websiteUrl)
   const clientOverview = renderClientOverview(
     liveOverview !== undefined ? liveOverview : data.clientOverview,
@@ -468,7 +473,7 @@ function ClientHeaderCard({
     : '—'
 
   return (
-    <div className="od-client-head">
+    <div className={`od-client-head${expanded ? ' od-client-head--expanded' : ''}`}>
       <button
         type="button"
         className="od-client-head__logo-btn"
@@ -567,6 +572,15 @@ function ClientHeaderCard({
             )}
           </div>
         </div>
+
+        <button
+          type="button"
+          className="od-client-head__more"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((open) => !open)}
+        >
+          {expanded ? 'Hide figures' : 'Show figures'}
+        </button>
 
         {clientPin && (
           <div className="od-client-head__pin" title="Client PIN">

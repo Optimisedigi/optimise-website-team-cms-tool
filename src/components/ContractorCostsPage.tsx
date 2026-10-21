@@ -371,19 +371,19 @@ export default function ContractorCostsPage() {
   if (loading) return <RocketSplash />;
 
   return (
-    <main className="od-settings" aria-labelledby="contractor-costs-heading" style={{ maxWidth: 'none', width: '100%' }}>
+    <main className="od-settings od-contractor-costs" aria-labelledby="contractor-costs-heading" style={{ maxWidth: 'none', width: '100%' }}>
       <div className="od-box" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', paddingBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
           <div>
             <h2 id="contractor-costs-heading" className="od-settings__title" style={{ marginBottom: 4 }}>Contractor costs</h2>
-            <p className="od-settings__subtitle" style={{ margin: 0 }}>Prepare fortnightly transfers from logged contractor hours.</p>
+            <p className="od-settings__subtitle od-contractor-costs__intro" style={{ margin: 0 }}>Prepare fortnightly transfers from logged contractor hours.</p>
           </div>
           <nav aria-label="Contractor cost actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <a href="/admin/collections/contractors/create" className="od-settings__btn od-settings__btn--primary" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>New contractor</a>
             <a href="/admin/collections/contractor-time-entries" className="od-settings__btn" style={{ padding: '8px 14px', fontSize: 13, textDecoration: 'none' }}>All time entries</a>
           </nav>
         </div>
-        <div className="od-box__stats od-box__stats--4" style={{ paddingTop: 16 }}>
+        <div className="od-box__stats od-box__stats--4 od-contractor-costs__stats" style={{ paddingTop: 16 }}>
           <div className="od-box__stat"><span className="od-box__stat-value">{globals.activeContractors}</span><span className="od-box__stat-label">Active contractors</span></div>
           <div className="od-box__stat"><span className="od-box__stat-value" style={{ color: owingStat.value > 0 ? '#b45309' : undefined }}>{fmtMoney(owingStat.value, currency)}</span><span className="od-box__stat-label">{owingStat.label}</span></div>
           <div className="od-box__stat"><span className="od-box__stat-value">{fmtMoney(globals.totalPaid, currency)}</span><span className="od-box__stat-label">Total paid</span></div>
@@ -397,7 +397,7 @@ export default function ContractorCostsPage() {
 
       <section aria-labelledby="payments-heading">
         <h3 id="payments-heading" style={{ margin: '0 0 8px', fontSize: 16, color: '#0f172a' }}>Fortnightly payments</h3>
-        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>Auto-built from approved time entries in 14-day fortnights (anchored 29 Jun 2026). Copy the transfer reference into Wise, then mark the fortnight paid.</p>
+        <p className="od-contractor-costs__intro" style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>Auto-built from approved time entries in 14-day fortnights (anchored 29 Jun 2026). Copy the transfer reference into Wise, then mark the fortnight paid.</p>
         <div role="group" aria-label="Payment filters" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#475569', fontWeight: 600 }}>
             Date range
@@ -411,7 +411,7 @@ export default function ContractorCostsPage() {
               {PAYMENT_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <span style={{ fontSize: 12, color: '#64748b', paddingBottom: 8 }}>{filteredPayments.length} of {payments.length} shown</span>
+          <span className="od-contractor-costs__count" style={{ fontSize: 12, color: '#64748b', paddingBottom: 8 }}>{filteredPayments.length} of {payments.length} shown</span>
         </div>
         <div className="od-box contractor-costs-scroll" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
           <table className="contractor-costs-table" style={{ width: '100%', minWidth: 1240, borderCollapse: 'collapse', fontSize: 13 }}>
@@ -450,8 +450,8 @@ export default function ContractorCostsPage() {
         </div>
       </section>
 
-      <details style={{ marginBottom: 24 }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a', padding: '8px 0' }}>Contractors ({contractors.length})</summary>
+      <details className="od-contractor-costs__contractors" style={{ marginBottom: 24 }}>
+        <summary className="od-contractor-costs__summary" style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a', padding: '8px 0' }}>Contractors ({contractors.length})</summary>
         <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#64748b' }}>Rates, reimbursements, monthly costs, all-time totals, and the latest submitted week. Click a reimbursement to edit the amount, frequency, and start date without leaving this page.</p>
         <div className="od-box contractor-costs-scroll" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="contractor-costs-table" style={{ width: '100%', minWidth: 1180, borderCollapse: 'collapse', fontSize: 13 }}>

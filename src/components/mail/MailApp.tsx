@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import styles from './MailApp.module.css'
 import { useIsMobileViewport, useSwipeBack } from '../../lib/swipe'
 import EmailBody from './EmailBody'
@@ -31,6 +31,83 @@ import {
 import type { SenderClientOverride } from '../../lib/mail/client-matching'
 import { normaliseSenderEntry, senderClientFor } from '../../lib/mail/sender-clients'
 import MailStepNav from './MailStepNav'
+
+/** Phones (the overflow menu and floating compose button). */
+const PHONE_MAX_WIDTH = 768
+
+/** Server reason (also read by agents/tools) → the wording users see in Mail. */
+const GMAIL_NOT_CONNECTED_REASON = /gmail not connected for this user/i
+const GMAIL_NOT_CONNECTED_COPY = 'Gmail isn\u2019t connected yet. Connect it to see client emails here.'
+
+function friendlyMailError(message: string): { message: string; notConnected: boolean } {
+  return GMAIL_NOT_CONNECTED_REASON.test(message)
+    ? { message: GMAIL_NOT_CONNECTED_COPY, notConnected: true }
+    : { message, notConnected: false }
+}
+
+/** Phone toolbar overflow (Hidden / Clients / Refresh). Closes on outside tap and Escape. */
+function MailOverflowMenu({ items }: { items: Array<{ label: string; onSelect: () => void; disabled?: boolean }> }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuId = useId()
+  useEffect(() => {
+    if (!open) return
+    const close = (event: Event) => {
+      if (wrapRef.current?.contains(event.target as Node)) return
+      setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        buttonRef.current?.focus()
+      }
+    }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('touchstart', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('touchstart', close)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  return (
+    <div ref={wrapRef} className={styles.overflow}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`${styles.btn} ${styles.overflowBtn}`}
+        aria-label="More mail actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen((value) => !value)}
+      >
+        ⋯
+      </button>
+      {open ? (
+        <div id={menuId} role="menu" aria-label="More mail actions" className={styles.overflowMenu}>
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              className={styles.overflowItem}
+              disabled={item.disabled}
+              onClick={() => {
+                setOpen(false)
+                item.onSelect()
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 /**
  * CMS Mail view. Folder list (Inbox / Sent / Drafts, plus the Scheduled queue) → reading pane (newest
@@ -235,6 +312,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
   const isMobile = useIsMobileViewport()
+  const isPhone = useIsMobileViewport(PHONE_MAX_WIDTH)
   const readerRef = useRef<HTMLElement | null>(null)
   const [messages, setMessages] = useState<ThreadMessage[]>([])
   // Calendar invite in the open thread; shown only while its message is loaded.
@@ -1349,44 +1427,73 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             </span>
           </details>
         ) : null}
+        {isPhone ? (
+          <MailOverflowMenu
+            items={[
+              {
+                label: `Hidden${hiddenSenders.length ? ` (${hiddenSenders.length})` : ''}`,
+                onSelect: () => setShowHiddenPanel((open) => !open),
+              },
+              {
+                label: `★ Clients${clientSenders.length ? ` (${clientSenders.length})` : ''}`,
+                onSelect: () => setShowClientPanel((open) => !open),
+              },
+              { label: 'Refresh', onSelect: () => void refresh(), disabled: listLoading },
+            ]}
+          />
+        ) : (
+          <>
+            <button
+              type="button"
+              className={styles.btn}
+              onClick={() => setShowHiddenPanel((open) => !open)}
+              aria-expanded={showHiddenPanel}
+              title="Senders hidden from this inbox"
+            >
+              Hidden{hiddenSenders.length ? ` (${hiddenSenders.length})` : ''}
+            </button>
+            <button
+              type="button"
+              className={styles.btn}
+              onClick={() => setShowClientPanel((open) => !open)}
+              aria-expanded={showClientPanel}
+              title="Senders whose unread emails show on the dashboard"
+            >
+              ★ Clients{clientSenders.length ? ` (${clientSenders.length})` : ''}
+            </button>
+            <button type="button" className={styles.btn} onClick={() => void refresh()} disabled={listLoading}>
+              Refresh
+            </button>
+          </>
+        )}
         <button
           type="button"
-          className={styles.btn}
-          onClick={() => setShowHiddenPanel((open) => !open)}
-          aria-expanded={showHiddenPanel}
-          title="Senders hidden from this inbox"
+          className={`${styles.btn} ${styles.primary} ${isPhone ? styles.composeFab : ''}`}
+          onClick={startNew}
+          aria-label={isPhone ? 'Draft with AI' : undefined}
+          title={isPhone ? 'Draft with AI' : undefined}
         >
-          Hidden{hiddenSenders.length ? ` (${hiddenSenders.length})` : ''}
-        </button>
-        <button
-          type="button"
-          className={styles.btn}
-          onClick={() => setShowClientPanel((open) => !open)}
-          aria-expanded={showClientPanel}
-          title="Senders whose unread emails show on the dashboard"
-        >
-          ★ Clients{clientSenders.length ? ` (${clientSenders.length})` : ''}
-        </button>
-        <button type="button" className={styles.btn} onClick={() => void refresh()} disabled={listLoading}>
-          Refresh
-        </button>
-        <button type="button" className={`${styles.btn} ${styles.primary}`} onClick={startNew}>
-          Draft with AI
+          {isPhone ? <span aria-hidden="true">✎</span> : 'Draft with AI'}
         </button>
       </div>
 
       {error ? (
-        <div className={styles.error} role="alert">
-          <span>{error.message}</span>
-          {error.connectUrl ? (
-            <a className={styles.btn} href={error.connectUrl}>
-              Reconnect Gmail
-            </a>
-          ) : null}
-          <button type="button" className={styles.linkBtn} onClick={() => setError(null)}>
-            Dismiss
-          </button>
-        </div>
+        (() => {
+          const shown = friendlyMailError(error.message)
+          return (
+            <div className={styles.error} role="alert">
+              <span>{shown.message}</span>
+              {error.connectUrl ? (
+                <a className={`${styles.btn} ${styles.errorConnect}`} href={error.connectUrl}>
+                  {shown.notConnected ? 'Connect Gmail' : 'Reconnect Gmail'}
+                </a>
+              ) : null}
+              <button type="button" className={`${styles.linkBtn} ${styles.errorDismiss}`} onClick={() => setError(null)}>
+                Dismiss
+              </button>
+            </div>
+          )
+        })()
       ) : null}
 
       {showClientPanel ? (

@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { getOptiMateDefaultModels } from '@/lib/agents/_shared/optimate-default-models'
 import { resolveCredential } from '@/lib/agents/_shared/llm/auth/resolver'
+import { hasBlogAccess } from '@/lib/access'
 
 export const runtime = 'nodejs'
 
@@ -49,6 +50,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     const body = (await request.json().catch(() => null)) as { mode?: unknown; session?: unknown } | null
     const isTaskMate = body?.mode === 'taskmate'
     if (isTaskMate && user.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    // ContentMate / Blog Prompter "AI suggest" voice is limited to blog users.
+    if (body?.mode === 'contentmate' && !hasBlogAccess(user)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

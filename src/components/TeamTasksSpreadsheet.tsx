@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import TeamTaskDetailPane from './TeamTaskDetailPane'
+import AdminStepNavSetter from './AdminStepNavSetter'
 import { TEAM_TASK_TYPE_OPTIONS } from '@/lib/team-task-options'
 import { isEmptyTeamTaskPlaceholder } from '@/lib/team-task-placeholder'
 import { applyLinkShortcut } from '@/lib/rich-text-links'
@@ -116,6 +117,10 @@ function statusTone(status: string): React.CSSProperties {
   if (status === 'not_started') return { background: '#e0f2fe', color: '#075985' }
   return { background: '#ede9fe', color: '#5b21b6' }
 }
+
+const TEAM_TASKS_STEP_NAV = [{ label: 'Team Tasks' }]
+
+const filterControlStyle: React.CSSProperties = { height: 34, boxSizing: 'border-box', margin: 0 }
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -333,7 +338,6 @@ export default function TeamTasksSpreadsheet() {
   const [error, setError] = useState('')
   const [canManage, setCanManage] = useState(false)
   const [canEditTaskFields, setCanEditTaskFields] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | number | null>(null)
   const latestLoadId = useRef(0)
 
@@ -353,7 +357,6 @@ export default function TeamTasksSpreadsheet() {
       setUsers(json.users || [])
       setCanManage(Boolean(json.canManage))
       setCanEditTaskFields(Boolean(json.canEditTaskFields ?? json.canManage))
-      setIsAdmin(Boolean(json.isAdmin))
     } catch (err) {
       if (loadId === latestLoadId.current) setError(err instanceof Error ? err.message : 'Failed to load tasks')
     } finally {
@@ -537,11 +540,12 @@ export default function TeamTasksSpreadsheet() {
 
   return (
     <div className="od-team-tasks-page" style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
+      <AdminStepNavSetter items={TEAM_TASKS_STEP_NAV} />
       <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Team Tasks</h1>
       <div className="od-team-tasks-filters" style={{ display: 'grid', gridTemplateColumns: '150px 220px 180px 260px 1fr', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
           Weeks
-          <select value={weekMode} onChange={(e) => setWeekMode(e.target.value as 'week' | 'all' | 'last2' | 'last4')} style={inputStyle}>
+          <select value={weekMode} onChange={(e) => setWeekMode(e.target.value as 'week' | 'all' | 'last2' | 'last4')} style={{ ...inputStyle, ...filterControlStyle }}>
             <option value="week">Selected week</option>
             <option value="all">All weeks</option>
             <option value="last2">Last 2 weeks</option>
@@ -559,15 +563,15 @@ export default function TeamTasksSpreadsheet() {
               const next = mondayKey(new Date(`${e.target.value}T00:00:00`))
               setWeekStart(next)
             }}
-            style={{ ...inputStyle, cursor: weekMode === 'week' ? 'pointer' : 'default' }}
+            style={{ ...inputStyle, ...filterControlStyle, cursor: weekMode === 'week' ? 'pointer' : 'default' }}
           />
         </label>
-        <select aria-label="Filter tasks by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={inputStyle}>
+        <select aria-label="Filter tasks by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...inputStyle, ...filterControlStyle }}>
           <option value="all">All statuses</option>
           <option value="open">Open work</option>
           {statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
-        <select aria-label="Filter tasks by client" value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={inputStyle}>
+        <select aria-label="Filter tasks by client" value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={{ ...inputStyle, ...filterControlStyle }}>
           <option value="">All clients</option>
           {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
         </select>
@@ -724,16 +728,11 @@ export default function TeamTasksSpreadsheet() {
               <>
                 <tr style={{ background: 'rgba(70, 141, 139, 0.08)' }}>
                   <td colSpan={8} style={{ padding: '8px 10px 12px', borderBottom: '1px solid var(--theme-elevation-100)' }}>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button type="button" onClick={() => void addRow()} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#14b8a6', borderColor: '#0f766e', color: '#fff' }}>
+                    <div className="od-team-tasks-add-row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button type="button" onClick={() => void addRow()} disabled={savingId === 'new'} style={{ ...inputStyle, flex: '3 1 0%', width: 'auto', minWidth: 0, cursor: 'pointer', fontWeight: 900, background: '#14b8a6', borderColor: '#0f766e', color: '#fff' }}>
                         {savingId === 'new' ? 'Adding task…' : 'Add task this week'}
                       </button>
-                      {isAdmin && (
-                        <button type="button" onClick={() => window.dispatchEvent(new Event('optimate:open-taskmate'))} style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer', fontWeight: 900, background: '#111827', borderColor: '#111827', color: '#fff' }}>
-                          Open TaskMate
-                        </button>
-                      )}
-                      <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'} style={{ ...inputStyle, width: 'auto', minWidth: 180, marginLeft: 'auto', cursor: 'pointer', fontWeight: 900, background: '#7c3aed', borderColor: '#5b21b6', color: '#fff' }}>
+                      <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'} style={{ ...inputStyle, flex: '1 1 0%', width: 'auto', minWidth: 0, cursor: 'pointer', fontWeight: 900, background: '#7c3aed', borderColor: '#5b21b6', color: '#fff' }}>
                         {savingId === 'new' ? 'Adding week…' : '+ Add week'}
                       </button>
                     </div>
@@ -805,7 +804,6 @@ export default function TeamTasksSpreadsheet() {
           })}
           {!loading && <div className="od-team-tasks-mobile-actions">
             <button type="button" onClick={() => void addRow()} disabled={savingId === 'new'}>{savingId === 'new' ? 'Adding task…' : 'Add task this week'}</button>
-            {isAdmin && <button type="button" onClick={() => window.dispatchEvent(new Event('optimate:open-taskmate'))}>Open TaskMate</button>}
             <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'}>{savingId === 'new' ? 'Adding week…' : '+ Add week'}</button>
           </div>}
         </div>
