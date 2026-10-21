@@ -227,6 +227,19 @@ export async function sendRawMessage(accessToken: string, raw: string, threadId?
   return res.data.id ?? "";
 }
 
+/**
+ * The message exactly as Gmail stores it (RFC 822), for an .eml download.
+ * Returns null when it is bigger than maxBytes (checked before downloading it).
+ */
+export async function getRawMessage(accessToken: string, messageId: string, maxBytes: number): Promise<Buffer | null> {
+  const gmail = gmailApi(accessToken);
+  const size = await gmail.users.messages.get({ userId: "me", id: messageId, format: "minimal" });
+  if ((size.data.sizeEstimate ?? 0) > maxBytes) return null;
+  const res = await gmail.users.messages.get({ userId: "me", id: messageId, format: "raw" });
+  const raw = Buffer.from(res.data.raw ?? "", "base64url");
+  return raw.length > maxBytes ? null : raw;
+}
+
 export async function getFullMessage(accessToken: string, messageId: string): Promise<GmailFullMessage> {
   const gmail = gmailApi(accessToken);
   const res = await gmail.users.messages.get({ userId: "me", id: messageId, format: "full" });

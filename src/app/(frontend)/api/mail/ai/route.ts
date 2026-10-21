@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getFullMessage, getThreadMessages } from "@/lib/mail/gmail-mail";
 import { buildMailModelRequest, cleanDraftHistory, MailModelRequestError } from "@/lib/mail/model-request";
 import { runMailModel } from "@/lib/mail/run-model";
+import { applyBlockEditsToText, parseBlockEdits, type BlockEdit } from "@/lib/mail/revise-edits";
 import { extractEmailHeaders } from "@/lib/gmail-draft-parsing";
 import { cleanSuggestedSubject, ensureHiGreeting, greetingName } from "@/lib/mail/greeting";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
@@ -26,9 +27,12 @@ const NOT_LINKED = "This email isn't linked to a client.";
  * empty subject line) also asks for a subject, returned separately. The body
  * always opens with "Hi" (plus the sender's first name for replies).
  *
- * history/currentDraft let the user keep refining the draft (OptiMate-style):
- * earlier instructions + drafts and the draft as currently edited. They are the
- * user's own text; the only mailbox content is still the one selected email.
+ * history/currentBlocks (or currentDraft) let the user keep revising the draft
+ * (OptiMate-style): earlier instructions and the draft as currently edited,
+ * as the editor's blocks. A revision returns { text, edits }: only the blocks
+ * the request changes (see revise-edits.ts), so the window can leave the rest
+ * of the email untouched; text is the whole revised draft. They are the user's
+ * own text; the only mailbox content is still the one selected email.
  *
  * includeThread (reply only, opt-in checkbox): also send the other messages of
  * the selected email's thread. The thread id comes from the selected message as
@@ -54,6 +58,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     instruction?: unknown;
     history?: unknown;
     currentDraft?: unknown;
+    currentBlocks?: unknown;
     includeThread?: unknown;
     suggestSubject?: unknown;
     includeClientData?: unknown;
@@ -67,6 +72,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const instruction = typeof body.instruction === "string" ? body.instruction : "";
   const history = cleanDraftHistory(body.history);
   const currentDraft = typeof body.currentDraft === "string" ? body.currentDraft : "";
+  const currentBlocks = Array.isArray(body.currentBlocks) ? body.currentBlocks.filter((block): block is string => typeof block === "string") : null;
   const includeClientData = body.includeClientData === true;
   if (includeClientData && !userHasFeature(ctx.user, "clients")) {
     return NextResponse.json({ error: "Client data is not enabled for your account." }, { status: 403 });
@@ -113,6 +119,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         instruction,
         history,
         currentDraft,
+        currentBlocks,
         suggestSubject: body.suggestSubject === true,
         clientContext,
       });
@@ -162,6 +169,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         instruction,
         history,
         currentDraft,
+        currentBlocks,
         email: toModelEmail(message),
         thread: thread ? thread.filter((m) => m.threadId === message.threadId).map(toModelEmail) : null,
         clientContext,
@@ -170,6 +178,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (err) {
     if (err instanceof MailModelRequestError) return NextResponse.json({ error: err.message }, { status: 400 });
     throw err;
+  }
+
+  if (request.revise) {
+    const blocks = request.revise.blocks;
+    try {
+      // Edits the model could not write as valid JSON get one more try.
+      let result = await runMailModel({ payload: ctx.payload, userId: ctx.user.id, request });
+      let edits: BlockEdit[] | null = parseBlockEdits(result.text, blocks.length);
+      if (!edits) {
+        result = await runMailModel({ payload: ctx.payload, userId: ctx.user.id, request });
+        edits = parseBlockEdits(result.text, blocks.length);
+      }
+      if (!edits) return NextResponse.json({ error: "The AI's changes could not be read. Please try again." }, { status: 502 });
+      return NextResponse.json({
+        text: applyBlockEditsToText(blocks, edits).join("\n\n"),
+        edits,
+        model: result.model,
+        clientContext: clientContext ? { id: clientContext.clientId, name: clientContext.clientName } : null,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "AI request failed.";
+      return NextResponse.json({ error: message.slice(0, 300) }, { status: 502 });
+    }
   }
 
   try {

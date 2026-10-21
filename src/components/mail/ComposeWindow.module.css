@@ -697,6 +697,27 @@
   cursor: pointer;
 }
 
+/* Undo the last AI change: quieter than Revise, next to it. */
+.aiUndo {
+  padding: 8px 10px;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 8px;
+  background: var(--theme-elevation-0);
+  color: var(--theme-elevation-800);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.aiUndo:hover:not(:disabled) {
+  border-color: var(--theme-elevation-400);
+}
+
+.aiUndo:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .note {
   margin: 0;
   padding: 6px 16px;

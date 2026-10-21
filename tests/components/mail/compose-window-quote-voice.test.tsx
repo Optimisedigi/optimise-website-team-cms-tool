@@ -142,3 +142,84 @@ describe('ComposeWindow voice drafting', () => {
     expect(fetchMock.mock.calls.every(([target]) => target === '/api/mail/ai')).toBe(true)
   })
 })
+
+// Lexical scrolls the caret into view after an edit; jsdom has no layout for ranges.
+if (typeof Range.prototype.getBoundingClientRect !== 'function') {
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', { configurable: true, value: () => new DOMRect(0, 0, 0, 0) })
+}
+
+describe('ComposeWindow Revise and Undo', () => {
+  it('changes only the part the request touches, and Undo puts the email back, one AI change at a time', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            text: 'Hi Carli,\n\nThursday works at 2pm.\n\nSee you then.',
+            edits: [{ op: 'replace', block: 2, text: 'Thursday works at 2pm.' }],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            text: 'Hi Carli,\n\nThursday works at 2pm.\n\nSee you then.\n\nBring the report.',
+            edits: [{ op: 'insert_after', block: 3, text: 'Bring the report.' }],
+          }),
+          { status: 200 },
+        ),
+      )
+    mount({ ...REPLY, html: '<p>Hi Carli,</p><p><br></p><p>Thursday <b>works</b>.</p><p><br></p><p><b>See you then.</b></p>' })
+    const body = screen.getByLabelText('Email body')
+    await waitFor(() => expect(body.textContent).toContain('See you then.'))
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+
+    const revise = async (instruction: string) => {
+      fireEvent.change(screen.getByLabelText('Instruction for the AI'), { target: { value: instruction } })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Revise' }))
+      })
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Revise' })).toHaveProperty('disabled', false))
+    }
+
+    await revise('say 2pm')
+    // The model got the draft as blocks; only block 2 changed, and the bold sign-off line is untouched.
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      instruction: 'say 2pm',
+      currentBlocks: ['Hi Carli,', 'Thursday works.', 'See you then.'],
+    })
+    await waitFor(() => expect(body.textContent).toContain('Thursday works at 2pm.'))
+    expect(body.querySelector('strong')?.textContent).toBe('See you then.')
+
+    await revise('ask for the report')
+    await waitFor(() => expect(body.textContent).toContain('Bring the report.'))
+    // The next revision builds on the earlier request.
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).history).toEqual([
+      { instruction: 'say 2pm', draft: 'Hi Carli,\n\nThursday works at 2pm.\n\nSee you then.' },
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(body.textContent).not.toContain('Bring the report.'))
+    expect(body.textContent).toContain('Thursday works at 2pm.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(body.textContent).toContain('Thursday works.'))
+    expect(body.textContent).not.toContain('2pm')
+    // Back to the original bold word, and nothing left to undo.
+    expect(Array.from(body.querySelectorAll('strong')).map((node) => node.textContent)).toEqual(['works', 'See you then.'])
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+  })
+
+  it('leaves the email alone and says so when the AI finds nothing to change', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ text: 'Thursday works.', edits: [] }), { status: 200 }))
+    mount()
+    await waitFor(() => expect(screen.getByLabelText('Email body').textContent).toContain('Thursday works.'))
+    fireEvent.change(screen.getByLabelText('Instruction for the AI'), { target: { value: 'fix typos' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Revise' }))
+    })
+    await waitFor(() => expect(screen.getByText(/found nothing to change/)).toBeTruthy())
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+  })
+})

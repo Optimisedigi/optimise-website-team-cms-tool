@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { GmailFileAttachment, GmailInlineImage } from "@/lib/gmail-service";
 import { hasExpectedImageSignature } from "@/lib/gmail-draft-attachments";
 import { sanitizeEmailHtml } from "@/lib/mail/email-html";
-import { inlineEmailListStyles, inlineEmailTableStyles, stripEmailFonts } from "@/lib/mail/gmail-html";
+import { editorParagraphsToGmailLines, inlineEmailListStyles, inlineEmailTableStyles, stripEmailFonts } from "@/lib/mail/gmail-html";
 import { MAIL_ATTACHMENT_LIMITS } from "@/lib/mail/compose-limits";
 
 /**
@@ -126,9 +126,12 @@ export function parseMailComposeContent(input: unknown): MailComposeResult {
   const contentIds = new Set(images.map((image) => image.contentId));
   // Classes mean nothing to Gmail, so the editor's table and list look is written inline.
   // Fonts are stripped first: the whole body is Verdana, Normal (see formatGmailDraftHtml).
-  const cleaned = inlineEmailListStyles(
-    inlineEmailTableStyles(
-      stripEmailFonts(restrictImages(sanitizeEmailHtml(html), contentIds).replace(/\sclass\s*=\s*("[^"]*"|'[^']*')/gi, "")),
+  // Editor paragraphs are single lines, sent as Gmail's own line <div>s (see editorParagraphsToGmailLines).
+  const cleaned = editorParagraphsToGmailLines(
+    inlineEmailListStyles(
+      inlineEmailTableStyles(
+        stripEmailFonts(restrictImages(sanitizeEmailHtml(html), contentIds).replace(/\sclass\s*=\s*("[^"]*"|'[^']*')/gi, "")),
+      ),
     ),
   ).trim();
   // Only send the inline images the body still shows.

@@ -153,7 +153,7 @@ describe('/api/mail/schedule/:id', () => {
       {},
       7,
       5,
-      expect.objectContaining({ to: 'sam@x.com', subject: 'New', scheduledFor: null, content: expect.objectContaining({ html: '<p>Edited</p>', bcc: 'b@x.com' }) }),
+      expect.objectContaining({ to: 'sam@x.com', subject: 'New', scheduledFor: null, content: expect.objectContaining({ html: '<div>Edited</div>', bcc: 'b@x.com' }) }),
       expect.any(Date),
     )
   })

@@ -168,6 +168,30 @@ export function inlineEmailListStyles(html: string): string {
   });
 }
 
+const PARAGRAPH_OR_TABLE_TAG_RE = /<(\/?)(p|table)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
+
+/**
+ * Each paragraph in the compose editor is one line (Enter starts a new line,
+ * with no gap; an empty paragraph is a blank line), like Gmail's own editor.
+ * Gmail writes those lines as <div>s, so the editor's paragraphs are sent the
+ * same way. Left as <p>, formatGmailDraftHtml would add a blank line after
+ * each one, so every Enter showed up as a double line break.
+ * Paragraphs inside table cells are left to formatGmailDraftHtml, which joins
+ * them with single line breaks.
+ */
+export function editorParagraphsToGmailLines(html: string): string {
+  if (!/<p\b/i.test(html)) return html;
+  let tableDepth = 0;
+  return html.replace(PARAGRAPH_OR_TABLE_TAG_RE, (tag: string, closing: string, name: string, attrs: string) => {
+    if (name.toLowerCase() === "table") {
+      tableDepth = closing ? Math.max(0, tableDepth - 1) : tableDepth + 1;
+      return tag;
+    }
+    if (tableDepth > 0) return tag;
+    return closing ? "</div>" : `<div${attrs}>`;
+  });
+}
+
 export function inlineEmailTableStyles(html: string): string {
   if (!/<(table|th|td)\b/i.test(html)) return html;
   return html

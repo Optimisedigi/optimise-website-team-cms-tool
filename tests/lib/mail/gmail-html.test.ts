@@ -98,6 +98,28 @@ describe('compose HTML to Gmail', () => {
   })
 })
 
+describe('compose line spacing', () => {
+  it('sends each editor line as one Gmail line, with blank lines only where the editor has an empty line', () => {
+    // What the editor produces for: "Hey," / "1" / "2" / blank line / "Bullet points:" / list / blank line / "Thanks,"
+    const html = formatGmailDraftHtml(
+      compose(
+        '<p class="editorParagraph" dir="ltr"><span style="white-space: pre-wrap;">Hey,</span></p>' +
+          '<p class="editorParagraph"><span>1</span></p><p class="editorParagraph"><span>2</span></p>' +
+          '<p class="editorParagraph"><br></p><p class="editorParagraph"><span>Bullet points:</span></p>' +
+          '<ol class="editorListNumber"><li value="1"><span>1</span></li></ol>' +
+          '<p class="editorParagraph"><br></p><p class="editorParagraph"><span>Thanks,</span></p>',
+      ),
+    )
+    expect(html).toContain(
+      '<div dir="ltr"><span style="white-space: pre-wrap;">Hey,</span></div><div><span>1</span></div><div><span>2</span></div>' +
+        '<div><br></div><div><span>Bullet points:</span></div><ol ',
+    )
+    expect(html).toContain('</ol><div><br></div><div><span>Thanks,</span></div></div>')
+    expect(html).not.toContain('<br><br>')
+    expect(html).not.toContain('<p')
+  })
+})
+
 describe('compose body font', () => {
   it('strips every font and size from the body but keeps colour and weight', () => {
     expect(
@@ -148,8 +170,8 @@ describe('inlineEmailListStyles', () => {
 
   it('leaves an even gap above and below a list in the sent email', () => {
     const html = formatGmailDraftHtml(compose('<p>See below:</p><ul><li>one</li></ul><p>After</p>'))
-    expect(html).toContain(`See below:<ul style="${UL}">`)
-    expect(html).toContain('</ul>After')
+    expect(html).toContain(`<div>See below:</div><ul style="${UL}">`)
+    expect(html).toContain('</ul><div>After</div>')
     expect(html).not.toMatch(/<br><br><ul/)
   })
 })

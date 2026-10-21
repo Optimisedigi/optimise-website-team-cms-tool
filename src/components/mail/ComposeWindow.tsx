@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styles from './ComposeWindow.module.css'
 import EmailBody from './EmailBody'
-import RichEmailEditor, { type EmailSelectionFormat, type RichEmailEditorHandle } from './RichEmailEditor'
+import RichEmailEditor, { type EditorSnapshot, type EmailSelectionFormat, type RichEmailEditorHandle } from './RichEmailEditor'
+import type { BlockEdit } from '../../lib/mail/revise-edits'
 import FormatBar from './FormatBar'
 import { buildEmailDocument } from '../../lib/mail/email-html'
 import { MAX_SIGN_OFF_CHARS, splitSignatureSignOff } from '../../lib/mail/signature'
-import { markdownLiteToHtml } from '../../lib/email-draft-markdown'
+import { markdownLiteToBlocksHtml } from '../../lib/email-draft-markdown'
 import { base64Bytes, extractInlineImages, type InlineImagePayload } from '../../lib/mail/compose-html'
 import { MAIL_ATTACHMENT_LIMITS } from '../../lib/mail/compose-limits'
 import SchedulePicker from './SchedulePicker'
@@ -35,7 +36,10 @@ import OptiMateVoice, { type LocalVoiceSession } from '../OptiMateVoice'
  *
  * The AI works like OptiMate: each prompt produces a draft, and every further
  * prompt revises the current draft (including the user's own edits) until it
- * is right. The model only ever sees the one email being replied to (server
+ * is right. A revision changes only the parts the request needs (the server
+ * returns block edits, see lib/mail/revise-edits); everything else stays as
+ * written, formatting included. Undo puts the body back as it was before the
+ * last AI change, one change at a time. The model only ever sees the one email being replied to (server
  * enforced) plus this conversation. Nothing is sent until Send is clicked.
  * The user's Gmail signature is previewed at the end of the scrolling draft;
  * the server appends it on Send and Save as draft, so it is never part of the
@@ -144,6 +148,18 @@ interface Turn {
   draft: string
 }
 
+/** The body before one AI change, for Undo. */
+interface AiUndoEntry {
+  snapshot: EditorSnapshot
+  /** AI rounds before the change, so the next revision's history matches the restored body. */
+  turnCount: number
+  /** Subject the AI filled in with this change, cleared again on undo if still unedited. */
+  subject?: string
+}
+
+/** AI changes that can be undone, newest last. */
+const MAX_AI_UNDO = 20
+
 interface Props {
   initial: ComposeState
   title: string
@@ -216,6 +232,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     return { ...withFollowUp, signOff: s.signOff ?? parts.signOff }
   }, [])
   const [turns, setTurns] = useState<Turn[]>([])
+  const [aiUndo, setAiUndo] = useState<AiUndoEntry[]>([])
   // The unsent AI instruction is kept in this browser as you type (see ai-prompt-store).
   const [prompt, setPrompt] = useState(() =>
     initial.aiPrompt ??
@@ -526,7 +543,8 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   }, [state.mode, state.to, state.cc, initial.account])
 
   function setBodyFromText(text: string) {
-    editorRef.current?.setHtml(text ? markdownLiteToHtml(text) : '')
+    // Blank lines stay as empty lines: each editor paragraph is one line, as in Gmail.
+    editorRef.current?.setHtml(text ? markdownLiteToBlocksHtml(text, { blankLines: true }) : '')
   }
 
   // One AI request at a time, whether typed or spoken.
@@ -543,11 +561,17 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     setBusy('ai')
     setNote('')
     try {
-      const currentDraft = hasDraft ? (editorRef.current?.getMarkdown() ?? '') : ''
+      // The draft as blocks: a revision's edits name the blocks to change.
+      const blocks = hasDraft ? (editorRef.current?.getBlocks() ?? []) : []
       // First AI request on a new email with no subject yet: the AI suggests one too.
-      const suggestSubject = state.mode === 'new' && turns.length === 0 && !currentDraft && !state.subject.trim()
+      const suggestSubject = state.mode === 'new' && turns.length === 0 && blocks.length === 0 && !state.subject.trim()
       const withClientData = useClientData && linkedClient !== null
-      const data = await postJson<{ text: string; subject?: string; clientContext?: { id: number; name: string } | null }>(
+      const data = await postJson<{
+        text: string
+        edits?: BlockEdit[]
+        subject?: string
+        clientContext?: { id: number; name: string } | null
+      }>(
         '/api/mail/ai',
         {
           action: state.mode === 'reply' ? 'reply' : 'draft',
@@ -558,16 +582,30 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           ...(suggestSubject ? { suggestSubject: true } : {}),
           instruction,
           history: turns,
-          currentDraft,
+          currentBlocks: blocks.map((block) => block.markdown),
         },
         initial.account,
       )
-      setTurns((current) => [...current, { instruction: instruction || 'Draft a reply', draft: data.text }])
-      setBodyFromText(data.text)
       setClientDataUsed(data.clientContext ? data.clientContext.name || 'this client' : '')
+      if (data.edits && data.edits.length === 0) {
+        setNote('The AI found nothing to change. Try saying what to change in another way.')
+        return { ok: true, text: data.text }
+      }
+      const editor = editorRef.current
+      const snapshot = editor?.snapshot() ?? null
+      // Only the blocks the revision changes are touched; if the body changed too much
+      // while the AI was working, the whole revised text goes in instead.
+      const applied = data.edits && blocks.length > 0 ? (editor?.applyBlockEdits(blocks.map((block) => block.key), data.edits) ?? false) : false
+      if (!applied) setBodyFromText(data.text)
       const subject = data.subject?.trim()
       // Never overwrite a subject typed while the AI was writing.
-      if (subject) setState((current) => (current.subject.trim() ? current : { ...current, subject }))
+      const fillSubject = Boolean(subject) && !stateRef.current.subject.trim()
+      if (subject && fillSubject) setState((current) => (current.subject.trim() ? current : { ...current, subject }))
+      if (snapshot) {
+        const entry: AiUndoEntry = { snapshot, turnCount: turns.length, ...(subject && fillSubject ? { subject } : {}) }
+        setAiUndo((current) => [...current, entry].slice(-MAX_AI_UNDO))
+      }
+      setTurns((current) => [...current, { instruction: instruction || 'Draft a reply', draft: data.text }])
       return { ok: true, text: data.text, ...(subject ? { subject } : {}) }
     } catch (err) {
       const message = (err as Error).message
@@ -580,6 +618,17 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   }
   const runAiRef = useRef(runAi)
   runAiRef.current = runAi
+
+  /** Put the body back as it was before the last AI change (edits made since then go too). */
+  function undoAi() {
+    const entry = aiUndo[aiUndo.length - 1]
+    if (!entry || busy !== '') return
+    editorRef.current?.restore(entry.snapshot)
+    setAiUndo((current) => current.slice(0, -1))
+    setTurns((current) => current.slice(0, entry.turnCount))
+    if (entry.subject) setState((current) => (current.subject === entry.subject ? { ...current, subject: '' } : current))
+    setNote('')
+  }
 
   async function askAi() {
     const instruction = prompt.trim()
@@ -1161,6 +1210,17 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             <span className={styles.voice} title="Draft by voice (GPT Realtime 2.1). It writes and reads back drafts; only you can send.">
               <OptiMateVoice mode="mail" auditId="mail" businessName="this email" localSession={voiceSession} triggerSize={34} />
             </span>
+            {aiUndo.length > 0 ? (
+              <button
+                type="button"
+                className={styles.aiUndo}
+                onClick={undoAi}
+                disabled={busy !== ''}
+                title="Put the email back as it was before the last AI change"
+              >
+                Undo
+              </button>
+            ) : null}
             <button type="button" className={styles.aiButton} onClick={() => void askAi()} disabled={busy !== ''}>
               {busy === 'ai' ? 'Writing…' : hasDraft ? 'Revise' : 'Write with AI'}
             </button>

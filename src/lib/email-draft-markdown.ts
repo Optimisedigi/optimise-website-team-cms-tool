@@ -42,6 +42,18 @@ function renderTableAt(lines: string[], start: number): { html: string; end: num
 
 /** Render the small, escaped markdown subset used by OptiMate Gmail drafts. */
 export function markdownLiteToHtml(input: string): string {
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#1f2937;">${markdownLiteToBlocksHtml(input)}</div>`;
+}
+
+/**
+ * The same markdown as top-level blocks (p, ul, ol, table) with no wrapper.
+ *
+ * blankLines (Mail compose editor): a blank line between paragraphs becomes an
+ * empty paragraph, because each editor paragraph is one line with no gap (as in
+ * Gmail), so "Hi Sam,\n\nThanks" needs the empty line to keep its gap. Without
+ * it, blank lines only separate blocks (Gmail drafts add the gap themselves).
+ */
+export function markdownLiteToBlocksHtml(input: string, options: { blankLines?: boolean } = {}): string {
   const lines = input.split("\n");
   const out: string[] = [];
   let listType: "ul" | "ol" | null = null;
@@ -71,14 +83,20 @@ export function markdownLiteToHtml(input: string): string {
       out.push(`<li>${formatInline(numberedMatch[1] ?? "")}</li>`);
     } else if (line.trim() === "") {
       closeList();
+      // One empty paragraph per gap, never at the start.
+      if (options.blankLines && out.length > 0 && out[out.length - 1] !== BLANK_LINE) out.push(BLANK_LINE);
     } else {
       closeList();
       out.push(`<p>${formatInline(line)}</p>`);
     }
   }
   closeList();
-  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#1f2937;">${out.join("")}</div>`;
+  // Never end on an empty line.
+  while (out[out.length - 1] === BLANK_LINE) out.pop();
+  return out.join("");
 }
+
+const BLANK_LINE = "<p><br></p>";
 
 /** Preserve existing report HTML while converting standalone markdown tables in drafts. */
 export function renderDraftTableIfPresent(body: string): string {

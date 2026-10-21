@@ -63,7 +63,8 @@ export async function runMailModel(args: {
       model,
       fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS,
       maxTokens: 2000,
-      temperature: request.action === "summarise" ? 0.2 : 0.5,
+      // Summaries and targeted revisions should stay close to the source; new drafts get some variety.
+      temperature: request.action === "summarise" || request.revise ? 0.2 : 0.5,
       system: request.system + soul,
       messages: request.messages.map((message) => ({
         role: message.role,

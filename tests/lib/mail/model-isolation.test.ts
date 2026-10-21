@@ -194,52 +194,82 @@ describe("OptiMate writing style (soul) and model", () => {
   });
 });
 
-describe("refining a draft (keep prompting)", () => {
-  it("sends earlier prompts, drafts and the edited draft, but still only the one selected email", async () => {
+describe("revising a draft (keep prompting)", () => {
+  const llmText = (text: string) => ({ message: { content: [{ type: "text", text }] }, model: "test-model" });
+
+  it("sends the edited draft as numbered blocks plus earlier requests, and still only the one selected email", async () => {
+    mockCallLLM.mockResolvedValueOnce(llmText('{"edits":[{"op":"replace","block":2,"text":"Thursday at 2pm works."}]}'));
     const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
     const res = await POST(
       post("/api/mail/ai", {
         action: "reply",
         gmailMessageId: "selected",
-        instruction: "make it shorter",
-        history: [{ instruction: "say Thursday works", draft: "Hi Jo, Thursday works. FIRST-DRAFT" }],
-        currentDraft: "Hi Jo, Thursday works for me. MY-OWN-EDIT",
+        instruction: "say 2pm",
+        history: [{ instruction: "say Thursday works", draft: "Hi Jo,\n\nThursday works. FIRST-DRAFT" }],
+        currentBlocks: ["Hi Jo,", "Thursday works. MY-OWN-EDIT", "Talk soon."],
       }),
     );
     expect(res.status).toBe(200);
+    // Only the changed block differs; the rest is returned word for word.
+    expect(await res.json()).toMatchObject({
+      text: "Hi Jo,\n\nThursday at 2pm works.\n\nTalk soon.",
+      edits: [{ op: "replace", block: 2, text: "Thursday at 2pm works." }],
+    });
     expect(mockGetFullMessage).toHaveBeenCalledTimes(1);
-    const call = mockCallLLM.mock.calls[0]![0] as { messages: Array<{ role: string; content: Array<{ text: string }> }> };
-    expect(call.messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+    const call = mockCallLLM.mock.calls[0]![0] as { temperature: number; messages: Array<{ role: string }> };
+    expect(call.messages.map((m) => m.role)).toEqual(["user"]);
+    expect(call.temperature).toBe(0.2);
     const input = modelInput();
     expect(input).toContain("SELECTED-BODY");
-    expect(input).toContain("FIRST-DRAFT");
-    expect(input).toContain("MY-OWN-EDIT");
-    expect(input).toContain("make it shorter");
+    expect(input).toContain("[2]\\nThursday works. MY-OWN-EDIT");
+    expect(input).toContain("- say Thursday works");
+    expect(input).toContain("My request: say 2pm");
+    expect(input).toContain("Change as little as possible");
+    // Old drafts are not replayed: the current draft is the only version the model edits.
+    expect(input).not.toContain("FIRST-DRAFT");
     expect(input).not.toContain("OTHER-EMAIL-BODY");
     expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ emailCount: 1 }) }));
   });
 
-  it("a refined new draft still contains no email", () => {
+  it("asks once more when the edits cannot be read, then gives a clear error", async () => {
+    const { POST } = await import("@/app/(frontend)/api/mail/ai/route");
+    const body = { action: "draft", instruction: "add Friday", currentBlocks: ["Hi Jo,", "See you."] };
+    mockCallLLM.mockResolvedValueOnce(llmText("Hi Jo, here is a whole new email")).mockResolvedValueOnce(
+      llmText('```json\n{"edits":[{"op":"insert_after","block":1,"text":"Friday suits me."}]}\n```'),
+    );
+    const ok = await POST(post("/api/mail/ai", body));
+    expect(await ok.json()).toMatchObject({ text: "Hi Jo,\n\nFriday suits me.\n\nSee you." });
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+
+    mockCallLLM.mockResolvedValue(llmText('{"edits":[{"op":"replace","block":9,"text":"x"}]}'));
+    const bad = await POST(post("/api/mail/ai", body));
+    expect(bad.status).toBe(502);
+    expect((await bad.json()).error).toMatch(/could not be read/);
+  });
+
+  it("a revised new draft still contains no email, and falls back to the draft text when no blocks are sent", () => {
     const req = buildMailModelRequest({
       action: "draft",
       instruction: "more formal",
       history: [{ instruction: "invite Jo to a call", draft: "Hi Jo, fancy a call?" }],
-      currentDraft: "Hi Jo, fancy a call next week?",
+      currentDraft: "Hi Jo,\n\nFancy a call next week?",
     });
     expect(req.emailCount).toBe(0);
-    expect(req.messages).toHaveLength(3);
-    expect(req.messages[2]!.text).toContain("more formal");
+    expect(req.messages).toHaveLength(1);
+    expect(req.revise).toEqual({ blocks: ["Hi Jo,", "Fancy a call next week?"] });
+    expect(req.messages[0]!.text).toContain("My request: more formal");
+    expect(req.system).not.toContain("turn them into a natural, polished email");
   });
 
-  it("requires a change instruction once there is a draft, and caps history", () => {
-    expect(() =>
-      buildMailModelRequest({ action: "draft", instruction: "", currentDraft: "Hi" }),
-    ).toThrow(MailModelRequestError);
+  it("requires a change instruction once there is a draft, caps history and refuses drafts too long to revise", () => {
+    expect(() => buildMailModelRequest({ action: "draft", instruction: "", currentDraft: "Hi" })).toThrow(MailModelRequestError);
     const long = Array.from({ length: 20 }, (_, i) => ({ instruction: `i${i}`, draft: `d${i}` }));
     const req = buildMailModelRequest({ action: "draft", instruction: "x", history: long });
-    // 8 kept rounds → 1 opening + 1 draft + 7 × 2 + final ask
-    expect(req.messages).toHaveLength(17);
-    expect(JSON.stringify(req.messages)).not.toContain("d11");
+    // 8 kept rounds; the last one's draft is what gets revised.
+    expect(req.revise).toEqual({ blocks: ["d19"] });
+    expect(req.messages[0]!.text).toContain("- i12");
+    expect(req.messages[0]!.text).not.toContain("- i11");
+    expect(() => buildMailModelRequest({ action: "draft", instruction: "x", currentBlocks: ["a".repeat(12_001)] })).toThrow(/too long/);
   });
 });
 

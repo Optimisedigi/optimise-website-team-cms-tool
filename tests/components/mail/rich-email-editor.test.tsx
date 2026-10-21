@@ -84,6 +84,48 @@ describe('RichEmailEditor', () => {
     expect(html).toContain('width="300"')
   })
 
+  it('reopens sent/saved Gmail line divs as the same lines, blank lines included', async () => {
+    const { ref } = await mount('<div>Hey,</div><div>1</div><div><br></div><div>Thanks,</div>')
+    const paragraphs = Array.from(document.querySelectorAll('[contenteditable="true"] > p')).map((p) => p.textContent)
+    expect(paragraphs).toEqual(['Hey,', '1', '', 'Thanks,'])
+    expect(ref.current?.getHtml()).not.toMatch(/<br><br>/)
+  })
+
+  it('applies AI edits to only the named blocks, keeping the rest and its formatting, and can restore a snapshot', async () => {
+    const { ref } = await mount(
+      '<p>Hi Sam,</p><p><br></p><p>We <b>loved</b> the <span style="color: #cc0000;">results</span>.</p><p>Next steps:</p><ul><li>Call</li></ul><p><br></p><p>Talk soon.</p>',
+    )
+    const editor = ref.current
+    if (!editor) throw new Error('no editor')
+    const blocks = editor.getBlocks()
+    expect(blocks.map((block) => block.markdown)).toEqual(['Hi Sam,', 'We loved the results.', 'Next steps:', '- Call', 'Talk soon.'])
+    const before = editor.snapshot()
+    const ok = editor.applyBlockEdits(
+      blocks.map((block) => block.key),
+      [
+        { op: 'replace', block: 3, text: 'Next steps for Friday:' },
+        { op: 'insert_after', block: 5, text: 'Have a good weekend.' },
+        { op: 'delete', block: 1 },
+      ],
+    )
+    expect(ok).toBe(true)
+    const html = editor.getHtml()
+    // Untouched blocks keep their bold and colour; the deleted greeting takes its empty line with it.
+    expect(html).toMatch(/<b><strong[^>]*>loved<\/strong><\/b>/)
+    expect(html).toContain('color: rgb(204, 0, 0)')
+    expect(editor.getMarkdown()).toBe('We loved the results.\n\nNext steps for Friday:\n\n- Call\n\nTalk soon.\n\nHave a good weekend.')
+    const lines = Array.from(document.querySelectorAll('[contenteditable="true"] > *')).map((node) => node.textContent)
+    // Tight lines stay tight; the new last line gets the empty line the spacing around it calls for.
+    expect(lines).toEqual(['We loved the results.', 'Next steps for Friday:', 'Call', '', 'Talk soon.', '', 'Have a good weekend.'])
+
+    // Stale keys (the body changed meanwhile) are refused rather than guessed at.
+    expect(editor.applyBlockEdits(['missing'], [{ op: 'delete', block: 1 }])).toBe(false)
+
+    if (!before) throw new Error('no snapshot')
+    await act(async () => editor.restore(before))
+    expect(editor.getMarkdown()).toBe('Hi Sam,\n\nWe loved the results.\n\nNext steps:\n\n- Call\n\nTalk soon.')
+  })
+
   it('drops unsafe images and markup from pasted or loaded HTML', async () => {
     const { ref } = await mount('<p onclick="x()">Hi</p><img src="javascript:alert(1)"><script>alert(1)</script>')
     const html = ref.current?.getHtml() ?? ''

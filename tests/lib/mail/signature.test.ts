@@ -52,6 +52,18 @@ describe('edited sign-off in sent mail', () => {
     expect(html).toContain('logo.png')
   })
 
+  it('leaves exactly one blank line before the signature, whatever the body ends with', () => {
+    const sig = '<div data-optimate-signoff="true">Thanks,</div>'
+    // Line divs, with empty lines left at the end of the body.
+    expect(appendGmailSignature('<div>Hi</div><div><br></div><div><br></div>', sig)).toBe(`<div>Hi</div><br>${sig}`)
+    // A list (its own margin plus one <br>), with and without a trailing empty line.
+    const list = '<ol><li>1</li></ol>'
+    expect(appendGmailSignature(list, sig)).toBe(`${list}<br>${sig}`)
+    expect(appendGmailSignature(`${list}<div><br></div>`, sig)).toBe(`${list}<br>${sig}`)
+    // Paragraphs: formatGmailDraftHtml turns the last one into a line plus one blank line.
+    expect(formatGmailDraftHtml(appendGmailSignature('<p>Hi</p><p><br></p>', sig))).toContain(`Hi<br><br>${sig}`)
+  })
+
   it('an emptied sign-off sends just the rest of the signature', () => {
     expect(withEditedSignOff(DIVS, '  ')).toBe(`<div data-optimate-signoff="true"></div>${splitSignatureSignOff(DIVS)?.rest}`)
     // Reopening that draft keeps the sign-off empty and does not duplicate the signature.

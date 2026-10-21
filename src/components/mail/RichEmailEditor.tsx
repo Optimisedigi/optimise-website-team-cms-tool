@@ -9,6 +9,8 @@ import {
   $hasUpdateTag,
   $insertNodes,
   $isElementNode,
+  $isLineBreakNode,
+  $isParagraphNode,
   $isRangeSelection,
   $isTextNode,
   $nodesOfType,
@@ -57,6 +59,8 @@ import {
   TableRowNode,
 } from '@lexical/table'
 import { $createEmailImageNode, EmailImageNode } from './EmailImageNode'
+import { markdownLiteToBlocksHtml } from '../../lib/email-draft-markdown'
+import { planBlockEdits, type BlockEdit } from '../../lib/mail/revise-edits'
 import styles from './ComposeWindow.module.css'
 
 /**
@@ -93,6 +97,17 @@ export interface RichEmailEditorHandle {
   getHtml: () => string
   /** Body as markdown-lite text for the AI (tables as markdown tables, no images). */
   getMarkdown: () => string
+  /** The body's blocks (paragraphs, lists, tables) as the AI sees them; empty lines are not blocks. */
+  getBlocks: () => EmailBlock[]
+  /**
+   * Apply an AI revision to the blocks read by getBlocks (keys): only the
+   * edited blocks change, the rest keep their text and formatting. False
+   * (nothing changed) when one of those blocks is no longer in the body.
+   */
+  applyBlockEdits: (keys: string[], edits: BlockEdit[]) => boolean
+  /** The whole body as it is now, to restore later (undo an AI change). */
+  snapshot: () => EditorSnapshot | null
+  restore: (snapshot: EditorSnapshot) => void
   /** Replace the whole body. */
   setHtml: (html: string) => void
   insertTable: (rows: number, columns: number) => void
@@ -105,6 +120,15 @@ export interface RichEmailEditorHandle {
 }
 
 export type EmailListType = 'bullet' | 'number'
+
+/** One block of the body: its node key and its text as the AI sees it. */
+export interface EmailBlock {
+  key: string
+  markdown: string
+}
+
+/** Saved body (Lexical editor states are immutable, so keeping one is safe). */
+export type EditorSnapshot = EditorState
 
 /** Formatting at the cursor, for the formatting bar's pressed states. */
 export interface EmailSelectionFormat {
@@ -249,6 +273,26 @@ const theme = {
   },
 }
 
+const BLOCK_SELECTOR = 'div, p, ul, ol, table, blockquote, h1, h2, h3, h4, h5, h6, pre, hr'
+
+/**
+ * Sent mail and saved drafts hold one Gmail line <div> per editor paragraph
+ * (see editorParagraphsToGmailLines). Lexical drops a lone <br> in a <div>,
+ * which would lose blank lines on reopening, so each line div becomes a <p>.
+ */
+function linesToParagraphs(dom: Document): void {
+  for (const div of Array.from(dom.body.querySelectorAll('div'))) {
+    if (div.querySelector(BLOCK_SELECTOR)) continue
+    const paragraph = dom.createElement('p')
+    for (const name of ['dir', 'style']) {
+      const value = div.getAttribute(name)
+      if (value !== null) paragraph.setAttribute(name, value)
+    }
+    paragraph.append(...Array.from(div.childNodes))
+    div.replaceWith(paragraph)
+  }
+}
+
 function $replaceWithHtml(editor: LexicalEditor, html: string): void {
   const root = $getRoot()
   root.clear()
@@ -257,6 +301,7 @@ function $replaceWithHtml(editor: LexicalEditor, html: string): void {
     return
   }
   const dom = new DOMParser().parseFromString(html, 'text/html')
+  linesToParagraphs(dom)
   const nodes = $generateNodesFromDOM(editor, dom)
   root.select()
   $insertNodes(nodes)
@@ -286,6 +331,100 @@ function blockToMarkdown(node: LexicalNode): string {
       .join('\n')
   }
   return $isElementNode(node) ? node.getTextContent().trim() : ''
+}
+
+function $blocks(): EmailBlock[] {
+  return $getRoot()
+    .getChildren()
+    .map((node) => ({ key: node.getKey(), markdown: blockToMarkdown(node) }))
+    .filter((block) => block.markdown !== '')
+}
+
+/** An empty line: a paragraph with no text or images, only line breaks. */
+function $isEmptyLine(node: LexicalNode | null): boolean {
+  return (
+    $isParagraphNode(node) &&
+    node.getChildren().every((child) => $isLineBreakNode(child) || ($isTextNode(child) && child.getTextContent().trim() === ''))
+  )
+}
+
+/** Editor blocks for AI text, with a blank line kept as an empty paragraph (each paragraph is one line). */
+function $nodesFromMarkdown(editor: LexicalEditor, text: string): LexicalNode[] {
+  const dom = new DOMParser().parseFromString(markdownLiteToBlocksHtml(text, { blankLines: true }), 'text/html')
+  const out: LexicalNode[] = []
+  let paragraph: ReturnType<typeof $createParagraphNode> | null = null
+  for (const node of $generateNodesFromDOM(editor, dom)) {
+    if ($isElementNode(node) && !node.isInline()) {
+      paragraph = null
+      out.push(node)
+      continue
+    }
+    // The body can only hold blocks: stray inline content goes in a paragraph.
+    if (!paragraph) {
+      paragraph = $createParagraphNode()
+      out.push(paragraph)
+    }
+    paragraph.append(node)
+  }
+  return out
+}
+
+function insertAllAfter(anchor: LexicalNode, nodes: LexicalNode[]): LexicalNode {
+  let at = anchor
+  for (const node of nodes) {
+    at.insertAfter(node)
+    at = node
+  }
+  return at
+}
+
+/**
+ * Apply AI edits to the blocks with these keys (1-based in the edits). New
+ * blocks follow the spacing around them: after a block followed by an empty
+ * line they get one too; in tightly stacked lines they do not.
+ */
+function $applyBlockEdits(editor: LexicalEditor, keys: string[], edits: BlockEdit[]): void {
+  const nodes = keys.map((key) => $getNodeByKey(key)).filter((node): node is LexicalNode => node !== null)
+  const plan = planBlockEdits(nodes.length, edits)
+  const spaced = (node: LexicalNode): boolean => {
+    const next = node.getNextSibling()
+    if (next) return $isEmptyLine(next)
+    return $isEmptyLine(node.getPreviousSibling())
+  }
+
+  const first = nodes[0]
+  if (first) {
+    const gap = spaced(first)
+    for (const text of plan.insertAfter[0] ?? []) {
+      for (const node of $nodesFromMarkdown(editor, text)) first.insertBefore(node)
+      if (gap) first.insertBefore($createParagraphNode())
+    }
+  }
+
+  nodes.forEach((node, index) => {
+    const gap = spaced(node)
+    const inserts = [...(plan.insertAfter[index + 1] ?? [])]
+    let change = plan.change[index]
+    // Deleting a block and adding one after it is replacing it.
+    if (change === null && inserts.length > 0) change = inserts.shift()
+    let anchor: LexicalNode = node
+    if (typeof change === 'string') anchor = insertAllAfter(node, $nodesFromMarkdown(editor, change))
+    for (const text of inserts) {
+      const created = $nodesFromMarkdown(editor, text)
+      anchor = insertAllAfter(anchor, gap ? [$createParagraphNode(), ...created] : created)
+    }
+    if (change === undefined) return
+    if (anchor === node) {
+      // Removed with nothing in its place: drop one neighbouring empty line too, so no double gap is left.
+      const next = node.getNextSibling()
+      const previous = node.getPreviousSibling()
+      if (next && $isEmptyLine(next)) next.remove()
+      else if (!next && previous && $isEmptyLine(previous)) previous.remove()
+    }
+    node.remove()
+  })
+  const root = $getRoot()
+  if (root.getChildrenSize() === 0) root.append($createParagraphNode())
 }
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
@@ -439,15 +578,26 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
       getMarkdown: () => {
         const editor = editorRef.current
         if (!editor) return ''
-        return editor.getEditorState().read(
-          () =>
-            $getRoot()
-              .getChildren()
-              .map(blockToMarkdown)
-              .filter((block) => block !== '')
-              .join('\n\n'),
-          { editor },
-        )
+        return editor.getEditorState().read(() => $blocks().map((block) => block.markdown).join('\n\n'), { editor })
+      },
+      getBlocks: () => {
+        const editor = editorRef.current
+        return editor ? editor.getEditorState().read($blocks, { editor }) : []
+      },
+      applyBlockEdits: (keys, edits) => {
+        const editor = editorRef.current
+        if (!editor) return false
+        const present = editor
+          .getEditorState()
+          .read(() => keys.every((key) => $getNodeByKey(key)?.getParent()?.getKey() === 'root'), { editor })
+        if (!present) return false
+        // discrete: committed now, so the body can be read straight after.
+        editor.update(() => $applyBlockEdits(editor, keys, edits), { discrete: true })
+        return true
+      },
+      snapshot: () => editorRef.current?.getEditorState() ?? null,
+      restore: (snapshot) => {
+        editorRef.current?.setEditorState(snapshot)
       },
       setHtml: (html) => {
         const editor = editorRef.current

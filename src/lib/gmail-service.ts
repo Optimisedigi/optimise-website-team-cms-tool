@@ -359,9 +359,19 @@ export function appendGmailSignature(htmlBody: string, signatureHtml: string): s
   if (!signature) return htmlBody;
   if (htmlBody.includes(signature)) return htmlBody;
 
-  const body = htmlBody.trimEnd();
-  const separator = /<\/p>$/i.test(body) ? "" : /<\/div>$/i.test(body) ? "<br>" : "<br><br>";
+  // Exactly one blank line before the signature, as Gmail does: empty lines left at
+  // the end of the body (easy to miss in the compose window) would add to it.
+  const body = trimTrailingEmptyLines(htmlBody);
+  // A closed <p> becomes a line plus a blank line in formatGmailDraftHtml; after any
+  // other block (line div, list, table) one <br> is the blank line; after inline text it takes two.
+  const separator = /<\/p>$/i.test(body) ? "" : /<\/(?:div|ul|ol|table|blockquote)>$/i.test(body) ? "<br>" : "<br><br>";
   return `${body}${separator}${signature}`;
+}
+
+const TRAILING_EMPTY_LINE_RE = /(?:\s|<br\s*\/?>|<(div|p)\b[^>]*>(?:\s|&nbsp;|<br\s*\/?>)*<\/\1>)+$/i;
+
+function trimTrailingEmptyLines(html: string): string {
+  return html.replace(TRAILING_EMPTY_LINE_RE, "");
 }
 
 /**

@@ -34,6 +34,7 @@ import MailStepNav from './MailStepNav'
 import { InboxSearch } from './InboxSearch'
 import { searchSenderAddresses, type MailContact } from '../../lib/mail/contacts-shared'
 import { forwardStartHtml, forwardSubject, hasOtherParticipants, replyRecipients } from '../../lib/mail/reply-actions'
+import { exportFileName, messageToMarkdown, saveFile, threadToMarkdown } from '../../lib/mail/export'
 
 /** People in the user's mail, from /api/mail/contacts. */
 interface SearchPeople {
@@ -357,6 +358,28 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [threadLoading, setThreadLoading] = useState(false)
   const [threadError, setThreadError] = useState('')
   const [actionNote, setActionNote] = useState('')
+  // Message whose .eml is being downloaded, so its button shows progress.
+  const [emlDownloading, setEmlDownloading] = useState<string | null>(null)
+
+  /** Download one email as Gmail stores it (.eml), on the account on screen. */
+  async function downloadEml(message: ThreadMessage) {
+    setEmlDownloading(message.messageId)
+    try {
+      const res = await fetch(`/api/mail/message/${encodeURIComponent(message.messageId)}/eml`, {
+        credentials: 'include',
+        headers: mailAccountHeaders(accountRef.current),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as ApiError
+        throw new Error(data.reason || data.error || `Download failed (${res.status})`)
+      }
+      saveFile(await res.blob(), exportFileName(message.subject, 'eml'))
+    } catch (err) {
+      setActionNote((err as Error).message)
+    } finally {
+      setEmlDownloading(null)
+    }
+  }
 
   const [composer, setComposer] = useState<(ComposeState & { key: number }) | null>(null)
   const [summary, setSummary] = useState<{ email: ThreadMessage; text: string; model: string; busy: boolean; note: string } | null>(null)
@@ -1915,6 +1938,19 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                       <button type="button" className={styles.btn} onClick={() => startForward(latest)}>
                         Forward
                       </button>
+                      <button
+                        type="button"
+                        className={styles.btn}
+                        onClick={() =>
+                          saveFile(
+                            new Blob([threadToMarkdown(messages)], { type: 'text/markdown;charset=utf-8' }),
+                            exportFileName(messages[0]?.subject ?? '', 'md'),
+                          )
+                        }
+                        title="Every message in this thread: sender, date and time, and content"
+                      >
+                        Download thread (.md)
+                      </button>
                     </>
                   ) : null}
                   {/* Archive and read state are inbox labels; they do not apply to Sent. */}
@@ -2080,6 +2116,22 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                   <footer className={styles.messageFoot}>
                     <button type="button" className={styles.linkBtn} onClick={() => startReply(message)}>
                       Reply to this email
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      disabled={emlDownloading === message.messageId}
+                      onClick={() => void downloadEml(message)}
+                      title="The email exactly as Gmail has it, attachments included"
+                    >
+                      {emlDownloading === message.messageId ? 'Downloading…' : 'Download .eml'}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      onClick={() => saveFile(new Blob([messageToMarkdown(message)], { type: 'text/markdown;charset=utf-8' }), exportFileName(message.subject, 'md'))}
+                    >
+                      Download .md
                     </button>
                     {message.stored ? (
                       <>
