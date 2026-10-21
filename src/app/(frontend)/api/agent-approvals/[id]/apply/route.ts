@@ -4,11 +4,17 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { markApplied, markFailed } from "@/lib/agents/_shared/approval-queue";
 import { dispatchApply } from "@/lib/agents/_shared/apply-dispatcher";
+import { registerApplyHandler } from "@/lib/agents/_shared/apply-dispatcher";
 import { registerOptimateApplyHandlers } from "@/lib/agents/optimate-google-ads/apply-handlers";
+import {
+  applyClientOverviewDraft,
+  CLIENT_OVERVIEW_PROPOSAL_TYPE,
+} from "@/lib/client-overview/draft";
 import { isAdmin } from "@/lib/access";
 
 // Side-effect: register all Optimate apply handlers on module load.
 registerOptimateApplyHandlers();
+registerApplyHandler(CLIENT_OVERVIEW_PROPOSAL_TYPE, applyClientOverviewDraft);
 
 /**
  * POST /api/agent-approvals/[id]/apply

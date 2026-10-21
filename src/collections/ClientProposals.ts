@@ -8,6 +8,8 @@ import crypto from "crypto";
 import { proposalEditor } from "@/lib/proposalEditor";
 import { normaliseSlideId } from "@/lib/proposal-slide-ids";
 import { logActivity } from "../lib/activity-log";
+import { scheduleClientOverviewDraft } from "../lib/client-overview/schedule";
+import { relationshipId } from "../lib/relationship-id";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 import { syncContractToClient } from "../lib/contract-to-client-sync";
 import {
@@ -2843,6 +2845,9 @@ export const ClientProposals: CollectionConfig = {
             description: doc.websiteUrl || "",
             user: req.user?.id,
           }).catch(() => {});
+          // Draft the linked client's "Who is this client?" if it is empty.
+          // Unlinked prospects are covered when conversion creates the client.
+          scheduleClientOverviewDraft(req.payload, relationshipId(doc.client), "proposal-created");
         }
 
         // Sync: when proposal moves to "client", update linked sales lead stage

@@ -1,6 +1,7 @@
 import { Forbidden, type CollectionConfig, type CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
+import { scheduleClientOverviewDraft } from "../lib/client-overview/schedule";
 import {
   historicalRevenueTotal,
   retainerRevenueYTD,
@@ -242,7 +243,7 @@ export const Clients: CollectionConfig = {
       addClientTimelineEntries,
     ],
     afterChange: [
-      async ({ doc, operation, req }) => {
+      async ({ doc, previousDoc, operation, req }) => {
         if (operation === "create") {
           logActivity(req.payload, {
             type: "client_added",
@@ -251,6 +252,17 @@ export const Clients: CollectionConfig = {
             user: req.user?.id,
             client: doc.id,
           }).catch(() => {});
+          // Draft "Who is this client?" from the website for approval. Skips
+          // itself when the section is filled in or no website is saved.
+          scheduleClientOverviewDraft(req.payload, doc.id, "client-created");
+        }
+        // A client saved without a website gets its draft once one is added.
+        if (
+          operation === "update" &&
+          !String(previousDoc?.websiteUrl ?? "").trim() &&
+          String(doc?.websiteUrl ?? "").trim()
+        ) {
+          scheduleClientOverviewDraft(req.payload, doc.id, "website-added");
         }
       },
       // Flush the dashboard caches when googleAdsCustomerId changes.

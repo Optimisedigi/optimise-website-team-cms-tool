@@ -1,4 +1,6 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
+import { scheduleClientOverviewDraft } from "../lib/client-overview/schedule";
+import { relationshipId } from "../lib/relationship-id";
 import crypto from "crypto";
 import { hasValidApiKey } from "./api-key-access";
 import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
@@ -45,6 +47,14 @@ export const SeoAuditProposals: CollectionConfig = {
   },
   hooks: {
     beforeChange: [autoGenerateSlug],
+    afterChange: [
+      // Draft the linked client's "Who is this client?" if it is empty.
+      ({ doc, operation, req }) => {
+        if (operation === "create") {
+          scheduleClientOverviewDraft(req.payload, relationshipId(doc.client), "seo-audit-proposal-created");
+        }
+      },
+    ],
   },
   access: {
     read: canAccessOrApiKey("seo-audit-proposals", hasValidApiKey),
