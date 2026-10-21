@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMessageHeaders, listMessageIdsMatching } from "@/lib/mail/gmail-mail";
-import { buildMailContacts, type ContactSourceMessage } from "@/lib/mail/contacts";
+import { buildFrequentSenders, buildMailContacts, type ContactSourceMessage } from "@/lib/mail/contacts";
 import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /** How far back, and how many of each kind of email, the list is built from. */
@@ -19,6 +19,8 @@ const RECEIVED_QUERY =
  * People to suggest in the compose window's To, Cc and Bcc fields, built from
  * the logged-in user's own sent and received Gmail on the account in the
  * request (see lib/mail/contacts.ts for what is left out and the ranking).
+ * `senders` is the people who emailed you at least three times (the Inbox
+ * search suggestions; see buildFrequentSenders).
  * Reads headers only (From, To, Cc and bulk/auto headers), never bodies, and
  * stores nothing. Never cached, since it is one person's address book.
  */
@@ -43,8 +45,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       if (sent) ordered.push({ ...sent, sent: true });
       if (received) ordered.push({ ...received, sent: false });
     }
-    const contacts = buildMailContacts(ordered, [token.email, token.userEmail, token.account, ctx.user.email ?? ""]);
-    return NextResponse.json({ contacts }, { headers: { "Cache-Control": "private, no-store" } });
+    const own = [token.email, token.userEmail, token.account, ctx.user.email ?? ""];
+    const contacts = buildMailContacts(ordered, own);
+    const senders = buildFrequentSenders(ordered, own);
+    return NextResponse.json({ contacts, senders }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
     return gmailErrorResponse(err, "Could not load your contacts.");
   }

@@ -41,6 +41,11 @@ beforeEach(() => {
       ? { threads: [thread], nextPageToken: null, account: account || 'me@od.com', senderClients: [] }
       : url.startsWith('/api/mail/thread/')
         ? { messages: [message] }
+        : url.startsWith('/api/mail/contacts')
+          ? {
+              contacts: [{ email: 'carli@inthepicture.com.au', name: 'Carli Markunsky' }],
+              senders: [{ email: 'rebekah@inthepicture.com.au', name: 'Rebekah Sadler' }],
+            }
         : url.startsWith('/api/mail/counts')
           ? { inboxUnread: 0, drafts: 0 }
           : url.startsWith('/api/mail/accounts')
@@ -66,10 +71,39 @@ describe('MailApp layout', () => {
   it('puts the search box at the top of the email list, right above the first email', async () => {
     render(<MailApp clients={CLIENTS} />)
     await screen.findByText('Hello there')
-    const search = screen.getByRole('searchbox', { name: 'Search inbox' })
+    const search = screen.getByRole('combobox', { name: 'Search inbox' })
     const list = screen.getByRole('list', { name: 'Inbox' })
     expect(search.closest('form')?.nextElementSibling).toBe(list)
     expect(search.closest('[class*="toolbar"]')).toBeNull()
+  })
+
+  it('suggests regular senders as you type and lists their mail when one is picked', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    const search = screen.getByRole('combobox', { name: 'Search inbox' })
+    fireEvent.focus(search)
+    fireEvent.change(search, { target: { value: 'rebe' } })
+    const option = await screen.findByRole('option', { name: /Rebekah Sadler/ })
+    calls = []
+    fireEvent.click(option)
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith('/api/mail/inbox'))).toBe(true))
+    const url = new URL(calls.find((call) => call.url.startsWith('/api/mail/inbox'))?.url ?? '', 'https://cms.test')
+    expect(url.searchParams.get('q')).toBe('rebekah@inthepicture.com.au')
+    expect((search as HTMLInputElement).value).toBe('rebekah@inthepicture.com.au')
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('searching part of a name also asks for mail from the people it matches', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    const search = screen.getByRole('combobox', { name: 'Search inbox' })
+    fireEvent.change(search, { target: { value: 'inthe' } })
+    calls = []
+    fireEvent.submit(search.closest('form') as HTMLFormElement)
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith('/api/mail/inbox'))).toBe(true))
+    const url = new URL(calls.find((call) => call.url.startsWith('/api/mail/inbox'))?.url ?? '', 'https://cms.test')
+    expect(url.searchParams.get('q')).toBe('inthe')
+    expect(url.searchParams.get('senders')).toBe('rebekah@inthepicture.com.au,carli@inthepicture.com.au')
   })
 
   it('marks the folder you are on as the active tab', async () => {

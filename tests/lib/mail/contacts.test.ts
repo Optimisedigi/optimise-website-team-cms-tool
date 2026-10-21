@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildMailContacts, parseAddressList, type ContactSourceMessage } from '@/lib/mail/contacts'
-import { addressesIn, applyRecipient, matchMailContacts, recipientTokenAt } from '@/lib/mail/contacts-shared'
+import { buildFrequentSenders, buildMailContacts, parseAddressList, type ContactSourceMessage } from '@/lib/mail/contacts'
+import { addressesIn, applyRecipient, matchMailContacts, recipientTokenAt, searchSenderAddresses } from '@/lib/mail/contacts-shared'
 
 const msg = (m: Partial<ContactSourceMessage>): ContactSourceMessage => ({ sent: false, from: '', to: '', cc: '', labelIds: ['INBOX'], ...m })
 const OWN = ['me@od.com']
@@ -91,5 +91,56 @@ describe('recipient field editing', () => {
     expect(token.text).toBe('car')
     expect(applyRecipient(value, token, 'carli@client.com')).toEqual({ value: 'a@b.com, carli@client.com, ', caret: 27 })
     expect(addressesIn('A@B.com, x')).toEqual(new Set(['a@b.com']))
+  })
+})
+
+describe('buildFrequentSenders', () => {
+  const from = (sender: string, extra: Partial<ContactSourceMessage> = {}) => msg({ from: sender, to: 'me@od.com', ...extra })
+
+  it('lists people who emailed you at least three times, most emails first', () => {
+    const senders = buildFrequentSenders(
+      [
+        from('Rebekah Sadler <rebekah@inthepicture.com.au>'),
+        from('dan@other.com'),
+        from('Rebekah Sadler <rebekah@inthepicture.com.au>'),
+        from('Dan Lee <dan@other.com>'),
+        from('Rebekah Sadler <rebekah@inthepicture.com.au>'),
+        from('dan@other.com'),
+        from('Rebekah Sadler <rebekah@inthepicture.com.au>'),
+        from('Twice <twice@x.com>'),
+        from('Twice <twice@x.com>'),
+        // Your own sent mail never counts towards anyone.
+        msg({ sent: true, labelIds: ['SENT'], from: 'me@od.com', to: 'twice@x.com' }),
+        from('me@od.com'),
+        from('me@od.com'),
+        from('me@od.com'),
+      ],
+      OWN,
+    )
+    expect(senders).toEqual([
+      { email: 'rebekah@inthepicture.com.au', name: 'Rebekah Sadler' },
+      { email: 'dan@other.com', name: 'Dan Lee' },
+    ])
+  })
+
+  it('leaves out marketing and automated senders however often they email', () => {
+    const promo = Array.from({ length: 4 }, () => from('Shop <deals@shop.com>', { labelIds: ['INBOX', 'CATEGORY_PROMOTIONS'] }))
+    const noReply = Array.from({ length: 4 }, () => from('Calendly <no-reply@calendly.com>'))
+    expect(buildFrequentSenders([...promo, ...noReply], OWN)).toEqual([])
+  })
+})
+
+describe('searchSenderAddresses', () => {
+  it('finds people by part of their name, frequent senders first, without repeats', () => {
+    const senders = [{ email: 'rebekah@inthepicture.com.au', name: 'Rebekah Sadler' }]
+    const contacts = [
+      { email: 'carli@inthepicture.com.au', name: 'Carli Markunsky' },
+      { email: 'rebekah@inthepicture.com.au', name: 'Rebekah Sadler' },
+      { email: 'rebecca@x.com', name: '' },
+    ]
+    expect(searchSenderAddresses(senders, contacts, 'rebe')).toEqual(['rebekah@inthepicture.com.au', 'rebecca@x.com'])
+    expect(searchSenderAddresses(senders, contacts, 'sadl')).toEqual(['rebekah@inthepicture.com.au'])
+    expect(searchSenderAddresses(senders, contacts, 'inthepicture')).toEqual(['rebekah@inthepicture.com.au', 'carli@inthepicture.com.au'])
+    expect(searchSenderAddresses(senders, contacts, 'r')).toEqual([])
   })
 })

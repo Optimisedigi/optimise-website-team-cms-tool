@@ -67,6 +67,56 @@
   border-bottom: 1px solid var(--mail-border);
 }
 
+.searchBox {
+  position: relative;
+}
+
+.searchList {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 264px;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
+}
+
+.searchOption {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.searchOption[aria-selected='true'] {
+  background: var(--theme-elevation-100);
+}
+
+.searchOptionName,
+.searchOptionEmail {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchOptionName {
+  font-weight: 600;
+  color: var(--mail-text);
+}
+
+.searchOptionEmail {
+  color: var(--mail-muted);
+}
+
 .search input,
 .field input,
 .instruction,
@@ -864,6 +914,11 @@
 }
 
 @media (max-width: 768px) {
+  .searchOption {
+    min-height: 44px;
+    justify-content: center;
+  }
+
   /* The phone header bar is black and forces white breadcrumb text, so the
      white account pill rendered as a blank white box there. */
   :global(.app-header) .accountSwitch {

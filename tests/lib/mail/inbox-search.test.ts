@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inboxSearchQuery } from '@/lib/mail/inbox-search'
+import { inboxSearchQuery, parseSearchSenders } from '@/lib/mail/inbox-search'
 
 describe('inboxSearchQuery', () => {
   it('matches a full sender address as well as free text', () => {
@@ -37,5 +37,28 @@ describe('inboxSearchQuery', () => {
   it('returns an empty string for an empty search', () => {
     expect(inboxSearchQuery('')).toBe('')
     expect(inboxSearchQuery('   ')).toBe('')
+  })
+})
+
+describe('inboxSearchQuery with matched senders', () => {
+  it('adds each matched person as another from: match, so part of a name finds their mail', () => {
+    expect(inboxSearchQuery('rebe', ['rebekah@inthepicture.com.au', 'rebecca@x.com'])).toBe(
+      '{rebe from:rebe from:rebekah@inthepicture.com.au from:rebecca@x.com}',
+    )
+  })
+
+  it('drops anything that is not a plain address, and leaves Gmail syntax alone', () => {
+    expect(inboxSearchQuery('rebe', ['rebekah@x.com} OR in:trash', 'REBEKAH@X.COM'])).toBe('{rebe from:rebe from:rebekah@x.com}')
+    expect(inboxSearchQuery('from:rebe', ['rebekah@x.com'])).toBe('from:rebe')
+    expect(inboxSearchQuery('jo@x.com', ['jo@x.com'])).toBe('{jo@x.com from:jo@x.com}')
+  })
+})
+
+describe('parseSearchSenders', () => {
+  it('keeps valid, unique addresses up to the limit', () => {
+    expect(parseSearchSenders(null)).toEqual([])
+    expect(parseSearchSenders(' A@x.com, a@x.com,bad,b@y.co ')).toEqual(['a@x.com', 'b@y.co'])
+    const many = Array.from({ length: 15 }, (_, i) => `p${i}@x.com`).join(',')
+    expect(parseSearchSenders(many)).toHaveLength(10)
   })
 })

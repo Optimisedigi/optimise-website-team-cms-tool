@@ -81,3 +81,26 @@ export function applyRecipient(value: string, token: RecipientToken, email: stri
   const inserted = `${prefix}${email}, `;
   return { value: inserted + tail, caret: inserted.length };
 }
+
+/** Most people one Inbox search adds as extra `from:` matches (see inbox-search.ts). */
+export const SEARCH_SENDER_LIMIT = 10;
+
+/**
+ * Addresses of the people a typed Inbox search means: frequent senders first,
+ * then anyone else in your mail, matched as matchMailContacts does (start of
+ * the address, the domain, the name or a word of it). Gmail only matches whole
+ * words, so these let "rebe" find mail from rebekah@inthepicture.com.au.
+ */
+export function searchSenderAddresses(
+  senders: readonly MailContact[],
+  contacts: readonly MailContact[],
+  typed: string,
+): string[] {
+  const out: string[] = [];
+  for (const contact of [...matchMailContacts(senders, typed, new Set(), SEARCH_SENDER_LIMIT), ...matchMailContacts(contacts, typed, new Set(), SEARCH_SENDER_LIMIT)]) {
+    if (out.includes(contact.email)) continue;
+    out.push(contact.email);
+    if (out.length >= SEARCH_SENDER_LIMIT) break;
+  }
+  return out;
+}

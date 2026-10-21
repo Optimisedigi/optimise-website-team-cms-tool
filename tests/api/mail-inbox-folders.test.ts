@@ -94,6 +94,16 @@ describe('GET /api/mail/inbox folders', () => {
     })
   })
 
+  it('adds the people the Mail page matched to part of a name as from: matches', async () => {
+    const res = await GET(request(`?q=rebe&senders=${encodeURIComponent('rebekah@inthepicture.com.au,not-an-address')}`))
+    expect(res.status).toBe(200)
+    expect(listFolderThreads).toHaveBeenCalledWith('tok', 'inbox', {
+      pageToken: undefined,
+      q: '{rebe from:rebe from:rebekah@inthepicture.com.au} -from:news.com -in:sent is:unread',
+      maxResults: 45,
+    })
+  })
+
   it('tops up a short page (one thread can fill several Gmail results) before showing Load more', async () => {
     // Gmail pages count messages: 45 results here were only 10 threads.
     listFolderThreads

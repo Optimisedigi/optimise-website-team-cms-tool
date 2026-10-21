@@ -138,3 +138,42 @@ export function buildMailContacts(
     .slice(0, limit)
     .map((tally) => tally.contact);
 }
+
+/** Inbox search suggests a sender once they have emailed you this many times. */
+export const FREQUENT_SENDER_MIN_EMAILS = 3;
+export const MAX_FREQUENT_SENDERS = 300;
+
+/**
+ * People who emailed you at least `minEmails` times (counted on the From line
+ * of received mail only), for the Inbox search suggestions. The same people
+ * are left out as for buildMailContacts: marketing/automated mail, account
+ * mailboxes and your own addresses. Most emails first, then the most recent,
+ * then alphabetical. `messages` must be newest first.
+ */
+export function buildFrequentSenders(
+  messages: readonly ContactSourceMessage[],
+  ownAddresses: readonly string[],
+  minEmails = FREQUENT_SENDER_MIN_EMAILS,
+  limit = MAX_FREQUENT_SENDERS,
+): MailContact[] {
+  const own = new Set(ownAddresses.map((address) => address.trim().toLowerCase()).filter(Boolean));
+  const tallies = new Map<string, { contact: MailContact; count: number; firstSeen: number }>();
+  messages.forEach((message, index) => {
+    if (message.labelIds.includes("SPAM") || message.labelIds.includes("TRASH")) return;
+    if (message.sent || message.labelIds.includes("SENT") || isMarketingOrAutomated(message)) return;
+    const sender = parseAddressList(message.from)[0];
+    if (!sender || own.has(sender.email) || isNonPersonalAddress(sender.email)) return;
+    const tally = tallies.get(sender.email);
+    if (!tally) {
+      tallies.set(sender.email, { contact: { ...sender }, count: 1, firstSeen: index });
+      return;
+    }
+    tally.count++;
+    if (!tally.contact.name && sender.name) tally.contact.name = sender.name;
+  });
+  return [...tallies.values()]
+    .filter((tally) => tally.count >= minEmails)
+    .sort((a, b) => b.count - a.count || a.firstSeen - b.firstSeen || a.contact.email.localeCompare(b.contact.email))
+    .slice(0, limit)
+    .map((tally) => tally.contact);
+}

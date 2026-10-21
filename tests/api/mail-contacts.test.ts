@@ -35,6 +35,8 @@ describe('GET /api/mail/contacts', () => {
         { email: 'carli@client.com', name: 'Carli' },
         { email: 'dan@x.com', name: 'Dan' },
       ],
+      // Dan emailed once, so is not yet a regular sender.
+      senders: [],
     })
     const received = listMessageIdsMatching.mock.calls.find(([, q]) => !q.startsWith('in:sent'))?.[1] ?? ''
     expect(received).toContain('-category:promotions')

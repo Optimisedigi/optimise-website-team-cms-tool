@@ -31,6 +31,21 @@ import {
 import type { SenderClientOverride } from '../../lib/mail/client-matching'
 import { normaliseSenderEntry, senderClientFor } from '../../lib/mail/sender-clients'
 import MailStepNav from './MailStepNav'
+import { InboxSearch } from './InboxSearch'
+import { searchSenderAddresses, type MailContact } from '../../lib/mail/contacts-shared'
+
+/** People in the user's mail, from /api/mail/contacts. */
+interface SearchPeople {
+  contacts: MailContact[]
+  senders: MailContact[]
+}
+
+function cleanContacts(value: unknown): MailContact[] {
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (c): c is MailContact => typeof (c as MailContact)?.email === 'string' && typeof (c as MailContact)?.name === 'string',
+  )
+}
 
 /** Phones (the overflow menu and floating compose button). */
 const PHONE_MAX_WIDTH = 768
@@ -309,6 +324,12 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [syncNote, setSyncNote] = useState('')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
+  // People for the Inbox search (suggestions and part-name matching), loaded
+  // once per account when the search box is first focused.
+  const [searchSenders, setSearchSenders] = useState<MailContact[]>([])
+  const searchPeople = useRef<{ account: string; promise: Promise<SearchPeople> } | null>(null)
+  // Extra `from:` addresses for the current Inbox search (see searchSenderAddresses).
+  const querySenders = useRef<string[]>([])
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
   const isMobile = useIsMobileViewport()
@@ -357,6 +378,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         params.set('folder', opts.folder)
         if (opts.pageToken) params.set('pageToken', opts.pageToken)
         if (opts.q) params.set('q', opts.q)
+        if (opts.q && opts.folder === 'inbox' && querySenders.current.length > 0) {
+          params.set('senders', querySenders.current.join(','))
+        }
         const data = await api<{
           threads: ThreadRow[]
           nextPageToken: string | null
@@ -413,6 +437,46 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       showError(err)
     }
   }, [showError])
+
+  /**
+   * People for the Inbox search, loaded once per account (a failed load is
+   * tried again next time). Searching works without them, just without
+   * suggestions or part-name matching.
+   */
+  const loadSearchPeople = useCallback((): Promise<SearchPeople> => {
+    const forAccount = accountRef.current
+    if (searchPeople.current?.account === forAccount) return searchPeople.current.promise
+    const promise = apiRequest<{ contacts?: unknown; senders?: unknown }>('/api/mail/contacts', undefined, forAccount)
+      .then((data) => {
+        const people = { contacts: cleanContacts(data.contacts), senders: cleanContacts(data.senders) }
+        if (accountRef.current === forAccount) setSearchSenders(people.senders)
+        return people
+      })
+      .catch(() => {
+        if (searchPeople.current?.promise === promise) searchPeople.current = null
+        return { contacts: [], senders: [] }
+      })
+    searchPeople.current = { account: forAccount, promise }
+    return promise
+  }, [])
+
+  /**
+   * Runs the search box. In the Inbox, part of a name or address ("rebe") also
+   * lists mail from the people it matches, since Gmail only matches whole words.
+   */
+  const runSearch = useCallback(
+    async (value: string) => {
+      const typed = value.trim()
+      querySenders.current = []
+      if (folder === 'inbox' && typed) {
+        const people = await loadSearchPeople()
+        querySenders.current = searchSenderAddresses(people.senders, people.contacts, typed)
+      }
+      setQuery(value)
+      void loadInbox({ folder, q: value })
+    },
+    [folder, loadInbox, loadSearchPeople],
+  )
 
   // Tab badges. Failures keep the last numbers; the list itself shows any Gmail error.
   const loadCounts = useCallback(async () => {
@@ -699,6 +763,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       setClientChoice(null)
       setSearch('')
       setQuery('')
+      setSearchSenders([])
+      querySenders.current = []
       setError(null)
       setSyncNote('')
       loadSignature()
@@ -1669,23 +1735,20 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       <div className={styles.panes} style={panelOpen ? { display: 'none' } : undefined}>
         <div className={styles.listPane}>
         {/* Search sits right above the first email in the list. */}
-        <form
-          className={styles.search}
-          role="search"
-          onSubmit={(event) => {
-            event.preventDefault()
-            setQuery(search)
-            void loadInbox({ folder, q: search })
+        <InboxSearch
+          value={search}
+          onChange={setSearch}
+          onSubmit={(value) => void runSearch(value)}
+          onPickSender={(contact) => {
+            setSearch(contact.email)
+            void runSearch(contact.email)
           }}
-        >
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
-            aria-label={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
-          />
-        </form>
+          senders={folder === 'inbox' ? searchSenders : []}
+          onWantSenders={() => {
+            if (folder === 'inbox') void loadSearchPeople()
+          }}
+          label={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
+        />
         <ul className={styles.list} aria-label={FOLDER_LABELS[folder]}>
           {threads.map((thread) => (
             <li key={thread.threadId} className={styles.rowItem}>

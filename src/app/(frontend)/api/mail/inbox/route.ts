@@ -11,7 +11,7 @@ import {
 import { matchMessageToClient } from "@/lib/mail/client-matching";
 import { loadClientDomainIndex } from "@/lib/mail/store";
 import { hiddenSendersQuery, isHiddenSender, loadHiddenSenders } from "@/lib/mail/hidden-senders";
-import { inboxSearchQuery } from "@/lib/mail/inbox-search";
+import { inboxSearchQuery, parseSearchSenders } from "@/lib/mail/inbox-search";
 
 /** Your own sent messages never bring a thread into the inbox list. */
 const INBOX_EXCLUDE_OWN_MAIL = "-in:sent";
@@ -43,7 +43,9 @@ import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/ma
  * client choices are returned too.
  *
  * Inbox search matches the sender's address as well as the subject (see
- * inboxSearchQuery); Sent and Drafts pass the search to Gmail as typed.
+ * inboxSearchQuery), plus the addresses in `senders` (people whose name or
+ * address starts with the typed text, matched by the Mail page, since Gmail
+ * only matches whole words); Sent and Drafts pass the search to Gmail as typed.
  *
  * The inbox lists mail from other people only: its Gmail search leaves out
  * your own sent messages (`-in:sent`, matched per message, so a thread you
@@ -61,6 +63,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!folder) return NextResponse.json({ error: "Invalid folder." }, { status: 400 });
   const pageToken = req.nextUrl.searchParams.get("pageToken") ?? undefined;
   const search = (req.nextUrl.searchParams.get("q") ?? "").slice(0, 200);
+  const searchSenders = parseSearchSenders(req.nextUrl.searchParams.get("senders"));
   const [hiddenSenders, clientSenders, senderClients] = await Promise.all([
     loadHiddenSenders(ctx.payload, ctx.user.id),
     loadClientSenders(ctx.payload, ctx.user.id),
@@ -95,7 +98,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     };
     let nextPageToken: string | null;
     if (folder === "inbox") {
-      const base = join(inboxSearchQuery(search), hiddenSendersQuery(hiddenSenders), INBOX_EXCLUDE_OWN_MAIL) ?? "";
+      const base = join(inboxSearchQuery(search, searchSenders), hiddenSendersQuery(hiddenSenders), INBOX_EXCLUDE_OWN_MAIL) ?? "";
       const readQuery = join(base, "-is:unread");
       const page = parseInboxPageToken(pageToken);
       if (page.part === "unread") {
