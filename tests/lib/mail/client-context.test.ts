@@ -113,7 +113,30 @@ describe("buildMailClientContext", () => {
     expect(text).toContain("Google Ads, 2026-09: 300 clicks, 20 conversions, CPA $50.00");
     expect(text).toContain("Monthly Google Ads budget: $3,000.00");
     expect(text).toContain("2026-10-10: Jo asked for a quote");
-    expect(text).not.toMatch(/9,?876|5,?432|123,?456|17%|retainer|revenue share|setup/i);
+    expect(text).toContain("Monthly retainer: $9,876.00");
+    expect(text).not.toMatch(/5,?432|123,?456|17%|revenue share|setup/i);
+  });
+
+  it("uses the client record's retainer when the contract has none", async () => {
+    const p = profile();
+    p.contracts.latest.monthlyRetainer = null as never;
+    profileMock.mockResolvedValueOnce(p);
+    const ctx = await buildMailClientContext(fakePayload(), 7, NOW);
+    expect(ctx?.text).toContain("Monthly retainer: $9,876.00");
+  });
+
+  it("says outstanding amounts are unknown when there is no invoice statement (never queries Xero)", async () => {
+    const p = profile();
+    p.invoices.latest = null as never;
+    profileMock.mockResolvedValueOnce(p);
+    const payload = fakePayload();
+    const ctx = await buildMailClientContext(payload, 7, NOW);
+    expect(ctx?.text).toContain("Invoices: no invoice statement on file, so outstanding amounts are not known");
+    expect(ctx?.text).not.toMatch(/\$[\d,.]+ outstanding/);
+    expect(ctx?.text).toContain("Monthly retainer: $9,876.00");
+    // Only the CMS's own collections are read.
+    const collections = (payload.find as ReturnType<typeof vi.fn>).mock.calls.map((call) => (call[0] as { collection: string }).collection);
+    expect(collections.sort()).toEqual(["client-email-summaries", "google-ads-snapshots", "gsc-snapshots"]);
   });
 
   it("drops only the failing source's section", async () => {
@@ -139,6 +162,7 @@ describe("formatMailClientContext", () => {
       services: [],
       accountManagers: [],
       contract: null,
+      monthlyRetainer: null,
       invoices: {
         totalOutstanding: 1,
         totalOverdue: 1,

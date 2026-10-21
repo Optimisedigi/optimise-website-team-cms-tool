@@ -8,10 +8,14 @@ import { loadClientDomainIndex } from "./store";
 /**
  * Opt-in "Use client data" for Write with AI: a short, plain-text block of
  * client facts the model may quote in a reply. Only client-safe facts go in:
- * services, account managers, contract status/dates, outstanding invoices,
- * GSC and Google Ads headline figures, the ad budget and recent email-timeline
- * summaries. Never internal commercials (retainer, revenue share, setup fees,
- * historical revenue), notes, competitors or pulse scores.
+ * services, account managers, contract status/dates, the monthly retainer,
+ * outstanding invoices, GSC and Google Ads headline figures, the ad budget and
+ * recent email-timeline summaries. Never other internal commercials (revenue
+ * share, setup fees, historical revenue), notes, competitors or pulse scores.
+ *
+ * Outstanding invoices come only from the client's latest invoice statement
+ * draft (the CMS's own copy of Xero); Xero itself is never queried from here.
+ * Without a statement the block says so, so the model doesn't guess.
  *
  * The client id always comes from server-side resolution (stored/matched
  * message or recipient domain), never from the browser.
@@ -39,19 +43,40 @@ export interface MailClientFacts {
     term: string | null;
     signedAt: string | null;
   } | null;
-  invoices: {
-    totalOutstanding: number;
-    totalOverdue: number;
-    overdue: Array<{ invoiceNumber: string | null; dueDate: string | null; amountDue: number | null }>;
-    asOf: string | null;
-  } | null;
+  /** Latest contract's monthly retainer, else the client record's. */
+  monthlyRetainer: number | null;
+  invoices: MailInvoiceFacts | null;
   organic: OrganicTrend | null;
   ads: AdsTrend | null;
   monthlyAdBudget: number | null;
   recentEmails: Array<{ date: string | null; summary: string }>;
 }
 
+export interface MailInvoiceFacts {
+  totalOutstanding: number;
+  totalOverdue: number;
+  overdue: Array<{ invoiceNumber: string | null; dueDate: string | null; amountDue: number | null }>;
+  asOf: string | null;
+}
+
 type PlainRecord = Record<string, unknown>;
+
+function overdueOnly(
+  invoices: Array<{ invoiceNumber?: string | null; dueDate?: string | null; amountDue?: number | null }>,
+  now: Date,
+): MailInvoiceFacts["overdue"] {
+  const today = now.toISOString().slice(0, 10);
+  return invoices
+    .filter((invoice) => {
+      const due = day(invoice.dueDate);
+      return Boolean(due && due < today);
+    })
+    .map((invoice) => ({
+      invoiceNumber: invoice.invoiceNumber ?? null,
+      dueDate: day(invoice.dueDate),
+      amountDue: typeof invoice.amountDue === "number" ? invoice.amountDue : null,
+    }));
+}
 
 async function safe<T>(load: () => Promise<T>, fallback: T): Promise<T> {
   try {
@@ -74,7 +99,7 @@ function day(value: string | null | undefined): string | null {
 /** Facts from the profile; only the safe fields are copied out. */
 function profileFacts(profile: OptimateClientProfile, now: Date): Pick<
   MailClientFacts,
-  "services" | "accountManagers" | "contract" | "invoices" | "monthlyAdBudget"
+  "services" | "accountManagers" | "contract" | "monthlyRetainer" | "invoices" | "monthlyAdBudget"
 > {
   const services = (profile.identity?.services ?? []).map((value) => serviceLabel(String(value)));
   const accountManagers = (profile.contact?.accountManagers ?? [])
@@ -92,28 +117,22 @@ function profileFacts(profile: OptimateClientProfile, now: Date): Pick<
       }
     : null;
   const draft = profile.invoices?.latest ?? null;
-  const today = now.toISOString().slice(0, 10);
   const invoices = draft
     ? {
         totalOutstanding: draft.totalOutstanding,
         totalOverdue: draft.totalOverdue,
-        overdue: draft.unpaidInvoices
-          .filter((invoice) => {
-            const due = day(invoice.dueDate);
-            return Boolean(due && due < today);
-          })
-          .map((invoice) => ({
-            invoiceNumber: invoice.invoiceNumber ?? null,
-            dueDate: day(invoice.dueDate),
-            amountDue: typeof invoice.amountDue === "number" ? invoice.amountDue : null,
-          })),
+        overdue: overdueOnly(draft.unpaidInvoices, now),
         asOf: day(draft.snapshotCapturedAt ?? draft.lastRefreshedAt ?? draft.generatedAt),
       }
     : null;
+  const retainer = [latest?.monthlyRetainer, profile.commercial?.monthlyRetainer].find(
+    (value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0,
+  );
   return {
     services,
     accountManagers,
     contract,
+    monthlyRetainer: retainer ?? null,
     invoices,
     monthlyAdBudget: profile.commercial?.monthlyAdSpendBudget ?? null,
   };
@@ -224,8 +243,12 @@ export function formatMailClientContext(facts: MailClientFacts): string {
     if (parts.length) lines.push(`Latest contract: ${parts.join(", ")}`);
   }
 
+  if (facts.monthlyRetainer !== null) lines.push(`Monthly retainer: ${money(facts.monthlyRetainer)}`);
+
   const invoices = facts.invoices;
-  if (invoices) {
+  if (!invoices) {
+    lines.push("Invoices: no invoice statement on file, so outstanding amounts are not known");
+  } else {
     const asOf = invoices.asOf ? ` as of ${invoices.asOf}` : "";
     lines.push(`Invoices${asOf}: ${money(invoices.totalOutstanding)} outstanding, ${money(invoices.totalOverdue)} overdue`);
     for (const invoice of invoices.overdue.slice(0, MAX_OVERDUE_LISTED)) {
