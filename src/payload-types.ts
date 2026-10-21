@@ -558,6 +558,18 @@ export interface Client {
    */
   revenueSharePercent?: number | null;
   /**
+   * Blank = no change planned
+   */
+  retainerChangeAction?: ('end' | 'change') | null;
+  /**
+   * First day of the new amount (or first day not billed)
+   */
+  retainerChangeDate?: string | null;
+  /**
+   * Net, per month, from the effective date
+   */
+  retainerChangeAmount?: number | null;
+  /**
    * One-off projects (website builds, audits, etc.)
    */
   oneOffProjects?:
@@ -12409,6 +12421,9 @@ export interface ClientsSelect<T extends boolean = true> {
   monthlyRetainer?: T;
   setupFee?: T;
   revenueSharePercent?: T;
+  retainerChangeAction?: T;
+  retainerChangeDate?: T;
+  retainerChangeAmount?: T;
   oneOffProjects?:
     | T
     | {

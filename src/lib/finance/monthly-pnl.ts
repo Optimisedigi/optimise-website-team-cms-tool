@@ -15,10 +15,12 @@
  */
 
 import {
+  applyScheduledRetainerChange,
   firstMonthProrationFactor,
   grossRetainerForMonth,
   monthlyCommissionForDate,
   revenueShareFactor,
+  scheduledRetainerChange,
   type OneOffProject,
   type ReferralCommission,
   type RetainerHistoryEntry,
@@ -35,6 +37,9 @@ export interface PnlClient {
   retainerHistory?: RetainerHistoryEntry[] | null;
   referralCommissions?: ReferralCommission[] | null;
   oneOffProjects?: OneOffProject[] | null;
+  retainerChangeDate?: string | null;
+  retainerChangeAction?: string | null;
+  retainerChangeAmount?: number | null;
 }
 
 export interface PnlMonth {
@@ -114,10 +119,12 @@ function setupFeeForMonth(client: PnlClient, monthStart: Date, now: Date): numbe
 }
 
 /**
- * Agreed (earned) sales for one client in one month. Retainers count only for
- * active clients: inactive clients have no end date recorded, so their past
- * retainer months can't be reconstructed (the dashboard makes the same call).
- * One-offs and one-off setup fees count for every client.
+ * Agreed (earned) sales for one client in one month. Retainers count for
+ * active clients, and for inactive clients whose retainer has a scheduled end
+ * date (the end date bounds their months). Other inactive clients have no end
+ * recorded, so their past retainer months can't be reconstructed (the
+ * dashboard makes the same call). One-offs and one-off setup fees count for
+ * every client.
  */
 export function agreedSalesForMonth(client: PnlClient, monthStart: Date, now: Date): number {
   if (monthStart > now) return 0;
@@ -129,17 +136,20 @@ export function agreedSalesForMonth(client: PnlClient, monthStart: Date, now: Da
     return total * share;
   }
 
-  if (client.isActive === false) return total * share;
+  const change = scheduledRetainerChange(client);
+  if (client.isActive === false && !(change && change.amount === 0)) return total * share;
 
   const anchor = toDate(client.retainerStartDate ?? null) ?? toDate(client.clientStartDate ?? null);
   const isCurrentMonth = monthKeyOf(monthStart) === monthKeyOf(now);
   // No start date: the dashboard only counts the current month, so do the same.
   const factor = anchor ? firstMonthProrationFactor(anchor, monthStart) : isCurrentMonth ? 1 : 0;
   if (factor > 0) {
-    const gross = grossRetainerForMonth(
-      Math.max(0, Number(client.monthlyRetainer) || 0),
-      Array.isArray(client.retainerHistory) ? client.retainerHistory : [],
+    const history = Array.isArray(client.retainerHistory) ? client.retainerHistory : [];
+    const gross = applyScheduledRetainerChange(
+      grossRetainerForMonth(Math.max(0, Number(client.monthlyRetainer) || 0), history, monthStart),
+      change,
       monthStart,
+      history,
     );
     const commission = monthlyCommissionForDate(client.referralCommissions, gross, monthStart);
     total += Math.max(0, gross - commission) * factor;

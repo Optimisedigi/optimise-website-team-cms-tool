@@ -56,6 +56,19 @@ describe('agreedSalesForMonth', () => {
     expect(agreedSalesForMonth(client, month(2026, 9), NOW)).toBe(0)
   })
 
+  it('counts an inactive client up to its scheduled retainer end date', () => {
+    const client = {
+      isActive: false,
+      monthlyRetainer: 3000,
+      clientStartDate: new Date(2025, 0, 1).toISOString(),
+      retainerChangeAction: 'end',
+      retainerChangeDate: '2026-09-16T12:00:00.000Z', // ends 16 Sep (30 days)
+    }
+    expect(agreedSalesForMonth(client, month(2026, 8), NOW)).toBe(3000)
+    expect(agreedSalesForMonth(client, month(2026, 9), NOW)).toBeCloseTo(1500)
+    expect(agreedSalesForMonth(client, month(2026, 10), NOW)).toBe(0)
+  })
+
   it('counts an undated retainer only in the current month (matches the dashboard)', () => {
     const client = { monthlyRetainer: 1000 }
     expect(agreedSalesForMonth(client, month(2026, 9), NOW)).toBe(0)

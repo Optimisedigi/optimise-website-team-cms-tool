@@ -7,6 +7,7 @@ import GoogleAdsClientSwitcher from './GoogleAdsClientSwitcher'
 import ClientOverviewPill from './client-business/ClientOverviewPill'
 import ClientTabPicker from './client-business/ClientTabPicker'
 import {
+  effectiveMonthlyRetainer,
   firstMonthProrationFactor,
   historicalRevenueTotal,
   monthlyCommissionForDate,
@@ -77,6 +78,9 @@ type SavedData = {
   retainerHistory: RetainerHistoryEntry[]
   referralCommissions: ReferralCommission[]
   historicalRevenueByYear: HistoricalRevenueYear[]
+  retainerChangeDate: string | null
+  retainerChangeAction: string | null
+  retainerChangeAmount: number | null
 }
 
 function initialOf(name: string): string {
@@ -115,13 +119,15 @@ type RevenueStrip = {
 function computeRevenue(d: SavedData): RevenueStrip {
   const share = revenueShareFactor(d.revenueSharePercent)
   const now = new Date()
-  const commissions = monthlyCommissionForDate(d.referralCommissions, d.monthlyRetainer, now)
+  // Gross retainer in force this month, after any scheduled change.
+  const grossNow = effectiveMonthlyRetainer(d, now)
+  const commissions = monthlyCommissionForDate(d.referralCommissions, grossNow, now)
   const anchorIso = d.retainerStartDate ?? d.clientStartDate
   const anchor = anchorIso ? new Date(anchorIso) : null
   const thisMonthFactor =
     anchor && !isNaN(anchor.getTime()) ? firstMonthProrationFactor(anchor, now) : 1
   const netRetainer =
-    netMonthlyRetainer(d.monthlyRetainer, d.referralCommissions, now) *
+    netMonthlyRetainer(grossNow, d.referralCommissions, now) *
     thisMonthFactor *
     share
 
@@ -143,6 +149,9 @@ function computeRevenue(d: SavedData): RevenueStrip {
         clientStartDate: d.clientStartDate,
         retainerStartDate: d.retainerStartDate,
         retainerHistory: d.retainerHistory,
+        retainerChangeDate: d.retainerChangeDate,
+        retainerChangeAction: d.retainerChangeAction,
+        retainerChangeAmount: d.retainerChangeAmount,
         referralCommissions: d.referralCommissions,
         oneOffProjects: d.oneOffProjects,
       },
@@ -167,7 +176,7 @@ function computeRevenue(d: SavedData): RevenueStrip {
 
 
 const CLIENT_HEADER_SELECT =
-  '?depth=0&select[name]=true&select[websiteUrl]=true&select[slug]=true&select[isActive]=true&select[isAgency]=true&select[logoThumbUrl]=true&select[clientPin]=true&select[services]=true&select[clientOverview]=true&select[clientType]=true&select[monthlyRetainer]=true&select[setupFee]=true&select[revenueSharePercent]=true&select[clientStartDate]=true&select[retainerStartDate]=true&select[oneOffProjects]=true&select[retainerHistory]=true&select[referralCommissions]=true&select[historicalRevenueByYear]=true'
+  '?depth=0&select[name]=true&select[websiteUrl]=true&select[slug]=true&select[isActive]=true&select[isAgency]=true&select[logoThumbUrl]=true&select[clientPin]=true&select[services]=true&select[clientOverview]=true&select[clientType]=true&select[monthlyRetainer]=true&select[setupFee]=true&select[revenueSharePercent]=true&select[clientStartDate]=true&select[retainerStartDate]=true&select[oneOffProjects]=true&select[retainerHistory]=true&select[referralCommissions]=true&select[historicalRevenueByYear]=true&select[retainerChangeDate]=true&select[retainerChangeAction]=true&select[retainerChangeAmount]=true'
 
 const CLIENT_HEADER_SELECT_LEGACY = CLIENT_HEADER_SELECT.replace('&select[clientOverview]=true', '')
 
@@ -321,6 +330,10 @@ function normalizeClient(doc: any): SavedData {
     historicalRevenueByYear: Array.isArray(doc.historicalRevenueByYear)
       ? doc.historicalRevenueByYear
       : [],
+    retainerChangeDate: typeof doc.retainerChangeDate === 'string' ? doc.retainerChangeDate : null,
+    retainerChangeAction: typeof doc.retainerChangeAction === 'string' ? doc.retainerChangeAction : null,
+    retainerChangeAmount:
+      typeof doc.retainerChangeAmount === 'number' ? doc.retainerChangeAmount : null,
   }
 }
 

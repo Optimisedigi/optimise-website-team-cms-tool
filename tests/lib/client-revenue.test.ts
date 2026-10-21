@@ -11,6 +11,9 @@ import {
   splitOneOffs,
   historicalRevenueTotal,
   revenueShareFactor,
+  scheduledRetainerChange,
+  applyScheduledRetainerChange,
+  effectiveMonthlyRetainer,
   type ReferralCommission,
 } from "@/lib/client-revenue";
 
@@ -648,5 +651,60 @@ describe("firstMonthRetainerAmount", () => {
     expect(firstMonthRetainerAmount(1350, null)).toBe(0);
     expect(firstMonthRetainerAmount(0, "2026-03-13")).toBe(0);
     expect(firstMonthRetainerAmount(1350, "not-a-date")).toBe(0);
+  });
+});
+
+describe("scheduled retainer change", () => {
+  const nov = new Date(2026, 10, 1); // Nov 2026 has 30 days
+
+  it("ignores missing or incomplete changes", () => {
+    expect(scheduledRetainerChange({})).toBeNull();
+    expect(scheduledRetainerChange({ retainerChangeAction: "end" })).toBeNull();
+    expect(
+      scheduledRetainerChange({ retainerChangeAction: "change", retainerChangeDate: "2026-11-16T12:00:00.000Z" }),
+    ).toBeNull();
+  });
+
+  it("ends the retainer from the effective date, pro-rating the change month", () => {
+    const change = scheduledRetainerChange({
+      retainerChangeAction: "end",
+      retainerChangeDate: "2026-11-16T12:00:00.000Z",
+      retainerChangeAmount: 999, // ignored for "end"
+    });
+    expect(applyScheduledRetainerChange(3000, change, new Date(2026, 9, 1))).toBe(3000);
+    expect(applyScheduledRetainerChange(3000, change, nov)).toBeCloseTo(1500);
+    expect(applyScheduledRetainerChange(3000, change, new Date(2026, 11, 1))).toBe(0);
+  });
+
+  it("switches to the new amount from the effective date", () => {
+    const client = {
+      monthlyRetainer: 3000,
+      retainerChangeAction: "change",
+      retainerChangeDate: "2026-11-01T12:00:00.000Z",
+      retainerChangeAmount: 1000,
+    };
+    expect(effectiveMonthlyRetainer(client, new Date(2026, 9, 20))).toBe(3000);
+    expect(effectiveMonthlyRetainer(client, new Date(2026, 10, 20))).toBe(1000);
+  });
+
+  it("is superseded by a manual retainer edit logged after the change date", () => {
+    const client = {
+      monthlyRetainer: 2000,
+      retainerChangeAction: "end",
+      retainerChangeDate: "2026-11-01T12:00:00.000Z",
+      retainerHistory: [{ amount: 2000, previousAmount: 3000, effectiveDate: "2026-11-10T00:00:00.000Z" }],
+    };
+    expect(effectiveMonthlyRetainer(client, new Date(2026, 11, 5))).toBe(2000);
+  });
+
+  it("flows into retainerRevenueYTD for a full-year projection", () => {
+    const client = {
+      monthlyRetainer: 3000,
+      clientStartDate: "2025-01-01T12:00:00.000Z",
+      retainerChangeAction: "end",
+      retainerChangeDate: "2026-11-16T12:00:00.000Z",
+    };
+    // Jan–Oct full (10 × 3000) + half of Nov + nothing in Dec.
+    expect(retainerRevenueYTD(client, new Date(2026, 11, 31))).toBeCloseTo(31500);
   });
 });

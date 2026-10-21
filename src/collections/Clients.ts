@@ -412,6 +412,9 @@ export const Clients: CollectionConfig = {
             clientStartDate: doc?.clientStartDate as string | null,
             retainerStartDate: doc?.retainerStartDate as string | null,
             retainerHistory,
+            retainerChangeDate: doc?.retainerChangeDate as string | null,
+            retainerChangeAction: doc?.retainerChangeAction as string | null,
+            retainerChangeAmount: doc?.retainerChangeAmount as number | null,
             referralCommissions,
             oneOffProjects,
           },
@@ -1334,6 +1337,71 @@ export const Clients: CollectionConfig = {
                             components: {
                               Field: "./components/FirstMonthRetainerField",
                             },
+                          },
+                        },
+                      ],
+                    },
+                    {
+                      type: "group",
+                      label: "Retainer change",
+                      admin: {
+                        components: { Field: "./components/client-business/BusinessBlock" },
+                        custom: { odBlock: "pair" },
+                      },
+                      fields: [
+                        {
+                          name: "retainerChangeAction",
+                          label: "Scheduled change",
+                          type: "select",
+                          access: sensitiveFieldAccess("clients"),
+                          options: [
+                            { label: "Retainer ends", value: "end" },
+                            { label: "Changes to a new amount", value: "change" },
+                          ],
+                          admin: {
+                            description: "Blank = no change planned",
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency,
+                            ),
+                          },
+                        },
+                        {
+                          name: "retainerChangeDate",
+                          label: "Effective date",
+                          type: "date",
+                          access: sensitiveFieldAccess("clients"),
+                          validate: (value: unknown, { siblingData }: { siblingData?: any }) =>
+                            siblingData?.retainerChangeAction && !value
+                              ? "Pick the date the change takes effect."
+                              : true,
+                          admin: {
+                            description: "First day of the new amount (or first day not billed)",
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) => !data?.isAgency && !!data?.retainerChangeAction,
+                            ),
+                          },
+                        },
+                        {
+                          name: "retainerChangeAmount",
+                          label: "New monthly retainer",
+                          type: "number",
+                          min: 0,
+                          access: sensitiveFieldAccess("clients"),
+                          validate: (value: unknown, { siblingData }: { siblingData?: any }) =>
+                            siblingData?.retainerChangeAction === "change" &&
+                            (value == null || !Number.isFinite(Number(value)) || Number(value) < 0)
+                              ? "Enter the new monthly retainer."
+                              : true,
+                          admin: {
+                            description: "Net, per month, from the effective date",
+                            step: 1,
+                            condition: conditionRequiresFeature(
+                              "clients",
+                              (data: any) =>
+                                !data?.isAgency && data?.retainerChangeAction === "change",
+                            ),
                           },
                         },
                       ],

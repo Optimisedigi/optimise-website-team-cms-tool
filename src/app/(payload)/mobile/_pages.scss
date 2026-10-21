@@ -211,7 +211,8 @@
   }
 
   // A lone last KPI card spans the full row of the 2-col grid.
-  .od-costs-sales div[style*='grid-template-columns'] > :last-child:nth-child(odd) {
+  .od-costs-sales div[style*='grid-template-columns'] > :last-child:nth-child(odd),
+  .od-costs-estimate div[style*='grid-template-columns'] > :last-child:nth-child(odd) {
     grid-column: 1 / -1;
   }
 

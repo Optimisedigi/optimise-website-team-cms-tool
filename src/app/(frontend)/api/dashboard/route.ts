@@ -5,6 +5,7 @@ import { headers as nextHeaders } from "next/headers";
 import {
   firstMonthProrationFactor,
   netMonthlyRetainer,
+  effectiveMonthlyRetainer,
   oneOffsThisMonth,
   oneOffsYTD,
   retainerRevenueYTD,
@@ -412,13 +413,24 @@ export async function GET() {
       },
     }).catch(() => ({ totalDocs: 0 })),
 
+    // Retainer clients: active ones, plus deactivated clients whose retainer
+    // has a scheduled end date, so the months they did pay stay in YTD.
     payload.find({
       collection: "clients",
       where: {
-        isActive: { equals: true },
-        or: [
-          { isAgency: { not_equals: true } },
-          { isAgency: { exists: false } },
+        and: [
+          {
+            or: [
+              { isActive: { equals: true } },
+              { retainerChangeAction: { equals: "end" } },
+            ],
+          },
+          {
+            or: [
+              { isAgency: { not_equals: true } },
+              { isAgency: { exists: false } },
+            ],
+          },
         ],
       },
       limit: 500,
@@ -426,6 +438,9 @@ export async function GET() {
         name: true,
         clientType: true,
         monthlyRetainer: true,
+        retainerChangeDate: true,
+        retainerChangeAction: true,
+        retainerChangeAmount: true,
         setupFee: true,
         revenueSharePercent: true,
         oneOffProjects: true,
@@ -728,7 +743,7 @@ export async function GET() {
       (sum: number, c: any) =>
         sum +
         netMonthlyRetainer(
-          Number(c.monthlyRetainer) || 0,
+          effectiveMonthlyRetainer(c, now),
           Array.isArray(c.referralCommissions) ? c.referralCommissions : [],
           now,
         ) *
@@ -802,6 +817,9 @@ export async function GET() {
             clientStartDate: c.clientStartDate ?? null,
             retainerStartDate: c.retainerStartDate ?? null,
             retainerHistory: Array.isArray(c.retainerHistory) ? c.retainerHistory : [],
+            retainerChangeDate: c.retainerChangeDate ?? null,
+            retainerChangeAction: c.retainerChangeAction ?? null,
+            retainerChangeAmount: c.retainerChangeAmount ?? null,
             referralCommissions: Array.isArray(c.referralCommissions)
               ? c.referralCommissions
               : [],
@@ -819,7 +837,7 @@ export async function GET() {
   const yearStartIso = new Date(now.getFullYear(), 0, 1);
   const monthlyRetainerBreakdown = clientsForRetainer.docs
     .map((c: any) => {
-      const gross = Number(c.monthlyRetainer) || 0;
+      const gross = effectiveMonthlyRetainer(c, now);
       if (gross <= 0) return null;
       const commissions = Array.isArray(c.referralCommissions) ? c.referralCommissions : [];
       const factor = thisMonthFactorOf(c);
@@ -884,6 +902,9 @@ export async function GET() {
           clientStartDate: c.clientStartDate ?? null,
           retainerStartDate: c.retainerStartDate ?? null,
           retainerHistory: Array.isArray(c.retainerHistory) ? c.retainerHistory : [],
+          retainerChangeDate: c.retainerChangeDate ?? null,
+          retainerChangeAction: c.retainerChangeAction ?? null,
+          retainerChangeAmount: c.retainerChangeAmount ?? null,
           referralCommissions: Array.isArray(c.referralCommissions)
             ? c.referralCommissions
             : [],

@@ -6026,6 +6026,13 @@ export async function runMigrations(
       "ALTER TABLE `clients` ADD `retainer_start_date` text",
     );
 
+    // ── Scheduled retainer change on clients (2026-10-23) ──
+    // Ports migration 20261023_120000. From retainer_change_date the retainer
+    // ends or becomes retainer_change_amount; revenue helpers apply it.
+    await run("clients.retainer_change_action", "ALTER TABLE `clients` ADD `retainer_change_action` text");
+    await run("clients.retainer_change_date", "ALTER TABLE `clients` ADD `retainer_change_date` text");
+    await run("clients.retainer_change_amount", "ALTER TABLE `clients` ADD `retainer_change_amount` numeric");
+
     // ── AI Visibility / SERP Monitor groups on clients (2026-04-20) ──
     // Ports migration 20260420_140000. Group fields flatten to snake_case
     // columns; array fields become child tables. Without the array tables

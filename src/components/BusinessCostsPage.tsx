@@ -5,7 +5,9 @@ import { InfoNote } from './InfoNote'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { COSTS_IMPORTED_EVENT } from '@/lib/finance/events'
 import { SalesVsCostsPanel } from '@/components/SalesVsCostsPanel'
+import { YearEndEstimatePanel } from '@/components/YearEndEstimatePanel'
 import {
+  addMonths,
   monthKeyOf,
   periodContaining,
   periodLabel,
@@ -213,6 +215,9 @@ const BusinessCostsPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const period = { mode: periodMode, startYear: periodStartYear }
   const range = periodRange(period, currentMonth)
+  // Xero cost categories switched off for a what-if view; shared by the
+  // Sales vs Costs panel and the year-end estimate.
+  const [excludedAccounts, setExcludedAccounts] = useState<ReadonlySet<string>>(() => new Set())
   // 'auto' shows Xero when available; 'bank' shows imported statements.
   const [viewSource, setViewSource] = useState<ViewSource>('auto')
   // Once Xero has answered, keep offering the Xero / Imported CSV switch.
@@ -447,8 +452,27 @@ const BusinessCostsPage = () => {
       </div>
 
       <div className="od-costs-sales">
-        <SalesVsCostsPanel from={range.from} to={range.to} label={range.label} toDate={range.toDate} />
+        <SalesVsCostsPanel
+          from={range.from}
+          to={range.to}
+          label={range.label}
+          toDate={range.toDate}
+          excluded={excludedAccounts}
+          onExcludedChange={setExcludedAccounts}
+        />
       </div>
+
+      {range.toDate && (
+        <div className="od-costs-estimate">
+          <YearEndEstimatePanel
+            from={range.from}
+            to={addMonths(range.from, 11)}
+            label={range.label}
+            excluded={excludedAccounts}
+            onExcludedChange={setExcludedAccounts}
+          />
+        </div>
+      )}
 
       {/* Monthly breakdown: one month of the selected period */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>

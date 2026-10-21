@@ -79,7 +79,19 @@ export function historicalRevenueTotal(
   return total;
 }
 
-export interface ClientRevenueInput {
+/**
+ * A planned retainer change saved on the client: from `retainerChangeDate`
+ * the retainer either ends (`end`) or becomes `retainerChangeAmount`
+ * (`change`). Revenue maths applies it automatically, so nobody has to edit
+ * the monthly retainer on the day.
+ */
+export interface ScheduledRetainerChangeInput {
+  retainerChangeDate?: string | null;
+  retainerChangeAction?: string | null;
+  retainerChangeAmount?: number | null;
+}
+
+export interface ClientRevenueInput extends ScheduledRetainerChangeInput {
   clientType?: string | null;
   monthlyRetainer?: number | null;
   setupFee?: number | null;
@@ -88,6 +100,99 @@ export interface ClientRevenueInput {
   retainerHistory?: RetainerHistoryEntry[] | null;
   referralCommissions?: ReferralCommission[] | null;
   oneOffProjects?: OneOffProject[] | null;
+}
+
+export interface ScheduledRetainerChange {
+  /** First day the new amount applies (local midnight). */
+  date: Date;
+  /** Gross monthly retainer from `date` onwards; 0 when the retainer ends. */
+  amount: number;
+}
+
+/**
+ * Resolves the client's scheduled retainer change. Returns null when none is
+ * set or it's incomplete (no valid date, or "change" without an amount).
+ */
+export function scheduledRetainerChange(
+  input: ScheduledRetainerChangeInput | null | undefined,
+): ScheduledRetainerChange | null {
+  if (!input) return null;
+  const raw = toDate(input.retainerChangeDate ?? null);
+  if (!raw) return null;
+  const date = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate());
+  if (input.retainerChangeAction === "end") return { date, amount: 0 };
+  if (input.retainerChangeAction === "change") {
+    if (input.retainerChangeAmount == null) return null;
+    const amount = Number(input.retainerChangeAmount);
+    if (!Number.isFinite(amount)) return null;
+    return { date, amount: Math.max(0, amount) };
+  }
+  return null;
+}
+
+/**
+ * Applies a scheduled change to the gross retainer for the month containing
+ * `monthDate`:
+ * - months ending before the change date keep `gross`;
+ * - months starting on/after it use the new amount;
+ * - the change month is split by day (days before the change at `gross`,
+ *   the change day onwards at the new amount), like first-month pro-ration.
+ *
+ * A retainer edit logged in `retainerHistory` after the change date means
+ * someone has since set the retainer by hand, so that wins and the
+ * scheduled change is ignored.
+ */
+export function applyScheduledRetainerChange(
+  gross: number,
+  change: ScheduledRetainerChange | null,
+  monthDate: Date,
+  retainerHistory?: RetainerHistoryEntry[] | null,
+): number {
+  const base = Math.max(0, Number(gross) || 0);
+  if (!change) return base;
+  if (
+    Array.isArray(retainerHistory) &&
+    retainerHistory.some((h) => {
+      const d = toDate(h?.effectiveDate ?? null);
+      return d != null && d > change.date;
+    })
+  ) {
+    return base;
+  }
+
+  const y = monthDate.getFullYear();
+  const m = monthDate.getMonth();
+  const periodStart = new Date(y, m, 1);
+  const nextPeriod = new Date(y, m + 1, 1);
+  if (change.date >= nextPeriod) return base;
+  if (change.date <= periodStart) return change.amount;
+
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const daysBefore = change.date.getDate() - 1;
+  return (
+    (base * daysBefore + change.amount * (daysInMonth - daysBefore)) /
+    daysInMonth
+  );
+}
+
+/**
+ * Gross monthly retainer for the month containing `date`, taking the saved
+ * `monthlyRetainer` and applying any scheduled change. Use this for "this
+ * month" figures instead of reading `monthlyRetainer` directly.
+ */
+export function effectiveMonthlyRetainer(
+  client: ScheduledRetainerChangeInput & {
+    monthlyRetainer?: number | null;
+    retainerHistory?: RetainerHistoryEntry[] | null;
+  },
+  date: Date,
+): number {
+  return applyScheduledRetainerChange(
+    Math.max(0, Number(client.monthlyRetainer) || 0),
+    scheduledRetainerChange(client),
+    date,
+    client.retainerHistory,
+  );
 }
 
 /**
@@ -344,6 +449,7 @@ export function retainerRevenueYTD(
   const retainerHistory = Array.isArray(client.retainerHistory)
     ? client.retainerHistory
     : [];
+  const change = scheduledRetainerChange(client);
 
   // Retainer anchor: the dedicated retainer start date when set, otherwise
   // fall back to the client start date (keeps existing clients unchanged).
@@ -352,7 +458,8 @@ export function retainerRevenueYTD(
     toDate(client.clientStartDate ?? null);
   if (!anchor) {
     // No start date: count current month only, plus any undated recurring setup fee.
-    return netMonthlyRetainer(monthlyRetainer, commissions, now) + setupFee;
+    const grossNow = applyScheduledRetainerChange(monthlyRetainer, change, now, retainerHistory);
+    return netMonthlyRetainer(grossNow, commissions, now) + setupFee;
   }
 
   const yearStart = new Date(now.getFullYear(), 0, 1);
@@ -367,7 +474,12 @@ export function retainerRevenueYTD(
     m <= lastMonth;
     m = new Date(m.getFullYear(), m.getMonth() + 1, 1)
   ) {
-    const gross = grossRetainerForMonth(monthlyRetainer, retainerHistory, m);
+    const gross = applyScheduledRetainerChange(
+      grossRetainerForMonth(monthlyRetainer, retainerHistory, m),
+      change,
+      m,
+      retainerHistory,
+    );
     const commission = monthlyCommissionForDate(commissions, gross, m);
     const factor = firstMonthProrationFactor(anchor, m);
     const netForMonth = Math.max(0, gross - commission) * factor;

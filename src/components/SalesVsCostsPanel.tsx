@@ -5,7 +5,7 @@ import { InfoNote } from './InfoNote'
 import { COSTS_IMPORTED_EVENT } from '@/lib/finance/events'
 import { excludeCostAccounts, type PnlMonth, type PnlTotals } from '@/lib/finance/monthly-pnl'
 
-type XeroUnavailableReason = 'not_configured' | 'not_deployed' | 'not_connected' | 'scope_missing' | 'error'
+export type XeroUnavailableReason = 'not_configured' | 'not_deployed' | 'not_connected' | 'scope_missing' | 'error'
 
 interface PnlResponse {
   months: PnlMonth[]
@@ -16,7 +16,7 @@ interface PnlResponse {
   fetchedAt?: string
 }
 
-const XERO_UNAVAILABLE_TEXT: Record<XeroUnavailableReason, string> = {
+export const XERO_UNAVAILABLE_TEXT: Record<XeroUnavailableReason, string> = {
   not_deployed: 'Xero is connected, but the Growth Tools update that reads monthly figures isn\u2019t deployed yet.',
   scope_missing: 'Xero is connected, but needs reconnecting once in Growth Tools to allow reading bank transactions and payments.',
   not_connected: 'Xero isn\u2019t connected in Growth Tools.',
@@ -45,12 +45,12 @@ const LABELS = {
 
 const COLORS = { agreed: '#213843', received: '#74B3A8', costs: '#EF4444' }
 
-function money(n: number): string {
+export function money(n: number): string {
   const abs = Math.abs(n).toLocaleString('en-AU', { maximumFractionDigits: 0 })
   return n < 0 ? `-$${abs}` : `$${abs}`
 }
 
-function monthLabel(key: string, short = false): string {
+export function monthLabel(key: string, short = false): string {
   const [y = 0, m = 1] = key.split('-').map(Number)
   return new Date(y, m - 1, 1).toLocaleString('en-AU', short ? { month: 'short' } : { month: 'short', year: 'numeric' })
 }
@@ -68,15 +68,30 @@ export interface SalesVsCostsPanelProps {
   label: string
   /** True while the period is still running (figures are year to date). */
   toDate?: boolean
+  /** Controlled what-if state, so other panels can follow it. Uncontrolled when omitted. */
+  excluded?: ReadonlySet<string>
+  onExcludedChange?: (next: ReadonlySet<string>) => void
 }
 
-export function SalesVsCostsPanel({ from, to, label, toDate = false }: SalesVsCostsPanelProps) {
+export function SalesVsCostsPanel({
+  from,
+  to,
+  label,
+  toDate = false,
+  excluded: controlledExcluded,
+  onExcludedChange,
+}: SalesVsCostsPanelProps) {
   const [data, setData] = useState<PnlResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   // Xero cost categories switched off for a "what if" view. Kept across period
   // changes (category names are stable); never persisted.
-  const [excluded, setExcluded] = useState<ReadonlySet<string>>(() => new Set())
+  const [ownExcluded, setOwnExcluded] = useState<ReadonlySet<string>>(() => new Set())
+  const excluded = controlledExcluded ?? ownExcluded
+  const setExcluded = (next: ReadonlySet<string>) => {
+    if (onExcludedChange) onExcludedChange(next)
+    else setOwnExcluded(next)
+  }
 
   const load = useCallback((range: { from: string; to: string }, signal?: AbortSignal) => {
     setLoading(true)
@@ -126,13 +141,12 @@ export function SalesVsCostsPanel({ from, to, label, toDate = false }: SalesVsCo
     return excludeCostAccounts(data.months, activeExcluded)
   }, [data, activeExcluded])
 
-  const toggleAccount = (account: string) =>
-    setExcluded((prev) => {
-      const next = new Set(prev)
-      if (next.has(account)) next.delete(account)
-      else next.add(account)
-      return next
-    })
+  const toggleAccount = (account: string) => {
+    const next = new Set(excluded)
+    if (next.has(account)) next.delete(account)
+    else next.add(account)
+    setExcluded(next)
+  }
 
   const excludedList = [...activeExcluded].sort((a, b) => a.localeCompare(b))
   const excludedAmount = (data?.costsByAccount ?? [])
@@ -260,71 +274,17 @@ export function SalesVsCostsPanel({ from, to, label, toDate = false }: SalesVsCo
               </tfoot>
             </table>
           </div>
-          {data.source === 'xero' && data.costsByAccount && data.costsByAccount.length > 0 && (() => {
-            const fullCosts = data.totals.costs
-            return (
-              <div style={{ marginTop: 18 }}>
-                <h3 id="xero-categories-title" style={{ fontSize: 14, fontWeight: 600, margin: '0 0 2px' }}>Costs by Xero category ({periodText})</h3>
-                <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)', marginBottom: 8 }}>
-                  Click a category to switch it off and see the table above without it. Click again to bring it back.
-                </div>
-                <ul aria-labelledby="xero-categories-title" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 4 }}>
-                  {data.costsByAccount.map((c) => {
-                    const off = activeExcluded.has(c.account)
-                    return (
-                      <li key={c.account}>
-                        <button
-                          type="button"
-                          aria-pressed={!off}
-                          aria-label={`${c.account}, ${money(c.amount)}. ${off ? 'Excluded' : 'Included'} in the table.`}
-                          title={off ? 'Excluded: click to include again' : 'Included: click to exclude'}
-                          onClick={() => toggleAccount(c.account)}
-                          style={{
-                            width: '100%',
-                            display: 'grid',
-                            gridTemplateColumns: '18px minmax(120px, 1fr) 3fr auto',
-                            alignItems: 'center',
-                            gap: 10,
-                            fontSize: 13,
-                            padding: '5px 8px',
-                            borderRadius: 6,
-                            border: '1px solid transparent',
-                            background: off ? 'transparent' : 'var(--theme-elevation-0)',
-                            color: 'inherit',
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                            opacity: off ? 0.55 : 1,
-                          }}
-                        >
-                          <span
-                            aria-hidden="true"
-                            style={{
-                              width: 14,
-                              height: 14,
-                              borderRadius: 3,
-                              border: `1.5px solid ${off ? 'var(--theme-elevation-400)' : COLORS.costs}`,
-                              background: off ? 'transparent' : COLORS.costs,
-                              color: '#fff',
-                              fontSize: 10,
-                              lineHeight: '11px',
-                              textAlign: 'center',
-                            }}
-                          >
-                            {off ? '' : '\u2713'}
-                          </span>
-                          <span style={{ textDecoration: off ? 'line-through' : undefined }}>{c.account}</span>
-                          <span aria-hidden="true" style={{ height: 6, background: 'var(--theme-elevation-150)', borderRadius: 3, overflow: 'hidden' }}>
-                            <span style={{ display: 'block', height: '100%', width: `${fullCosts > 0 ? (c.amount / fullCosts) * 100 : 0}%`, background: off ? 'var(--theme-elevation-300)' : COLORS.costs }} />
-                          </span>
-                          <span style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right', textDecoration: off ? 'line-through' : undefined }}>{money(c.amount)}</span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            )
-          })()}
+          {data.source === 'xero' && data.costsByAccount && data.costsByAccount.length > 0 && (
+            <CostCategoryToggles
+              id="xero-categories-title"
+              title={`Costs by Xero category (${periodText})`}
+              hint="Click a category to switch it off and see the table above without it. Click again to bring it back."
+              categories={data.costsByAccount}
+              total={data.totals.costs}
+              excluded={activeExcluded}
+              onToggle={toggleAccount}
+            />
+          )}
           <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 8, lineHeight: 1.5 }}>
             {data.source === 'xero'
               ? `Transfers, GST payments, loans and drawings aren\u2019t counted, matching Xero\u2019s Profit & Loss. Credit notes and manual journals aren\u2019t included yet.${data.fetchedAt ? ` Updated ${new Date(data.fetchedAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}.` : ''}`
@@ -336,7 +296,91 @@ export function SalesVsCostsPanel({ from, to, label, toDate = false }: SalesVsCo
   )
 }
 
-function Kpi({ label, value, tone }: { label: string; value: string; tone?: number }) {
+/**
+ * Cost categories as a clickable legend: each row switches the category off
+ * (struck through, removed from the figures) or back on.
+ */
+export function CostCategoryToggles({
+  id,
+  title,
+  hint,
+  categories,
+  total,
+  excluded,
+  onToggle,
+}: {
+  id: string
+  title: string
+  hint: string
+  categories: Array<{ account: string; amount: number }>
+  /** Bar scale: total of every category, including switched-off ones. */
+  total: number
+  excluded: ReadonlySet<string>
+  onToggle: (account: string) => void
+}) {
+  return (
+    <div style={{ marginTop: 18 }}>
+      <h3 id={id} style={{ fontSize: 14, fontWeight: 600, margin: '0 0 2px' }}>{title}</h3>
+      <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)', marginBottom: 8 }}>{hint}</div>
+      <ul aria-labelledby={id} style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 4 }}>
+        {categories.map((c) => {
+          const off = excluded.has(c.account)
+          return (
+            <li key={c.account}>
+              <button
+                type="button"
+                aria-pressed={!off}
+                aria-label={`${c.account}, ${money(c.amount)}. ${off ? 'Excluded' : 'Included'} in the table.`}
+                title={off ? 'Excluded: click to include again' : 'Included: click to exclude'}
+                onClick={() => onToggle(c.account)}
+                style={{
+                  width: '100%',
+                  display: 'grid',
+                  gridTemplateColumns: '18px minmax(120px, 1fr) 3fr auto',
+                  alignItems: 'center',
+                  gap: 10,
+                  fontSize: 13,
+                  padding: '5px 8px',
+                  borderRadius: 6,
+                  border: '1px solid transparent',
+                  background: off ? 'transparent' : 'var(--theme-elevation-0)',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  opacity: off ? 0.55 : 1,
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 3,
+                    border: `1.5px solid ${off ? 'var(--theme-elevation-400)' : COLORS.costs}`,
+                    background: off ? 'transparent' : COLORS.costs,
+                    color: '#fff',
+                    fontSize: 10,
+                    lineHeight: '11px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {off ? '' : '\u2713'}
+                </span>
+                <span style={{ textDecoration: off ? 'line-through' : undefined }}>{c.account}</span>
+                <span aria-hidden="true" style={{ height: 6, background: 'var(--theme-elevation-150)', borderRadius: 3, overflow: 'hidden' }}>
+                  <span style={{ display: 'block', height: '100%', width: `${total > 0 ? (c.amount / total) * 100 : 0}%`, background: off ? 'var(--theme-elevation-300)' : COLORS.costs }} />
+                </span>
+                <span style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right', textDecoration: off ? 'line-through' : undefined }}>{money(c.amount)}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+export function Kpi({ label, value, tone }: { label: string; value: string; tone?: number }) {
   return (
     <div style={{ background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 12 }}>
       <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)', marginBottom: 4 }}>{label}</div>
@@ -345,14 +389,14 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: numb
   )
 }
 
-const panelStyle: React.CSSProperties = {
+export const panelStyle: React.CSSProperties = {
   background: 'var(--theme-elevation-50)',
   border: '1px solid var(--theme-elevation-150)',
   borderRadius: 8,
   padding: 16,
   marginBottom: 24,
 }
-const rangeBtn: React.CSSProperties = {
+export const rangeBtn: React.CSSProperties = {
   background: 'var(--theme-elevation-100)',
   border: '1px solid var(--theme-elevation-200)',
   padding: '5px 10px',
@@ -361,7 +405,7 @@ const rangeBtn: React.CSSProperties = {
   fontSize: 12,
   color: 'inherit',
 }
-const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--theme-elevation-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }
-const thNum: React.CSSProperties = { ...th, textAlign: 'right' }
-const td: React.CSSProperties = { padding: '8px 10px' }
-const tdNum: React.CSSProperties = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
+export const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--theme-elevation-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }
+export const thNum: React.CSSProperties = { ...th, textAlign: 'right' }
+export const td: React.CSSProperties = { padding: '8px 10px' }
+export const tdNum: React.CSSProperties = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }

@@ -3,6 +3,7 @@
 import { useDocumentInfo } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 import {
+  effectiveMonthlyRetainer,
   firstMonthProrationFactor,
   historicalRevenueTotal,
   monthlyCommissionForDate,
@@ -10,6 +11,7 @@ import {
   oneOffsYTD,
   retainerRevenueYTD,
   revenueShareFactor,
+  scheduledRetainerChange,
   setupFeeYTD,
   type HistoricalRevenueYear,
   type ReferralCommission,
@@ -28,6 +30,9 @@ type ClientBillingData = {
   oneOffProjects: OneOffProject[]
   retainerHistory: RetainerHistoryEntry[]
   referralCommissions: ReferralCommission[]
+  retainerChangeDate: string | null
+  retainerChangeAction: string | null
+  retainerChangeAmount: number | null
   isAgency: boolean
 }
 
@@ -60,6 +65,9 @@ function ClientBillingSummary() {
           referralCommissions: Array.isArray(doc.referralCommissions)
             ? doc.referralCommissions
             : [],
+          retainerChangeDate: doc.retainerChangeDate ?? null,
+          retainerChangeAction: doc.retainerChangeAction ?? null,
+          retainerChangeAmount: doc.retainerChangeAmount ?? null,
           isAgency: !!doc.isAgency,
         })
       })
@@ -79,15 +87,24 @@ function ClientBillingSummary() {
     oneOffProjects,
     retainerHistory,
     referralCommissions,
+    retainerChangeDate,
+    retainerChangeAction,
+    retainerChangeAmount,
   } = data
+  const retainerChange = { retainerChangeDate, retainerChangeAction, retainerChangeAmount }
 
   const share = revenueShareFactor(revenueSharePercent)
   const shareLessThanFull = revenueSharePercent > 0 && revenueSharePercent < 100
 
   const now = new Date()
+  // Gross retainer in force this month, after any scheduled change.
+  const grossNow = effectiveMonthlyRetainer(
+    { monthlyRetainer, retainerHistory, ...retainerChange },
+    now,
+  )
   const activeMonthlyCommission = monthlyCommissionForDate(
     referralCommissions,
-    monthlyRetainer,
+    grossNow,
     now,
   )
   const anchorIso = retainerStartDate ?? clientStartDate
@@ -95,7 +112,7 @@ function ClientBillingSummary() {
   const thisMonthFactor =
     anchor && !isNaN(anchor.getTime()) ? firstMonthProrationFactor(anchor, now) : 1
   const netRetainerFull =
-    netMonthlyRetainer(monthlyRetainer, referralCommissions, now) * thisMonthFactor
+    netMonthlyRetainer(grossNow, referralCommissions, now) * thisMonthFactor
   const netRetainer = netRetainerFull * share
   // Current-year historical rows are retainer income for this year that
   // pre-dates CMS tracking — count them toward Retainer YTD (matches the
@@ -124,6 +141,7 @@ function ClientBillingSummary() {
         clientStartDate,
         retainerStartDate,
         retainerHistory,
+        ...retainerChange,
         referralCommissions,
         oneOffProjects,
       },
@@ -148,7 +166,21 @@ function ClientBillingSummary() {
   const subtextParts: string[] = []
   if (activeMonthlyCommission > 0) {
     subtextParts.push(
-      `${formatCurrency(monthlyRetainer)} gross − ${formatCurrency(activeMonthlyCommission)} commission`,
+      `${formatCurrency(grossNow)} gross − ${formatCurrency(activeMonthlyCommission)} commission`,
+    )
+  }
+  const scheduled = scheduledRetainerChange(retainerChange)
+  if (scheduled) {
+    const when = scheduled.date.toLocaleDateString('en-AU', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+    const isPast = scheduled.date <= now
+    subtextParts.push(
+      scheduled.amount === 0
+        ? `${isPast ? 'Ended' : 'Ends'} ${when}`
+        : `${isPast ? 'Changed' : 'Changes'} to ${formatCurrency(scheduled.amount)} from ${when}`,
     )
   }
   if (shareLessThanFull) {

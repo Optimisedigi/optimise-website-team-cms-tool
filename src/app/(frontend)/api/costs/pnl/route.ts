@@ -82,6 +82,9 @@ export async function GET(request: NextRequest) {
           clientStartDate: true,
           retainerStartDate: true,
           retainerHistory: true,
+          retainerChangeDate: true,
+          retainerChangeAction: true,
+          retainerChangeAmount: true,
         },
       }),
       payload.find({

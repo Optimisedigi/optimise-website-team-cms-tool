@@ -20,6 +20,7 @@ import {
   oneOffsThisMonth,
   oneOffsYTD,
   retainerRevenueYTD,
+  effectiveMonthlyRetainer,
   revenueShareFactor,
 } from "@/lib/client-revenue";
 
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
   let historicalTotal = 0;
 
   const breakdown = clients.docs.map((c: any) => {
-    const mr = Number(c.monthlyRetainer) || 0;
+    const mr = effectiveMonthlyRetainer(c, now);
     const commissions = Array.isArray(c.referralCommissions) ? c.referralCommissions : [];
     const oneOffs = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
     const history = Array.isArray(c.retainerHistory) ? c.retainerHistory : [];
@@ -77,10 +78,13 @@ export async function GET(request: NextRequest) {
     const net = netMonthlyRetainer(mr, commissions, now);
     const r_ytd = retainerRevenueYTD(
       {
-        monthlyRetainer: mr,
+        monthlyRetainer: Number(c.monthlyRetainer) || 0,
         clientStartDate: c.clientStartDate ?? null,
         retainerStartDate: c.retainerStartDate ?? null,
         retainerHistory: history,
+        retainerChangeDate: c.retainerChangeDate ?? null,
+        retainerChangeAction: c.retainerChangeAction ?? null,
+        retainerChangeAmount: c.retainerChangeAmount ?? null,
         referralCommissions: commissions,
       },
       now,

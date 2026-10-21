@@ -1,7 +1,12 @@
 import React, { createRef } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { act, render, waitFor } from '@testing-library/react'
-import RichEmailEditor, { clipboardImageFiles, type EmailSelectionFormat, type RichEmailEditorHandle } from '@/components/mail/RichEmailEditor'
+import RichEmailEditor, {
+  clipboardImageFiles,
+  PASTE_TEXT_COLOR,
+  type EmailSelectionFormat,
+  type RichEmailEditorHandle,
+} from '@/components/mail/RichEmailEditor'
 import { clampImageWidth, MIN_IMAGE_WIDTH, resizedImageWidth } from '@/components/mail/EmailImageNode'
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -23,6 +28,44 @@ async function mount(initialHtml: string, onFormatChange?: (format: EmailSelecti
   await waitFor(() => expect(ref.current?.getHtml()).toBeTruthy())
   return { ref, onContentChange }
 }
+
+// Lexical scrolls the caret into view on focus and paste; jsdom has no layout for ranges.
+if (typeof Range.prototype.getBoundingClientRect !== 'function') {
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => new DOMRect(0, 0, 0, 0),
+  })
+}
+
+/** Paste into the editor the way a browser does: a DOM paste event carrying the clipboard. */
+async function paste(data: Record<string, string>) {
+  const editable = document.querySelector('[contenteditable="true"]')
+  if (!editable) throw new Error('editor not mounted')
+  // Lexical tells clipboard and drag events apart by constructor name; jsdom has neither.
+  const globals = globalThis as { ClipboardEvent?: typeof Event; DragEvent?: typeof Event }
+  if (!globals.DragEvent) vi.stubGlobal('DragEvent', class DragEvent extends Event {})
+  const Clipboard = globals.ClipboardEvent ?? class ClipboardEvent extends Event {}
+  if (!globals.ClipboardEvent) vi.stubGlobal('ClipboardEvent', Clipboard)
+  const event = new Clipboard('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'clipboardData', {
+    value: { types: Object.keys(data), files: [], items: [], getData: (type: string) => data[type] ?? '' },
+  })
+  // Lexical commits the paste on a microtask.
+  await act(async () => {
+    editable.dispatchEvent(event)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
+
+/** Focus the editor and wait for Lexical to place the caret (its focus() is asynchronous). */
+async function focusEnd(handle: RichEmailEditorHandle | null) {
+  await act(async () => {
+    handle?.focus()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
+
+const BLACK = /color: (?:#000000|rgb\(0, 0, 0\))/
 
 describe('RichEmailEditor', () => {
   it('keeps bold, italic, underline, tables and inline images from loaded HTML', async () => {
@@ -81,6 +124,60 @@ describe('RichEmailEditor', () => {
     // Rejected values never reach the text.
     act(() => ref.current?.setTextColor('red;background:url(x)'))
     expect(ref.current?.getHtml()).not.toContain('url(')
+  })
+
+  it('pastes HTML in black, keeping bold, italic, underline and lists, and it can be recoloured after', async () => {
+    const { ref } = await mount('<p><span style="color: #cc0000">Typed red</span></p>')
+    await focusEnd(ref.current)
+    expect(PASTE_TEXT_COLOR).toBe('#000000')
+
+    await paste({
+      'text/html':
+        '<p><span style="color:#0b5394">Blue <b>bold</b> <i>it</i> <u>under</u></span> <font color="#00ff00">green</font> plain</p>' +
+        '<ul><li><span style="color:#ff00ff">Pink item</span></li></ul><ol><li>Numbered</li></ol>',
+      'text/plain': 'Blue bold it under green plain\nPink item\nNumbered',
+    })
+
+    const html = ref.current?.getHtml() ?? ''
+    expect(html).not.toMatch(/0b5394|rgb\(11, 83, 148\)|00ff00|rgb\(0, 255, 0\)|ff00ff|rgb\(255, 0, 255\)/)
+    expect(html).toMatch(/<b><strong[^>]*style="[^"]*color: (?:#000000|rgb\(0, 0, 0\))[^"]*">bold<\/strong><\/b>/)
+    expect(html).toMatch(/<i>[^]*it/)
+    expect(html).toMatch(/<u>[^]*under/)
+    for (const text of ['Blue ', 'green', 'Pink item', 'Numbered']) {
+      expect(html).toMatch(new RegExp(`style="[^"]*${BLACK.source}[^"]*">${text}`))
+    }
+    expect(html).toMatch(/<ul[^>]*><li[^>]*>[^]*Pink item/)
+    expect(html).toMatch(/<ol[^>]*><li[^>]*>[^]*Numbered/)
+    // Text that was already there keeps its colour.
+    expect(html).toMatch(/color: (?:#cc0000|rgb\(204, 0, 0\))[^"]*">Typed red/)
+
+    // It's an ordinary colour: select all and change it.
+    act(() => {
+      const editable = document.querySelector('[contenteditable="true"]')
+      const range = document.createRange()
+      if (editable) range.selectNodeContents(editable)
+      window.getSelection()?.removeAllRanges()
+      window.getSelection()?.addRange(range)
+      document.dispatchEvent(new Event('selectionchange'))
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      ref.current?.setTextColor('#0000ff')
+    })
+    const recoloured = ref.current?.getHtml() ?? ''
+    expect(recoloured).not.toMatch(BLACK)
+    expect(recoloured).toMatch(/color: (?:#0000ff|rgb\(0, 0, 255\))[^"]*">Pink item/)
+  })
+
+  it('pastes plain text in black, even into coloured text', async () => {
+    const { ref } = await mount('<p><span style="color: #cc0000">Red</span></p>')
+    await focusEnd(ref.current)
+
+    await paste({ 'text/plain': ' pasted words' })
+
+    const html = ref.current?.getHtml() ?? ''
+    expect(html).toMatch(/color: (?:#cc0000|rgb\(204, 0, 0\))[^"]*">Red</)
+    expect(html).toMatch(new RegExp(`style="[^"]*${BLACK.source}[^"]*"> pasted words<`))
   })
 
   it('gives the AI tables as markdown and inserts new tables', async () => {

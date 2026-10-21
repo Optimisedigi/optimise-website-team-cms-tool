@@ -6,6 +6,7 @@ import {
   $getNodeByKey,
   $getRoot,
   $getSelection,
+  $hasUpdateTag,
   $insertNodes,
   $isElementNode,
   $isRangeSelection,
@@ -16,6 +17,8 @@ import {
   COMMAND_PRIORITY_LOW,
   DROP_COMMAND,
   PASTE_COMMAND,
+  PASTE_TAG,
+  SELECTION_INSERT_CLIPBOARD_NODES_COMMAND,
   TextNode,
   type BaseSelection,
   type DOMConversionMap,
@@ -61,8 +64,11 @@ import styles from './ComposeWindow.module.css'
  *
  * - One font, always: the body is Verdana at Gmail's "Normal" size (CSS
  *   `small`) and cannot be changed. Pasted text keeps bold, italic,
- *   underline, lists, tables and colour, but never its font or size (Lexical
- *   does not import them, and inline code is turned back into plain text).
+ *   underline, lists and tables, but never its font or size (Lexical does not
+ *   import them, and inline code is turned back into plain text).
+ * - Pasted text always comes in black, whatever colour it had at the source
+ *   (see PASTE_TEXT_COLOR). It is an ordinary colour, so it can be changed
+ *   afterwards. Loaded HTML (drafts, AI drafts, quoted mail) keeps its colours.
  * - Bold / italic / underline: Cmd/Ctrl+B, I, U (Lexical's built-in shortcuts;
  *   there are deliberately no toolbar buttons for them).
  * - Text colour, bulleted and numbered lists: setTextColor() and toggleList(),
@@ -163,8 +169,30 @@ function withColorForChild(output: DOMConversionOutput | null, color: string | n
   }
 }
 
+/** Colour every pasted text node gets, replacing the colour it was copied with. */
+export const PASTE_TEXT_COLOR = '#000000'
+
+/** Set this colour on every text node in the pasted nodes (tables and lists included). */
+function $colorPastedNodes(nodes: LexicalNode[], color: string): void {
+  for (const node of nodes) {
+    if ($isTextNode(node)) node.setStyle(styleWithColor(node.getStyle(), color))
+    else if ($isElementNode(node)) $colorPastedNodes(node.getChildren(), color)
+  }
+}
+
 /**
- * Keep pasted/loaded text colour. Lexical's own <span> import only reads bold,
+ * True when Lexical will paste this as plain text: no copy from a Lexical
+ * editor, and no HTML (or HTML identical to the text, which Lexical skips).
+ */
+function isPlainTextPaste(data: Pick<DataTransfer, 'getData'>): boolean {
+  if (data.getData('application/x-lexical-editor')) return false
+  const html = data.getData('text/html')
+  return !html || html === data.getData('text/plain')
+}
+
+/**
+ * Keep loaded text colour (pasted text is recoloured afterwards, see
+ * PASTE_TEXT_COLOR). Lexical's own <span> import only reads bold,
  * italic and so on, so this runs it and then applies the colour; <font color>
  * (Outlook) is handled the same way. Fonts and sizes are still never imported.
  */
@@ -340,10 +368,29 @@ function EditorBridge({
       (event) => {
         const data = 'clipboardData' in event ? event.clipboardData : null
         const files = data ? clipboardImageFiles(data) : null
-        if (!files) return false
+        if (!files) {
+          // Plain text is typed in with the cursor's style, so make that black.
+          // HTML and Lexical copies are recoloured below as they're inserted.
+          const selection = $getSelection()
+          if (data && isPlainTextPaste(data) && $isRangeSelection(selection)) {
+            selection.setStyle(styleWithColor(selection.style, PASTE_TEXT_COLOR))
+          }
+          return false
+        }
         event.preventDefault()
         pasteFiles(files)
         return true
+      },
+      COMMAND_PRIORITY_HIGH,
+    )
+    // Rich pastes hand exactly the new nodes to this command before inserting
+    // them (tables included), so only pasted text is recoloured. Returns false
+    // so the table plugin or Lexical still does the insert.
+    const offPastedNodes = editor.registerCommand(
+      SELECTION_INSERT_CLIPBOARD_NODES_COMMAND,
+      ({ nodes }) => {
+        if ($hasUpdateTag(PASTE_TAG)) $colorPastedNodes(nodes, PASTE_TEXT_COLOR)
+        return false
       },
       COMMAND_PRIORITY_HIGH,
     )
@@ -367,6 +414,7 @@ function EditorBridge({
     )
     return () => {
       offPaste()
+      offPastedNodes()
       offFiles()
       offDrop()
     }
