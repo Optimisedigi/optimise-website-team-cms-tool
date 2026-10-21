@@ -89,8 +89,10 @@ export function inboxPageToken(part: InboxPagePart, token: string | null | undef
  * search returns several messages of one thread, so the list route keeps
  * asking Gmail (at most MAIL_LIST_MAX_GMAIL_CALLS times) until it has this
  * many threads or the folder runs out, so "Load more" doesn't come early.
+ * Each row costs one Gmail threads.get, and Gmail rate-limits per user, so
+ * keep this small: it sets how long the list takes to appear.
  */
-export const MAIL_LIST_PAGE_SIZE = 45;
+export const MAIL_LIST_PAGE_SIZE = 20;
 export const MAIL_LIST_MAX_GMAIL_CALLS = 4;
 
 /** Rows of `next` whose thread is not already in `seen` (in order), recording them. */

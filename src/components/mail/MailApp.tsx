@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import styles from './MailApp.module.css'
 import { useIsMobileViewport, useSwipeBack } from '../../lib/swipe'
 import EmailBody from './EmailBody'
 import CalendarInviteCard from './CalendarInviteCard'
 import type { ThreadInvite } from '../../lib/mail/calendar-invite'
 import { browserStorage, clearPrompt, promptKeys } from '../../lib/mail/ai-prompt-store'
-import ComposeWindow, { type ComposeContent, type ComposeFile, type ComposeState } from './ComposeWindow'
+import type { ComposeContent, ComposeFile, ComposeState } from './ComposeWindow'
 import { HIDDEN_SENDERS_PREF_KEY, isHiddenSender, normaliseHiddenSender } from '../../lib/mail/hidden-senders'
 import {
   CLIENT_SENDERS_PREF_KEY,
@@ -49,6 +49,21 @@ function cleanContacts(value: unknown): MailContact[] {
 
 /** Phones (the overflow menu and floating compose button). */
 const PHONE_MAX_WIDTH = 768
+
+/**
+ * The compose window (rich-text editor, voice) is a large chunk only needed
+ * once you write an email: it is loaded after the first list shows, not with
+ * the page.
+ */
+const loadComposeWindow = () => import('./ComposeWindow')
+const ComposeWindow = lazy(loadComposeWindow)
+
+/**
+ * How long a search waits for the people list (/api/mail/contacts, slow on a
+ * cold load) before running without part-name matches; when the list arrives
+ * later and adds people, the search is run again with them.
+ */
+const SEARCH_PEOPLE_WAIT_MS = 300
 
 /** Server reason (also read by agents/tools) → the wording users see in Mail. */
 const GMAIL_NOT_CONNECTED_REASON = /gmail not connected for this user/i
@@ -468,12 +483,33 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     async (value: string) => {
       const typed = value.trim()
       querySenders.current = []
-      if (folder === 'inbox' && typed) {
-        const people = await loadSearchPeople()
-        querySenders.current = searchSenderAddresses(people.senders, people.contacts, typed)
-      }
       setQuery(value)
+      if (folder !== 'inbox' || !typed) {
+        void loadInbox({ folder, q: value })
+        return
+      }
+      const pending = loadSearchPeople()
+      let timer: number | undefined
+      const people = await Promise.race([
+        pending,
+        new Promise<null>((resolve) => {
+          timer = window.setTimeout(() => resolve(null), SEARCH_PEOPLE_WAIT_MS)
+        }),
+      ])
+      window.clearTimeout(timer)
+      if (people) querySenders.current = searchSenderAddresses(people.senders, people.contacts, typed)
       void loadInbox({ folder, q: value })
+      if (people) return
+      // Searched without the people list; widen the search once it arrives,
+      // unless another list load (new search, folder, account) came since.
+      const listId = listRequest.current
+      void pending.then((late) => {
+        if (listRequest.current !== listId) return
+        const extra = searchSenderAddresses(late.senders, late.contacts, typed)
+        if (extra.length === 0) return
+        querySenders.current = extra
+        void loadInbox({ folder, q: value })
+      })
     },
     [folder, loadInbox, loadSearchPeople],
   )
@@ -524,9 +560,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   }, [showError])
 
   const refresh = useCallback(async () => {
+    // Sync after the list, so it doesn't compete with it for Gmail's per-user rate limit.
     await Promise.all([
-      runSync(),
-      showScheduled ? loadScheduled() : showAwaiting ? loadFollowUps() : loadInbox({ folder, q: query }),
+      (showScheduled ? loadScheduled() : showAwaiting ? loadFollowUps() : loadInbox({ folder, q: query })).then(() => runSync()),
       loadCounts(),
     ])
   }, [folder, loadCounts, loadFollowUps, loadInbox, loadScheduled, query, runSync, showAwaiting, showScheduled])
@@ -579,11 +615,14 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }, [])
 
-  // Sync on open.
+  // Sync on open, once the list has shown (Gmail rate-limits per user, so the
+  // list goes first), then fetch the compose window in the background.
   useEffect(() => {
-    void runSync()
-    void loadInbox({ folder: 'inbox' })
     void loadCounts()
+    void loadInbox({ folder: 'inbox' }).then(() => {
+      void runSync()
+      void loadComposeWindow().catch(() => undefined)
+    })
   }, [runSync, loadInbox, loadCounts])
 
   // Keep the badges current while the tab is open.
@@ -768,9 +807,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       setError(null)
       setSyncNote('')
       loadSignature()
-      void runSync()
-      void loadInbox({ folder: 'inbox' })
       void loadCounts()
+      void loadInbox({ folder: 'inbox' }).then(() => runSync())
     },
     [loadCounts, loadInbox, loadSignature, runSync],
   )
@@ -2075,6 +2113,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       </div>
 
       {composer ? (
+        <Suspense fallback={null}>
         <ComposeWindow
           key={composer.key}
           initial={composer}
@@ -2095,6 +2134,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           onDeleteDraft={(draftId) => deleteComposedDraft(draftId, composer.account ?? '')}
           signatureHtml={signatureHtml}
         />
+        </Suspense>
       ) : null}
     </div>
   )

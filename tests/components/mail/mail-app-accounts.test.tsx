@@ -106,6 +106,40 @@ describe('MailApp layout', () => {
     expect(url.searchParams.get('senders')).toBe('rebekah@inthepicture.com.au,carli@inthepicture.com.au')
   })
 
+  it('does not hold a search back while the people list is still loading, then widens it', async () => {
+    const baseFetch = global.fetch
+    let releaseContacts: () => void = () => undefined
+    const contactsGate = new Promise<void>((resolve) => {
+      releaseContacts = resolve
+    })
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/mail/contacts')) await contactsGate
+      return baseFetch(url, init)
+    }) as unknown as typeof fetch
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    const search = screen.getByRole('combobox', { name: 'Search inbox' })
+    fireEvent.change(search, { target: { value: 'inthe' } })
+    calls = []
+    fireEvent.submit(search.closest('form') as HTMLFormElement)
+    const searches = () => calls.filter((call) => call.url.startsWith('/api/mail/inbox')).map((call) => new URL(call.url, 'https://cms.test'))
+    await waitFor(() => expect(searches()).toHaveLength(1))
+    expect(searches()[0]?.searchParams.get('q')).toBe('inthe')
+    expect(searches()[0]?.searchParams.get('senders')).toBeNull()
+    releaseContacts()
+    await waitFor(() => expect(searches()).toHaveLength(2))
+    expect(searches()[1]?.searchParams.get('senders')).toBe('rebekah@inthepicture.com.au,carli@inthepicture.com.au')
+  })
+
+  it('starts the Gmail sync only after the first list has loaded', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith('/api/mail/sync'))).toBe(true))
+    const inboxAt = calls.findIndex((call) => call.url.startsWith('/api/mail/inbox'))
+    const syncAt = calls.findIndex((call) => call.url.startsWith('/api/mail/sync'))
+    expect(inboxAt).toBeGreaterThanOrEqual(0)
+    expect(syncAt).toBeGreaterThan(inboxAt)
+  })
+
   it('marks the folder you are on as the active tab', async () => {
     render(<MailApp clients={CLIENTS} />)
     const inbox = screen.getByRole('tab', { name: 'Inbox' })
