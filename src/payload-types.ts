@@ -9998,7 +9998,7 @@ export interface EstimateAdjustment {
    * YYYY-MM
    */
   month: string;
-  kind: 'invoiced' | 'cost';
+  kind: 'invoiced' | 'cost' | 'retainer';
   /**
    * Ex-GST AUD. Negative reduces the month.
    */
@@ -10008,6 +10008,10 @@ export interface EstimateAdjustment {
    * Xero cost category (costs only). Empty = "Manual estimates".
    */
   account?: string | null;
+  /**
+   * Client whose monthly retainer this replaces in the estimate (retainer overrides only).
+   */
+  clientId?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -15209,6 +15213,7 @@ export interface EstimateAdjustmentsSelect<T extends boolean = true> {
   amount?: T;
   description?: T;
   account?: T;
+  clientId?: T;
   updatedAt?: T;
   createdAt?: T;
 }

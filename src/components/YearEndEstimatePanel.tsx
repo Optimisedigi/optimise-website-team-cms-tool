@@ -71,6 +71,7 @@ function clientNote(row: ProjectionClientRow): string {
         : `Changes to ${money(row.change.amount)} from ${formatDate(row.change.date)}`,
     )
   }
+  if (row.setupFee) parts.push(`Setup fee ${money(row.setupFee.amount)} in ${monthLabel(row.setupFee.month)}`)
   return parts.join(' \u00b7 ')
 }
 
@@ -82,13 +83,13 @@ function adjustmentAccount(a: ProjectionAdjustment): string {
 function invoicedBreakdown(m: ProjectionMonth): BreakdownRow[] {
   const rows: BreakdownRow[] = []
   const retainerRows = (): BreakdownRow[] =>
-    m.retainers.map((r) => ({ label: r.name, value: money(r.amount), note: 'Expected retainer' }))
+    m.retainers.map((r) => ({ label: r.name, value: money(r.amount), note: r.kind === 'setup' ? 'Setup fee' : 'Expected retainer' }))
   if (m.kind === 'actual') {
     rows.push({ label: 'Xero invoices', value: money(m.invoicedActual), note: 'Approved and paid invoices dated this month' })
   } else if (m.kind === 'current') {
     const xeroWins = m.invoicedActual >= m.invoicedExpected
-    rows.push({ label: 'Xero so far', value: money(m.invoicedActual), note: xeroWins ? 'Counted: higher than expected retainers' : 'Not counted: lower than expected retainers' })
-    rows.push({ label: 'Expected retainers', value: money(m.invoicedExpected), note: xeroWins ? 'Not counted: Xero so far is higher' : 'Counted: higher than Xero so far' })
+    rows.push({ label: 'Xero so far', value: money(m.invoicedActual), note: xeroWins ? 'Counted: higher than expected invoices' : 'Not counted: lower than expected invoices' })
+    rows.push({ label: 'Expected retainers and setup fees', value: money(m.invoicedExpected), note: xeroWins ? 'Not counted: Xero so far is higher' : 'Counted: higher than Xero so far' })
     if (!xeroWins) rows.push(...retainerRows())
   } else {
     rows.push(...retainerRows())
@@ -350,8 +351,11 @@ export function YearEndEstimatePanel({ from, to, label, excluded, onExcludedChan
               <h3 id="estimate-retainers-title" style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px' }}>
                 Retainers counted for {restLabel}
               </h3>
+              <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', margin: '-4px 0 8px' }}>
+                Edit a monthly amount to change it in this estimate only. The client record stays as it is.
+              </div>
               {estimate.clients.length === 0 ? (
-                <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)' }}>No active client has a retainer for these months.</div>
+                <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)' }}>No active client has a retainer or setup fee for these months.</div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table aria-labelledby="estimate-retainers-title" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -368,7 +372,9 @@ export function YearEndEstimatePanel({ from, to, label, excluded, onExcludedChan
                         <tr key={c.id} style={{ borderBottom: '1px solid var(--theme-elevation-100)' }}>
                           <th scope="row" style={{ ...td, fontWeight: 500, textAlign: 'left' }}>{c.name}</th>
                           <td style={{ ...td, fontSize: 12, color: 'var(--theme-elevation-500)' }}>{clientNote(c)}</td>
-                          <td style={tdNum}>{money(c.monthlyRetainer)}</td>
+                          <td style={tdNum}>
+                            <RetainerAmount row={c} onChange={() => setReloadKey((k) => k + 1)} />
+                          </td>
                           <td style={tdNum}>{money(c.restOfPeriod)}</td>
                         </tr>
                       ))}
@@ -380,7 +386,7 @@ export function YearEndEstimatePanel({ from, to, label, excluded, onExcludedChan
           )}
 
           <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 8, lineHeight: 1.5 }}>
-            Retainers are full invoice amounts, before revenue share and commissions (those payouts sit in costs). One-off projects and inactive clients aren&rsquo;t included. Xero figures are approved and paid invoices by invoice date: draft and scheduled Xero invoices aren&rsquo;t counted, so add any you expect as manual estimates. This month counts the higher of Xero so far and the estimate. Hover a figure to see what it&rsquo;s made of.
+            Retainers are full invoice amounts, before revenue share and commissions (those payouts sit in costs). Setup fees count in the month the retainer (or client) starts. One-off projects and inactive clients aren&rsquo;t included. Xero figures are approved and paid invoices by invoice date: draft and scheduled Xero invoices aren&rsquo;t counted, so add any you expect as manual estimates. This month counts the higher of Xero so far and the estimate. Hover a figure to see what it&rsquo;s made of.
           </div>
         </>
       )}
@@ -549,5 +555,121 @@ function ManualEstimates({
       </form>
       {error && <div role="alert" style={{ fontSize: 12, color: '#991b1b', marginTop: 6 }}>{error}</div>}
     </div>
+  )
+}
+
+/**
+ * A client's monthly retainer in the estimate, editable without touching the
+ * client record. An override shows the stored amount it replaces.
+ */
+function RetainerAmount({ row, onChange }: { row: ProjectionClientRow; onChange: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const current = row.override?.amount ?? row.monthlyRetainer
+
+  // One-off clients only appear for their setup fee: nothing to edit.
+  if (row.monthlyRetainer === 0 && !row.override) return <>{'\u2013'}</>
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault()
+    const amount = Number(value)
+    if (value.trim() === '' || !Number.isFinite(amount) || amount < 0) {
+      setError('Enter 0 or more.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/costs/projection/adjustments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'retainer', clientId: Number(row.id), amount }),
+      })
+      if (!res.ok) {
+        setError('Could not save.')
+        return
+      }
+      setEditing(false)
+      onChange()
+    } catch {
+      setError('Could not save.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const reset = async () => {
+    if (!row.override) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/costs/projection/adjustments/${encodeURIComponent(String(row.override.id))}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setError('Could not reset.')
+        return
+      }
+      onChange()
+    } catch {
+      setError('Could not reset.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const smallBtn: React.CSSProperties = { ...rangeBtn, fontSize: 11, padding: '2px 8px', marginLeft: 6 }
+
+  if (editing) {
+    return (
+      <form onSubmit={(e) => void save(e)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, flexWrap: 'wrap' }}>
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="0.01"
+          value={value}
+          autoFocus
+          aria-label={`Estimated monthly retainer for ${row.name}`}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setEditing(false)
+          }}
+          style={{ ...inputStyle, width: 100, textAlign: 'right' }}
+        />
+        <button type="submit" disabled={saving} style={smallBtn}>{saving ? 'Saving\u2026' : 'Save'}</button>
+        <button type="button" onClick={() => setEditing(false)} style={smallBtn}>Cancel</button>
+        {error && <span role="alert" style={{ fontSize: 11, color: '#991b1b', width: '100%' }}>{error}</span>}
+      </form>
+    )
+  }
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
+      {row.override && (
+        <span style={{ fontSize: 11, color: 'var(--theme-elevation-400)', textDecoration: 'line-through', marginRight: 6 }} aria-label={`Client record: ${money(row.monthlyRetainer)}`}>
+          {money(row.monthlyRetainer)}
+        </span>
+      )}
+      <span style={row.override ? { color: '#92400e', fontWeight: 600 } : undefined}>{money(current)}</span>
+      <button
+        type="button"
+        onClick={() => {
+          setValue(String(current))
+          setError(null)
+          setEditing(true)
+        }}
+        aria-label={`Edit estimated monthly retainer for ${row.name}`}
+        style={smallBtn}
+      >
+        Edit
+      </button>
+      {row.override && (
+        <button type="button" disabled={saving} onClick={() => void reset()} aria-label={`Reset ${row.name} to the client record`} style={smallBtn}>
+          Reset
+        </button>
+      )}
+      {error && <span role="alert" style={{ fontSize: 11, color: '#991b1b', width: '100%' }}>{error}</span>}
+    </span>
   )
 }

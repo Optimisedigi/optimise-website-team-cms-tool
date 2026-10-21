@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { beforeEach, describe, expect, it } from "vitest";
 import { runMigrations } from "@/lib/run-migrations";
 import { up as addEstimateAdjustments } from "@/migrations/20261024_120000_estimate_adjustments";
+import { up as addEstimateAdjustmentClient } from "@/migrations/20261025_120000_estimate_adjustment_client";
 
 /**
  * The estimate-adjustments table must reach production through /api/migrate, which
@@ -44,6 +45,10 @@ describe("estimate_adjustments migration", () => {
     const marked = await client.execute("SELECT COUNT(*) AS n FROM `payload_migrations` WHERE `name` = '20261024_120000_estimate_adjustments'");
     expect(Number(marked.rows[0]?.n)).toBe(1);
 
+    await client.execute("INSERT INTO `estimate_adjustments` (`month`, `kind`, `amount`, `description`, `client_id`) VALUES ('2026-10', 'retainer', 3000, 'Override', 7)");
+    const overrideMarked = await client.execute("SELECT COUNT(*) AS n FROM `payload_migrations` WHERE `name` = '20261025_120000_estimate_adjustment_client'");
+    expect(Number(overrideMarked.rows[0]?.n)).toBe(1);
+
     const indexes = await client.execute("PRAGMA index_list(`estimate_adjustments`)");
     expect((indexes.rows as Array<Record<string, unknown>>).map((r) => String(r.name))).toContain("estimate_adjustments_month_idx");
   });
@@ -54,6 +59,21 @@ describe("estimate_adjustments migration", () => {
     await client.execute("INSERT INTO `estimate_adjustments` (`month`, `kind`, `amount`, `description`) VALUES ('2026-12', 'invoiced', 10, 'KEEP')");
     await addEstimateAdjustments({ db } as never);
 
+    const rows = await client.execute("SELECT `description` FROM `estimate_adjustments`");
+    expect(rows.rows.map((r) => r.description)).toEqual(["KEEP"]);
+  });
+});
+
+describe("estimate_adjustments client column migration", () => {
+  it("adds client_id to the table production already has, and can run twice", async () => {
+    const db = drizzle(client) as never;
+    await addEstimateAdjustments({ db } as never);
+    await client.execute("INSERT INTO `estimate_adjustments` (`month`, `kind`, `amount`, `description`) VALUES ('2026-12', 'invoiced', 10, 'KEEP')");
+    await addEstimateAdjustmentClient({ db } as never);
+    await addEstimateAdjustmentClient({ db } as never);
+
+    const columns = await client.execute("PRAGMA table_info(`estimate_adjustments`)");
+    expect((columns.rows as Array<Record<string, unknown>>).map((r) => String(r.name))).toContain("client_id");
     const rows = await client.execute("SELECT `description` FROM `estimate_adjustments`");
     expect(rows.rows.map((r) => r.description)).toEqual(["KEEP"]);
   });

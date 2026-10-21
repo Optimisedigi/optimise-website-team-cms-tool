@@ -18,6 +18,11 @@
  *   page) are added on top of their month. Cost adjustments sit in their
  *   chosen Xero category (or "Manual estimates") so the what-if toggles
  *   apply to them too. They never feed the cost run rate.
+ * - Setup fees are invoiced in the month the client's retainer (or client)
+ *   start date falls in, for this month and later (earlier ones are in Xero).
+ *   One-off clients count too.
+ * - A retainer override (set on the Costs page) replaces a client's monthly
+ *   retainer in the estimate only, for every month the retainer runs.
  * - Xero draft and scheduled invoices are not counted: Xero figures are
  *   approved/paid invoices by invoice date.
  */
@@ -41,6 +46,14 @@ export interface ProjectionClient {
   retainerChangeDate?: string | null;
   retainerChangeAction?: string | null;
   retainerChangeAmount?: number | null;
+  setupFee?: number | null;
+}
+
+/** Estimate-only monthly retainer for one client, replacing its stored retainer. */
+export interface RetainerOverride {
+  id: string | number;
+  clientId: string | number;
+  amount: number;
 }
 
 export interface ActualMonth {
@@ -73,6 +86,7 @@ export interface ProjectionRetainer {
   id: string | number;
   name: string;
   amount: number;
+  kind: "retainer" | "setup";
 }
 
 export interface ProjectionMonth {
@@ -87,7 +101,7 @@ export interface ProjectionMonth {
   costsByAccount: Array<{ account: string; amount: number }>;
   /** Xero costs so far by category (empty for future months). */
   costsActualByAccount: Array<{ account: string; amount: number }>;
-  /** Expected retainer invoices by client (empty for past months). */
+  /** Expected retainer and setup-fee invoices by client (empty for past months). */
   retainers: ProjectionRetainer[];
   /** Sum of `retainers`. */
   invoicedExpected: number;
@@ -110,8 +124,13 @@ export interface ProjectionTotals {
 export interface ProjectionClientRow {
   id: string | number;
   name: string;
+  /** Retainer stored on the client. */
   monthlyRetainer: number;
-  /** Expected retainer invoices for months after the current month. */
+  /** Estimate-only retainer replacing `monthlyRetainer`, when set. */
+  override: { id: string | number; amount: number } | null;
+  /** Setup fee invoiced in a month from now on, when there is one. */
+  setupFee: { month: string; amount: number } | null;
+  /** Expected retainer and setup-fee invoices for months after the current month. */
   restOfPeriod: number;
   /** Stored start date when the retainer starts after the current month began. */
   startsOn: string | null;
@@ -172,19 +191,54 @@ function countsRetainer(client: ProjectionClient): boolean {
   return change !== null && change.amount === 0;
 }
 
+function startDateOf(client: ProjectionClient): { raw: string; date: Date } | null {
+  const raw = client.retainerStartDate ?? client.clientStartDate ?? null;
+  const date = toDate(raw);
+  return raw && date ? { raw, date } : null;
+}
+
+function monthKeyOfDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /**
  * Expected retainer invoice for one client in one month: the retainer in
  * force that month (after scheduled changes), pro-rated in the month it
  * starts and zero before it starts. Clients without a start date count from
- * now.
+ * now. An override replaces the amount in every month the retainer runs
+ * (scheduled ends still apply).
  */
-export function expectedRetainerForMonth(client: ProjectionClient, monthKey: string): number {
+export function expectedRetainerForMonth(
+  client: ProjectionClient,
+  monthKey: string,
+  overrideAmount?: number | null,
+): number {
   if (!countsRetainer(client)) return 0;
   const monthStart = monthStartOf(monthKey);
-  const anchor = toDate(client.retainerStartDate ?? null) ?? toDate(client.clientStartDate ?? null);
+  const anchor = startDateOf(client)?.date ?? null;
   const factor = anchor ? firstMonthProrationFactor(anchor, monthStart) : 1;
   if (factor <= 0) return 0;
-  return effectiveMonthlyRetainer(client, monthStart) * factor;
+  const stored = effectiveMonthlyRetainer(client, monthStart);
+  if (overrideAmount == null) return stored * factor;
+  // Ended (or changed to nothing) that month: the override doesn't revive it.
+  const change = scheduledRetainerChange(client);
+  if (change && change.amount === 0 && monthStart >= new Date(change.date.getFullYear(), change.date.getMonth(), 1) && stored === 0) {
+    return 0;
+  }
+  return Math.max(0, overrideAmount) * factor;
+}
+
+/**
+ * Setup fee for one client in one month: the whole fee in the month its
+ * retainer (or client) start date falls in. Undated fees can't be placed and
+ * are left out. Inactive clients don't count.
+ */
+export function expectedSetupFeeForMonth(client: ProjectionClient, monthKey: string): number {
+  if (client.isActive === false) return 0;
+  const amount = Math.max(0, Number(client.setupFee) || 0);
+  if (amount <= 0) return 0;
+  const start = startDateOf(client);
+  return start && monthKeyOfDate(start.date) === monthKey ? amount : 0;
 }
 
 export function projectionTotals(months: ProjectionMonth[]): ProjectionTotals {
@@ -215,6 +269,8 @@ export function buildYearProjection(input: {
   clients: ProjectionClient[];
   /** Manual estimated invoices/costs; months outside `monthKeys` are ignored. */
   adjustments?: ProjectionAdjustment[];
+  /** Estimate-only monthly retainers; the latest per client wins. */
+  retainerOverrides?: RetainerOverride[];
 }): YearProjection {
   const byMonth = new Map(input.actual.map((m) => [m.month, m]));
 
@@ -231,11 +287,31 @@ export function buildYearProjection(input: {
   const averageCosts = [...averageByAccount.values()].reduce((s, v) => s + v, 0);
 
   const clients = input.clients.filter(countsRetainer);
-  const retainersFor = (key: string): ProjectionRetainer[] =>
-    clients
-      .map((c) => ({ id: c.id, name: String(c.name ?? `#${c.id}`), amount: round(expectedRetainerForMonth(c, key)) }))
-      .filter((r) => r.amount > 0)
-      .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+  const overrides = new Map<string, RetainerOverride>();
+  for (const o of input.retainerOverrides ?? []) {
+    if (Number.isFinite(Number(o.amount))) overrides.set(String(o.clientId), o);
+  }
+  const overrideFor = (c: ProjectionClient) => {
+    const o = overrides.get(String(c.id));
+    return o ? Math.max(0, Number(o.amount)) : null;
+  };
+  const nameOf = (c: ProjectionClient) => String(c.name ?? `#${c.id}`);
+  const retainerFor = (c: ProjectionClient, key: string) => expectedRetainerForMonth(c, key, overrideFor(c));
+
+  const retainersFor = (key: string): ProjectionRetainer[] => {
+    const rows: ProjectionRetainer[] = [];
+    for (const c of clients) {
+      const amount = round(retainerFor(c, key));
+      if (amount > 0) rows.push({ id: c.id, name: nameOf(c), amount, kind: "retainer" });
+    }
+    for (const c of input.clients) {
+      const amount = round(expectedSetupFeeForMonth(c, key));
+      if (amount > 0) rows.push({ id: c.id, name: nameOf(c), amount, kind: "setup" });
+    }
+    return rows.sort(
+      (a, b) => (a.kind === b.kind ? 0 : a.kind === "retainer" ? -1 : 1) || b.amount - a.amount || a.name.localeCompare(b.name),
+    );
+  };
 
   const adjustmentsByMonth = new Map<string, ProjectionAdjustment[]>();
   for (const a of input.adjustments ?? []) {
@@ -308,26 +384,33 @@ export function buildYearProjection(input: {
   });
 
   const futureKeys = input.monthKeys.filter((k) => k > input.currentMonth);
+  const openKeys = input.monthKeys.filter((k) => k >= input.currentMonth);
   const currentStart = monthStartOf(input.currentMonth);
-  const clientRows = clients
+  const clientRows = input.clients
     .map((c): ProjectionClientRow => {
-      const anchorRaw = c.retainerStartDate ?? c.clientStartDate ?? null;
-      const anchor = toDate(anchorRaw);
-      const change = scheduledRetainerChange(c);
+      const retains = countsRetainer(c);
+      const start = startDateOf(c);
+      const change = retains ? scheduledRetainerChange(c) : null;
       const action = c.retainerChangeAction === "end" ? "end" : "change";
+      const setupMonth = openKeys.find((k) => expectedSetupFeeForMonth(c, k) > 0);
+      const override = overrides.get(String(c.id));
       return {
         id: c.id,
-        name: String(c.name ?? `#${c.id}`),
-        monthlyRetainer: round(Math.max(0, Number(c.monthlyRetainer) || 0)),
-        restOfPeriod: round(futureKeys.reduce((s, k) => s + expectedRetainerForMonth(c, k), 0)),
-        startsOn: anchor && anchor >= currentStart ? anchorRaw : null,
+        name: nameOf(c),
+        monthlyRetainer: retains ? round(Math.max(0, Number(c.monthlyRetainer) || 0)) : 0,
+        override: retains && override ? { id: override.id, amount: round(Math.max(0, Number(override.amount))) } : null,
+        setupFee: setupMonth ? { month: setupMonth, amount: round(expectedSetupFeeForMonth(c, setupMonth)) } : null,
+        restOfPeriod: round(
+          futureKeys.reduce((s, k) => s + retainerFor(c, k) + expectedSetupFeeForMonth(c, k), 0),
+        ),
+        startsOn: retains && start && start.date >= currentStart ? start.raw : null,
         change:
           change && change.date >= currentStart && c.retainerChangeDate
             ? { date: c.retainerChangeDate, action, amount: round(change.amount) }
             : null,
       };
     })
-    .filter((r) => r.restOfPeriod > 0 || r.startsOn !== null || r.change !== null)
+    .filter((r) => r.restOfPeriod > 0 || r.startsOn !== null || r.change !== null || r.setupFee !== null || r.override !== null)
     .sort((a, b) => b.restOfPeriod - a.restOfPeriod || a.name.localeCompare(b.name));
 
   return {

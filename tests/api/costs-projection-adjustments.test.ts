@@ -50,7 +50,38 @@ describe('manual estimate adjustments API', () => {
     expect(mockPayload.create.mock.calls[0]?.[0].data).toMatchObject({ kind: 'invoiced', amount: -500, account: null })
   })
 
+  it('replaces a client\u2019s estimated retainer, keeping the client record as it is', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 22, 12))
+    mockPayload.find.mockResolvedValueOnce({ docs: [{ id: 7, name: 'Acme' }] })
+
+    const res = await POST(post({ kind: 'retainer', clientId: 7, amount: 3000 }))
+
+    expect(await res.json()).toEqual({ ok: true, id: 5 })
+    expect(mockPayload.delete).toHaveBeenCalledWith({
+      collection: 'estimate-adjustments',
+      where: { and: [{ kind: { equals: 'retainer' } }, { clientId: { equals: 7 } }] },
+      overrideAccess: true,
+    })
+    expect(mockPayload.create.mock.calls[0]?.[0].data).toEqual({
+      month: '2026-10',
+      kind: 'retainer',
+      amount: 3000,
+      description: 'Estimated retainer for Acme',
+      clientId: 7,
+    })
+    vi.useRealTimers()
+  })
+
+  it('404s a retainer override for an unknown client', async () => {
+    mockPayload.find.mockResolvedValueOnce({ docs: [] })
+    expect((await POST(post({ kind: 'retainer', clientId: 99, amount: 100 }))).status).toBe(404)
+    expect(mockPayload.create).not.toHaveBeenCalled()
+  })
+
   it.each([
+    [{ kind: 'retainer', clientId: 7, amount: -1 }],
+    [{ kind: 'retainer', clientId: '7', amount: 100 }],
     [{ month: '2026-13', kind: 'cost', amount: 1, description: 'x' }],
     [{ month: '2026-11', kind: 'refund', amount: 1, description: 'x' }],
     [{ month: '2026-11', kind: 'cost', amount: 0, description: 'x' }],

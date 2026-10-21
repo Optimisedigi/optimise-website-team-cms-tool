@@ -90,9 +90,9 @@ describe('buildYearProjection', () => {
       profit: 98500 - 37000,
     })
     expect(projection.clients).toEqual([
-      { id: 1, name: 'Steady', monthlyRetainer: 4000, restOfPeriod: 8000, startsOn: null, change: null },
-      { id: 3, name: 'New', monthlyRetainer: 3000, restOfPeriod: 4500, startsOn: '2026-11-16T12:00:00.000Z', change: null },
-      { id: 2, name: 'Leaving', monthlyRetainer: 2000, restOfPeriod: 2000, startsOn: null, change: { date: '2026-12-01T12:00:00.000Z', action: 'end', amount: 0 } },
+      { id: 1, name: 'Steady', monthlyRetainer: 4000, override: null, setupFee: null, restOfPeriod: 8000, startsOn: null, change: null },
+      { id: 3, name: 'New', monthlyRetainer: 3000, override: null, setupFee: null, restOfPeriod: 4500, startsOn: '2026-11-16T12:00:00.000Z', change: null },
+      { id: 2, name: 'Leaving', monthlyRetainer: 2000, override: null, setupFee: null, restOfPeriod: 2000, startsOn: null, change: { date: '2026-12-01T12:00:00.000Z', action: 'end', amount: 0 } },
     ])
   })
 
@@ -148,6 +148,61 @@ describe('buildYearProjection', () => {
     // Switched-off categories drop their manual costs too.
     const { months } = excludeProjectionAccounts(adjusted.months, new Set(['Wages and Salaries']))
     expect(months.find((x) => x.month === '2026-11')?.costs).toBe(1000)
+  })
+
+  it('invoices setup fees in the start month, for retainer and one-off clients alike', () => {
+    const withFees = buildYearProjection({
+      monthKeys: YEAR,
+      currentMonth: CURRENT,
+      actual,
+      averageMonths: AVERAGE,
+      clients: [
+        ...clients,
+        { id: 4, name: 'Fresh', monthlyRetainer: 1500, setupFee: 900, retainerStartDate: '2026-12-01T12:00:00.000Z' },
+        { id: 5, name: 'Project', clientType: 'one_off', setupFee: 2500, clientStartDate: '2026-11-10T12:00:00.000Z' },
+        { id: 6, name: 'Old', monthlyRetainer: 1000, setupFee: 700, clientStartDate: '2026-03-01T12:00:00.000Z' }, // in Xero already
+        { id: 7, name: 'Undated', monthlyRetainer: 1000, setupFee: 800 },
+        { id: 8, name: 'Gone', isActive: false, clientType: 'one_off', setupFee: 600, clientStartDate: '2026-11-01T12:00:00.000Z' },
+      ],
+    })
+    const m = new Map(withFees.months.map((x) => [x.month, x]))
+    // Nov: 7500 + Old 1000 + Undated 1000 + Project setup 2500.
+    expect(m.get('2026-11')?.invoiced).toBe(12000)
+    expect(m.get('2026-11')?.retainers).toContainEqual({ id: 5, name: 'Project', amount: 2500, kind: 'setup' })
+    // Dec: 7000 + 2000 + Fresh 1500 retainer + 900 setup.
+    expect(m.get('2026-12')?.invoiced).toBe(11400)
+    expect(m.get('2026-12')?.retainers.filter((r) => r.id === 4)).toEqual([
+      { id: 4, name: 'Fresh', amount: 1500, kind: 'retainer' },
+      { id: 4, name: 'Fresh', amount: 900, kind: 'setup' },
+    ])
+    expect(m.get('2026-03')?.invoiced).toBe(5000)
+    const rows = new Map(withFees.clients.map((c) => [c.id, c]))
+    expect(rows.get(4)).toMatchObject({ setupFee: { month: '2026-12', amount: 900 }, restOfPeriod: 2400 })
+    expect(rows.get(5)).toMatchObject({ monthlyRetainer: 0, setupFee: { month: '2026-11', amount: 2500 }, restOfPeriod: 2500, startsOn: null })
+    expect(rows.get(6)?.setupFee).toBeNull()
+    expect(rows.has(8)).toBe(false)
+  })
+
+  it('uses an estimate-only retainer override in every month the retainer runs', () => {
+    const overridden = buildYearProjection({
+      monthKeys: YEAR,
+      currentMonth: CURRENT,
+      actual,
+      averageMonths: AVERAGE,
+      clients,
+      retainerOverrides: [
+        { id: 20, clientId: 1, amount: 5000 },
+        { id: 21, clientId: 3, amount: 2000 },
+        { id: 22, clientId: 2, amount: 2500 },
+      ],
+    })
+    const m = new Map(overridden.months.map((x) => [x.month, x]))
+    // Nov: Steady 5000 + Leaving 2500 + New half of 2000. Dec: Leaving has ended.
+    expect(m.get('2026-11')?.invoiced).toBe(8500)
+    expect(m.get('2026-12')?.invoiced).toBe(7000)
+    // Past months stay as Xero.
+    expect(m.get('2026-06')?.invoiced).toBe(10000)
+    expect(overridden.clients.find((c) => c.id === 1)).toMatchObject({ monthlyRetainer: 4000, override: { id: 20, amount: 5000 }, restOfPeriod: 10000 })
   })
 
   it('skips months without any Xero activity when averaging costs', () => {

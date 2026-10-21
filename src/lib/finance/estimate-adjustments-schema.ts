@@ -21,3 +21,15 @@ export const ESTIMATE_ADJUSTMENTS_SCHEMA: readonly [string, string][] = [
   ["estimate_adjustments_updated_at_idx", "CREATE INDEX IF NOT EXISTS `estimate_adjustments_updated_at_idx` ON `estimate_adjustments` (`updated_at`)"],
   ["estimate_adjustments_created_at_idx", "CREATE INDEX IF NOT EXISTS `estimate_adjustments_created_at_idx` ON `estimate_adjustments` (`created_at`)"],
 ];
+
+/**
+ * Estimate-only retainer overrides (2026-10-25): adjustments of kind
+ * "retainer" name the client they replace the retainer for. Additive; the
+ * ALTER fails with "duplicate column" once applied, which callers treat as done.
+ * Shared by runMigrations() and
+ * src/migrations/20261025_120000_estimate_adjustment_client.ts.
+ */
+export const ESTIMATE_ADJUSTMENTS_CLIENT_SCHEMA: readonly [string, string][] = [
+  ["estimate_adjustments.client_id", "ALTER TABLE `estimate_adjustments` ADD `client_id` numeric"],
+  ["estimate_adjustments_client_id_idx", "CREATE INDEX IF NOT EXISTS `estimate_adjustments_client_id_idx` ON `estimate_adjustments` (`client_id`)"],
+];

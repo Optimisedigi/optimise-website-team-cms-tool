@@ -9,6 +9,7 @@ import {
   buildYearProjection,
   type ProjectionAdjustment,
   type ProjectionClient,
+  type RetainerOverride,
 } from "@/lib/finance/year-projection";
 
 const MAX_RANGE_MONTHS = 24;
@@ -21,27 +22,44 @@ type PayloadClient = Awaited<ReturnType<typeof getPayload>>;
  * Manual estimated invoices/costs for the period. A missing table (migration
  * not run yet) shouldn't take the whole estimate down, so it reads as none.
  */
-async function loadAdjustments(payload: PayloadClient, monthKeys: string[]): Promise<ProjectionAdjustment[]> {
+async function loadAdjustments(
+  payload: PayloadClient,
+  monthKeys: string[],
+): Promise<{ adjustments: ProjectionAdjustment[]; retainerOverrides: RetainerOverride[] }> {
   try {
     const result = await payload.find({
       collection: "estimate-adjustments",
-      where: { month: { in: monthKeys } },
+      where: {
+        or: [
+          { and: [{ month: { in: monthKeys } }, { kind: { in: ["invoiced", "cost"] } }] },
+          { kind: { equals: "retainer" } },
+        ],
+      },
       pagination: false,
       depth: 0,
       overrideAccess: true,
       sort: "createdAt",
     });
-    return result.docs.map((d) => ({
-      id: d.id,
-      month: d.month,
-      kind: d.kind === "cost" ? "cost" : "invoiced",
-      amount: Number(d.amount) || 0,
-      description: d.description,
-      account: d.account ?? null,
-    }));
+    const adjustments: ProjectionAdjustment[] = [];
+    const retainerOverrides: RetainerOverride[] = [];
+    for (const d of result.docs) {
+      if (d.kind === "retainer") {
+        if (d.clientId != null) retainerOverrides.push({ id: d.id, clientId: d.clientId, amount: Number(d.amount) || 0 });
+        continue;
+      }
+      adjustments.push({
+        id: d.id,
+        month: d.month,
+        kind: d.kind === "cost" ? "cost" : "invoiced",
+        amount: Number(d.amount) || 0,
+        description: d.description,
+        account: d.account ?? null,
+      });
+    }
+    return { adjustments, retainerOverrides };
   } catch (err) {
     console.warn("[costs/projection] could not load estimate adjustments:", err instanceof Error ? err.message : err);
-    return [];
+    return { adjustments: [], retainerOverrides: [] };
   }
 }
 
@@ -101,7 +119,7 @@ export async function GET(request: NextRequest) {
     const fetchFrom = running && averageMonths[0] && averageMonths[0] < from ? averageMonths[0] : from;
     const fetchTo = running ? currentMonth : to;
 
-    const [xero, clientsResult, adjustments] = await Promise.all([
+    const [xero, clientsResult, { adjustments, retainerOverrides }] = await Promise.all([
       fetchXeroMonthlyFinance({ from: fetchFrom, to: fetchTo }, { signal: request.signal }),
       payload.find({
         collection: "clients",
@@ -135,6 +153,7 @@ export async function GET(request: NextRequest) {
           retainerChangeDate: true,
           retainerChangeAction: true,
           retainerChangeAmount: true,
+          setupFee: true,
         },
       }),
       loadAdjustments(payload, monthKeys),
@@ -151,6 +170,7 @@ export async function GET(request: NextRequest) {
       averageMonths,
       clients: clientsResult.docs as ProjectionClient[],
       adjustments,
+      retainerOverrides,
     });
 
     return NextResponse.json({

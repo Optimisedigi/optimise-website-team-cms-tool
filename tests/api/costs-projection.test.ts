@@ -63,8 +63,13 @@ describe('GET /api/costs/projection', () => {
     expect(body.months[10].adjustments).toEqual([{ id: 3, month: '2026-11', kind: 'invoiced', amount: 500, description: 'Extra report', account: null }])
     expect(body.totals.invoiced).toBe(10 * 1000 + 1000 + 2 * 2000 + 500)
     const adjustmentsQuery = mockPayload.find.mock.calls.find(([args]) => args.collection === 'estimate-adjustments')?.[0]
-    expect(adjustmentsQuery.where).toEqual({ month: { in: monthKeysBetween('2026-01', '2026-12') } })
-    expect(body.clients).toEqual([{ id: 7, name: 'Acme', monthlyRetainer: 2000, restOfPeriod: 4000, startsOn: null, change: null }])
+    expect(adjustmentsQuery.where).toEqual({
+      or: [
+        { and: [{ month: { in: monthKeysBetween('2026-01', '2026-12') } }, { kind: { in: ['invoiced', 'cost'] } }] },
+        { kind: { equals: 'retainer' } },
+      ],
+    })
+    expect(body.clients).toEqual([{ id: 7, name: 'Acme', monthlyRetainer: 2000, override: null, setupFee: null, restOfPeriod: 4000, startsOn: null, change: null }])
   })
 
   it('fetches the six months before this one when the financial year has just started', async () => {
@@ -77,6 +82,26 @@ describe('GET /api/costs/projection', () => {
     expect(body.to).toBe('2027-06')
     expect(body.months).toHaveLength(12)
     expect(body.costAverage.months).toEqual(monthKeysBetween('2026-04', '2026-09'))
+  })
+
+  it('applies retainer overrides whatever month they were saved in, and counts setup fees', async () => {
+    mockFetchXero.mockResolvedValue({ ok: true, data: { months: monthKeysBetween('2026-01', '2026-10').map(xeroMonth), fetchedAt: 'x' } })
+    mockPayload.find.mockImplementation(async ({ collection }: { collection: string }) =>
+      collection === 'estimate-adjustments'
+        ? { docs: [{ id: 4, month: '2025-12', kind: 'retainer', amount: 3000, description: 'Estimated retainer for Acme', clientId: 7 }], totalDocs: 1 }
+        : {
+            docs: [{ id: 7, name: 'Acme', isActive: true, monthlyRetainer: 2000, setupFee: 500, retainerStartDate: '2026-11-01T12:00:00.000Z' }],
+            totalDocs: 1,
+          },
+    )
+
+    const body = await (await GET(req('?from=2026-01&to=2026-12'))).json()
+
+    expect(body.months[10]).toMatchObject({ month: '2026-11', invoiced: 3500, adjustments: [] })
+    expect(body.months[11]).toMatchObject({ month: '2026-12', invoiced: 3000 })
+    expect(body.clients[0]).toMatchObject({ override: { id: 4, amount: 3000 }, setupFee: { month: '2026-11', amount: 500 } })
+    const clientsQuery = mockPayload.find.mock.calls.find(([args]) => args.collection === 'clients')?.[0]
+    expect(clientsQuery.select.setupFee).toBe(true)
   })
 
   it('still estimates when the manual estimates table is missing', async () => {

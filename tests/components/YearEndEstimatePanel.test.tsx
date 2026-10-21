@@ -16,7 +16,7 @@ const row = (month: string, kind: string, invoiced: number, invoicedActual: numb
   costsActual: actualWages + actualOther,
   costsByAccount: [{ account: 'Wages and Salaries', amount: wages }, { account: 'Software', amount: other }],
   costsActualByAccount: [{ account: 'Wages and Salaries', amount: actualWages }, { account: 'Software', amount: actualOther }],
-  retainers: kind === 'actual' ? [] : [{ id: 1, name: 'Steady Co', amount: 6000 }],
+  retainers: kind === 'actual' ? [] : [{ id: 1, name: 'Steady Co', amount: 6000, kind: 'retainer' }],
   invoicedExpected: kind === 'actual' ? 0 : 6000,
   adjustments: [] as unknown[],
   profit: invoiced - wages - other,
@@ -32,8 +32,8 @@ const estimate = {
     row('2026-11', 'estimate', 7500, 0, 3000, 1000),
   ],
   clients: [
-    { id: 3, name: 'New Co', monthlyRetainer: 3000, restOfPeriod: 1500, startsOn: '2026-11-16T12:00:00.000Z', change: null },
-    { id: 2, name: 'Leaving Co', monthlyRetainer: 2000, restOfPeriod: 0, startsOn: null, change: { date: '2026-11-01T12:00:00.000Z', action: 'end', amount: 0 } },
+    { id: 3, name: 'New Co', monthlyRetainer: 3000, override: null, setupFee: { month: '2026-11', amount: 900 }, restOfPeriod: 2400, startsOn: '2026-11-16T12:00:00.000Z', change: null },
+    { id: 2, name: 'Leaving Co', monthlyRetainer: 2000, override: { id: 40, amount: 2500 }, setupFee: null, restOfPeriod: 0, startsOn: null, change: { date: '2026-11-01T12:00:00.000Z', action: 'end', amount: 0 } },
   ],
 }
 
@@ -57,7 +57,7 @@ describe('YearEndEstimatePanel', () => {
     expect(screen.getByText('Estimated profit').nextSibling).toHaveTextContent('$13,500')
 
     const clients = screen.getByRole('table', { name: 'Retainers counted for Nov 2026' })
-    expect(within(clients).getByRole('rowheader', { name: 'New Co' }).closest('tr')).toHaveTextContent('Starts 16 Nov 2026')
+    expect(within(clients).getByRole('rowheader', { name: 'New Co' }).closest('tr')).toHaveTextContent('Starts 16 Nov 2026 \u00b7 Setup fee $900 in Nov 2026')
     expect(within(clients).getByRole('rowheader', { name: 'Leaving Co' }).closest('tr')).toHaveTextContent('Ends 1 Nov 2026')
   })
 
@@ -97,7 +97,7 @@ describe('YearEndEstimatePanel', () => {
   })
 
   it('shows what a month\u2019s invoiced and costs figures are made of on hover', async () => {
-    const nov = { ...row('2026-11', 'estimate', 7500, 0, 3000, 1000), retainers: [{ id: 1, name: 'Steady Co', amount: 6000 }, { id: 3, name: 'New Co', amount: 1500 }], invoicedExpected: 7500 }
+    const nov = { ...row('2026-11', 'estimate', 7500, 0, 3000, 1000), retainers: [{ id: 1, name: 'Steady Co', amount: 6000, kind: 'retainer' }, { id: 3, name: 'New Co', amount: 1500, kind: 'setup' }], invoicedExpected: 7500 }
     stub({ ...estimate, months: [estimate.months[0], estimate.months[1], nov] })
     render(<YearEndEstimatePanel {...props} excluded={new Set(['Software'])} />)
 
@@ -107,7 +107,7 @@ describe('YearEndEstimatePanel', () => {
     const invoiced = await screen.findByRole('tooltip')
     expect(invoiced).toHaveTextContent('Invoiced \u00b7 Nov 2026')
     expect(invoiced).toHaveTextContent('Steady Co$6,000')
-    expect(invoiced).toHaveTextContent('New Co$1,500')
+    expect(invoiced).toHaveTextContent('New Co$1,500Setup fee')
     fireEvent.mouseLeave(within(novRow).getByText('$7,500'))
     await waitForElementToBeRemoved(invoiced)
 
@@ -156,6 +156,32 @@ describe('YearEndEstimatePanel', () => {
     fireEvent.click(within(manual).getByRole('button', { name: 'Remove Website build (Nov 2026)' }))
     await vi.waitFor(() => expect(fetchMock.mock.calls.filter(([u]) => String(u).startsWith('/api/costs/projection?'))).toHaveLength(3))
     expect(fetchMock).toHaveBeenCalledWith('/api/costs/projection/adjustments/9', { method: 'DELETE' })
+  })
+
+  it('edits a client\u2019s estimated monthly retainer and resets it to the client record', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.startsWith('/api/costs/projection?')) return { ok: true, status: 200, json: async () => estimate }
+      return { ok: true, status: 200, json: async () => ({ ok: true, id: 41 }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<YearEndEstimatePanel {...props} />)
+
+    const clients = await screen.findByRole('table', { name: 'Retainers counted for Nov 2026' })
+    const leaving = within(clients).getByRole('rowheader', { name: 'Leaving Co' }).closest('tr') as HTMLElement
+    expect(within(leaving).getByLabelText('Client record: $2,000')).toBeInTheDocument()
+    expect(leaving).toHaveTextContent('$2,500')
+
+    fireEvent.click(within(clients).getByRole('button', { name: 'Edit estimated monthly retainer for New Co' }))
+    const input = within(clients).getByLabelText('Estimated monthly retainer for New Co')
+    expect(input).toHaveValue(3000)
+    fireEvent.change(input, { target: { value: '3500' } })
+    fireEvent.click(within(clients).getByRole('button', { name: 'Save' }))
+    await vi.waitFor(() => expect(fetchMock.mock.calls.filter(([u]) => String(u).startsWith('/api/costs/projection?'))).toHaveLength(2))
+    const post = fetchMock.mock.calls.find(([u]) => u === '/api/costs/projection/adjustments') as unknown as [string, RequestInit] | undefined
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ kind: 'retainer', clientId: 3, amount: 3500 })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset Leaving Co to the client record' }))
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/costs/projection/adjustments/40', { method: 'DELETE' }))
   })
 
   it('explains when Xero is unavailable', async () => {

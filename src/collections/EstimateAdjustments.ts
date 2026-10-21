@@ -5,6 +5,8 @@ import { canAccess, hideUnlessFeature } from "../lib/access";
  * Manually entered estimated invoices or costs for one month of the Costs
  * page year-end estimate (e.g. a one-off project or a known upcoming bill).
  * Added on top of the Xero/retainer/run-rate estimate for that month only.
+ * Kind "retainer" instead replaces one client's monthly retainer in the
+ * estimate (amount = the new monthly retainer; the client record is unchanged).
  * Managed from the year-end estimate panel.
  */
 export const EstimateAdjustments: CollectionConfig = {
@@ -44,6 +46,7 @@ export const EstimateAdjustments: CollectionConfig = {
       options: [
         { label: "Invoice", value: "invoiced" },
         { label: "Cost", value: "cost" },
+        { label: "Retainer override", value: "retainer" },
       ],
     },
     {
@@ -57,6 +60,15 @@ export const EstimateAdjustments: CollectionConfig = {
       name: "account",
       type: "text",
       admin: { description: "Xero cost category (costs only). Empty = \"Manual estimates\"." },
+    },
+    {
+      name: "clientId",
+      type: "number",
+      index: true,
+      admin: {
+        description: "Client whose monthly retainer this replaces in the estimate (retainer overrides only).",
+        condition: (data) => data?.kind === "retainer",
+      },
     },
   ],
 };

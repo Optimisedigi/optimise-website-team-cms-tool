@@ -4,7 +4,7 @@ import { BLOG_POST_SOURCES_SCHEMA } from './in-the-picture/sources-schema';
 import { GOOGLE_ADS_MILESTONE_AUDITS_SCHEMA } from './google-ads-milestone-audits/schema';
 import { MAIL_SCHEMA } from './mail/schema';
 import { BANK_RECEIPTS_SCHEMA } from './finance/bank-receipts-schema';
-import { ESTIMATE_ADJUSTMENTS_SCHEMA } from './finance/estimate-adjustments-schema';
+import { ESTIMATE_ADJUSTMENTS_CLIENT_SCHEMA, ESTIMATE_ADJUSTMENTS_SCHEMA } from './finance/estimate-adjustments-schema';
 import { GOOGLE_ADS_CHANGE_PREVIEWS_SCHEMA } from './agents/optimate-google-ads/change-previews-schema';
 import { CONTRACT_REVIEW_SCHEMA } from './contract-review-schema';
 
@@ -986,10 +986,13 @@ export async function runMigrations(
 
   // Manual estimated invoices/costs for the year-end estimate (2026-10-24).
   // Additive only; runs before the marker short-circuit so production picks it
-  // up. Keep in sync with src/migrations/20261024_120000_estimate_adjustments.ts.
+  // up. Keep in sync with src/migrations/20261024_120000_estimate_adjustments.ts
+  // and 20261025_120000_estimate_adjustment_client.ts (retainer overrides' client).
   async function addEstimateAdjustments(): Promise<void> {
     if (!(await tableExists("payload_migrations"))) return;
     for (const [label, statement] of ESTIMATE_ADJUSTMENTS_SCHEMA) await run(label, statement);
+    for (const [label, statement] of ESTIMATE_ADJUSTMENTS_CLIENT_SCHEMA) await run(label, statement);
+    await run("mark_migration:20261025_120000_estimate_adjustment_client", "INSERT INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) SELECT '20261025_120000_estimate_adjustment_client', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM `payload_migrations` WHERE `name` = '20261025_120000_estimate_adjustment_client')");
     await run("mark_migration:20261024_120000_estimate_adjustments", "INSERT INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) SELECT '20261024_120000_estimate_adjustments', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM `payload_migrations` WHERE `name` = '20261024_120000_estimate_adjustments')");
   }
 
