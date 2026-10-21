@@ -47,13 +47,53 @@ describe('parseMailFolder', () => {
 })
 
 describe('listFolderThreads', () => {
-  it('lists the inbox by its label and shows the latest message', async () => {
+  it('lists the inbox by its label and shows the latest incoming message, not your reply or draft', async () => {
     threadsList.mockReset().mockResolvedValueOnce({ data: { threads: [{ id: 't1' }], nextPageToken: 'next' } })
     threadsGet.mockReset().mockResolvedValueOnce({ data: thread })
     const result = await listFolderThreads('tok', 'inbox')
     expect(threadsList).toHaveBeenCalledWith(expect.objectContaining({ labelIds: ['INBOX'] }))
     expect(result.nextPageToken).toBe('next')
-    expect(result.threads[0]).toMatchObject({ threadId: 't1', messageId: 'm3', unread: true, messageCount: 3 })
+    // The whole thread still counts (and opens) with your messages in it.
+    expect(result.threads[0]).toMatchObject({
+      threadId: 't1',
+      messageId: 'm2',
+      from: 'jo@client.com',
+      snippet: 'snippet m2',
+      date: '2026-10-02T10:00:00.000Z',
+      unread: true,
+      messageCount: 3,
+    })
+  })
+
+  it('shows the incoming message when your sent reply is the newest one in the thread', async () => {
+    const replied = {
+      messages: [
+        message('m1', ['INBOX'], 'Jo <jo@client.com>', 'me@od.com', '2026-10-01T10:00:00Z'),
+        message('m2', ['SENT'], 'me@od.com', 'jo@client.com', '2026-10-02T10:00:00Z'),
+      ],
+    }
+    threadsList.mockReset().mockResolvedValueOnce({ data: { threads: [{ id: 't1' }] } })
+    threadsGet.mockReset().mockResolvedValueOnce({ data: replied })
+    const result = await listFolderThreads('tok', 'inbox')
+    expect(result.threads).toEqual([expect.objectContaining({ messageId: 'm1', from: 'Jo <jo@client.com>', messageCount: 2 })])
+  })
+
+  it('leaves threads that hold only your own mail out of the inbox (they show in Sent)', async () => {
+    const own = {
+      messages: [
+        // Sent to yourself: Gmail labels it both SENT and INBOX.
+        message('s1', ['SENT', 'INBOX'], 'me@od.com', 'me@od.com', '2026-10-01T10:00:00Z'),
+        message('s2', ['DRAFT'], 'me@od.com', 'me@od.com', '2026-10-02T10:00:00Z'),
+      ],
+    }
+    threadsList.mockReset().mockResolvedValueOnce({ data: { threads: [{ id: 'own' }, { id: 't1' }] } })
+    threadsGet.mockReset().mockImplementation(async ({ id }: { id: string }) => ({ data: id === 'own' ? own : thread }))
+    const inbox = await listFolderThreads('tok', 'inbox')
+    expect(inbox.threads.map((row) => row.threadId)).toEqual(['t1'])
+
+    threadsList.mockReset().mockResolvedValueOnce({ data: { threads: [{ id: 'own' }] } })
+    const sent = await listFolderThreads('tok', 'sent')
+    expect(sent.threads).toEqual([expect.objectContaining({ threadId: 'own', messageId: 's1', from: 'me@od.com' })])
   })
 
   // Regression: threads.list with a query returned threads out of date order and

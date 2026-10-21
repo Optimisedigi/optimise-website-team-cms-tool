@@ -20,6 +20,18 @@ describe('mobile styles', () => {
   it('viewport covers the notch so safe-area insets work in the home-screen app', () => {
     expect(read('src/components/ViewportMeta.tsx')).toContain('viewport-fit=cover')
   })
+  it('the phone header grows by the notch inset so its controls are not drawn over', () => {
+    const scss = read('src/app/(payload)/custom.scss')
+    const phone = scss.slice(scss.lastIndexOf('@media (max-width: 768px)'))
+    expect(phone).toMatch(/\.app-header\s*\{[^}]*padding-top:\s*env\(safe-area-inset-top\)[^}]*height:\s*calc\(var\(--app-header-height\) \+ env\(safe-area-inset-top\)\)/)
+  })
+  it('the phone drawer fits the screen and keeps a labelled log out pinned bottom-left', () => {
+    const shell = read('src/app/(payload)/mobile/_shell.scss')
+    expect(shell).toMatch(/\.nav\s*\{[^}]*min-height:\s*0 !important[^}]*height:\s*100dvh/)
+    expect(shell).toMatch(/\.nav \.nav__controls\s*\{[^}]*position:\s*sticky[^}]*bottom:\s*0/)
+    expect(shell).toMatch(/\.nav \.nav__log-out\s*\{[^}]*min-height:\s*44px/)
+    expect(shell).toMatch(/\.nav \.nav__log-out::after\s*\{[^}]*content:\s*'Log out'/)
+  })
   it('there is no phone bottom tab bar any more', () => {
     const scss = read('src/app/(payload)/custom.scss')
     expect(scss).not.toContain('.mobile-tabbar')

@@ -784,8 +784,11 @@ $svg-close: '%3C/svg%3E';
   }
 
   // Trim the header's right gutter so the bell reaches the far-right edge
-  // instead of stopping ~30px short.
+  // instead of stopping ~30px short. The left gutter also matches the page's
+  // 12px gutter; the desktop collapsed-nav 30px left the hamburger out of
+  // line with the content below it.
   .app-header .app-header__content {
+    padding-left: 12px;
     padding-right: 12px;
   }
 }
@@ -9995,8 +9998,14 @@ body.od-client-record {
   }
 
   // PWA: keep the fixed header out from under the iOS status bar / notch.
+  // The bar is border-box with a fixed height, so it must grow by the same
+  // inset: otherwise the 47–62px notch padding swallows the 44px bar, its
+  // content box collapses to 0px, and the hamburger/breadcrumb/bell centre on
+  // the bar's bottom edge with the page drawn over them (seen on launch and
+  // refresh of the home-screen app).
   .app-header {
     padding-top: env(safe-area-inset-top);
+    height: calc(var(--app-header-height) + env(safe-area-inset-top));
   }
 }
 

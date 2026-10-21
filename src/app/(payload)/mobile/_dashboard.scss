@@ -28,13 +28,25 @@
     font-size: 12px;
   }
 
+  // Compact "+ New Proposal" so the greeting leads the row. The pill is 32px;
+  // the transparent ::before keeps a 44px-tall tap area around it.
   .od-dash__new-client {
+    position: relative;
     flex: 0 0 auto;
-    height: 44px;
-    padding: 0 14px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 12px;
   }
 
-  // What needs action leads the page.
+  .od-dash__new-client::before {
+    content: '';
+    position: absolute;
+    inset: -6px -4px;
+  }
+
+  // Phone-only sections: unread mail first (under the greeting), Action
+  // Items below the Yearly Sales Target.
   .od-dash__priority {
     display: grid;
     gap: 12px;

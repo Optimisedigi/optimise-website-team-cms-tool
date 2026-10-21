@@ -864,6 +864,14 @@
 }
 
 @media (max-width: 768px) {
+  /* The phone header bar is black and forces white breadcrumb text, so the
+     white account pill rendered as a blank white box there. */
+  :global(.app-header) .accountSwitch {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #fff;
+  }
+
   .toolbar {
     flex-wrap: nowrap;
     gap: 8px;

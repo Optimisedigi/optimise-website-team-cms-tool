@@ -11,6 +11,10 @@ import {
 import { matchMessageToClient } from "@/lib/mail/client-matching";
 import { loadClientDomainIndex } from "@/lib/mail/store";
 import { hiddenSendersQuery, isHiddenSender, loadHiddenSenders } from "@/lib/mail/hidden-senders";
+import { inboxSearchQuery } from "@/lib/mail/inbox-search";
+
+/** Your own sent messages never bring a thread into the inbox list. */
+const INBOX_EXCLUDE_OWN_MAIL = "-in:sent";
 import { loadClientSenders } from "@/lib/mail/client-senders";
 import { loadSenderClients } from "@/lib/mail/sender-clients";
 import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
@@ -37,6 +41,14 @@ import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/ma
  * Gmail). Sent and Drafts are all from the user, so the filter is not applied
  * there. The starred client senders (dashboard panel filter) and the sender →
  * client choices are returned too.
+ *
+ * Inbox search matches the sender's address as well as the subject (see
+ * inboxSearchQuery); Sent and Drafts pass the search to Gmail as typed.
+ *
+ * The inbox lists mail from other people only: its Gmail search leaves out
+ * your own sent messages (`-in:sent`, matched per message, so a thread you
+ * replied to still lists through the incoming mail), and each row shows the
+ * latest incoming message (see listFolderThreads). Your messages stay in Sent.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
@@ -83,7 +95,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     };
     let nextPageToken: string | null;
     if (folder === "inbox") {
-      const base = join(search, hiddenSendersQuery(hiddenSenders)) ?? "";
+      const base = join(inboxSearchQuery(search), hiddenSendersQuery(hiddenSenders), INBOX_EXCLUDE_OWN_MAIL) ?? "";
       const readQuery = join(base, "-is:unread");
       const page = parseInboxPageToken(pageToken);
       if (page.part === "unread") {

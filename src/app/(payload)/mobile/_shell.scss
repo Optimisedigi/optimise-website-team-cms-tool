@@ -52,6 +52,52 @@
     z-index: 1;
   }
 
+  // ── Log out: always on screen, bottom-left of the drawer ─────
+  // Phones render at zoom 1, but the drawer kept the desktop zoom
+  // compensation (min-height: 100vh / 0.9), so it was ~10% taller than the
+  // screen and Payload's log-out link at its foot was never visible.
+  .nav {
+    min-height: 0 !important;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .nav .nav__scroll {
+    --nav-padding-block-end: 0px;
+  }
+
+  // Pinned to the bottom of the scrolling drawer, so it stays reachable
+  // however many groups are expanded.
+  .nav .nav__controls {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    width: 100%;
+    padding: 4px 0 calc(4px + env(safe-area-inset-bottom, 0px)) 6px;
+    background: #1a1a2e;
+  }
+
+  .nav .nav__controls > :first-child {
+    margin-top: 0;
+  }
+
+  // Icon plus a visible label; the link's aria-label stays its name.
+  .nav .nav__log-out {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding-right: 12px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 15px;
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .nav .nav__log-out::after {
+    content: 'Log out';
+  }
+
   // The notifications sheet covers the OptiMate launcher while open.
   body:has([data-sheet='bottom']) .om-launcher {
     visibility: hidden;

@@ -10,7 +10,10 @@ vi.mock('@/components/ClientUnreadMailCard', () => ({ default: () => <div data-t
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  salesTarget = undefined
 })
+
+const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
 
 const activity = Array.from({ length: 9 }, (_, i) => ({
   id: i + 1,
@@ -40,8 +43,10 @@ const dashboardData = {
   month: 'October 2026',
 }
 
+let salesTarget: { target: number } | undefined
+
 function responseFor(url: string) {
-  if (url === '/api/dashboard') return dashboardData
+  if (url === '/api/dashboard') return { ...dashboardData, salesTarget }
   if (url.startsWith('/api/agent-approval-queue')) return { totalDocs: 3 }
   if (url === '/api/invoice-statements/pending-summary') return { pendingCount: 0, totalOutstanding: 0 }
   if (url === '/api/xero/scheduled-sends') return []
@@ -60,19 +65,37 @@ function renderOn(phone: boolean) {
 }
 
 describe('Dashboard on phones', () => {
-  it('leads with Action Items (with the approvals count) and unread mail above the KPIs', async () => {
+  it('leads with unread mail, then KPIs, the Yearly Sales Target and Action Items', async () => {
+    salesTarget = { target: 500000 }
     const { container } = renderOn(true)
     await screen.findByText('Good morning, Peter')
-    const priority = container.querySelector('.od-dash__priority') as HTMLElement
-    expect(priority).not.toBeNull()
-    expect(within(priority).getByText('Action Items')).toBeTruthy()
-    expect(within(priority).getByTestId('unread-mail')).toBeTruthy()
-    await waitFor(() => expect(within(priority).getByText('3 approvals waiting')).toBeTruthy())
-    // Rendered once, before the KPI strip.
+    const mail = container.querySelector('.od-dash__priority--mail') as HTMLElement
+    const actions = container.querySelector('.od-dash__priority--actions') as HTMLElement
+    expect(within(mail).getByTestId('unread-mail')).toBeTruthy()
+    expect(within(actions).getByText('Action Items')).toBeTruthy()
+    await waitFor(() => expect(within(actions).getByText('3 approvals waiting')).toBeTruthy())
+    // Each rendered once on phones.
     expect(screen.getAllByTestId('unread-mail')).toHaveLength(1)
+    expect(screen.getAllByText('Action Items')).toHaveLength(1)
+    // Mail is the first section under the greeting.
+    const sections = Array.from(container.querySelector('.od-dash')?.children ?? [])
+    expect(sections[0]?.classList.contains('od-dash__header')).toBe(true)
+    expect(sections[1]).toBe(mail)
     const kpis = container.querySelector('.od-kpi-strip') as HTMLElement
-    expect(priority.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const target = screen.getByText('Yearly Sales Target')
+    expect(follows(mail, kpis)).toBe(true)
+    expect(follows(kpis, target)).toBe(true)
+    expect(follows(target, actions)).toBe(true)
     expect(screen.getByRole('button', { name: 'More metrics' }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('puts Action Items straight after the KPIs when no sales target is set', async () => {
+    const { container } = renderOn(true)
+    await screen.findByText('Good morning, Peter')
+    expect(screen.queryByText('Yearly Sales Target')).toBeNull()
+    const actions = container.querySelector('.od-dash__priority--actions') as HTMLElement
+    const kpis = container.querySelector('.od-kpi-strip') as HTMLElement
+    expect(follows(kpis, actions)).toBe(true)
   })
 
   it('shows five activity entries with See all', async () => {
@@ -87,5 +110,7 @@ describe('Dashboard on phones', () => {
     const { container } = renderOn(false)
     await screen.findByText('Activity 9')
     expect(container.querySelector('.od-dash__priority')).toBeNull()
+    expect(screen.getAllByTestId('unread-mail')).toHaveLength(1)
+    expect(screen.getAllByText('Action Items')).toHaveLength(1)
   })
 })

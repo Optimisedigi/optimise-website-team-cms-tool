@@ -782,14 +782,10 @@ const Dashboard = () => {
         </a>
       </div>
 
-      {/* Phones lead with what needs action, above the KPIs. */}
+      {/* Phones lead with unread client mail: the first section under the
+          greeting (the greeting row itself stays on top as the page title). */}
       {isPhone && (
-        <div className="od-dash__priority">
-          <ActionItems
-            uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}
-            pendingStatements={statementsSummary?.pendingCount ?? 0}
-            pendingApprovals={pendingApprovals}
-          />
+        <div className="od-dash__priority od-dash__priority--mail">
           <ClientUnreadMailCard />
         </div>
       )}
@@ -921,6 +917,19 @@ const Dashboard = () => {
         />
       )}
 
+      {/* Phones: the Action Items card (its rows are the action buttons) sits
+          below the Yearly Sales Target. With no target configured it follows
+          the KPI strip, where the target would have been. */}
+      {isPhone && (
+        <div className="od-dash__priority od-dash__priority--actions">
+          <ActionItems
+            uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}
+            pendingStatements={statementsSummary?.pendingCount ?? 0}
+            pendingApprovals={pendingApprovals}
+          />
+        </div>
+      )}
+
       <div className="od-dash__layout">
         {/* ── Left Column ── */}
         <div className="od-dash__main">
@@ -975,7 +984,7 @@ const Dashboard = () => {
           {/* Team Tasks */}
           <TeamTasksCard teamTasks={data.teamTasks} />
 
-          {/* Action Items (on phones it sits at the top) */}
+          {/* Action Items (on phones it sits below the Yearly Sales Target) */}
           {!isPhone && (
             <ActionItems
               uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}

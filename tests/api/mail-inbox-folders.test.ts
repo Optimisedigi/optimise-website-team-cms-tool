@@ -44,9 +44,9 @@ describe('GET /api/mail/inbox folders', () => {
     const res = await GET(request(''))
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ folder: 'inbox', threads: [{ threadId: 't1', client: null }] })
-    expect(listFolderThreads).toHaveBeenCalledWith('tok', 'inbox', { pageToken: undefined, q: '-from:news.com is:unread', maxResults: 45 })
+    expect(listFolderThreads).toHaveBeenCalledWith('tok', 'inbox', { pageToken: undefined, q: '-from:news.com -in:sent is:unread', maxResults: 45 })
     // t1 is already listed, so the read part still asks for a full page.
-    expect(listFolderThreads).toHaveBeenCalledWith('tok', 'inbox', { pageToken: undefined, q: '-from:news.com -is:unread', maxResults: 44 })
+    expect(listFolderThreads).toHaveBeenCalledWith('tok', 'inbox', { pageToken: undefined, q: '-from:news.com -in:sent -is:unread', maxResults: 44 })
   })
 
   it('lists every unread thread before any read one, across pages', async () => {
@@ -63,8 +63,8 @@ describe('GET /api/mail/inbox folders', () => {
       .mockResolvedValueOnce({ threads: rows('u', 45, 3, true), nextPageToken: null })
       .mockResolvedValueOnce({ threads: [...rows('u', 47, 1, true), ...rows('r', 0, 42, false)], nextPageToken: 'g9' })
     const second = await (await GET(request('?pageToken=u:g2'))).json()
-    expect(listFolderThreads).toHaveBeenNthCalledWith(2, 'tok', 'inbox', { pageToken: 'g2', q: '-from:news.com is:unread', maxResults: 45 })
-    expect(listFolderThreads).toHaveBeenNthCalledWith(3, 'tok', 'inbox', { pageToken: undefined, q: '-from:news.com -is:unread', maxResults: 42 })
+    expect(listFolderThreads).toHaveBeenNthCalledWith(2, 'tok', 'inbox', { pageToken: 'g2', q: '-from:news.com -in:sent is:unread', maxResults: 45 })
+    expect(listFolderThreads).toHaveBeenNthCalledWith(3, 'tok', 'inbox', { pageToken: undefined, q: '-from:news.com -in:sent -is:unread', maxResults: 42 })
     expect(second.threads.slice(0, 3).map((t: { threadId: string }) => t.threadId)).toEqual(['u45', 'u46', 'u47'])
     expect(second.threads).toHaveLength(45)
     expect(listFolderThreads).toHaveBeenCalledTimes(3)
@@ -73,8 +73,25 @@ describe('GET /api/mail/inbox folders', () => {
     // Page 3: read threads only.
     listFolderThreads.mockResolvedValueOnce({ threads: rows('r', 42, 1, false), nextPageToken: null })
     const third = await (await GET(request('?pageToken=r:g9&q=budget'))).json()
-    expect(listFolderThreads).toHaveBeenLastCalledWith('tok', 'inbox', { pageToken: 'g9', q: 'budget -from:news.com -is:unread', maxResults: 45 })
+    expect(listFolderThreads).toHaveBeenLastCalledWith('tok', 'inbox', { pageToken: 'g9', q: '{budget from:budget} -from:news.com -in:sent -is:unread', maxResults: 45 })
     expect(third).toMatchObject({ threads: [{ threadId: 'r42' }], nextPageToken: null })
+  })
+
+  it('inbox search matches the sender address as well as the subject', async () => {
+    const res = await GET(request(`?q=${encodeURIComponent('jo@client.com')}`))
+    expect(res.status).toBe(200)
+    expect(listFolderThreads).toHaveBeenCalledWith('tok', 'inbox', {
+      pageToken: undefined,
+      q: '{jo@client.com from:jo@client.com} -from:news.com -in:sent is:unread',
+      maxResults: 45,
+    })
+    // A hand-written Gmail search is sent as typed.
+    await GET(request(`?q=${encodeURIComponent('subject:invoice')}`))
+    expect(listFolderThreads).toHaveBeenCalledWith('tok', 'inbox', {
+      pageToken: undefined,
+      q: 'subject:invoice -from:news.com -in:sent is:unread',
+      maxResults: 45,
+    })
   })
 
   it('tops up a short page (one thread can fill several Gmail results) before showing Load more', async () => {
@@ -87,8 +104,8 @@ describe('GET /api/mail/inbox folders', () => {
     const page = await (await GET(request(''))).json()
     expect(page.threads).toHaveLength(45)
     expect(page.nextPageToken).toBe('r:c')
-    expect(listFolderThreads).toHaveBeenNthCalledWith(3, 'tok', 'inbox', { pageToken: 'a', q: '-from:news.com -is:unread', maxResults: 35 })
-    expect(listFolderThreads).toHaveBeenNthCalledWith(4, 'tok', 'inbox', { pageToken: 'b', q: '-from:news.com -is:unread', maxResults: 5 })
+    expect(listFolderThreads).toHaveBeenNthCalledWith(3, 'tok', 'inbox', { pageToken: 'a', q: '-from:news.com -in:sent -is:unread', maxResults: 35 })
+    expect(listFolderThreads).toHaveBeenNthCalledWith(4, 'tok', 'inbox', { pageToken: 'b', q: '-from:news.com -in:sent -is:unread', maxResults: 5 })
   })
 
   it('stops after a few Gmail calls even if the page is still short', async () => {

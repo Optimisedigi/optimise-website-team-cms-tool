@@ -381,7 +381,8 @@
   // ── Client record tabs: sticky "Section ▾" picker ──────────────
   body.od-client-tab-picker .document-fields .tabs-field__tabs-wrap {
     position: sticky;
-    top: var(--app-header-height, 44px);
+    // Under the header, which grows by the notch inset in the home-screen app.
+    top: calc(var(--app-header-height, 44px) + env(safe-area-inset-top, 0px));
     z-index: 30;
     background: var(--theme-bg, #f5f6f8);
     padding: 6px 30px; // the tabs field bleeds 30px past the gutter

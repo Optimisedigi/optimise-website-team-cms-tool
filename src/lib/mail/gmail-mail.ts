@@ -9,7 +9,7 @@ import type { MailFolder } from "@/lib/mail/folders";
 
 export interface InboxThreadSummary {
   threadId: string;
-  /** Latest message in the thread (the one shown in the list). */
+  /** The message shown in the list (see listFolderThreads). */
   messageId: string;
   from: string;
   to: string;
@@ -60,11 +60,25 @@ export function isSyncableLabelSet(labelIds: string[] | null | undefined): boole
 const FOLDER_LABELS: Record<MailFolder, string> = { inbox: "INBOX", sent: "SENT", drafts: "DRAFT" };
 
 /**
+ * The account's own messages: what it sent (exactly what the Sent view lists,
+ * send-as aliases included) and unsent drafts. Judged by Gmail's labels, not
+ * the From address, so mail that only claims your address (a website form,
+ * say) still arrives in the Inbox.
+ */
+function isOwnMessage(message: gmail_v1.Schema$Message): boolean {
+  return (message.labelIds ?? []).some((label) => label === "SENT" || label === "DRAFT");
+}
+
+/**
  * Threads in one folder, newest first (Gmail order). Each row describes the
- * message shown in the list: for the inbox that is the latest message in the
- * thread; for Sent and Drafts it is the latest message carrying that label, so
- * a sent thread shows what you sent (not an incoming reply) and a drafts row's
- * `messageId` is the draft message itself (what `/api/gmail/draft` opens).
+ * message shown in the list: for the inbox that is the latest message from
+ * someone else, so your reply never shows as an incoming row, and a thread
+ * holding only your own messages is left out (it is in Sent); for Sent and
+ * Drafts it is the latest message carrying that label, so a sent thread shows
+ * what you sent (not an incoming reply) and a drafts row's `messageId` is the
+ * draft message itself (what `/api/gmail/draft` opens). `messageCount` and
+ * `unread` always cover the whole thread, and opening a row loads every
+ * message, your replies included.
  */
 export async function listFolderThreads(
   accessToken: string,
@@ -90,7 +104,7 @@ export async function listFolderThreads(
     ids = (list.data.threads ?? []).map((thread) => thread.id).filter((id): id is string => Boolean(id));
     nextPageToken = list.data.nextPageToken ?? null;
   }
-  const threads = await mapLimited(ids, 8, async (id) => {
+  const rows = await mapLimited(ids, 8, async (id): Promise<InboxThreadSummary | null> => {
     const res = await gmail.users.threads.get({
       userId: "me",
       id,
@@ -101,8 +115,10 @@ export async function listFolderThreads(
     const latest = messages[messages.length - 1];
     const shown =
       folder === "inbox"
-        ? latest
+        ? [...messages].reverse().find((message) => !isOwnMessage(message))
         : ([...messages].reverse().find((message) => (message.labelIds ?? []).includes(label)) ?? latest);
+    // Nothing from anyone else: the thread is only your own mail, so not an Inbox row.
+    if (folder === "inbox" && !shown) return null;
     const first = messages[0];
     const headers = shown?.payload?.headers;
     return {
@@ -118,6 +134,7 @@ export async function listFolderThreads(
       messageCount: messages.length,
     } satisfies InboxThreadSummary;
   });
+  const threads = rows.filter((row): row is InboxThreadSummary => row !== null);
   return { threads, nextPageToken };
 }
 
