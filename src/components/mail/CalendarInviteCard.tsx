@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import styles from './CalendarInviteCard.module.css'
 import type { InviteResponse, InviteStatus, ThreadInvite } from '../../lib/mail/calendar-invite'
+import { mailAccountHeaders } from '../../lib/mail/accounts-shared'
 
 /**
  * Gmail-style invite card at the top of the reading pane: when, what, who,
@@ -81,7 +82,8 @@ function PinIcon() {
   )
 }
 
-export default function CalendarInviteCard({ data }: { data: ThreadInvite }) {
+/** `account`: the Gmail account the invite email is in ('' or omitted = the main Gmail). */
+export default function CalendarInviteCard({ data, account = '' }: { data: ThreadInvite; account?: string }) {
   const { invite, messageId } = data
   const [status, setStatus] = useState<InviteStatus>(data.selfStatus)
   const [context, setContext] = useState<CalendarContext | null>(null)
@@ -94,6 +96,7 @@ export default function CalendarInviteCard({ data }: { data: ThreadInvite }) {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
     fetch(`/api/mail/invite?messageId=${encodeURIComponent(messageId)}&tz=${encodeURIComponent(tz)}`, {
       credentials: 'include',
+      headers: mailAccountHeaders(account),
       signal: controller.signal,
     })
       .then((res) => (res.ok ? (res.json() as Promise<CalendarContext>) : null))
@@ -104,7 +107,7 @@ export default function CalendarInviteCard({ data }: { data: ThreadInvite }) {
       })
       .catch(() => undefined)
     return () => controller.abort()
-  }, [messageId, invite.method])
+  }, [messageId, invite.method, account])
 
   async function respond(response: InviteResponse) {
     if (busy) return
@@ -114,7 +117,7 @@ export default function CalendarInviteCard({ data }: { data: ThreadInvite }) {
       const res = await fetch('/api/mail/invite', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...mailAccountHeaders(account) },
         body: JSON.stringify({ messageId, response }),
       })
       const body = (await res.json().catch(() => ({}))) as { status?: InviteStatus; via?: string; error?: string; reason?: string }

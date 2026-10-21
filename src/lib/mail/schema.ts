@@ -95,6 +95,44 @@ export const FOLLOW_UPS_SCHEMA: Array<[string, string]> = [
   ...stamps("mail_follow_ups"),
 ];
 
+/**
+ * Extra Gmail accounts (2026-10-22): each Mail user can connect more Gmail
+ * addresses besides the one on their user record, and switch between them in
+ * the Mail breadcrumb. Tokens and each account's own sync cursor live here.
+ * Scheduled emails and follow-up reminders record which account they belong
+ * to ('' or NULL = the user's main Gmail). Additive; shared with
+ * src/migrations/20261022_120000_mail_accounts.ts.
+ */
+export const MAIL_ACCOUNTS_SCHEMA: Array<[string, string]> = [
+  ["mail_accounts", `CREATE TABLE IF NOT EXISTS \`mail_accounts\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`owner_id\` integer NOT NULL,
+    \`email\` text NOT NULL,
+    \`access_token\` text,
+    \`refresh_token\` text,
+    \`token_expiry\` text,
+    \`history_id\` text,
+    \`last_sync_at\` text,
+    \`last_error\` text,
+    \`updated_at\` ${ts},
+    \`created_at\` ${ts},
+    FOREIGN KEY (\`owner_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`],
+  index("mail_accounts", "owner_id", "owner"),
+  index("mail_accounts", "email", "email"),
+  ...stamps("mail_accounts"),
+];
+
+/** Which Gmail account a scheduled email sends from (2026-10-22, see MAIL_ACCOUNTS_SCHEMA). */
+export const SCHEDULED_EMAILS_ACCOUNT_SCHEMA: Array<[string, string]> = [
+  ["scheduled_emails.account", "ALTER TABLE `scheduled_emails` ADD `account` text"],
+];
+
+/** Which Gmail account a follow-up reminder's email was sent from (2026-10-22). */
+export const FOLLOW_UPS_ACCOUNT_SCHEMA: Array<[string, string]> = [
+  ["mail_follow_ups.account", "ALTER TABLE `mail_follow_ups` ADD `account` text"],
+];
+
 export const MAIL_SCHEMA: Array<[string, string]> = [
   ["client_emails", `CREATE TABLE IF NOT EXISTS \`client_emails\` (
     \`id\` integer PRIMARY KEY NOT NULL,
@@ -178,4 +216,7 @@ export const MAIL_SCHEMA: Array<[string, string]> = [
   ...SCHEDULED_EMAILS_SCHEMA,
   ...MAIL_AI_CLIENT_SCHEMA,
   ...FOLLOW_UPS_SCHEMA,
+  ...MAIL_ACCOUNTS_SCHEMA,
+  ...SCHEDULED_EMAILS_ACCOUNT_SCHEMA,
+  ...FOLLOW_UPS_ACCOUNT_SCHEMA,
 ];

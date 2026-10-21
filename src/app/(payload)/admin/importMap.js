@@ -120,10 +120,10 @@ import { default as default_370a80b2909b592994cb28c05355bc3c } from '../../../co
 import { default as default_33e9e93052cb7fdced4d4ea759ce075e } from '../../../components/list-cells/StatusPillCell'
 import { default as default_738341866dd8b4c979498c49c4000ba9 } from '../../../components/ProposalsShowConvertedToggle'
 import { default as default_94eaeab32c437efb583ff77d2696f2b2 } from '../../../components/TierTableGridEditor'
+import { default as default_6a06dd0e2a0aeacb7a611f643be9ddc0 } from '../../../components/ContractReviewPanel'
 import { default as default_dc498ed93a93c18e4342ff8a50ddd9ec } from '../../../components/AgencySignButton'
 import { default as default_f67cf31d207033ac38b6ce6f5f074fb6 } from '../../../components/SendContractButton'
 import { default as default_f9eade6f7f767ed2b3c678a2659ef9d2 } from '../../../components/SendContractEmailButton'
-import { default as default_contract_review_panel } from '../../../components/ContractReviewPanel'
 import { default as default_dd37952574b774c5a30f482eff630855 } from '../../../components/ContractPreviewButton'
 import { default as default_876a41240e98fb91b048fbca8e3bedba } from '../../../components/CreateFromTemplateButton'
 import { default as default_29da3f8f6bcc3dfd99d69b1d9120e145 } from '../../../components/ContractsTrashToggle'
@@ -239,9 +239,9 @@ import { default as default_2e2d792095b9faaa93311c4bd3638e8e } from '../../../co
 import { default as default_8c91d6ed757c0622a0f1976e63b1d36b } from '../../../components/PayloadShiftSelect'
 import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
 import { default as default_54545d17487007f83f65ecb3f857577d } from '../../../components/RoleBodyClass'
-import { default as default_cost_csv_drop_import } from '../../../components/CostCsvDropImport'
 import { default as default_53051385132d7c282b9e348f060d29d1 } from '../../../components/ResetDocumentTabsOnOpen'
 import { default as default_e842b8d1d5d4fd0e0c4e3c9f6c6394a5 } from '../../../components/ListRowClick'
+import { default as default_950c4c2c6855f378d38cbbbadf952a4b } from '../../../components/CostCsvDropImport'
 import { CountdownLoginView as CountdownLoginView_a29937ebd9daff3184de85a6227ffba4 } from '../../../components/login/CountdownLoginView'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
@@ -370,10 +370,10 @@ export const importMap = {
   "./components/list-cells/StatusPillCell#default": default_33e9e93052cb7fdced4d4ea759ce075e,
   "./components/ProposalsShowConvertedToggle#default": default_738341866dd8b4c979498c49c4000ba9,
   "./components/TierTableGridEditor#default": default_94eaeab32c437efb583ff77d2696f2b2,
+  "./components/ContractReviewPanel#default": default_6a06dd0e2a0aeacb7a611f643be9ddc0,
   "./components/AgencySignButton#default": default_dc498ed93a93c18e4342ff8a50ddd9ec,
   "./components/SendContractButton#default": default_f67cf31d207033ac38b6ce6f5f074fb6,
   "./components/SendContractEmailButton#default": default_f9eade6f7f767ed2b3c678a2659ef9d2,
-  "./components/ContractReviewPanel#default": default_contract_review_panel,
   "./components/ContractPreviewButton#default": default_dd37952574b774c5a30f482eff630855,
   "./components/CreateFromTemplateButton#default": default_876a41240e98fb91b048fbca8e3bedba,
   "./components/ContractsTrashToggle#default": default_29da3f8f6bcc3dfd99d69b1d9120e145,
@@ -489,9 +489,9 @@ export const importMap = {
   "./components/PayloadShiftSelect#default": default_8c91d6ed757c0622a0f1976e63b1d36b,
   "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
   "./components/RoleBodyClass#default": default_54545d17487007f83f65ecb3f857577d,
-  "./components/CostCsvDropImport#default": default_cost_csv_drop_import,
   "./components/ResetDocumentTabsOnOpen#default": default_53051385132d7c282b9e348f060d29d1,
   "./components/ListRowClick#default": default_e842b8d1d5d4fd0e0c4e3c9f6c6394a5,
+  "./components/CostCsvDropImport#default": default_950c4c2c6855f378d38cbbbadf952a4b,
   "./components/login/CountdownLoginView#CountdownLoginView": CountdownLoginView_a29937ebd9daff3184de85a6227ffba4,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e

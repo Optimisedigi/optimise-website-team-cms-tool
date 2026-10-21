@@ -33,7 +33,9 @@
   --od-error: #b3261e;
   --rh: 168px;
   --clip: 0.29;
+  /* The climb, and the separated booster's fall (it lets go at 70.71% of the climb). */
   --launch: 2.1s;
+  --drop: 1s;
 
   position: relative;
   min-height: 100vh;
@@ -326,6 +328,64 @@
   will-change: transform;
 }
 
+/*
+ * The rocket's first stage: a smaller white cylinder strapped to its left side,
+ * behind the fin. It sits in a box with exactly the rocket's geometry and
+ * flight, so it rides along until it separates, then falls on its own.
+ */
+.od-launch__stage {
+  position: absolute;
+  z-index: 19;
+  left: 50%;
+  bottom: calc(40px - var(--rh) * var(--clip));
+  width: calc(var(--rh) * 334 / 768);
+  height: var(--rh);
+  margin-left: calc(var(--rh) * -167 / 768);
+  pointer-events: none;
+  will-change: transform, translate;
+}
+
+.od-launch__booster {
+  position: absolute;
+  left: 1%;
+  bottom: calc(var(--clip) * 100% + 2%);
+  width: 20%;
+  height: 44%;
+  border: 1.5px solid #5b4a3d;
+  border-radius: 50% 50% 3px 3px / 24% 24% 3px 3px;
+  background: linear-gradient(90deg, #d8cfc3 0%, #fff 38%, #f6f1ea 62%, #cbbfb0 100%);
+  box-shadow: 0 6px 10px rgba(120, 70, 30, 0.18);
+  will-change: translate, rotate, opacity;
+}
+
+/* Red nose, like the rocket's. */
+.od-launch__booster::before {
+  content: "";
+  position: absolute;
+  top: -1.5px;
+  left: -1.5px;
+  right: -1.5px;
+  height: 26%;
+  border: 1.5px solid #5b4a3d;
+  border-bottom-width: 0;
+  border-radius: 50% 50% 0 0 / 92% 92% 0 0;
+  background: linear-gradient(90deg, #b5321f 0%, #e0573f 45%, #b5321f 100%);
+}
+
+/* Grey nozzle skirt. */
+.od-launch__booster::after {
+  content: "";
+  position: absolute;
+  bottom: -7%;
+  left: 12%;
+  right: 12%;
+  height: 7%;
+  border: 1.5px solid #5b4a3d;
+  border-top-width: 0;
+  border-radius: 0 0 3px 3px;
+  background: #9c9187;
+}
+
 .od-launch__rocket img {
   display: block;
   width: 100%;
@@ -353,8 +413,9 @@
   transform: scale(0.2);
 }
 
-/* 1) Countdown: rocket rumbles, tower arm swings away. */
-.od-launch.is-counting .od-launch__rocket img {
+/* 1) Countdown: rocket and booster rumble, tower arm swings away. */
+.od-launch.is-counting .od-launch__rocket img,
+.od-launch.is-counting .od-launch__booster {
   animation: od-launch-rumble 0.1s linear infinite;
 }
 
@@ -366,9 +427,29 @@
   transform: rotate(8deg);
 }
 
-/* 2) Launch: arc up over the card. */
+/*
+ * 2) Launch: one steady climb that keeps speeding up until it is off screen.
+ * Height and the sideways arc are separate animations so each is a single
+ * segment with no keyframes in between (each mid-flight keyframe would ease
+ * in and out on its own, which made the rocket slow down twice):
+ *   rise:  height = time² (constant acceleration), on `translate`;
+ *   drift: sideways lean = time³, on `transform`, so the path still arcs.
+ */
 .od-launch.is-launching .od-launch__rocket {
-  animation: od-launch-arc var(--launch) cubic-bezier(0.5, 0, 0.75, 0.4) forwards;
+  animation:
+    od-launch-rise var(--launch) cubic-bezier(0.3333, 0, 0.6667, 0.3333) forwards,
+    od-launch-drift var(--launch) cubic-bezier(0.3333, 0, 0.6667, 0) forwards;
+}
+
+/* The booster's box flies exactly like the rocket until it separates, then holds still. */
+.od-launch.is-launching .od-launch__stage {
+  animation:
+    od-launch-stage-rise var(--launch) linear forwards,
+    od-launch-stage-drift var(--launch) linear forwards;
+}
+
+.od-launch.is-launching .od-launch__booster {
+  animation: od-launch-booster-fall var(--drop) cubic-bezier(0.55, 0, 1, 0.45) calc(var(--launch) * 0.7071) forwards;
 }
 
 .od-launch.is-launching .od-launch__rocket img {
@@ -438,24 +519,73 @@
   }
 }
 
-@keyframes od-launch-arc {
+@keyframes od-launch-rise {
   0% {
-    transform: translate(0, 0) rotate(0);
-  }
-  35% {
-    transform: translate(6px, -30vh) rotate(3deg);
-    transform: translate(6px, -30dvh) rotate(3deg);
-  }
-  70% {
-    transform: translate(34px, -68vh) rotate(8deg);
-    transform: translate(34px, -68dvh) rotate(8deg);
+    translate: 0 0;
   }
   92% {
     opacity: 1;
   }
   100% {
-    transform: translate(90px, calc(-100vh - var(--rh) * 1.4)) rotate(14deg);
-    transform: translate(90px, calc(-100dvh - var(--rh) * 1.4)) rotate(14deg);
+    translate: 0 calc(-100vh - var(--rh) * 1.4);
+    translate: 0 calc(-100dvh - var(--rh) * 1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes od-launch-drift {
+  0% {
+    transform: translateX(0) rotate(0deg);
+  }
+  100% {
+    transform: translateX(90px) rotate(14deg);
+  }
+}
+
+/*
+ * Separation, when the rocket is about 70% of the way up the screen: halfway
+ * along its whole path (which runs past the top), reached at √0.5 = 70.71% of
+ * the climb. Both segments end on the rocket's own curves because power curves
+ * keep their shape when cut short: 0.5·(t/0.7071)² = t² and
+ * 0.3536·(t/0.7071)³ = t³ (90px × 0.3536 = 31.82px, 14° × 0.3536 = 4.95°).
+ */
+@keyframes od-launch-stage-rise {
+  0% {
+    translate: 0 0;
+    animation-timing-function: cubic-bezier(0.3333, 0, 0.6667, 0.3333);
+  }
+  70.71%,
+  100% {
+    translate: 0 calc((-100vh - var(--rh) * 1.4) * 0.5);
+    translate: 0 calc((-100dvh - var(--rh) * 1.4) * 0.5);
+  }
+}
+
+@keyframes od-launch-stage-drift {
+  0% {
+    transform: translateX(0) rotate(0deg);
+    animation-timing-function: cubic-bezier(0.3333, 0, 0.6667, 0);
+  }
+  70.71%,
+  100% {
+    transform: translateX(31.82px) rotate(4.95deg);
+  }
+}
+
+/* Spent booster: drifts away down and to the side, slowly at first and
+   faster as it falls (ease-in), tumbling and fading out. */
+@keyframes od-launch-booster-fall {
+  0% {
+    translate: 0 0;
+    rotate: 0deg;
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    translate: -70px 120px;
+    rotate: -55deg;
     opacity: 0;
   }
 }
@@ -583,8 +713,14 @@
     animation: none;
   }
 
-  .od-launch.is-launching .od-launch__rocket {
+  .od-launch.is-launching .od-launch__rocket,
+  .od-launch.is-launching .od-launch__stage {
     animation: od-launch-fadeup 0.8s ease forwards;
+  }
+
+  .od-launch.is-counting .od-launch__booster,
+  .od-launch.is-launching .od-launch__booster {
+    animation: none;
   }
 
   .od-launch.is-launching .od-launch__billow i,

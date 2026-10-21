@@ -14,13 +14,13 @@ import { countDueFollowUps, followUpDb } from "@/lib/mail/follow-ups";
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
   if (ctx instanceof NextResponse) return ctx;
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
   try {
     const [folders, scheduled, followUpsDue] = await Promise.all([
       getFolderCounts(token.accessToken),
-      countScheduledEmails(scheduleDb(ctx.payload), ctx.user.id),
-      countDueFollowUps(followUpDb(ctx.payload), ctx.user.id, new Date()),
+      countScheduledEmails(scheduleDb(ctx.payload), ctx.user.id, token.account),
+      countDueFollowUps(followUpDb(ctx.payload), ctx.user.id, new Date(), token.account),
     ]);
     return NextResponse.json({ ...folders, scheduled, followUpsDue });
   } catch (err) {

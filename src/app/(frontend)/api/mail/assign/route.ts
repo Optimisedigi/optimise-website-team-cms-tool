@@ -26,7 +26,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Client not found." }, { status: 404 });
   }
 
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
   let message;
   try {

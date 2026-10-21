@@ -2,7 +2,7 @@ import { createClient, type Client } from '@libsql/client'
 import { drizzle } from 'drizzle-orm/libsql'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Payload } from 'payload'
-import { FOLLOW_UPS_SCHEMA } from '@/lib/mail/schema'
+import { FOLLOW_UPS_ACCOUNT_SCHEMA, FOLLOW_UPS_SCHEMA } from '@/lib/mail/schema'
 import {
   checkFollowUps,
   countDueFollowUps,
@@ -66,7 +66,7 @@ beforeEach(async () => {
   await client.execute('insert into users (id) values (1), (2)')
   await client.execute('create table clients (id integer primary key, name text)')
   await client.execute("insert into clients (id, name) values (3, 'Acme Pty Ltd')")
-  for (const [, statement] of FOLLOW_UPS_SCHEMA) await client.execute(statement)
+  for (const [, statement] of [...FOLLOW_UPS_SCHEMA, ...FOLLOW_UPS_ACCOUNT_SCHEMA]) await client.execute(statement)
   create = vi.fn(async () => ({ id: 1 }))
   payload = { db: { drizzle: drizzle(client) }, create } as unknown as Payload
 })
@@ -187,6 +187,34 @@ describe('checkFollowUps', () => {
     const id = await track()
     expect(await checkFollowUps(payload, deps([]))).toMatchObject({ gone: 1, notified: 0 })
     expect((await statusOf(id)).status).toBe('dismissed')
+  })
+
+  it('checks a reminder with the Gmail account its email was sent from, and links the alert to it', async () => {
+    const db = followUpDb(payload)
+    const id = await createFollowUp(db, {
+      ownerId: 1,
+      account: 'sales@od.com',
+      clientId: 3,
+      threadId: 't9',
+      sentMessageId: 's9',
+      to: 'jo@client.com',
+      subject: 'Quote',
+      sentAt: SENT,
+      remindAt: hours(-1),
+    })
+    expect(await listFollowUps(db, 1, '')).toEqual([])
+    expect((await listFollowUps(db, 1, 'sales@od.com')).map((item) => item.id)).toEqual([id])
+    expect(await countDueFollowUps(db, 1, NOW, 'sales@od.com')).toBe(1)
+    expect(await countDueFollowUps(db, 1, NOW, '')).toBe(0)
+
+    const getToken = vi.fn(async () => ({ ok: true as const, accessToken: 'sales-tok', email: 'sales@od.com', userEmail: OWN }))
+    const getThreadHeaders = vi.fn(async () => [header({ from: 'Sales <sales@od.com>' })])
+    expect(await checkFollowUps(payload, { now: () => NOW, getToken, getThreadHeaders })).toMatchObject({ notified: 1 })
+    expect(getToken).toHaveBeenCalledWith(1, 'sales@od.com')
+    expect(getThreadHeaders).toHaveBeenCalledWith('sales-tok', 't9')
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ url: '/admin/mail?thread=t9&account=sales%40od.com' }) }),
+    )
   })
 
   it('skips owners without Gmail and keeps going after a Gmail error', async () => {

@@ -3,7 +3,6 @@ import { DefaultTemplate } from '@payloadcms/next/templates'
 import { headers as getHeaders } from 'next/headers'
 import { createLocalReq, getPayload } from 'payload'
 import { redirect } from 'next/navigation'
-import AdminStepNavSetter from '../../../../components/AdminStepNavSetter'
 import MailApp from '../../../../components/mail/MailApp'
 import { userHasFeature } from '../../../../lib/access'
 import { getCustomViewActions, getVisibleEntities } from '../../../../lib/visible-entities'
@@ -37,7 +36,7 @@ export default async function Page() {
       viewActions={getCustomViewActions(payload)}
       visibleEntities={getVisibleEntities(payload, user)}
     >
-      <AdminStepNavSetter items={[{ label: 'Mail' }]} />
+      {/* MailApp sets the breadcrumb itself: Mail / [Gmail account switcher]. */}
       <div className="gutter--left gutter--right" style={{ maxWidth: 1480, paddingLeft: 12 }}>
         <MailApp clients={clients} />
       </div>

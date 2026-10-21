@@ -20,7 +20,7 @@ type Category = (typeof CATEGORIES)[number];
 async function candidates(req: NextRequest) {
   const ctx = await requireMailUser(req);
   if (ctx instanceof NextResponse) return ctx;
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
   try {
     const found = await findCleanupCandidates({

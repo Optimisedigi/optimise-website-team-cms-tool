@@ -40,5 +40,7 @@ export const ScheduledEmails: CollectionConfig = {
     { name: "lastError", type: "text" },
     { name: "sentAt", type: "date" },
     { name: "sentMessageId", type: "text" },
+    // Extra Gmail account it belongs to (mail-accounts email); empty = the user's main Gmail.
+    { name: "account", type: "text" },
   ],
 };

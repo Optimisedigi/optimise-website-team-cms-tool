@@ -69,7 +69,7 @@ export async function deliverMail(input: DeliverInput): Promise<DeliverResult> {
   try {
     const ownAddresses = [token.email, token.userEmail].filter(Boolean);
     const message = await getFullMessage(token.accessToken, sent.messageId);
-    const match = matchMessageToClient(await loadClientDomainIndex(input.payload, ownAddresses), message);
+    const match = matchMessageToClient(await loadClientDomainIndex(input.payload, ownAddresses, { userId: input.ownerId }), message);
     if (match) {
       await storeClientEmail(
         input.payload,

@@ -66,6 +66,18 @@ describe("RocketSplash surface variant", () => {
     expect(container.querySelectorAll(".od-splash__flame")).toHaveLength(3);
   });
 
+  it("carries the side booster that drops away mid-climb, matching the rocket's colour", () => {
+    const { container } = render(<RocketSplash />);
+    const booster = container.querySelector(".od-splash__scene > .od-splash__booster");
+    expect(booster).not.toBeNull();
+    // A sibling of the rocket, not inside it: it has to fall while the rocket keeps climbing.
+    expect(container.querySelector(".od-splash__rocket .od-splash__booster")).toBeNull();
+    expect(booster?.classList.contains("od-splash__booster--white")).toBe(false);
+
+    const white = render(<RocketSplash compact onLight whiteRocket />);
+    expect(white.container.querySelector(".od-splash__booster")?.classList.contains("od-splash__booster--white")).toBe(true);
+  });
+
   it("announces itself to screen readers while the page loads", () => {
     const { container } = render(<RocketSplash onLight />);
 

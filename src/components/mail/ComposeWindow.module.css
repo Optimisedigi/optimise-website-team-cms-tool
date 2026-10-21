@@ -474,6 +474,75 @@
   white-space: nowrap;
 }
 
+/* "•••" under a reply: shows the email being replied to, editable for notes. */
+.quote {
+  padding: 0 16px 10px;
+}
+
+.quoteToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 9px;
+  background: var(--theme-elevation-50);
+  color: var(--theme-elevation-600);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.quoteToggle:hover,
+.quoteToggle:focus-visible {
+  border-color: #2c97c9;
+  color: #2c97c9;
+}
+
+.quoteToggleOpen {
+  border-color: #2c97c9;
+  background: rgba(44, 151, 201, 0.12);
+  color: #2c97c9;
+}
+
+.quoteBody {
+  margin-top: 8px;
+}
+
+.quoteHeader {
+  margin: 0 0 4px;
+  color: var(--theme-elevation-600);
+  font-family: Verdana, sans-serif;
+  font-size: small;
+}
+
+/* Gmail's quote look: a thin grey bar on the left. */
+.quoteEditor {
+  margin-left: 0.8ex;
+  padding-left: 1ex;
+  border-left: 1px solid var(--theme-elevation-200);
+}
+
+.quoteEditor .body {
+  min-height: 60px;
+  padding: 4px 0;
+}
+
+.quoteEditor .editorPlaceholder {
+  top: 4px;
+  left: 0;
+}
+
+/* Voice drafting mic, next to Write with AI. */
+.voice {
+  display: inline-flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
 .signature {
   padding: 0 16px 12px;
 }

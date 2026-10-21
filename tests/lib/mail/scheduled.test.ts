@@ -2,7 +2,7 @@ import { createClient, type Client } from '@libsql/client'
 import { drizzle } from 'drizzle-orm/libsql'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Payload } from 'payload'
-import { FOLLOW_UPS_SCHEMA, SCHEDULED_EMAILS_SCHEMA } from '@/lib/mail/schema'
+import { FOLLOW_UPS_ACCOUNT_SCHEMA, FOLLOW_UPS_SCHEMA, SCHEDULED_EMAILS_ACCOUNT_SCHEMA, SCHEDULED_EMAILS_SCHEMA } from '@/lib/mail/schema'
 import {
   cancelScheduledEmail,
   countScheduledEmails,
@@ -59,9 +59,9 @@ beforeEach(async () => {
   client = createClient({ url: ':memory:' })
   await client.execute('create table users (id integer primary key)')
   await client.execute('insert into users (id) values (1), (2)')
-  for (const [, statement] of SCHEDULED_EMAILS_SCHEMA) await client.execute(statement)
+  for (const [, statement] of [...SCHEDULED_EMAILS_SCHEMA, ...SCHEDULED_EMAILS_ACCOUNT_SCHEMA]) await client.execute(statement)
   await client.execute('create table clients (id integer primary key, name text)')
-  for (const [, statement] of FOLLOW_UPS_SCHEMA) await client.execute(statement)
+  for (const [, statement] of [...FOLLOW_UPS_SCHEMA, ...FOLLOW_UPS_ACCOUNT_SCHEMA]) await client.execute(statement)
   payload = { db: { drizzle: drizzle(client) } } as unknown as Payload
 })
 afterEach(() => client.close())
@@ -294,6 +294,65 @@ describe('sending scheduled emails', () => {
     const deliver = delivered()
     await sendScheduledEmail(payload, id, deps(deliver), { onlyDue: true })
     expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ replyToMessageId: 'abc123', to: '' }))
+  })
+
+  it('sends from the extra Gmail account it was scheduled in, and lists it only under that account', async () => {
+    const db = scheduleDb(payload)
+    const main = await queue({ when: minutes(-1) })
+    const extra = await createScheduledEmail(db, {
+      ownerId: 1,
+      account: 'sales@od.com',
+      to: 'jo@client.com',
+      cc: '',
+      subject: 'From sales',
+      replyToMessageId: null,
+      scheduledFor: minutes(-1),
+      content: { html: HTML, followUpDays: 1, inlineImages: [], attachments: [] },
+    })
+    expect((await listScheduledEmails(db, 1, '')).map((item) => item.id)).toEqual([main])
+    expect((await listScheduledEmails(db, 1, 'sales@od.com')).map((item) => item.id)).toEqual([extra])
+    expect(await countScheduledEmails(db, 1, 'sales@od.com')).toBe(1)
+    expect((await listScheduledEmails(db, 1)).map((item) => item.id).sort()).toEqual([main, extra].sort())
+
+    const getToken = vi.fn(async (_ownerId: number, account?: string) => ({
+      ok: true as const,
+      accessToken: account ? 'sales-tok' : 'main-tok',
+      email: account ?? 'me@od.com',
+      userEmail: 'me@od.com',
+    }))
+    const deliver = delivered()
+    await sendScheduledEmail(payload, extra, { ...deps(deliver), getToken }, { onlyDue: true })
+    expect(getToken).toHaveBeenCalledWith(1, 'sales@od.com')
+    expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ token: expect.objectContaining({ accessToken: 'sales-tok' }) }))
+    // Its reminder belongs to the same account.
+    const reminder = await client.execute('select account from mail_follow_ups')
+    expect(reminder.rows[0]).toMatchObject({ account: 'sales@od.com' })
+
+    await sendScheduledEmail(payload, main, { ...deps(deliver), getToken }, { onlyDue: true })
+    expect(getToken).toHaveBeenLastCalledWith(1)
+  })
+
+  it('fails (never sends from another account) when its extra Gmail account was removed', async () => {
+    const id = await createScheduledEmail(scheduleDb(payload), {
+      ownerId: 1,
+      account: 'gone@od.com',
+      to: 'jo@client.com',
+      cc: '',
+      subject: 'Hi',
+      replyToMessageId: null,
+      scheduledFor: minutes(-1),
+      content: { html: HTML, inlineImages: [], attachments: [] },
+    })
+    const deliver = delivered()
+    const outcome = await sendScheduledEmail(
+      payload,
+      id,
+      { ...deps(deliver), getToken: async (_ownerId, account) => (account ? { ok: false, reason: 'not connected' } : { ok: true, accessToken: 'main', email: 'me@od.com', userEmail: '' }) },
+      { onlyDue: true },
+    )
+    expect(outcome.status).toBe('failed')
+    expect(deliver).not.toHaveBeenCalled()
+    expect((await statusOf(id))?.last_error).toMatch(/gone@od\.com is not connected/)
   })
 
   it('fails stale "sending" emails instead of resending them', async () => {

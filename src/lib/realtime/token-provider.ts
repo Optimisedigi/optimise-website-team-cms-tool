@@ -33,6 +33,8 @@ export function parseRealtimeBilling(value: unknown): RealtimeBilling {
 export interface RealtimeSessionRequest {
   auditId: string
   session: Record<string, unknown>
+  /** Voice surface, when the server picks something for it (e.g. 'mail' always uses gpt-realtime-2.1). */
+  mode?: string
 }
 
 export interface TokenProvider {
@@ -55,11 +57,11 @@ function helperUrl(): string {
 
 /** Talks to the app server, which mints the secret with the ChatGPT plan (Codex OAuth). The `api-key` provider name is kept for existing env config. */
 export const apiKeyProvider: TokenProvider = {
-  async getSecret({ auditId, session }) {
+  async getSecret({ auditId, session, mode }) {
     const response = await fetch('/api/optimate/realtime-secret', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auditId, session }),
+      body: JSON.stringify(mode ? { auditId, session, mode } : { auditId, session }),
     })
     const text = await response.text()
     if (!response.ok) {

@@ -25,12 +25,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const cc = typeof body.cc === "string" ? body.cc.slice(0, MAX_RECIPIENTS_CHARS) : "";
   if (!to.trim() && !cc.trim()) return NextResponse.json({ client: null });
 
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
   const client = await resolveRecipientClient({
     payload: ctx.payload,
     message: { to, cc },
     ownAddresses: [token.email, token.userEmail].filter(Boolean),
+    userId: ctx.user.id,
   });
   return NextResponse.json({ client });
 }

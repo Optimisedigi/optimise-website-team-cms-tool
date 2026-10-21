@@ -7,16 +7,17 @@ import {
   listScheduledEmails,
   scheduleDb,
 } from "@/lib/mail/scheduled";
-import { readJson, requireMailUser } from "@/lib/mail/route-helpers";
-import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
+import { readJson, requestedMailAccount, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 const MAX_QUEUED = 100;
 
-/** GET /api/mail/schedule: the user's queued emails, soonest first (no bodies). */
+/** GET /api/mail/schedule: the user's queued emails for the Gmail account Mail is on, soonest first (no bodies). */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
   if (ctx instanceof NextResponse) return ctx;
-  const items = await listScheduledEmails(scheduleDb(ctx.payload), ctx.user.id);
+  const account = requestedMailAccount(req);
+  if (account === null) return NextResponse.json({ error: "Invalid mail account." }, { status: 400 });
+  const items = await listScheduledEmails(scheduleDb(ctx.payload), ctx.user.id, account);
   return NextResponse.json({ items });
 }
 
@@ -40,20 +41,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { to, cc, subject, replyToMessageId, draftId, scheduledFor, content } = parsed.value;
   if (!scheduledFor) return NextResponse.json({ error: "Choose a time to send." }, { status: 400 });
 
-  const token = await getValidGmailToken(ctx.user.id);
-  if (!token.ok) {
-    return NextResponse.json(
-      { error: "gmail-not-connected", reason: token.reason, connectUrl: "/api/gmail/connect" },
-      { status: 403 },
-    );
-  }
+  // Checks the account is connected now; the cron sends from this same account.
+  const token = await requireGmailToken(ctx.user.id, req);
+  if (token instanceof NextResponse) return token;
 
   const db = scheduleDb(ctx.payload);
   if ((await countScheduledEmails(db, ctx.user.id)) >= MAX_QUEUED) {
     return NextResponse.json({ error: `You can have up to ${MAX_QUEUED} scheduled emails at once.` }, { status: 400 });
   }
 
-  const id = await createScheduledEmail(db, { ownerId: ctx.user.id, to, cc, subject, replyToMessageId, scheduledFor, content });
+  const id = await createScheduledEmail(db, {
+    ownerId: ctx.user.id,
+    account: token.account,
+    to,
+    cc,
+    subject,
+    replyToMessageId,
+    scheduledFor,
+    content,
+  });
 
   let draftNote: string | null = null;
   if (draftId) {

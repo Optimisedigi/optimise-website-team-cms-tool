@@ -24,7 +24,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!threadId || !action) {
     return NextResponse.json({ error: "threadId and action (archive, read, unread) are required." }, { status: 400 });
   }
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
 
   try {

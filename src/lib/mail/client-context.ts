@@ -348,16 +348,20 @@ export async function resolveReplyClient(args: {
     if (typeof doc.client === "object") return { id: doc.client.id, name: doc.client.name ?? "" };
     return { id: doc.client, name: "" };
   }
-  return resolveRecipientClient({ payload: args.payload, message: args.message, ownAddresses: args.ownAddresses });
+  return resolveRecipientClient({ payload: args.payload, message: args.message, ownAddresses: args.ownAddresses, userId: args.user.id });
 }
 
-/** Domain/address match for a message or a new email's To/Cc. First match wins. */
+/**
+ * Domain/address match for a message or a new email's To/Cc. First match
+ * wins. With `userId`, that user's own sender → client choices apply.
+ */
 export async function resolveRecipientClient(args: {
   payload: Payload;
   message: MatchableMessage;
   ownAddresses: string[];
+  userId?: number;
 }): Promise<ResolvedMailClient | null> {
-  const index = await loadClientDomainIndex(args.payload, args.ownAddresses);
+  const index = await loadClientDomainIndex(args.payload, args.ownAddresses, { userId: args.userId });
   const match = matchMessageToClient(index, args.message);
   return match ? { id: match.clientId, name: match.clientName } : null;
 }

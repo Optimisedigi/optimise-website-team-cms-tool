@@ -15,7 +15,18 @@ import SchedulePicker from './SchedulePicker'
 import { fitImageForChat } from '../chat-image-fit'
 import { browserStorage, clearPrompt, loadPrompt, promptKeys, savePrompt } from '../../lib/mail/ai-prompt-store'
 import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
-import { DEFAULT_FOLLOW_UP_DAYS, FOLLOW_UP_DAY_OPTIONS } from '../../lib/mail/schedule-times'
+import { FOLLOW_UP_DAY_OPTIONS } from '../../lib/mail/schedule-times'
+import { mailAccountHeaders } from '../../lib/mail/accounts-shared'
+import { appendReplyQuote, replyQuoteHeader, replyQuoteStartHtml, type ReplyQuote } from '../../lib/mail/reply-quote'
+import {
+  MAIL_VOICE_GREETING,
+  MAIL_VOICE_READ_TOOL,
+  MAIL_VOICE_TOOLS,
+  MAIL_VOICE_WRITE_TOOL,
+  buildMailVoiceInstructions,
+  describeDraftForVoice,
+} from '../../lib/mail/voice-draft'
+import OptiMateVoice, { type LocalVoiceSession } from '../OptiMateVoice'
 
 /**
  * Gmail-style compose window docked bottom right, just left of the OptiMate orb.
@@ -41,6 +52,14 @@ import { DEFAULT_FOLLOW_UP_DAYS, FOLLOW_UP_DAY_OPTIONS } from '../../lib/mail/sc
  * Send waits UNDO_SEND_MS before sending, like Gmail's undo send: the button
  * shows it is sending and an Undo button stops it. Closing the window during
  * the wait sends straight away (Send was pressed; only Undo cancels).
+ *
+ * Replies opened from an email can show that email under the reply ("•••",
+ * see lib/mail/reply-quote) in its own editor, so notes can be typed into it.
+ *
+ * The mic next to Write with AI starts a GPT Realtime 2.1 voice call (see
+ * lib/mail/voice-draft): the user talks the email through, the agent writes
+ * it into the editor with the same Write with AI request, keeps revising it,
+ * and can read it back. It can only draft; Send is always the user's click.
  */
 
 /** How long Send waits, with Undo available, before the email actually goes. */
@@ -52,6 +71,8 @@ export interface ComposeReplyTarget {
   subject: string
   /** CMS client the message is stored against or matches, if any (offers "Use client data"). */
   client?: { id: number; name: string } | null
+  /** The email itself, so it can be shown (and annotated) under the reply. */
+  quote?: ReplyQuote
 }
 
 export interface ComposeFile {
@@ -89,12 +110,17 @@ export interface ComposeState {
   scheduledFor?: string
   /**
    * "Remind me if no reply" in business days (0 = off). Undefined until
-   * chosen: then it defaults to DEFAULT_FOLLOW_UP_DAYS when a recipient is a
-   * CMS client, otherwise off. Always resolved before onSend/onSchedule.
+   * chosen, which means off. Always resolved before onSend/onSchedule.
    */
   followUpDays?: number
   /** Pre-filled Write with AI instruction (e.g. Awaiting reply → Draft follow-up). */
   aiPrompt?: string
+  /**
+   * The extra Gmail account this email is written in ("" or undefined = the
+   * main Gmail). Fixed when the window opens, so switching accounts in Mail
+   * never moves a half-written email to another mailbox.
+   */
+  account?: string
 }
 
 /** What Send / Save as draft post to the server. */
@@ -124,11 +150,11 @@ interface Props {
   signatureHtml: string | null
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+async function postJson<T>(url: string, body: unknown, account?: string): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...mailAccountHeaders(account) },
     body: JSON.stringify(body),
   })
   const data = (await res.json().catch(() => ({}))) as T & { error?: string; reason?: string }
@@ -222,6 +248,26 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const [clientDataUsed, setClientDataUsed] = useState('')
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const editorRef = useRef<RichEmailEditorHandle>(null)
+  // The quoted email under a reply ("•••"): shown or not, and its own editor.
+  const quote = initial.replyTo?.quote ?? null
+  const quoteHeader = useMemo(() => (quote ? replyQuoteHeader(quote) : ''), [quote])
+  const quoteStartHtml = useMemo(() => (quote ? replyQuoteStartHtml(quote) : ''), [quote])
+  const [quoteOpen, setQuoteOpen] = useState(false)
+  // Mounted on first open, then only hidden, so notes typed into it survive closing it.
+  const [quoteMounted, setQuoteMounted] = useState(false)
+  const quoteOpenRef = useRef(false)
+  quoteOpenRef.current = quoteOpen
+  const quoteEditorRef = useRef<RichEmailEditorHandle>(null)
+  const quoteBaseline = useRef<string | null>(null)
+  // The formatting bar acts on whichever editor (reply or quote) was used last.
+  const activeEditor = useRef<'body' | 'quote'>('body')
+  const formatTarget = () => (activeEditor.current === 'quote' && quoteOpenRef.current ? quoteEditorRef.current : editorRef.current)
+  /** What is sent and saved: the reply, plus the quoted email when it is shown. */
+  const composedHtml = useCallback((): string => {
+    const body = editorRef.current?.getHtml() ?? ''
+    if (!quoteOpenRef.current || !quoteHeader) return body
+    return appendReplyQuote(body, { header: quoteHeader, html: quoteEditorRef.current?.getHtml() ?? '' })
+  }, [quoteHeader])
   const attachInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   // Autosave: the latest state, the Gmail draft id, and the in-flight save.
@@ -275,9 +321,9 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
 
   /** Bytes of the images currently in the body plus attachments. */
   const usedBytes = useCallback((): number => {
-    const { inlineImages } = extractInlineImages(editorRef.current?.getHtml() ?? '')
+    const { inlineImages } = extractInlineImages(composedHtml())
     return inlineImages.reduce((sum, image) => sum + base64Bytes(image.data), 0) + attachmentBytes
-  }, [attachmentBytes])
+  }, [attachmentBytes, composedHtml])
 
   const addAttachments = useCallback(
     async (files: File[]) => {
@@ -346,7 +392,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       return
     }
     const current = stateRef.current
-    const { html, inlineImages } = extractInlineImages(editorRef.current?.getHtml() ?? '')
+    const { html, inlineImages } = extractInlineImages(composedHtml())
     const hasText = html.replace(/<[^>]*>/g, '').trim() !== '' || inlineImages.length > 0
     if (!hasText && !current.to.trim() && !current.subject.trim() && current.attachments.length === 0) return
     const total = inlineImages.reduce((sum, image) => sum + base64Bytes(image.data), 0) + attachmentBytesRef.current
@@ -372,7 +418,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     await job
     savingRef.current = null
     if (dirtyRef.current) void autosave()
-  }, [persistPrompt, outgoing])
+  }, [persistPrompt, outgoing, composedHtml])
 
   const attachmentBytesRef = useRef(attachmentBytes)
   attachmentBytesRef.current = attachmentBytes
@@ -413,8 +459,11 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   }, [autosave])
 
   const linkedClient = state.mode === 'reply' ? (initial.replyTo?.client ?? null) : recipientClient
-  const followUpDays = state.followUpDays ?? (linkedClient ? DEFAULT_FOLLOW_UP_DAYS : 0)
+  // Off unless chosen for this email.
+  const followUpDays = state.followUpDays ?? 0
   followUpDaysRef.current = followUpDays
+  // Something to send: a reply body, or notes in the quoted email.
+  const hasContent = hasDraft || quoteOpen
 
   useEffect(() => {
     if (state.mode !== 'new') return
@@ -426,7 +475,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     }
     let cancelled = false
     const timer = window.setTimeout(() => {
-      postJson<{ client: { id: number; name: string } | null }>('/api/mail/client-match', { to, cc })
+      postJson<{ client: { id: number; name: string } | null }>('/api/mail/client-match', { to, cc }, initial.account)
         .then((data) => {
           if (!cancelled) setRecipientClient(data.client ?? null)
         })
@@ -438,11 +487,63 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [state.mode, state.to, state.cc])
+  }, [state.mode, state.to, state.cc, initial.account])
 
   function setBodyFromText(text: string) {
     editorRef.current?.setHtml(text ? markdownLiteToHtml(text) : '')
   }
+
+  // One AI request at a time, whether typed or spoken.
+  const aiInFlight = useRef(false)
+
+  /**
+   * Write or revise the body with the AI (the Write with AI button and the
+   * voice agent both come here). Only ever drafts: it never sends or saves
+   * anything itself; the new body autosaves to Drafts like typing does.
+   */
+  async function runAi(instruction: string): Promise<{ ok: true; text: string; subject?: string } | { ok: false; error: string }> {
+    if (aiInFlight.current || (busy !== '' && busy !== 'ai')) return { ok: false, error: 'Still busy with the last request. Try again in a moment.' }
+    aiInFlight.current = true
+    setBusy('ai')
+    setNote('')
+    try {
+      const currentDraft = hasDraft ? (editorRef.current?.getMarkdown() ?? '') : ''
+      // First AI request on a new email with no subject yet: the AI suggests one too.
+      const suggestSubject = state.mode === 'new' && turns.length === 0 && !currentDraft && !state.subject.trim()
+      const withClientData = useClientData && linkedClient !== null
+      const data = await postJson<{ text: string; subject?: string; clientContext?: { id: number; name: string } | null }>(
+        '/api/mail/ai',
+        {
+          action: state.mode === 'reply' ? 'reply' : 'draft',
+          ...(state.mode === 'reply' ? { gmailMessageId: state.replyTo?.messageId, includeThread: useThread } : {}),
+          ...(withClientData
+            ? { includeClientData: true, ...(state.mode === 'new' ? { to: state.to, cc: state.cc } : {}) }
+            : {}),
+          ...(suggestSubject ? { suggestSubject: true } : {}),
+          instruction,
+          history: turns,
+          currentDraft,
+        },
+        initial.account,
+      )
+      setTurns((current) => [...current, { instruction: instruction || 'Draft a reply', draft: data.text }])
+      setBodyFromText(data.text)
+      setClientDataUsed(data.clientContext ? data.clientContext.name || 'this client' : '')
+      const subject = data.subject?.trim()
+      // Never overwrite a subject typed while the AI was writing.
+      if (subject) setState((current) => (current.subject.trim() ? current : { ...current, subject }))
+      return { ok: true, text: data.text, ...(subject ? { subject } : {}) }
+    } catch (err) {
+      const message = (err as Error).message
+      setNote(message)
+      return { ok: false, error: message }
+    } finally {
+      aiInFlight.current = false
+      setBusy('')
+    }
+  }
+  const runAiRef = useRef(runAi)
+  runAiRef.current = runAi
 
   async function askAi() {
     const instruction = prompt.trim()
@@ -451,41 +552,48 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       setNote(hasDraft ? 'Say what to change, e.g. "make it shorter".' : 'Say what the email should be about.')
       return
     }
-    setBusy('ai')
-    setNote('')
-    try {
-      const currentDraft = hasDraft ? (editorRef.current?.getMarkdown() ?? '') : ''
-      // First AI request on a new email with no subject yet: the AI suggests one too.
-      const suggestSubject = state.mode === 'new' && turns.length === 0 && !currentDraft && !state.subject.trim()
-      const withClientData = useClientData && linkedClient !== null
-      const data = await postJson<{ text: string; subject?: string; clientContext?: { id: number; name: string } | null }>('/api/mail/ai', {
-        action: state.mode === 'reply' ? 'reply' : 'draft',
-        ...(state.mode === 'reply' ? { gmailMessageId: state.replyTo?.messageId, includeThread: useThread } : {}),
-        ...(withClientData
-          ? { includeClientData: true, ...(state.mode === 'new' ? { to: state.to, cc: state.cc } : {}) }
-          : {}),
-        ...(suggestSubject ? { suggestSubject: true } : {}),
-        instruction,
-        history: turns,
-        currentDraft,
-      })
-      setTurns((current) => [...current, { instruction: instruction || 'Draft a reply', draft: data.text }])
-      setBodyFromText(data.text)
-      setClientDataUsed(data.clientContext ? data.clientContext.name || 'this client' : '')
-      const subject = data.subject?.trim()
-      // Never overwrite a subject typed while the AI was writing.
-      if (subject) setState((current) => (current.subject.trim() ? current : { ...current, subject }))
+    const result = await runAi(instruction)
+    if (result.ok) {
       setPrompt('')
       promptRef.current?.focus()
-    } catch (err) {
-      setNote((err as Error).message)
-    } finally {
-      setBusy('')
     }
   }
 
+  // The voice agent's only two abilities: write/revise the draft, and read it back.
+  const voiceSession = useMemo<LocalVoiceSession>(
+    () => ({
+      instructions: buildMailVoiceInstructions({
+        mode: initial.mode,
+        replyTo: initial.replyTo?.from,
+        subject: initial.subject,
+      }),
+      tools: MAIL_VOICE_TOOLS,
+      greeting: MAIL_VOICE_GREETING,
+      executeTool: async (name, args) => {
+        if (name === MAIL_VOICE_WRITE_TOOL) {
+          const instruction = typeof args.instruction === 'string' ? args.instruction.trim().slice(0, 4000) : ''
+          if (!instruction) return { ok: false, error: 'Say what the email should say.' }
+          const result = await runAiRef.current(instruction)
+          return result.ok
+            ? { ok: true, data: { drafted: true, subject: result.subject ?? stateRef.current.subject, draft: result.text } }
+            : { ok: false, error: result.error }
+        }
+        if (name === MAIL_VOICE_READ_TOOL) {
+          const current = stateRef.current
+          return {
+            ok: true,
+            data: describeDraftForVoice({ to: current.to, subject: current.subject, body: editorRef.current?.getMarkdown() ?? '' }),
+          }
+        }
+        return { ok: false, error: 'That is not something I can do here.' }
+      },
+    }),
+    // The window's opening context; the tools read the live state through refs.
+    [initial.mode, initial.replyTo?.from, initial.subject],
+  )
+
   function buildContent(): ComposeContent | null {
-    const { html, inlineImages } = extractInlineImages(editorRef.current?.getHtml() ?? '')
+    const { html, inlineImages } = extractInlineImages(composedHtml())
     const total = inlineImages.reduce((sum, image) => sum + base64Bytes(image.data), 0) + attachmentBytes
     if (total > MAIL_ATTACHMENT_LIMITS.maxTotalBytes) {
       setNote(`This email has ${formatSize(total)} of images and attachments. ${LIMIT_NOTE}`)
@@ -496,7 +604,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
 
   /** Send button: check the email, then wait UNDO_SEND_MS (Undo stops it) before sending. */
   function startSend() {
-    if (busy || !hasDraft) return
+    if (busy || !hasContent) return
     setNote('')
     if (!buildContent()) return
     setBusy('send')
@@ -552,7 +660,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   }
 
   async function saveDraftNow() {
-    if (busy || !hasDraft) return
+    if (busy || !hasContent) return
     setNote('')
     const content = buildContent()
     if (!content) return
@@ -604,7 +712,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   }
 
   async function runSchedule(when: Date | null) {
-    if (busy || !hasDraft) return
+    if (busy || !hasContent) return
     setNote('')
     if (!when || when.getTime() < Date.now() + 60_000) {
       setNote('Choose a send time at least a minute from now.')
@@ -749,24 +857,69 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
 
         {/* The body and signature scroll together so the whole email is visible. */}
         <div className={styles.draftScroll}>
-          <RichEmailEditor
-            ref={editorRef}
-            initialHtml={initial.html}
-            ariaLabel="Email body"
-            placeholder="Write here, or ask the AI below. Cmd+B, I and U format text. Paste images and tables straight in. Nothing is sent until you click Send."
-            onContentChange={(has) => {
-              setHasDraft(has)
-              // The first change report is the editor loading its initial body, not an edit.
-              const html = editorRef.current?.getHtml() ?? ''
-              if (baselineHtml.current === null) baselineHtml.current = html
-              else if (html !== baselineHtml.current) {
-                baselineHtml.current = html
-                setEdits((n) => n + 1)
-              }
-            }}
-            onPasteFiles={onPasteFiles}
-            onFormatChange={setSelectionFormat}
-          />
+          <div onFocus={() => (activeEditor.current = 'body')}>
+            <RichEmailEditor
+              ref={editorRef}
+              initialHtml={initial.html}
+              ariaLabel="Email body"
+              placeholder="Write here, or ask the AI below. Cmd+B, I and U format text. Paste images and tables straight in. Nothing is sent until you click Send."
+              onContentChange={(has) => {
+                setHasDraft(has)
+                // The first change report is the editor loading its initial body, not an edit.
+                const html = editorRef.current?.getHtml() ?? ''
+                if (baselineHtml.current === null) baselineHtml.current = html
+                else if (html !== baselineHtml.current) {
+                  baselineHtml.current = html
+                  setEdits((n) => n + 1)
+                }
+              }}
+              onPasteFiles={onPasteFiles}
+              onFormatChange={setSelectionFormat}
+            />
+          </div>
+
+          {quote ? (
+            <div className={styles.quote}>
+              <button
+                type="button"
+                className={`${styles.quoteToggle} ${quoteOpen ? styles.quoteToggleOpen : ''}`}
+                onClick={() => {
+                  setQuoteMounted(true)
+                  setQuoteOpen((open) => !open)
+                  setEdits((n) => n + 1)
+                }}
+                aria-expanded={quoteOpen}
+                aria-label={quoteOpen ? 'Hide the email you are replying to' : 'Show the email you are replying to'}
+                title={quoteOpen ? 'Hide the email you are replying to (it is then left out of your reply)' : 'Show the email you are replying to, to add notes into it'}
+              >
+                •••
+              </button>
+              {quoteMounted ? (
+                <div className={styles.quoteBody} hidden={!quoteOpen} onFocus={() => (activeEditor.current = 'quote')}>
+                  <p className={styles.quoteHeader}>{quoteHeader}</p>
+                  <div className={styles.quoteEditor}>
+                    <RichEmailEditor
+                      ref={quoteEditorRef}
+                      initialHtml={quoteStartHtml}
+                      ariaLabel="Email you are replying to (add your notes here)"
+                      placeholder="The email you are replying to."
+                      onContentChange={() => {
+                        const html = quoteEditorRef.current?.getHtml() ?? ''
+                        if (quoteBaseline.current === null) quoteBaseline.current = html
+                        else if (html !== quoteBaseline.current) {
+                          quoteBaseline.current = html
+                          setEdits((n) => n + 1)
+                        }
+                      }}
+                      // Files pasted into the quote are attached; images only go inline in the reply.
+                      onPasteFiles={(files) => void addAttachments(files)}
+                      onFormatChange={setSelectionFormat}
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {signatureHtml === null ? null : (
             <div className={styles.signature}>
@@ -854,8 +1007,8 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               <FormatBar
                 format={selectionFormat}
                 disabled={busy !== ''}
-                onColor={(color) => editorRef.current?.setTextColor(color)}
-                onList={(type) => editorRef.current?.toggleList(type)}
+                onColor={(color) => formatTarget()?.setTextColor(color)}
+                onList={(type) => formatTarget()?.toggleList(type)}
               />
               {tableOpen ? (
                 <span className={styles.tablePicker}>
@@ -952,6 +1105,10 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               }
               aria-label="Instruction for the AI"
             />
+            {/* Talk the email through; it drafts and revises without pressing Write with AI. It cannot send. */}
+            <span className={styles.voice} title="Draft by voice (GPT Realtime 2.1). It writes and reads back drafts; only you can send.">
+              <OptiMateVoice mode="mail" auditId="mail" businessName="this email" localSession={voiceSession} triggerSize={34} />
+            </span>
             <button type="button" className={styles.aiButton} onClick={() => void askAi()} disabled={busy !== ''}>
               {busy === 'ai' ? 'Writing…' : hasDraft ? 'Revise' : 'Write with AI'}
             </button>
@@ -965,7 +1122,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           <SchedulePicker
             busy={busy !== ''}
             scheduling={busy === 'schedule'}
-            canSchedule={hasDraft && (state.to.trim() !== '' || editingScheduled)}
+            canSchedule={hasContent && (state.to.trim() !== '' || editingScheduled)}
             onSchedule={(when) => void runSchedule(when)}
             {...(initial.scheduledFor ? { initial: new Date(initial.scheduledFor) } : {})}
             {...(editingScheduled ? { actionLabel: 'Update schedule' } : {})}
@@ -977,7 +1134,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             type="button"
             className={styles.send}
             onClick={startSend}
-            disabled={busy !== '' || !hasDraft || !state.to.trim()}
+            disabled={busy !== '' || !hasContent || !state.to.trim()}
             aria-busy={busy === 'send'}
           >
             {busy === 'send' ? (
@@ -998,7 +1155,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             type="button"
             className={styles.secondary}
             onClick={toggleSchedule}
-            disabled={busy !== '' || !hasDraft}
+            disabled={busy !== '' || !hasContent}
             aria-expanded={scheduleOpen}
           >
             {editingScheduled ? 'Change schedule' : 'Schedule send'}
@@ -1019,7 +1176,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             </select>
           </label>
           {editingScheduled ? null : (
-            <button type="button" className={styles.secondary} onClick={() => void saveDraftNow()} disabled={busy !== '' || !hasDraft}>
+            <button type="button" className={styles.secondary} onClick={() => void saveDraftNow()} disabled={busy !== '' || !hasContent}>
               {busy === 'draft' ? 'Saving…' : 'Save as draft'}
             </button>
           )}

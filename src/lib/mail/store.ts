@@ -19,6 +19,7 @@ import {
 } from './gmail-mail'
 import type { GmailFullMessage } from '@/lib/gmail-search'
 import { isHiddenSender, loadHiddenSenders } from './hidden-senders'
+import { loadSenderClients } from './sender-clients'
 import { isAutomatedMessage } from './automated-senders'
 import {
   MAX_ALERTS_PER_SYNC,
@@ -134,10 +135,16 @@ export async function storeClientEmail(
   }
 }
 
+/**
+ * Client matching index. With `userId`, that user's own sender → client
+ * choices (sender-clients.ts) are applied on top of automatic matching.
+ */
 export async function loadClientDomainIndex(
-  payload: PayloadLike,
+  payload: Pick<Payload, 'find'>,
   ownAddresses: string[],
+  options: { userId?: number } = {},
 ): Promise<ClientDomainIndex> {
+  const overrides = options.userId === undefined ? [] : await loadSenderClients(payload, options.userId)
   const res = await payload.find({
     collection: 'clients',
     limit: 0,
@@ -152,7 +159,7 @@ export async function loadClientDomainIndex(
       isActive: true,
     },
   } as never)
-  return buildClientDomainIndex((res as { docs: MatchableClient[] }).docs, { ownAddresses })
+  return buildClientDomainIndex((res as { docs: MatchableClient[] }).docs, { ownAddresses, overrides })
 }
 
 export function toClientEmailInput(args: {
@@ -223,6 +230,67 @@ export interface SyncResult {
  * Client-matched emails from the user's hidden senders, and automated ones
  * (see automated-senders.ts), are not stored.
  */
+/**
+ * Where a mailbox's sync cursor lives: mail-sync-states for the user's main
+ * Gmail, or the mail-accounts row for one of their extra Gmail accounts.
+ */
+export interface SyncStateStore {
+  load(): Promise<{ historyId: string | null } | null>
+  save(data: { gmailAddress: string; historyId: string; lastSyncAt: string }): Promise<void>
+  fail(message: string): Promise<void>
+}
+
+/** The main Gmail's cursor (one mail-sync-states row per user). */
+export function mainSyncStateStore(payload: PayloadLike, userId: number): SyncStateStore {
+  let stateId: number | null = null
+  return {
+    async load() {
+      const stateRes = await payload.find({
+        collection: 'mail-sync-states',
+        where: { user: { equals: userId } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      } as never)
+      const state = (stateRes as { docs: Array<{ id: number; historyId?: string | null }> }).docs[0]
+      stateId = state?.id ?? null
+      return state ? { historyId: state.historyId ?? null } : null
+    },
+    async save(data) {
+      const stateData = { user: userId, ...data, lastError: null }
+      if (stateId !== null) {
+        await payload.update({ collection: 'mail-sync-states', id: stateId, overrideAccess: true, data: stateData } as never)
+      } else {
+        await payload.create({ collection: 'mail-sync-states', overrideAccess: true, data: stateData } as never)
+      }
+    },
+    async fail(message) {
+      if (stateId === null) return
+      await payload.update({ collection: 'mail-sync-states', id: stateId, overrideAccess: true, data: { lastError: message } } as never)
+    },
+  }
+}
+
+/** An extra Gmail account's cursor, kept on its mail-accounts row. */
+export function extraAccountSyncStateStore(payload: PayloadLike, row: { id: number; historyId: string | null }): SyncStateStore {
+  return {
+    async load() {
+      return { historyId: row.historyId }
+    },
+    async save(data) {
+      await payload.update({
+        collection: 'mail-accounts',
+        id: row.id,
+        overrideAccess: true,
+        data: { historyId: data.historyId, lastSyncAt: data.lastSyncAt, lastError: null },
+      } as never)
+    },
+    async fail(message) {
+      await payload.update({ collection: 'mail-accounts', id: row.id, overrideAccess: true, data: { lastError: message } } as never)
+    },
+  }
+}
+
 export async function syncMailbox(args: {
   payload: PayloadLike
   userId: number
@@ -230,19 +298,16 @@ export async function syncMailbox(args: {
   userEmail?: string
   /** The user's hidden senders; loaded from their preferences when omitted. */
   hiddenSenders?: string[]
+  /** Cursor storage; the main Gmail's mail-sync-states row when omitted. */
+  stateStore?: SyncStateStore
+  /** Extra Gmail account being synced (its alerts open Mail on that account); "" = main Gmail. */
+  account?: string
   deps?: Partial<SyncDeps>
 }): Promise<SyncResult> {
   const deps = { ...defaultDeps, ...args.deps }
   const { payload, userId, accessToken } = args
-
-  const stateRes = await payload.find({
-    collection: 'mail-sync-states',
-    where: { user: { equals: userId } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  } as never)
-  const state = (stateRes as { docs: Array<{ id: number; historyId?: string | null }> }).docs[0]
+  const store = args.stateStore ?? mainSyncStateStore(payload, userId)
+  const state = await store.load()
 
   try {
     // Read the cursor before listing, so nothing that arrives mid-sync is skipped next time.
@@ -278,7 +343,7 @@ export async function syncMailbox(args: {
     let alerts = 0
     const alertCandidates: ClientEmailAlertInput[] = []
     if (fresh.length > 0) {
-      const index = await loadClientDomainIndex(payload, ownAddresses)
+      const index = await loadClientDomainIndex(payload, ownAddresses, { userId })
       const hiddenSenders = args.hiddenSenders ?? (await loadHiddenSenders(payload, userId))
       const headers = await deps.getMessageHeaders(accessToken, fresh)
       const all = headers
@@ -320,6 +385,7 @@ export async function syncMailbox(args: {
                 gmailThreadId: emailInput.gmailThreadId,
                 gmailMessageId: emailInput.gmailMessageId,
                 date: emailInput.date,
+                ...(args.account ? { account: args.account } : {}),
               })
             }
             return result
@@ -361,27 +427,11 @@ export async function syncMailbox(args: {
       }
     }
 
-    const stateData = {
-      user: userId,
+    await store.save({
       gmailAddress: profile.emailAddress,
       historyId: resumeHistoryId ?? profile.historyId,
       lastSyncAt: new Date().toISOString(),
-      lastError: null,
-    }
-    if (state) {
-      await payload.update({
-        collection: 'mail-sync-states',
-        id: state.id,
-        overrideAccess: true,
-        data: stateData,
-      } as never)
-    } else {
-      await payload.create({
-        collection: 'mail-sync-states',
-        overrideAccess: true,
-        data: stateData,
-      } as never)
-    }
+    })
 
     return {
       mode,
@@ -396,16 +446,7 @@ export async function syncMailbox(args: {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message.slice(0, 300) : 'Sync failed'
-    if (state) {
-      await payload
-        .update({
-          collection: 'mail-sync-states',
-          id: state.id,
-          overrideAccess: true,
-          data: { lastError: message },
-        } as never)
-        .catch(() => undefined)
-    }
+    await store.fail(message).catch(() => undefined)
     throw err
   }
 }

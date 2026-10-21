@@ -43,7 +43,8 @@ export interface CleanupDeps {
 
 const defaultDeps: CleanupDeps = { getMessageHeaders }
 
-async function summarisedIds(payload: PayloadLike, ids: number[]): Promise<Set<number>> {
+/** Ids (of `ids`) that have a timeline summary; those emails stay with their client. */
+export async function summarisedIds(payload: Pick<Payload, 'find'>, ids: number[]): Promise<Set<number>> {
   const out = new Set<number>()
   for (let i = 0; i < ids.length; i += 200) {
     const chunk = ids.slice(i, i + 200)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { followUpDb, listFollowUps } from "@/lib/mail/follow-ups";
-import { requireMailUser } from "@/lib/mail/route-helpers";
+import { requestedMailAccount, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
  * GET /api/mail/follow-ups
@@ -11,6 +11,8 @@ import { requireMailUser } from "@/lib/mail/route-helpers";
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
   if (ctx instanceof NextResponse) return ctx;
-  const items = await listFollowUps(followUpDb(ctx.payload), ctx.user.id);
+  const account = requestedMailAccount(req);
+  if (account === null) return NextResponse.json({ error: "Invalid mail account." }, { status: 400 });
+  const items = await listFollowUps(followUpDb(ctx.payload), ctx.user.id, account);
   return NextResponse.json({ items, now: new Date().toISOString() });
 }

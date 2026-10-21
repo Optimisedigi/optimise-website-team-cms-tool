@@ -13,6 +13,9 @@ import { OAUTH_NONCE_COOKIE, signOAuthState } from "@/lib/oauth-state";
  * (re)bind their own Gmail tokens. See BP-007 / `src/lib/oauth-state.ts`.
  * Existing users will need to re-click "Connect" once after this rollout
  * because old `state=<userId>` URLs no longer validate.
+ *
+ * `?add=1` connects another Gmail address as an extra Mail account (see
+ * src/lib/mail/accounts.ts); the main Gmail on the user record is untouched.
  */
 export async function GET(req: NextRequest) {
   if (
@@ -41,9 +44,13 @@ export async function GET(req: NextRequest) {
   }
 
   const { state, nonce } = signOAuthState(user.id, user.id);
+  // ?add=1 (Mail account menu): connect another Gmail as an extra account
+  // instead of replacing the main one. The flow is marked by which nonce
+  // cookie is set, so the callback knows without trusting a URL parameter.
+  const adding = req.nextUrl.searchParams.get("add") === "1";
 
   const cookieStore = await cookies();
-  cookieStore.set(OAUTH_NONCE_COOKIE.gmail, nonce, {
+  cookieStore.set(adding ? OAUTH_NONCE_COOKIE.gmailAdd : OAUTH_NONCE_COOKIE.gmail, nonce, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -51,5 +58,5 @@ export async function GET(req: NextRequest) {
     path: "/",
   });
 
-  return NextResponse.redirect(getGmailOAuthUrl(state));
+  return NextResponse.redirect(getGmailOAuthUrl(state, { selectAccount: adding }));
 }

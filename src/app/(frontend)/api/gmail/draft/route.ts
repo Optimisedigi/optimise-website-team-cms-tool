@@ -16,7 +16,7 @@ import { buildEditableDraft } from "@/lib/mail/draft-content";
 import { cleanSignOff } from "@/lib/mail/signature";
 import { parseMailComposeContent, type MailComposeContent } from "@/lib/mail/compose-content";
 import { MAIL_ATTACHMENT_LIMITS } from "@/lib/mail/compose-limits";
-import { gmailErrorResponse, parseGmailId, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
+import { gmailErrorResponse, parseGmailId, requestedMailAccount, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
  * POST /api/gmail/draft
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (ctx instanceof NextResponse) return ctx;
   const messageId = parseGmailId(req.nextUrl.searchParams.get("messageId"));
   if (!messageId) return NextResponse.json({ error: "Invalid draft message id." }, { status: 400 });
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
 
   try {
@@ -200,7 +200,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "draftId is invalid." }, { status: 400 });
   }
 
-  const tokenResult = await getValidGmailToken(user.id);
+  // The Mail view names the account it is showing; OptiMate sends no header (main Gmail).
+  const account = requestedMailAccount(req);
+  if (account === null) return NextResponse.json({ error: "Invalid mail account." }, { status: 400 });
+  const tokenResult = await getValidGmailToken(user.id, account);
   if (!tokenResult.ok) {
     return NextResponse.json(
       { error: "gmail-not-connected", reason: tokenResult.reason },
@@ -285,7 +288,7 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const directDraftId = params.has("draftId") ? parseGmailId(params.get("draftId")) : null;
   const messageId = directDraftId ? null : parseGmailId(params.get("messageId"));
   if (!directDraftId && !messageId) return NextResponse.json({ error: "Invalid draft id." }, { status: 400 });
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
 
   if (directDraftId) {

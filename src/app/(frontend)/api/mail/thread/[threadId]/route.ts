@@ -22,13 +22,13 @@ export async function GET(
   if (ctx instanceof NextResponse) return ctx;
   const threadId = parseGmailId((await params).threadId);
   if (!threadId) return NextResponse.json({ error: "Invalid thread id." }, { status: 400 });
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
 
   try {
     const [messages, index] = await Promise.all([
       getThreadMessagesWithCalendar(token.accessToken, threadId),
-      loadClientDomainIndex(ctx.payload, [token.email, token.userEmail].filter(Boolean)),
+      loadClientDomainIndex(ctx.payload, [token.email, token.userEmail].filter(Boolean), { userId: ctx.user.id }),
     ]);
     const stored = await ctx.payload.find({
       collection: "client-emails",

@@ -22,6 +22,15 @@ import ScheduledPanel, { type ScheduledDetail, type ScheduledItem } from './Sche
 import AwaitingPanel, { type FollowUpItem } from './AwaitingPanel'
 import { addBusinessDays } from '../../lib/mail/schedule-times'
 import { MAIL_AUTO_REFRESH_MS, isMailAutoRefreshWindow } from '../../lib/mail/auto-refresh'
+import {
+  MAIL_ACCOUNT_QUERY_PARAM,
+  MAIL_ACCOUNT_STORAGE_KEY,
+  mailAccountHeaders,
+  normaliseMailAccount,
+} from '../../lib/mail/accounts-shared'
+import type { SenderClientOverride } from '../../lib/mail/client-matching'
+import { normaliseSenderEntry, senderClientFor } from '../../lib/mail/sender-clients'
+import MailStepNav from './MailStepNav'
 
 /**
  * CMS Mail view. Folder list (Inbox / Sent / Drafts, plus the Scheduled queue) → reading pane (newest
@@ -34,6 +43,11 @@ import { MAIL_AUTO_REFRESH_MS, isMailAutoRefreshWindow } from '../../lib/mail/au
  *
  * `/admin/mail?draft=<gmail message id>` opens that Gmail draft in the compose
  * window (OptiMate links its saved drafts here instead of to Gmail).
+ *
+ * The breadcrumb's email is an account switcher (MailStepNav): Mail shows one
+ * Gmail account at a time, the user's main Gmail or one of their extra
+ * accounts, and every request names that account (MAIL_ACCOUNT_HEADER). A
+ * compose window keeps the account it was opened in.
  */
 
 export interface MailClientOption {
@@ -94,11 +108,12 @@ interface ApiError {
   connectUrl?: string
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
+/** JSON request for the Gmail account `account` ('' = the main Gmail). */
+async function apiRequest<T>(url: string, init: RequestInit | undefined, account: string): Promise<T> {
   const res = await fetch(url, {
     credentials: 'include',
     ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+    headers: { 'content-type': 'application/json', ...mailAccountHeaders(account), ...(init?.headers ?? {}) },
   })
   const data = (await res.json().catch(() => ({}))) as T & ApiError
   if (!res.ok) {
@@ -146,7 +161,41 @@ function replySubject(subject: string): string {
   return /^re\s*:/i.test(subject) ? subject : `Re: ${subject || '(no subject)'}`
 }
 
+interface AccountsInfo {
+  /** The main Gmail address, or null when none is connected. */
+  primary: string | null
+  accounts: Array<{ email: string }>
+  addUrl: string
+  canAdd: boolean
+}
+
+function readStoredAccount(): string {
+  try {
+    return normaliseMailAccount(window.localStorage.getItem(MAIL_ACCOUNT_STORAGE_KEY) ?? '')
+  } catch {
+    return ''
+  }
+}
+
+function storeAccount(account: string): void {
+  try {
+    if (account) window.localStorage.setItem(MAIL_ACCOUNT_STORAGE_KEY, account)
+    else window.localStorage.removeItem(MAIL_ACCOUNT_STORAGE_KEY)
+  } catch {
+    // Storage unavailable: the choice just isn't remembered.
+  }
+}
+
 export default function MailApp({ clients }: { clients: MailClientOption[] }) {
+  // The Gmail account on screen: '' = the user's main Gmail, else an extra account's address.
+  // The ref is what requests read, so callbacks never send a stale account.
+  const accountRef = useRef('')
+  const [activeAccount, setActiveAccount] = useState('')
+  const [accountsInfo, setAccountsInfo] = useState<AccountsInfo | null>(null)
+  /** Mail request on the account on screen. */
+  function api<T>(url: string, init?: RequestInit): Promise<T> {
+    return apiRequest<T>(url, init, accountRef.current)
+  }
   const [folder, setFolder] = useState<MailFolder>('inbox')
   // The Scheduled tab shows the send queue instead of a Gmail folder.
   const [showScheduled, setShowScheduled] = useState(false)
@@ -174,6 +223,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [showClientPanel, setShowClientPanel] = useState(false)
   const [clientInput, setClientInput] = useState('')
   const [starChoice, setStarChoice] = useState(false)
+  // The user's sender → client choices (which client pill a sender gets).
+  const [senderClients, setSenderClients] = useState<SenderClientOverride[]>([])
+  const [clientChoice, setClientChoice] = useState<{ sender: string; clientId: string; busy: boolean } | null>(null)
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [listLoading, setListLoading] = useState(true)
   const [error, setError] = useState<{ message: string; connectUrl?: string } | null>(null)
@@ -233,6 +285,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           account: string
           hiddenSenders?: string[]
           clientSenders?: string[]
+          senderClients?: SenderClientOverride[]
         }>(
           `/api/mail/inbox?${params.toString()}`,
         )
@@ -240,6 +293,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         setAccount(data.account)
         if (Array.isArray(data.hiddenSenders)) setHiddenSenders(data.hiddenSenders)
         if (Array.isArray(data.clientSenders)) setClientSenders(data.clientSenders)
+        if (Array.isArray(data.senderClients)) setSenderClients(data.senderClients)
         // Inbox: unread on top (across loaded pages); other folders keep Gmail's order.
         listAppended.current = Boolean(opts.append)
         setThreads((current) => {
@@ -350,6 +404,39 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     return () => window.clearInterval(timer)
   }, [])
 
+  // Which account to open on, before the first load below: `?account=` (an
+  // alert or the add-account return), else the last one used in this browser.
+  // Also shows the result of connecting another account.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const fromUrl = params.get(MAIL_ACCOUNT_QUERY_PARAM)
+    const added = params.get('mail_account_added')
+    const addError = params.get('mail_account_error')
+    const initial = fromUrl !== null ? normaliseMailAccount(fromUrl) : readStoredAccount()
+    accountRef.current = initial
+    setActiveAccount(initial)
+    if (fromUrl !== null) storeAccount(initial)
+    if (added) setSyncNote(`Connected ${added}.`)
+    if (addError) setError({ message: `Could not add the Gmail account: ${addError.slice(0, 300)}` })
+    if (fromUrl !== null || added !== null || addError !== null) {
+      params.delete(MAIL_ACCOUNT_QUERY_PARAM)
+      params.delete('mail_account_added')
+      params.delete('mail_account_error')
+      const rest = params.toString()
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`)
+    }
+  }, [])
+
+  const loadAccounts = useCallback(async () => {
+    try {
+      const data = await apiRequest<AccountsInfo>('/api/mail/accounts', undefined, '')
+      setAccountsInfo(data)
+      return data
+    } catch {
+      return null
+    }
+  }, [])
+
   // Sync on open.
   useEffect(() => {
     void runSync()
@@ -389,6 +476,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       setSummary(null)
       setHideChoice(false)
       setStarChoice(false)
+      setClientChoice(null)
       setSearch('')
       setQuery('')
       void loadInbox({ folder: next })
@@ -442,6 +530,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       setSelectedThreadId(thread.threadId)
       setHideChoice(false)
       setStarChoice(false)
+      setClientChoice(null)
       setComposer(null)
       setSummary(null)
       setActionNote('')
@@ -470,17 +559,93 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     [loadCounts],
   )
 
-  useEffect(() => {
-    let cancelled = false
-    api<{ settingsAccess?: boolean; signatureHtml?: string }>('/api/gmail/status')
+  // The signature of the account on screen (each Gmail account has its own).
+  const signatureRequest = useRef(0)
+  const loadSignature = useCallback(() => {
+    const request = ++signatureRequest.current
+    setSignatureHtml(null)
+    apiRequest<{ settingsAccess?: boolean; signatureHtml?: string }>('/api/gmail/status', undefined, accountRef.current)
       .then((data) => {
-        if (!cancelled && data.settingsAccess) setSignatureHtml(typeof data.signatureHtml === 'string' ? data.signatureHtml : '')
+        if (request === signatureRequest.current && data.settingsAccess) {
+          setSignatureHtml(typeof data.signatureHtml === 'string' ? data.signatureHtml : '')
+        }
       })
       .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
   }, [])
+
+  useEffect(() => {
+    loadSignature()
+    void loadAccounts().then((data) => {
+      // A remembered account that was removed (or belongs to someone else): back to the main Gmail.
+      const current = accountRef.current
+      if (data && current && current !== data.primary && !data.accounts.some((entry) => entry.email === current)) {
+        switchAccountRef.current('')
+      }
+    })
+    return () => {
+      signatureRequest.current++
+    }
+  }, [loadSignature, loadAccounts])
+
+  /**
+   * Show another Gmail account ('' = the main one). The list, the open email
+   * and the search reset; an open compose window stays, still on its own account.
+   */
+  const switchAccount = useCallback(
+    (next: string) => {
+      const clean = normaliseMailAccount(next)
+      const target = clean && clean === accountsInfoRef.current?.primary ? '' : clean
+      if (target === accountRef.current) return
+      accountRef.current = target
+      setActiveAccount(target)
+      storeAccount(target)
+      threadRequest.current++
+      listAppended.current = false
+      setShowScheduled(false)
+      setShowAwaiting(false)
+      setSelectedScheduledId(null)
+      setFolder('inbox')
+      setThreads([])
+      setAccount('')
+      setCounts(null)
+      setNextPageToken(null)
+      setSelectedThreadId(null)
+      setMessages([])
+      setThreadInvite(null)
+      setThreadLoading(false)
+      setThreadError('')
+      setActionNote('')
+      setSummary(null)
+      setHideChoice(false)
+      setStarChoice(false)
+      setClientChoice(null)
+      setSearch('')
+      setQuery('')
+      setError(null)
+      setSyncNote('')
+      loadSignature()
+      void runSync()
+      void loadInbox({ folder: 'inbox' })
+      void loadCounts()
+    },
+    [loadCounts, loadInbox, loadSignature, runSync],
+  )
+  const switchAccountRef = useRef(switchAccount)
+  switchAccountRef.current = switchAccount
+  const accountsInfoRef = useRef(accountsInfo)
+  accountsInfoRef.current = accountsInfo
+
+  async function removeAccount(email: string) {
+    try {
+      await apiRequest('/api/mail/accounts', { method: 'DELETE', body: JSON.stringify({ email }) }, '')
+      if (email === accountRef.current) switchAccount('')
+      setSyncNote(`Removed ${email} from Mail.`)
+    } catch (err) {
+      showError(err)
+    } finally {
+      void loadAccounts()
+    }
+  }
 
   const openDraft = useCallback(
     async (messageId: string) => {
@@ -513,6 +678,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           html: draft.html,
           attachments: draft.attachments,
           draftId: draft.draftId,
+          account: accountRef.current,
         })
       } catch (err) {
         showError(new Error(`Could not open the draft: ${(err as Error).message}`))
@@ -570,6 +736,13 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     () => (hideTarget ? matchingClientSenderEntries(hideTarget.address, clientSenders) : []),
     [hideTarget, clientSenders],
   )
+  // The open sender's client pill: the user's own choice, else automatic matching.
+  const senderChoice = hideTarget ? senderClientFor(hideTarget.address, senderClients) : undefined
+  const senderPill = useMemo(() => {
+    if (!hideTarget) return null
+    const fromSender = [...messages].reverse().find((m) => senderAddress(m.from).toLowerCase() === hideTarget.address)
+    return fromSender?.match ?? null
+  }, [hideTarget, messages])
 
   // ── Hidden senders ──
   // Saved to Payload's per-user preferences; the inbox route turns the list
@@ -641,6 +814,60 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   async function unstarEntries(entries: string[]) {
     if (entries.length === 0) return
     await saveClientSenders(clientSenders.filter((item) => !entries.includes(item)))
+  }
+
+  // ── Sender → client pill ──
+  // Saved per user (sender-clients.ts). The server also moves this sender's
+  // automatically filed emails to the chosen client.
+  async function reloadOpenThread() {
+    const threadId = selectedThreadId
+    if (!threadId) return
+    const request = threadRequest.current
+    try {
+      const data = await api<{ messages: ThreadMessage[] }>(`/api/mail/thread/${encodeURIComponent(threadId)}`)
+      if (request === threadRequest.current) setMessages(data.messages)
+    } catch {
+      // The pane keeps what it showed.
+    }
+  }
+
+  async function saveSenderClient(sender: string, choice: string) {
+    setClientChoice((current) => (current ? { ...current, busy: true } : current))
+    try {
+      const body = choice === 'auto' ? { sender, automatic: true } : { sender, clientId: choice === 'none' ? null : Number(choice) }
+      const data = await api<{
+        senderClients: SenderClientOverride[]
+        client: { id: number; name: string } | null
+        moved: number
+        moveNote?: string | null
+      }>('/api/mail/sender-client', { method: 'POST', body: JSON.stringify(body) })
+      setSenderClients(data.senderClients)
+      setClientChoice(null)
+      const who = sender.startsWith('@') ? `everyone at ${sender}` : sender
+      setActionNote(
+        [
+          choice === 'auto'
+            ? `${who} is matched to a client automatically again.`
+            : data.client
+              ? `Emails from ${who} now go to ${data.client.name || 'that client'}.`
+              : `Emails from ${who} are no longer linked to a client.`,
+          data.moved ? `Moved ${data.moved} saved email${data.moved === 1 ? '' : 's'} to it.` : '',
+          data.moveNote ?? '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+      if (!panelOpen) void loadInbox({ folder, q: query })
+      void reloadOpenThread()
+    } catch (err) {
+      setClientChoice((current) => (current ? { ...current, busy: false } : current))
+      setActionNote((err as Error).message)
+    }
+  }
+
+  function clientLabel(clientId: number | null): string {
+    if (clientId === null) return 'No client'
+    return clients.find((client) => client.id === clientId)?.name ?? `Client ${clientId}`
   }
 
   async function checkCleanup() {
@@ -716,34 +943,50 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           : message.match
             ? { id: message.match.id, name: message.match.name }
             : null,
+        // Shown under the reply with "•••", to add notes into it.
+        quote: { from: message.from, date: message.date, html: message.html, text: message.body },
       },
       to: ownMessage && message.to ? message.to : senderAddress(message.from),
       cc: '',
       subject: replySubject(message.subject),
       html: '',
       attachments: [],
+      account: accountRef.current,
     })
   }
 
   function startNew() {
     setSummary(null)
-    setComposer({ key: ++composeKey.current, mode: 'new', replyTo: null, to: '', cc: '', subject: '', html: '', attachments: [] })
+    setComposer({
+      key: ++composeKey.current,
+      mode: 'new',
+      replyTo: null,
+      to: '',
+      cc: '',
+      subject: '',
+      html: '',
+      attachments: [],
+      account: accountRef.current,
+    })
   }
 
   // Send is only ever reached from the compose window's Send button.
   async function sendComposed(state: ComposeState, content: ComposeContent) {
+    // Always the account the compose window was opened in.
+    const account = state.account ?? ''
+    const onScreen = account === accountRef.current
     if (state.scheduledId !== undefined) {
       // Save the edits to the queued email, then send that one now: the queue's
       // claim means it can only ever go out once, and a failure leaves it in the queue.
       await saveScheduledEdit(state.scheduledId, state, content, null)
-      await api(`/api/mail/schedule/${state.scheduledId}`, { method: 'PATCH', body: JSON.stringify({ action: 'send-now' }) })
+      await apiRequest(`/api/mail/schedule/${state.scheduledId}`, { method: 'PATCH', body: JSON.stringify({ action: 'send-now' }) }, account)
       setComposer(null)
       setActionNote('Sent.')
       void loadScheduled()
       void loadCounts()
       return
     }
-    const data = await api<{ client: { name: string } | null; draftNote?: string | null; followUpNote?: string | null }>('/api/mail/send', {
+    const data = await apiRequest<{ client: { name: string } | null; draftNote?: string | null; followUpNote?: string | null }>('/api/mail/send', {
       method: 'POST',
       body: JSON.stringify({
         to: state.to,
@@ -759,7 +1002,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         // Business days are counted in this browser's local time.
         ...(state.followUpDays ? { followUpAt: addBusinessDays(new Date(), state.followUpDays).toISOString() } : {}),
       }),
-    })
+    }, account)
     setComposer(null)
     setActionNote(
       [
@@ -773,6 +1016,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         .filter(Boolean)
         .join(' '),
     )
+    // The rest only applies when Mail is still showing the account it was sent from.
+    if (!onScreen) return
     if (showAwaiting) void loadFollowUps()
     const thread = selectedThread
     if (thread && state.mode === 'reply') void openThread(thread)
@@ -784,7 +1029,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   // Queues the email; the server sends it at `when` (Gmail has no scheduled send).
   /** PUT the compose window's edits to a scheduled email; `when` null keeps its time. */
   async function saveScheduledEdit(id: number, state: ComposeState, content: ComposeContent, when: Date | null) {
-    await api(`/api/mail/schedule/${id}`, {
+    await apiRequest(`/api/mail/schedule/${id}`, {
       method: 'PUT',
       body: JSON.stringify({
         to: state.to,
@@ -798,7 +1043,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         ...(when ? { scheduledFor: when.toISOString() } : {}),
         followUpDays: state.followUpDays ?? 0,
       }),
-    })
+    }, state.account ?? '')
   }
 
   async function scheduleComposed(state: ComposeState, content: ComposeContent, when: Date) {
@@ -810,7 +1055,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       void loadCounts()
       return
     }
-    const data = await api<{ draftNote?: string | null }>('/api/mail/schedule', {
+    const data = await apiRequest<{ draftNote?: string | null }>('/api/mail/schedule', {
       method: 'POST',
       body: JSON.stringify({
         to: state.to,
@@ -826,7 +1071,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         ...(state.draftId ? { draftId: state.draftId } : {}),
         ...(state.followUpDays ? { followUpDays: state.followUpDays } : {}),
       }),
-    })
+    }, state.account ?? '')
     setComposer(null)
     setActionNote([`Scheduled for ${longDate(when.toISOString())}.`, data.draftNote ?? ''].filter(Boolean).join(' '))
     if (showScheduled) void loadScheduled()
@@ -877,8 +1122,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       attachments: detail.attachments,
       scheduledId: item.id,
       scheduledFor: item.scheduledFor,
-      // Keep the reminder exactly as queued (off stays off; no client default).
+      // Keep the reminder exactly as queued (off stays off).
       followUpDays: detail.followUpDays ?? 0,
+      account: accountRef.current,
     })
   }
 
@@ -900,6 +1146,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       html: '',
       attachments: [],
       aiPrompt: 'Write a short, polite follow-up nudging for a reply',
+      account: accountRef.current,
     })
   }
 
@@ -947,14 +1194,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }
 
-  async function deleteComposedDraft(draftId: string): Promise<void> {
-    await api(`/api/gmail/draft?draftId=${encodeURIComponent(draftId)}`, { method: 'DELETE' })
+  async function deleteComposedDraft(draftId: string, account: string): Promise<void> {
+    await apiRequest(`/api/gmail/draft?draftId=${encodeURIComponent(draftId)}`, { method: 'DELETE' }, account)
+    if (account !== accountRef.current) return
     if (folder === 'drafts' && !panelOpen) void loadInbox({ folder, q: query })
     void loadCounts()
   }
 
+  // Autosave and Save as draft: always into the compose window's own account.
   async function saveComposedDraft(state: ComposeState, content: ComposeContent): Promise<string | undefined> {
-    const data = await api<{ draftId?: string }>('/api/gmail/draft', {
+    const account = state.account ?? ''
+    const data = await apiRequest<{ draftId?: string }>('/api/gmail/draft', {
       method: 'POST',
       body: JSON.stringify({
         to: state.to,
@@ -968,9 +1218,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         ...(state.replyTo ? { replyToMessageId: state.replyTo.messageId } : {}),
         ...(state.draftId ? { draftId: state.draftId } : {}),
       }),
-    })
-    if (folder === 'drafts' && !panelOpen) void loadInbox({ folder, q: query })
-    void loadCounts()
+    }, account)
+    if (account === accountRef.current) {
+      if (folder === 'drafts' && !panelOpen) void loadInbox({ folder, q: query })
+      void loadCounts()
+    }
     return data.draftId
   }
 
@@ -1051,8 +1303,21 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   return (
     <div className={`${styles.app} ${readerOpen ? styles.appReaderOpen : ''}`}>
+      <MailStepNav
+        current={account || activeAccount || accountsInfo?.primary || ''}
+        accounts={[
+          ...(accountsInfo?.primary ? [{ email: accountsInfo.primary, main: true }] : []),
+          ...(accountsInfo?.accounts ?? []).map((entry) => ({ email: entry.email, main: false })),
+          // The account on screen before the list loads (or if it is missing from it).
+          ...(account && account !== accountsInfo?.primary && !(accountsInfo?.accounts ?? []).some((entry) => entry.email === account)
+            ? [{ email: account, main: activeAccount === '' }]
+            : []),
+        ]}
+        onSelect={(email, main) => switchAccount(main ? '' : email)}
+        onRemove={(email) => void removeAccount(email)}
+        addUrl={accountsInfo?.canAdd ? accountsInfo.addUrl : null}
+      />
       <div className={styles.toolbar}>
-        {account ? <span className={styles.muted}>{account}</span> : null}
         <div className={styles.folders} role="tablist" aria-label="Mail folders">
           {MAIL_TABS.map((entry) => {
             const active =
@@ -1071,21 +1336,6 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             )
           })}
         </div>
-        {panelOpen ? null : <form
-          className={styles.search}
-          onSubmit={(event) => {
-            event.preventDefault()
-            setQuery(search)
-            void loadInbox({ folder, q: search })
-          }}
-        >
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
-            aria-label={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
-          />
-        </form>}
         <span className={styles.muted}>{syncNote}</span>
         {/* Collapsed confirmation of the last hide, so it does not take a full row. */}
         {lastHidden ? (
@@ -1181,6 +1431,32 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
               Add
             </button>
           </form>
+
+          <h3 className={styles.panelTitle}>Client pills you chose</h3>
+          <p className={styles.muted}>
+            Senders you moved to a different client (or to no client) with the Client button on an open email. New emails from them are saved to
+            that client.
+          </p>
+          {senderClients.length === 0 ? <p className={styles.muted}>None yet: every sender is matched automatically.</p> : null}
+          <ul className={styles.hiddenList}>
+            {senderClients.map((entry) => (
+              <li key={entry.sender}>
+                <span>
+                  {entry.sender.startsWith('@') ? `Anyone at ${entry.sender}` : entry.sender} → {clientLabel(entry.clientId)}
+                </span>
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={() => {
+                    const sender = normaliseSenderEntry(entry.sender)
+                    if (sender) void saveSenderClient(sender, 'auto')
+                  }}
+                >
+                  Use automatic
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -1284,6 +1560,25 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       ) : null}
 
       <div className={styles.panes} style={panelOpen ? { display: 'none' } : undefined}>
+        <div className={styles.listPane}>
+        {/* Search sits right above the first email in the list. */}
+        <form
+          className={styles.search}
+          role="search"
+          onSubmit={(event) => {
+            event.preventDefault()
+            setQuery(search)
+            void loadInbox({ folder, q: search })
+          }}
+        >
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
+            aria-label={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
+          />
+        </form>
         <ul className={styles.list} aria-label={FOLDER_LABELS[folder]}>
           {threads.map((thread) => (
             <li key={thread.threadId} className={styles.rowItem}>
@@ -1348,6 +1643,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             </li>
           ) : null}
         </ul>
+        </div>
 
         <section
           ref={readerRef}
@@ -1432,6 +1728,63 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                     )
                   ) : null}
                   {hideTarget ? (
+                    clientChoice ? (
+                      <span className={styles.assign}>
+                        {hideTarget.domain ? (
+                          <select
+                            value={clientChoice.sender}
+                            onChange={(e) => setClientChoice({ ...clientChoice, sender: e.target.value })}
+                            aria-label="Which emails"
+                            disabled={clientChoice.busy}
+                          >
+                            <option value={hideTarget.address}>From {hideTarget.address}</option>
+                            <option value={`@${hideTarget.domain}`}>From anyone @{hideTarget.domain}</option>
+                          </select>
+                        ) : null}
+                        <select
+                          value={clientChoice.clientId}
+                          onChange={(e) => setClientChoice({ ...clientChoice, clientId: e.target.value })}
+                          aria-label="Client for this sender"
+                          disabled={clientChoice.busy}
+                        >
+                          <option value="auto">Automatic{senderChoice ? '' : senderPill ? ` (${senderPill.name})` : ' (none)'}</option>
+                          {clients.map((client) => (
+                            <option key={client.id} value={client.id}>
+                              {client.name}
+                            </option>
+                          ))}
+                          <option value="none">No client</option>
+                        </select>
+                        <button
+                          type="button"
+                          className={styles.btn}
+                          disabled={clientChoice.busy}
+                          onClick={() => void saveSenderClient(clientChoice.sender, clientChoice.clientId)}
+                        >
+                          {clientChoice.busy ? 'Saving…' : 'Save'}
+                        </button>
+                        <button type="button" className={styles.linkBtn} onClick={() => setClientChoice(null)} disabled={clientChoice.busy}>
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.btn}
+                        onClick={() =>
+                          setClientChoice({
+                            sender: senderChoice?.sender ?? hideTarget.address,
+                            clientId: senderChoice ? (senderChoice.clientId === null ? 'none' : String(senderChoice.clientId)) : 'auto',
+                            busy: false,
+                          })
+                        }
+                        title="Change which client this sender's emails are added to"
+                      >
+                        Client: {senderPill?.name ?? (senderChoice?.clientId === null ? 'No client' : 'None')} ▾
+                      </button>
+                    )
+                  ) : null}
+                  {hideTarget ? (
                     hideTarget.domain ? (
                       hideChoice ? (
                         <span className={styles.assign}>
@@ -1461,7 +1814,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
               {actionNote ? <p className={styles.note}>{actionNote}</p> : null}
 
               {threadInvite && messages.some((message) => message.messageId === threadInvite.messageId) ? (
-                <CalendarInviteCard key={threadInvite.messageId} data={threadInvite} />
+                <CalendarInviteCard key={`${activeAccount}:${threadInvite.messageId}`} data={threadInvite} account={activeAccount} />
               ) : null}
 
               {/* Newest message first, like the latest sender at the top. */}
@@ -1555,18 +1908,21 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         <ComposeWindow
           key={composer.key}
           initial={composer}
-          title={
+          title={`${
             composer.scheduledId !== undefined
               ? 'Edit scheduled email'
               : composer.mode === 'reply'
                 ? `Reply to ${senderName(composer.replyTo?.from ?? '')}`
                 : 'New message'
-          }
+          }${
+            // With more than one account, say which one this email is written in.
+            (accountsInfo?.accounts.length ?? 0) > 0 ? ` · ${composer.account || accountsInfo?.primary || 'main Gmail'}` : ''
+          }`}
           onClose={() => setComposer(null)}
           onSend={sendComposed}
           onSchedule={scheduleComposed}
           onSaveDraft={saveComposedDraft}
-          onDeleteDraft={deleteComposedDraft}
+          onDeleteDraft={(draftId) => deleteComposedDraft(draftId, composer.account ?? '')}
           signatureHtml={signatureHtml}
         />
       ) : null}

@@ -48,13 +48,14 @@ function getOAuth2Client() {
  * alongside that fix; users must click "Connect Gmail" once after the
  * rollout to obtain a freshly-signed state.
  */
-export function getGmailOAuthUrl(state: string): string {
+export function getGmailOAuthUrl(state: string, options: { selectAccount?: boolean } = {}): string {
   const oauth2Client = getOAuth2Client();
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     state,
-    prompt: "consent",
+    // Adding another account must let the user pick a different Google login.
+    prompt: options.selectAccount ? "select_account consent" : "consent",
     include_granted_scopes: true,
   });
 }

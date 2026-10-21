@@ -93,6 +93,7 @@ export interface Config {
     'mail-sync-states': MailSyncState;
     'scheduled-emails': ScheduledEmail;
     'mail-follow-ups': MailFollowUp;
+    'mail-accounts': MailAccount;
     'google-ads-change-previews': GoogleAdsChangePreview;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
@@ -225,6 +226,7 @@ export interface Config {
     'mail-sync-states': MailSyncStatesSelect<false> | MailSyncStatesSelect<true>;
     'scheduled-emails': ScheduledEmailsSelect<false> | ScheduledEmailsSelect<true>;
     'mail-follow-ups': MailFollowUpsSelect<false> | MailFollowUpsSelect<true>;
+    'mail-accounts': MailAccountsSelect<false> | MailAccountsSelect<true>;
     'google-ads-change-previews': GoogleAdsChangePreviewsSelect<false> | GoogleAdsChangePreviewsSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
@@ -8505,6 +8507,7 @@ export interface ScheduledEmail {
   lastError?: string | null;
   sentAt?: string | null;
   sentMessageId?: string | null;
+  account?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -8525,6 +8528,24 @@ export interface MailFollowUp {
   status?: ('waiting' | 'due' | 'replied' | 'dismissed') | null;
   notifiedAt?: string | null;
   lastCheckedAt?: string | null;
+  account?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mail-accounts".
+ */
+export interface MailAccount {
+  id: number;
+  owner: number | User;
+  email: string;
+  accessToken?: string | null;
+  refreshToken?: string | null;
+  tokenExpiry?: string | null;
+  historyId?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -13688,6 +13709,7 @@ export interface ScheduledEmailsSelect<T extends boolean = true> {
   lastError?: T;
   sentAt?: T;
   sentMessageId?: T;
+  account?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -13707,6 +13729,23 @@ export interface MailFollowUpsSelect<T extends boolean = true> {
   status?: T;
   notifiedAt?: T;
   lastCheckedAt?: T;
+  account?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mail-accounts_select".
+ */
+export interface MailAccountsSelect<T extends boolean = true> {
+  owner?: T;
+  email?: T;
+  accessToken?: T;
+  refreshToken?: T;
+  tokenExpiry?: T;
+  historyId?: T;
+  lastSyncAt?: T;
+  lastError?: T;
   updatedAt?: T;
   createdAt?: T;
 }

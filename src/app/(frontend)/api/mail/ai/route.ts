@@ -96,12 +96,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         return NextResponse.json({ error: "A new draft does not take an email." }, { status: 400 });
       }
       if (includeClientData) {
-        const token = await requireGmailToken(ctx.user.id);
+        const token = await requireGmailToken(ctx.user.id, req);
         if (token instanceof NextResponse) return token;
         const client = await resolveRecipientClient({
           payload: ctx.payload,
           message: { to: recipients(body.to), cc: recipients(body.cc) },
           ownAddresses: [token.email, token.userEmail].filter(Boolean),
+          userId: ctx.user.id,
         });
         const loaded = await loadClientContext(client);
         if (loaded instanceof NextResponse) return loaded;
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (!gmailMessageId) {
         return NextResponse.json({ error: "Select exactly one email to reply to." }, { status: 400 });
       }
-      const token = await requireGmailToken(ctx.user.id);
+      const token = await requireGmailToken(ctx.user.id, req);
       if (token instanceof NextResponse) return token;
       let message;
       let thread: Awaited<ReturnType<typeof getThreadMessages>> | null = null;

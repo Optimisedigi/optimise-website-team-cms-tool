@@ -29,13 +29,13 @@ const MAX_EMAILS_RETURNED = 8;
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
   if (ctx instanceof NextResponse) return ctx;
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
 
   const [clientSenders, hiddenSenders, index] = await Promise.all([
     loadClientSenders(ctx.payload, ctx.user.id),
     loadHiddenSenders(ctx.payload, ctx.user.id),
-    loadClientDomainIndex(ctx.payload, [token.email, token.userEmail].filter(Boolean)),
+    loadClientDomainIndex(ctx.payload, [token.email, token.userEmail].filter(Boolean), { userId: ctx.user.id }),
   ]);
   const terms = clientUnreadTerms(index, clientSenders);
   const queries = clientUnreadQueries(terms);

@@ -81,6 +81,8 @@ export async function createFollowUp(
   db: FollowUpDb,
   input: {
     ownerId: number;
+    /** Extra Gmail account it was sent from; omitted = the main Gmail. */
+    account?: string;
     clientId: number | null;
     threadId: string;
     sentMessageId: string;
@@ -92,8 +94,8 @@ export async function createFollowUp(
 ): Promise<number | null> {
   const result = await db.run(
     sql`insert into mail_follow_ups
-          (owner_id, client_id, gmail_thread_id, sent_message_id, "to", subject, sent_at, remind_at, status)
-        values (${input.ownerId}, ${input.clientId}, ${input.threadId}, ${input.sentMessageId},
+          (owner_id, account, client_id, gmail_thread_id, sent_message_id, "to", subject, sent_at, remind_at, status)
+        values (${input.ownerId}, ${input.account || null}, ${input.clientId}, ${input.threadId}, ${input.sentMessageId},
                 ${input.to.slice(0, 1_000)}, ${input.subject.slice(0, 1_000)}, ${input.sentAt.toISOString()},
                 ${input.remindAt.toISOString()}, 'waiting')
         on conflict (sent_message_id) do nothing
@@ -103,14 +105,23 @@ export async function createFollowUp(
   return id === undefined || id === null ? null : Number(id);
 }
 
-/** The user's open reminders (waiting or due), soonest first. */
-export async function listFollowUps(db: FollowUpDb, ownerId: number): Promise<FollowUpItem[]> {
+/**
+ * SQL filter for one Gmail account's rows: `account` "" = the user's main
+ * Gmail (column empty or NULL); undefined = every account.
+ */
+function accountFilter(column: "account" | "f.account", account: string | undefined) {
+  if (account === undefined) return sql``;
+  return column === "f.account" ? sql` and coalesce(f.account, '') = ${account}` : sql` and coalesce(account, '') = ${account}`;
+}
+
+/** The user's open reminders (waiting or due), soonest first; `account` limits them to one Gmail account. */
+export async function listFollowUps(db: FollowUpDb, ownerId: number, account?: string): Promise<FollowUpItem[]> {
   const result = await db.run(
     sql`select f.id, f.gmail_thread_id, f.sent_message_id, f."to", f.subject, f.client_id, c.name as client_name,
                f.sent_at, f.remind_at, f.status
         from mail_follow_ups f
         left join clients c on c.id = f.client_id
-        where f.owner_id = ${ownerId} and f.status in ('waiting', 'due')
+        where f.owner_id = ${ownerId} and f.status in ('waiting', 'due')${accountFilter("f.account", account)}
         order by f.remind_at asc, f.id asc
         limit 200`,
   );
@@ -129,11 +140,11 @@ export async function listFollowUps(db: FollowUpDb, ownerId: number): Promise<Fo
 }
 
 /** Open reminders whose time has come (the Awaiting reply tab badge). */
-export async function countDueFollowUps(db: FollowUpDb, ownerId: number, now: Date): Promise<number> {
+export async function countDueFollowUps(db: FollowUpDb, ownerId: number, now: Date, account?: string): Promise<number> {
   const result = await db.run(
     sql`select count(*) as n from mail_follow_ups
         where owner_id = ${ownerId}
-          and (status = 'due' or (status = 'waiting' and remind_at <= ${now.toISOString()}))`,
+          and (status = 'due' or (status = 'waiting' and remind_at <= ${now.toISOString()}))${accountFilter("account", account)}`,
   );
   return Number(rowsOf(result)[0]?.n ?? 0);
 }
@@ -189,7 +200,8 @@ export function isReplied(messages: ThreadReplyHeader[], sentAt: Date, ownAddres
 
 export interface FollowUpCheckDeps {
   now: () => Date;
-  getToken: (ownerId: number) => Promise<
+  /** `account`: the extra Gmail account the email was sent from; undefined = the main Gmail. */
+  getToken: (ownerId: number, account?: string) => Promise<
     { ok: true; accessToken: string; email: string; userEmail: string } | { ok: false; reason: string }
   >;
   getThreadHeaders: (accessToken: string, threadId: string) => Promise<ThreadReplyHeader[]>;
@@ -221,7 +233,7 @@ export async function checkFollowUps(payload: Payload, deps: FollowUpCheckDeps):
   const tally: FollowUpCheckResult = { checked: 0, replied: 0, gone: 0, due: 0, notified: 0, skipped: 0, errors: 0 };
   const rows = rowsOf(
     await db.run(
-      sql`select id, owner_id, client_id, gmail_thread_id, "to", subject, sent_at, remind_at, status
+      sql`select id, owner_id, account, client_id, gmail_thread_id, "to", subject, sent_at, remind_at, status
           from mail_follow_ups
           where status in ('waiting', 'due')
           order by coalesce(last_checked_at, '') asc, id asc
@@ -229,15 +241,20 @@ export async function checkFollowUps(payload: Payload, deps: FollowUpCheckDeps):
     ),
   );
 
-  const tokens = new Map<number, Awaited<ReturnType<FollowUpCheckDeps["getToken"]>>>();
-  const ownerIds = [...new Set(rows.map((row) => Number(row.owner_id)))].sort((a, b) => a - b);
-  for (const ownerId of ownerIds) {
-    tokens.set(ownerId, await deps.getToken(ownerId).catch(() => ({ ok: false as const, reason: "token-error" })));
+  // One token per owner and Gmail account ("" = the main Gmail).
+  const tokenKey = (row: Record<string, unknown>) => `${Number(row.owner_id)}|${text(row.account)}`;
+  const tokens = new Map<string, Awaited<ReturnType<FollowUpCheckDeps["getToken"]>>>();
+  const keys = [...new Set(rows.map(tokenKey))].sort();
+  for (const key of keys) {
+    const [owner = "", account = ""] = key.split("|");
+    const ownerId = Number(owner);
+    const fetch = account ? deps.getToken(ownerId, account) : deps.getToken(ownerId);
+    tokens.set(key, await fetch.catch(() => ({ ok: false as const, reason: "token-error" })));
   }
 
   for (const row of rows) {
     const id = Number(row.id);
-    const token = tokens.get(Number(row.owner_id));
+    const token = tokens.get(tokenKey(row));
     const now = deps.now();
     const at = now.toISOString();
     if (!token?.ok) {
@@ -285,7 +302,7 @@ export async function checkFollowUps(payload: Payload, deps: FollowUpCheckDeps):
           kind: FOLLOW_UP_DUE_KIND,
           title: `No reply yet: ${subject}`.slice(0, 200),
           body: `To ${text(row.to).slice(0, 120) || "recipient"}${sent ? ` · sent ${sent}` : ""}`,
-          url: cmsMailThreadPath(threadId),
+          url: cmsMailThreadPath(threadId, text(row.account) || null),
           ...(row.client_id === null || row.client_id === undefined ? {} : { relatedClient: Number(row.client_id) }),
         },
       } as never);

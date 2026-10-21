@@ -6,6 +6,7 @@ A minimal Gmail client at **/admin/mail** (sidebar: **Mail**, above Clients), pl
 
 - **Least access for the model.** The model is called only from three buttons: *Write with AI* (reply or new draft) and *Summarise to timeline*. Every call goes through `buildMailModelRequest()` (`src/lib/mail/model-request.ts`), which accepts at most one email and rejects lists. For a reply, the server fetches only the selected message by id. A new draft sends no email at all.
 - **Nothing is sent without Send.** AI output lands in the compose window (Gmail-style, bottom right), where you can edit it or keep prompting ("shorter", "more formal") until it is right. `/api/mail/send` is only called by the Send button.
+- **Voice drafting can't send either.** The mic next to *Write with AI* opens a GPT Realtime 2.1 call (`mode: 'mail'` on `/api/optimate/realtime-secret`). You talk the email through; the agent turns it into a clear instruction and runs the same *Write with AI* request itself, keeps revising as you talk, and reads the draft back when asked (including your own edits). Its only two tools, `write_email_draft` and `read_current_draft` (`src/lib/mail/voice-draft.ts`), run in the browser against the compose window; there is no send, schedule or Gmail tool. The new body autosaves to Drafts like typing does.
 - **Same writing style as GmailMate.** Reply and draft prompts load the OptiMate Soul rules for "Email drafting" + "All" (OptiMate Settings → OptiMate Soul), soul only, never pinned account facts, and use the OptiMate **Email Assistant model** (falling back to the autonomous default). Summaries don't use soul.
 - **Whole thread is opt-in.** In a reply, ticking **Use whole thread** also sends the earlier messages of that same thread (loaded server-side from the selected email's own thread id, newest 15 messages, about 40k characters max). It is off by default and applies per request; the AI log's email count shows how many emails were sent.
 - **Refining keeps the one-email rule.** Each refine sends the earlier prompts and drafts plus the current (edited) draft. That is the user's own text; the only mailbox content is still the one email being replied to, fetched server-side by id.
@@ -23,6 +24,7 @@ A message is linked to a client when an address on it resolves to that client. A
 - **Shared providers** (gmail.com, outlook.com, bigpond.com and so on) are never a client domain. Contacts on them match by exact address only.
 - **Our own addresses** (the connected mailbox's domain and optimisedigital.online) are ignored, so sent mail matches on its recipients.
 - **Ties:** if two clients claim a domain, an active client beats an inactive one. If it's still tied, the email stays unmatched and can be assigned by hand from the reading pane.
+- **Your own choice wins.** On an open email, **Client: <name> ▾** sets which client that sender's emails go to, for the address or the whole `@domain`, or *No client*, or back to *Automatic*. It decides the list pill, which client new emails are saved to and *Use client data*. Choosing a client also moves that sender's already-stored, automatically filed emails to it (emails assigned by hand or summarised stay put). Choices are per user, in Payload preferences under `mail-sender-clients` (`src/lib/mail/sender-clients.ts`); **★ Clients** lists them.
 
 ## Storage and sync
 
@@ -34,6 +36,16 @@ A message is linked to a client when an address on it resolves to that client. A
 - **Retention:** the daily cron deletes stored emails dated more than 12 months ago.
 - **Always kept:** cleanup and retention never delete emails assigned by hand or summarised to a timeline. Gmail itself is never changed.
 - Unmatched mail is not stored. It stays in Gmail and shows in the Mail inbox.
+
+## Gmail accounts
+
+Mail shows one Gmail account at a time. The breadcrumb reads *Home / Mail / <email>*, and the email is the account switcher: it lists your main Gmail (the one on your user record, also used by OptiMate and scheduled agent tasks) and any extra accounts, and **+ Add another Gmail account** runs Google sign-in (`/api/gmail/connect?add=1`, account picker shown) and saves the new address to `mail-accounts`. Picking your main address there just reconnects it. **✕** removes an extra account from Mail (Gmail is not changed).
+
+- Every Mail request names the account on screen in the `x-mail-account` header; the server only resolves it against your own accounts (`getValidGmailToken(userId, account)`), and no header means the main Gmail, so OptiMate and crons are unchanged.
+- A compose window keeps the account it was opened in, even if you switch while writing.
+- Each extra account syncs client emails on its own cursor (on its `mail-accounts` row) when Mail opens it, on Refresh and in the daily cron; its alerts open Mail on that account (`?account=`).
+- Scheduled emails and follow-up reminders record their account and are sent/checked from it; the Scheduled and Awaiting reply tabs show the account on screen. If an extra account is removed, its scheduled emails fail instead of going out from another account.
+- Migration `20261022_120000_mail_accounts` (also in `runMigrations()`) adds the `mail_accounts` table and an `account` column on `scheduled_emails` and `mail_follow_ups`. Additive only.
 
 ## Setup
 
@@ -64,7 +76,12 @@ The dashboard shows a small **Unread client emails** panel under *GA4 Sessions b
 
 ## Behaviour notes
 
+- **Unread first, always.** The inbox lists every unread thread before any read one: `/api/mail/inbox` pages through `is:unread` first, then carries on with `-is:unread` in the same page once they run out, so an old unread email never hides on a later page. (A thread you just read stays where it is until the list reloads.)
+- **45 emails per page.** Each page of the list holds 45 threads before *Load more* (`MAIL_LIST_PAGE_SIZE`). Gmail pages count messages, and a search can return one thread several times, so the route tops up a short page with up to 4 Gmail requests.
+- The search box sits at the top of the email list, above the first email.
 - Opening an unread thread marks it read, as Gmail does. **Mark unread** undoes that.
+- **Notes in their email.** Replying from an open email, **•••** under your reply shows the email you're replying to in its own editor, so you can type notes (in colour, with the formatting bar) straight into it. It's sent after your reply as a Gmail-style *On …, … wrote:* quote, with your signature below. *Write with AI* and voice only rewrite your reply above it. Hide it again to leave it out.
+- **Remind me if no reply** is *Off* unless you choose a number of business days for that email.
 - Threads show the newest message first.
 - **Reply with AI** replies to the latest message in the thread. Each message also has *Reply to this email*.
 - **Save as draft** uses the existing `/api/gmail/draft` route (with `html`, so it keeps formatting, images and files) and updates the same draft on later saves.

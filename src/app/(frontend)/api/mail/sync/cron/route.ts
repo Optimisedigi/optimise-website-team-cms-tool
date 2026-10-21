@@ -4,7 +4,8 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { userHasFeature } from "@/lib/access";
-import { syncMailbox } from "@/lib/mail/store";
+import { extraAccountSyncStateStore, syncMailbox } from "@/lib/mail/store";
+import { findMailAccount, listAllMailAccounts } from "@/lib/mail/accounts";
 import { deleteClientEmails, findExpiredEmailIds } from "@/lib/mail/cleanup";
 import { MAIL_FEATURE } from "@/lib/mail/route-helpers";
 
@@ -85,6 +86,36 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // Extra Gmail accounts (mail-accounts) sync the same way, each on its own cursor.
+  const extraAccounts: Array<{ userId: number; email: string; status: string; stored?: number; more?: boolean }> = [];
+  for (const { ownerId, email } of await listAllMailAccounts(payload).catch(() => [])) {
+    try {
+      const user = await payload.findByID({ collection: "users", id: ownerId, depth: 0, overrideAccess: true });
+      if (!userHasFeature(user, MAIL_FEATURE)) {
+        extraAccounts.push({ userId: ownerId, email, status: "no-mail-access" });
+        continue;
+      }
+      const row = await findMailAccount(payload, ownerId, email);
+      const token = row ? await getValidGmailToken(ownerId, email) : null;
+      if (!row || !token?.ok) {
+        extraAccounts.push({ userId: ownerId, email, status: "gmail-not-connected" });
+        continue;
+      }
+      const result = await syncMailbox({
+        payload,
+        userId: ownerId,
+        accessToken: token.accessToken,
+        userEmail: token.userEmail,
+        stateStore: extraAccountSyncStateStore(payload, row),
+        account: row.email,
+      });
+      extraAccounts.push({ userId: ownerId, email, status: "synced", stored: result.stored, more: result.more });
+    } catch (err) {
+      console.error(`[mail-cron] sync failed for an extra account of user ${ownerId}:`, (err instanceof Error ? err.message : String(err)).slice(0, 200));
+      extraAccounts.push({ userId: ownerId, email, status: "failed" });
+    }
+  }
+
   let expiredDeleted = 0;
   let expiredMore = false;
   try {
@@ -96,5 +127,5 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   console.info(`[mail-cron] synced ${mailboxes.filter((m) => m.status === "synced").length}/${userIds.length} mailboxes; deleted ${expiredDeleted} expired emails`);
-  return NextResponse.json({ mailboxes, expiredDeleted, expiredMore });
+  return NextResponse.json({ mailboxes, extraAccounts, expiredDeleted, expiredMore });
 }

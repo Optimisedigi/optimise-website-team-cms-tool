@@ -10,6 +10,8 @@ export const runtime = 'nodejs'
 const DEFAULT_REALTIME_VOICE = 'marin'
 const DEFAULT_REALTIME_TRANSCRIPTION_MODEL = 'gpt-4o-transcribe'
 const DEFAULT_SAMPLE_RATE = 24_000
+/** Mail's voice drafting (compose window mic) always runs on GPT Realtime 2.1. */
+const MAIL_VOICE_MODEL = 'gpt-realtime-2.1'
 const TASKMATE_VOICE_INSTRUCTIONS = 'You are TaskMate, a voice planning companion for an agency admin. Discuss the tasks, clients, week, due dates, assignees and priorities they want. Ask brief clarifying questions and repeat important details back. Do not claim to create, stage, assign, or save tasks. No tools are available. The admin will end this call and press Generate task list to prepare a separate review list before any assignment. Keep answers concise and conversational.'
 
 type TurnDetectionConfig = {
@@ -119,7 +121,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const session = buildRealtimeSession({
-      model: defaults.voiceRealtimeModel,
+      model: body?.mode === 'mail' ? MAIL_VOICE_MODEL : defaults.voiceRealtimeModel,
       instructions,
       tools: isTaskMate ? [] : Array.isArray(requestedSession?.tools) ? requestedSession.tools : [],
       turnDetection: normalizeTurnDetection(isTaskMate ? undefined : requestedSession?.turnDetection),

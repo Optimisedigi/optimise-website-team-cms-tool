@@ -62,3 +62,44 @@ export function mailTabLabel(tab: MailTab, counts: MailTabCounts | null): string
 export function unreadFirst<T extends { unread: boolean }>(threads: readonly T[]): T[] {
   return [...threads.filter((thread) => thread.unread), ...threads.filter((thread) => !thread.unread)];
 }
+
+/**
+ * The inbox lists every unread thread before any read one (each part newest
+ * first), across pages: it pages through the unread threads first, then the
+ * read ones. The page token says which part it is in: "u:<gmail token>" or
+ * "r:<gmail token>". A bare token (older client) continues the read part.
+ */
+export type InboxPagePart = "unread" | "read";
+
+export function parseInboxPageToken(raw: string | null | undefined): { part: InboxPagePart; token?: string } {
+  const value = (raw ?? "").trim();
+  if (!value) return { part: "unread" };
+  if (value.startsWith("u:")) return value.length > 2 ? { part: "unread", token: value.slice(2) } : { part: "unread" };
+  if (value.startsWith("r:")) return value.length > 2 ? { part: "read", token: value.slice(2) } : { part: "read" };
+  return { part: "read", token: value };
+}
+
+/** Token for the next page: `part` from `token`, or from the start of that part when there is no token ("r:"). */
+export function inboxPageToken(part: InboxPagePart, token: string | null | undefined): string {
+  return `${part === "unread" ? "u" : "r"}:${token ?? ""}`;
+}
+
+/**
+ * Email rows per page of the Mail list. Gmail pages count messages, and a
+ * search returns several messages of one thread, so the list route keeps
+ * asking Gmail (at most MAIL_LIST_MAX_GMAIL_CALLS times) until it has this
+ * many threads or the folder runs out, so "Load more" doesn't come early.
+ */
+export const MAIL_LIST_PAGE_SIZE = 45;
+export const MAIL_LIST_MAX_GMAIL_CALLS = 4;
+
+/** Rows of `next` whose thread is not already in `seen` (in order), recording them. */
+export function newThreadsOnly<T extends { threadId: string }>(next: readonly T[], seen: Set<string>): T[] {
+  const out: T[] = [];
+  for (const row of next) {
+    if (seen.has(row.threadId)) continue;
+    seen.add(row.threadId);
+    out.push(row);
+  }
+  return out;
+}

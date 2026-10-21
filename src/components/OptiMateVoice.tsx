@@ -73,9 +73,25 @@ interface TypedChatResponse {
   persisted?: boolean
 }
 
+/**
+ * A voice session whose instructions and tools come from the host component
+ * and whose tools run in the browser (Mail compose window drafting). No
+ * server tool route is involved: only the listed tools can be called.
+ */
+export interface LocalVoiceSession {
+  instructions: string
+  /** Realtime function tool definitions (type, name, description, parameters). */
+  tools: Array<{ name: string }>
+  /** Instruction for the opening greeting turn. */
+  greeting: string
+  executeTool: (name: string, args: Record<string, unknown>) => Promise<{ ok: boolean; data?: unknown; error?: string }>
+}
+
 interface OptiMateVoiceProps {
   auditId?: string | number
-  mode?: 'audit' | 'portfolio' | 'email' | 'invoice' | 'adminmate'
+  mode?: 'audit' | 'portfolio' | 'email' | 'invoice' | 'adminmate' | 'mail'
+  /** Mail mode: the host's session and browser-side tools. */
+  localSession?: LocalVoiceSession
   customerId?: string
   businessName?: string
   selectedAccountRefs?: Array<string | number>
@@ -249,6 +265,7 @@ function isLikelyIntentionalVoiceInput(text: string, mode: OptiMateVoiceProps['m
 type VoiceAgent = 'google-ads' | 'email' | 'invoice' | 'adminmate'
 
 function voiceAgentForMode(mode: OptiMateVoiceProps['mode']): VoiceAgent {
+  if (mode === 'mail') return 'email'
   return mode === 'email' || mode === 'invoice' || mode === 'adminmate' ? mode : 'google-ads'
 }
 
@@ -437,7 +454,11 @@ export default function OptiMateVoice({
   buildTypedChatRequest,
   onTypedChatResponse,
   onSpeechTurn,
+  localSession,
 }: OptiMateVoiceProps) {
+  // Latest host session (its tools read the host's current state).
+  const localSessionRef = useRef(localSession)
+  localSessionRef.current = localSession
   const [state, setState] = useState<VoiceState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [helper, setHelper] = useState<HelperStatus>({ reachable: false, connected: false })
@@ -723,7 +744,7 @@ export default function OptiMateVoice({
   )
 
   const runVoiceSafetyCheck = useCallback(() => {
-    if (mode === 'email') return
+    if (mode === 'email' || mode === 'mail') return
     const turn = voiceTurnSafetyRef.current
     if (!turn?.userMessage) return
 
@@ -774,6 +795,28 @@ export default function OptiMateVoice({
         }
         devTraceRef.current.toolsCalled.push(devToolTrace)
         publishDevTrace()
+      }
+
+      // Mail mode: the host's own tools run here in the browser; nothing else is callable.
+      if (mode === 'mail') {
+        const session = localSessionRef.current
+        let output: unknown
+        if (!session || !session.tools.some((tool) => tool.name === name)) {
+          output = { error: `Tool "${name}" is not available.` }
+        } else {
+          try {
+            const result = await session.executeTool(name, args)
+            output = result.ok ? (result.data ?? { ok: true }) : { error: result.error ?? 'That did not work.' }
+          } catch (err) {
+            output = { error: err instanceof Error ? err.message : 'That did not work.' }
+          }
+        }
+        sendEvent({
+          type: 'conversation.item.create',
+          item: { type: 'function_call_output', call_id: callId, output: JSON.stringify(output) },
+        })
+        requestResponse({ type: 'response.create' })
+        return
       }
 
       const isEmail = mode === 'email'
@@ -1111,39 +1154,46 @@ export default function OptiMateVoice({
       // 1. Server-built session config (instructions + tools). Email and invoice
       //    modes use focused endpoints; audit, portfolio and AdminMate modes use
       //    the speech-only session endpoint.
-      const sessionUrl = new URL(
-        mode === 'email'
-          ? '/api/optimate/email-realtime-session'
-          : mode === 'invoice'
-            ? '/api/xero/realtime-session'
-            : '/api/optimate/realtime-session',
-        window.location.origin,
-      )
-      if (mode === 'adminmate') {
-        sessionUrl.searchParams.set('mode', mode)
-      } else if (mode !== 'email' && mode !== 'invoice') {
-        sessionUrl.searchParams.set('auditId', String(auditId))
-        sessionUrl.searchParams.set('mode', mode)
-        if (customerId) sessionUrl.searchParams.set('customerId', customerId)
-        if (businessName) sessionUrl.searchParams.set('businessName', businessName)
-        if (selectedAccountRefs.length > 0) {
-          sessionUrl.searchParams.set(
-            'selectedAccountRefs',
-            selectedAccountRefs.map(String).join(','),
-          )
+      let session: { instructions: string; tools: Array<{ name?: unknown }> }
+      if (mode === 'mail') {
+        const local = localSessionRef.current
+        if (!local) throw new Error('Voice drafting is not available here.')
+        session = { instructions: local.instructions, tools: local.tools }
+      } else {
+        const sessionUrl = new URL(
+          mode === 'email'
+            ? '/api/optimate/email-realtime-session'
+            : mode === 'invoice'
+              ? '/api/xero/realtime-session'
+              : '/api/optimate/realtime-session',
+          window.location.origin,
+        )
+        if (mode === 'adminmate') {
+          sessionUrl.searchParams.set('mode', mode)
+        } else if (mode !== 'email' && mode !== 'invoice') {
+          sessionUrl.searchParams.set('auditId', String(auditId))
+          sessionUrl.searchParams.set('mode', mode)
+          if (customerId) sessionUrl.searchParams.set('customerId', customerId)
+          if (businessName) sessionUrl.searchParams.set('businessName', businessName)
+          if (selectedAccountRefs.length > 0) {
+            sessionUrl.searchParams.set(
+              'selectedAccountRefs',
+              selectedAccountRefs.map(String).join(','),
+            )
+          }
         }
-      }
-      if (attachedEmailMessageId && (mode === 'email' || mode === 'invoice')) {
-        sessionUrl.searchParams.set('attachedEmailMessageId', attachedEmailMessageId)
-      }
-      const sessionRes = await fetch(sessionUrl.toString())
-      if (!sessionRes.ok) {
-        const body = (await sessionRes.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? `Could not build voice session (${sessionRes.status}).`)
-      }
-      const session = (await sessionRes.json()) as {
-        instructions: string
-        tools: Array<{ name?: unknown }>
+        if (attachedEmailMessageId && (mode === 'email' || mode === 'invoice')) {
+          sessionUrl.searchParams.set('attachedEmailMessageId', attachedEmailMessageId)
+        }
+        const sessionRes = await fetch(sessionUrl.toString())
+        if (!sessionRes.ok) {
+          const body = (await sessionRes.json().catch(() => ({}))) as { error?: string }
+          throw new Error(body.error ?? `Could not build voice session (${sessionRes.status}).`)
+        }
+        session = (await sessionRes.json()) as {
+          instructions: string
+          tools: Array<{ name?: unknown }>
+        }
       }
       if (isDevParityEnabled) {
         resetDevTrace()
@@ -1162,7 +1212,8 @@ export default function OptiMateVoice({
       //    Realtime owns response creation for spoken turns; we only create the
       //    controlled opening greeting and post-tool follow-up responses.
       const secret = await provider.getSecret({
-        auditId: mode === 'invoice' || mode === 'adminmate' ? mode : String(auditId),
+        auditId: mode === 'invoice' || mode === 'adminmate' || mode === 'mail' ? mode : String(auditId),
+        ...(mode === 'mail' ? { mode } : {}),
         session: {
           instructions: session.instructions,
           tools: session.tools,
@@ -1175,7 +1226,7 @@ export default function OptiMateVoice({
             threshold: 0.65,
             prefix_padding_ms: 500,
             silence_duration_ms: 1400,
-            create_response: mode === 'email' || mode === 'invoice',
+            create_response: mode === 'email' || mode === 'invoice' || mode === 'mail',
             interrupt_response: false,
           },
         },
@@ -1218,7 +1269,9 @@ export default function OptiMateVoice({
           response: {
             output_modalities: ['audio'],
             instructions:
-              mode === 'email'
+              mode === 'mail'
+                ? (localSessionRef.current?.greeting ?? 'Greet the user in one short sentence, then wait for them to speak.')
+                : mode === 'email'
                 ? "Greet the user in one short sentence: say you're the OptiMate email assistant and ask what reply they'd like to draft. Do NOT draft anything yet. Then stop and wait for them to speak."
                 : mode === 'invoice'
                   ? "Greet the user in one short sentence: say you're InvoiceMate and ask how you can help with Xero invoices. Do NOT look anything up or take action yet. Then stop and wait for them to speak."

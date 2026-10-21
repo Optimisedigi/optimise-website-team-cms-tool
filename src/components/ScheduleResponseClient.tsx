@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import AvailabilityGrid, { GridLegend } from './AvailabilityGrid'
+import RocketSplash from './RocketSplash'
 import {
   CELL_MINUTES,
   cellKey,
@@ -30,52 +31,19 @@ interface MeetingData {
   status: string
 }
 
-function RocketSplash() {
+/**
+ * The shared loading rocket (flight and booster from RocketSplash.css). This
+ * public page has no admin stylesheet, so it adds the splash layout and text
+ * colour itself.
+ */
+function ScheduleLoading() {
   return (
     <>
       <style>{`
-        @keyframes od-rocket-loop {
-          0%, 8% { transform: translateX(-50%) translateY(0); opacity: 0; }
-          15% { opacity: 1; }
-          18% { transform: translateX(-50%) translateY(2px); opacity: 1; }
-          32% { transform: translateX(-50%) translateY(-6px); opacity: 1; }
-          78% { transform: translateX(-50%) translateY(-130px); opacity: 1; }
-          92%, 100% { transform: translateX(-50%) translateY(-220px); opacity: 0; }
-        }
-        @keyframes od-flame-loop {
-          0%, 25% { opacity: 0; }
-          32% { opacity: 0.6; }
-          78% { opacity: 1; }
-          92%, 100% { opacity: 0; }
-        }
-        @keyframes od-flame-flicker {
-          from { transform: scaleY(1); }
-          to { transform: scaleY(1.15); }
-        }
         .od-splash { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 380px; gap: 24px; }
-        .od-splash__scene { position: relative; width: 80px; height: 140px; }
-        .od-splash__rocket { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); animation: od-rocket-loop 2.6s cubic-bezier(0.4,0,0.2,1) infinite; z-index: 2; }
-        .od-splash__rocket img { display: block; width: 48px; height: 48px; object-fit: contain; transform: rotate(-30deg); }
-        .od-splash__flames { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 20px; height: 60px; animation: od-rocket-loop 2.6s cubic-bezier(0.4,0,0.2,1) infinite; z-index: 1; }
-        .od-splash__flame { position: absolute; bottom: 0; border-radius: 50% 50% 40% 40%; }
-        .od-splash__flame--1 { width: 10px; height: 28px; left: 5px; background: linear-gradient(to top, transparent, #f59e0b, #ef4444); opacity: 0; animation: od-flame-loop 2.6s cubic-bezier(0.4,0,0.2,1) infinite, od-flame-flicker 0.15s ease-in-out infinite alternate; }
-        .od-splash__flame--2 { width: 6px; height: 18px; left: 2px; background: linear-gradient(to top, transparent, #fbbf24); opacity: 0; animation: od-flame-loop 2.6s cubic-bezier(0.4,0,0.2,1) 0.08s infinite, od-flame-flicker 0.2s ease-in-out infinite alternate; }
-        .od-splash__flame--3 { width: 6px; height: 20px; left: 10px; background: linear-gradient(to top, transparent, #fb923c); opacity: 0; animation: od-flame-loop 2.6s cubic-bezier(0.4,0,0.2,1) 0.04s infinite, od-flame-flicker 0.18s ease-in-out infinite alternate; }
         .od-splash__text { font-size: 13px; font-weight: 500; color: #94a3b8; letter-spacing: 0.5px; }
       `}</style>
-      <div className="od-splash">
-        <div className="od-splash__scene">
-          <div className="od-splash__flames">
-            <div className="od-splash__flame od-splash__flame--1" />
-            <div className="od-splash__flame od-splash__flame--2" />
-            <div className="od-splash__flame od-splash__flame--3" />
-          </div>
-          <div className="od-splash__rocket">
-            <img src="/optimise-rocket-logo-black.png" alt="" width={48} height={48} />
-          </div>
-        </div>
-        <div className="od-splash__text">Loading</div>
-      </div>
+      <RocketSplash />
     </>
   )
 }
@@ -294,7 +262,7 @@ export default function ScheduleResponseClient({
           />
         </div>
         <div style={styles.card}>
-          <RocketSplash />
+          <ScheduleLoading />
         </div>
       </div>
     )

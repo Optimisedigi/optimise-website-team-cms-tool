@@ -183,6 +183,23 @@ describe('POST /api/optimate/realtime-secret', () => {
     expect(payload.session.reasoning).toEqual({ effort: 'minimal' })
   })
 
+  it('always uses gpt-realtime-2.1 for Mail voice drafting, whatever the configured voice model', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    getDefaults.mockResolvedValue({ voiceRealtimeModel: 'gpt-realtime-mini' })
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ value: 'ek_mail', session: { model: 'gpt-realtime-2.1' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await POST(makeRequest({ session: { instructions: 'hi' }, mode: 'mail' }))
+    expect(res.status).toBe(200)
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body)).session.model).toBe('gpt-realtime-2.1')
+  })
+
   it('ignores the legacy voiceAuthMethod value: only the toggle turns on API-key voice', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
     getDefaults.mockResolvedValue({

@@ -45,7 +45,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const messageId = parseGmailId(req.nextUrl.searchParams.get("messageId"));
   if (!messageId) return NextResponse.json({ error: "Invalid message id." }, { status: 400 });
   const timeZone = validTimeZone(req.nextUrl.searchParams.get("tz"));
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
 
   let invite;
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!messageId) return NextResponse.json({ error: "Invalid message id." }, { status: 400 });
   const response = body?.response;
   if (!isInviteResponse(response)) return NextResponse.json({ error: "Choose Yes, No or Maybe." }, { status: 400 });
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
 
   let message;

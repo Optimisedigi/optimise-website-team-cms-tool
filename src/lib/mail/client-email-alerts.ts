@@ -35,6 +35,8 @@ export interface ClientEmailAlertInput {
   gmailMessageId: string
   /** Email date (ISO or RFC 2822). Unknown dates count as fresh. */
   date: string
+  /** Extra Gmail account the email arrived in, so the alert opens Mail on it; omitted = main Gmail. */
+  account?: string
 }
 
 /** Display name from a From header: `Jo Smith <jo@x.com>` -> `Jo Smith`. */
@@ -52,8 +54,8 @@ export function isFreshEmail(date: string, now: Date): boolean {
   return now.getTime() - time <= ALERT_MAX_AGE_MS
 }
 
-export function alertUrl(input: Pick<ClientEmailAlertInput, 'gmailThreadId'>): string {
-  return cmsMailThreadPath(input.gmailThreadId)
+export function alertUrl(input: Pick<ClientEmailAlertInput, 'gmailThreadId' | 'account'>): string {
+  return cmsMailThreadPath(input.gmailThreadId, input.account)
 }
 
 /**

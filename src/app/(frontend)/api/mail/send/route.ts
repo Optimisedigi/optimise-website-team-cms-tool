@@ -59,7 +59,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const followUp = wantsFollowUp ? parseRemindAt(body.followUpAt, new Date()) : null;
   if (followUp && !followUp.ok) return NextResponse.json({ error: followUp.error }, { status: 400 });
 
-  const token = await requireGmailToken(ctx.user.id);
+  const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
 
   const result = await deliverMail({
@@ -96,6 +96,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
       await createFollowUp(followUpDb(ctx.payload), {
         ownerId: ctx.user.id,
+        ...(token.account ? { account: token.account } : {}),
         clientId: result.client?.id ?? null,
         threadId: result.threadId,
         sentMessageId: result.messageId,

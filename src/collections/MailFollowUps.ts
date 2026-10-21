@@ -38,5 +38,7 @@ export const MailFollowUps: CollectionConfig = {
     },
     { name: "notifiedAt", type: "date" },
     { name: "lastCheckedAt", type: "date" },
+    // Extra Gmail account it belongs to (mail-accounts email); empty = the user's main Gmail.
+    { name: "account", type: "text" },
   ],
 };

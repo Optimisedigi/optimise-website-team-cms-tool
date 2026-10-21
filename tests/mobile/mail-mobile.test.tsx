@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('@/components/mail/ComposeWindow', () => ({ default: () => <div data-testid="compose" /> }))
 vi.mock('@/components/mail/EmailBody', () => ({ default: () => <div /> }))
+vi.mock('@payloadcms/ui', () => ({ useStepNav: () => ({ setStepNav: vi.fn(), stepNav: [] }) }))
 
 import MailApp from '@/components/mail/MailApp'
 

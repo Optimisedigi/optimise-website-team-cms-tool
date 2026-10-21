@@ -3,6 +3,7 @@ import { getPayload, type Payload } from "payload";
 import config from "@/payload.config";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { userHasFeature } from "@/lib/access";
+import { MAIL_ACCOUNT_HEADER, normaliseMailAccount } from "@/lib/mail/accounts-shared";
 
 export const MAIL_FEATURE = "nav:mail";
 
@@ -25,17 +26,45 @@ export async function requireMailUser(req: NextRequest): Promise<MailContext | N
   return { payload, user: user as unknown as MailUser };
 }
 
-export async function requireGmailToken(
-  userId: number,
-): Promise<{ accessToken: string; email: string; userEmail: string } | NextResponse> {
-  const token = await getValidGmailToken(userId);
+/**
+ * The Gmail account a Mail request is for (MAIL_ACCOUNT_HEADER): "" for the
+ * user's main Gmail, the address of one of their extra accounts, or null when
+ * the header is present but not an email address.
+ */
+export function requestedMailAccount(req: Pick<NextRequest, "headers"> | undefined): string | null {
+  const raw = req?.headers.get(MAIL_ACCOUNT_HEADER);
+  if (raw === null || raw === undefined || raw.trim() === "") return "";
+  return normaliseMailAccount(raw) || null;
+}
+
+export interface MailGmailToken {
+  accessToken: string;
+  email: string;
+  userEmail: string;
+  /** Extra Gmail account address; "" = the user's main Gmail. */
+  account: string;
+}
+
+/**
+ * Valid Gmail token for the account the request is on (see
+ * requestedMailAccount); without `req`, the user's main Gmail.
+ */
+export async function requireGmailToken(userId: number, req?: Pick<NextRequest, "headers">): Promise<MailGmailToken | NextResponse> {
+  const account = requestedMailAccount(req);
+  if (account === null) return NextResponse.json({ error: "Invalid mail account." }, { status: 400 });
+  const token = await getValidGmailToken(userId, account);
   if (!token.ok) {
     return NextResponse.json(
-      { error: "gmail-not-connected", reason: token.reason, connectUrl: "/api/gmail/connect" },
+      {
+        error: "gmail-not-connected",
+        reason: token.reason,
+        connectUrl: account ? "/api/gmail/connect?add=1" : "/api/gmail/connect",
+        ...(account ? { account } : {}),
+      },
       { status: 403 },
     );
   }
-  return token;
+  return { accessToken: token.accessToken, email: token.email, userEmail: token.userEmail, account: token.account ?? "" };
 }
 
 /** Map Gmail API failures to a JSON error the UI can show. Never echoes content. */

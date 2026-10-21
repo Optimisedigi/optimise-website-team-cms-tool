@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { getPrimaryGmailSignature } from "@/lib/gmail-service";
+import { requestedMailAccount } from "@/lib/mail/route-helpers";
 
 /**
  * GET /api/gmail/status
@@ -33,6 +34,34 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   let hasSignature = false;
   let signatureHtml = "";
   let reconnectRequired = false;
+
+  // The Mail view asks for the signature of the account it is showing (one of
+  // the user's extra Gmail accounts); everyone else gets the main Gmail.
+  const account = requestedMailAccount(req) ?? "";
+  if (account) {
+    const userId = typeof user.id === "number" ? user.id : Number(user.id);
+    const token = await getValidGmailToken(userId, account);
+    if (token.ok) {
+      try {
+        signatureHtml = await getPrimaryGmailSignature(token.accessToken);
+        settingsAccess = true;
+        hasSignature = signatureHtml.trim().length > 0;
+      } catch {
+        reconnectRequired = true;
+      }
+    } else {
+      reconnectRequired = true;
+    }
+    return NextResponse.json({
+      connected: token.ok,
+      email: token.ok ? token.email : account,
+      tokenExpiry: null,
+      settingsAccess,
+      hasSignature,
+      signatureHtml,
+      reconnectRequired,
+    });
+  }
 
   if (fresh.gmailConnected) {
     const userId = typeof user.id === "number" ? user.id : Number(user.id);

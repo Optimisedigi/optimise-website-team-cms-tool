@@ -4,6 +4,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { exchangeGmailCode } from "@/lib/gmail-service";
 import { OAUTH_NONCE_COOKIE, verifyOAuthState } from "@/lib/oauth-state";
+import { saveMailAccountTokens } from "@/lib/mail/accounts";
 
 /**
  * Gmail OAuth callback.
@@ -49,11 +50,14 @@ export async function GET(req: NextRequest) {
   }
 
   const cookieStore = await cookies();
-  const cookieNonce = cookieStore.get(OAUTH_NONCE_COOKIE.gmail)?.value;
+  // Which connect flow minted this state: the main Gmail, or an extra Mail account.
+  const addNonce = cookieStore.get(OAUTH_NONCE_COOKIE.gmailAdd)?.value;
+  const adding = Boolean(addNonce) && addNonce === nonce;
+  const cookieNonce = adding ? addNonce : cookieStore.get(OAUTH_NONCE_COOKIE.gmail)?.value;
   if (!cookieNonce || cookieNonce !== nonce) {
     return redirectTo({ gmail_error: "nonce_mismatch" });
   }
-  cookieStore.delete(OAUTH_NONCE_COOKIE.gmail);
+  cookieStore.delete(adding ? OAUTH_NONCE_COOKIE.gmailAdd : OAUTH_NONCE_COOKIE.gmail);
 
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
@@ -69,6 +73,38 @@ export async function GET(req: NextRequest) {
 
   try {
     const tokens = await exchangeGmailCode(code);
+
+    if (adding) {
+      const mailRedirect = (params: Record<string, string>) => {
+        const u = new URL("/admin/mail", req.url);
+        for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+        return NextResponse.redirect(u);
+      };
+      const current = (await payload.findByID({ collection: "users", id: userId, depth: 0, overrideAccess: true })) as {
+        gmailConnected?: boolean;
+        gmailEmail?: string | null;
+      };
+      const isMain = (current.gmailEmail ?? "").trim().toLowerCase() === tokens.email.trim().toLowerCase();
+      // With no main Gmail yet, or the main address picked again, it is (re)connected as the main account.
+      if (!current.gmailConnected || isMain) {
+        await payload.update({
+          collection: "users",
+          id: userId,
+          overrideAccess: true,
+          data: {
+            gmailConnected: true,
+            gmailEmail: tokens.email,
+            gmailAccessToken: tokens.accessToken,
+            gmailRefreshToken: tokens.refreshToken,
+            gmailTokenExpiry: tokens.expiry,
+          },
+        });
+        return mailRedirect({ mail_account_added: tokens.email });
+      }
+      const saved = await saveMailAccountTokens(payload, userId, tokens);
+      if (!saved.ok) return mailRedirect({ mail_account_error: saved.error });
+      return mailRedirect({ account: tokens.email.trim().toLowerCase(), mail_account_added: tokens.email });
+    }
 
     await payload.update({
       collection: "users",
@@ -87,6 +123,11 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "OAuth exchange failed";
     console.error("[gmail-callback]", message);
+    if (adding) {
+      const u = new URL("/admin/mail", req.url);
+      u.searchParams.set("mail_account_error", message);
+      return NextResponse.redirect(u);
+    }
     return redirectTo({ gmail_error: message });
   }
 }

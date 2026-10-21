@@ -30,7 +30,8 @@ type LoginTimings = {
 
 const DEFAULT_TIMINGS: LoginTimings = {
   countStepMs: 350,
-  launchMs: 2100,
+  // The 2.1s climb (--launch) plus the separated booster finishing its fall (--drop).
+  launchMs: 2500,
   reducedLaunchMs: 800,
 };
 
@@ -335,6 +336,9 @@ export function CountdownLoginForm({
 
       <div aria-hidden="true" className="od-launch__ground" />
       <div aria-hidden="true" className="od-launch__tower" />
+      <div aria-hidden="true" className="od-launch__stage">
+        <i className="od-launch__booster" />
+      </div>
       <div aria-hidden="true" className="od-launch__rocket">
         <img alt="" height={768} src="/optimise-digital-rocket.png" width={334} />
       </div>

@@ -20,6 +20,9 @@
  *     domain) are ignored, so an outgoing email matches on its recipients.
  *  6. Addresses are tried in order: From, then To, then Cc. Exact address
  *     matches beat domain matches.
+ *  7. The user's own sender → client choices (Mail's "Client" control, see
+ *     sender-clients.ts) beat all of the above: an exact address first, then
+ *     its domain or a parent domain. "No client" makes that sender unmatched.
  */
 
 export interface MatchableClient {
@@ -43,6 +46,17 @@ export interface ClientDomainIndex {
   domains: Map<string, Array<{ id: number; name: string; active: boolean }>>;
   addresses: Map<string, Array<{ id: number; name: string; active: boolean }>>;
   ignoredDomains: Set<string>;
+  /**
+   * Sender → client choices ("jo@x.com" or "@x.com"); null = never a client.
+   * Only overrides naming a client that exists are kept.
+   */
+  overrides?: Map<string, { id: number; name: string } | null>;
+}
+
+/** One saved sender → client choice; `clientId` null = "No client". */
+export interface SenderClientOverride {
+  sender: string;
+  clientId: number | null;
 }
 
 export const AGENCY_DOMAINS = ["optimisedigital.online"] as const;
@@ -98,7 +112,7 @@ function addTo(
 
 export function buildClientDomainIndex(
   clients: MatchableClient[],
-  options: { ownAddresses?: string[] } = {},
+  options: { ownAddresses?: string[]; overrides?: SenderClientOverride[] } = {},
 ): ClientDomainIndex {
   const ignoredDomains = new Set<string>(AGENCY_DOMAINS);
   for (const address of options.ownAddresses ?? []) {
@@ -131,7 +145,43 @@ export function buildClientDomainIndex(
     }
   }
 
+  if (options.overrides?.length) {
+    const byId = new Map<number, { id: number; name: string }>();
+    for (const client of clients) {
+      if (typeof client.id === "number") byId.set(client.id, { id: client.id, name: client.name ?? `Client ${client.id}` });
+    }
+    const overrides = new Map<string, { id: number; name: string } | null>();
+    for (const override of options.overrides) {
+      if (override.clientId === null) overrides.set(override.sender, null);
+      else {
+        const client = byId.get(override.clientId);
+        if (client) overrides.set(override.sender, client);
+      }
+    }
+    if (overrides.size > 0) index.overrides = overrides;
+  }
+
   return index;
+}
+
+/**
+ * The user's choice for this address: a client, null for "No client", or
+ * undefined when they made none (exact address first, then the closest domain).
+ */
+function overrideFor(
+  index: ClientDomainIndex,
+  address: string,
+  domain: string,
+): { match: { id: number; name: string } | null; on: string; type: "address" | "domain" } | undefined {
+  const overrides = index.overrides;
+  if (!overrides) return undefined;
+  if (overrides.has(address)) return { match: overrides.get(address) ?? null, on: address, type: "address" };
+  const labels = domain.split(".");
+  for (let i = 0; i < labels.length - 1; i++) {
+    const key = `@${labels.slice(i).join(".")}`;
+    if (overrides.has(key)) return { match: overrides.get(key) ?? null, on: key.slice(1), type: "domain" };
+  }
+  return undefined;
 }
 
 function pickOne(
@@ -151,6 +201,13 @@ export function matchAddress(index: ClientDomainIndex, address: string): ClientM
   if (!domain) return null;
   if ([...index.ignoredDomains].some((ignored) => domain === ignored || domain.endsWith(`.${ignored}`))) {
     return null;
+  }
+
+  const chosen = overrideFor(index, lower, domain);
+  if (chosen) {
+    return chosen.match
+      ? { clientId: chosen.match.id, clientName: chosen.match.name, matchedOn: chosen.on, matchType: chosen.type }
+      : null;
   }
 
   const exact = pickOne(index.addresses.get(lower));

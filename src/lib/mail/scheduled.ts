@@ -113,10 +113,20 @@ function toItem(row: Record<string, unknown>): ScheduledEmailItem {
   };
 }
 
+/**
+ * SQL filter for one Gmail account's rows: `account` "" = the user's main
+ * Gmail (column empty or NULL); undefined = every account.
+ */
+function accountFilter(account: string | undefined) {
+  return account === undefined ? sql`` : sql` and coalesce(account, '') = ${account}`;
+}
+
 export async function createScheduledEmail(
   db: ScheduleDb,
   input: {
     ownerId: number;
+    /** Extra Gmail account it sends from; "" or omitted = the main Gmail. */
+    account?: string;
     to: string;
     cc: string;
     subject: string;
@@ -127,20 +137,20 @@ export async function createScheduledEmail(
 ): Promise<number> {
   const result = await db.run(
     sql`insert into scheduled_emails
-          (owner_id, status, scheduled_for, "to", cc, subject, reply_to_message_id, content, attempts)
-        values (${input.ownerId}, 'pending', ${input.scheduledFor.toISOString()}, ${input.to}, ${input.cc},
+          (owner_id, account, status, scheduled_for, "to", cc, subject, reply_to_message_id, content, attempts)
+        values (${input.ownerId}, ${input.account || null}, 'pending', ${input.scheduledFor.toISOString()}, ${input.to}, ${input.cc},
                 ${input.subject}, ${input.replyToMessageId}, ${JSON.stringify(input.content)}, 0)
         returning id`,
   );
   return Number(rowsOf(result)[0]?.id);
 }
 
-/** The user's queued emails (pending, sending, failed), soonest first. */
-export async function listScheduledEmails(db: ScheduleDb, ownerId: number): Promise<ScheduledEmailItem[]> {
+/** The user's queued emails (pending, sending, failed), soonest first; `account` limits them to one Gmail account. */
+export async function listScheduledEmails(db: ScheduleDb, ownerId: number, account?: string): Promise<ScheduledEmailItem[]> {
   const result = await db.run(
     sql`select id, "to", cc, subject, scheduled_for, status, last_error, reply_to_message_id, content
         from scheduled_emails
-        where owner_id = ${ownerId} and status in ('pending', 'sending', 'failed')
+        where owner_id = ${ownerId} and status in ('pending', 'sending', 'failed')${accountFilter(account)}
         order by scheduled_for asc, id asc
         limit 200`,
   );
@@ -148,9 +158,9 @@ export async function listScheduledEmails(db: ScheduleDb, ownerId: number): Prom
 }
 
 /** Emails still waiting to go out (what Gmail shows as the Scheduled count). */
-export async function countScheduledEmails(db: ScheduleDb, ownerId: number): Promise<number> {
+export async function countScheduledEmails(db: ScheduleDb, ownerId: number, account?: string): Promise<number> {
   const result = await db.run(
-    sql`select count(*) as n from scheduled_emails where owner_id = ${ownerId} and status in ('pending', 'sending')`,
+    sql`select count(*) as n from scheduled_emails where owner_id = ${ownerId} and status in ('pending', 'sending')${accountFilter(account)}`,
   );
   return Number(rowsOf(result)[0]?.n ?? 0);
 }
@@ -312,7 +322,8 @@ export async function failStaleSending(db: ScheduleDb, now: Date): Promise<numbe
 
 export interface SendDeps {
   now: () => Date;
-  getToken: (ownerId: number) => Promise<
+  /** `account`: the extra Gmail account the email sends from; undefined = the main Gmail. */
+  getToken: (ownerId: number, account?: string) => Promise<
     { ok: true; accessToken: string; email: string; userEmail: string } | { ok: false; reason: string }
   >;
   deliver: (input: DeliverInput) => Promise<DeliverResult>;
@@ -357,7 +368,7 @@ export async function sendScheduledEmail(
 
   const rows = rowsOf(
     await db.run(
-      sql`select owner_id, "to", cc, subject, reply_to_message_id, content, attempts from scheduled_emails where id = ${id}`,
+      sql`select owner_id, account, "to", cc, subject, reply_to_message_id, content, attempts from scheduled_emails where id = ${id}`,
     ),
   );
   const row = rows[0];
@@ -368,8 +379,16 @@ export async function sendScheduledEmail(
   if (!parsed?.ok) return fail(parsed ? parsed.error : "The saved email content could not be read.");
 
   const ownerId = Number(row.owner_id);
-  const token = await deps.getToken(ownerId);
-  if (!token.ok) return fail("Gmail is not connected. Reconnect Gmail, then reschedule this email.");
+  // Sent from the Gmail account it was scheduled in, never silently from another one.
+  const account = text(row.account);
+  const token = account ? await deps.getToken(ownerId, account) : await deps.getToken(ownerId);
+  if (!token.ok) {
+    return fail(
+      account
+        ? `${account} is not connected. Add it again from the Mail account menu, then reschedule this email.`
+        : "Gmail is not connected. Reconnect Gmail, then reschedule this email.",
+    );
+  }
 
   const result = await deps.deliver({
     payload,
@@ -391,6 +410,7 @@ export async function sendScheduledEmail(
       // The email is sent either way; a tracking failure only loses the reminder.
       await createFollowUp(followUpDb(payload), {
         ownerId,
+        ...(account ? { account } : {}),
         clientId: result.client?.id ?? null,
         threadId: result.threadId,
         sentMessageId: result.messageId,
