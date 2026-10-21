@@ -75,6 +75,11 @@ export interface ComposeReplyTarget {
   client?: { id: number; name: string } | null
   /** The email itself, so it can be shown (and annotated) under the reply. */
   quote?: ReplyQuote
+  /**
+   * Recipients for a plain reply and a reply all, when the email had other
+   * participants. Offers the reply all toggle next to Cc.
+   */
+  recipients?: { reply: { to: string; cc: string }; replyAll: { to: string; cc: string } }
 }
 
 export interface ComposeFile {
@@ -87,6 +92,8 @@ export interface ComposeFile {
 export interface ComposeState {
   mode: 'reply' | 'new'
   replyTo: ComposeReplyTarget | null
+  /** A forward of an email in the reader (a new email with it as the starting body). */
+  forward?: boolean
   to: string
   cc: string
   /** Blind copy; shown with Cc. */
@@ -228,6 +235,18 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   const [minimised, setMinimised] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [showCc, setShowCc] = useState(Boolean(initial.cc || initial.bcc))
+  const replyChoices = initial.mode === 'reply' ? (initial.replyTo?.recipients ?? null) : null
+  const [replyAll, setReplyAll] = useState(
+    () => replyChoices !== null && initial.to === replyChoices.replyAll.to && initial.cc === replyChoices.replyAll.cc,
+  )
+  const toggleReplyAll = () => {
+    if (!replyChoices) return
+    const next = !replyAll
+    const target = next ? replyChoices.replyAll : replyChoices.reply
+    setReplyAll(next)
+    setState((s) => ({ ...s, to: target.to, cc: target.cc }))
+    if (next && target.cc) setShowCc(true)
+  }
   // To/Cc/Bcc suggestions, loaded once the first recipient field is focused.
   const [contacts, setContacts] = useState<MailContact[] | null>(null)
   const contactsRequested = useRef(false)
@@ -844,6 +863,22 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           <label className={styles.field}>
             <span>To</span>
             <RecipientInput label="To" value={state.to} onChange={(to) => setState((s) => ({ ...s, to }))} contacts={contacts} onWantContacts={loadContacts} />
+            {replyChoices ? (
+              <button
+                type="button"
+                className={`${styles.replyAllToggle} ${replyAll ? styles.replyAllOn : ''}`}
+                onClick={toggleReplyAll}
+                aria-pressed={replyAll}
+                aria-label="Reply all"
+                title={replyAll ? 'Reply to the sender only' : 'Reply all: include everyone on the email'}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="7 17 2 12 7 7" />
+                  <polyline points="12 17 7 12 12 7" />
+                  <path d="M22 18v-2a4 4 0 0 0-4-4H7" />
+                </svg>
+              </button>
+            ) : null}
             {!showCc ? (
               <button type="button" className={styles.ccToggle} onClick={() => setShowCc(true)} title="Add Cc and Bcc recipients">
                 Cc

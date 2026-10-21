@@ -33,6 +33,7 @@ import { normaliseSenderEntry, senderClientFor } from '../../lib/mail/sender-cli
 import MailStepNav from './MailStepNav'
 import { InboxSearch } from './InboxSearch'
 import { searchSenderAddresses, type MailContact } from '../../lib/mail/contacts-shared'
+import { forwardStartHtml, forwardSubject, hasOtherParticipants, replyRecipients } from '../../lib/mail/reply-actions'
 
 /** People in the user's mail, from /api/mail/contacts. */
 interface SearchPeople {
@@ -1108,10 +1109,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }
 
-  function startReply(message: ThreadMessage) {
+  function startReply(message: ThreadMessage, all = false) {
     setSummary(null)
     // Replying to one of our own sent messages goes back to its recipients, not to ourselves.
     const ownMessage = account !== '' && senderAddress(message.from).toLowerCase() === account.toLowerCase()
+    const ownAddress = account || accountsInfo?.primary || ''
+    const choices = replyRecipients(message, ownAddress ? [ownAddress] : [])
+    const reply = { to: ownMessage && message.to ? message.to : senderAddress(message.from), cc: '' }
+    // Reply all is only offered when the email had other participants.
+    const hasOthers = hasOtherParticipants(reply, choices.replyAll)
+    const recipients = hasOthers ? { reply, replyAll: choices.replyAll } : undefined
+    const start = all && recipients ? recipients.replyAll : reply
     setComposer({
       key: ++composeKey.current,
       mode: 'reply',
@@ -1127,11 +1135,29 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             : null,
         // Shown under the reply with "•••", to add notes into it.
         quote: { from: message.from, date: message.date, html: message.html, text: message.body },
+        recipients,
       },
-      to: ownMessage && message.to ? message.to : senderAddress(message.from),
-      cc: '',
+      to: start.to,
+      cc: start.cc,
       subject: replySubject(message.subject),
       html: '',
+      attachments: [],
+      account: accountRef.current,
+    })
+  }
+
+  /** Forward: a new email with the message (and its headers) as the starting body. */
+  function startForward(message: ThreadMessage) {
+    setSummary(null)
+    setComposer({
+      key: ++composeKey.current,
+      mode: 'new',
+      replyTo: null,
+      forward: true,
+      to: '',
+      cc: '',
+      subject: forwardSubject(message.subject),
+      html: forwardStartHtml({ ...message, text: message.body }),
       attachments: [],
       account: accountRef.current,
     })
@@ -1879,9 +1905,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                 <h2 className={styles.threadSubject}>{messages[0]?.subject || '(no subject)'}</h2>
                 <div className={styles.actions}>
                   {latest ? (
-                    <button type="button" className={`${styles.btn} ${styles.primary}`} onClick={() => startReply(latest)}>
-                      Reply with AI
-                    </button>
+                    <>
+                      <button type="button" className={`${styles.btn} ${styles.primary}`} onClick={() => startReply(latest)}>
+                        Reply
+                      </button>
+                      <button type="button" className={styles.btn} onClick={() => startReply(latest, true)}>
+                        Reply all
+                      </button>
+                      <button type="button" className={styles.btn} onClick={() => startForward(latest)}>
+                        Forward
+                      </button>
+                    </>
                   ) : null}
                   {/* Archive and read state are inbox labels; they do not apply to Sent. */}
                   {folder === 'inbox' ? (
@@ -2105,7 +2139,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           {readerOpen && latest && !threadLoading && !composer ? (
             <div className={styles.replyBar} data-testid="mail-reply-bar">
               <button type="button" className={`${styles.btn} ${styles.primary} ${styles.replyBtn}`} onClick={() => startReply(latest)}>
-                Reply with AI
+                Reply
               </button>
             </div>
           ) : null}
@@ -2122,7 +2156,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
               ? 'Edit scheduled email'
               : composer.mode === 'reply'
                 ? `Reply to ${senderName(composer.replyTo?.from ?? '')}`
-                : 'New message'
+                : composer.forward
+                  ? 'Forward'
+                  : 'New message'
           }${
             // With more than one account, say which one this email is written in.
             (accountsInfo?.accounts.length ?? 0) > 0 ? ` · ${composer.account || accountsInfo?.primary || 'main Gmail'}` : ''

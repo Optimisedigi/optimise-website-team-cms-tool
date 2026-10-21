@@ -179,6 +179,29 @@
   cursor: pointer;
 }
 
+.replyAllToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--theme-elevation-500);
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.replyAllToggle:hover,
+.replyAllToggle:focus-visible {
+  color: var(--theme-text);
+  background: var(--theme-elevation-100);
+}
+
+.replyAllOn {
+  color: #1a73e8;
+  background: var(--theme-elevation-100);
+}
+
 .content[hidden] {
   display: none;
 }
@@ -1193,7 +1216,8 @@
     justify-content: center;
   }
 
-  .ccToggle {
+  .ccToggle,
+  .replyAllToggle {
     min-height: 44px;
     padding: 0 8px;
   }

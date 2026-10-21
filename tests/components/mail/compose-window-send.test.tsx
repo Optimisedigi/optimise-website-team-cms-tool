@@ -230,3 +230,27 @@ describe('ComposeWindow editing a scheduled email', () => {
     expect(onSaveDraft).not.toHaveBeenCalled()
   })
 })
+
+describe('ComposeWindow reply all toggle', () => {
+  it('switches the reply to everyone on the email and back', () => {
+    mount({
+      ...REPLY,
+      replyTo: {
+        ...REPLY.replyTo!,
+        recipients: { reply: { to: 'carli@x.com', cc: '' }, replyAll: { to: 'carli@x.com', cc: 'sam@y.com, jo@z.com' } },
+      },
+    })
+    const toggle = screen.getByRole('button', { name: 'Reply all' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Cc')).toHaveValue('sam@y.com, jo@z.com')
+    fireEvent.click(toggle)
+    expect(screen.getByLabelText('Cc')).toHaveValue('')
+  })
+
+  it('is not offered when there is nobody else to include', () => {
+    mount()
+    expect(screen.queryByRole('button', { name: 'Reply all' })).toBeNull()
+  })
+})

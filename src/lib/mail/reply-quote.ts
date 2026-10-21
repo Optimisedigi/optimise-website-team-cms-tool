@@ -24,7 +24,7 @@ export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function quoteDate(raw: string): string {
+export function quoteDate(raw: string): string {
   const date = new Date(raw)
   if (Number.isNaN(date.getTime())) return raw.trim()
   return date.toLocaleString('en-AU', {
