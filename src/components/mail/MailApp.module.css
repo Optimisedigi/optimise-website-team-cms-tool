@@ -288,6 +288,16 @@
   background: var(--mail-soft);
 }
 
+.selectAllBar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--mail-soft);
+  font-size: 13px;
+}
+
 p.bulkBar {
   margin: 0;
   color: var(--mail-muted);
@@ -929,11 +939,52 @@ p.bulkBar {
 .accountMenuAdd {
   margin-top: 4px;
   padding: 8px;
+  border: 0;
   border-top: 1px solid var(--theme-elevation-100);
   border-radius: 0 0 6px 6px;
+  background: none;
   color: #2c97c9;
+  font: inherit;
   font-weight: 600;
+  text-align: left;
   text-decoration: none;
+  cursor: pointer;
+}
+
+.accountMenuAddForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 8px;
+  border-top: 1px solid var(--theme-elevation-100);
+}
+
+.accountMenuAddInput {
+  flex: 1 1 160px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 6px;
+  background: var(--theme-elevation-0);
+  color: inherit;
+  font: inherit;
+}
+
+.accountMenuAddGo {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #2c97c9;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.accountMenuAddForm .accountMenuNote {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .accountMenuNote {

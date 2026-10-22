@@ -23,13 +23,13 @@ vi.mock('next/headers', () => ({
   })),
 }))
 const getGmailOAuthUrl = vi.fn(
-  (state: string, options?: { selectAccount?: boolean; app?: string }) =>
-    `https://google.test/?state=${state}&select=${options?.selectAccount ? 1 : 0}&app=${options?.app ?? 'main'}`,
+  (state: string, options?: { selectAccount?: boolean; app?: string; loginHint?: string }) =>
+    `https://google.test/?state=${state}&select=${options?.selectAccount ? 1 : 0}&app=${options?.app ?? 'main'}&hint=${options?.loginHint ?? ''}`,
 )
 const exchangeGmailCode = vi.fn()
 const refreshGmailAccessToken = vi.fn()
 vi.mock('@/lib/gmail-service', () => ({
-  getGmailOAuthUrl: (state: string, options?: { selectAccount?: boolean; app?: string }) => getGmailOAuthUrl(state, options),
+  getGmailOAuthUrl: (state: string, options?: { selectAccount?: boolean; app?: string; loginHint?: string }) => getGmailOAuthUrl(state, options),
   exchangeGmailCode: (code: string, app?: string) => exchangeGmailCode(code, app),
   refreshGmailAccessToken: (token: string, email?: string) => refreshGmailAccessToken(token, email),
 }))
@@ -172,6 +172,39 @@ describe('adding an account through the second Gmail app (another Google Workspa
     mockPayload.findByID.mockResolvedValue({ id: 7, gmailConnected: true, gmailEmail: 'me@od.com' })
     await callback.GET(new NextRequest(`http://localhost/api/gmail/callback?code=c&state=${encodeURIComponent(state)}`))
     expect(exchangeGmailCode).toHaveBeenCalledWith('c', 'main')
+  })
+})
+
+describe('adding an account by typing its address (?add=1&email=)', () => {
+  const setApps = () => {
+    process.env.GMAIL_ALT_CLIENT_ID = 'alt-id'
+    process.env.GMAIL_ALT_CLIENT_SECRET = 'alt-secret'
+    process.env.GMAIL_ALT_DOMAINS = 'cipherhealth.com.au'
+    process.env.GMAIL_ALT2_CLIENT_ID = 'alt2-id'
+    process.env.GMAIL_ALT2_CLIENT_SECRET = 'alt2-secret'
+    process.env.GMAIL_ALT2_ACCOUNTS = 'petertuu2@gmail.com'
+  }
+
+  it('picks the sign-in app from the address and pre-fills it', async () => {
+    setApps()
+    const cases: Array<[string, string, string]> = [
+      ['Support@CipherHealth.com.au', 'alt', 'oauth_nonce_gmail_add_alt'],
+      ['petertuu2@gmail.com', 'alt2', 'oauth_nonce_gmail_add_alt2'],
+      ['sales@od.com', 'main', 'oauth_nonce_gmail_add'],
+    ]
+    for (const [email, app, cookie] of cases) {
+      cookieJar.clear()
+      const res = await connect.GET(new NextRequest(`http://localhost/api/gmail/connect?add=1&email=${encodeURIComponent(email)}`))
+      expect(location(res).searchParams.get('app')).toBe(app)
+      expect(location(res).searchParams.get('hint')).toBe(email.toLowerCase())
+      expect([...cookieJar.keys()]).toEqual([cookie])
+    }
+  })
+
+  it('refuses an address that is not an email, setting no cookie', async () => {
+    const res = await connect.GET(new NextRequest('http://localhost/api/gmail/connect?add=1&email=peter'))
+    expect(res.status).toBe(400)
+    expect(cookieJar.size).toBe(0)
   })
 })
 

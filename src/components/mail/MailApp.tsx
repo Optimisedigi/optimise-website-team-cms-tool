@@ -296,7 +296,6 @@ interface AccountsInfo {
   primary: string | null
   accounts: Array<{ email: string }>
   addUrl: string
-  extraAdds?: Array<{ url: string; label: string }>
   canAdd: boolean
 }
 
@@ -1270,6 +1269,16 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     })
   }
 
+  /**
+   * Tick every inbox row loaded so far (or untick them all when they already
+   * are). Rows a later "Load more" brings in are not ticked.
+   */
+  const allLoadedChecked = threads.length > 0 && checkedRows.length === threads.length
+  function toggleAllLoaded() {
+    setBulkNote('')
+    setCheckedThreads(allLoadedChecked ? new Set() : new Set(threads.map((row) => row.threadId)))
+  }
+
   /** Mark every ticked inbox row read, in chunks the route accepts. */
   async function markCheckedRead() {
     const ids = checkedRows.map((row) => row.threadId)
@@ -1779,7 +1788,6 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         onSelect={(email, main) => switchAccount(main ? '' : email)}
         onRemove={(email) => void removeAccount(email)}
         addUrl={accountsInfo?.canAdd ? accountsInfo.addUrl : null}
-        extraAdds={accountsInfo?.canAdd ? (accountsInfo.extraAdds ?? []) : []}
       />
       <div className={styles.toolbar}>
         <div className={styles.folders} role="tablist" aria-label="Mail folders">
@@ -2124,6 +2132,23 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           <p className={styles.bulkBar} role="status">
             {bulkNote}
           </p>
+        ) : null}
+        {folder === 'inbox' && threads.length > 0 ? (
+          <div className={styles.selectAllBar}>
+            <button
+              type="button"
+              className={styles.linkBtn}
+              onClick={toggleAllLoaded}
+              disabled={bulkBusy}
+              aria-pressed={allLoadedChecked}
+              title={nextPageToken ? 'Selects the emails shown here, not ones still to load' : undefined}
+            >
+              {allLoadedChecked ? 'Unselect all' : 'Select all'}
+            </button>
+            <span className={styles.muted}>
+              {threads.length} email{threads.length === 1 ? '' : 's'} shown{nextPageToken ? ' (more below Load more)' : ''}
+            </span>
+          </div>
         ) : null}
         <ul className={styles.list} aria-label={tagView && folder === 'inbox' ? `Tag ${tagView.name}` : FOLDER_LABELS[folder]}>
           {threads.map((thread) => (

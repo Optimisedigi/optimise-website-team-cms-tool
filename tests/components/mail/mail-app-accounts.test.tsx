@@ -145,12 +145,48 @@ describe('MailApp layout', () => {
     expect(JSON.parse(String(calls.find((call) => call.url === '/api/mail/modify')?.init?.body))).toEqual({ threadId: 't1', action: 'trash' })
   })
 
+  it('Select all ticks only the emails loaded so far, not ones still behind Load more', async () => {
+    const baseFetch = global.fetch
+    const page1 = [
+      { ...thread, threadId: 't1', subject: 'First', unread: true },
+      { ...thread, threadId: 't2', messageId: 'm2', subject: 'Second', unread: true },
+    ]
+    const page2 = [{ ...thread, threadId: 't3', messageId: 'm3', subject: 'Third', unread: true }]
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/mail/inbox')) {
+        const more = url.includes('pageToken=')
+        return {
+          ok: true,
+          json: async () => ({ threads: more ? page2 : page1, nextPageToken: more ? null : 'r:next', account: 'me@od.com', senderClients: [] }),
+        } as Response
+      }
+      return baseFetch(url, init)
+    }) as unknown as typeof fetch
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Second')
+    fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
+    expect(screen.getByText('2 selected')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Third')
+    // The newly loaded email is not ticked; the earlier ones stay ticked.
+    expect((screen.getByRole('checkbox', { name: /Third/ }) as HTMLInputElement).checked).toBe(false)
+    expect(screen.getByText('2 selected')).toBeTruthy()
+    // Select all again now takes in all three loaded, then Unselect all clears them.
+    fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
+    expect(screen.getByText('3 selected')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Unselect all' }))
+    expect(screen.queryByText(/selected$/)).toBeNull()
+  })
+
   it('puts the search box at the top of the email list, right above the first email', async () => {
     render(<MailApp clients={CLIENTS} />)
     await screen.findByText('Hello there')
     const search = screen.getByRole('combobox', { name: 'Search inbox' })
     const list = screen.getByRole('list', { name: 'Inbox' })
-    expect(search.closest('form')?.nextElementSibling).toBe(list)
+    // Search, then the Select all bar, then the first email.
+    const selectAll = search.closest('form')?.nextElementSibling
+    expect(selectAll?.querySelector('button')?.textContent).toBe('Select all')
+    expect(selectAll?.nextElementSibling).toBe(list)
     expect(search.closest('[class*="toolbar"]')).toBeNull()
   })
 
@@ -321,7 +357,7 @@ describe('MailApp links opened while Mail is open (client email alert, bell)', (
 })
 
 describe('MailApp breadcrumb account switcher', () => {
-  it('offers adding accounts that have their own sign-in app (another Workspace, a personal Gmail)', async () => {
+  it('offers one Add email account button that asks for the address and signs it in', async () => {
     const baseFetch = global.fetch
     global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.startsWith('/api/mail/accounts')) {
@@ -331,10 +367,6 @@ describe('MailApp breadcrumb account switcher', () => {
             primary: 'me@od.com',
             accounts: [],
             addUrl: '/api/gmail/connect?add=1',
-            extraAdds: [
-              { url: '/api/gmail/connect?add=1&app=alt', label: '+ Add an @cipherhealth.com.au account' },
-              { url: '/api/gmail/connect?add=1&app=alt2', label: '+ Add petertuu2@gmail.com' },
-            ],
             canAdd: true,
           }),
         } as Response
@@ -347,10 +379,22 @@ describe('MailApp breadcrumb account switcher', () => {
     const crumb = render(<>{nav.items[1]?.label as React.ReactElement}</>)
     fireEvent.click(await within(crumb.container).findByRole('button', { name: /me@od\.com/ }))
     const menu = await screen.findByRole('menu', { name: 'Gmail accounts' })
-    expect(within(menu).getByRole('menuitem', { name: '+ Add an @cipherhealth.com.au account' }).getAttribute('href')).toBe(
-      '/api/gmail/connect?add=1&app=alt',
-    )
-    expect(within(menu).getByRole('menuitem', { name: '+ Add petertuu2@gmail.com' }).getAttribute('href')).toBe('/api/gmail/connect?add=1&app=alt2')
+    const adds = within(menu).getAllByRole('menuitem').filter((item) => item.textContent?.startsWith('+'))
+    expect(adds.map((item) => item.textContent)).toEqual(['+ Add email account'])
+    const assign = vi.fn()
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign } as Location)
+    fireEvent.click(adds[0] as HTMLElement)
+    const box = within(menu).getByRole('textbox', { name: 'Email account to add' })
+    // Not an address, or one already in Mail: stays in the menu with a message.
+    fireEvent.change(box, { target: { value: 'peter' } })
+    fireEvent.submit(box.closest('form') as HTMLFormElement)
+    expect(within(menu).getByRole('alert').textContent).toBe('Enter a full email address.')
+    fireEvent.change(box, { target: { value: 'ME@od.com' } })
+    fireEvent.submit(box.closest('form') as HTMLFormElement)
+    expect(within(menu).getByRole('alert').textContent).toBe('That account is already in Mail.')
+    fireEvent.change(box, { target: { value: ' Peter@CipherHealth.com.au ' } })
+    fireEvent.submit(box.closest('form') as HTMLFormElement)
+    expect(assign).toHaveBeenCalledWith('/api/gmail/connect?add=1&email=peter%40cipherhealth.com.au')
   })
 
   it('shows Mail / <email> in the breadcrumb and switches every request to the chosen account', async () => {
@@ -364,7 +408,7 @@ describe('MailApp breadcrumb account switcher', () => {
     const button = await within(crumb.container).findByRole('button', { name: /me@od\.com/ })
     fireEvent.click(button)
     const menu = await screen.findByRole('menu', { name: 'Gmail accounts' })
-    expect(within(menu).getByRole('menuitem', { name: '+ Add another Gmail account' }).getAttribute('href')).toBe('/api/gmail/connect?add=1')
+    expect(within(menu).getByRole('menuitem', { name: '+ Add email account' })).toBeTruthy()
     calls = []
     fireEvent.click(within(menu).getByRole('menuitem', { name: /^sales@od\.com/ }))
 

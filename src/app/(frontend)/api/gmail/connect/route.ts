@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { getGmailOAuthUrl } from "@/lib/gmail-service";
-import { GMAIL_EXTRA_APP_COOKIE, parseGmailExtraApp } from "@/lib/gmail-oauth-apps";
+import { GMAIL_EXTRA_APP_COOKIE, gmailAppForEmail, parseGmailExtraApp } from "@/lib/gmail-oauth-apps";
+import { normaliseMailAccount } from "@/lib/mail/accounts-shared";
 import { OAUTH_NONCE_COOKIE, signOAuthState } from "@/lib/oauth-state";
 
 /**
@@ -20,6 +21,9 @@ import { OAUTH_NONCE_COOKIE, signOAuthState } from "@/lib/oauth-state";
  * `?add=1&app=alt` (or alt2, alt3) does the same through one of the extra
  * Gmail apps, for accounts the main app cannot sign in: another Google
  * Workspace, or a personal Gmail (see src/lib/gmail-oauth-apps.ts).
+ * `?add=1&email=<address>` (Mail's single "Add email account" button) picks
+ * that app from the address itself and pre-fills it in Google's sign-in;
+ * the callback still checks the address that actually signed in.
  */
 export async function GET(req: NextRequest) {
   if (
@@ -53,8 +57,14 @@ export async function GET(req: NextRequest) {
   // cookie is set, so the callback knows without trusting a URL parameter.
   const adding = req.nextUrl.searchParams.get("add") === "1";
   const requestedApp = adding ? req.nextUrl.searchParams.get("app") : null;
+  const emailParam = adding && !requestedApp ? req.nextUrl.searchParams.get("email") : null;
+  const email = emailParam === null ? "" : normaliseMailAccount(emailParam);
+  if (emailParam !== null && !email) {
+    return NextResponse.json({ error: "Enter a valid email address to add." }, { status: 400 });
+  }
+  const appForEmail = email ? gmailAppForEmail(email) : "main";
   // Only an extra app that is fully set up; anything else is refused rather than falling back.
-  const extraApp = requestedApp ? parseGmailExtraApp(requestedApp) : null;
+  const extraApp = requestedApp ? parseGmailExtraApp(requestedApp) : appForEmail === "main" ? null : appForEmail;
   if (requestedApp && !extraApp) {
     return NextResponse.json({ error: "That Gmail sign-in option is not set up." }, { status: 400 });
   }
@@ -68,5 +78,7 @@ export async function GET(req: NextRequest) {
     path: "/",
   });
 
-  return NextResponse.redirect(getGmailOAuthUrl(state, { selectAccount: adding, app: extraApp ?? "main" }));
+  return NextResponse.redirect(
+    getGmailOAuthUrl(state, { selectAccount: adding, app: extraApp ?? "main", ...(email ? { loginHint: email } : {}) }),
+  );
 }

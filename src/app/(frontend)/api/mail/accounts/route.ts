@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { deleteMailAccount, listMailAccounts } from "@/lib/mail/accounts";
 import { normaliseMailAccount } from "@/lib/mail/accounts-shared";
 import { readJson, requireMailUser } from "@/lib/mail/route-helpers";
-import { gmailExtraAppTargets } from "@/lib/gmail-oauth-apps";
 
 /**
  * GET /api/mail/accounts
@@ -24,15 +23,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     primary: user.gmailConnected && user.gmailEmail ? user.gmailEmail.trim().toLowerCase() : null,
     accounts: accounts.map((account) => ({ email: account.email, lastSyncAt: account.lastSyncAt })),
+    // The menu adds `&email=<address>`; the connect route picks the right sign-in app from it.
     addUrl: "/api/gmail/connect?add=1",
-    // Accounts the main app cannot sign in (another Workspace, a personal Gmail) use an extra app.
-    extraAdds: gmailExtraAppTargets().flatMap((target) => {
-      const url = `/api/gmail/connect?add=1&app=${target.app}`;
-      return [
-        ...target.domains.map((domain) => ({ url, label: `+ Add an @${domain} account` })),
-        ...target.addresses.map((address) => ({ url, label: `+ Add ${address}` })),
-      ];
-    }),
     canAdd: ctx.user.role === "admin",
   });
 }

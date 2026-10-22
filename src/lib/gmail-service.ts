@@ -51,7 +51,8 @@ function getOAuth2Client() {
  */
 export function getGmailOAuthUrl(
   state: string,
-  options: { selectAccount?: boolean; app?: GmailOAuthApp } = {},
+  /** `loginHint`: the address being added, pre-filled in Google's sign-in (replaces the app's own hint). */
+  options: { selectAccount?: boolean; app?: GmailOAuthApp; loginHint?: string } = {},
 ): string {
   const app = options.app ?? "main";
   const oauth2Client = createGmailOAuthClient(app);
@@ -63,7 +64,7 @@ export function getGmailOAuthUrl(
     prompt: options.selectAccount ? "select_account consent" : "consent",
     include_granted_scopes: true,
     // Only a hint for Google's account picker; the callback enforces the match.
-    ...gmailSignInHint(app),
+    ...(options.loginHint ? { login_hint: options.loginHint } : gmailSignInHint(app)),
   });
 }
 

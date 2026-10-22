@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { normaliseMailAccount } from '../../lib/mail/accounts-shared'
 import { createPortal } from 'react-dom'
 import { useStepNav, type StepNavItem } from '@payloadcms/ui'
 import styles from './MailApp.module.css'
@@ -8,7 +9,9 @@ import styles from './MailApp.module.css'
 /**
  * Mail's breadcrumb: [Home] / Mail / [email]. The email is the account
  * switcher: it lists the user's main Gmail and their extra Gmail accounts,
- * switches Mail between them, and links to connecting another one. The menu
+ * switches Mail between them, and adds another one: "+ Add email account"
+ * asks for the address, and the connect route picks the right Google sign-in
+ * for it (the CMS's own app, or another Workspace's / a personal Gmail's). The menu
  * is portalled to <body> because the breadcrumb bar clips overflow.
  */
 
@@ -19,18 +22,37 @@ export interface MailAccountMenuProps {
   accounts: Array<{ email: string; main: boolean }>
   onSelect: (email: string, main: boolean) => void
   onRemove: (email: string) => void
-  /** Where "Add another Gmail account" goes, or null when the user cannot add one. */
+  /** Where "Add email account" goes (`&email=` is added), or null when the user cannot add one. */
   addUrl: string | null
-  /** Accounts added through their own sign-in app (another Workspace, a personal Gmail). */
-  extraAdds?: Array<{ url: string; label: string }>
 }
 
-export function MailAccountMenu({ current, accounts, onSelect, onRemove, addUrl, extraAdds = [] }: MailAccountMenuProps) {
+/** The connect link for one address: `addUrl` plus `email=`. */
+export function addAccountUrl(addUrl: string, email: string): string {
+  return `${addUrl}${addUrl.includes('?') ? '&' : '?'}email=${encodeURIComponent(email)}`
+}
+
+export function MailAccountMenu({ current, accounts, onSelect, onRemove, addUrl }: MailAccountMenuProps) {
   const [open, setOpen] = useState(false)
+  // "+ Add email account" opens a small address box in the menu.
+  const [adding, setAdding] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [addError, setAddError] = useState('')
+  const addInputRef = useRef<HTMLInputElement>(null)
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
+
+  useEffect(() => {
+    if (open) return
+    setAdding(false)
+    setNewEmail('')
+    setAddError('')
+  }, [open])
+
+  useEffect(() => {
+    if (adding) addInputRef.current?.focus()
+  }, [adding])
 
   useEffect(() => {
     if (!open) return
@@ -135,18 +157,52 @@ export function MailAccountMenu({ current, accounts, onSelect, onRemove, addUrl,
                   </div>
                 )
               })}
-              {addUrl ? (
-                <a role="menuitem" className={styles.accountMenuAdd} href={addUrl}>
-                  + Add another Gmail account
-                </a>
+              {addUrl && !adding ? (
+                <button type="button" role="menuitem" className={styles.accountMenuAdd} onClick={() => setAdding(true)}>
+                  + Add email account
+                </button>
               ) : null}
-              {addUrl
-                ? extraAdds.map((option) => (
-                    <a key={option.label} role="menuitem" className={styles.accountMenuAdd} href={option.url}>
-                      {option.label}
-                    </a>
-                  ))
-                : null}
+              {addUrl && adding ? (
+                <form
+                  className={styles.accountMenuAddForm}
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    const email = normaliseMailAccount(newEmail)
+                    if (!email) {
+                      setAddError('Enter a full email address.')
+                      return
+                    }
+                    if (accounts.some((account) => account.email === email)) {
+                      setAddError('That account is already in Mail.')
+                      return
+                    }
+                    window.location.assign(addAccountUrl(addUrl, email))
+                  }}
+                >
+                  <input
+                    ref={addInputRef}
+                    type="email"
+                    className={styles.accountMenuAddInput}
+                    value={newEmail}
+                    onChange={(event) => {
+                      setNewEmail(event.target.value)
+                      setAddError('')
+                    }}
+                    placeholder="name@example.com"
+                    aria-label="Email account to add"
+                    aria-invalid={addError ? true : undefined}
+                    autoComplete="off"
+                  />
+                  <button type="submit" className={styles.accountMenuAddGo}>
+                    Continue
+                  </button>
+                  {addError ? (
+                    <p className={styles.accountMenuNote} role="alert">
+                      {addError}
+                    </p>
+                  ) : null}
+                </form>
+              ) : null}
             </div>,
             document.body,
           )
@@ -172,7 +228,6 @@ export default function MailStepNav(props: MailAccountMenuProps) {
           current={props.current}
           accounts={props.accounts}
           addUrl={props.addUrl}
-          extraAdds={props.extraAdds}
           onSelect={(email, main) => latest.current.onSelect(email, main)}
           onRemove={(email) => latest.current.onRemove(email)}
         />
@@ -181,7 +236,7 @@ export default function MailStepNav(props: MailAccountMenuProps) {
     return items
     // props.accounts is keyed by accountsKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.current, accountsKey, props.addUrl, (props.extraAdds ?? []).map((option) => `${option.url} ${option.label}`).join('|')])
+  }, [props.current, accountsKey, props.addUrl])
 
   useEffect(() => {
     setStepNav(nav)

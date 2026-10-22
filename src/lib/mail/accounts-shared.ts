@@ -12,7 +12,7 @@
 export const MAIL_ACCOUNT_HEADER = "x-mail-account";
 /** `/admin/mail?account=<email>` opens Mail on that account. */
 export const MAIL_ACCOUNT_QUERY_PARAM = "account";
-/** Browser storage key remembering the last account shown in Mail. */
+/** Browser storage key older versions used to remember the last account shown in Mail; now only cleared (Mail opens on the main Gmail). */
 export const MAIL_ACCOUNT_STORAGE_KEY = "mail-active-account";
 
 const EMAIL_RE = /^[a-z0-9._%+'-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
