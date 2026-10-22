@@ -63,9 +63,10 @@ async function saveColumnClientIds(payload: any, user: any, clientIds: string[])
   const data = { key: COLUMN_PREF_KEY, value: { clientIds } };
   const preference = result.docs?.[0];
   if (preference?.id) {
-    await payload.update({ collection: "payload-preferences" as any, id: preference.id, data, overrideAccess: true });
+    await payload.update({ collection: "payload-preferences" as any, id: preference.id, data, user, overrideAccess: true });
   } else {
-    await payload.create({ collection: "payload-preferences" as any, data: { ...data, user: { relationTo: "users", value: user.id } }, overrideAccess: true });
+    // Payload's preferences hook sets `user` from req.user and blanks it without one, so the signed-in user must be passed.
+    await payload.create({ collection: "payload-preferences" as any, data: { ...data, user: { relationTo: "users", value: user.id } }, user, overrideAccess: true });
   }
 }
 
@@ -100,9 +101,10 @@ async function setPaidTransferMonth(payload: any, user: any, month: string, paid
   const nextMonths = Array.from(months).sort();
   const data = { key: PAID_TRANSFER_PREF_KEY, value: { months: nextMonths } };
   if (preference?.id) {
-    await payload.update({ collection: "payload-preferences" as any, id: preference.id, data, overrideAccess: true });
+    await payload.update({ collection: "payload-preferences" as any, id: preference.id, data, user, overrideAccess: true });
   } else {
-    await payload.create({ collection: "payload-preferences" as any, data: { ...data, user: { relationTo: "users", value: user.id } }, overrideAccess: true });
+    // Payload's preferences hook sets `user` from req.user and blanks it without one, so the signed-in user must be passed.
+    await payload.create({ collection: "payload-preferences" as any, data: { ...data, user: { relationTo: "users", value: user.id } }, user, overrideAccess: true });
   }
   return nextMonths;
 }

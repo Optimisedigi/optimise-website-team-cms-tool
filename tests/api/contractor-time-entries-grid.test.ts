@@ -484,4 +484,37 @@ describe("contractor time entries grid RBAC", () => {
     expect(body.error).toBe("Paid entries only allow client allocation updates");
     expect(mockPayload.update).not.toHaveBeenCalled();
   });
+
+  it("PATCH marks a transfer month paid, passing the signed-in user so Payload can set the preference owner", async () => {
+    const { PATCH } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    const admin = { ...adminUser, collection: "users" };
+    mockPayload.auth.mockResolvedValue({ user: admin });
+    mockPayload.find.mockResolvedValueOnce({ docs: [] });
+    mockPayload.create.mockResolvedValue({ id: 5 });
+
+    const res = await PATCH(patchRequest({ transferMonth: "2026-08", transferPaid: true }));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.paidTransferMonths).toContain("2026-08");
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: "payload-preferences",
+      user: admin,
+      data: expect.objectContaining({ key: "contractor-time-entries.paid-transfer-months" }),
+    }));
+  });
+
+  it("PATCH updates an existing paid-months preference as the signed-in user", async () => {
+    const { PATCH } = await import("@/app/(frontend)/api/contractor-time-entries/grid/route");
+    const admin = { ...adminUser, collection: "users" };
+    mockPayload.auth.mockResolvedValue({ user: admin });
+    mockPayload.find.mockResolvedValueOnce({ docs: [{ id: 9, value: { months: ["2026-07"] } }] });
+    mockPayload.update.mockResolvedValue({ id: 9 });
+
+    const res = await PATCH(patchRequest({ transferMonth: "2026-07", transferPaid: false }));
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).paidTransferMonths).toEqual([]);
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({ id: 9, user: admin }));
+  });
 });
