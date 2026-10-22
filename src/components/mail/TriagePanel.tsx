@@ -17,6 +17,8 @@ export interface TriageCategoryRow {
   label: string
   count: number
   defaultSelected: boolean
+  /** What the AI said belongs in this category. */
+  description?: string
   senders: TriageSenderRow[]
 }
 
@@ -44,15 +46,13 @@ function timeLeft(remaining: number): string {
 }
 const SUBJECTS_SHOWN = 3
 
-/** One colour per category, used in the overview bar, swatches and share bars. */
+/** Fixed colours for the two groups that always exist. */
 const CATEGORY_TONES: Record<string, string> = {
-  sales_pitch: '#e4572e',
-  newsletter: '#2c97c9',
-  promotion: '#f0a202',
-  notification: '#8e7cc3',
   keep: '#5b8c5a',
   clients: '#1f6f8b',
 }
+/** Colours for the AI's own categories ("ai-1", "ai-2", ...), in order. */
+const AI_TONES = ['#e4572e', '#2c97c9', '#f0a202', '#8e7cc3', '#d36ba6', '#3fa796', '#a0522d', '#6c7a89']
 
 const fmt = (n: number) => n.toLocaleString('en-AU')
 const plural = (n: number, one: string, many = `${one}s`) => `${fmt(n)} ${n === 1 ? one : many}`
@@ -62,18 +62,23 @@ function defaultSelection(categories: TriageCategoryRow[]): Set<string> {
 }
 
 /**
- * On-request inbox triage: the AI sorts unread senders (sender + subject only)
- * into categories; the user unticks anything to keep and archives or marks
+ * On-request inbox triage: the AI proposes categories for this inbox and
+ * sorts unread senders (sender + subject only) into them; the user unticks anything to keep and archives or marks
  * the rest read. Nothing changes in Gmail until Archive / Mark read is clicked.
  */
 export default function TriagePanel({
   api,
   onApplied,
   onClose,
+  fullView = true,
+  onFullViewChange,
 }: {
   api: <T>(url: string, init?: RequestInit) => Promise<T>
   onApplied: () => void
   onClose: () => void
+  /** Expanded: the panel takes the whole mail area. Collapsed: a one-line bar (results and any run are kept). */
+  fullView?: boolean
+  onFullViewChange?: (fullView: boolean) => void
 }) {
   const [result, setResult] = useState<TriageResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -217,18 +222,40 @@ export default function TriagePanel({
     }
   }
 
-  const categoryTone = (key: string) => CATEGORY_TONES[key] ?? 'var(--theme-elevation-400)'
+  const categoryTone = (key: string) => {
+    const aiIndex = /^ai-(\d+)$/.exec(key)?.[1]
+    if (aiIndex) return AI_TONES[(Number(aiIndex) - 1) % AI_TONES.length] ?? 'var(--theme-elevation-400)'
+    return CATEGORY_TONES[key] ?? 'var(--theme-elevation-400)'
+  }
 
   return (
-    <div className={styles.panel} aria-label="Inbox triage">
+    <div className={`${styles.panel} ${fullView ? styles.full : styles.collapsed}`} aria-label="Inbox triage">
       <div className={styles.head}>
         <h3 className={styles.title}>Triage unread</h3>
-        <button type="button" className={styles.linkBtn} onClick={onClose}>
-          Close
-        </button>
+        {!fullView ? (
+          <span className={`${styles.muted} ${styles.collapsedSummary}`}>
+            {loading
+              ? 'Sorting unread emails…'
+              : result
+                ? `${plural(totals.emails, 'unread email')} in ${plural(result.categories.length, 'category', 'categories')}, ${fmt(totals.pickedEmails)} selected`
+                : 'Not run yet'}
+          </span>
+        ) : null}
+        <span className={styles.headActions}>
+          {onFullViewChange ? (
+            <button type="button" className={styles.linkBtn} onClick={() => onFullViewChange(!fullView)} aria-expanded={fullView}>
+              {fullView ? 'Collapse' : 'Expand'}
+            </button>
+          ) : null}
+          <button type="button" className={styles.linkBtn} onClick={onClose}>
+            Close
+          </button>
+        </span>
       </div>
+      <div className={styles.body} hidden={!fullView}>
       <p className={styles.muted}>
-        Runs only when you click the button below. The AI sees each sender and subject line, never the emails themselves. Untick anything
+        Runs only when you click the button below. The AI sees each sender and subject line, never the emails themselves, and makes up
+        categories to fit your inbox. Untick anything
         you want to keep. Nothing changes in Gmail until you click Archive or Mark read.
       </p>
       <div className={styles.actions}>
@@ -345,6 +372,7 @@ export default function TriagePanel({
                       {open ? (
                         <tr className={styles.detailRow}>
                           <td colSpan={6}>
+                            {category.description ? <p className={styles.muted}>{category.description}</p> : null}
                             <table className={styles.senderTable}>
                               <caption className={styles.srOnly}>{category.label} by sender</caption>
                               <thead>
@@ -437,6 +465,7 @@ export default function TriagePanel({
           {note}
         </p>
       ) : null}
+      </div>
     </div>
   )
 }

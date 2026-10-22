@@ -198,10 +198,12 @@ describe("POST /api/mail/subject", () => {
   });
 });
 
+const TRIAGE_PLAN = { message: { content: [{ type: "text", text: '{"categories":[{"name":"Cold pitches","description":"Selling things.","clear":true}]}' }] }, model: "m" };
+
 describe("POST /api/mail/triage", () => {
   it("reads only unread senders and subjects, keeps clients from the model, and changes nothing in Gmail", async () => {
     mockPayload.find.mockResolvedValue({ docs: [] });
-    mockCallLLM.mockResolvedValueOnce({ message: { content: [{ type: "text", text: "1 s" }] }, model: "m" });
+    mockCallLLM.mockResolvedValueOnce(TRIAGE_PLAN).mockResolvedValueOnce({ message: { content: [{ type: "text", text: "1 1" }] }, model: "m" });
     const { POST } = await import("@/app/(frontend)/api/mail/triage/route");
     const res = await POST(post("/api/mail/triage", {}));
     const data = await res.json();
@@ -211,7 +213,11 @@ describe("POST /api/mail/triage", () => {
     expect(modelInput()).toContain("sales@pitch.io");
     expect(modelInput()).not.toContain("inthepicture");
     expect(mockBatchModify).not.toHaveBeenCalled();
-    expect(data.categories.map((c: { key: string; count: number }) => [c.key, c.count])).toEqual([["sales_pitch", 2], ["clients", 1]]);
+    expect(JSON.stringify(mockCallLLM.mock.calls)).not.toContain("inthepicture");
+    expect(data.categories.map((c: { label: string; count: number; defaultSelected: boolean }) => [c.label, c.count, c.defaultSelected])).toEqual([
+      ["Cold pitches", 2, true],
+      ["Clients", 1, false],
+    ]);
     expect(data.categories[0].senders[0]).toMatchObject({ address: "sales@pitch.io", messageIds: ["m1", "m2"] });
     expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "triage", emailCount: 2 }) }));
   });
@@ -230,12 +236,20 @@ describe("POST /api/mail/triage in steps (big inboxes)", () => {
     expect(read.messages.map((m: { messageId: string }) => m.messageId)).toEqual(["m1", "m2"]);
     expect(mockCallLLM).not.toHaveBeenCalled();
 
-    mockCallLLM.mockResolvedValueOnce({ message: { content: [{ type: "text", text: "1 n" }] }, model: "m" });
+    mockCallLLM.mockResolvedValueOnce(TRIAGE_PLAN).mockResolvedValueOnce({ message: { content: [{ type: "text", text: "1 1" }] }, model: "m" });
     const sorted = await (await POST(post("/api/mail/triage", { step: "sort", messages: read.messages }))).json();
-    expect(sorted.categories.map((c: { key: string; count: number }) => [c.key, c.count])).toEqual([["newsletter", 2]]);
+    expect(sorted.categories.map((c: { key: string; count: number }) => [c.key, c.count])).toEqual([["ai-1", 2]]);
     expect(sorted.scanned).toBe(2);
     expect(mockGetFullMessage).not.toHaveBeenCalled();
     expect(mockBatchModify).not.toHaveBeenCalled();
+  });
+
+  it("answers 502 when the AI cannot plan the categories", async () => {
+    mockPayload.find.mockResolvedValue({ docs: [] });
+    mockCallLLM.mockResolvedValueOnce({ message: { content: [{ type: "text", text: "sorry" }] }, model: "m" });
+    const { POST } = await import("@/app/(frontend)/api/mail/triage/route");
+    const res = await POST(post("/api/mail/triage", { step: "sort", messages: [{ messageId: "m1", from: "a@b.com", subject: "x" }] }));
+    expect(res.status).toBe(502);
   });
 
   it("refuses bad steps, too many ids, non-Gmail ids and malformed messages", async () => {

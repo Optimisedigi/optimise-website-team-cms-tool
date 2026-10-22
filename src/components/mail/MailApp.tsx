@@ -342,6 +342,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [showHiddenPanel, setShowHiddenPanel] = useState(false)
   // On-request AI triage of unread mail (sender + subject only).
   const [showTriagePanel, setShowTriagePanel] = useState(false)
+  // Expanded triage takes the whole mail area; collapsed it is a slim bar above the inbox.
+  const [triageExpanded, setTriageExpanded] = useState(true)
+  /** Triage button: opens expanded; expands a collapsed panel; closes an expanded one. */
+  const toggleTriage = () => {
+    if (showTriagePanel && !triageExpanded) {
+      setTriageExpanded(true)
+      return
+    }
+    setTriageExpanded(true)
+    setShowTriagePanel((open) => !open)
+  }
   const [hiddenInput, setHiddenInput] = useState('')
   const [hideChoice, setHideChoice] = useState(false)
   const [lastHidden, setLastHidden] = useState<string | null>(null)
@@ -1667,7 +1678,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         {isPhone ? (
           <MailOverflowMenu
             items={[
-              { label: 'Triage unread', onSelect: () => setShowTriagePanel((open) => !open) },
+              { label: 'Triage unread', onSelect: toggleTriage },
               {
                 label: `Hidden${hiddenSenders.length ? ` (${hiddenSenders.length})` : ''}`,
                 onSelect: () => setShowHiddenPanel((open) => !open),
@@ -1684,8 +1695,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             <button
               type="button"
               className={styles.btn}
-              onClick={() => setShowTriagePanel((open) => !open)}
-              aria-expanded={showTriagePanel}
+              onClick={toggleTriage}
+              aria-expanded={showTriagePanel && triageExpanded}
               title="Let AI sort your unread emails by sender and subject, then clear them in bulk"
             >
               ✨ Triage
@@ -1743,7 +1754,16 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         })()
       ) : null}
 
-      {showTriagePanel ? <TriagePanel key={activeAccount} api={api} onApplied={() => void refresh()} onClose={() => setShowTriagePanel(false)} /> : null}
+      {showTriagePanel ? (
+        <TriagePanel
+          key={activeAccount}
+          api={api}
+          onApplied={() => void refresh()}
+          onClose={() => setShowTriagePanel(false)}
+          fullView={triageExpanded}
+          onFullViewChange={setTriageExpanded}
+        />
+      ) : null}
 
       {showClientPanel ? (
         <div className={styles.panel} style={{ marginTop: 0 }}>
@@ -1915,7 +1935,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         />
       ) : null}
 
-      <div className={styles.panes} style={panelOpen ? { display: 'none' } : undefined}>
+      <div className={styles.panes} style={panelOpen || (showTriagePanel && triageExpanded) ? { display: 'none' } : undefined}>
         <div className={styles.listPane}>
         {/* Search sits right above the first email in the list. */}
         <InboxSearch

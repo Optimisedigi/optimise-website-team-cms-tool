@@ -1,5 +1,5 @@
 import { extractEmailAddresses } from "./client-matching";
-import { MAIL_PROMPTS } from "./prompts";
+import { MAIL_PROMPTS, MAIL_TRIAGE_PLAN_SYSTEM } from "./prompts";
 import type { MailModelRequest } from "./model-request";
 import type { MessageSenderSubject } from "./gmail-mail";
 
@@ -11,18 +11,30 @@ import type { MessageSenderSubject } from "./gmail-mail";
  * and two sample subjects), not each email, so 1,000 newsletters from one
  * sender cost one line. Senders matching a client are put in "Clients"
  * without asking the model. Nothing here changes Gmail.
+ *
+ * The categories are the AI's, not fixed: a first call looks at the biggest
+ * senders and proposes 3 to 8 categories for this inbox (each marked safe to
+ * clear or not), then every sender is sorted into that one set. "Might need
+ * a look" (anything unsure) and "Clients" always exist and are never ticked.
  */
 
-export const TRIAGE_CATEGORIES = [
-  { key: "sales_pitch", code: "s", label: "Sales pitches", defaultSelected: true },
-  { key: "newsletter", code: "n", label: "Newsletters", defaultSelected: true },
-  { key: "promotion", code: "p", label: "Promotions", defaultSelected: true },
-  { key: "notification", code: "a", label: "Notifications and receipts", defaultSelected: true },
-  { key: "keep", code: "k", label: "Might need a look", defaultSelected: false },
-  { key: "clients", code: "", label: "Clients", defaultSelected: false },
-] as const;
+/** Keys of the AI's categories are "ai-1", "ai-2", ...; "keep" and "clients" are always there. */
+export type TriageCategoryKey = string;
+const KEEP = { key: "keep", label: "Might need a look", description: "Senders the AI was unsure about or that may need action." } as const;
+const CLIENTS = { key: "clients", label: "Clients", description: "Senders matching a client in the CMS (never sent to the AI)." } as const;
 
-export type TriageCategoryKey = (typeof TRIAGE_CATEGORIES)[number]["key"];
+/** A category the AI proposed for this inbox. */
+export interface PlannedCategory {
+  key: TriageCategoryKey;
+  label: string;
+  description: string;
+  /** The AI thinks these can usually be cleared unread: ticked by default. */
+  clear: boolean;
+}
+
+export const MAX_PLANNED_CATEGORIES = 8;
+/** Biggest senders the planning call sees (one subject line each). */
+export const TRIAGE_PLAN_SENDERS = 150;
 
 /** Unread messages read per triage run (each is one metadata call to Gmail). */
 export const MAX_TRIAGE_MESSAGES = 3000;
@@ -49,6 +61,7 @@ export interface TriageCategory {
   label: string;
   count: number;
   defaultSelected: boolean;
+  description: string;
   senders: TriageSender[];
 }
 
@@ -82,20 +95,25 @@ export function groupBySender(messages: MessageSenderSubject[]): TriageSender[] 
   return [...groups.values()].sort((a, b) => b.count - a.count || a.address.localeCompare(b.address));
 }
 
-/** One model call for a batch of senders: numbered lines of sender, count, bulk flag and two subjects. */
-export function buildTriageRequest(senders: TriageSender[]): MailModelRequest {
-  const lines = senders.map((sender, i) => {
-    const subjects = sender.subjects
-      .slice(0, MODEL_SUBJECTS_PER_SENDER)
-      .map((subject) => oneLine(subject, 80))
-      .join(" / ");
-    const name = sender.name === sender.address ? "" : `${oneLine(sender.name, 40)} `;
-    return `${i + 1}. ${name}<${sender.address}> | ${sender.count} unread${sender.bulk ? " | bulk" : ""} | ${subjects}`;
-  });
+/** Numbered lines of sender, count, bulk flag and up to `subjectsPerSender` subjects. */
+function senderLines(senders: TriageSender[], subjectsPerSender: number): string {
+  return senders
+    .map((sender, i) => {
+      const subjects = sender.subjects
+        .slice(0, subjectsPerSender)
+        .map((subject) => oneLine(subject, 80))
+        .join(" / ");
+      const name = sender.name === sender.address ? "" : `${oneLine(sender.name, 40)} `;
+      return `${i + 1}. ${name}<${sender.address}> | ${sender.count} unread${sender.bulk ? " | bulk" : ""} | ${subjects}`;
+    })
+    .join("\n");
+}
+
+function triageRequest(system: string, text: string, senders: TriageSender[]): MailModelRequest {
   return {
     action: "triage",
-    system: MAIL_PROMPTS.triage.system,
-    messages: [{ role: "user", text: `Senders:\n${lines.join("\n")}\n\n${MAIL_PROMPTS.triage.defaultInstruction}` }],
+    system,
+    messages: [{ role: "user", text }],
     gmailMessageId: null,
     emailCount: senders.reduce((sum, sender) => sum + sender.count, 0),
     suggestSubject: false,
@@ -104,18 +122,71 @@ export function buildTriageRequest(senders: TriageSender[]): MailModelRequest {
   };
 }
 
-const CODE_TO_KEY = new Map<string, TriageCategoryKey>(
-  TRIAGE_CATEGORIES.filter((category) => category.code).map((category) => [category.code, category.key]),
-);
+/** First call: the biggest senders, one subject each, for the AI to propose this inbox's categories. */
+export function buildTriagePlanRequest(senders: TriageSender[]): MailModelRequest {
+  const sample = senders.slice(0, TRIAGE_PLAN_SENDERS);
+  return triageRequest(
+    MAIL_TRIAGE_PLAN_SYSTEM,
+    `Senders:\n${senderLines(sample, 1)}\n\nPropose the categories for this inbox.`,
+    sample,
+  );
+}
 
-/** "12 s" lines → sender index (0-based) → category. Anything missing or unreadable stays "keep". */
-export function parseTriageAnswer(text: string, senderCount: number): TriageCategoryKey[] {
-  const out: TriageCategoryKey[] = Array.from({ length: senderCount }, () => "keep");
+/**
+ * The plan's JSON → up to MAX_PLANNED_CATEGORIES categories with unique
+ * names. Throws if no usable category came back (the run cannot sort without one).
+ */
+export function parseTriagePlan(text: string): PlannedCategory[] {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  let parsed: unknown = null;
+  if (start >= 0 && end > start) {
+    try {
+      parsed = JSON.parse(text.slice(start, end + 1));
+    } catch {
+      parsed = null;
+    }
+  }
+  const rows = parsed && typeof parsed === "object" ? (parsed as { categories?: unknown }).categories : null;
+  const out: PlannedCategory[] = [];
+  const seen = new Set<string>([KEEP.label.toLowerCase(), "keep", CLIENTS.label.toLowerCase(), "client"]);
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row || typeof row !== "object") continue;
+    const { name, description, clear } = row as Record<string, unknown>;
+    const label = typeof name === "string" ? oneLine(name, 40) : "";
+    if (!label || seen.has(label.toLowerCase())) continue;
+    seen.add(label.toLowerCase());
+    out.push({
+      key: `ai-${out.length + 1}`,
+      label,
+      description: typeof description === "string" ? oneLine(description, 200) : "",
+      clear: clear === true,
+    });
+    if (out.length === MAX_PLANNED_CATEGORIES) break;
+  }
+  if (out.length === 0) throw new Error("The AI did not suggest any categories.");
+  return out;
+}
+
+/** One sorting call for a batch of senders, against the planned categories (numbered 1..n, plus k). */
+export function buildTriageRequest(senders: TriageSender[], categories: PlannedCategory[]): MailModelRequest {
+  const list = categories.map((category, i) => `${i + 1} = ${category.label}${category.description ? ` (${category.description})` : ""}`);
+  return triageRequest(
+    `${MAIL_PROMPTS.triage.system} Categories, one number each: ${list.join("; ")}.`,
+    `Senders:\n${senderLines(senders, MODEL_SUBJECTS_PER_SENDER)}\n\n${MAIL_PROMPTS.triage.defaultInstruction}`,
+    senders,
+  );
+}
+
+/** "12 3" / "7 k" lines → sender index (0-based) → category key. Anything missing or unreadable stays "keep". */
+export function parseTriageAnswer(text: string, senderCount: number, categories: PlannedCategory[]): TriageCategoryKey[] {
+  const out: TriageCategoryKey[] = Array.from({ length: senderCount }, () => KEEP.key);
   for (const line of text.split(/\r?\n/)) {
-    const match = line.trim().match(/^(\d+)[.):\-\s]+([a-z])\b/i);
+    const match = line.trim().match(/^(\d+)[.):\-\s]+(\d+|k)\b/i);
     if (!match) continue;
     const index = Number(match[1]) - 1;
-    const key = CODE_TO_KEY.get((match[2] ?? "").toLowerCase());
+    const code = (match[2] ?? "").toLowerCase();
+    const key = code === "k" ? KEEP.key : categories[Number(code) - 1]?.key;
     if (key && index >= 0 && index < senderCount) out[index] = key;
   }
   return out;
@@ -124,7 +195,8 @@ export function parseTriageAnswer(text: string, senderCount: number): TriageCate
 /**
  * Sort the senders into categories. `classify` runs one model call and
  * returns its text; `isClient` keeps client senders away from the model.
- * A failed batch leaves its senders in "keep" rather than failing the run.
+ * The first call plans the categories (if it fails, the run fails); a failed
+ * sorting batch leaves its senders in "keep" rather than failing the run.
  */
 export async function triageSenders(args: {
   senders: TriageSender[];
@@ -139,6 +211,8 @@ export async function triageSenders(args: {
     else forModel.push(sender);
   }
 
+  const planned = forModel.length > 0 ? parseTriagePlan(await args.classify(buildTriagePlanRequest(forModel))) : [];
+
   const batches: TriageSender[][] = [];
   for (let i = 0; i < forModel.length; i += TRIAGE_SENDERS_PER_CALL) batches.push(forModel.slice(i, i + TRIAGE_SENDERS_PER_CALL));
   let failedBatches = 0;
@@ -148,21 +222,27 @@ export async function triageSenders(args: {
       const batch = batches[next++] ?? [];
       let keys: TriageCategoryKey[];
       try {
-        keys = parseTriageAnswer(await args.classify(buildTriageRequest(batch)), batch.length);
+        keys = parseTriageAnswer(await args.classify(buildTriageRequest(batch, planned)), batch.length, planned);
       } catch {
         failedBatches += 1;
-        keys = batch.map(() => "keep");
+        keys = batch.map(() => KEEP.key);
       }
-      batch.forEach((sender, i) => assigned.set(sender.address, keys[i] ?? "keep"));
+      batch.forEach((sender, i) => assigned.set(sender.address, keys[i] ?? KEEP.key));
     }
   });
   await Promise.all(workers);
 
-  const categories = TRIAGE_CATEGORIES.map((category) => {
+  const all = [
+    ...planned.map((category) => ({ ...category, defaultSelected: category.clear })),
+    { ...KEEP, defaultSelected: false },
+    { ...CLIENTS, defaultSelected: false },
+  ];
+  const categories = all.map((category) => {
     const senders = args.senders.filter((sender) => assigned.get(sender.address) === category.key);
     return {
       key: category.key,
       label: category.label,
+      description: category.description,
       defaultSelected: category.defaultSelected,
       count: senders.reduce((sum, sender) => sum + sender.count, 0),
       senders,

@@ -118,4 +118,29 @@ describe('TriagePanel', () => {
     expect(screen.queryByText('Ann')).toBeNull()
     expect(screen.getByText('33 unread emails from 2 senders.')).toBeTruthy()
   })
+
+  it('collapses to a one-line bar that keeps the results, and expands again', async () => {
+    const api = vi.fn(async (_url: string, init?: RequestInit) => {
+      const step = JSON.parse(String(init?.body)).step
+      if (step === 'list') return { ids: ['a0'], truncated: false } as never
+      if (step === 'read') return { messages: [{ messageId: 'a0' }] } as never
+      const { truncated: _t, ...sorted } = RESULT
+      return sorted as never
+    })
+    const onFullViewChange = vi.fn()
+    const { rerender } = render(<TriagePanel api={api} onApplied={vi.fn()} onClose={vi.fn()} fullView onFullViewChange={onFullViewChange} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Triage unread emails' }))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse' }))
+    expect(onFullViewChange).toHaveBeenCalledWith(false)
+
+    rerender(<TriagePanel api={api} onApplied={vi.fn()} onClose={vi.fn()} fullView={false} onFullViewChange={onFullViewChange} />)
+    expect(screen.getByText('233 unread emails in 2 categories, 230 selected')).toBeTruthy()
+    expect(screen.queryByRole('table', { name: 'Unread emails by category' })).toBeNull()
+
+    rerender(<TriagePanel api={api} onApplied={vi.fn()} onClose={vi.fn()} fullView onFullViewChange={onFullViewChange} />)
+    expect(screen.getByRole('table', { name: 'Unread emails by category' })).toBeTruthy()
+    expect(api.mock.calls.filter(([, init]) => JSON.parse(String(init?.body)).step === 'sort')).toHaveLength(1)
+  })
 })

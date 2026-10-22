@@ -7,8 +7,41 @@
   border: 1px solid var(--mail-border);
   border-radius: 8px;
   background: var(--mail-soft);
-  max-height: 70vh;
-  overflow: auto;
+}
+
+/* Expanded: the panel takes the whole mail area (the inbox panes are hidden
+   meanwhile) and the page scrolls; the Archive bar sticks to the bottom. */
+.full {
+  min-height: calc(100dvh - 140px);
+}
+
+/* Collapsed: one slim bar above the inbox; results are kept. */
+.collapsed {
+  padding: 8px 14px;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.body[hidden] {
+  display: none;
+}
+
+.headActions {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.collapsedSummary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .head {
@@ -48,7 +81,7 @@
 
 .footer {
   position: sticky;
-  bottom: -14px;
+  bottom: 0;
   margin: 0 -14px -14px;
   padding: 10px 14px;
   border-top: 1px solid var(--mail-border);

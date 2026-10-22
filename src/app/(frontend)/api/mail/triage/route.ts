@@ -17,8 +17,8 @@ export const maxDuration = 300;
  * Runs only when the user clicks "Triage unread". Lists the unread inbox
  * (same view as the Mail inbox: own sent mail and hidden senders left out),
  * reads each message's sender and subject only (Gmail metadata, never the
- * body), and asks the model to sort the SENDERS into categories, one line per
- * sender (see triage.ts). Client senders are kept out of the model call.
+ * body), asks the model to propose categories for this inbox, then to sort the
+ * SENDERS into them, one line per sender (see triage.ts). Client senders are kept out of the model call.
  *
  * Gmail lets one account read only about 300 emails' headers a minute, so a
  * big inbox takes longer than one request may run. The panel therefore goes
@@ -90,11 +90,18 @@ async function sortMessages(ctx: Ctx, token: Token, messages: MessageSenderSubje
   const clientSenders = await loadClientSenders(ctx.payload, ctx.user.id);
   const index = await loadClientDomainIndex(ctx.payload, [token.email, token.userEmail].filter(Boolean), { userId: ctx.user.id });
   const senders = groupBySender(messages);
-  const { categories, failedBatches, batches } = await triageSenders({
-    senders,
-    isClient: (address) => matchAddress(index, address) !== null || isHiddenSender(address, clientSenders),
-    classify: async (request) => (await runMailModel({ payload: ctx.payload, userId: ctx.user.id, request })).text,
-  });
+  let sorted: Awaited<ReturnType<typeof triageSenders>>;
+  try {
+    sorted = await triageSenders({
+      senders,
+      isClient: (address) => matchAddress(index, address) !== null || isHiddenSender(address, clientSenders),
+      classify: async (request) => (await runMailModel({ payload: ctx.payload, userId: ctx.user.id, request })).text,
+    });
+  } catch {
+    // The planning call failed or suggested no categories.
+    return NextResponse.json({ error: "The AI could not sort your inbox. Please try again." }, { status: 502 });
+  }
+  const { categories, failedBatches, batches } = sorted;
   if (batches > 0 && failedBatches === batches) {
     return NextResponse.json({ error: "The AI could not sort your inbox. Please try again." }, { status: 502 });
   }
