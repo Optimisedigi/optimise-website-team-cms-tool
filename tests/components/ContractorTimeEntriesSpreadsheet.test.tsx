@@ -66,11 +66,44 @@ describe('ContractorTimeEntriesSpreadsheet', () => {
     const rateInput = screen.getByLabelText('Hourly contractor rate')
     expect(rateInput).toHaveValue(20.5)
 
+    expect(screen.getByText('Profiterole Patisserie', { selector: 'th div' })).toBeInTheDocument()
     fireEvent.change(rateInput, { target: { value: '25' } })
     expect(screen.getByText('$3,000.00')).toBeInTheDocument()
 
     fireEvent.change(rateInput, { target: { value: '10001' } })
     expect(rateInput).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByText('Enter a rate from $0 to $10,000')).toBeInTheDocument()
+  })
+
+  it('marks a month transfer as paid in green when the amount is clicked', async () => {
+    const response = {
+      ...gridResponse,
+      clients: [{ id: 5, name: 'Profiterole Patisserie' }],
+      monthlyTotals: [
+        { month: '2026-07', monthLabel: 'Jul 2026', totals: [{ clientId: '5', clientName: 'Profiterole Patisserie', hours: 20 }] },
+        { month: '2026-06', monthLabel: 'Jun 2026', totals: [{ clientId: '5', clientName: 'Profiterole Patisserie', hours: 10 }] },
+      ],
+      paidTransferMonths: ['2026-06'],
+    }
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => ({
+      ok: true,
+      json: async () => init?.method === 'PATCH' ? { ok: true, paidTransferMonths: ['2026-06', '2026-07'] } : response,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ContractorTimeEntriesSpreadsheet />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Calculations +' }))
+
+    const june = screen.getByRole('button', { name: /Jun 2026, paid/ })
+    expect(june).toHaveAttribute('aria-pressed', 'true')
+    expect(june).toHaveStyle({ color: '#15803d' })
+    const july = screen.getByRole('button', { name: /Jul 2026, not paid/ })
+    expect(july).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(july)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Jul 2026, paid/ })).toHaveStyle({ color: '#15803d' }))
+    const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({ transferMonth: '2026-07', transferPaid: true })
   })
 })

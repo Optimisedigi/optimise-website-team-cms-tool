@@ -193,14 +193,17 @@ function CategorySelect({
 
 // ─── Main ─────────────────────────────────────────────────
 
+// Whole dollars with thousands separators, e.g. $10,596.
+const wholeDollars = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', currencyDisplay: 'narrowSymbol', maximumFractionDigits: 0 })
+
 const BusinessCostsPage = () => {
   const [data, setData] = useState<CostData | null>(null)
   const [loading, setLoading] = useState(true)
   // "Now" is fixed for the life of the page so the period list doesn't shift.
   const [currentMonth] = useState(() => monthKeyOf(new Date()))
-  // Reporting period for the whole page: Australian financial year (Jul–Jun) or calendar year.
-  const [periodMode, setPeriodMode] = useState<PeriodMode>('fy')
-  const [periodStartYear, setPeriodStartYear] = useState(() => periodContaining('fy', currentMonth).startYear)
+  // Reporting period for the whole page: calendar year (default) or Australian financial year (Jul–Jun).
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('cy')
+  const [periodStartYear, setPeriodStartYear] = useState(() => periodContaining('cy', currentMonth).startYear)
   // Month shown in the category breakdown; always inside the selected period.
   const [selectedMonth, setSelectedMonth] = useState(currentMonth)
   const [uploading, setUploading] = useState(false)
@@ -555,7 +558,7 @@ const BusinessCostsPage = () => {
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.name}</span>
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>${cb.total.toFixed(2)}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{wholeDollars.format(cb.total)}</div>
                 {!isXero && (
                   <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>{cb.count} transaction{cb.count !== 1 ? 's' : ''}</div>
                 )}
@@ -564,7 +567,7 @@ const BusinessCostsPage = () => {
                     <div style={{ height: 4, background: 'var(--theme-elevation-150)', borderRadius: 2, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${pct}%`, background: cb.total > budget ? '#ef4444' : cat.color, borderRadius: 2, transition: 'width 0.3s' }} />
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--theme-elevation-400)', marginTop: 2 }}>${cb.total.toFixed(0)} / ${budget.toFixed(0)} budget</div>
+                    <div style={{ fontSize: 10, color: 'var(--theme-elevation-400)', marginTop: 2 }}>{wholeDollars.format(cb.total)} / {wholeDollars.format(budget)} budget</div>
                   </div>
                 )}
               </div>
@@ -581,11 +584,11 @@ const BusinessCostsPage = () => {
       <div style={{ display: 'flex', gap: 20, marginBottom: 24 }}>
         <div style={{ background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 14, flex: 1 }}>
           <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginBottom: 4 }}>This Month</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>${data.totalThisMonth.toFixed(2)}</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{wholeDollars.format(data.totalThisMonth)}</div>
         </div>
         <div style={{ background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 14, flex: 1 }}>
           <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginBottom: 4 }}>Last Month</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>${data.totalLastMonth.toFixed(2)}</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{wholeDollars.format(data.totalLastMonth)}</div>
         </div>
       </div>
 
@@ -920,7 +923,7 @@ function StackedBarChart({ history }: { history: HistoryEntry[] }) {
                   return (
                     <div
                       key={String(seg.id)}
-                      title={`${seg.name}: $${seg.total.toFixed(2)}`}
+                      title={`${seg.name}: ${wholeDollars.format(seg.total)}`}
                       style={{
                         height: Math.max(h, 2),
                         background: seg.color,

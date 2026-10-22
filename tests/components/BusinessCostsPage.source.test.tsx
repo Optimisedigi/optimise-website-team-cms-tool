@@ -89,35 +89,54 @@ describe('BusinessCostsPage data source', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 
-  it('defaults to the current financial year and switches between financial and calendar years', async () => {
+  it('defaults to the current calendar year and switches between calendar and financial years', async () => {
     const fetchMock = stubCosts()
 
     render(<BusinessCostsPage />)
     await screen.findByText('Software')
 
+    expect(screen.getByRole('button', { name: 'Calendar year' })).toHaveAttribute('aria-pressed', 'true')
+    expect(panelProps.last).toMatchObject({ from: '2026-01', to: '2026-10', label: '2026', toDate: true })
+    // The running year gets an estimate for the whole January–December period.
+    expect(screen.getByTestId('year-end-estimate')).toBeInTheDocument()
+    expect(estimateProps.last).toMatchObject({ from: '2026-01', to: '2026-12', label: '2026' })
+    expect(estimateProps.last?.excluded).toBe(panelProps.last?.excluded)
+    expect(screen.getByRole('combobox', { name: 'Calendar year' })).toHaveDisplayValue('2026')
+    const monthOptions = Array.from((screen.getByRole('combobox', { name: 'Month' }) as HTMLSelectElement).options).map((o) => o.value)
+    expect(monthOptions[0]).toBe('2026-10')
+    expect(monthOptions.at(-1)).toBe('2026-01')
+
+    // Switch to financial year: keeps October 2026 → FY 2026–27.
+    fireEvent.click(screen.getByRole('button', { name: 'Financial year' }))
     expect(screen.getByRole('button', { name: 'Financial year' })).toHaveAttribute('aria-pressed', 'true')
     expect(panelProps.last).toMatchObject({ from: '2026-07', to: '2026-10', label: 'FY 2026\u201327', toDate: true })
-    // The running year gets an estimate for the whole July–June period.
-    expect(screen.getByTestId('year-end-estimate')).toBeInTheDocument()
-    expect(estimateProps.last).toMatchObject({ from: '2026-07', to: '2027-06', label: 'FY 2026\u201327' })
-    expect(estimateProps.last?.excluded).toBe(panelProps.last?.excluded)
     const yearSelect = screen.getByRole('combobox', { name: 'Financial year' })
     expect(yearSelect).toHaveDisplayValue('FY 2026\u201327 (Jul 2026 \u2013 Jun 2027)')
-    // Month menu lists only months in the financial year so far, newest first.
-    const monthOptions = Array.from((screen.getByRole('combobox', { name: 'Month' }) as HTMLSelectElement).options).map((o) => o.value)
-    expect(monthOptions).toEqual(['2026-10', '2026-09', '2026-08', '2026-07'])
+    const fyMonths = Array.from((screen.getByRole('combobox', { name: 'Month' }) as HTMLSelectElement).options).map((o) => o.value)
+    expect(fyMonths).toEqual(['2026-10', '2026-09', '2026-08', '2026-07'])
 
     // A past financial year: whole July–June, breakdown jumps to June.
     fireEvent.change(yearSelect, { target: { value: '2024' } })
     expect(panelProps.last).toMatchObject({ from: '2024-07', to: '2025-06', label: 'FY 2024\u201325', toDate: false })
     expect(screen.queryByTestId('year-end-estimate')).not.toBeInTheDocument()
     await waitFor(() => expect(fetchMock.mock.calls.at(-1)?.[0]).toBe('/api/costs?month=2025-06'))
+  })
 
-    // Switch to calendar year: keeps the selected month (June 2025) → 2025.
-    fireEvent.click(screen.getByRole('button', { name: 'Calendar year' }))
-    expect(screen.getByRole('button', { name: 'Calendar year' })).toHaveAttribute('aria-pressed', 'true')
-    expect(panelProps.last).toMatchObject({ from: '2025-01', to: '2025-12', label: '2025', toDate: false })
-    expect(screen.getByRole('combobox', { name: 'Calendar year' })).toHaveDisplayValue('2025')
-    expect(screen.getByRole('combobox', { name: 'Month' })).toHaveDisplayValue('June 2025')
+  it('shows category and month totals as whole dollars with thousands separators', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        ...xeroResponse,
+        totalThisMonth: 10596.26,
+        totalLastMonth: 26076.04,
+        costsByCategory: [{ category: { id: 'xero:Wages', name: 'Wages and Salaries', color: '#213843' }, total: 6050, count: 0, items: [] }],
+      }),
+    })))
+
+    render(<BusinessCostsPage />)
+
+    expect(await screen.findByText('$6,050')).toBeInTheDocument()
+    expect(screen.getByText('$10,596')).toBeInTheDocument()
+    expect(screen.getByText('$26,076')).toBeInTheDocument()
   })
 })

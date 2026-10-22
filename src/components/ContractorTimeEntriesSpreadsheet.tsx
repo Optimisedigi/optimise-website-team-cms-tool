@@ -187,6 +187,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
   const [autoTotalEntryIds, setAutoTotalEntryIds] = useState<Set<string | number>>(() => new Set())
   const [paidUpdateEntryIds, setPaidUpdateEntryIds] = useState<Set<string | number>>(() => new Set())
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({})
+  const [paidTransferMonths, setPaidTransferMonths] = useState<Set<string>>(() => new Set())
   const selectedClientIdSet = useMemo(() => new Set(selectedClientIds), [selectedClientIds])
   const visibleClients = useMemo(() => clients.filter((client) => selectedClientIdSet.has(String(client.id))), [clients, selectedClientIdSet])
   const visibleMonthlyTotals = useMemo(() => monthlyTotals.map((row) => ({
@@ -221,6 +222,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
       setUsers(json.users || [])
       setCurrentUser(json.currentUser || null)
       setMonthlyTotals(json.monthlyTotals || [])
+      setPaidTransferMonths(new Set(Array.isArray(json.paidTransferMonths) ? json.paidTransferMonths.map(String) : []))
       setIsAdmin(Boolean(json.isAdmin))
       setCanDelete(Boolean(json.canDelete))
       const availableClientIds = new Set(nextClients.map((client: Option) => String(client.id)))
@@ -313,6 +315,29 @@ export default function ContractorTimeEntriesSpreadsheet() {
       return next
     })
     void patch(entry.id, { hours: Math.max(0, Number(value || 0)) }, { quiet: true })
+  }
+
+  const toggleTransferPaid = async (transferMonth: string) => {
+    const paid = !paidTransferMonths.has(transferMonth)
+    const previous = paidTransferMonths
+    const next = new Set(previous)
+    if (paid) next.add(transferMonth)
+    else next.delete(transferMonth)
+    setPaidTransferMonths(next)
+    setError('')
+    try {
+      const res = await fetch('/api/contractor-time-entries/grid', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transferMonth, transferPaid: paid }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to update transfer status')
+      if (Array.isArray(json.paidTransferMonths)) setPaidTransferMonths(new Set(json.paidTransferMonths.map(String)))
+    } catch (err) {
+      setPaidTransferMonths(previous)
+      setError(err instanceof Error ? err.message : 'Failed to update transfer status')
+    }
   }
 
   const saveClientColumns = async (clientIds: string[]) => {
@@ -476,6 +501,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
               {showCalculations && (
                 <th style={{ ...thStyle, textAlign: 'right', whiteSpace: 'normal', borderLeft: '2px solid var(--theme-elevation-200)' }}>
                   Amount to transfer
+                  <div style={{ marginTop: 2, fontSize: 10, fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>Profiterole Patisserie</div>
                 </th>
               )}
             </tr>
@@ -483,6 +509,7 @@ export default function ContractorTimeEntriesSpreadsheet() {
           <tbody>
             {visibleMonthlyTotals.map((row) => {
               const transferAmount = (PROFITEROLE_MONTHLY_RETAINER - (row.profiteroleHours * contractorRate)) / 2
+              const transferPaid = paidTransferMonths.has(row.month)
               return (
                 <tr key={row.month}>
                   <td colSpan={leadingColumnCount} style={{ ...tdStyle, fontWeight: 900, whiteSpace: 'nowrap' }}>{row.monthLabel}</td>
@@ -492,7 +519,20 @@ export default function ContractorTimeEntriesSpreadsheet() {
                     <td style={{ ...tdStyle, textAlign: 'right', borderLeft: '2px solid var(--theme-elevation-200)' }}>
                       {hasValidContractorRate ? (
                         <>
-                          <div style={{ fontWeight: 900, whiteSpace: 'nowrap' }}>{currencyFormatter.format(transferAmount)}</div>
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              aria-pressed={transferPaid}
+                              aria-label={`${currencyFormatter.format(transferAmount)} for ${row.monthLabel}, ${transferPaid ? 'paid' : 'not paid'}`}
+                              title={transferPaid ? 'Paid — click to mark as unpaid' : 'Click to mark as paid'}
+                              onClick={() => void toggleTransferPaid(row.month)}
+                              style={{ padding: 0, border: 0, background: 'transparent', font: 'inherit', fontWeight: 900, whiteSpace: 'nowrap', cursor: 'pointer', color: transferPaid ? '#15803d' : 'inherit' }}
+                            >
+                              {currencyFormatter.format(transferAmount)}
+                            </button>
+                          ) : (
+                            <div style={{ fontWeight: 900, whiteSpace: 'nowrap', color: transferPaid ? '#15803d' : undefined }}>{currencyFormatter.format(transferAmount)}</div>
+                          )}
                           <div style={{ marginTop: 2, fontSize: 10, color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap' }}>
                             {row.profiteroleHours.toFixed(2)} h × {currencyFormatter.format(contractorRate)}
                           </div>

@@ -16,6 +16,13 @@ const ENTRY_SELECT = {
 } as const;
 
 const COLUMN_PREF_KEY = "contractor-time-entries.visible-client-ids";
+const PAID_TRANSFER_PREF_KEY = "contractor-time-entries.paid-transfer-months";
+const MONTH_KEY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+// Transfers for Jul 2025 – Jun 2026 were already paid before tracking was added.
+const DEFAULT_PAID_TRANSFER_MONTHS = [
+  "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+  "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06",
+];
 const MONTH_ABBREVIATIONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function abbreviatedMonthLabel(month: string): string {
@@ -60,6 +67,44 @@ async function saveColumnClientIds(payload: any, user: any, clientIds: string[])
   } else {
     await payload.create({ collection: "payload-preferences" as any, data: { ...data, user: { relationTo: "users", value: user.id } }, overrideAccess: true });
   }
+}
+
+function normalizePaidTransferMonths(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map(String).filter((month) => MONTH_KEY_PATTERN.test(month)))).sort();
+}
+
+async function findPaidTransferPreference(payload: any) {
+  const result = await payload.find({
+    collection: "payload-preferences" as any,
+    where: { key: { equals: PAID_TRANSFER_PREF_KEY } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  });
+  return result?.docs?.[0] ?? null;
+}
+
+function paidTransferMonthsFromPreference(preference: any): string[] {
+  if (!preference || typeof preference.value !== "object" || preference.value == null || Array.isArray(preference.value)) {
+    return [...DEFAULT_PAID_TRANSFER_MONTHS];
+  }
+  return normalizePaidTransferMonths((preference.value as Record<string, unknown>).months);
+}
+
+async function setPaidTransferMonth(payload: any, user: any, month: string, paid: boolean): Promise<string[]> {
+  const preference = await findPaidTransferPreference(payload);
+  const months = new Set(paidTransferMonthsFromPreference(preference));
+  if (paid) months.add(month);
+  else months.delete(month);
+  const nextMonths = Array.from(months).sort();
+  const data = { key: PAID_TRANSFER_PREF_KEY, value: { months: nextMonths } };
+  if (preference?.id) {
+    await payload.update({ collection: "payload-preferences" as any, id: preference.id, data, overrideAccess: true });
+  } else {
+    await payload.create({ collection: "payload-preferences" as any, data: { ...data, user: { relationTo: "users", value: user.id } }, overrideAccess: true });
+  }
+  return nextMonths;
 }
 
 /**
@@ -231,7 +276,7 @@ export async function GET(req: NextRequest) {
     const entryWhere: any = entryAnd.length ? { and: entryAnd } : {};
     const summaryWhere: any = summaryAnd.length ? { and: summaryAnd } : {};
 
-    const [entriesResult, clientsResult, summaryEntriesResult, usersResult, savedColumnClientIds] = await Promise.all([
+    const [entriesResult, clientsResult, summaryEntriesResult, usersResult, savedColumnClientIds, paidTransferPreference] = await Promise.all([
       payload.find({
         collection: "contractor-time-entries" as any,
         where: entryWhere,
@@ -270,6 +315,7 @@ export async function GET(req: NextRequest) {
           })
         : Promise.resolve({ docs: [user] }),
       getColumnClientIds(payload),
+      findPaidTransferPreference(payload),
     ]);
 
     const totalsByMonth = new Map<string, Map<string, number>>();
@@ -316,6 +362,7 @@ export async function GET(req: NextRequest) {
       isAdmin: user.role === "admin",
       monthlyTotals,
       columnClientIds,
+      paidTransferMonths: paidTransferMonthsFromPreference(paidTransferPreference),
       canDelete: user.role === "admin",
     });
   } catch (error) {
@@ -369,6 +416,15 @@ export async function PATCH(req: NextRequest) {
       const clientIds = normalizeClientIds(body.columnClientIds);
       await saveColumnClientIds(payload, user, clientIds);
       return NextResponse.json({ ok: true, columnClientIds: clientIds });
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "transferMonth")) {
+      if (user.role !== "admin") return NextResponse.json({ error: "Only admins can mark transfers as paid" }, { status: 403 });
+      const transferMonth = String(body.transferMonth || "");
+      if (!MONTH_KEY_PATTERN.test(transferMonth) || typeof body.transferPaid !== "boolean") {
+        return NextResponse.json({ error: "Invalid transfer month" }, { status: 400 });
+      }
+      const paidTransferMonths = await setPaidTransferMonth(payload, user, transferMonth, body.transferPaid);
+      return NextResponse.json({ ok: true, paidTransferMonths });
     }
     if (!body.id) return NextResponse.json({ error: "Missing entry id" }, { status: 400 });
 
