@@ -26,6 +26,8 @@ export type TriageCategoryKey = (typeof TRIAGE_CATEGORIES)[number]["key"];
 
 /** Unread messages read per triage run (each is one metadata call to Gmail). */
 export const MAX_TRIAGE_MESSAGES = 3000;
+/** Ids per "read" step (/api/mail/triage): about 50 s at Gmail's per-user read rate. */
+export const TRIAGE_READ_CHUNK = 200;
 /** Senders per model call: keeps each prompt and answer small. */
 export const TRIAGE_SENDERS_PER_CALL = 120;
 /** Subjects returned to the screen per sender (the model only ever sees two). */

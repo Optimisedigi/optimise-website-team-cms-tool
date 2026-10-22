@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import styles from './TriagePanel.module.css'
 
 /** Mirrors the /api/mail/triage response (src/lib/mail/triage.ts). */
@@ -29,6 +29,19 @@ interface TriageResult {
 
 /** Ids per apply request (the route's cap). */
 const APPLY_CHUNK = 1000
+/** Ids per "read" step (the route's cap, TRIAGE_READ_CHUNK). */
+const READ_CHUNK = 200
+/** Gmail's per-account read rate the route keeps to (TRIAGE_READS_PER_MINUTE). */
+const READS_PER_MINUTE = 250
+
+/** A message's sender and subject, as the "read" step returns them. */
+type TriageMessage = Record<string, unknown>
+
+/** "about 12 minutes" / "under a minute" for the reads still to do. */
+function timeLeft(remaining: number): string {
+  const minutes = Math.ceil(remaining / READS_PER_MINUTE)
+  return minutes <= 1 ? 'under a minute' : `about ${minutes} minutes`
+}
 const SUBJECTS_SHOWN = 3
 
 /** One colour per category, used in the overview bar, swatches and share bars. */
@@ -68,19 +81,55 @@ export default function TriagePanel({
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<'' | 'archive' | 'read'>('')
   const [note, setNote] = useState('')
+  // Stops a running triage when the panel closes.
+  const runRef = useRef<AbortController | null>(null)
+  useEffect(() => () => runRef.current?.abort(), [])
 
+  /**
+   * List the unread ids, read their senders and subjects in chunks (Gmail lets
+   * one account read only about 300 a minute, so a big inbox takes minutes),
+   * then sort. If Gmail stops a later chunk, what was read so far is sorted.
+   */
   async function runTriage() {
+    runRef.current?.abort()
+    const run = new AbortController()
+    runRef.current = run
+    const post = <T,>(body: unknown) =>
+      api<T>('/api/mail/triage', { method: 'POST', body: JSON.stringify(body), signal: run.signal })
     setLoading(true)
-    setNote('')
+    setNote('Finding unread emails…')
     try {
-      const data = await api<TriageResult>('/api/mail/triage', { method: 'POST', body: '{}' })
-      setResult(data)
-      setSelected(defaultSelection(data.categories))
+      const listed = await post<{ ids: string[]; truncated: boolean }>({ step: 'list' })
+      const messages: TriageMessage[] = []
+      let stoppedEarly = ''
+      for (let i = 0; i < listed.ids.length; i += READ_CHUNK) {
+        setNote(
+          `Reading senders and subjects: ${fmt(i)} of ${fmt(listed.ids.length)}. Gmail allows about ${READS_PER_MINUTE} a minute, so this takes ${timeLeft(listed.ids.length - i)}. You can keep using Mail.`,
+        )
+        try {
+          const read = await post<{ messages: TriageMessage[] }>({ step: 'read', ids: listed.ids.slice(i, i + READ_CHUNK) })
+          messages.push(...read.messages)
+        } catch (err) {
+          if (run.signal.aborted || messages.length === 0) throw err
+          stoppedEarly = (err as Error).message
+          break
+        }
+      }
+      if (run.signal.aborted) return
+      setNote(`Sorting ${plural(messages.length, 'email')} by sender…`)
+      const sorted = await post<Omit<TriageResult, 'truncated'>>({ step: 'sort', messages })
+      if (run.signal.aborted) return
+      setResult({ ...sorted, truncated: listed.truncated || stoppedEarly !== '' })
+      setSelected(defaultSelection(sorted.categories))
       setExpanded(new Set())
+      setNote(stoppedEarly ? `Gmail stopped the reading early (${stoppedEarly}). These are the emails read so far.` : '')
     } catch (err) {
-      setNote((err as Error).message)
+      if (!run.signal.aborted) setNote((err as Error).message)
     } finally {
-      setLoading(false)
+      if (runRef.current === run) {
+        runRef.current = null
+        setLoading(false)
+      }
     }
   }
 

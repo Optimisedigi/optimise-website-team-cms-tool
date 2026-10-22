@@ -217,6 +217,44 @@ describe("POST /api/mail/triage", () => {
   });
 });
 
+describe("POST /api/mail/triage in steps (big inboxes)", () => {
+  it("lists, reads a chunk, and sorts what the panel sends back, never reading bodies", async () => {
+    mockPayload.find.mockResolvedValue({ docs: [] });
+    const { POST } = await import("@/app/(frontend)/api/mail/triage/route");
+    const listed = await (await POST(post("/api/mail/triage", { step: "list" }))).json();
+    expect(listed).toEqual({ ids: ["m1", "m2", "m3"], truncated: false });
+    expect(mockSenderSubjects).not.toHaveBeenCalled();
+
+    const read = await (await POST(post("/api/mail/triage", { step: "read", ids: ["m1", "m2", "m1"] }))).json();
+    expect(mockSenderSubjects).toHaveBeenCalledWith("tok", ["m1", "m2"]);
+    expect(read.messages.map((m: { messageId: string }) => m.messageId)).toEqual(["m1", "m2"]);
+    expect(mockCallLLM).not.toHaveBeenCalled();
+
+    mockCallLLM.mockResolvedValueOnce({ message: { content: [{ type: "text", text: "1 n" }] }, model: "m" });
+    const sorted = await (await POST(post("/api/mail/triage", { step: "sort", messages: read.messages }))).json();
+    expect(sorted.categories.map((c: { key: string; count: number }) => [c.key, c.count])).toEqual([["newsletter", 2]]);
+    expect(sorted.scanned).toBe(2);
+    expect(mockGetFullMessage).not.toHaveBeenCalled();
+    expect(mockBatchModify).not.toHaveBeenCalled();
+  });
+
+  it("refuses bad steps, too many ids, non-Gmail ids and malformed messages", async () => {
+    const { POST } = await import("@/app/(frontend)/api/mail/triage/route");
+    const bad = [
+      { step: "delete" },
+      { step: "read", ids: [] },
+      { step: "read", ids: Array.from({ length: 201 }, (_, i) => `m${i}`) },
+      { step: "read", ids: ["../x"] },
+      { step: "sort", messages: [{ messageId: "../x", from: "a" }] },
+      { step: "sort", messages: [{ messageId: "m1", from: 5 }] },
+      { step: "sort", messages: "nope" },
+    ];
+    for (const body of bad) expect((await POST(post("/api/mail/triage", body))).status).toBe(400);
+    expect(mockSenderSubjects).not.toHaveBeenCalled();
+    expect(mockCallLLM).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/mail/triage/apply", () => {
   it("archives only the ticked message ids", async () => {
     const { POST } = await import("@/app/(frontend)/api/mail/triage/apply/route");

@@ -4,6 +4,7 @@ import config from "@/payload.config";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { userHasFeature } from "@/lib/access";
 import { MAIL_ACCOUNT_HEADER, normaliseMailAccount } from "@/lib/mail/accounts-shared";
+import { isGmailRateLimitError } from "@/lib/mail/gmail-mail";
 
 export const MAIL_FEATURE = "nav:mail";
 
@@ -71,6 +72,10 @@ export async function requireGmailToken(userId: number, req?: Pick<NextRequest, 
 export function gmailErrorResponse(err: unknown, fallback: string): NextResponse {
   const e = err as { code?: number; status?: number; message?: string };
   const status = Number(e.code ?? e.status ?? 0);
+  // Gmail answers "too many requests" with 403 too; that is not a permission problem.
+  if (isGmailRateLimitError(err)) {
+    return NextResponse.json({ error: "Gmail is busy: too many requests in the last minute. Try again in a minute." }, { status: 429 });
+  }
   if (status === 401 || status === 403) {
     return NextResponse.json(
       {
@@ -82,7 +87,6 @@ export function gmailErrorResponse(err: unknown, fallback: string): NextResponse
     );
   }
   if (status === 404) return NextResponse.json({ error: "Not found in Gmail." }, { status: 404 });
-  if (status === 429) return NextResponse.json({ error: "Gmail rate limit reached. Try again in a minute." }, { status: 429 });
   console.error(`[mail] ${fallback}:`, (e.message ?? "").slice(0, 200));
   return NextResponse.json({ error: fallback }, { status: 502 });
 }

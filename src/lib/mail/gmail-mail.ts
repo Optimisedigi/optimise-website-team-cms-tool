@@ -324,20 +324,90 @@ export interface MessageSenderSubject {
 }
 
 /**
+ * Gmail's "slow down" answers: 429, or 403 with a rate/quota reason (Gmail uses
+ * 403 for "Quota exceeded for quota metric ... per minute per user"). These
+ * are not permission problems, so they must not ask the user to reconnect.
+ */
+export function isGmailRateLimitError(err: unknown): boolean {
+  const e = err as { code?: number; status?: number; message?: string; errors?: Array<{ reason?: string }> } | null;
+  const status = Number(e?.code ?? e?.status ?? 0);
+  if (status === 429) return true;
+  if (status !== 403) return false;
+  const reasons = (e?.errors ?? []).map((item) => item.reason ?? "");
+  return (
+    reasons.some((reason) => /rateLimitExceeded|userRateLimitExceeded|quotaExceeded/i.test(reason)) ||
+    /quota exceeded|rate limit/i.test(e?.message ?? "")
+  );
+}
+
+/**
+ * Gmail allows 6,000 quota units per user per minute and a metadata read costs
+ * 20 (Gmail API usage limits), so at most 300 reads a minute. Triage reads at
+ * 250 a minute, leaving room for the Mail view loading at the same time.
+ */
+export const TRIAGE_READS_PER_MINUTE = 250;
+
+export interface PacedReadOptions {
+  concurrency?: number;
+  /** Most reads started per minute. */
+  perMinute?: number;
+  /** Retries of one read when Gmail says to slow down (waits 1, 2, 4, 8, 16 s, plus up to 1 s). */
+  retries?: number;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+  random?: () => number;
+}
+
+const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
  * Sender and subject (plus bulk-mail headers) for each message id, for inbox
  * triage. Metadata only: no bodies or snippets are fetched. Messages Gmail no
- * longer has (404) are left out.
+ * longer has (404) are left out. Reads are spaced to stay under Gmail's
+ * per-user rate limit, and a read Gmail turns away for going too fast is
+ * retried after a growing wait.
  */
-export async function getMessageSenderSubjects(accessToken: string, ids: string[], concurrency = 10): Promise<MessageSenderSubject[]> {
+export async function getMessageSenderSubjects(
+  accessToken: string,
+  ids: string[],
+  options: PacedReadOptions = {},
+): Promise<MessageSenderSubject[]> {
+  const { concurrency = 10, perMinute = TRIAGE_READS_PER_MINUTE, retries = 5 } = options;
+  const sleep = options.sleep ?? realSleep;
+  const now = options.now ?? Date.now;
+  const random = options.random ?? Math.random;
   const gmail = gmailApi(accessToken);
+  // Start times are handed out one gap apart, whichever worker asks.
+  const gap = 60_000 / Math.max(1, perMinute);
+  let nextStart = now();
+  const waitTurn = async () => {
+    const at = Math.max(nextStart, now());
+    nextStart = at + gap;
+    const wait = at - now();
+    if (wait > 0) await sleep(wait);
+  };
+  const read = async (id: string) => {
+    for (let attempt = 0; ; attempt++) {
+      await waitTurn();
+      try {
+        return await gmail.users.messages.get({
+          userId: "me",
+          id,
+          format: "metadata",
+          metadataHeaders: ["From", "Subject", "List-Id", "List-Unsubscribe", "Precedence"],
+        });
+      } catch (err) {
+        if (!isGmailRateLimitError(err) || attempt >= retries) throw err;
+        await sleep(Math.min(2 ** attempt * 1000, 32_000) + Math.floor(random() * 1000));
+      }
+    }
+  };
   const results = await mapLimited(ids, concurrency, async (id): Promise<MessageSenderSubject | null> => {
-    const res = await gmail.users.messages
-      .get({ userId: "me", id, format: "metadata", metadataHeaders: ["From", "Subject", "List-Id", "List-Unsubscribe", "Precedence"] })
-      .catch((err: unknown) => {
-        const status = Number((err as { code?: number; status?: number }).code ?? (err as { status?: number }).status ?? 0);
-        if (status === 404) return null;
-        throw err;
-      });
+    const res = await read(id).catch((err: unknown) => {
+      const status = Number((err as { code?: number; status?: number }).code ?? (err as { status?: number }).status ?? 0);
+      if (status === 404) return null;
+      throw err;
+    });
     if (!res) return null;
     const headers = res.data.payload?.headers;
     return {
