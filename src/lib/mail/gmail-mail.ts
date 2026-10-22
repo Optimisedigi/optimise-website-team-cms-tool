@@ -1,6 +1,7 @@
 import { google, type gmail_v1 } from "googleapis";
 import { parseGmailFullMessage, readGmailHeader, type GmailFullMessage } from "@/lib/gmail-search";
 import type { MailFolder } from "@/lib/mail/folders";
+import { findTagByName, parseTagId, type MailTag } from "@/lib/mail/tags";
 
 /**
  * Gmail API calls for the CMS Mail view. Pure transport: no matching, no
@@ -85,15 +86,17 @@ function isOwnMessage(message: gmail_v1.Schema$Message): boolean {
  * what you sent (not an incoming reply) and a drafts row's `messageId` is the
  * draft message itself (what `/api/gmail/draft` opens). `messageCount` and
  * `unread` always cover the whole thread, and opening a row loads every
- * message, your replies included.
+ * message, your replies included. `labelId` (a Mail tag) lists that label's
+ * threads instead, archived ones included.
  */
 export async function listFolderThreads(
   accessToken: string,
   folder: MailFolder,
-  options: { pageToken?: string; q?: string; maxResults?: number } = {},
+  options: { pageToken?: string; q?: string; maxResults?: number; labelId?: string } = {},
 ): Promise<{ threads: InboxThreadSummary[]; nextPageToken: string | null }> {
   const gmail = gmailApi(accessToken);
-  const label = FOLDER_LABELS[folder];
+  // A tag (user label) lists that label instead of the folder's, rows chosen as for the folder.
+  const label = options.labelId ?? FOLDER_LABELS[folder];
   const maxResults = Math.min(Math.max(options.maxResults ?? 25, 1), 50);
   const page = options.pageToken ? { pageToken: options.pageToken } : {};
   let ids: string[];
@@ -436,6 +439,51 @@ export async function batchModifyMessages(
       userId: "me",
       requestBody: { ids: messageIds.slice(i, i + 1000), addLabelIds: change.add ?? [], removeLabelIds: change.remove ?? [] },
     });
+  }
+}
+
+/** Most tags whose email counts are looked up (one Gmail call each). */
+const MAX_TAG_COUNTS = 50;
+
+/**
+ * The account's own Gmail labels (the Mail tags), sorted by name, with
+ * total/unread counts for the first MAX_TAG_COUNTS. System labels are left out.
+ */
+export async function listUserLabels(accessToken: string): Promise<MailTag[]> {
+  const gmail = gmailApi(accessToken);
+  const res = await gmail.users.labels.list({ userId: "me" });
+  const labels = (res.data.labels ?? [])
+    .filter((label) => label.type === "user" && parseTagId(label.id) && label.name)
+    .map((label) => ({ id: label.id as string, name: label.name as string }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  const counted = await mapLimited(labels.slice(0, MAX_TAG_COUNTS), 5, async (label): Promise<MailTag> => {
+    try {
+      const full = await gmail.users.labels.get({ userId: "me", id: label.id });
+      return { ...label, total: full.data.messagesTotal ?? 0, unread: full.data.messagesUnread ?? 0 };
+    } catch {
+      return { ...label, total: null, unread: null };
+    }
+  });
+  return [...counted, ...labels.slice(MAX_TAG_COUNTS).map((label) => ({ ...label, total: null, unread: null }))];
+}
+
+/** Create a Gmail label for a new tag; if one with that name already exists, return it instead. */
+export async function createUserLabel(accessToken: string, name: string): Promise<MailTag> {
+  const gmail = gmailApi(accessToken);
+  try {
+    const res = await gmail.users.labels.create({
+      userId: "me",
+      requestBody: { name, labelListVisibility: "labelShow", messageListVisibility: "show" },
+    });
+    const id = parseTagId(res.data.id);
+    if (!id) throw new Error("Gmail returned no label id.");
+    return { id, name: res.data.name ?? name, total: 0, unread: 0 };
+  } catch (err) {
+    // 409: the label already exists (Gmail compares names without case).
+    if (Number((err as { code?: number }).code) !== 409) throw err;
+    const existing = findTagByName(await listUserLabels(accessToken), name);
+    if (!existing) throw err;
+    return existing;
   }
 }
 

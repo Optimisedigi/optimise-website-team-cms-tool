@@ -12,6 +12,7 @@ import { matchMessageToClient } from "@/lib/mail/client-matching";
 import { loadClientDomainIndex } from "@/lib/mail/store";
 import { hiddenSendersQuery, isHiddenSender, loadHiddenSenders } from "@/lib/mail/hidden-senders";
 import { inboxSearchQuery, parseSearchSenders } from "@/lib/mail/inbox-search";
+import { parseTagId } from "@/lib/mail/tags";
 
 /** Your own sent messages never bring a thread into the inbox list. */
 const INBOX_EXCLUDE_OWN_MAIL = "-in:sent";
@@ -20,7 +21,11 @@ import { loadSenderClients } from "@/lib/mail/sender-clients";
 import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
- * GET /api/mail/inbox?folder=inbox|sent|drafts&pageToken=&q=
+ * GET /api/mail/inbox?folder=inbox|sent|drafts&pageToken=&q=&tag=
+ *
+ * `tag` (inbox only) is a Mail tag's Gmail label id ("Label_…"): the list
+ * shows that tag's emails instead of the inbox, archived ones included,
+ * with the same unread-first paging, search and hidden-sender filter.
  *
  * Thread list for the Mail view, read live from Gmail (metadata only).
  * `folder` defaults to the inbox. Each row carries a deterministic client
@@ -63,6 +68,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const folderParam = req.nextUrl.searchParams.get("folder");
   const folder = folderParam === null ? "inbox" : parseMailFolder(folderParam);
   if (!folder) return NextResponse.json({ error: "Invalid folder." }, { status: 400 });
+  const tagParam = req.nextUrl.searchParams.get("tag");
+  const tag = tagParam === null ? undefined : parseTagId(tagParam);
+  if (tag === null || (tag && folder !== "inbox")) return NextResponse.json({ error: "Invalid tag." }, { status: 400 });
   const pageToken = req.nextUrl.searchParams.get("pageToken") ?? undefined;
   const search = (req.nextUrl.searchParams.get("q") ?? "").slice(0, 200);
   const searchSenders = parseSearchSenders(req.nextUrl.searchParams.get("senders"));
@@ -103,6 +111,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           pageToken: cursor,
           q,
           maxResults: Math.min(50, want - rows.length),
+          labelId: tag,
         });
         rows.push(...newThreadsOnly(page.threads, known));
         if (!page.nextPageToken) return { rows, token: null, exhausted: true, calls };

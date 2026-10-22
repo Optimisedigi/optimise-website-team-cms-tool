@@ -380,3 +380,62 @@
     display: none;
   }
 }
+
+.input,
+.select {
+  padding: 7px 10px;
+  border: 1px solid var(--mail-border);
+  border-radius: 6px;
+  background: var(--theme-elevation-0);
+  color: var(--mail-text);
+  font: inherit;
+}
+
+.searchBar,
+.tagPicker,
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.searchBar .input {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.tagPicker .input {
+  width: 200px;
+  max-width: 100%;
+}
+
+.tagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--mail-border);
+  border-radius: 999px;
+  background: var(--theme-elevation-0);
+  color: var(--mail-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tagChip:hover {
+  border-color: var(--mail-accent);
+}
+
+.tagCount {
+  color: var(--theme-elevation-500);
+  font-size: 12px;
+}
+
+.categoryCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}

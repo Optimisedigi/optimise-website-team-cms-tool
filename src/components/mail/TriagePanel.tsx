@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { findTagByName, MAX_TAG_NAME, senderMatchesSearch, type MailTag } from '../../lib/mail/tags'
 import styles from './TriagePanel.module.css'
 
 /** Mirrors the /api/mail/triage response (src/lib/mail/triage.ts). */
@@ -57,6 +58,77 @@ const AI_TONES = ['#e4572e', '#2c97c9', '#f0a202', '#8e7cc3', '#d36ba6', '#3fa79
 const fmt = (n: number) => n.toLocaleString('en-AU')
 const plural = (n: number, one: string, many = `${one}s`) => `${fmt(n)} ${n === 1 ? one : many}`
 
+/** Which tag to apply: one already saved, or a new one by name (saved first). */
+type TagChoice = { kind: 'existing'; id: string } | { kind: 'new'; name: string }
+
+const NEW_TAG = '__new'
+
+/** "Tag N emails as [tag ▾] [Tag]": pick a saved tag or type a new one. */
+function TagPicker({
+  tags,
+  emails,
+  scope,
+  disabled,
+  busy,
+  onApply,
+}: {
+  tags: MailTag[]
+  emails: number
+  /** "selected" / "matching": says which emails the button tags. */
+  scope: string
+  disabled: boolean
+  busy: boolean
+  onApply: (choice: TagChoice) => void
+}) {
+  const [value, setValue] = useState('')
+  const [name, setName] = useState('')
+  const isNew = value === NEW_TAG || (value === '' && tags.length === 0)
+  const ready = emails > 0 && (isNew ? name.trim() !== '' : tags.some((tag) => tag.id === value))
+  return (
+    <form
+      className={styles.tagPicker}
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!ready || disabled) return
+        onApply(isNew ? { kind: 'new', name } : { kind: 'existing', id: value })
+        setName('')
+      }}
+    >
+      {tags.length > 0 ? (
+        <select
+          className={styles.select}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          disabled={disabled}
+          aria-label={`Tag for the ${scope} emails`}
+        >
+          <option value="">Choose a tag…</option>
+          {tags.map((tag) => (
+            <option key={tag.id} value={tag.id}>
+              {tag.name}
+            </option>
+          ))}
+          <option value={NEW_TAG}>New tag…</option>
+        </select>
+      ) : null}
+      {isNew ? (
+        <input
+          className={styles.input}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={MAX_TAG_NAME}
+          placeholder="New tag, e.g. Baby reads"
+          disabled={disabled}
+          aria-label={`New tag name for the ${scope} emails`}
+        />
+      ) : null}
+      <button type="submit" className={styles.btn} disabled={disabled || !ready}>
+        {busy ? 'Tagging…' : `Tag ${plural(emails, `${scope} email`)}`}
+      </button>
+    </form>
+  )
+}
+
 function defaultSelection(categories: TriageCategoryRow[]): Set<string> {
   return new Set(categories.filter((category) => category.defaultSelected).flatMap((category) => category.senders.map((sender) => sender.address)))
 }
@@ -65,6 +137,8 @@ function defaultSelection(categories: TriageCategoryRow[]): Set<string> {
  * On-request inbox triage: the AI proposes categories for this inbox and
  * sorts unread senders (sender + subject only) into them; the user unticks anything to keep and archives or marks
  * the rest read. Nothing changes in Gmail until Archive / Mark read is clicked.
+ * The search finds senders (name, address or subject) to tick or untick
+ * together, and emails can be tagged (Gmail labels) to work through later.
  */
 export default function TriagePanel({
   api,
@@ -72,6 +146,7 @@ export default function TriagePanel({
   onClose,
   fullView = true,
   onFullViewChange,
+  onOpenTag,
 }: {
   api: <T>(url: string, init?: RequestInit) => Promise<T>
   onApplied: () => void
@@ -79,16 +154,38 @@ export default function TriagePanel({
   /** Expanded: the panel takes the whole mail area. Collapsed: a one-line bar (results and any run are kept). */
   fullView?: boolean
   onFullViewChange?: (fullView: boolean) => void
+  /** List a tag's emails in Mail, to work through them. */
+  onOpenTag?: (tag: MailTag) => void
 }) {
   const [result, setResult] = useState<TriageResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [busy, setBusy] = useState<'' | 'archive' | 'read'>('')
+  const [busy, setBusy] = useState<'' | 'archive' | 'read' | 'tag'>('')
   const [note, setNote] = useState('')
+  // Finds senders in the results (name, address or subject) to tick or untick together.
+  const [search, setSearch] = useState('')
+  // The account's saved tags (Gmail labels); null until loaded.
+  const [tags, setTags] = useState<MailTag[] | null>(null)
+  const [tagsError, setTagsError] = useState('')
   // Stops a running triage when the panel closes.
   const runRef = useRef<AbortController | null>(null)
   useEffect(() => () => runRef.current?.abort(), [])
+
+  const loadTags = useCallback(async () => {
+    try {
+      const data = await api<{ tags: MailTag[] }>('/api/mail/tags')
+      setTags(Array.isArray(data.tags) ? data.tags : [])
+      setTagsError('')
+    } catch (err) {
+      setTagsError(`Could not load your tags: ${(err as Error).message}`)
+    }
+  }, [api])
+  // Tags are a cheap Gmail lookup (no AI), so the list is there to open straight away.
+  useEffect(() => {
+    void loadTags()
+    // Once per panel (MailApp keys it by account); `api` is a new function every render.
+  }, [])
 
   /**
    * List the unread ids, read their senders and subjects in chunks (Gmail lets
@@ -149,6 +246,70 @@ export default function TriagePanel({
       pickedIds: picked.flatMap((sender) => sender.messageIds),
     }
   }, [result, selected])
+
+  /** Senders matching the search, with their category; null when not searching. */
+  const matches = useMemo(() => {
+    if (!result || !search.trim()) return null
+    return result.categories.flatMap((category) =>
+      category.senders.filter((sender) => senderMatchesSearch(sender, search)).map((sender) => ({ sender, category })),
+    )
+  }, [result, search])
+  const matchTotals = useMemo(() => {
+    const senders = matches?.map((match) => match.sender) ?? []
+    const picked = senders.filter((sender) => selected.has(sender.address))
+    return {
+      emails: senders.reduce((sum, sender) => sum + sender.count, 0),
+      pickedEmails: picked.reduce((sum, sender) => sum + sender.count, 0),
+      pickedSenders: picked.length,
+      ids: senders.flatMap((sender) => sender.messageIds),
+      addresses: senders.map((sender) => sender.address),
+    }
+  }, [matches, selected])
+
+  function setMany(addresses: string[], on: boolean) {
+    setSelected((current) => {
+      const next = new Set(current)
+      for (const address of addresses) {
+        if (on) next.add(address)
+        else next.delete(address)
+      }
+      return next
+    })
+  }
+
+  /**
+   * Add a tag (Gmail label) to these emails, saving a new tag first. Their
+   * senders are then unticked, so Archive / Mark read leave tagged mail alone.
+   */
+  async function tagEmails(target: { ids: string[]; addresses: string[] }, choice: TagChoice) {
+    if (busy !== '' || target.ids.length === 0) return
+    setBusy('tag')
+    setNote('')
+    let done = 0
+    try {
+      let tag = choice.kind === 'existing' ? tags?.find((entry) => entry.id === choice.id) : findTagByName(tags ?? [], choice.name)
+      if (!tag && choice.kind === 'new') {
+        setNote(`Saving the tag "${choice.name.trim()}"…`)
+        tag = (await api<{ tag: MailTag }>('/api/mail/tags', { method: 'POST', body: JSON.stringify({ name: choice.name }) })).tag
+        const saved = tag
+        setTags((current) => (current && !current.some((entry) => entry.id === saved.id) ? [...current, saved].sort((a, b) => a.name.localeCompare(b.name)) : current))
+      }
+      if (!tag) throw new Error('Choose a tag first.')
+      for (let i = 0; i < target.ids.length; i += APPLY_CHUNK) {
+        const chunk = target.ids.slice(i, i + APPLY_CHUNK)
+        setNote(`Tagging ${fmt(Math.min(i + chunk.length, target.ids.length))} of ${fmt(target.ids.length)} as "${tag.name}"…`)
+        await api('/api/mail/triage/apply', { method: 'POST', body: JSON.stringify({ messageIds: chunk, action: 'tag', tagId: tag.id }) })
+        done += chunk.length
+      }
+      setMany(target.addresses, false)
+      setNote(`Tagged ${plural(done, 'email')} "${tag.name}". Their senders are now unticked, so Archive and Mark read leave them alone.`)
+    } catch (err) {
+      setNote(`${(err as Error).message}${done ? ` (${fmt(done)} tagged before it stopped)` : ''}`)
+    } finally {
+      setBusy('')
+      void loadTags()
+    }
+  }
 
   function toggleSender(address: string, on: boolean) {
     setSelected((current) => {
@@ -228,6 +389,46 @@ export default function TriagePanel({
     return CATEGORY_TONES[key] ?? 'var(--theme-elevation-400)'
   }
 
+  const senderRow = (sender: TriageSenderRow, category?: TriageCategoryRow) => (
+    <tr key={sender.address} className={selected.has(sender.address) ? undefined : styles.kept}>
+      <td className={styles.checkCol}>
+        <input
+          type="checkbox"
+          checked={selected.has(sender.address)}
+          onChange={(e) => toggleSender(sender.address, e.target.checked)}
+          disabled={busy !== ''}
+          aria-label={`Clear ${sender.name} (${sender.address})`}
+        />
+      </td>
+      <td className={styles.senderCell}>
+        <span className={styles.senderName}>{sender.name}</span>
+        {sender.name !== sender.address ? <span className={styles.senderAddress}>{sender.address}</span> : null}
+      </td>
+      {category ? (
+        <td>
+          <span className={styles.categoryCell}>
+            <span className={styles.swatch} style={{ background: categoryTone(category.key) }} aria-hidden="true" />
+            {category.label}
+          </span>
+        </td>
+      ) : null}
+      <td className={`${styles.num} ${styles.strong}`}>{fmt(sender.count)}</td>
+      <td className={styles.subjects}>
+        {sender.subjects.slice(0, SUBJECTS_SHOWN).join(' · ')}
+        {sender.subjects.length > SUBJECTS_SHOWN ? (
+          <details className={styles.more}>
+            <summary>+{fmt(sender.subjects.length - SUBJECTS_SHOWN)} more subjects</summary>
+            <ul>
+              {sender.subjects.slice(SUBJECTS_SHOWN).map((subject) => (
+                <li key={subject}>{subject}</li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+      </td>
+    </tr>
+  )
+
   return (
     <div className={`${styles.panel} ${fullView ? styles.full : styles.collapsed}`} aria-label="Inbox triage">
       <div className={styles.head}>
@@ -256,13 +457,26 @@ export default function TriagePanel({
       <p className={styles.muted}>
         Runs only when you click the button below. The AI sees each sender and subject line, never the emails themselves, and makes up
         categories to fit your inbox. Untick anything
-        you want to keep. Nothing changes in Gmail until you click Archive or Mark read.
+        you want to keep, or find a sender to untick all of theirs at once. Tag emails to keep them in a pile you can open
+        later; tagged senders are unticked. Nothing changes in Gmail until you click Archive, Mark read or Tag.
       </p>
       <div className={styles.actions}>
         <button type="button" className={styles.btn} onClick={() => void runTriage()} disabled={loading || busy !== ''}>
           {loading ? 'Sorting unread emails…' : result ? 'Triage again' : 'Triage unread emails'}
         </button>
       </div>
+      {tags && tags.length > 0 && onOpenTag ? (
+        <nav className={styles.tags} aria-label="Your tags">
+          <span className={styles.muted}>Your tags:</span>
+          {tags.map((tag) => (
+            <button key={tag.id} type="button" className={styles.tagChip} onClick={() => onOpenTag(tag)} aria-label={`Open tag ${tag.name}`}>
+              {tag.name}
+              {tag.unread !== null ? <span className={styles.tagCount}>{tag.unread ? `${fmt(tag.unread)} unread` : fmt(tag.total ?? 0)}</span> : null}
+            </button>
+          ))}
+        </nav>
+      ) : null}
+      {tagsError ? <p className={styles.muted}>{tagsError}</p> : null}
 
       {result ? (
         <>
@@ -301,6 +515,77 @@ export default function TriagePanel({
           </p>
 
           {result.categories.length > 0 ? (
+            <div className={styles.searchBar} role="search">
+              <input
+                type="search"
+                className={styles.input}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Find a sender, address or subject"
+                aria-label="Find senders"
+              />
+              {matches ? (
+                <>
+                  <span className={styles.muted}>
+                    {matches.length === 0
+                      ? 'No senders match.'
+                      : `${plural(matches.length, 'matching sender')}, ${plural(matchTotals.emails, 'email')}; ${fmt(matchTotals.pickedEmails)} selected`}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.btn}
+                    onClick={() => setMany(matchTotals.addresses, false)}
+                    disabled={busy !== '' || matchTotals.pickedSenders === 0}
+                  >
+                    Untick all matching
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.btn}
+                    onClick={() => setMany(matchTotals.addresses, true)}
+                    disabled={busy !== '' || matchTotals.pickedSenders === (matches?.length ?? 0)}
+                  >
+                    Tick all matching
+                  </button>
+                  <button type="button" className={styles.linkBtn} onClick={() => setSearch('')}>
+                    Clear search
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          {matches && matches.length > 0 ? (
+            <>
+              <TagPicker
+                tags={tags ?? []}
+                emails={matchTotals.emails}
+                scope="matching"
+                disabled={busy !== ''}
+                busy={busy === 'tag'}
+                onApply={(choice) => void tagEmails({ ids: matchTotals.ids, addresses: matchTotals.addresses }, choice)}
+              />
+              <div className={styles.tableWrap}>
+                <table className={styles.senderTable}>
+                  <caption className={styles.srOnly}>Senders matching the search</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" className={styles.checkCol}>
+                        <span className={styles.srOnly}>Clear</span>
+                      </th>
+                      <th scope="col">Sender</th>
+                      <th scope="col">Category</th>
+                      <th scope="col" className={styles.num}>
+                        Emails
+                      </th>
+                      <th scope="col">Subjects</th>
+                    </tr>
+                  </thead>
+                  <tbody>{matches.map(({ sender, category }) => senderRow(sender, category))}</tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
+          {result.categories.length > 0 && !matches ? (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <caption className={styles.srOnly}>Unread emails by category</caption>
@@ -388,37 +673,7 @@ export default function TriagePanel({
                                 </tr>
                               </thead>
                               <tbody>
-                                {category.senders.map((sender) => (
-                                  <tr key={sender.address} className={selected.has(sender.address) ? undefined : styles.kept}>
-                                    <td className={styles.checkCol}>
-                                      <input
-                                        type="checkbox"
-                                        checked={selected.has(sender.address)}
-                                        onChange={(e) => toggleSender(sender.address, e.target.checked)}
-                                        disabled={busy !== ''}
-                                        aria-label={`Clear ${sender.name} (${sender.address})`}
-                                      />
-                                    </td>
-                                    <td className={styles.senderCell}>
-                                      <span className={styles.senderName}>{sender.name}</span>
-                                      {sender.name !== sender.address ? <span className={styles.senderAddress}>{sender.address}</span> : null}
-                                    </td>
-                                    <td className={`${styles.num} ${styles.strong}`}>{fmt(sender.count)}</td>
-                                    <td className={styles.subjects}>
-                                      {sender.subjects.slice(0, SUBJECTS_SHOWN).join(' · ')}
-                                      {sender.subjects.length > SUBJECTS_SHOWN ? (
-                                        <details className={styles.more}>
-                                          <summary>+{fmt(sender.subjects.length - SUBJECTS_SHOWN)} more subjects</summary>
-                                          <ul>
-                                            {sender.subjects.slice(SUBJECTS_SHOWN).map((subject) => (
-                                              <li key={subject}>{subject}</li>
-                                            ))}
-                                          </ul>
-                                        </details>
-                                      ) : null}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {category.senders.map((sender) => senderRow(sender))}
                               </tbody>
                             </table>
                           </td>
@@ -444,7 +699,18 @@ export default function TriagePanel({
             <div className={styles.footer}>
               <span className={styles.muted}>
                 Selected: {plural(totals.pickedEmails, 'email')} from {plural(totals.pickedSenders, 'sender')}
+                {matches ? ' (across all categories, not just the search)' : ''}
               </span>
+              {!matches ? (
+                <TagPicker
+                  tags={tags ?? []}
+                  emails={totals.pickedEmails}
+                  scope="selected"
+                  disabled={busy !== ''}
+                  busy={busy === 'tag'}
+                  onApply={(choice) => void tagEmails({ ids: totals.pickedIds, addresses: [...selected] }, choice)}
+                />
+              ) : null}
               <button
                 type="button"
                 className={`${styles.btn} ${styles.primary}`}

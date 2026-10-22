@@ -37,6 +37,7 @@ import { searchSenderAddresses, type MailContact } from '../../lib/mail/contacts
 import { loadSavedPeople, savePeople } from '../../lib/mail/people-cache'
 import { forwardStartHtml, forwardSubject, hasOtherParticipants, replyRecipients } from '../../lib/mail/reply-actions'
 import { exportFileName, messageToMarkdown, saveFile, threadToMarkdown } from '../../lib/mail/export'
+import type { MailTag } from '../../lib/mail/tags'
 
 /** People in the user's mail, from /api/mail/contacts. */
 interface SearchPeople {
@@ -386,6 +387,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const searchPeople = useRef<{ account: string; promise: Promise<SearchPeople> } | null>(null)
   // Extra `from:` addresses for the current Inbox search (see searchSenderAddresses).
   const querySenders = useRef<string[]>([])
+  // The tag (Gmail label) whose emails the Inbox list shows instead of the inbox; null = the inbox.
+  const [tagView, setTagView] = useState<MailTag | null>(null)
+  const tagRef = useRef<MailTag | null>(null)
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
   const isMobile = useIsMobileViewport()
@@ -459,6 +463,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         if (opts.q && opts.folder === 'inbox' && querySenders.current.length > 0) {
           params.set('senders', querySenders.current.join(','))
         }
+        if (opts.folder === 'inbox' && tagRef.current) params.set('tag', tagRef.current.id)
         const data = await api<{
           threads: ThreadRow[]
           nextPageToken: string | null
@@ -722,6 +727,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const switchFolder = useCallback(
     (next: MailFolder) => {
       if (next === folder) return
+      tagRef.current = null
+      setTagView(null)
       threadRequest.current++
       setFolder(next)
       setThreads([])
@@ -775,6 +782,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       }
       setShowScheduled(false)
       setShowAwaiting(false)
+      // A tab click leaves a tag's list for the folder itself.
+      tagRef.current = null
+      setTagView(null)
       if (tab !== folder) switchFolder(tab)
       else void loadInbox({ folder, q: query })
       void loadCounts()
@@ -857,6 +867,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       accountRef.current = target
       setActiveAccount(target)
       storeAccount(target)
+      // Tags are per Gmail account.
+      tagRef.current = null
+      setTagView(null)
       threadRequest.current++
       listAppended.current = false
       setShowScheduled(false)
@@ -953,7 +966,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
    * earlier search.
    */
   const showFullInbox = useCallback(() => {
-    const searched = query.trim() !== '' || search.trim() !== ''
+    const searched = query.trim() !== '' || search.trim() !== '' || tagRef.current !== null
+    tagRef.current = null
+    setTagView(null)
     setSearch('')
     setQuery('')
     setSearchSenders([])
@@ -970,6 +985,30 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       void loadInbox({ folder: 'inbox' })
     }
   }, [folder, loadInbox, query, search])
+
+  /**
+   * List one tag's emails (archived ones too) in place of the inbox, to work
+   * through them; Triage collapses to its bar so the list shows.
+   */
+  const openTag = useCallback(
+    (tag: MailTag) => {
+      tagRef.current = tag
+      setTagView(tag)
+      setTriageExpanded(false)
+      setSearch('')
+      setQuery('')
+      querySenders.current = []
+      setCheckedThreads(new Set())
+      setShowScheduled(false)
+      setShowAwaiting(false)
+      setSelectedScheduledId(null)
+      setFolder('inbox')
+      setThreads([])
+      setNextPageToken(null)
+      void loadInbox({ folder: 'inbox' })
+    },
+    [loadInbox],
+  )
 
   /**
    * Open a Mail link (`?thread=`, `?draft=`, `&account=`): from the URL when the
@@ -1822,6 +1861,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           onClose={() => setShowTriagePanel(false)}
           fullView={triageExpanded}
           onFullViewChange={setTriageExpanded}
+          onOpenTag={openTag}
         />
       ) : null}
 
@@ -2014,8 +2054,16 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           onWantSenders={() => {
             if (folder === 'inbox') void loadSearchPeople()
           }}
-          label={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
+          label={tagView ? `Search tag ${tagView.name}` : `Search ${FOLDER_LABELS[folder].toLowerCase()}`}
         />
+        {folder === 'inbox' && tagView ? (
+          <div className={styles.bulkBar} role="status">
+            <span className={styles.bulkCount}>Tag: {tagView.name}</span>
+            <button type="button" className={styles.linkBtn} onClick={showFullInbox}>
+              Back to inbox
+            </button>
+          </div>
+        ) : null}
         {folder === 'inbox' && checkedRows.length > 0 ? (
           <div className={styles.bulkBar} role="toolbar" aria-label="Selected emails">
             <span className={styles.bulkCount}>{checkedRows.length} selected</span>
@@ -2031,7 +2079,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             {bulkNote}
           </p>
         ) : null}
-        <ul className={styles.list} aria-label={FOLDER_LABELS[folder]}>
+        <ul className={styles.list} aria-label={tagView && folder === 'inbox' ? `Tag ${tagView.name}` : FOLDER_LABELS[folder]}>
           {threads.map((thread) => (
             <li key={thread.threadId} className={`${styles.rowItem} ${folder === 'inbox' ? styles.rowItemSelectable : ''}`}>
               {folder === 'inbox' ? (

@@ -179,6 +179,23 @@ describe('GET /api/mail/inbox folders', () => {
     expect(listFolderThreads).toHaveBeenLastCalledWith('tok', 'drafts', { pageToken: 'p2', q: undefined, maxResults: 20 })
   })
 
+  it('lists a tag (user label) instead of the inbox, with the same filters', async () => {
+    expect((await GET(request('?tag=Label_7'))).status).toBe(200)
+    expect(listFolderThreads).toHaveBeenCalledWith('tok', 'inbox', {
+      pageToken: undefined,
+      q: '-from:news.com -in:sent is:unread',
+      maxResults: 20,
+      labelId: 'Label_7',
+    })
+  })
+
+  it('refuses system labels as tags, and tags outside the inbox, before touching Gmail', async () => {
+    for (const query of ['?tag=TRASH', '?tag=', '?tag=Label_1%20OR', '?folder=sent&tag=Label_7']) {
+      expect((await GET(request(query))).status).toBe(400)
+    }
+    expect(listFolderThreads).not.toHaveBeenCalled()
+  })
+
   it('rejects unknown folders before touching Gmail', async () => {
     const res = await GET(request('?folder=spam'))
     expect(res.status).toBe(400)
