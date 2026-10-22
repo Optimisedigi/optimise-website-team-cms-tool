@@ -289,6 +289,7 @@ interface AccountsInfo {
   primary: string | null
   accounts: Array<{ email: string }>
   addUrl: string
+  altAdd?: { url: string; domains: string[] } | null
   canAdd: boolean
 }
 
@@ -1575,6 +1576,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         onSelect={(email, main) => switchAccount(main ? '' : email)}
         onRemove={(email) => void removeAccount(email)}
         addUrl={accountsInfo?.canAdd ? accountsInfo.addUrl : null}
+        altAdd={accountsInfo?.canAdd ? (accountsInfo.altAdd ?? null) : null}
       />
       <div className={styles.toolbar}>
         <div className={styles.folders} role="tablist" aria-label="Mail folders">

@@ -82,7 +82,7 @@ async function getExtraAccountToken(user: UserDoc, account: string): Promise<Gma
   let accessToken = row.accessToken;
   if (isExpired(row.tokenExpiry) || !accessToken) {
     try {
-      const refreshed = await refreshGmailAccessToken(row.refreshToken.trim());
+      const refreshed = await refreshGmailAccessToken(row.refreshToken.trim(), row.email);
       await updateMailAccount(payload, row.id, { accessToken: refreshed.accessToken, tokenExpiry: refreshed.expiry });
       accessToken = refreshed.accessToken;
     } catch (err) {
@@ -133,7 +133,7 @@ export async function getValidGmailToken(
   let accessToken = user.gmailAccessToken ?? "";
   if (isExpired(user.gmailTokenExpiry) || !accessToken) {
     try {
-      const refreshed = await refreshGmailAccessToken(refreshToken);
+      const refreshed = await refreshGmailAccessToken(refreshToken, user.gmailEmail ?? "");
       await persistRefreshedToken(userId, refreshed);
       accessToken = refreshed.accessToken;
     } catch (err) {

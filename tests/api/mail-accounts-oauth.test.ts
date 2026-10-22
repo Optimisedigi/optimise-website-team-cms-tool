@@ -22,13 +22,16 @@ vi.mock('next/headers', () => ({
     delete: (name: string) => cookieJar.delete(name),
   })),
 }))
-const getGmailOAuthUrl = vi.fn((state: string, options?: { selectAccount?: boolean }) => `https://google.test/?state=${state}&select=${options?.selectAccount ? 1 : 0}`)
+const getGmailOAuthUrl = vi.fn(
+  (state: string, options?: { selectAccount?: boolean; app?: string }) =>
+    `https://google.test/?state=${state}&select=${options?.selectAccount ? 1 : 0}&app=${options?.app ?? 'main'}`,
+)
 const exchangeGmailCode = vi.fn()
 const refreshGmailAccessToken = vi.fn()
 vi.mock('@/lib/gmail-service', () => ({
-  getGmailOAuthUrl: (state: string, options?: { selectAccount?: boolean }) => getGmailOAuthUrl(state, options),
-  exchangeGmailCode: (code: string) => exchangeGmailCode(code),
-  refreshGmailAccessToken: (token: string) => refreshGmailAccessToken(token),
+  getGmailOAuthUrl: (state: string, options?: { selectAccount?: boolean; app?: string }) => getGmailOAuthUrl(state, options),
+  exchangeGmailCode: (code: string, app?: string) => exchangeGmailCode(code, app),
+  refreshGmailAccessToken: (token: string, email?: string) => refreshGmailAccessToken(token, email),
 }))
 
 const connect = await import('@/app/(frontend)/api/gmail/connect/route')
@@ -44,6 +47,9 @@ beforeEach(() => {
   process.env.GOOGLE_CLIENT_ID = 'id'
   process.env.GOOGLE_CLIENT_SECRET = 'secret'
   process.env.GMAIL_REDIRECT_URI = 'http://localhost/api/gmail/callback'
+  delete process.env.GMAIL_ALT_CLIENT_ID
+  delete process.env.GMAIL_ALT_CLIENT_SECRET
+  delete process.env.GMAIL_ALT_DOMAINS
   mockPayload.auth.mockResolvedValue({ user: { id: 7, role: 'admin' } })
   mockPayload.find.mockResolvedValue({ docs: [] })
 })
@@ -95,6 +101,77 @@ describe('adding another Gmail account', () => {
   })
 })
 
+describe('adding an account through the second Gmail app (another Google Workspace)', () => {
+  const setAlt = () => {
+    process.env.GMAIL_ALT_CLIENT_ID = 'alt-id'
+    process.env.GMAIL_ALT_CLIENT_SECRET = 'alt-secret'
+    process.env.GMAIL_ALT_DOMAINS = 'CipherHealth.com.au, not a domain'
+  }
+  const callbackWith = async (cookie: string, email: string) => {
+    const { state, nonce } = signOAuthState(7, 7)
+    cookieJar.set(cookie, nonce)
+    mockPayload.findByID.mockResolvedValue({ id: 7, gmailConnected: true, gmailEmail: 'me@od.com' })
+    exchangeGmailCode.mockResolvedValue({ email, accessToken: 'a', refreshToken: 'r', expiry: null })
+    return callback.GET(new NextRequest(`http://localhost/api/gmail/callback?code=c&state=${encodeURIComponent(state)}`))
+  }
+
+  it('is refused until the second app is fully set up', async () => {
+    process.env.GMAIL_ALT_CLIENT_ID = 'alt-id'
+    process.env.GMAIL_ALT_DOMAINS = 'cipherhealth.com.au'
+    const res = await connect.GET(new NextRequest('http://localhost/api/gmail/connect?add=1&app=alt'))
+    expect(res.status).toBe(400)
+    expect(cookieJar.size).toBe(0)
+  })
+
+  it('signs in through the second app with its own nonce cookie', async () => {
+    setAlt()
+    const res = await connect.GET(new NextRequest('http://localhost/api/gmail/connect?add=1&app=alt'))
+    expect(cookieJar.has('oauth_nonce_gmail_add_alt')).toBe(true)
+    expect(cookieJar.has('oauth_nonce_gmail_add')).toBe(false)
+    expect(location(res).searchParams.get('app')).toBe('alt')
+    // app=alt without add=1 is the normal main-Gmail connect.
+    cookieJar.clear()
+    const main = await connect.GET(new NextRequest('http://localhost/api/gmail/connect?app=alt'))
+    expect(cookieJar.has('oauth_nonce_gmail')).toBe(true)
+    expect(location(main).searchParams.get('app')).toBe('main')
+  })
+
+  it('exchanges the code with the second app and saves the account', async () => {
+    setAlt()
+    const res = await callbackWith('oauth_nonce_gmail_add_alt', 'Peter@CipherHealth.com.au')
+    expect(exchangeGmailCode).toHaveBeenCalledWith('c', 'alt')
+    expect(location(res).searchParams.get('account')).toBe('peter@cipherhealth.com.au')
+    expect(mockPayload.create).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'mail-accounts', data: expect.objectContaining({ email: 'peter@cipherhealth.com.au' }) }),
+    )
+    expect(cookieJar.has('oauth_nonce_gmail_add_alt')).toBe(false)
+  })
+
+  it('keeps no tokens when the signed-in address does not belong to the app that signed it in', async () => {
+    setAlt()
+    // Second app, but an address outside its domains.
+    const wrongAlt = await callbackWith('oauth_nonce_gmail_add_alt', 'someone@od.com')
+    expect(location(wrongAlt).searchParams.get('mail_account_error')).toMatch(/not on the second app/)
+    // Main app, but an address on the second app's domain.
+    const wrongMain = await callbackWith('oauth_nonce_gmail_add', 'peter@cipherhealth.com.au')
+    expect(exchangeGmailCode).toHaveBeenLastCalledWith('c', 'main')
+    expect(location(wrongMain).searchParams.get('mail_account_error')).toMatch(/its own sign-in option/)
+    expect(mockPayload.create).not.toHaveBeenCalled()
+    expect(mockPayload.update).not.toHaveBeenCalled()
+  })
+
+  it('a nonce minted for the normal add flow cannot be replayed as the second-app flow', async () => {
+    setAlt()
+    const { state, nonce } = signOAuthState(7, 7)
+    cookieJar.set('oauth_nonce_gmail_add', nonce)
+    cookieJar.set('oauth_nonce_gmail_add_alt', 'different')
+    exchangeGmailCode.mockResolvedValue({ email: 'sales@od.com', accessToken: 'a', refreshToken: 'r', expiry: null })
+    mockPayload.findByID.mockResolvedValue({ id: 7, gmailConnected: true, gmailEmail: 'me@od.com' })
+    await callback.GET(new NextRequest(`http://localhost/api/gmail/callback?code=c&state=${encodeURIComponent(state)}`))
+    expect(exchangeGmailCode).toHaveBeenCalledWith('c', 'main')
+  })
+})
+
 describe('getValidGmailToken with an account', () => {
   const user = { id: 7, email: 'peter@od.com', gmailConnected: true, gmailEmail: 'Me@od.com', gmailAccessToken: 'main', gmailRefreshToken: 'r', gmailTokenExpiry: '2999-01-01T00:00:00.000Z' }
 
@@ -110,6 +187,8 @@ describe('getValidGmailToken with an account', () => {
     mockPayload.find.mockResolvedValue({ docs: [{ id: 3, email: 'sales@od.com', accessToken: 'old', refreshToken: 'sr', tokenExpiry: '2000-01-01T00:00:00.000Z' }] })
     refreshGmailAccessToken.mockResolvedValue({ accessToken: 'fresh', expiry: '2999-01-01T00:00:00.000Z' })
     expect(await getValidGmailToken(7, 'Sales@od.com')).toMatchObject({ ok: true, accessToken: 'fresh', email: 'sales@od.com', account: 'sales@od.com' })
+    // The account's address goes with the refresh, so its own Google app renews it.
+    expect(refreshGmailAccessToken).toHaveBeenCalledWith('sr', 'sales@od.com')
     expect(mockPayload.find).toHaveBeenCalledWith(
       expect.objectContaining({ collection: 'mail-accounts', where: { and: [{ owner: { equals: 7 } }, { email: { equals: 'sales@od.com' } }] } }),
     )

@@ -212,6 +212,34 @@ describe('MailApp layout', () => {
 })
 
 describe('MailApp breadcrumb account switcher', () => {
+  it('offers adding an account of another Google Workspace when its sign-in app is set up', async () => {
+    const baseFetch = global.fetch
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/mail/accounts')) {
+        return {
+          ok: true,
+          json: async () => ({
+            primary: 'me@od.com',
+            accounts: [],
+            addUrl: '/api/gmail/connect?add=1',
+            altAdd: { url: '/api/gmail/connect?add=1&app=alt', domains: ['cipherhealth.com.au'] },
+            canAdd: true,
+          }),
+        } as Response
+      }
+      return baseFetch(url, init)
+    }) as unknown as typeof fetch
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    await waitFor(() => expect(nav.items).toHaveLength(2))
+    const crumb = render(<>{nav.items[1]?.label as React.ReactElement}</>)
+    fireEvent.click(await within(crumb.container).findByRole('button', { name: /me@od\.com/ }))
+    const menu = await screen.findByRole('menu', { name: 'Gmail accounts' })
+    expect(within(menu).getByRole('menuitem', { name: '+ Add an @cipherhealth.com.au account' }).getAttribute('href')).toBe(
+      '/api/gmail/connect?add=1&app=alt',
+    )
+  })
+
   it('shows Mail / <email> in the breadcrumb and switches every request to the chosen account', async () => {
     render(<MailApp clients={CLIENTS} />)
     await screen.findByText('Hello there')

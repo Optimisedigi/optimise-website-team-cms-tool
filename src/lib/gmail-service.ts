@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
+import { createGmailOAuthClient, gmailAltDomains, gmailAppForEmail, type GmailOAuthApp } from "@/lib/gmail-oauth-apps";
 import { declarationProperty, splitDeclarations } from "@/lib/mail/gmail-html";
 import { withEditedSignOff } from "@/lib/mail/signature";
 import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
@@ -48,8 +49,13 @@ function getOAuth2Client() {
  * alongside that fix; users must click "Connect Gmail" once after the
  * rollout to obtain a freshly-signed state.
  */
-export function getGmailOAuthUrl(state: string, options: { selectAccount?: boolean } = {}): string {
-  const oauth2Client = getOAuth2Client();
+export function getGmailOAuthUrl(
+  state: string,
+  options: { selectAccount?: boolean; app?: GmailOAuthApp } = {},
+): string {
+  const app = options.app ?? "main";
+  const oauth2Client = createGmailOAuthClient(app);
+  const altDomains = app === "alt" ? gmailAltDomains() : [];
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
@@ -57,19 +63,21 @@ export function getGmailOAuthUrl(state: string, options: { selectAccount?: boole
     // Adding another account must let the user pick a different Google login.
     prompt: options.selectAccount ? "select_account consent" : "consent",
     include_granted_scopes: true,
+    // Only a hint for Google's account picker; the callback enforces the domain.
+    ...(altDomains.length === 1 ? { hd: altDomains[0] } : {}),
   });
 }
 
 /**
  * Exchange an authorization code for tokens, and resolve the user's email.
  */
-export async function exchangeGmailCode(code: string): Promise<{
+export async function exchangeGmailCode(code: string, app: GmailOAuthApp = "main"): Promise<{
   accessToken: string;
   refreshToken: string;
   expiry: string | null;
   email: string;
 }> {
-  const oauth2Client = getOAuth2Client();
+  const oauth2Client = createGmailOAuthClient(app);
   const { tokens } = await oauth2Client.getToken(code);
 
   if (!tokens.access_token) {
@@ -109,11 +117,12 @@ export async function exchangeGmailCode(code: string): Promise<{
 /**
  * Refresh an expired access token using the stored refresh token.
  */
-export async function refreshGmailAccessToken(refreshToken: string): Promise<{
+/** `email` is the account the token belongs to: it picks the Google app that issued it. */
+export async function refreshGmailAccessToken(refreshToken: string, email = ""): Promise<{
   accessToken: string;
   expiry: string | null;
 }> {
-  const oauth2Client = getOAuth2Client();
+  const oauth2Client = createGmailOAuthClient(gmailAppForEmail(email));
   oauth2Client.setCredentials({ refresh_token: refreshToken });
   const { credentials } = await oauth2Client.refreshAccessToken();
   if (!credentials.access_token) {

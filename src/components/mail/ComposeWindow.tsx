@@ -18,7 +18,7 @@ import { browserStorage, clearPrompt, loadPrompt, promptKeys, savePrompt } from 
 import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
 import { FOLLOW_UP_DAY_OPTIONS } from '../../lib/mail/schedule-times'
 import { mailAccountHeaders } from '../../lib/mail/accounts-shared'
-import type { MailContact } from '../../lib/mail/contacts-shared'
+import { finishedRecipientAddresses, type MailContact } from '../../lib/mail/contacts-shared'
 import { RecipientInput } from './RecipientInput'
 import { appendReplyQuote, replyQuoteHeader, replyQuoteStartHtml, type ReplyQuote } from '../../lib/mail/reply-quote'
 import {
@@ -157,6 +157,8 @@ interface AiUndoEntry {
   subject?: string
 }
 
+type RecipientField = 'to' | 'cc' | 'bcc'
+
 /** AI changes that can be undone, newest last. */
 const MAX_AI_UNDO = 20
 
@@ -262,6 +264,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     const target = next ? replyChoices.replyAll : replyChoices.reply
     setReplyAll(next)
     setState((s) => ({ ...s, to: target.to, cc: target.cc }))
+    setSettledRecipients((s) => ({ ...s, to: target.to, cc: target.cc }))
     if (next && target.cc) setShowCc(true)
   }
   // To/Cc/Bcc suggestions, loaded once the first recipient field is focused.
@@ -326,6 +329,25 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   // Autosave: the latest state, the Gmail draft id, and the in-flight save.
   const stateRef = useRef(state)
   stateRef.current = state
+
+  /**
+   * To / Cc / Bcc as of the last finished address. Typing a recipient changes
+   * the fields on every letter, but only finishing an address (a comma, or
+   * picking a suggestion), removing one, or leaving the field updates this, so
+   * a half-typed address never sets off a draft save or a client lookup.
+   */
+  const [settledRecipients, setSettledRecipients] = useState(() => ({ to: initial.to, cc: initial.cc, bcc: initial.bcc ?? '' }))
+  const setRecipient = (field: RecipientField, value: string) => {
+    const previous = (field === 'bcc' ? stateRef.current.bcc : stateRef.current[field]) ?? ''
+    setState((s) => ({ ...s, [field]: value }))
+    if (finishedRecipientAddresses(previous).join(',') !== finishedRecipientAddresses(value).join(',')) {
+      setSettledRecipients((s) => ({ ...s, [field]: value }))
+    }
+  }
+  const settleRecipient = (field: RecipientField) => {
+    const value = (field === 'bcc' ? stateRef.current.bcc : stateRef.current[field]) ?? ''
+    setSettledRecipients((s) => (s[field] === value ? s : { ...s, [field]: value }))
+  }
   const draftIdRef = useRef(initial.draftId)
   const savingRef = useRef<Promise<void> | null>(null)
   const dirtyRef = useRef(false)
@@ -491,13 +513,14 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
   }, [edits, autosave])
 
   // Recipients, subject and attachments count as edits too (not the initial values).
+  // Recipients count once an address is finished, not on every letter (see setRecipient).
   useEffect(() => {
     if (!fieldsMounted.current) {
       fieldsMounted.current = true
       return
     }
     setEdits((n) => n + 1)
-  }, [state.to, state.cc, state.bcc, state.subject, state.signOff, state.attachments])
+  }, [settledRecipients.to, settledRecipients.cc, settledRecipients.bcc, state.subject, state.signOff, state.attachments])
 
   useEffect(() => {
     const flush = () => {
@@ -520,8 +543,8 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
 
   useEffect(() => {
     if (state.mode !== 'new') return
-    const to = state.to.trim()
-    const cc = state.cc.trim()
+    const to = settledRecipients.to.trim()
+    const cc = settledRecipients.cc.trim()
     if (!to && !cc) {
       setRecipientClient(null)
       return
@@ -540,7 +563,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [state.mode, state.to, state.cc, initial.account])
+  }, [state.mode, settledRecipients.to, settledRecipients.cc, initial.account])
 
   function setBodyFromText(text: string) {
     // Blank lines stay as empty lines: each editor paragraph is one line, as in Gmail.
@@ -931,7 +954,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
         <div className={styles.fields}>
           <label className={styles.field}>
             <span>To</span>
-            <RecipientInput label="To" value={state.to} onChange={(to) => setState((s) => ({ ...s, to }))} contacts={contacts} onWantContacts={loadContacts} />
+            <RecipientInput label="To" value={state.to} onChange={(to) => setRecipient('to', to)} onBlur={() => settleRecipient('to')} contacts={contacts} onWantContacts={loadContacts} />
             {replyChoices ? (
               <button
                 type="button"
@@ -958,11 +981,11 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             <>
               <label className={styles.field}>
                 <span>Cc</span>
-                <RecipientInput label="Cc" value={state.cc} onChange={(cc) => setState((s) => ({ ...s, cc }))} contacts={contacts} onWantContacts={loadContacts} />
+                <RecipientInput label="Cc" value={state.cc} onChange={(cc) => setRecipient('cc', cc)} onBlur={() => settleRecipient('cc')} contacts={contacts} onWantContacts={loadContacts} />
               </label>
               <label className={styles.field}>
                 <span>Bcc</span>
-                <RecipientInput label="Bcc" value={state.bcc ?? ''} onChange={(bcc) => setState((s) => ({ ...s, bcc }))} contacts={contacts} onWantContacts={loadContacts} />
+                <RecipientInput label="Bcc" value={state.bcc ?? ''} onChange={(bcc) => setRecipient('bcc', bcc)} onBlur={() => settleRecipient('bcc')} contacts={contacts} onWantContacts={loadContacts} />
               </label>
             </>
           ) : null}

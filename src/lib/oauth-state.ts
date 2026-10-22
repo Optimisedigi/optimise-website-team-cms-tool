@@ -37,6 +37,8 @@ export const OAUTH_NONCE_COOKIE = {
   gmail: "oauth_nonce_gmail",
   /** Mail → "Add another Gmail account": same Gmail flow, saved as an extra account. */
   gmailAdd: "oauth_nonce_gmail_add",
+  /** Mail → add an account through the second Gmail app (see gmail-oauth-apps.ts). */
+  gmailAddAlt: "oauth_nonce_gmail_add_alt",
 } as const;
 
 export type OAuthFlow = keyof typeof OAUTH_NONCE_COOKIE;

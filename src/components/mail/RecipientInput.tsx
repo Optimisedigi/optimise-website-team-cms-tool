@@ -17,6 +17,8 @@ interface Props {
   contacts: readonly MailContact[] | null
   /** Called on focus so the contact list loads before the first letters are typed. */
   onWantContacts: () => void
+  /** Leaving the field: whatever was typed counts as finished. */
+  onBlur?: () => void
   label: string
 }
 
@@ -26,7 +28,7 @@ interface Props {
  * typed (after the last comma). Tab, Enter or a click picks the highlighted
  * one; the arrow keys move the highlight and Escape closes the list.
  */
-export function RecipientInput({ value, onChange, contacts, onWantContacts, label }: Props) {
+export function RecipientInput({ value, onChange, contacts, onWantContacts, onBlur, label }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const listId = useId()
   const [caret, setCaret] = useState(value.length)
@@ -100,7 +102,10 @@ export function RecipientInput({ value, onChange, contacts, onWantContacts, labe
           setFocused(true)
           onWantContacts()
         }}
-        onBlur={() => setFocused(false)}
+        onBlur={() => {
+          setFocused(false)
+          onBlur?.()
+        }}
         onKeyDown={onKeyDown}
       />
       {open ? (

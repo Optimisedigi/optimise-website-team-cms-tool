@@ -254,3 +254,44 @@ describe('ComposeWindow reply all toggle', () => {
     expect(screen.queryByRole('button', { name: 'Reply all' })).toBeNull()
   })
 })
+
+describe('ComposeWindow autosave while typing recipients', () => {
+  it('saves only once an address is finished or the field is left, never on half-typed addresses', async () => {
+    const { onSaveDraft } = mount({ mode: 'new', replyTo: null, to: '', cc: '', subject: 'Update', html: '<p>Hi Melissa,</p>', attachments: [] })
+    await waitFor(() => expect(screen.getByLabelText('Email body').textContent).toContain('Hi Melissa,'))
+    const to = screen.getByRole('combobox', { name: 'To' })
+    vi.useFakeTimers()
+    const settle = async () => {
+      await act(async () => {
+        vi.advanceTimersByTime(1600)
+      })
+    }
+
+    // Typing an address letter by letter, with pauses longer than the autosave delay.
+    for (const value of ['md', 'mdingli@', 'mdingli@questas.com', 'mdingli@questas.com.au']) {
+      fireEvent.change(to, { target: { value } })
+      await settle()
+    }
+    expect(onSaveDraft).not.toHaveBeenCalled()
+
+    // The comma finishes it: one save.
+    fireEvent.change(to, { target: { value: 'mdingli@questas.com.au, ' } })
+    await settle()
+    expect(onSaveDraft).toHaveBeenCalledTimes(1)
+    expect(onSaveDraft.mock.calls[0]?.[0]).toMatchObject({ to: 'mdingli@questas.com.au, ' })
+
+    // Starting the next address does not save; leaving the field does.
+    fireEvent.change(to, { target: { value: 'mdingli@questas.com.au, jo@ques' } })
+    await settle()
+    expect(onSaveDraft).toHaveBeenCalledTimes(1)
+    fireEvent.blur(to)
+    await settle()
+    expect(onSaveDraft).toHaveBeenCalledTimes(2)
+    expect(onSaveDraft.mock.calls[1]?.[0]).toMatchObject({ to: 'mdingli@questas.com.au, jo@ques' })
+
+    // Removing a finished address counts as a change too.
+    fireEvent.change(to, { target: { value: 'jo@ques' } })
+    await settle()
+    expect(onSaveDraft).toHaveBeenCalledTimes(3)
+  })
+})

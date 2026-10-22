@@ -21,9 +21,11 @@ export interface MailAccountMenuProps {
   onRemove: (email: string) => void
   /** Where "Add another Gmail account" goes, or null when the user cannot add one. */
   addUrl: string | null
+  /** Accounts of another Google Workspace, added through its own sign-in app; null when not set up. */
+  altAdd?: { url: string; domains: string[] } | null
 }
 
-export function MailAccountMenu({ current, accounts, onSelect, onRemove, addUrl }: MailAccountMenuProps) {
+export function MailAccountMenu({ current, accounts, onSelect, onRemove, addUrl, altAdd }: MailAccountMenuProps) {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -138,6 +140,13 @@ export function MailAccountMenu({ current, accounts, onSelect, onRemove, addUrl 
                   + Add another Gmail account
                 </a>
               ) : null}
+              {addUrl && altAdd
+                ? altAdd.domains.map((domain) => (
+                    <a key={domain} role="menuitem" className={styles.accountMenuAdd} href={altAdd.url}>
+                      + Add an @{domain} account
+                    </a>
+                  ))
+                : null}
             </div>,
             document.body,
           )
@@ -163,6 +172,7 @@ export default function MailStepNav(props: MailAccountMenuProps) {
           current={props.current}
           accounts={props.accounts}
           addUrl={props.addUrl}
+          altAdd={props.altAdd}
           onSelect={(email, main) => latest.current.onSelect(email, main)}
           onRemove={(email) => latest.current.onRemove(email)}
         />
@@ -171,7 +181,7 @@ export default function MailStepNav(props: MailAccountMenuProps) {
     return items
     // props.accounts is keyed by accountsKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.current, accountsKey, props.addUrl])
+  }, [props.current, accountsKey, props.addUrl, props.altAdd?.url, props.altAdd?.domains.join(',')])
 
   useEffect(() => {
     setStepNav(nav)

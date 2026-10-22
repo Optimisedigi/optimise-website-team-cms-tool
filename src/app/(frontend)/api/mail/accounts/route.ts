@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { deleteMailAccount, listMailAccounts } from "@/lib/mail/accounts";
 import { normaliseMailAccount } from "@/lib/mail/accounts-shared";
 import { readJson, requireMailUser } from "@/lib/mail/route-helpers";
+import { gmailAltDomains } from "@/lib/gmail-oauth-apps";
 
 /**
  * GET /api/mail/accounts
@@ -24,6 +25,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     primary: user.gmailConnected && user.gmailEmail ? user.gmailEmail.trim().toLowerCase() : null,
     accounts: accounts.map((account) => ({ email: account.email, lastSyncAt: account.lastSyncAt })),
     addUrl: "/api/gmail/connect?add=1",
+    // Accounts of another Google Workspace sign in through the second Gmail app.
+    altAdd: gmailAltDomains().length ? { url: "/api/gmail/connect?add=1&app=alt", domains: gmailAltDomains() } : null,
     canAdd: ctx.user.role === "admin",
   });
 }

@@ -39,6 +39,17 @@ export function addressesIn(value: string): Set<string> {
 }
 
 /**
+ * Addresses in a recipient field that are finished: every entry followed by a
+ * comma or semicolon (picking a suggestion adds one). The entry after the
+ * last separator may still be being typed, so it is left out.
+ */
+export function finishedRecipientAddresses(value: string): string[] {
+  const entries = value.split(/[,;]/);
+  entries.pop();
+  return entries.flatMap((entry) => [...addressesIn(entry)]);
+}
+
+/**
  * Contacts matching what is typed, in the server's ranking (people you email
  * most first). A contact matches when the text starts its address, the part
  * after the @, its name, or any word of its name. Fewer than
