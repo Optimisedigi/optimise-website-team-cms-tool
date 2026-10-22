@@ -223,3 +223,48 @@ describe('ComposeWindow Revise and Undo', () => {
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
 })
+
+describe('ComposeWindow Revise with no instruction', () => {
+  it('tidies the layout without the AI, sends the column widths, and Undo puts it back', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    const { onSend } = mount({
+      ...REPLY,
+      html: '<p>Hi Carli,</p><p>Numbers below.</p><p><b>Overview</b></p><table><tr><th>Metric</th><th>Total</th></tr><tr><td>Impressions</td><td>170,763</td></tr></table><p>Thanks for the chat.</p>',
+    })
+    const body = screen.getByLabelText('Email body')
+    await waitFor(() => expect(body.textContent).toContain('Impressions'))
+    const lines = () => Array.from(body.children).map((node) => (node.tagName === 'TABLE' ? '[table]' : node.textContent))
+    expect(lines()).toEqual(['Hi Carli,', 'Numbers below.', 'Overview', '[table]', 'Thanks for the chat.'])
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Revise' }))
+    })
+    expect(lines()).toEqual(['Hi Carli,', '', 'Numbers below.', '', 'Overview', '[table]', '', 'Thanks for the chat.'])
+    // No AI call for a tidy.
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/mail/ai')).toBe(false)
+
+    // Pressing again finds nothing more to do.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Revise' }))
+    })
+    expect(screen.getByText(/already tidy/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(lines()).toEqual(['Hi Carli,', 'Numbers below.', 'Overview', '[table]', 'Thanks for the chat.']))
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+
+    // Tidy again and send: every cell goes out with its column's width, not Lexical's fixed 75px.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Revise' }))
+    })
+    await send()
+    const content = onSend.mock.calls[0]?.[1] as { html: string } | undefined
+    // What the server sends to Gmail after cleaning the editor's HTML.
+    const { parseMailComposeContent } = await import('@/lib/mail/compose-content')
+    const sent = parseMailComposeContent({ html: content?.html ?? '' })
+    const html = sent.ok ? sent.value.html : ''
+    expect(html).toMatch(/<td style="[^"]*width: 101px[^"]*"><p><span[^>]*>Impressions/)
+    expect(html).toMatch(/<td style="[^"]*width: 66px[^"]*"><p><span[^>]*>170,763/)
+    expect(html).not.toContain('width: 75px')
+  })
+})

@@ -126,6 +126,115 @@ describe('RichEmailEditor', () => {
     expect(editor.getMarkdown()).toBe('Hi Sam,\n\nWe loved the results.\n\nNext steps:\n\n- Call\n\nTalk soon.')
   })
 
+  it('tidies the layout: sized table columns, and empty lines after the greeting, before TL;DR and section labels, and after tables', async () => {
+    const table = (rows: string[][]) =>
+      `<table><tr>${rows[0]?.map((cell) => `<th>${cell}</th>`).join('')}</tr>${rows
+        .slice(1)
+        .map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join('')}</tr>`)
+        .join('')}</table>`
+    const { ref } = await mount(
+      '<p>Hi Melissa,</p><p>Here is the spend.</p><p><b>TLDR;</b></p><p>It went well.</p><p>See the data below:</p>' +
+        '<p><b>Overview</b></p>' +
+        table([['Metric', 'Total'], ['Impressions', '170,763'], ['Average cost per click', '$4']]) +
+        '<p><b>Month by month</b></p>' +
+        table([['Month', 'Leads'], ['July (from 10th)', '22']]) +
+        '<p>August was our strongest month. <b>Really</b> strong.</p>' +
+        table([['Brand', 'Spend'], ['Kohler', '$7,858']]),
+    )
+    const editor = ref.current
+    if (!editor) throw new Error('no editor')
+    let changed = false
+    await act(async () => {
+      changed = editor.tidyLayout()
+    })
+    expect(changed).toBe(true)
+    const lines = Array.from(document.querySelectorAll('[contenteditable="true"] > *')).map((node) =>
+      node.tagName === 'TABLE' ? '[table]' : node.textContent,
+    )
+    expect(lines).toEqual([
+      'Hi Melissa,',
+      '',
+      'Here is the spend.',
+      '',
+      'TLDR;',
+      'It went well.',
+      'See the data below:',
+      '',
+      'Overview',
+      '[table]',
+      '',
+      'Month by month',
+      '[table]',
+      '',
+      // A partly bold sentence is not a section label.
+      'August was our strongest month. Really strong.',
+      // The last table gets no empty line: the signature brings its own.
+      '[table]',
+    ])
+    // Every cell in a column has the column's width, and the first column fits its longest text.
+    const html = editor.getHtml()
+    const firstTable = new DOMParser().parseFromString(html, 'text/html').querySelector('table')
+    const widths = Array.from(firstTable?.querySelectorAll('tr') ?? []).map((row) =>
+      Array.from(row.children).map((cell) => (cell as HTMLElement).style.width),
+    )
+    expect(widths).toEqual([
+      ['198px', '66px'],
+      ['198px', '66px'],
+      ['198px', '66px'],
+    ])
+    // Already tidy: a second press changes nothing.
+    let again = true
+    await act(async () => {
+      again = editor.tidyLayout()
+    })
+    expect(again).toBe(false)
+  })
+
+  it('exports tables without Lexical’s fixed 75px cell width, keeping widths a cell really has', async () => {
+    const { ref } = await mount(
+      '<table><tr><th>Metric</th><th>Total</th></tr><tr><td>Impressions</td><td>170,763</td></tr></table>' +
+        '<table><tr><td style="width: 140px">Pasted</td><td>x</td></tr></table>',
+    )
+    const doc = new DOMParser().parseFromString(ref.current?.getHtml() ?? '', 'text/html')
+    const [plain, pasted] = Array.from(doc.querySelectorAll('table')).map((table) =>
+      Array.from(table.querySelectorAll('th, td')).map((cell) => (cell as HTMLElement).style.width),
+    )
+    expect(plain).toEqual(['', '', '', ''])
+    // A width from the source is the author's, so it stays; the cell next to it has none.
+    expect(pasted).toEqual(['140px', ''])
+  })
+
+  it('resizes a table column by dragging its right edge, fixing every column at its shown width', async () => {
+    const { ref } = await mount('<table><tr><th>Metric</th><th>Total</th></tr><tr><td>Impressions</td><td>170,763</td></tr></table>')
+    // jsdom has no layout: each column is 100px wide, side by side.
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const index = this instanceof HTMLTableCellElement ? this.cellIndex : 0
+      return new DOMRect(index * 100, 0, 100, 20)
+    })
+    const editable = document.querySelector('[contenteditable="true"]') as HTMLElement
+    const cell = editable.querySelector('td') as HTMLTableCellElement
+    const pointer = (type: string, target: Element, clientX: number) =>
+      target.dispatchEvent(Object.assign(new MouseEvent(type, { bubbles: true, cancelable: true, clientX, button: 0 }), { pointerId: 1 }))
+    // Away from the edge: no resize cursor; at the edge: col-resize.
+    pointer('pointermove', cell, 50)
+    expect(editable.style.cursor).toBe('')
+    pointer('pointermove', cell, 98)
+    expect(editable.style.cursor).toBe('col-resize')
+    await act(async () => {
+      pointer('pointerdown', cell, 98)
+      pointer('pointermove', editable, 158)
+      pointer('pointerup', editable, 158)
+    })
+    rect.mockRestore()
+    const doc = new DOMParser().parseFromString(ref.current?.getHtml() ?? '', 'text/html')
+    const widths = Array.from(doc.querySelectorAll('tr')).map((row) => Array.from(row.children).map((c) => (c as HTMLElement).style.width))
+    expect(widths).toEqual([
+      ['160px', '100px'],
+      ['160px', '100px'],
+    ])
+    expect(editable.style.cursor).toBe('')
+  })
+
   it('drops unsafe images and markup from pasted or loaded HTML', async () => {
     const { ref } = await mount('<p onclick="x()">Hi</p><img src="javascript:alert(1)"><script>alert(1)</script>')
     const html = ref.current?.getHtml() ?? ''

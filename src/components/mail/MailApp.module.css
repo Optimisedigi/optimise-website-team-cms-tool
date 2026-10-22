@@ -44,13 +44,16 @@
   background: var(--mail-soft);
 }
 
-/* The tab you are on: solid accent. Two classes so it beats .btn's own colours. */
+/* The tab you are on: a light tint with accent text and an underline, so it reads as
+   the current tab rather than a solid blue action button. Two classes so it beats
+   .btn's own colours. */
 .folderBtn.folderActive {
   position: relative;
   z-index: 1;
-  border-color: var(--mail-accent);
-  background: var(--mail-accent);
-  color: #fff;
+  border-color: var(--mail-border);
+  background: rgba(44, 151, 201, 0.1);
+  box-shadow: inset 0 -2px 0 var(--mail-accent);
+  color: var(--mail-accent);
   font-weight: 600;
 }
 

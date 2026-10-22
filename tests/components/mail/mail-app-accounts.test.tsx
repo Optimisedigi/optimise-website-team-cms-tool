@@ -131,6 +131,65 @@ describe('MailApp layout', () => {
     expect(searches()[1]?.searchParams.get('senders')).toBe('rebekah@inthepicture.com.au,carli@inthepicture.com.au')
   })
 
+  it('searches with the people saved in this browser straight away, without waiting for Gmail, and saves the refreshed list', async () => {
+    localStorage.setItem(
+      'mail-search-people:main',
+      JSON.stringify({ savedAt: Date.now(), contacts: [], senders: [{ email: 'carli@inthepicture.com.au', name: 'Carli Markunsky' }] }),
+    )
+    const baseFetch = global.fetch
+    // The fresh list never arrives during the search.
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/mail/contacts')) return new Promise<Response>(() => undefined)
+      return baseFetch(url, init)
+    }) as unknown as typeof fetch
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    const search = screen.getByRole('combobox', { name: 'Search inbox' })
+    fireEvent.focus(search)
+    fireEvent.change(search, { target: { value: 'carl' } })
+    // Suggestions come from the saved list at once.
+    expect(await screen.findByRole('option', { name: /Carli Markunsky/ })).toBeTruthy()
+    fireEvent.change(search, { target: { value: 'inthe' } })
+    calls = []
+    fireEvent.submit(search.closest('form') as HTMLFormElement)
+    const searches = () => calls.filter((call) => call.url.startsWith('/api/mail/inbox')).map((call) => new URL(call.url, 'https://cms.test'))
+    await waitFor(() => expect(searches()).toHaveLength(1))
+    expect(searches()[0]?.searchParams.get('senders')).toBe('carli@inthepicture.com.au')
+    // No second, late search.
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(searches()).toHaveLength(1)
+  })
+
+  it('saves the people list from Gmail for next time', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Search inbox' }))
+    await waitFor(() => expect(localStorage.getItem('mail-search-people:main')).toContain('rebekah@inthepicture.com.au'))
+  })
+
+  it('keeps Download thread, Mark as client and Hide sender in a ⋯ menu on the open email, and names the compose button Write message', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    expect(screen.getByRole('button', { name: 'Write message' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Draft with AI' })).toBeNull()
+    fireEvent.click(await screen.findByText('Hello there'))
+    const more = await screen.findByRole('button', { name: 'More actions for this email' })
+    // Not shown in the action row any more.
+    for (const name of [/Download thread/, /Mark as client/, /^Hide sender$/]) expect(screen.queryByRole('button', { name })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Reply' })).toBeTruthy()
+
+    fireEvent.click(more)
+    const menu = screen.getByRole('menu', { name: 'More actions for this email' })
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Download thread (.md)',
+      '☆ Mark as client',
+      'Hide sender',
+    ])
+    // A sender with a domain still gets the address-or-domain choice, shown inline.
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Hide sender' }))
+    expect(screen.getByRole('button', { name: 'Hide all @acme.com.au' })).toBeTruthy()
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
   it('starts the Gmail sync only after the first list has loaded', async () => {
     render(<MailApp clients={CLIENTS} />)
     await waitFor(() => expect(calls.some((call) => call.url.startsWith('/api/mail/sync'))).toBe(true))

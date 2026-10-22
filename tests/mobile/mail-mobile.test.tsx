@@ -78,12 +78,12 @@ describe('MailApp on a phone', () => {
     expect(screen.queryByTestId('mail-reply-bar')).toBeNull()
   })
 
-  it('moves Hidden, Clients and Refresh into a ⋯ menu and floats Draft with AI on phones', async () => {
+  it('moves Hidden, Clients and Refresh into a ⋯ menu and floats Write message on phones', async () => {
     setViewport(true)
     render(<MailApp clients={[]} />)
     await screen.findByText('Hello there')
     expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
-    const compose = screen.getByRole('button', { name: 'Draft with AI' })
+    const compose = screen.getByRole('button', { name: 'Write message' })
     expect(compose.className).toMatch(/composeFab/)
 
     const more = screen.getByRole('button', { name: 'More mail actions' })
@@ -107,7 +107,7 @@ describe('MailApp on a phone', () => {
     render(<MailApp clients={[]} />)
     await screen.findByText('Hello there')
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Draft with AI' }).className).not.toMatch(/composeFab/)
+    expect(screen.getByRole('button', { name: 'Write message' }).className).not.toMatch(/composeFab/)
     expect(screen.queryByRole('button', { name: 'More mail actions' })).toBeNull()
   })
 

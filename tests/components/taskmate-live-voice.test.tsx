@@ -5,6 +5,7 @@ import TaskMateLiveVoice from '@/components/TaskMateLiveVoice'
 
 class FakeChannel {
   onmessage: ((event: MessageEvent<string>) => void) | null = null
+  onopen: (() => void) | null = null
   readyState = 'open'
   send = vi.fn()
   emit(value: unknown): void { this.onmessage?.({ data: JSON.stringify(value) } as MessageEvent<string>) }
@@ -69,6 +70,38 @@ describe('TaskMateLiveVoice', () => {
     expect(peer.close).toHaveBeenCalledOnce()
     expect(tracks[0].stop).toHaveBeenCalledOnce()
     expect(onActiveChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('greets when the call opens and shows when it hears you, is thinking and is speaking', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('realtime-secret')
+      ? { ok: true, json: async () => ({ value: 'ek_test' }) }
+      : { ok: true, text: async () => 'answer' }))
+    render(<TaskMateLiveVoice onTurn={vi.fn()} onActiveChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start GPT Live with TaskMate' }))
+    await waitFor(() => expect(peer.setRemoteDescription).toHaveBeenCalled())
+    act(() => { peer.connectionState = 'connected'; peer.onconnectionstatechange?.() })
+    expect(screen.getByRole('status').textContent).toBe('GPT Live · listening')
+
+    act(() => { peer.channel.onopen?.() })
+    expect(JSON.parse(peer.channel.send.mock.calls[0][0])).toMatchObject({
+      type: 'response.create',
+      response: { output_modalities: ['audio'], instructions: expect.stringContaining("you're TaskMate") },
+    })
+
+    const status = () => screen.getByRole('status').textContent
+    act(() => { peer.channel.emit({ type: 'output_audio_buffer.started' }) })
+    expect(status()).toBe('GPT Live · speaking')
+    act(() => { peer.channel.emit({ type: 'response.done' }) })
+    // The voice is still playing after the response is complete.
+    expect(status()).toBe('GPT Live · speaking')
+    act(() => { peer.channel.emit({ type: 'output_audio_buffer.stopped' }) })
+    expect(status()).toBe('GPT Live · listening')
+    act(() => { peer.channel.emit({ type: 'input_audio_buffer.speech_started' }) })
+    expect(status()).toBe('GPT Live · hearing you…')
+    act(() => { peer.channel.emit({ type: 'input_audio_buffer.speech_stopped' }) })
+    expect(status()).toBe('GPT Live · thinking…')
+    act(() => { peer.channel.emit({ type: 'response.done' }) })
+    expect(status()).toBe('GPT Live · listening')
   })
 
   it('waits for an earlier pending transcript when the final audio buffer is empty', async () => {

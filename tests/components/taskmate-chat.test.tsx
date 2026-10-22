@@ -27,6 +27,13 @@ describe('TaskMateChat', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
+  it('shows the intro note without a light background, so its light text is readable on the dark panel', async () => {
+    fetchMock.mockResolvedValue(response({ clients, users }))
+    render(<TaskMateChat />)
+    const note = screen.getByText(/Tell TaskMate which week and client work you need/)
+    expect(note.style.background).toBe('transparent')
+  })
+
   it('captures live conversation, waits for call end, stages review, and prevents duplicate assignment', async () => {
     let resolveAssign: ((value: ReturnType<typeof response>) => void) | undefined
     fetchMock.mockImplementation((url: string, init?: RequestInit) => {

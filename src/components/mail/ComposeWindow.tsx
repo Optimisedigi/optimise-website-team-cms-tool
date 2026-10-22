@@ -630,11 +630,31 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     setNote('')
   }
 
+  /**
+   * Revise with an empty instruction: tidy the layout without the AI (table
+   * columns sized to their text, empty lines between sections). Undo puts it back.
+   */
+  function tidyLayout() {
+    const editor = editorRef.current
+    if (!editor || busy !== '') return
+    const snapshot = editor.snapshot()
+    if (!editor.tidyLayout()) {
+      setNote('The layout is already tidy. To change the wording, say what to change.')
+      return
+    }
+    if (snapshot) setAiUndo((current) => [...current, { snapshot, turnCount: turns.length }].slice(-MAX_AI_UNDO))
+    setNote('')
+  }
+
   async function askAi() {
     const instruction = prompt.trim()
     if (busy) return
-    if (!instruction && (hasDraft || state.mode === 'new')) {
-      setNote(hasDraft ? 'Say what to change, e.g. "make it shorter".' : 'Say what the email should be about.')
+    if (!instruction && hasDraft) {
+      tidyLayout()
+      return
+    }
+    if (!instruction && state.mode === 'new') {
+      setNote('Say what the email should be about.')
       return
     }
     const result = await runAi(instruction)
@@ -1199,7 +1219,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               }}
               placeholder={
                 hasDraft
-                  ? 'Tell the AI what to change, e.g. "shorter", "more formal", "mention Thursday"'
+                  ? 'Tell the AI what to change, e.g. "shorter" or "mention Thursday". Leave empty and press Revise to tidy the layout'
                   : state.mode === 'reply'
                     ? 'What should the reply say? e.g. "say Thursday works, keep it short"'
                     : 'What should the email say?'
@@ -1216,7 +1236,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
                 className={styles.aiUndo}
                 onClick={undoAi}
                 disabled={busy !== ''}
-                title="Put the email back as it was before the last AI change"
+                title="Put the email back as it was before the last Revise"
               >
                 Undo
               </button>

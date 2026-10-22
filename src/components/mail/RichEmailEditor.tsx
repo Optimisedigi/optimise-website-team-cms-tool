@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import {
   $createParagraphNode,
+  $getNearestNodeFromDOMNode,
   $getNodeByKey,
   $getRoot,
   $getSelection,
@@ -25,6 +26,7 @@ import {
   type BaseSelection,
   type DOMConversionMap,
   type DOMConversionOutput,
+  type DOMExportOutputMap,
   type EditorState,
   type LexicalEditor,
   type LexicalNode,
@@ -61,6 +63,15 @@ import {
 import { $createEmailImageNode, EmailImageNode } from './EmailImageNode'
 import { markdownLiteToBlocksHtml } from '../../lib/email-draft-markdown'
 import { planBlockEdits, type BlockEdit } from '../../lib/mail/revise-edits'
+import {
+  columnWidths,
+  estimateTextWidth,
+  isGreetingLine,
+  isTldrLine,
+  MAX_SECTION_LABEL_CHARS,
+  type MeasuredCell,
+  type MeasureText,
+} from '../../lib/mail/tidy-layout'
 import styles from './ComposeWindow.module.css'
 
 /**
@@ -79,7 +90,8 @@ import styles from './ComposeWindow.module.css'
  *   driven by the compose window's formatting bar.
  * - Tables: pasted tables (Sheets, Excel, Docs, web pages) are kept, and
  *   insertTable() adds an empty one. Copying out of the editor gives HTML
- *   tables other apps understand.
+ *   tables other apps understand. Drag a column's right edge to resize it
+ *   (see TableColumnResizePlugin).
  * - Images: pasted images (screenshots, copied images) go inline where the
  *   cursor is (see EmailImageNode; click one to resize it). When the
  *   clipboard holds an image file plus HTML or text with no words of its own
@@ -105,6 +117,13 @@ export interface RichEmailEditorHandle {
    * (nothing changed) when one of those blocks is no longer in the body.
    */
   applyBlockEdits: (keys: string[], edits: BlockEdit[]) => boolean
+  /**
+   * Tidy the layout (Revise with no instruction, see lib/mail/tidy-layout):
+   * table columns sized to their text with the first column unwrapped, and
+   * empty lines after the greeting, before the TL;DR and bold section labels,
+   * and after tables. False when it was already tidy.
+   */
+  tidyLayout: () => boolean
   /** The whole body as it is now, to restore later (undo an AI change). */
   snapshot: () => EditorSnapshot | null
   restore: (snapshot: EditorSnapshot) => void
@@ -233,6 +252,27 @@ const colorImport: DOMConversionMap = {
     conversion: (element: HTMLElement) => withColorForChild(null, inlineColor(element)),
   }),
 }
+
+/**
+ * Lexical writes a fixed 75px width on every table cell that has no width of
+ * its own, which wraps words such as "Impressions" in the sent email while
+ * the editor shows the column at its natural width. Cells without their own
+ * width are exported without one, so mail apps size the column to its content
+ * as the editor does. Widths set by tidying the layout or pasted from another
+ * app are kept.
+ */
+const tableCellExport: DOMExportOutputMap = new Map([
+  [
+    TableCellNode,
+    (editor, node) => {
+      const output = node.exportDOM(editor)
+      if ($isTableCellNode(node) && !node.getWidth() && output.element instanceof HTMLElement) {
+        output.element.style.removeProperty('width')
+      }
+      return output
+    },
+  ],
+])
 
 function $selectionFormat(): EmailSelectionFormat {
   const selection = $getSelection()
@@ -427,6 +467,210 @@ function $applyBlockEdits(editor: LexicalEditor, keys: string[], edits: BlockEdi
   if (root.getChildrenSize() === 0) root.append($createParagraphNode())
 }
 
+/** A one-line paragraph whose text is all bold: a section label such as "Month by month". */
+function $isSectionLabel(node: LexicalNode): boolean {
+  if (!$isParagraphNode(node)) return false
+  const text = node.getTextContent().trim()
+  if (!text || text.length > MAX_SECTION_LABEL_CHARS || text.includes('\n')) return false
+  const texts = node.getAllTextNodes().filter((child) => child.getTextContent().trim() !== '')
+  return texts.length > 0 && texts.every((child) => child.hasFormat('bold'))
+}
+
+/** Size each column of a table to its text (cells spanning columns are left alone). */
+function $sizeTableColumns(table: LexicalNode, measure: MeasureText): boolean {
+  if (!$isTableNode(table)) return false
+  const rows = table.getChildren().filter($isTableRowNode).map((row) => row.getChildren().filter($isTableCellNode))
+  if (rows.some((row) => row.some((cell) => cell.getColSpan() > 1 || cell.getRowSpan() > 1))) return false
+  const count = Math.max(0, ...rows.map((row) => row.length))
+  const columns: MeasuredCell[][] = Array.from({ length: count }, (_, index) =>
+    rows.flatMap((row) => {
+      const cell = row[index]
+      if (!cell) return []
+      const texts = cell.getAllTextNodes().filter((child) => child.getTextContent().trim() !== '')
+      const bold = cell.hasHeader() || (texts.length > 0 && texts.every((child) => child.hasFormat('bold')))
+      return [{ lines: cell.getChildren().flatMap((child) => child.getTextContent().split('\n')), bold }]
+    }),
+  )
+  const widths = columnWidths(columns, measure)
+  let changed = false
+  const current = table.getColWidths()
+  if (!current || current.length !== widths.length || current.some((width, index) => width !== widths[index])) {
+    table.setColWidths(widths)
+    changed = true
+  }
+  for (const row of rows) {
+    row.forEach((cell, index) => {
+      if (cell.getWidth() !== widths[index]) {
+        cell.setWidth(widths[index])
+        changed = true
+      }
+    })
+  }
+  return changed
+}
+
+/** See RichEmailEditorHandle.tidyLayout. True when anything changed. */
+function $tidyLayout(measure: MeasureText): boolean {
+  let changed = false
+  const ensureEmptyLineBefore = (node: LexicalNode) => {
+    const previous = node.getPreviousSibling()
+    if (!previous || $isEmptyLine(previous)) return
+    node.insertBefore($createParagraphNode())
+    changed = true
+  }
+  const ensureEmptyLineAfter = (node: LexicalNode) => {
+    const next = node.getNextSibling()
+    // Nothing after it: the signature already gets its own blank line.
+    if (!next || $isEmptyLine(next)) return
+    node.insertAfter($createParagraphNode())
+    changed = true
+  }
+
+  const blocks = $getRoot().getChildren()
+  const greeting = blocks.find((node) => !$isEmptyLine(node))
+  if (greeting && $isParagraphNode(greeting) && isGreetingLine(greeting.getTextContent())) ensureEmptyLineAfter(greeting)
+  for (const node of blocks) {
+    if ($isTableNode(node)) {
+      if ($sizeTableColumns(node, measure)) changed = true
+      ensureEmptyLineAfter(node)
+    } else if ($isParagraphNode(node) && node !== greeting && (isTldrLine(node.getTextContent()) || $isSectionLabel(node))) {
+      ensureEmptyLineBefore(node)
+    }
+  }
+  return changed
+}
+
+/**
+ * Measures text in the body's font with a hidden element outside the editor;
+ * falls back to an estimate where the browser does not lay text out (tests).
+ */
+function createTextMeasurer(root: HTMLElement | null): { measure: MeasureText; dispose: () => void } {
+  const probe = document.createElement('span')
+  probe.setAttribute('aria-hidden', 'true')
+  probe.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden;white-space:pre'
+  const style = root ? window.getComputedStyle(root) : null
+  probe.style.fontFamily = style?.fontFamily || 'Verdana, sans-serif'
+  probe.style.fontSize = style?.fontSize || 'small'
+  document.body.append(probe)
+  return {
+    measure: (text, bold) => {
+      probe.style.fontWeight = bold ? '700' : '400'
+      probe.textContent = text
+      const width = probe.getBoundingClientRect().width
+      return width > 0 ? width : estimateTextWidth(text, bold)
+    },
+    dispose: () => probe.remove(),
+  }
+}
+
+/** How close (px) to a cell's right edge the pointer must be to resize its column. */
+const RESIZE_EDGE_PX = 5
+/** Matches the editor's cell min-width (ComposeWindow.module.css .editorTableCell). */
+const MIN_RESIZE_COLUMN_PX = 60
+
+/** The table cell whose right edge is under the pointer, or null. */
+function resizeEdgeCell(event: PointerEvent): HTMLTableCellElement | null {
+  const target = event.target instanceof Element ? event.target : null
+  const cell = target?.closest('td, th')
+  if (!(cell instanceof HTMLTableCellElement)) return null
+  const fromEdge = cell.getBoundingClientRect().right - event.clientX
+  return fromEdge >= -2 && fromEdge <= RESIZE_EDGE_PX ? cell : null
+}
+
+/**
+ * Drag a column's right edge to make it wider or narrower (tables are only
+ * resized, never moved). On release every column is fixed at the width it
+ * shows, the dragged one at its new width, on the table and each cell, so the
+ * sent email matches the editor. It is one editor change, so Cmd/Ctrl+Z
+ * undoes it. Tables with merged cells are left alone.
+ */
+function TableColumnResizePlugin() {
+  const [editor] = useLexicalComposerContext()
+  useEffect(
+    () =>
+      editor.registerRootListener((root, previous) => {
+        const cleanups: Array<() => void> = []
+        if (previous) previous.style.cursor = ''
+        if (!root) return
+        let drag: { cell: HTMLTableCellElement; table: HTMLTableElement; startX: number; widths: number[]; column: number } | null = null
+
+        const preview = (widths: number[]) => {
+          if (!drag) return
+          for (const row of Array.from(drag.table.rows)) {
+            Array.from(row.cells).forEach((cell, index) => {
+              const width = widths[index]
+              if (width) cell.style.width = `${width}px`
+            })
+          }
+          Array.from(drag.table.querySelectorAll(':scope > colgroup > col')).forEach((col, index) => {
+            const width = widths[index]
+            if (width && col instanceof HTMLElement) col.style.width = `${width}px`
+          })
+        }
+        const onMove = (event: PointerEvent) => {
+          if (drag) {
+            const widths = [...drag.widths]
+            widths[drag.column] = Math.max(MIN_RESIZE_COLUMN_PX, Math.round((drag.widths[drag.column] ?? 0) + event.clientX - drag.startX))
+            preview(widths)
+            return
+          }
+          root.style.cursor = resizeEdgeCell(event) ? 'col-resize' : ''
+        }
+        const onDown = (event: PointerEvent) => {
+          if (event.button !== 0 || !editor.isEditable()) return
+          const cell = resizeEdgeCell(event)
+          const table = cell?.closest('table')
+          if (!cell || !table) return
+          const rows = Array.from(table.rows)
+          if (rows.some((row) => Array.from(row.cells).some((c) => c.colSpan > 1 || c.rowSpan > 1))) return
+          event.preventDefault()
+          const first = rows[0]
+          drag = {
+            cell,
+            table,
+            startX: event.clientX,
+            column: cell.cellIndex,
+            widths: first ? Array.from(first.cells).map((c) => Math.round(c.getBoundingClientRect().width)) : [],
+          }
+          root.setPointerCapture?.(event.pointerId)
+        }
+        const onUp = (event: PointerEvent) => {
+          if (!drag) return
+          const { cell, column, startX } = drag
+          const widths = [...drag.widths]
+          widths[column] = Math.max(MIN_RESIZE_COLUMN_PX, Math.round((widths[column] ?? 0) + event.clientX - startX))
+          drag = null
+          root.releasePointerCapture?.(event.pointerId)
+          root.style.cursor = ''
+          editor.update(() => {
+            const table = $getNearestNodeFromDOMNode(cell)?.getParents().find($isTableNode)
+            if (!table) return
+            table.setColWidths(widths)
+            for (const row of table.getChildren().filter($isTableRowNode)) {
+              row.getChildren().filter($isTableCellNode).forEach((node, index) => {
+                const width = widths[index]
+                if (width && node.getWidth() !== width) node.setWidth(width)
+              })
+            }
+          })
+        }
+        root.addEventListener('pointermove', onMove)
+        root.addEventListener('pointerdown', onDown)
+        root.addEventListener('pointerup', onUp)
+        root.addEventListener('pointercancel', onUp)
+        cleanups.push(() => {
+          root.removeEventListener('pointermove', onMove)
+          root.removeEventListener('pointerdown', onDown)
+          root.removeEventListener('pointerup', onUp)
+          root.removeEventListener('pointercancel', onUp)
+        })
+        return () => cleanups.forEach((cleanup) => cleanup())
+      }),
+    [editor],
+  )
+  return null
+}
+
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
 
 function visibleText(html: string): string {
@@ -595,6 +839,23 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
         editor.update(() => $applyBlockEdits(editor, keys, edits), { discrete: true })
         return true
       },
+      tidyLayout: () => {
+        const editor = editorRef.current
+        if (!editor) return false
+        const measurer = createTextMeasurer(editor.getRootElement())
+        let changed = false
+        try {
+          editor.update(
+            () => {
+              changed = $tidyLayout(measurer.measure)
+            },
+            { discrete: true },
+          )
+        } finally {
+          measurer.dispose()
+        }
+        return changed
+      },
       snapshot: () => editorRef.current?.getEditorState() ?? null,
       restore: (snapshot) => {
         editorRef.current?.setEditorState(snapshot)
@@ -657,7 +918,7 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
         namespace: 'mail-compose',
         theme,
         nodes: [ListNode, ListItemNode, TableNode, TableRowNode, TableCellNode, EmailImageNode],
-        html: { import: colorImport },
+        html: { import: colorImport, export: tableCellExport },
         onError: (error) => {
           console.error('[mail-editor]', error.message)
         },
@@ -673,6 +934,7 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
       <HistoryPlugin />
       <ListPlugin />
       <TablePlugin />
+      <TableColumnResizePlugin />
       <OnChangePlugin onChange={onChange} ignoreSelectionChange />
       <EditorBridge
         handleRef={editorRef}

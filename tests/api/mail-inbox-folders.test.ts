@@ -104,6 +104,46 @@ describe('GET /api/mail/inbox folders', () => {
     })
   })
 
+  it('a search’s first page asks for unread and read mail at the same time, showing read only once unread runs out', async () => {
+    const unreadQ = '{budget from:budget} -from:news.com -in:sent is:unread'
+    const readQ = '{budget from:budget} -from:news.com -in:sent -is:unread'
+    // Both lookups are in flight before either answers.
+    const pending: Array<() => void> = []
+    listFolderThreads.mockImplementation(async (_token: string, _folder: string, options: { q?: string }) => {
+      await new Promise<void>((resolve) => pending.push(resolve))
+      return options.q === unreadQ
+        ? { threads: rows('u', 0, 2, true), nextPageToken: null }
+        : { threads: [...rows('u', 1, 1, true), ...rows('r', 0, 20, false)], nextPageToken: 'g5' }
+    })
+    const response = GET(request('?q=budget'))
+    await vi.waitFor(() => expect(pending).toHaveLength(2))
+    expect(listFolderThreads).toHaveBeenNthCalledWith(1, 'tok', 'inbox', { pageToken: undefined, q: unreadQ, maxResults: 20 })
+    expect(listFolderThreads).toHaveBeenNthCalledWith(2, 'tok', 'inbox', { pageToken: undefined, q: readQ, maxResults: 20 })
+    pending.forEach((resolve) => resolve())
+    const page = await (await response).json()
+    // Unread first, then the read mail (u1 only once), and the next page carries on after it.
+    expect(page.threads.map((t: { threadId: string }) => t.threadId)).toEqual(['u0', 'u1', ...rows('r', 0, 20, false).map((r) => r.threadId)])
+    expect(page.nextPageToken).toBe('r:g5')
+    expect(listFolderThreads).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops the early read results when unread mail fills the search page, so the next page still starts with unread', async () => {
+    listFolderThreads.mockImplementation(async (_token: string, _folder: string, options: { q?: string }) =>
+      options.q?.endsWith(' is:unread')
+        ? { threads: rows('u', 0, 20, true), nextPageToken: 'g2' }
+        : { threads: rows('r', 0, 20, false), nextPageToken: 'g9' },
+    )
+    const page = await (await GET(request('?q=budget'))).json()
+    expect(page.threads).toHaveLength(20)
+    expect(page.threads.every((t: { unread: boolean }) => t.unread)).toBe(true)
+    expect(page.nextPageToken).toBe('u:g2')
+    // Later pages and plain inbox loads still go one part at a time.
+    listFolderThreads.mockClear()
+    await GET(request('?q=budget&pageToken=u:g2'))
+    await GET(request(''))
+    expect(listFolderThreads.mock.calls.every(([, , options]) => (options as { q: string }).q.endsWith(' is:unread'))).toBe(true)
+  })
+
   it('tops up a short page (one thread can fill several Gmail results) before showing Load more', async () => {
     // Gmail pages count messages: 20 results here were only 10 threads.
     listFolderThreads

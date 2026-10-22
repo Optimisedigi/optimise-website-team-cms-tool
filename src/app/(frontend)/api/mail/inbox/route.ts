@@ -31,6 +31,8 @@ import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/ma
  * with the read ones (`-is:unread`), so an old unread email is never stuck
  * below newer read mail on a later page. The page token says which part the
  * next page is in (see parseInboxPageToken).
+ * A search's first page fetches both parts at once (see below), so it can
+ * hold up to two pages of rows when the unread matches run out on it.
  *
  * Every page holds MAIL_LIST_PAGE_SIZE threads (unless the folder runs out):
  * Gmail pages by message and a search can return one thread several times,
@@ -77,24 +79,33 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     indexLoad.catch(() => undefined);
     const accessToken = token.accessToken;
     const threads: InboxThreadSummary[] = [];
+    // Threads on this page so far; a thread can match both the unread and the read search.
     const seen = new Set<string>();
-    let gmailCalls = 0;
-    // Adds threads from `q` (from `startToken`) until the page is full, the
-    // query runs out (`token` null) or the Gmail call budget is spent.
-    const fill = async (q: string | undefined, startToken: string | undefined): Promise<{ token: string | null; exhausted: boolean }> => {
+    type Filled = { rows: InboxThreadSummary[]; token: string | null; exhausted: boolean; calls: number };
+    // Collects up to `want` new threads (not in `known`, which it records) from `q`, starting at
+    // `startToken`, until the query runs out (`token` null) or `maxCalls` Gmail calls are spent.
+    const fill = async (
+      q: string | undefined,
+      startToken: string | undefined,
+      want: number,
+      maxCalls: number,
+      known: Set<string>,
+    ): Promise<Filled> => {
+      const rows: InboxThreadSummary[] = [];
       let cursor = startToken;
-      while (threads.length < MAIL_LIST_PAGE_SIZE && gmailCalls < MAIL_LIST_MAX_GMAIL_CALLS) {
-        gmailCalls++;
+      let calls = 0;
+      while (rows.length < want && calls < maxCalls) {
+        calls++;
         const page = await listFolderThreads(accessToken, folder, {
           pageToken: cursor,
           q,
-          maxResults: Math.min(50, MAIL_LIST_PAGE_SIZE - threads.length),
+          maxResults: Math.min(50, want - rows.length),
         });
-        threads.push(...newThreadsOnly(page.threads, seen));
-        if (!page.nextPageToken) return { token: null, exhausted: true };
+        rows.push(...newThreadsOnly(page.threads, known));
+        if (!page.nextPageToken) return { rows, token: null, exhausted: true, calls };
         cursor = page.nextPageToken;
       }
-      return { token: cursor ?? null, exhausted: false };
+      return { rows, token: cursor ?? null, exhausted: false, calls };
     };
     let nextPageToken: string | null;
     if (folder === "inbox") {
@@ -102,22 +113,45 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const readQuery = join(base, "-is:unread");
       const page = parseInboxPageToken(pageToken);
       if (page.part === "unread") {
-        const unread = await fill(join(base, "is:unread"), page.token);
+        // A search's first page asks Gmail for the unread and the read mail at the same time
+        // instead of one after the other (about 0.5 s faster). The read mail is only shown
+        // when the unread mail runs out on this page, so nothing is skipped, and that page
+        // can then hold up to two pages' worth of rows. Without a search, unread mail
+        // usually fills the page, so the read lookup would mostly be wasted.
+        const together = search.trim() !== "" && !page.token;
+        const readSeen = new Set<string>();
+        const [unread, early] = await Promise.all([
+          fill(join(base, "is:unread"), page.token, MAIL_LIST_PAGE_SIZE, MAIL_LIST_MAX_GMAIL_CALLS, seen),
+          together ? fill(readQuery, undefined, MAIL_LIST_PAGE_SIZE, MAIL_LIST_MAX_GMAIL_CALLS, readSeen) : Promise.resolve(null),
+        ]);
+        threads.push(...unread.rows);
         if (!unread.exhausted) {
           nextPageToken = inboxPageToken("unread", unread.token);
-        } else if (threads.length < MAIL_LIST_PAGE_SIZE && gmailCalls < MAIL_LIST_MAX_GMAIL_CALLS) {
+        } else if (early) {
+          threads.push(...newThreadsOnly(early.rows, seen));
+          nextPageToken = early.exhausted ? null : inboxPageToken("read", early.token);
+        } else if (threads.length < MAIL_LIST_PAGE_SIZE && unread.calls < MAIL_LIST_MAX_GMAIL_CALLS) {
           // Unread threads ran out: carry on with the read ones (from the start) in this same page.
-          const read = await fill(readQuery, undefined);
+          const read = await fill(
+            readQuery,
+            undefined,
+            MAIL_LIST_PAGE_SIZE - threads.length,
+            MAIL_LIST_MAX_GMAIL_CALLS - unread.calls,
+            seen,
+          );
+          threads.push(...read.rows);
           nextPageToken = read.exhausted ? null : inboxPageToken("read", read.token);
         } else {
           nextPageToken = inboxPageToken("read", null);
         }
       } else {
-        const read = await fill(readQuery, page.token);
+        const read = await fill(readQuery, page.token, MAIL_LIST_PAGE_SIZE, MAIL_LIST_MAX_GMAIL_CALLS, seen);
+        threads.push(...read.rows);
         nextPageToken = read.exhausted ? null : inboxPageToken("read", read.token);
       }
     } else {
-      const result = await fill(join(search), pageToken);
+      const result = await fill(join(search), pageToken, MAIL_LIST_PAGE_SIZE, MAIL_LIST_MAX_GMAIL_CALLS, seen);
+      threads.push(...result.rows);
       nextPageToken = result.exhausted ? null : result.token;
     }
     const index = await indexLoad;

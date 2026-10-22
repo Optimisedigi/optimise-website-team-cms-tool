@@ -174,7 +174,7 @@ export default function TaskMateChat() {
           <section aria-label="Task list review" style={{ border: '1px solid #5eead4', borderRadius: 12, padding: 12, background: 'rgba(20,184,166,.08)', display: 'grid', gap: 10 }}>
             <div><strong>Review week</strong> · {staged.weekStart}</div>
             {staged.tasks.map((task, index) => (
-              <div {...{ ['k' + 'ey']: `${task.title}-${index}` }} style={{ padding: 10, borderRadius: 9, background: 'var(--theme-bg)', border: '1px solid var(--theme-elevation-150)', display: 'grid', gap: 6 }}>
+              <div {...{ ['k' + 'ey']: `${task.title}-${index}` }} style={{ padding: 10, borderRadius: 9, background: 'transparent', border: '1px solid rgba(255,255,255,.12)', display: 'grid', gap: 6 }}>
                 <strong>{task.title}</strong>
                 <label style={{ display: 'grid', gap: 3, fontSize: 12, fontWeight: 700 }}>
                   Client
@@ -275,5 +275,7 @@ function splitRequests(requests: string[], maxLength: number): string[] {
 
 const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid var(--theme-elevation-200)', borderRadius: 7, padding: '8px 9px', background: 'var(--theme-bg)', color: 'var(--theme-text)', font: 'inherit' }
 const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 8, padding: '9px 12px', background: '#0f766e', color: '#fff', fontWeight: 800, cursor: 'pointer' }
-const noticeStyle: React.CSSProperties = { padding: 10, borderRadius: 9, background: 'var(--theme-elevation-100)', fontSize: 13, lineHeight: 1.45 }
+// The TaskMate panel is always dark with light text, so boxes stay transparent; Payload's
+// light-theme greys (--theme-elevation-100, --theme-bg) put that light text on a light box.
+const noticeStyle: React.CSSProperties = { padding: 10, borderRadius: 9, background: 'transparent', border: '1px solid rgba(255,255,255,.12)', fontSize: 13, lineHeight: 1.45 }
 const bubbleStyle: React.CSSProperties = { maxWidth: '88%', borderRadius: 12, padding: '9px 11px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 13, lineHeight: 1.45 }

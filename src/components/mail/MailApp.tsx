@@ -33,6 +33,7 @@ import { normaliseSenderEntry, senderClientFor } from '../../lib/mail/sender-cli
 import MailStepNav from './MailStepNav'
 import { InboxSearch } from './InboxSearch'
 import { searchSenderAddresses, type MailContact } from '../../lib/mail/contacts-shared'
+import { loadSavedPeople, savePeople } from '../../lib/mail/people-cache'
 import { forwardStartHtml, forwardSubject, hasOtherParticipants, replyRecipients } from '../../lib/mail/reply-actions'
 import { exportFileName, messageToMarkdown, saveFile, threadToMarkdown } from '../../lib/mail/export'
 
@@ -63,7 +64,9 @@ const ComposeWindow = lazy(loadComposeWindow)
 /**
  * How long a search waits for the people list (/api/mail/contacts, slow on a
  * cold load) before running without part-name matches; when the list arrives
- * later and adds people, the search is run again with them.
+ * later and adds people, the search is run again with them. Normally the list
+ * is ready at once: it is saved in this browser (see people-cache) and only
+ * refreshed in the background.
  */
 const SEARCH_PEOPLE_WAIT_MS = 300
 
@@ -77,8 +80,17 @@ function friendlyMailError(message: string): { message: string; notConnected: bo
     : { message, notConnected: false }
 }
 
-/** Phone toolbar overflow (Hidden / Clients / Refresh). Closes on outside tap and Escape. */
-function MailOverflowMenu({ items }: { items: Array<{ label: string; onSelect: () => void; disabled?: boolean }> }) {
+/**
+ * A "⋯" menu: the phone toolbar (Hidden / Clients / Refresh) and the open
+ * email's less-used actions. Closes on outside tap and Escape.
+ */
+function MailOverflowMenu({
+  items,
+  label = 'More mail actions',
+}: {
+  items: Array<{ label: string; onSelect: () => void; disabled?: boolean; title?: string }>
+  label?: string
+}) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -110,7 +122,8 @@ function MailOverflowMenu({ items }: { items: Array<{ label: string; onSelect: (
         ref={buttonRef}
         type="button"
         className={`${styles.btn} ${styles.overflowBtn}`}
-        aria-label="More mail actions"
+        aria-label={label}
+        title={label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -119,7 +132,7 @@ function MailOverflowMenu({ items }: { items: Array<{ label: string; onSelect: (
         ⋯
       </button>
       {open ? (
-        <div id={menuId} role="menu" aria-label="More mail actions" className={styles.overflowMenu}>
+        <div id={menuId} role="menu" aria-label={label} className={styles.overflowMenu}>
           {items.map((item) => (
             <button
               key={item.label}
@@ -127,6 +140,7 @@ function MailOverflowMenu({ items }: { items: Array<{ label: string; onSelect: (
               role="menuitem"
               className={styles.overflowItem}
               disabled={item.disabled}
+              title={item.title}
               onClick={() => {
                 setOpen(false)
                 item.onSelect()
@@ -485,16 +499,30 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const loadSearchPeople = useCallback((): Promise<SearchPeople> => {
     const forAccount = accountRef.current
     if (searchPeople.current?.account === forAccount) return searchPeople.current.promise
-    const promise = apiRequest<{ contacts?: unknown; senders?: unknown }>('/api/mail/contacts', undefined, forAccount)
-      .then((data) => {
-        const people = { contacts: cleanContacts(data.contacts), senders: cleanContacts(data.senders) }
-        if (accountRef.current === forAccount) setSearchSenders(people.senders)
-        return people
-      })
-      .catch(() => {
-        if (searchPeople.current?.promise === promise) searchPeople.current = null
-        return { contacts: [], senders: [] }
-      })
+    const storage = browserStorage()
+    const saved = loadSavedPeople(storage, forAccount, Date.now())
+    const fresh = apiRequest<{ contacts?: unknown; senders?: unknown }>('/api/mail/contacts', undefined, forAccount).then((data) => {
+      const people = { contacts: cleanContacts(data.contacts), senders: cleanContacts(data.senders) }
+      savePeople(storage, forAccount, people, Date.now())
+      if (accountRef.current === forAccount) setSearchSenders(people.senders)
+      return people
+    })
+    if (saved) {
+      // Use the saved list now; the fresh one replaces it when it arrives (a failed refresh keeps the saved one).
+      setSearchSenders(saved.senders)
+      const promise = Promise.resolve(saved)
+      searchPeople.current = { account: forAccount, promise }
+      fresh
+        .then((people) => {
+          if (searchPeople.current?.promise === promise) searchPeople.current = { account: forAccount, promise: Promise.resolve(people) }
+        })
+        .catch(() => undefined)
+      return promise
+    }
+    const promise = fresh.catch(() => {
+      if (searchPeople.current?.promise === promise) searchPeople.current = null
+      return { contacts: [], senders: [] }
+    })
     searchPeople.current = { account: forAccount, promise }
     return promise
   }, [])
@@ -1623,10 +1651,10 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           type="button"
           className={`${styles.btn} ${styles.primary} ${isPhone ? styles.composeFab : ''}`}
           onClick={startNew}
-          aria-label={isPhone ? 'Draft with AI' : undefined}
-          title={isPhone ? 'Draft with AI' : undefined}
+          aria-label={isPhone ? 'Write message' : undefined}
+          title={isPhone ? 'Write message' : undefined}
         >
-          {isPhone ? <span aria-hidden="true">✎</span> : 'Draft with AI'}
+          {isPhone ? <span aria-hidden="true">✎</span> : 'Write message'}
         </button>
       </div>
 
@@ -1938,19 +1966,6 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                       <button type="button" className={styles.btn} onClick={() => startForward(latest)}>
                         Forward
                       </button>
-                      <button
-                        type="button"
-                        className={styles.btn}
-                        onClick={() =>
-                          saveFile(
-                            new Blob([threadToMarkdown(messages)], { type: 'text/markdown;charset=utf-8' }),
-                            exportFileName(messages[0]?.subject ?? '', 'md'),
-                          )
-                        }
-                        title="Every message in this thread: sender, date and time, and content"
-                      >
-                        Download thread (.md)
-                      </button>
                     </>
                   ) : null}
                   {/* Archive and read state are inbox labels; they do not apply to Sent. */}
@@ -1970,18 +1985,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                       )}
                     </>
                   ) : null}
-                  {hideTarget ? (
-                    starredEntries.length > 0 ? (
-                      <button
-                        type="button"
-                        className={`${styles.btn} ${styles.starred}`}
-                        onClick={() => void unstarEntries(starredEntries)}
-                        aria-pressed="true"
-                        title={`Client sender (${starredEntries.join(', ')}). Click to unstar.`}
-                      >
-                        ★ Client
-                      </button>
-                    ) : hideTarget.domain && starChoice ? (
+                  {hideTarget && starredEntries.length === 0 && hideTarget.domain && starChoice ? (
                       <span className={styles.assign}>
                         <button type="button" className={styles.btn} onClick={() => void starSender(hideTarget.address)}>
                           Star {hideTarget.address}
@@ -1993,17 +1997,6 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                           Cancel
                         </button>
                       </span>
-                    ) : (
-                      <button
-                        type="button"
-                        className={styles.btn}
-                        onClick={() => (hideTarget.domain ? setStarChoice(true) : void starSender(hideTarget.address))}
-                        aria-pressed="false"
-                        title="Mark as a client sender: their unread emails show on the dashboard"
-                      >
-                        ☆ Mark as client
-                      </button>
-                    )
                   ) : null}
                   {hideTarget ? (
                     clientChoice ? (
@@ -2062,9 +2055,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                       </button>
                     )
                   ) : null}
-                  {hideTarget ? (
-                    hideTarget.domain ? (
-                      hideChoice ? (
+                  {hideTarget?.domain && hideChoice ? (
                         <span className={styles.assign}>
                           <button type="button" className={styles.btn} onClick={() => void hideSender(hideTarget.address)}>
                             Hide {hideTarget.address}
@@ -2076,16 +2067,46 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                             Cancel
                           </button>
                         </span>
-                      ) : (
-                        <button type="button" className={styles.btn} onClick={() => setHideChoice(true)} title="Leave this sender out of the inbox">
-                          Hide sender
-                        </button>
-                      )
-                    ) : (
-                      <button type="button" className={styles.btn} onClick={() => void hideSender(hideTarget.address)} title="Leave this sender out of the inbox">
-                        Hide sender
-                      </button>
-                    )
+                  ) : null}
+                  {latest || hideTarget ? (
+                    <MailOverflowMenu
+                      label="More actions for this email"
+                      items={[
+                        ...(latest
+                          ? [
+                              {
+                                label: 'Download thread (.md)',
+                                title: 'Every message in this thread: sender, date and time, and content',
+                                onSelect: () =>
+                                  saveFile(
+                                    new Blob([threadToMarkdown(messages)], { type: 'text/markdown;charset=utf-8' }),
+                                    exportFileName(messages[0]?.subject ?? '', 'md'),
+                                  ),
+                              },
+                            ]
+                          : []),
+                        ...(hideTarget
+                          ? [
+                              starredEntries.length > 0
+                                ? {
+                                    label: '★ Unmark as client',
+                                    title: `Client sender (${starredEntries.join(', ')}). Their unread emails stop showing on the dashboard.`,
+                                    onSelect: () => void unstarEntries(starredEntries),
+                                  }
+                                : {
+                                    label: '☆ Mark as client',
+                                    title: 'Mark as a client sender: their unread emails show on the dashboard',
+                                    onSelect: () => (hideTarget.domain ? setStarChoice(true) : void starSender(hideTarget.address)),
+                                  },
+                              {
+                                label: 'Hide sender',
+                                title: 'Leave this sender out of the inbox',
+                                onSelect: () => (hideTarget.domain ? setHideChoice(true) : void hideSender(hideTarget.address)),
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
                   ) : null}
                 </div>
               </div>

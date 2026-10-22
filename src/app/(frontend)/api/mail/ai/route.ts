@@ -45,7 +45,7 @@ const NOT_LINKED = "This email isn't linked to a client.";
  * address that matches a client. A client id is never read from the body.
  * Returns clientContext: { id, name } | null.
  *
- * Runs only when the user clicks "Write with AI" (in a reply) or "Draft with AI". For a
+ * Runs only when the user clicks "Write with AI" (in a reply) or "Write message". For a
  * reply, the server fetches exactly the one selected message by id; nothing
  * else from the mailbox is loaded or sent. Returns editable text. Never sends.
  */
