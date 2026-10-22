@@ -111,6 +111,8 @@ describe("syncMailbox raises client email alerts", () => {
     outbound: { from: "peter@optimisedigital.online", to: "jo@inthepicture.com.au" },
     stranger: { from: "someone@random.com", to: "peter@optimisedigital.online" },
     noreply: { from: "no-reply@inthepicture.com.au", to: "peter@optimisedigital.online" },
+    // From someone who is not a client, copying the client in: stored, but no alert.
+    ccClient: { from: "Vendor <sales@vendor.com>", to: "peter@optimisedigital.online, jo@inthepicture.com.au" },
   };
   const deps = (ids: string[], dateFor: (id: string) => string = () => recent) => ({
     getMailboxProfile: vi.fn(async () => ({ emailAddress: "peter@optimisedigital.online", historyId: "500" })),
@@ -142,6 +144,26 @@ describe("syncMailbox raises client email alerts", () => {
     });
     expect(again.alerts).toBe(0);
     expect(payload.tables.notifications).toHaveLength(1);
+  });
+
+  it("does not alert for mail from a non-client that only copies a client in", async () => {
+    const payload = fakePayload(clients);
+    payload.tables["mail-sync-states"].push({ id: 99, user: 10, historyId: "100" });
+    const result = await syncMailbox({
+      payload: payload as never, userId: 10, accessToken: "tok", hiddenSenders: [], deps: deps(["ccClient"]),
+    });
+    expect(result).toMatchObject({ mode: "incremental", stored: 1, alerts: 0 });
+    expect(payload.tables.notifications).toHaveLength(0);
+  });
+
+  it("does not alert for client mail in an extra Gmail account", async () => {
+    const payload = fakePayload(clients);
+    payload.tables["mail-sync-states"].push({ id: 99, user: 10, historyId: "100" });
+    const result = await syncMailbox({
+      payload: payload as never, userId: 10, accessToken: "tok", hiddenSenders: [], account: "sales@od.com", deps: deps(["inbound"]),
+    });
+    expect(result).toMatchObject({ mode: "incremental", stored: 1, alerts: 0 });
+    expect(payload.tables.notifications).toHaveLength(0);
   });
 
   it("does not alert on the first (14-day) sync", async () => {

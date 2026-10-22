@@ -7,6 +7,7 @@ import { useAuth } from "@payloadcms/ui";
 import RocketSplash from "./RocketSplash";
 import ClientEmailAlert from "./ClientEmailAlert";
 import { openCmsMailLink } from "@/lib/mail/drafts";
+import { notificationCategory } from "@/lib/notification-categories";
 import { useRouter } from "next/navigation";
 
 interface NotificationRow {
@@ -378,7 +379,7 @@ const NotificationsBell = (): ReactElement | null => {
             border: "1px solid var(--theme-elevation-150, #ddd)",
             borderRadius: isMobile ? "16px 16px 0 0" : 8,
             boxShadow: isMobile ? "0 -8px 30px rgba(0,0,0,0.18)" : "0 4px 16px rgba(0,0,0,0.12)",
-            width: isMobile ? "auto" : "min(400px, calc(100vw - 24px))",
+            width: isMobile ? "auto" : "min(520px, calc(100vw - 24px))",
             minWidth: 0,
             maxWidth: isMobile ? "none" : "calc(100vw - 24px)",
             height: isMobile ? "min(85dvh, 640px)" : undefined,
@@ -451,7 +452,7 @@ const NotificationsBell = (): ReactElement | null => {
             </span>
           </div>
 
-          <div style={{ maxHeight: isMobile ? undefined : 400, flex: isMobile ? "1 1 auto" : undefined, overflowY: "auto", overscrollBehavior: "contain" }}>
+          <div style={{ maxHeight: isMobile ? undefined : "min(680px, calc(100dvh - 140px))", flex: isMobile ? "1 1 auto" : undefined, overflowY: "auto", overscrollBehavior: "contain" }}>
             {loading && (
               <div style={{ padding: 16, fontSize: 13, color: "var(--theme-elevation-500)" }}>
                 Loading…
@@ -470,8 +471,10 @@ const NotificationsBell = (): ReactElement | null => {
             {!loading &&
               items.map((item) => {
                 const unread = !item.readAt;
-                // Unread rows: white bg, blue left bar, blue title, blue dot.
-                // Read rows:   subtle grey bg, muted text, no bar, no dot.
+                // Every row's left bar and label take its category colour (see notification-categories.ts).
+                // Unread rows: white bg, bold title, coloured dot.
+                // Read rows:   subtle grey bg, muted text, no dot.
+                const category = notificationCategory(item.kind);
                 const unreadBg = "var(--theme-elevation-0, #fff)";
                 const readBg = "var(--theme-elevation-50, #f4f5f7)";
                 const baseBg = unread ? unreadBg : readBg;
@@ -492,9 +495,9 @@ const NotificationsBell = (): ReactElement | null => {
                       width: "100%",
                       textAlign: "left",
                       padding: isMobile ? "12px 16px" : "10px 14px 10px 14px",
-                      paddingLeft: unread ? (isMobile ? 13 : 11) : (isMobile ? 16 : 14),
+                      paddingLeft: isMobile ? 13 : 11,
                       background: baseBg,
-                      borderLeft: unread ? "3px solid #1a73e8" : "3px solid transparent",
+                      borderLeft: `3px solid ${category.color}`,
                       borderTop: "none",
                       borderRight: "none",
                       borderBottom: "1px solid var(--theme-elevation-100, #eee)",
@@ -527,7 +530,7 @@ const NotificationsBell = (): ReactElement | null => {
                             width: 8,
                             height: 8,
                             borderRadius: 999,
-                            background: "#1a73e8",
+                            background: category.color,
                             flex: "0 0 8px",
                           }}
                         />
@@ -577,6 +580,19 @@ const NotificationsBell = (): ReactElement | null => {
                         flexWrap: "wrap",
                       }}
                     >
+                      <span
+                        data-testid="notification-category"
+                        style={{
+                          color: category.color,
+                          fontWeight: 600,
+                          border: `1px solid ${category.color}`,
+                          borderRadius: 999,
+                          padding: "0 6px",
+                          lineHeight: "16px",
+                        }}
+                      >
+                        {category.label}
+                      </span>
                       <span>{formatRelativeTime(item.createdAt)}</span>
                       {!unread && (
                         <span style={{ color: "var(--theme-elevation-400, #999)" }}>

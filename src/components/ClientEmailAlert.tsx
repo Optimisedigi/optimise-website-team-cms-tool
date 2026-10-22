@@ -207,7 +207,7 @@ export default function ClientEmailAlert({
 const CSS = `
 .cea-drop {
   position: absolute; top: calc(100% + 10px); right: -4px; z-index: 10001;
-  width: 340px; max-width: calc(100vw - 24px); box-sizing: border-box;
+  width: 440px; max-width: calc(100vw - 24px); box-sizing: border-box;
   background: var(--theme-elevation-0, #fff); color: var(--theme-elevation-1000, #11141a);
   border: 1px solid var(--theme-elevation-150, #e5e7eb); border-radius: 12px; padding: 12px 12px 12px 14px;
   box-shadow: 0 12px 32px rgba(16, 20, 28, 0.18);
@@ -226,7 +226,7 @@ const CSS = `
 .cea-client { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cea-kind { margin-left: auto; flex: 0 0 auto; font-size: 11px; color: var(--theme-elevation-500, #6b7280); }
 .cea-body { margin-top: 2px; font-size: 13px; line-height: 1.4; color: var(--theme-elevation-700, #374151);
-  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .cea-x { border: none; background: none; cursor: pointer; font-size: 18px; line-height: 1; color: var(--theme-elevation-500, #6b7280); padding: 0 4px; border-radius: 6px; }
 .cea-x:hover, .cea-x:focus-visible { color: var(--theme-elevation-1000, #11141a); background: var(--theme-elevation-100, #f3f4f6); outline: none; }
 .cea-actions { margin-top: 10px; padding-left: 18px; display: flex; gap: 8px; }

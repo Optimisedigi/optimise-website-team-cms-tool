@@ -300,20 +300,16 @@ interface AccountsInfo {
   canAdd: boolean
 }
 
-function readStoredAccount(): string {
+/**
+ * Mail always opens on the main Gmail; the account picked in the switcher
+ * lasts while the page is open. Older versions remembered it in this browser,
+ * which reopened an extra account after logging back in, so drop that.
+ */
+function forgetStoredAccount(): void {
   try {
-    return normaliseMailAccount(window.localStorage.getItem(MAIL_ACCOUNT_STORAGE_KEY) ?? '')
+    window.localStorage.removeItem(MAIL_ACCOUNT_STORAGE_KEY)
   } catch {
-    return ''
-  }
-}
-
-function storeAccount(account: string): void {
-  try {
-    if (account) window.localStorage.setItem(MAIL_ACCOUNT_STORAGE_KEY, account)
-    else window.localStorage.removeItem(MAIL_ACCOUNT_STORAGE_KEY)
-  } catch {
-    // Storage unavailable: the choice just isn't remembered.
+    // Storage unavailable: nothing was stored.
   }
 }
 
@@ -401,6 +397,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [threadLoading, setThreadLoading] = useState(false)
   const [threadError, setThreadError] = useState('')
   const [actionNote, setActionNote] = useState('')
+  // The last thread moved to the Bin, offered for Undo above the list.
+  const [lastDeleted, setLastDeleted] = useState<{ thread: ThreadRow; folder: MailFolder } | null>(null)
   // Message whose .eml is being downloaded, so its button shows progress.
   const [emlDownloading, setEmlDownloading] = useState<string | null>(null)
 
@@ -665,17 +663,17 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   }, [])
 
   // Which account to open on, before the first load below: `?account=` (an
-  // alert or the add-account return), else the last one used in this browser.
+  // alert or the add-account return), else always the main Gmail.
   // Also shows the result of connecting another account.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const fromUrl = params.get(MAIL_ACCOUNT_QUERY_PARAM)
     const added = params.get('mail_account_added')
     const addError = params.get('mail_account_error')
-    const initial = fromUrl !== null ? normaliseMailAccount(fromUrl) : readStoredAccount()
+    forgetStoredAccount()
+    const initial = fromUrl !== null ? normaliseMailAccount(fromUrl) : ''
     accountRef.current = initial
     setActiveAccount(initial)
-    if (fromUrl !== null) storeAccount(initial)
     if (added) setSyncNote(`Connected ${added}.`)
     if (addError) setError({ message: `Could not add the Gmail account: ${addError.slice(0, 300)}` })
     if (fromUrl !== null || added !== null || addError !== null) {
@@ -866,10 +864,10 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       if (target === accountRef.current) return
       accountRef.current = target
       setActiveAccount(target)
-      storeAccount(target)
       // Tags are per Gmail account.
       tagRef.current = null
       setTagView(null)
+      setLastDeleted(null)
       threadRequest.current++
       listAppended.current = false
       setShowScheduled(false)
@@ -1603,6 +1601,47 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     void loadCounts()
   }
 
+  /**
+   * Move a thread to Gmail's Bin (recoverable for 30 days; Undo puts it back).
+   * Not asked first: Undo is offered above the list instead.
+   */
+  async function deleteThread(thread: ThreadRow) {
+    const fromFolder = folder
+    try {
+      await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: thread.threadId, action: 'trash' }) })
+      setThreads((current) => current.filter((row) => row.threadId !== thread.threadId))
+      setCheckedThreads((current) => {
+        if (!current.has(thread.threadId)) return current
+        const next = new Set(current)
+        next.delete(thread.threadId)
+        return next
+      })
+      if (selectedThreadId === thread.threadId) {
+        threadRequest.current++
+        setSelectedThreadId(null)
+        setMessages([])
+        setComposer(null)
+      }
+      setLastDeleted({ thread, folder: fromFolder })
+      void loadCounts()
+    } catch (err) {
+      showError(err)
+    }
+  }
+
+  async function undoDelete() {
+    const deleted = lastDeleted
+    if (!deleted) return
+    setLastDeleted(null)
+    try {
+      await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: deleted.thread.threadId, action: 'untrash' }) })
+      if (folder === deleted.folder && !panelOpen) void loadInbox({ folder, q: query })
+      void loadCounts()
+    } catch (err) {
+      showError(err)
+    }
+  }
+
   async function deleteDraftRow(thread: ThreadRow) {
     if (!window.confirm('Delete this draft?')) return
     try {
@@ -2074,6 +2113,13 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
               Clear
             </button>
           </div>
+        ) : lastDeleted && lastDeleted.folder === folder ? (
+          <div className={styles.bulkBar} role="status">
+            <span className={styles.bulkCount}>Deleted “{lastDeleted.thread.subject || '(no subject)'}”. It stays in Gmail’s Bin for 30 days.</span>
+            <button type="button" className={styles.linkBtn} onClick={() => void undoDelete()}>
+              Undo
+            </button>
+          </div>
         ) : folder === 'inbox' && bulkNote ? (
           <p className={styles.bulkBar} role="status">
             {bulkNote}
@@ -2141,7 +2187,19 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                     <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
                   </svg>
                 </button>
-              ) : null}
+              ) : (
+                <button
+                  type="button"
+                  className={styles.rowDelete}
+                  aria-label={`Delete ${folder === 'inbox' ? senderName(thread.from) : 'email'}: ${thread.subject || '(no subject)'}`}
+                  title="Delete (moves to Gmail’s Bin)"
+                  onClick={() => void deleteThread(thread)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
+                  </svg>
+                </button>
+              )}
             </li>
           ))}
           {listLoading ? <li className={styles.empty}>Loading…</li> : null}
@@ -2193,6 +2251,19 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                         Forward
                       </button>
                     </>
+                  ) : null}
+                  {selectedThread && folder !== 'drafts' ? (
+                    <button
+                      type="button"
+                      className={`${styles.btn} ${styles.iconBtn}`}
+                      onClick={() => void deleteThread(selectedThread)}
+                      aria-label="Delete"
+                      title="Delete (moves to Gmail’s Bin)"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
+                  </svg>
+                    </button>
                   ) : null}
                   {/* Archive and read state are inbox labels; they do not apply to Sent. */}
                   {folder === 'inbox' ? (

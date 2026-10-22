@@ -254,6 +254,16 @@
   border-bottom: 0;
 }
 
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconBtn:hover {
+  color: #e5484d;
+}
+
 .rowCheck {
   display: flex;
   align-items: flex-start;
@@ -288,7 +298,8 @@ p.bulkBar {
   font-weight: 600;
 }
 
-.deleteDraft {
+.deleteDraft,
+.rowDelete {
   position: absolute;
   right: 8px;
   bottom: 8px;
@@ -301,7 +312,8 @@ p.bulkBar {
   cursor: pointer;
 }
 
-.deleteDraft:hover {
+.deleteDraft:hover,
+.rowDelete:hover {
   background: var(--mail-soft);
   color: #e5484d;
 }

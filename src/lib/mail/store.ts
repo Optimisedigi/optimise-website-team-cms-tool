@@ -1,6 +1,8 @@
 import type { Payload } from 'payload'
 import {
   buildClientDomainIndex,
+  extractEmailAddresses,
+  matchAddress,
   matchMessageToClient,
   messageDirection,
   type ClientDomainIndex,
@@ -383,12 +385,15 @@ export async function syncMailbox(args: {
               gmailAccount: profile.emailAddress,
             })
             const result = await storeClientEmail(payload, emailInput)
-            // Only a brand-new inbound email from an incremental sync can alert.
-            if (result.created && emailInput.direction === 'inbound' && mode === 'incremental') {
+            // Only a brand-new inbound email from an incremental sync of the MAIN
+            // Gmail can alert, and only when the sender is the client (not mail
+            // from someone else that merely copies a client in).
+            const senderClient = args.account ? null : matchAddress(index, extractEmailAddresses(emailInput.from)[0] ?? '')
+            if (result.created && emailInput.direction === 'inbound' && mode === 'incremental' && senderClient) {
               alertCandidates.push({
                 ownerId: userId,
-                clientId: match!.clientId,
-                clientName: match!.clientName,
+                clientId: senderClient.clientId,
+                clientName: senderClient.clientName,
                 from: emailInput.from,
                 subject: emailInput.subject,
                 gmailThreadId: emailInput.gmailThreadId,

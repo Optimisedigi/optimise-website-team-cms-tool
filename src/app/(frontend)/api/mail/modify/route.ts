@@ -1,20 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mapLimited, modifyThreadLabels } from "@/lib/mail/gmail-mail";
+import { mapLimited, modifyThreadLabels, trashThread } from "@/lib/mail/gmail-mail";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
  * POST /api/mail/modify
- * Body: { threadId, action: "archive" | "read" | "unread" }
+ * Body: { threadId, action: "archive" | "read" | "unread" | "trash" | "untrash" }
  *    or { threadIds: [...up to 50], action: "read" } (inbox multi-select "Mark as read")
  *
- * Archive only removes the INBOX label; nothing is deleted. Bulk is limited to
- * marking read. Requires the gmail.modify scope.
+ * Archive only removes the INBOX label. Trash moves the thread to Gmail's Bin
+ * (Gmail empties it after 30 days) and untrash brings it back (the Undo);
+ * nothing is deleted outright. Bulk is limited to marking read. Requires the
+ * gmail.modify scope.
  */
 const CHANGES = {
   archive: { remove: ["INBOX"] },
   read: { remove: ["UNREAD"] },
   unread: { add: ["UNREAD"] },
 } as const;
+
+/** Single-thread actions that move the thread to or from the Bin instead of changing labels. */
+const BIN_ACTIONS = ["trash", "untrash"] as const;
+type BinAction = (typeof BIN_ACTIONS)[number];
+const isBinAction = (value: unknown): value is BinAction => (BIN_ACTIONS as readonly unknown[]).includes(value);
 
 const MAX_BULK_THREADS = 50;
 
@@ -30,7 +37,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);
   if (ctx instanceof NextResponse) return ctx;
   const body = await readJson<{ threadId?: unknown; threadIds?: unknown; action?: unknown }>(req);
-  const action = typeof body?.action === "string" && body.action in CHANGES ? (body.action as keyof typeof CHANGES) : null;
+  const binAction = isBinAction(body?.action) ? body.action : null;
+  const action = binAction ?? (typeof body?.action === "string" && body.action in CHANGES ? (body.action as keyof typeof CHANGES) : null);
   const bulk = body?.threadIds !== undefined;
   const threadIds = bulk ? cleanThreadIds(body?.threadIds) : null;
   const threadId = bulk ? null : parseGmailId(body?.threadId);
@@ -38,10 +46,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: `Send 1 to ${MAX_BULK_THREADS} thread ids with action "read".` }, { status: 400 });
   }
   if (!bulk && (!threadId || !action)) {
-    return NextResponse.json({ error: "threadId and action (archive, read, unread) are required." }, { status: 400 });
+    return NextResponse.json({ error: "threadId and action (archive, read, unread, trash, untrash) are required." }, { status: 400 });
   }
   const token = await requireGmailToken(ctx.user.id, req);
   if (token instanceof NextResponse) return token;
+
+  if (binAction) {
+    try {
+      await trashThread(token.accessToken, threadId as string, binAction === "untrash");
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      return gmailErrorResponse(err, binAction === "trash" ? "Gmail could not delete that thread." : "Gmail could not restore that thread.");
+    }
+  }
 
   try {
     const change = CHANGES[action as keyof typeof CHANGES];

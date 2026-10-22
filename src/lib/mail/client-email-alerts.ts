@@ -11,8 +11,10 @@ import { cmsMailThreadPath } from './drafts'
  * (ClientEmailAlert). Opening it sets `readAt`.
  *
  * Noise limits (all plain code, no model):
- *  - Only inbound mail that the client matcher linked to a client, after the
- *    sync's hidden-sender and automated-mail filters.
+ *  - Only inbound mail whose SENDER is a client (an email that only copies a
+ *    client in does not count), after the sync's hidden-sender and
+ *    automated-mail filters.
+ *  - Only the user's main Gmail; extra accounts in Mail never alert.
  *  - Only during incremental syncs (never the 14-day first sync or a
  *    history-expired re-sync, which would flood the user with old mail).
  *  - Only emails dated within ALERT_MAX_AGE_MS.

@@ -487,6 +487,16 @@ export async function createUserLabel(accessToken: string, name: string): Promis
   }
 }
 
+/**
+ * Move a whole thread to Gmail's Bin (`untrash` puts it back). Gmail empties
+ * the Bin after 30 days; nothing is deleted outright. Needs gmail.modify.
+ */
+export async function trashThread(accessToken: string, threadId: string, restore = false): Promise<void> {
+  const gmail = gmailApi(accessToken);
+  if (restore) await gmail.users.threads.untrash({ userId: "me", id: threadId });
+  else await gmail.users.threads.trash({ userId: "me", id: threadId });
+}
+
 export interface ThreadReplyHeader {
   messageId: string;
   from: string;

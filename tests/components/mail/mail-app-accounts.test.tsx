@@ -116,6 +116,35 @@ describe('MailApp layout', () => {
     expect(rows.filter((row) => row?.className.includes('unread'))).toHaveLength(1)
   })
 
+  it('a row delete icon moves the thread to the Bin, with Undo bringing it back', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    calls = []
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Jo Smith: Hello there' }))
+    await screen.findByText(/Deleted “Hello there”/)
+    // The row leaves the list straight away.
+    expect(screen.queryByRole('button', { name: 'Delete Jo Smith: Hello there' })).toBeNull()
+    const modify = calls.filter((call) => call.url === '/api/mail/modify')
+    expect(JSON.parse(String(modify[0]?.init?.body))).toEqual({ threadId: 't1', action: 'trash' })
+    calls = []
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith('/api/mail/inbox'))).toBe(true))
+    const undo = calls.filter((call) => call.url === '/api/mail/modify')
+    expect(JSON.parse(String(undo[0]?.init?.body))).toEqual({ threadId: 't1', action: 'untrash' })
+    expect(await screen.findByRole('button', { name: 'Delete Jo Smith: Hello there' })).toBeTruthy()
+  })
+
+  it('the open email has a Delete icon in its actions', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    fireEvent.click(await screen.findByText('Hello there'))
+    const reader = await screen.findByTestId('mail-reader')
+    await within(reader).findByRole('button', { name: 'Reply' })
+    calls = []
+    fireEvent.click(within(reader).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(within(reader).getByText('Select an email to read it.')).toBeTruthy())
+    expect(JSON.parse(String(calls.find((call) => call.url === '/api/mail/modify')?.init?.body))).toEqual({ threadId: 't1', action: 'trash' })
+  })
+
   it('puts the search box at the top of the email list, right above the first email', async () => {
     render(<MailApp clients={CLIENTS} />)
     await screen.findByText('Hello there')
@@ -343,7 +372,17 @@ describe('MailApp breadcrumb account switcher', () => {
     for (const call of calls.filter((entry) => entry.url.startsWith('/api/mail/'))) {
       expect((call.init?.headers as Record<string, string>)['x-mail-account']).toBe('sales@od.com')
     }
-    expect(localStorage.getItem('mail-active-account')).toBe('sales@od.com')
+    // The choice is not remembered: Mail opens on the main Gmail next time.
+    expect(localStorage.getItem('mail-active-account')).toBeNull()
+  })
+
+  it('always opens on the main Gmail, even if an older version remembered another account', async () => {
+    localStorage.setItem('mail-active-account', 'sales@od.com')
+    render(<MailApp clients={CLIENTS} />)
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith('/api/mail/inbox'))).toBe(true))
+    const inbox = calls.find((call) => call.url.startsWith('/api/mail/inbox'))
+    expect((inbox?.init?.headers as Record<string, string> | undefined)?.['x-mail-account']).toBeUndefined()
+    expect(localStorage.getItem('mail-active-account')).toBeNull()
   })
 
   it('opens on the account named in the link (?account=), e.g. from an alert', async () => {
