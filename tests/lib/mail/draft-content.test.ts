@@ -41,4 +41,13 @@ describe('buildEditableDraft', () => {
     const draft = buildEditableDraft({ html: '', text: 'Hi <Sam>\nThanks', inline: [], attachments: [], tooLarge: false }, '')
     expect(draft.html).toBe('Hi &lt;Sam&gt;<br>Thanks')
   })
+
+  it('marks a draft saved without the signature, so it reopens with the Signature toggle off', () => {
+    const parts = (html: string) => ({ html, text: '', inline: [], attachments: [], tooLarge: false })
+    const signed = formatGmailDraftHtml(appendGmailSignature('<p>Hi Sam</p>', SIGNATURE))
+    expect(buildEditableDraft(parts(signed), SIGNATURE).noSignature).toBeUndefined()
+    expect(buildEditableDraft(parts(formatGmailDraftHtml('<p>Hi Sam</p>')), SIGNATURE).noSignature).toBe(true)
+    // No signature set in Gmail: nothing to turn off.
+    expect(buildEditableDraft(parts('<p>Hi Sam</p>'), '').noSignature).toBeUndefined()
+  })
 })

@@ -35,6 +35,8 @@ export interface ScheduledDetail {
   attachments: Array<{ name: string; mediaType: string; data: string }>
   bcc: string
   signOff?: string
+  /** Queued without the Gmail signature. */
+  noSignature?: boolean
   /** "Remind me if no reply" business days, when set. */
   followUpDays?: number
 }

@@ -203,6 +203,22 @@ describe('sending scheduled emails', () => {
     expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ bcc: 'boss@od.com' }))
   })
 
+  it('sends without the signature when it was queued with the Signature toggle off', async () => {
+    const id = await createScheduledEmail(scheduleDb(payload), {
+      ownerId: 1,
+      to: 'jo@client.com',
+      cc: '',
+      subject: 'Hi',
+      replyToMessageId: null,
+      scheduledFor: minutes(-1),
+      content: { html: HTML, noSignature: true, inlineImages: [], attachments: [] },
+    })
+    expect(toEditableScheduledContent({ html: HTML, noSignature: true }).noSignature).toBe(true)
+    const deliver = delivered()
+    await sendScheduledEmail(payload, id, deps(deliver), { onlyDue: true })
+    expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ noSignature: true }))
+  })
+
   it('sets the follow-up reminder in Sydney business days from when it actually sent', async () => {
     const id = await createScheduledEmail(scheduleDb(payload), {
       ownerId: 1,

@@ -197,6 +197,35 @@ describe('ComposeWindow sign-off', () => {
     })
     expect(onSend.mock.calls[0]?.[0]).toMatchObject({ signOff: 'Thanks,\nPeter' })
   })
+
+  it('the Signature toggle hides the signature and sends without it', async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ComposeWindow
+        initial={REPLY}
+        title="Reply"
+        onClose={vi.fn()}
+        onSend={onSend}
+        onSchedule={vi.fn()}
+        onSaveDraft={vi.fn().mockResolvedValue('draft1')}
+        onDeleteDraft={vi.fn()}
+        signatureHtml={SIGNATURE}
+      />,
+    )
+    const toggle = screen.getByRole('checkbox', { name: 'Signature' }) as HTMLInputElement
+    expect(toggle.checked).toBe(true)
+    fireEvent.click(toggle)
+    expect(toggle.checked).toBe(false)
+    expect(screen.queryByLabelText('Sign-off')).toBeNull()
+    expect(screen.queryByTitle('Your Gmail signature (added automatically)')).toBeNull()
+    await waitForBody()
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await act(async () => {
+      vi.advanceTimersByTime(UNDO_SEND_MS)
+    })
+    expect(onSend.mock.calls[0]?.[0]).toMatchObject({ noSignature: true })
+  })
 })
 
 describe('ComposeWindow editing a scheduled email', () => {

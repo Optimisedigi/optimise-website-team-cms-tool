@@ -107,6 +107,8 @@ export interface ComposeState {
    * Undefined until edited: the Gmail signature's own sign-off is used.
    */
   signOff?: string
+  /** Signature toggle off: send/save this email without the Gmail signature. Undefined = signature on. */
+  noSignature?: boolean
   subject: string
   /** Starting body HTML (the editor owns it after that). */
   html: string
@@ -520,7 +522,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       return
     }
     setEdits((n) => n + 1)
-  }, [settledRecipients.to, settledRecipients.cc, settledRecipients.bcc, state.subject, state.signOff, state.attachments])
+  }, [settledRecipients.to, settledRecipients.cc, settledRecipients.bcc, state.subject, state.signOff, state.noSignature, state.attachments])
 
   useEffect(() => {
     const flush = () => {
@@ -1096,7 +1098,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
             </div>
           ) : null}
 
-          {signatureHtml === null ? null : (
+          {signatureHtml === null || state.noSignature ? null : (
             <div className={styles.signature}>
               {signatureParts ? (
                 <textarea
@@ -1244,6 +1246,17 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               <label className={styles.threadToggle}>
                 <input type="checkbox" checked={useThread} onChange={(e) => setUseThread(e.target.checked)} disabled={busy !== ''} />
                 <span>Use whole thread</span>
+              </label>
+            ) : null}
+            {signatureHtml ? (
+              <label className={styles.threadToggle} title="Untick to send this email without your Gmail signature">
+                <input
+                  type="checkbox"
+                  checked={!state.noSignature}
+                  onChange={(e) => setState((current) => ({ ...current, noSignature: !e.target.checked }))}
+                  disabled={busy !== ''}
+                />
+                <span>Signature</span>
               </label>
             ) : null}
             {linkedClient ? (

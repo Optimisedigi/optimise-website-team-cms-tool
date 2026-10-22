@@ -240,6 +240,54 @@
   contain-intrinsic-size: auto 64px;
 }
 
+/* Inbox rows: a tick box for bulk actions, then the row itself. */
+.rowItemSelectable {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--mail-soft);
+}
+
+.rowItemSelectable .row {
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+  border-bottom: 0;
+}
+
+.rowCheck {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 4px 0 10px;
+  cursor: pointer;
+}
+
+.rowCheck input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.bulkBar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--mail-border);
+  background: var(--mail-soft);
+}
+
+p.bulkBar {
+  margin: 0;
+  color: var(--mail-muted);
+}
+
+.bulkCount {
+  margin-right: auto;
+  font-weight: 600;
+}
+
 .deleteDraft {
   position: absolute;
   right: 8px;

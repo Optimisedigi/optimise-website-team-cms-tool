@@ -33,6 +33,12 @@ export interface PlannedCategory {
 }
 
 export const MAX_PLANNED_CATEGORIES = 8;
+/**
+ * Output token limit for triage calls. The model thinks before answering and
+ * that counts toward the limit: a full batch of senders used about 1,900 to
+ * 2,300 tokens, so the old shared 2,000 cut answers off (or left them empty).
+ */
+export const TRIAGE_MAX_OUTPUT_TOKENS = 8000;
 /** Biggest senders the planning call sees (one subject line each). */
 export const TRIAGE_PLAN_SENDERS = 150;
 
@@ -119,6 +125,7 @@ function triageRequest(system: string, text: string, senders: TriageSender[]): M
     suggestSubject: false,
     clientId: null,
     revise: null,
+    maxTokens: TRIAGE_MAX_OUTPUT_TOKENS,
   };
 }
 

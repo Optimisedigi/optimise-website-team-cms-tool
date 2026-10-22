@@ -21,6 +21,8 @@ export interface ScheduleRequestBody {
   cc?: unknown;
   bcc?: unknown;
   signOff?: unknown;
+  /** true: send without the Gmail signature. */
+  noSignature?: unknown;
   subject?: unknown;
   html?: unknown;
   inlineImages?: unknown;
@@ -88,6 +90,7 @@ export function parseScheduleRequest(
         // Bcc and the sign-off live with the content (not their own columns) so no schema change was needed.
         bcc: cleanHeader(body.bcc),
         ...(signOff !== undefined ? { signOff } : {}),
+        ...(body.noSignature === true ? { noSignature: true } : {}),
         ...(followUpDays !== null ? { followUpDays } : {}),
         html: content.value.html,
         inlineImages: body.inlineImages ?? [],

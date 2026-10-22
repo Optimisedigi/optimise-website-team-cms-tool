@@ -52,6 +52,8 @@ interface DraftBody {
   bcc?: unknown;
   /** Edited sign-off (Mail compose window only). */
   signOff?: unknown;
+  /** true: save without the Gmail signature (Mail compose window only). */
+  noSignature?: unknown;
   /** Gmail thread id for in-thread replies. */
   threadId?: unknown;
   /** RFC 822 Message-ID of the message being replied to. */
@@ -116,6 +118,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       html: editable.html,
       attachments: editable.attachments,
       ...(editable.signOff !== undefined ? { signOff: editable.signOff } : {}),
+      ...(editable.noSignature ? { noSignature: true } : {}),
       threadId: original ? message.threadId : "",
       replyTo: original
         ? { messageId: original.messageId, from: original.from, subject: original.subject }
@@ -237,6 +240,7 @@ export async function POST(req: NextRequest) {
       to,
       ...(rich ? { cc: cleanHeader(body.cc), bcc: cleanHeader(body.bcc) } : {}),
       ...(rich && cleanSignOff(body.signOff) !== undefined ? { signOff: cleanSignOff(body.signOff) } : {}),
+      ...(rich && body.noSignature === true ? { appendSignature: false } : {}),
       subject,
       htmlBody: html,
       ...(rich && rich.inlineImages.length > 0 ? { inlineImages: rich.inlineImages } : {}),

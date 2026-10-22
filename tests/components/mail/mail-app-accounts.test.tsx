@@ -68,6 +68,54 @@ const CLIENTS = [
 ]
 
 describe('MailApp layout', () => {
+  it('clearing the search brings the whole inbox back without a refresh', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    const search = screen.getByRole('combobox', { name: 'Search inbox' })
+    fireEvent.change(search, { target: { value: 'acme' } })
+    fireEvent.submit(search.closest('form') as HTMLFormElement)
+    await waitFor(() => expect(calls.some((call) => call.url.includes('q=acme'))).toBe(true))
+    calls = []
+    // The search box's × clears it: same as emptying the text.
+    fireEvent.change(search, { target: { value: '' } })
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith('/api/mail/inbox'))).toBe(true))
+    const url = new URL(calls.find((call) => call.url.startsWith('/api/mail/inbox'))?.url ?? '', 'https://cms.test')
+    expect(url.searchParams.get('q')).toBeNull()
+    expect(url.searchParams.get('folder')).toBe('inbox')
+  })
+
+  it('ticking inbox emails offers Mark as read, which marks them all read at once', async () => {
+    const baseFetch = global.fetch
+    const unread = [
+      { ...thread, threadId: 't1', subject: 'First', unread: true },
+      { ...thread, threadId: 't2', messageId: 'm2', subject: 'Second', unread: true },
+      { ...thread, threadId: 't3', messageId: 'm3', subject: 'Third', unread: true },
+    ]
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/mail/inbox')) {
+        calls.push({ url, init })
+        return { ok: true, json: async () => ({ threads: unread, nextPageToken: null, account: 'me@od.com', senderClients: [] }) } as Response
+      }
+      return baseFetch(url, init)
+    }) as unknown as typeof fetch
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('First')
+    expect(screen.queryByRole('button', { name: 'Mark as read' })).toBeNull()
+    fireEvent.click(screen.getByRole('checkbox', { name: /First/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Second/ }))
+    expect(screen.getByText('2 selected')).toBeTruthy()
+    calls = []
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as read' }))
+    await screen.findByText('Marked 2 emails read')
+    const modify = calls.filter((call) => call.url === '/api/mail/modify')
+    expect(modify).toHaveLength(1)
+    expect(JSON.parse(String(modify[0]?.init?.body))).toEqual({ threadIds: ['t1', 't2'], action: 'read' })
+    // Marked rows lose their unread style and the selection clears; the third stays unread.
+    expect(screen.queryByText('2 selected')).toBeNull()
+    const rows = screen.getAllByRole('listitem').map((li) => li.querySelector('button'))
+    expect(rows.filter((row) => row?.className.includes('unread'))).toHaveLength(1)
+  })
+
   it('puts the search box at the top of the email list, right above the first email', async () => {
     render(<MailApp clients={CLIENTS} />)
     await screen.findByText('Hello there')

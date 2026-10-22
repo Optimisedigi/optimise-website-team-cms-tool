@@ -41,6 +41,8 @@ export interface StoredMailContent {
   bcc?: string;
   /** Edited sign-off from the compose window. */
   signOff?: string;
+  /** Signature toggle off: send without the Gmail signature. */
+  noSignature?: boolean;
   /**
    * "Remind me if no reply" in business days, counted from when the email
    * actually goes out (the send time can still move). Computed on send in
@@ -215,6 +217,7 @@ export interface EditableScheduledContent {
   attachments: Array<{ name: string; mediaType: string; data: string }>;
   bcc: string;
   signOff?: string;
+  noSignature?: boolean;
   /** "Remind me if no reply" business days, when set. */
   followUpDays?: number;
 }
@@ -242,6 +245,7 @@ export function toEditableScheduledContent(stored: StoredMailContent | null): Ed
     attachments,
     bcc: text(stored.bcc),
     ...(signOff !== undefined ? { signOff } : {}),
+    ...(stored.noSignature === true ? { noSignature: true } : {}),
     ...(followUpDays !== null ? { followUpDays } : {}),
   };
 }
@@ -398,6 +402,7 @@ export async function sendScheduledEmail(
     cc: text(row.cc),
     bcc: text(stored?.bcc),
     signOff: cleanSignOff(stored?.signOff),
+    noSignature: stored?.noSignature === true,
     subject: text(row.subject),
     content: parsed.value,
     replyToMessageId: text(row.reply_to_message_id) || null,

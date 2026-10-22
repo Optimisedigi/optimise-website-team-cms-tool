@@ -37,7 +37,7 @@ export async function runMailModel(args: {
   request: MailModelRequest;
 }): Promise<{ text: string; model: string }> {
   const { payload, userId, request } = args;
-  const log = (data: { model: string; status: "ok" | "error"; error?: string }) =>
+  const log = (data: { model: string; status: "ok" | "error"; error?: string | null }) =>
     payload
       .create({
         collection: "mail-ai-requests",
@@ -64,7 +64,7 @@ export async function runMailModel(args: {
     const response = await callLLM({
       model,
       fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS,
-      maxTokens: 2000,
+      maxTokens: request.maxTokens ?? 2000,
       // Summaries and targeted revisions should stay close to the source; new drafts get some variety.
       temperature: factual || request.revise ? 0.2 : 0.5,
       system: request.system + soul,
@@ -77,7 +77,9 @@ export async function runMailModel(args: {
       .map((part) => (part.type === "text" ? part.text : ""))
       .join("")
       .trim();
-    await log({ model: response.model, status: text ? "ok" : "error", ...(text ? {} : { error: "Empty reply" }) });
+    // A reply cut off at the output limit is noted even when some text came back.
+    const cutOff = response.stopReason === "max_tokens" ? "Stopped at the output limit" : null;
+    await log({ model: response.model, status: text ? "ok" : "error", error: text ? cutOff : cutOff ? `Empty reply: ${cutOff.toLowerCase()}` : "Empty reply" });
     if (!text) throw new Error("The AI returned an empty reply. Please try again.");
     return { text, model: response.model };
   } catch (err) {

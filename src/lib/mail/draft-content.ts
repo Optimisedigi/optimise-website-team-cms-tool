@@ -24,6 +24,8 @@ export interface EditableDraft {
   attachments: EditableDraftFile[];
   /** Sign-off as edited in the compose window, when the draft was saved with one. */
   signOff?: string;
+  /** The Gmail signature is not at the end: the draft was saved with the Signature toggle off. */
+  noSignature?: boolean;
 }
 
 function unwrap(html: string): string {
@@ -80,7 +82,10 @@ export function buildEditableDraft(parts: MessageContentParts, signatureHtml: st
   const source = parts.html || escapeHtml(parts.text).replace(/\r?\n/g, "<br>");
   const edited = parts.html ? stripEditedSignature(source, signatureHtml) : null;
   // Sanitise before the image data goes in: sanitizeEmailHtml caps the length.
-  let html = sanitizeEmailHtml(edited ? edited.html : stripAppendedSignature(source, signatureHtml));
+  const stripped = edited ? edited.html : stripAppendedSignature(source, signatureHtml);
+  // A rich draft with a signature set but none found was saved with the Signature toggle off.
+  const noSignature = Boolean(parts.html && signatureHtml.trim() && !edited && stripped === unwrap(source));
+  let html = sanitizeEmailHtml(stripped);
 
   const attachments: EditableDraftFile[] = parts.attachments.map((file) => ({
     name: file.filename,
@@ -95,5 +100,5 @@ export function buildEditableDraft(parts: MessageContentParts, signatureHtml: st
       attachments.push({ name: image.filename, mediaType: image.mimeType, data: image.data });
     }
   }
-  return { html, attachments, ...(edited ? { signOff: edited.signOff } : {}) };
+  return { html, attachments, ...(edited ? { signOff: edited.signOff } : {}), ...(noSignature ? { noSignature: true } : {}) };
 }

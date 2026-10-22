@@ -8,7 +8,7 @@ import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireM
 
 /**
  * POST /api/mail/send
- * Body: { to, cc?, bcc?, signOff?, subject, html, inlineImages?, attachments?, replyToMessageId?, draftId?, followUpAt? }
+ * Body: { to, cc?, bcc?, signOff?, noSignature?, subject, html, inlineImages?, attachments?, replyToMessageId?, draftId?, followUpAt? }
  *
  * Sends mail. Only reachable from the Send button: the user's edited HTML
  * is sent as-is after validation (the model never calls this route). Inline
@@ -37,6 +37,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     cc?: unknown;
     bcc?: unknown;
     signOff?: unknown;
+    /** true: send without the Gmail signature (compose window's Signature toggle). */
+    noSignature?: unknown;
     subject?: unknown;
     html?: unknown;
     inlineImages?: unknown;
@@ -70,6 +72,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     cc: cleanHeader(body.cc),
     bcc: cleanHeader(body.bcc),
     signOff: cleanSignOff(body.signOff),
+    noSignature: body.noSignature === true,
     subject: cleanHeader(body.subject),
     content: content.value,
     replyToMessageId,

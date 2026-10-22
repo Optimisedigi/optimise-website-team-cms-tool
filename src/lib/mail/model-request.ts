@@ -62,6 +62,11 @@ export interface MailModelRequest {
   clientId: number | null;
   /** A revision: the numbered blocks the model's edits refer to; null when writing from scratch. */
   revise: { blocks: string[] } | null;
+  /**
+   * Output token limit for this call (default 2000). Haiku's thinking counts
+   * toward it, so long answers such as triage need more room.
+   */
+  maxTokens?: number;
 }
 
 /** Opt-in CMS facts for one server-resolved client. */

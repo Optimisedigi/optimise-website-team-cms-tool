@@ -22,6 +22,8 @@ export interface DeliverInput {
   bcc?: string;
   /** Edited sign-off (compose window); undefined appends the Gmail signature unchanged. */
   signOff?: string;
+  /** Signature toggle off: send without the Gmail signature. */
+  noSignature?: boolean;
   subject: string;
   content: MailComposeContent;
   replyToMessageId?: string | null;
@@ -53,6 +55,7 @@ export async function deliverMail(input: DeliverInput): Promise<DeliverResult> {
       cc: input.cc || undefined,
       bcc: input.bcc || undefined,
       ...(input.signOff !== undefined ? { signOff: input.signOff } : {}),
+      ...(input.noSignature ? { appendSignature: false } : {}),
       subject,
       htmlBody: content.html,
       ...(content.inlineImages.length > 0 ? { inlineImages: content.inlineImages } : {}),

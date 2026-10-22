@@ -244,6 +244,21 @@ describe("POST /api/mail/triage in steps (big inboxes)", () => {
     expect(mockBatchModify).not.toHaveBeenCalled();
   });
 
+  it("gives triage calls room for the model's thinking, and logs a reply cut off at the limit", async () => {
+    mockPayload.find.mockResolvedValue({ docs: [] });
+    mockCallLLM
+      .mockResolvedValueOnce(TRIAGE_PLAN)
+      .mockResolvedValueOnce({ message: { content: [{ type: "text", text: "1 1" }] }, model: "m", stopReason: "max_tokens" });
+    const { POST } = await import("@/app/(frontend)/api/mail/triage/route");
+    const res = await POST(post("/api/mail/triage", { step: "sort", messages: [{ messageId: "m1", from: "a@b.com", subject: "x" }] }));
+    expect(res.status).toBe(200);
+    // Haiku's thinking counts toward the limit: a full batch needed about 2,300 tokens, over the old 2,000.
+    expect(mockCallLLM.mock.calls.map((call) => (call[0] as { maxTokens: number }).maxTokens)).toEqual([8000, 8000]);
+    expect(mockPayload.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "triage", status: "ok", error: "Stopped at the output limit" }) }),
+    );
+  });
+
   it("answers 502 when the AI cannot plan the categories", async () => {
     mockPayload.find.mockResolvedValue({ docs: [] });
     mockCallLLM.mockResolvedValueOnce({ message: { content: [{ type: "text", text: "sorry" }] }, model: "m" });

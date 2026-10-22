@@ -71,6 +71,9 @@ const ComposeWindow = lazy(loadComposeWindow)
  */
 const SEARCH_PEOPLE_WAIT_MS = 300
 
+/** Threads per bulk Mark as read request (the /api/mail/modify cap). */
+const MODIFY_THREADS_PER_REQUEST = 50
+
 /** Server reason (also read by agents/tools) → the wording users see in Mail. */
 const GMAIL_NOT_CONNECTED_REASON = /gmail not connected for this user/i
 const GMAIL_NOT_CONNECTED_COPY = 'Gmail isn\u2019t connected yet. Connect it to see client emails here.'
@@ -219,6 +222,8 @@ interface DraftResponse {
   cc: string
   bcc?: string
   signOff?: string
+  /** Saved without the Gmail signature. */
+  noSignature?: boolean
   subject: string
   html: string
   attachments: ComposeFile[]
@@ -336,6 +341,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   // Badge numbers on the Inbox (unread) and Drafts tabs; null until first loaded.
   const [counts, setCounts] = useState<MailTabCounts | null>(null)
   const [threads, setThreads] = useState<ThreadRow[]>([])
+  // Inbox rows ticked for a bulk action (thread ids); only rows still listed count.
+  const [checkedThreads, setCheckedThreads] = useState<Set<string>>(() => new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  // Result of the last bulk action, shown above the list (the reading pane may be empty).
+  const [bulkNote, setBulkNote] = useState('')
   const [account, setAccount] = useState('')
   // Senders hidden from the inbox list (stored in Payload user preferences; view-only).
   const [hiddenSenders, setHiddenSenders] = useState<string[]>([])
@@ -923,6 +933,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           cc: draft.cc,
           bcc: draft.bcc ?? '',
           ...(draft.signOff !== undefined ? { signOff: draft.signOff } : {}),
+          ...(draft.noSignature ? { noSignature: true } : {}),
           subject: draft.subject,
           html: draft.html,
           attachments: draft.attachments,
@@ -1204,6 +1215,50 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }
 
+  const checkedRows = useMemo(() => threads.filter((row) => checkedThreads.has(row.threadId)), [threads, checkedThreads])
+
+  // A ticked row belongs to the folder and account it was ticked in.
+  useEffect(() => {
+    setCheckedThreads(new Set())
+    setBulkNote('')
+  }, [folder, account])
+
+  function toggleChecked(threadId: string, on: boolean) {
+    setBulkNote('')
+    setCheckedThreads((current) => {
+      const next = new Set(current)
+      if (on) next.add(threadId)
+      else next.delete(threadId)
+      return next
+    })
+  }
+
+  /** Mark every ticked inbox row read, in chunks the route accepts. */
+  async function markCheckedRead() {
+    const ids = checkedRows.map((row) => row.threadId)
+    if (bulkBusy || ids.length === 0) return
+    setBulkBusy(true)
+    setBulkNote('')
+    const done = new Set<string>()
+    try {
+      for (let i = 0; i < ids.length; i += MODIFY_THREADS_PER_REQUEST) {
+        const chunk = ids.slice(i, i + MODIFY_THREADS_PER_REQUEST)
+        await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadIds: chunk, action: 'read' }) })
+        for (const id of chunk) done.add(id)
+      }
+      setBulkNote(`Marked ${done.size} email${done.size === 1 ? '' : 's'} read`)
+    } catch (err) {
+      setBulkNote(`${(err as Error).message}${done.size ? ` (${done.size} marked read before it stopped)` : ''}`)
+    } finally {
+      if (done.size > 0) {
+        setThreads((current) => current.map((row) => (done.has(row.threadId) ? { ...row, unread: false } : row)))
+        setCheckedThreads((current) => new Set([...current].filter((id) => !done.has(id))))
+        void loadCounts()
+      }
+      setBulkBusy(false)
+    }
+  }
+
   async function modify(action: 'archive' | 'read' | 'unread') {
     if (!selectedThreadId) return
     setActionNote('')
@@ -1318,6 +1373,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         cc: state.cc,
         bcc: state.bcc ?? '',
         ...(state.signOff !== undefined ? { signOff: state.signOff } : {}),
+        ...(state.noSignature ? { noSignature: true } : {}),
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,
@@ -1361,6 +1417,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         cc: state.cc,
         bcc: state.bcc ?? '',
         ...(state.signOff !== undefined ? { signOff: state.signOff } : {}),
+        ...(state.noSignature ? { noSignature: true } : {}),
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,
@@ -1387,6 +1444,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         cc: state.cc,
         bcc: state.bcc ?? '',
         ...(state.signOff !== undefined ? { signOff: state.signOff } : {}),
+        ...(state.noSignature ? { noSignature: true } : {}),
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,
@@ -1442,6 +1500,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       cc: item.cc,
       bcc: detail.bcc,
       ...(detail.signOff !== undefined ? { signOff: detail.signOff } : {}),
+      ...(detail.noSignature ? { noSignature: true } : {}),
       subject: item.subject,
       html: detail.html,
       attachments: detail.attachments,
@@ -1536,6 +1595,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         cc: state.cc,
         bcc: state.bcc ?? '',
         ...(state.signOff !== undefined ? { signOff: state.signOff } : {}),
+        ...(state.noSignature ? { noSignature: true } : {}),
         subject: state.subject,
         html: content.html,
         inlineImages: content.inlineImages,
@@ -1940,7 +2000,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         {/* Search sits right above the first email in the list. */}
         <InboxSearch
           value={search}
-          onChange={setSearch}
+          onChange={(value) => {
+            setSearch(value)
+            // Clearing the box (its × or deleting the text) brings the full list back.
+            if (!value.trim() && query.trim()) void runSearch('')
+          }}
           onSubmit={(value) => void runSearch(value)}
           onPickSender={(contact) => {
             setSearch(contact.email)
@@ -1952,9 +2016,35 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           }}
           label={`Search ${FOLDER_LABELS[folder].toLowerCase()}`}
         />
+        {folder === 'inbox' && checkedRows.length > 0 ? (
+          <div className={styles.bulkBar} role="toolbar" aria-label="Selected emails">
+            <span className={styles.bulkCount}>{checkedRows.length} selected</span>
+            <button type="button" className={`${styles.btn} ${styles.primary}`} onClick={() => void markCheckedRead()} disabled={bulkBusy}>
+              {bulkBusy ? 'Marking read…' : 'Mark as read'}
+            </button>
+            <button type="button" className={styles.linkBtn} onClick={() => setCheckedThreads(new Set())} disabled={bulkBusy}>
+              Clear
+            </button>
+          </div>
+        ) : folder === 'inbox' && bulkNote ? (
+          <p className={styles.bulkBar} role="status">
+            {bulkNote}
+          </p>
+        ) : null}
         <ul className={styles.list} aria-label={FOLDER_LABELS[folder]}>
           {threads.map((thread) => (
-            <li key={thread.threadId} className={styles.rowItem}>
+            <li key={thread.threadId} className={`${styles.rowItem} ${folder === 'inbox' ? styles.rowItemSelectable : ''}`}>
+              {folder === 'inbox' ? (
+                <label className={styles.rowCheck}>
+                  <input
+                    type="checkbox"
+                    checked={checkedThreads.has(thread.threadId)}
+                    onChange={(e) => toggleChecked(thread.threadId, e.target.checked)}
+                    disabled={bulkBusy}
+                    aria-label={`Select ${senderName(thread.from)}: ${thread.subject || '(no subject)'}`}
+                  />
+                </label>
+              ) : null}
               <button
                 type="button"
                 className={`${styles.row} ${thread.unread ? styles.unread : ''} ${thread.threadId === selectedThreadId ? styles.selected : ''}`}
