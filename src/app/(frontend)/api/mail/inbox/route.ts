@@ -74,7 +74,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const join = (...parts: string[]) => parts.filter(Boolean).join(" ") || undefined;
 
   try {
-    const indexLoad = loadClientDomainIndex(ctx.payload, [token.email, token.userEmail].filter(Boolean), { userId: ctx.user.id });
+    const indexLoad = loadClientDomainIndex(ctx.payload, [token.email, token.userEmail].filter(Boolean), {
+      userId: ctx.user.id,
+      overrides: senderClients,
+    });
     // Awaited below; this only stops a Gmail failure first leaving it unhandled.
     indexLoad.catch(() => undefined);
     const accessToken = token.accessToken;

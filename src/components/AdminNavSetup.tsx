@@ -36,9 +36,20 @@ export function collapseOtherNavGroups(nav: ParentNode, pathname: string): void 
 function useFieldInputHints(): void {
   useEffect(() => {
     applyFieldInputHints(document);
-    const observer = new MutationObserver(() => applyFieldInputHints(document));
+    // Coalesce bursts of DOM changes (typing, re-renders) into one pass per frame.
+    let frame = 0;
+    const observer = new MutationObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        applyFieldInputHints(document);
+      });
+    });
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, []);
 }
 

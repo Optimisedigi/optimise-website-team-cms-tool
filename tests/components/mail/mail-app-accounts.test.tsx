@@ -211,6 +211,38 @@ describe('MailApp layout', () => {
   })
 })
 
+describe('MailApp links opened while Mail is open (client email alert, bell)', () => {
+  it('clears the search, shows the whole inbox again and opens the linked email', async () => {
+    const { openCmsMailLink } = await import('@/lib/mail/drafts')
+    window.history.replaceState(null, '', '/admin/mail')
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    const search = screen.getByRole('combobox', { name: 'Search inbox' })
+    fireEvent.change(search, { target: { value: 'invoice' } })
+    fireEvent.submit(search.closest('form') as HTMLFormElement)
+    await waitFor(() => expect(calls.some((call) => call.url.includes('q=invoice'))).toBe(true))
+    calls = []
+
+    const push = vi.fn()
+    expect(openCmsMailLink('/admin/mail?thread=t9', push)).toBe(true)
+    expect(push).not.toHaveBeenCalled()
+    await waitFor(() => expect(calls.some((call) => call.url === '/api/mail/thread/t9')).toBe(true))
+    expect((search as HTMLInputElement).value).toBe('')
+    const inbox = calls.find((call) => call.url.startsWith('/api/mail/inbox'))
+    expect(inbox).toBeTruthy()
+    expect(new URL(inbox?.url ?? '', 'https://cms.test').searchParams.get('q')).toBeNull()
+  })
+
+  it('navigates normally when Mail is not open', async () => {
+    const { openCmsMailLink } = await import('@/lib/mail/drafts')
+    window.history.replaceState(null, '', '/admin/clients')
+    const push = vi.fn()
+    expect(openCmsMailLink('/admin/mail?thread=t9', push)).toBe(false)
+    expect(push).toHaveBeenCalledWith('/admin/mail?thread=t9')
+    window.history.replaceState(null, '', '/')
+  })
+})
+
 describe('MailApp breadcrumb account switcher', () => {
   it('offers adding accounts that have their own sign-in app (another Workspace, a personal Gmail)', async () => {
     const baseFetch = global.fetch

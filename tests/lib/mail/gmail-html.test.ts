@@ -111,7 +111,7 @@ describe('compose line spacing', () => {
       ),
     )
     expect(html).toContain(
-      '<div dir="ltr"><span style="white-space: pre-wrap;">Hey,</span></div><div><span>1</span></div><div><span>2</span></div>' +
+      '<div dir="ltr"><span>Hey,</span></div><div><span>1</span></div><div><span>2</span></div>' +
         '<div><br></div><div><span>Bullet points:</span></div><ol ',
     )
     expect(html).toContain('</ol><div><br></div><div><span>Thanks,</span></div></div>')
@@ -175,3 +175,33 @@ describe('inlineEmailListStyles', () => {
     expect(html).not.toMatch(/<br><br><ul/)
   })
 })
+
+describe("flattenPreWrapWhitespace (replies quoted by Outlook keep reflowing)", () => {
+  it("drops the editor's pre-wrap, so a line break a server or Outlook inserts is just a space", async () => {
+    const { flattenPreWrapWhitespace } = await import("@/lib/mail/gmail-html");
+    const editor = '<div dir="ltr"><span style="white-space: pre-wrap;">To improve conversions across Google ads</span></div>';
+    const out = flattenPreWrapWhitespace(editor);
+    expect(out).toBe('<div dir="ltr"><span>To improve conversions across Google ads</span></div>');
+    expect(out).not.toMatch(/white-space/);
+  });
+
+  it("writes out what pre-wrap preserved: line breaks, runs of spaces, tabs and a leading space", async () => {
+    const { flattenPreWrapWhitespace } = await import("@/lib/mail/gmail-html");
+    expect(flattenPreWrapWhitespace('<span style="color:red;white-space:pre-wrap">a  b\tc\n d</span>')).toBe(
+      '<span style="color:red">a&nbsp; b&nbsp;&nbsp;&nbsp;&nbsp;c<br>&nbsp;d</span>',
+    );
+    expect(flattenPreWrapWhitespace('<p style="white-space:pre-line">one\ntwo  three</p>')).toBe("<p>one<br>two  three</p>");
+  });
+
+  it("follows inheritance and leaves normal text, <pre> and attributes alone", async () => {
+    const { flattenPreWrapWhitespace } = await import("@/lib/mail/gmail-html");
+    expect(flattenPreWrapWhitespace('<div style="white-space:pre-wrap"><b>x\ny</b><span style="white-space:normal">p\nq</span></div>')).toBe(
+      "<div><b>x<br>y</b><span style=\"white-space:normal\">p\nq</span></div>",
+    );
+    expect(flattenPreWrapWhitespace('<pre style="white-space:pre-wrap">a\n  b</pre>')).toBe('<pre style="white-space:pre-wrap">a\n  b</pre>');
+    expect(flattenPreWrapWhitespace("<p>a\nb</p>")).toBe("<p>a\nb</p>");
+    expect(flattenPreWrapWhitespace('<span style="white-space:pre-wrap">a<br>b <a href="x?a=1&amp;b=2">l</a></span>')).toBe(
+      '<span>a<br>b <a href="x?a=1&amp;b=2">l</a></span>',
+    );
+  });
+});

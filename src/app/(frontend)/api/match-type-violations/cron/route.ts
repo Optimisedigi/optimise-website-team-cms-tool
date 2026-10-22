@@ -43,6 +43,21 @@ async function checkConsolidation(
   clientIdMap: Map<string | number, any>,
 ): Promise<ConsolidationResult> {
   let created = 0;
+  // Admins are notified about every new candidate; looked up once, on the first one.
+  let adminIds: Array<string | number> | null = null;
+  const loadAdminIds = async (): Promise<Array<string | number>> => {
+    if (adminIds) return adminIds;
+    const admins = await (payload.find as any)({
+      collection: "users",
+      where: { role: { equals: "admin" } },
+      depth: 0,
+      limit: 100,
+      overrideAccess: true,
+      select: { id: true },
+    });
+    adminIds = (admins.docs as any[]).map((admin) => (typeof admin.id === "object" ? (admin.id as any).id : admin.id));
+    return adminIds;
+  };
 
   for (const clientDoc of clientDocs) {
     const clientId =
@@ -51,7 +66,7 @@ async function checkConsolidation(
     const customerId = clientData?.googleAdsCustomerId as string | null;
     if (!customerId) continue;
 
-    // Fetch all active NKLs for this client
+    // Fetch all active NKLs for this client (only the name and keywords are used)
     const nklResult = await (payload.find as any)({
       collection: "negative-keyword-lists",
       where: {
@@ -60,9 +75,10 @@ async function checkConsolidation(
           { isActive: { equals: true } },
         ],
       },
-      depth: 1,
+      depth: 0,
       limit: 500,
       overrideAccess: true,
+      select: { name: true, keywords: true },
     });
 
     for (const nkl of nklResult.docs) {
@@ -151,17 +167,8 @@ async function checkConsolidation(
         const candidateId = typeof candidateDoc.id === "object" ? (candidateDoc.id as any).id : candidateDoc.id;
 
         // Notify all admins
-        const admins = await (payload.find as any)({
-          collection: "users",
-          where: { role: { equals: "admin" } },
-          depth: 0,
-          limit: 100,
-          overrideAccess: true,
-        });
-
-        for (const admin of admins.docs) {
-          const adminId = typeof admin.id === "object" ? (admin.id as any).id : admin.id;
-          await (payload.create as any)({
+        await Promise.all((await loadAdminIds()).map((adminId) =>
+          (payload.create as any)({
             collection: "notifications" as never,
             data: {
               recipient: adminId,
@@ -175,8 +182,8 @@ async function checkConsolidation(
               relatedConsolidationCandidate: candidateId,
             },
             overrideAccess: true,
-          });
-        }
+          }),
+        ));
       }
     }
   }
@@ -344,11 +351,35 @@ async function hideExistingKeywordCandidate(
   return Number(result.rowsAffected ?? 0) > 0;
 }
 
+type ExistingCandidates = Map<string, { id: number; status: string }>;
+
+const candidateKey = (searchTerm: string, triggeringKeyword: string) => JSON.stringify([searchTerm, triggeringKeyword]);
+
+/** Every candidate row for a client in one query, keyed by search term + triggering keyword. */
+async function loadExistingCandidates(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  clientId: number,
+): Promise<ExistingCandidates> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = ((payload as any).db as { client: { execute: (sql: string) => Promise<unknown> } }).client;
+  const result = await db.execute(
+    `SELECT id, status, search_term, triggering_keyword FROM match_type_violation_candidates
+     WHERE client_id = ${Number(clientId)};`,
+  ) as { rows: Array<{ id: number; status: string; search_term: string; triggering_keyword: string }> };
+  const rows: ExistingCandidates = new Map();
+  for (const row of result.rows) {
+    const key = candidateKey(row.search_term, row.triggering_keyword);
+    if (!rows.has(key)) rows.set(key, { id: Number(row.id), status: row.status });
+  }
+  return rows;
+}
+
 async function upsertViolation(
   payload: Awaited<ReturnType<typeof getPayload>>,
   clientId: number,
   v: Violation,
   now: string,
+  existingRows: ExistingCandidates,
 ): Promise<boolean> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = ((payload as any).db as { client: { execute: (sql: string) => Promise<unknown> } }).client;
@@ -367,16 +398,23 @@ async function upsertViolation(
 
   // Check for an existing candidate before skip guards so previously-visible
   // pending rows can be hidden when the detector later reports conversions.
-  const existing = await db.execute(
-    `SELECT id, status FROM match_type_violation_candidates
-     WHERE client_id = ${Number(clientId)}
-       AND search_term = ${esc(v.searchTerm)}
-       AND triggering_keyword = ${esc(v.triggeringKeyword)}
-     LIMIT 1;`,
-  ) as { rows: Array<{ id: number; status: string }> };
+  // Rows come from loadExistingCandidates (one query per client); a row inserted
+  // earlier in this run has no id yet, so it is looked up on its own.
+  const key = candidateKey(v.searchTerm, v.triggeringKeyword);
+  let known = existingRows.get(key);
+  if (known && !Number.isFinite(known.id)) {
+    const fresh = await db.execute(
+      `SELECT id, status FROM match_type_violation_candidates
+       WHERE client_id = ${Number(clientId)}
+         AND search_term = ${esc(v.searchTerm)}
+         AND triggering_keyword = ${esc(v.triggeringKeyword)}
+       LIMIT 1;`,
+    ) as { rows: Array<{ id: number; status: string }> };
+    known = fresh.rows[0];
+  }
 
-  if (existing.rows.length > 0) {
-    const doc = existing.rows[0];
+  if (known) {
+    const doc = known;
     if (conversions > 0) {
       if (doc.status === 'pending') {
         await db.execute(
@@ -391,6 +429,8 @@ async function upsertViolation(
              run_date = ${esc(today)}
            WHERE id = ${doc.id};`,
         );
+        // Keep the prefetched status current for a repeat of this term later in the run.
+        existingRows.set(key, { id: doc.id, status: 'rejected' });
       } else {
         await db.execute(
           `UPDATE match_type_violation_candidates SET
@@ -454,6 +494,7 @@ async function upsertViolation(
          'pending', ${esc(now)}, ${esc(now)}, ${esc(today)}, ${esc(now)}, ${esc(now)}
        );`,
     );
+    existingRows.set(key, { id: Number.NaN, status: 'pending' });
   }
 
   return true;
@@ -560,9 +601,10 @@ async function syncClient(
   }
 
   let createdOrUpdated = 0;
+  const existingRows = violations.length > 0 ? await loadExistingCandidates(payload, clientId as number) : new Map();
 
   for (const v of violations) {
-    const wasUpserted = await upsertViolation(payload, clientId as number, v, now);
+    const wasUpserted = await upsertViolation(payload, clientId as number, v, now, existingRows);
     if (wasUpserted) {
       createdOrUpdated++;
     } else {
@@ -661,15 +703,35 @@ export async function GET(req: NextRequest) {
       if (dbClient) await dbClient.execute("DELETE FROM `match_type_sync_state`");
     }
 
-    // Only process clients that have the monitor enabled
-    const clientsResult = await (payload.find as any)({
-    collection: "clients",
-    where: {
+    const monitoredWhere = {
       and: [
         { googleAdsCustomerId: { exists: true } },
         { "gadsAuto.matchTypeMonitorEnabled": { equals: true } },
       ],
-    },
+    };
+
+    // Outside the sync hour (most runs) there is nothing to do: report and stop
+    // before loading the clients.
+    if (!doSync) {
+      const monitored = await (payload.count as any)({ collection: "clients", where: monitoredWhere, overrideAccess: true });
+      return NextResponse.json({
+        ok: true,
+        agencyTimezone,
+        localHour: Number(localHour),
+        syncHour,
+        doSync,
+        processed: 0,
+        errors: 0,
+        skipped: 0,
+        consolidationCandidatesCreated: 0,
+        totalMonitoredClients: monitored.totalDocs,
+      });
+    }
+
+    // Only process clients that have the monitor enabled
+    const clientsResult = await (payload.find as any)({
+    collection: "clients",
+    where: monitoredWhere,
     limit: 500,
     depth: 0,
     overrideAccess: true,
@@ -686,21 +748,29 @@ export async function GET(req: NextRequest) {
       clientIdMap.set(id, doc);
     }
 
+    // Every client's sync state in one query (idempotency guard below).
+    const syncStates = new Map<string | number, any>();
+    if (doSync && clientIdMap.size > 0) {
+      const syncStateResult = await (payload.find as any)({
+        collection: "match-type-sync-state",
+        where: { client: { in: [...clientIdMap.keys()] } },
+        limit: clientIdMap.size * 2,
+        depth: 0,
+        overrideAccess: true,
+      });
+      for (const state of syncStateResult.docs as any[]) {
+        const stateClient = typeof state.client === "object" && state.client !== null ? state.client.id : state.client;
+        if (!syncStates.has(stateClient)) syncStates.set(stateClient, state);
+      }
+    }
+
     for (const clientDoc of clientsResult.docs) {
       const clientId =
         typeof clientDoc.id === "object" ? (clientDoc.id as any).id : clientDoc.id;
 
       if (doSync) {
       // Full sync — check idempotency guard
-      const syncStateResult = await (payload.find as any)({
-        collection: "match-type-sync-state",
-        where: { client: { equals: clientId } },
-        limit: 1,
-        depth: 0,
-        overrideAccess: true,
-      });
-
-      const existingState = syncStateResult.docs[0] as any;
+      const existingState = syncStates.get(clientId) as any;
       if (existingState?.lastRunAt) {
         const lastRunMs = new Date(existingState.lastRunAt).getTime();
         if (Date.now() - lastRunMs < IDEMPOTENCY_GUARD_MS) {

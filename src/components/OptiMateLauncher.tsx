@@ -1,24 +1,48 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { useAuth } from '@payloadcms/ui'
-import OptiMateMultiChat, {
-  type OptiMateChatTarget,
-  type OptiMateMultiChatHandle,
-} from './OptiMateMultiChat'
+import type { OptiMateChatTarget, OptiMateMultiChatHandle } from './OptiMateMultiChat'
 import { buildGoogleMatePopoutUrl } from '@/lib/optimate-popout-url'
 import { stashChatHandoff, type ChatHandoffRef } from '@/lib/optimate-chat-handoff'
 import { OPTIMATE_OPENED_EVENT } from '@/lib/optimate-events'
-import InvoiceAssistantChat from './InvoiceAssistantChat'
-import GmailReplyChat from './GmailReplyChat'
-import TaskMateChat from './TaskMateChat'
-import AdminMateChat from './AdminMateChat'
-import ContentMateChat from './ContentMateChat'
 import { hasBlogAccess } from '@/lib/access'
 import { useIsMobileViewport, useSwipeBack } from '@/lib/swipe'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 import { OPTIMATE_MODAL_CSS } from './optimate-modal-styles'
 import RocketSplash from './RocketSplash'
+
+/**
+ * The chats load only when the panel opens one (they are most of OptiMate's
+ * code, and this launcher is on every admin page). Hovering or focusing the
+ * orb starts loading them so opening still feels instant.
+ */
+const loadMultiChat = () => import('./OptiMateMultiChat')
+const loadInvoiceChat = () => import('./InvoiceAssistantChat')
+const loadGmailChat = () => import('./GmailReplyChat')
+const loadTaskMateChat = () => import('./TaskMateChat')
+const loadAdminMateChat = () => import('./AdminMateChat')
+const loadContentMateChat = () => import('./ContentMateChat')
+const OptiMateMultiChat = lazy(loadMultiChat)
+const InvoiceAssistantChat = lazy(loadInvoiceChat)
+const GmailReplyChat = lazy(loadGmailChat)
+const TaskMateChat = lazy(loadTaskMateChat)
+const AdminMateChat = lazy(loadAdminMateChat)
+const ContentMateChat = lazy(loadContentMateChat)
+
+function preloadChats(): void {
+  for (const load of [loadMultiChat, loadInvoiceChat, loadGmailChat, loadTaskMateChat, loadAdminMateChat, loadContentMateChat]) {
+    void load().catch(() => undefined)
+  }
+}
+
+function ChatLoading() {
+  return (
+    <div className="om-accounts-loading" role="status" aria-label="Loading chat">
+      <RocketSplash compact onLight whiteRocket />
+    </div>
+  )
+}
 
 type AgentKey = 'google-ads' | 'invoices' | 'taskmate' | 'adminmate' | 'contentmate'
 
@@ -137,7 +161,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
   // Tell floating windows (mail compose) to minimise so they don't cover OptiMate.
   useEffect(() => {
-    if (open) window.dispatchEvent(new Event(OPTIMATE_OPENED_EVENT))
+    if (!open) return
+    window.dispatchEvent(new Event(OPTIMATE_OPENED_EVENT))
+    // Opened without the orb (e.g. a TaskMate link): fetch the chats now.
+    preloadChats()
   }, [open])
 
   // Reset to agent step when closing the panel.
@@ -272,6 +299,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
         <button
           type="button"
           className="om-launcher"
+          onPointerEnter={preloadChats}
+          onFocus={preloadChats}
           onClick={() => {
             setOpen(true)
             pomo.requestNotificationPermission()
@@ -744,6 +773,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               </div>
             )}
 
+            <Suspense fallback={<ChatLoading />}>
             {step === 'chat' && (selectedAudits.length > 0 || portfolioSelected) && (
               <OptiMateMultiChat
                 ref={multiChatRef}
@@ -778,6 +808,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             {step === 'email-reply' && <GmailReplyChat initialPhase="search" />}
 
             {step === 'email-summarise' && <GmailReplyChat initialPhase="search" initialSummariseMode />}
+            </Suspense>
           </div>
         </div>
       )}

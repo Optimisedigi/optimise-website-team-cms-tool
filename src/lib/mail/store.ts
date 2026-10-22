@@ -20,6 +20,8 @@ import {
 import type { GmailFullMessage } from '@/lib/gmail-search'
 import { isHiddenSender, loadHiddenSenders } from './hidden-senders'
 import { loadSenderClients } from './sender-clients'
+import { cachedMatchableClients } from './client-index-cache'
+import type { SenderClientOverride } from './client-matching'
 import { isAutomatedMessage } from './automated-senders'
 import {
   MAX_ALERTS_PER_SYNC,
@@ -142,24 +144,31 @@ export async function storeClientEmail(
 export async function loadClientDomainIndex(
   payload: Pick<Payload, 'find'>,
   ownAddresses: string[],
-  options: { userId?: number } = {},
+  /** `overrides`: the user's sender → client choices, when the caller already loaded them. */
+  options: { userId?: number; overrides?: SenderClientOverride[] } = {},
 ): Promise<ClientDomainIndex> {
-  const overrides = options.userId === undefined ? [] : await loadSenderClients(payload, options.userId)
-  const res = await payload.find({
-    collection: 'clients',
-    limit: 0,
-    pagination: false,
-    depth: 0,
-    overrideAccess: true,
-    select: {
-      name: true,
-      websiteUrl: true,
-      contactEmail: true,
-      additionalContacts: true,
-      isActive: true,
-    },
-  } as never)
-  return buildClientDomainIndex((res as { docs: MatchableClient[] }).docs, { ownAddresses, overrides })
+  const [overrides, clients] = await Promise.all([
+    options.overrides ?? (options.userId === undefined ? [] : loadSenderClients(payload, options.userId)),
+    // Read on nearly every Mail request, so shared for a minute (client-index-cache.ts).
+    cachedMatchableClients(async () => {
+      const res = await payload.find({
+        collection: 'clients',
+        limit: 0,
+        pagination: false,
+        depth: 0,
+        overrideAccess: true,
+        select: {
+          name: true,
+          websiteUrl: true,
+          contactEmail: true,
+          additionalContacts: true,
+          isActive: true,
+        },
+      } as never)
+      return (res as { docs: MatchableClient[] }).docs
+    }),
+  ])
+  return buildClientDomainIndex(clients, { ownAddresses, overrides })
 }
 
 export function toClientEmailInput(args: {

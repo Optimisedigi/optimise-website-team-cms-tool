@@ -235,6 +235,9 @@
 
 .rowItem {
   position: relative;
+  /* Long lists (many "load more" pages): rows off screen skip layout and paint. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
 }
 
 .deleteDraft {

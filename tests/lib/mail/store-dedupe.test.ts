@@ -1,5 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_BODY_STORED, storeClientEmail, syncMailbox } from "@/lib/mail/store";
+import { invalidateMatchableClients } from "@/lib/mail/client-index-cache";
+
+// Each test brings its own clients; the shared one-minute copy must not leak between them.
+beforeEach(() => invalidateMatchableClients());
 
 vi.mock("@/lib/agents/_shared/llm", () => ({ callLLM: vi.fn(() => { throw new Error("model must not be called during sync"); }) }));
 

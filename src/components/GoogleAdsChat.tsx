@@ -1,7 +1,11 @@
 'use client'
 
+import { lazy, Suspense } from 'react'
 import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
-import OptiMateChatCore from './OptiMateChatCore'
+
+// Payload's import map puts every field component into every admin page's
+// JavaScript, so the (large) chat loads only when this field renders.
+const OptiMateChatCore = lazy(() => import('./OptiMateChatCore'))
 
 /**
  * Payload field wrapper for the OptiMate chat. Reads the audit's id, businessName,
@@ -29,11 +33,13 @@ const GoogleAdsChat = () => {
     <div
       style={{ display: 'flex', minHeight: 520, overflow: 'hidden', borderRadius: 20, background: '#1c1c1e', color: '#f5f5f7' }}
     >
-      <OptiMateChatCore
-        auditId={id}
-        customerId={customerId}
-        businessName={businessName}
-      />
+      <Suspense fallback={<div style={{ padding: 16, color: '#9ca3af', fontSize: 13 }}>Loading chat…</div>}>
+        <OptiMateChatCore
+          auditId={id}
+          customerId={customerId}
+          businessName={businessName}
+        />
+      </Suspense>
     </div>
   )
 }

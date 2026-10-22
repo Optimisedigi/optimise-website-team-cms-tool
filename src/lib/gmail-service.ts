@@ -1,7 +1,7 @@
 import { google } from "googleapis";
 import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
 import { createGmailOAuthClient, gmailAppForEmail, gmailSignInHint, type GmailOAuthApp } from "@/lib/gmail-oauth-apps";
-import { declarationProperty, splitDeclarations } from "@/lib/mail/gmail-html";
+import { declarationProperty, flattenPreWrapWhitespace, splitDeclarations } from "@/lib/mail/gmail-html";
 import { withEditedSignOff } from "@/lib/mail/signature";
 import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
 
@@ -209,7 +209,14 @@ export function buildMimeMessage(args: {
     lines.push(`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`);
   }
 
-  const htmlPart = ['Content-Type: text/html; charset="UTF-8"', "Content-Transfer-Encoding: 7bit", "", htmlBody];
+  // Base64 in 76-character lines: 7bit allows neither non-ASCII text nor lines over
+  // 998 characters, and servers that re-wrap an over-long line change the HTML.
+  const htmlPart = [
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrapBase64(Buffer.from(htmlBody, "utf-8")),
+  ];
   const newBoundary = () => `----=_OptiMate_${crypto.randomUUID().replaceAll("-", "")}`;
 
   // Body = the HTML alone, or HTML + its inline images as multipart/related.
@@ -350,7 +357,9 @@ function normaliseParagraphBreaks(html: string): string {
 }
 
 export function formatGmailDraftHtml(htmlBody: string): string {
-  const trimmed = htmlBody.trim();
+  // No pre-wrap text in what we send: Outlook and some servers re-wrap long HTML
+  // lines, and inside pre-wrap those breaks show up mid-sentence in replies.
+  const trimmed = flattenPreWrapWhitespace(htmlBody.trim());
   if (!trimmed) return `<div style="${GMAIL_DRAFT_FONT_STYLE}"></div>`;
   if (trimmed.includes("data-optimate-gmail-draft-font")) return trimmed;
   const normalised = normaliseFontStyles(normaliseParagraphBreaks(trimmed));

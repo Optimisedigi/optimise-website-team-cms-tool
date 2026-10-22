@@ -113,6 +113,25 @@ describe("formatGmailDraftHtml", () => {
   });
 });
 
+describe("outgoing HTML survives Outlook and mail servers", () => {
+  it("sends the HTML part as base64 in short lines, so no server re-wraps it", () => {
+    const decode = (encoded: string) => Buffer.from(encoded, "base64url").toString("utf8");
+    const long = `<div>${"word ".repeat(400)}first month’s salary</div>`;
+    const mime = decode(buildMimeMessage({ to: "a@x.com", subject: "Hi", htmlBody: long }));
+    expect(mime).toContain('Content-Type: text/html; charset="UTF-8"\r\nContent-Transfer-Encoding: base64\r\n');
+    expect(mime.split("\r\n").every((line) => line.length <= 998)).toBe(true);
+    const body = mime.split("Content-Transfer-Encoding: base64\r\n\r\n")[1] ?? "";
+    expect(body.split("\r\n").every((line) => line.length <= 76)).toBe(true);
+    expect(Buffer.from(body.replace(/\r\n/g, ""), "base64").toString("utf8")).toBe(long);
+  });
+
+  it("removes the editor's pre-wrap so a quoted copy in a reply still reflows", () => {
+    const html = formatGmailDraftHtml('<div><span style="white-space: pre-wrap;">To improve conversions</span></div>');
+    expect(html).not.toMatch(/white-space/);
+    expect(html).toContain("<span>To improve conversions</span>");
+  });
+});
+
 describe("buildMimeMessage Bcc", () => {
   it("writes Cc and Bcc headers on their own lines", () => {
     const decode = (encoded: string) => Buffer.from(encoded, "base64url").toString("utf8");

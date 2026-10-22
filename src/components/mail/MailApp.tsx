@@ -16,7 +16,7 @@ import {
   normaliseClientSender,
 } from '../../lib/mail/client-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
-import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
+import { MAIL_DRAFT_QUERY_PARAM, MAIL_OPEN_LINK_EVENT, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
 import { MAIL_TABS, mailTabLabel, unreadFirst, type MailFolder, type MailTab, type MailTabCounts } from '../../lib/mail/folders'
 import ScheduledPanel, { type ScheduledDetail, type ScheduledItem } from './ScheduledPanel'
 import AwaitingPanel, { type FollowUpItem } from './AwaitingPanel'
@@ -925,39 +925,90 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     [openThread, showError],
   )
 
-  // Open a draft linked from OptiMate, then drop the param so a refresh doesn't reopen it.
+  /**
+   * Show the whole inbox again: clear the search and leave the Scheduled /
+   * Awaiting tabs, so an email opened from a link is not hidden behind an
+   * earlier search.
+   */
+  const showFullInbox = useCallback(() => {
+    const searched = query.trim() !== '' || search.trim() !== ''
+    setSearch('')
+    setQuery('')
+    setSearchSenders([])
+    querySenders.current = []
+    setShowScheduled(false)
+    setShowAwaiting(false)
+    setSelectedScheduledId(null)
+    if (folder !== 'inbox') {
+      setFolder('inbox')
+      setThreads([])
+      setNextPageToken(null)
+      void loadInbox({ folder: 'inbox' })
+    } else if (searched) {
+      void loadInbox({ folder: 'inbox' })
+    }
+  }, [folder, loadInbox, query, search])
+
+  /**
+   * Open a Mail link (`?thread=`, `?draft=`, `&account=`): from the URL when the
+   * page loads, or from the client email alert / bell while Mail is already open.
+   */
+  const openLink = useCallback(
+    (params: URLSearchParams, fromPageLoad: boolean) => {
+      const threadId = params.get(MAIL_THREAD_QUERY_PARAM)
+      const draftMessageId = params.get(MAIL_DRAFT_QUERY_PARAM)
+      if (!fromPageLoad && (threadId || draftMessageId)) {
+        // On page load the account was already picked from `?account=` (see above).
+        const accountParam = params.get(MAIL_ACCOUNT_QUERY_PARAM)
+        const before = accountRef.current
+        if (accountParam !== null) switchAccountRef.current(accountParam)
+        // switchAccount already resets the search and folder; otherwise do it here.
+        if (accountRef.current === before) showFullInbox()
+      }
+      if (draftMessageId) void openDraft(draftMessageId)
+      if (threadId && isGmailId(threadId)) {
+        void openThread({
+          threadId,
+          messageId: '',
+          from: '',
+          to: '',
+          subject: '',
+          snippet: '',
+          date: '',
+          unread: true,
+          messageCount: 0,
+          client: null,
+        })
+      }
+    },
+    [openDraft, openThread, showFullInbox],
+  )
+  const openLinkRef = useRef(openLink)
+  openLinkRef.current = openLink
+
+  // Links in the URL when Mail loads; drop the params so a refresh doesn't reopen them.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const draftMessageId = params.get(MAIL_DRAFT_QUERY_PARAM)
-    if (!draftMessageId) return
+    if (!params.get(MAIL_THREAD_QUERY_PARAM) && !params.get(MAIL_DRAFT_QUERY_PARAM)) return
+    const link = new URLSearchParams(params)
+    params.delete(MAIL_THREAD_QUERY_PARAM)
     params.delete(MAIL_DRAFT_QUERY_PARAM)
     const rest = params.toString()
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`)
-    void openDraft(draftMessageId)
-  }, [openDraft])
+    openLinkRef.current(link, true)
+  }, [])
 
-  // Open a thread linked from the client email alert (`?thread=<id>`), then drop the param.
+  // Links opened while Mail is already on screen (openCmsMailLink).
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const threadId = params.get(MAIL_THREAD_QUERY_PARAM)
-    if (!threadId) return
-    params.delete(MAIL_THREAD_QUERY_PARAM)
-    const rest = params.toString()
-    window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`)
-    if (!isGmailId(threadId)) return
-    void openThread({
-      threadId,
-      messageId: '',
-      from: '',
-      to: '',
-      subject: '',
-      snippet: '',
-      date: '',
-      unread: true,
-      messageCount: 0,
-      client: null,
-    })
-  }, [openThread])
+    const onOpen = (event: Event) => {
+      const url = (event as CustomEvent<{ url?: unknown }>).detail?.url
+      if (typeof url !== 'string') return
+      const start = url.indexOf('?')
+      openLinkRef.current(new URLSearchParams(start >= 0 ? url.slice(start + 1) : ''), false)
+    }
+    window.addEventListener(MAIL_OPEN_LINK_EVENT, onOpen)
+    return () => window.removeEventListener(MAIL_OPEN_LINK_EVENT, onOpen)
+  }, [])
 
   const selectedThread = useMemo(() => threads.find((t) => t.threadId === selectedThreadId) ?? null, [threads, selectedThreadId])
   const latest = messages[messages.length - 1] ?? null

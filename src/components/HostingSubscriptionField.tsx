@@ -2,7 +2,7 @@
 
 import { useAuth, useDocumentInfo, useField, useForm } from '@payloadcms/ui'
 import { userHasFeature } from '@/lib/access'
-import { HOSTING_OFFER_LINK_DAYS } from '@/lib/hosting-billing'
+import { HOSTING_OFFER_LINK_DAYS } from '@/lib/hosting-billing-shared'
 import type { HostingPayment, HostingPaymentsSummary } from '@/lib/hosting-payments'
 import { HostingOneOffPayments } from './HostingOneOffPayments'
 import { useCallback, useEffect, useMemo, useState } from 'react'

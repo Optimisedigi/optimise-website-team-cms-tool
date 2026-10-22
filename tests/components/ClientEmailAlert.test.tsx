@@ -147,6 +147,22 @@ describe("ClientEmailAlert (drop-down under the bell)", () => {
     expect(push).toHaveBeenCalledWith("/admin/mail?thread=t7");
   });
 
+  it("Open email works when Mail is already open (the open page opens it, no same-page navigation)", async () => {
+    window.history.replaceState(null, "", "/admin/mail");
+    const opened = vi.fn();
+    window.addEventListener("od:mail-open-link", opened);
+    mount();
+    await flush();
+    alertsResponse = [alert(9)];
+    await nextPoll();
+    fireEvent.click(screen.getByText("Open email"));
+    expect(push).not.toHaveBeenCalled();
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect((opened.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ url: "/admin/mail?thread=t9" });
+    window.removeEventListener("od:mail-open-link", opened);
+    window.history.replaceState(null, "", "/");
+  });
+
   it("is held back while the bell list is open", async () => {
     const { rerender, onArrive } = mount({ suppressed: true });
     await flush();

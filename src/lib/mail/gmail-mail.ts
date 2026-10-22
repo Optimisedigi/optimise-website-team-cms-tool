@@ -23,10 +23,17 @@ export interface InboxThreadSummary {
 
 export class GmailHistoryExpiredError extends Error {}
 
+/**
+ * Per-request limit for Gmail calls. googleapis has no timeout by default, so
+ * a stuck request held the function open until Vercel's maxDuration. Generous
+ * enough for sending or downloading a message with large attachments.
+ */
+export const GMAIL_REQUEST_TIMEOUT_MS = 30_000;
+
 function gmailApi(accessToken: string): gmail_v1.Gmail {
   const auth = new google.auth.OAuth2();
   auth.setCredentials({ access_token: accessToken });
-  return google.gmail({ version: "v1", auth });
+  return google.gmail({ version: "v1", auth, timeout: GMAIL_REQUEST_TIMEOUT_MS });
 }
 
 function isoDate(value: string, internalDate?: string | null): string {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { useAuth } from '@payloadcms/ui'
 import { userHasFeature } from '../lib/access'
 
@@ -76,6 +77,53 @@ function useStickyFeature(user: any, feature: string): boolean {
   return seen.userId === userId && (seen.hasFeature || hasFeature)
 }
 
+/** Highlight the active nav link (and keep its icon visible). */
+function applyActiveStyles() {
+  const currentPath = window.location.pathname
+
+  // Payload v3 renders active nav items as <div class="nav__link"> (no href),
+  // and inactive items as <a class="nav__link" href="...">.
+  // Select only direct .nav__link elements (not child spans like .nav__link-label).
+  const allLinks = document.querySelectorAll('.nav .nav__link')
+  allLinks.forEach((link) => {
+    const el = link as HTMLElement
+    const href = el.getAttribute('href') || ''
+    // Active items: rendered as <div> with .nav__link-indicator child, OR href matches pathname
+    const hasIndicator = !!el.querySelector('.nav__link-indicator')
+    const isActive = hasIndicator || (href.length > 7 && currentPath.startsWith(href) && ["/", undefined].includes(currentPath[href.length]))
+
+    if (isActive) {
+      el.style.background = 'rgba(56, 189, 248, 0.12)'
+      el.style.borderRadius = '6px'
+      el.style.color = '#38bdf8'
+      el.classList.add('od-nav-active')
+    } else {
+      el.style.background = ''
+      el.style.borderRadius = ''
+      el.style.color = ''
+      el.classList.remove('od-nav-active')
+    }
+  })
+}
+
+/** Runs `fn` at most once per animation frame. */
+function oncePerFrame(fn: () => void): { run: () => void; cancel: () => void } {
+  let frame = 0
+  return {
+    run: () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        fn()
+      })
+    },
+    cancel: () => {
+      if (frame) cancelAnimationFrame(frame)
+      frame = 0
+    },
+  }
+}
+
 const SidebarNavExtras = () => {
   const { user } = useAuth()
   const canIntegrations = useStickyFeature(user, 'nav:integrations')
@@ -88,45 +136,8 @@ const SidebarNavExtras = () => {
   const canContractorCosts = canContractorCostsNav || canContractorsCollection
   const canClientPulse = useStickyFeature(user, 'nav:client-pulse')
   const canCosts = useStickyFeature(user, 'business-costs')
+  const pathname = usePathname()
 
-  // Watch for active nav link and apply highlight + keep icon visible
-  useEffect(() => {
-    let prevPath = ''
-
-    function applyActiveStyles() {
-      const currentPath = window.location.pathname
-      if (currentPath === prevPath) return
-      prevPath = currentPath
-
-      // Payload v3 renders active nav items as <div class="nav__link"> (no href),
-      // and inactive items as <a class="nav__link" href="...">.
-      // Select only direct .nav__link elements (not child spans like .nav__link-label).
-      const allLinks = document.querySelectorAll('.nav .nav__link')
-      allLinks.forEach((link) => {
-        const el = link as HTMLElement
-        const href = el.getAttribute('href') || ''
-        // Active items: rendered as <div> with .nav__link-indicator child, OR href matches pathname
-        const hasIndicator = !!el.querySelector('.nav__link-indicator')
-        const isActive = hasIndicator || (href.length > 7 && currentPath.startsWith(href) && ["/", undefined].includes(currentPath[href.length]))
-
-        if (isActive) {
-          el.style.background = 'rgba(56, 189, 248, 0.12)'
-          el.style.borderRadius = '6px'
-          el.style.color = '#38bdf8'
-          el.classList.add('od-nav-active')
-        } else {
-          el.style.background = ''
-          el.style.borderRadius = ''
-          el.style.color = ''
-          el.classList.remove('od-nav-active')
-        }
-      })
-    }
-
-    applyActiveStyles()
-    const interval = setInterval(applyActiveStyles, 500)
-    return () => clearInterval(interval)
-  }, [])
 
   useEffect(() => {
     const injectCustomNavLinks = () => {
@@ -266,8 +277,6 @@ const SidebarNavExtras = () => {
       )
     }
 
-    injectCustomNavLinks()
-    const injectInterval = setInterval(injectCustomNavLinks, 500)
 
     // Hide auto-generated collection links that already have a custom hub
     // page injected above them. The records remain reachable by URL — the
@@ -307,16 +316,37 @@ const SidebarNavExtras = () => {
         reportsGroup.style.display = 'none'
       }
     }
-    hideAutoCollectionLinks()
-    const hideInterval = setInterval(hideAutoCollectionLinks, 500)
 
     // Icons for collection/global nav links are now handled via CSS ::before in custom.scss
 
+    const syncNav = () => {
+      injectCustomNavLinks()
+      hideAutoCollectionLinks()
+      applyActiveStyles()
+    }
+    syncNav()
+    // Re-apply only when Payload re-renders the nav (or it first appears), at most
+    // once a frame. Style and class changes are attribute mutations, which this
+    // does not watch, so our own writes never re-trigger it.
+    const frame = oncePerFrame(syncNav)
+    let navSeen = Boolean(document.querySelector('.nav'))
+    const observer = new MutationObserver((records) => {
+      const nav = document.querySelector('.nav')
+      const navAppeared = Boolean(nav) && !navSeen
+      navSeen = Boolean(nav)
+      if (navAppeared || records.some((record) => nav?.contains(record.target))) frame.run()
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
     return () => {
-      clearInterval(injectInterval)
-      clearInterval(hideInterval)
+      observer.disconnect()
+      frame.cancel()
     }
   }, [canIntegrations, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts, canClientPulse, canCosts])
+
+  // A client-side navigation changes which link is active.
+  useEffect(() => {
+    applyActiveStyles()
+  }, [pathname])
 
   // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released
   useEffect(() => {

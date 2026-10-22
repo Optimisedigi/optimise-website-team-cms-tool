@@ -195,12 +195,14 @@ export async function GET() {
     xeroCostsByMonth = byMonth;
   } else try {
     const [bcThisMonth, bcLastMonth, bcUncat] = await Promise.all([
+      // Only the amounts are summed, so only they are read.
       payload.find({
         collection: 'business-costs' as any,
         where: { month: { equals: thisMonthKeyForCosts } },
         limit: 5000,
         depth: 0,
         overrideAccess: true,
+        select: { amount: true } as any,
       }),
       payload.find({
         collection: 'business-costs' as any,
@@ -208,8 +210,10 @@ export async function GET() {
         limit: 5000,
         depth: 0,
         overrideAccess: true,
+        select: { amount: true } as any,
       }),
-      payload.find({
+      // A count, not the rows.
+      payload.count({
         collection: 'business-costs' as any,
         where: {
           or: [
@@ -217,7 +221,6 @@ export async function GET() {
             { category: { equals: null as any } },
           ],
         },
-        limit: 0,
         overrideAccess: true,
       }),
     ]);

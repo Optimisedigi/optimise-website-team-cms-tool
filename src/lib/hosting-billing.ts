@@ -52,8 +52,7 @@ export function createHostingQuote(input: {
   }
 }
 
-/** How long a hosting sign-up link works (same as one-off payment links). */
-export const HOSTING_OFFER_LINK_DAYS = 14
+export { HOSTING_OFFER_LINK_DAYS } from './hosting-billing-shared'
 
 /** Default client-facing renewal note (Hosting Billing Settings → Client terms). */
 export const HOSTING_RENEWAL_NOTE_DEFAULT =

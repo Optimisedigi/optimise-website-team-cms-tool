@@ -198,3 +198,91 @@ export function inlineEmailTableStyles(html: string): string {
     .replace(/<colgroup\b[\s\S]*?<\/colgroup\s*>/gi, "")
     .replace(TAG_RE, (_match, tag: string, attrs: string) => `<${tag.toLowerCase()}${withDefaults(tag.toLowerCase(), attrs)}>`);
 }
+
+/**
+ * Removes `white-space: pre`/`pre-wrap`/`pre-line` from email HTML, keeping
+ * how the text looks.
+ *
+ * Why: the compose editor marks every run of text `white-space: pre-wrap`.
+ * Mail servers and clients (Outlook especially) may re-wrap a message's long
+ * HTML lines with real line breaks when they relay or quote it. In normal
+ * HTML a line break is just a space, but inside pre-wrap text it shows as a
+ * hard break, so the quoted copy in a reply ends up broken mid-sentence
+ * ("To improve" / " conversions"). Gmail's own composer never uses pre-wrap.
+ *
+ * Inside text that was pre-wrap, what the style used to preserve is written
+ * out instead: line breaks become <br>, tabs and runs of spaces become
+ * non-breaking spaces. Text inside <pre> and <textarea> is left alone.
+ */
+const WHITE_SPACE_TOKEN_RE = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>|[^<]+|</g;
+const VOID_TAGS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
+const RAW_TAGS = new Set(["pre", "textarea", "script", "style"]);
+
+type WhiteSpaceMode = "collapse" | "keep-all" | "keep-newlines";
+
+function whiteSpaceModeOf(attrs: string): WhiteSpaceMode | null {
+  const match = attrs.match(STYLE_ATTR_RE);
+  if (!match) return null;
+  let mode: WhiteSpaceMode | null = null;
+  for (const declaration of splitDeclarations(match[2] ?? match[3] ?? "")) {
+    if (declarationProperty(declaration) !== "white-space") continue;
+    const value = declaration.slice(declaration.indexOf(":") + 1).replace(/!important/i, "").trim().toLowerCase();
+    if (value === "pre" || value === "pre-wrap" || value === "break-spaces") mode = "keep-all";
+    else if (value === "pre-line") mode = "keep-newlines";
+    else if (value === "normal" || value === "nowrap") mode = "collapse";
+  }
+  return mode;
+}
+
+function withoutPreWhiteSpace(attrs: string): string {
+  const match = attrs.match(STYLE_ATTR_RE);
+  if (!match) return attrs;
+  const declarations = splitDeclarations(match[2] ?? match[3] ?? "");
+  const kept = declarations.filter((declaration) => {
+    if (declarationProperty(declaration) !== "white-space") return true;
+    return !/^\s*white-space\s*:\s*(?:pre|pre-wrap|pre-line|break-spaces)\b/i.test(declaration);
+  });
+  if (kept.length === declarations.length) return attrs;
+  const quote = match[2] !== undefined ? '"' : "'";
+  return kept.length > 0 ? attrs.replace(STYLE_ATTR_RE, () => `${match[1]}${quote}${kept.join(";")}${quote}`) : attrs.replace(STYLE_ATTR_RE, "");
+}
+
+function preservedText(text: string, mode: WhiteSpaceMode): string {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const out = mode === "keep-all"
+    ? lines.map((line) =>
+        line
+          .replace(/\t/g, "\u00a0\u00a0\u00a0\u00a0")
+          .replace(/ {2,}/g, (run) => `${"\u00a0".repeat(run.length - 1)} `)
+          .replace(/^ /, "\u00a0"),
+      )
+    : lines;
+  return out.join("<br>").replace(/\u00a0/g, "&nbsp;");
+}
+
+export function flattenPreWrapWhitespace(html: string): string {
+  if (!/white-space\s*:\s*(?:pre|break-spaces)/i.test(html)) return html;
+  const stack: Array<{ name: string; mode: WhiteSpaceMode; raw: boolean }> = [];
+  const current = () => stack[stack.length - 1] ?? { name: "", mode: "collapse" as WhiteSpaceMode, raw: false };
+  return html.replace(WHITE_SPACE_TOKEN_RE, (token: string, closing: string | undefined, rawName: string | undefined, attrs: string | undefined) => {
+    if (token.startsWith("<!--") || token === "<") return token;
+    if (rawName === undefined) {
+      const { mode, raw } = current();
+      return raw || mode === "collapse" ? token : preservedText(token, mode);
+    }
+    const name = rawName.toLowerCase();
+    if (closing) {
+      const at = stack.map((entry) => entry.name).lastIndexOf(name);
+      if (at >= 0) stack.length = at;
+      return token;
+    }
+    const parent = current();
+    const raw = parent.raw || RAW_TAGS.has(name);
+    const mode = whiteSpaceModeOf(attrs ?? "") ?? parent.mode;
+    const selfClosing = /\/\s*$/.test(attrs ?? "");
+    if (!VOID_TAGS.has(name) && !selfClosing) stack.push({ name, mode, raw });
+    if (raw) return token;
+    const nextAttrs = withoutPreWhiteSpace(attrs ?? "");
+    return nextAttrs === attrs ? token : `<${rawName}${nextAttrs}>`;
+  });
+}

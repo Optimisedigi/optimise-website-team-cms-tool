@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@payloadcms/ui'
 import { userHasFeature } from '@/lib/access'
+import { openCmsMailLink } from '@/lib/mail/drafts'
 
 /**
  * "Client email" drop-down notification, shown under the top-bar bell
@@ -157,7 +158,7 @@ export default function ClientEmailAlert({
       method: 'POST',
       credentials: 'include',
     }).catch(() => undefined)
-    router.push(current.url || '/admin/mail')
+    openCmsMailLink(current.url || '/admin/mail', (url) => router.push(url))
   }, [current, hide, router])
 
   if (!enabled || !current || suppressed) return null

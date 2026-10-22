@@ -26,6 +26,28 @@ export function isGmailId(value: string): boolean {
   return GMAIL_ID_RE.test(value);
 }
 
+/** Window event the open Mail page listens for: `detail.url` is a `/admin/mail?...` link. */
+export const MAIL_OPEN_LINK_EVENT = "od:mail-open-link";
+
+const MAIL_PATH = "/admin/mail";
+
+/**
+ * Open a CMS Mail link (`?thread=` / `?draft=`, optionally `&account=`).
+ * Mail reads those params when it loads, so a router push to the page you are
+ * already on would change nothing: when Mail is open, the open page is told
+ * directly instead. Returns true when the open Mail page handled it (no
+ * navigation happens), false when `push` was called.
+ */
+export function openCmsMailLink(url: string, push: (url: string) => void): boolean {
+  const onMail = typeof window !== "undefined" && window.location.pathname.replace(/\/+$/, "") === MAIL_PATH;
+  if (onMail && (url === MAIL_PATH || url.startsWith(`${MAIL_PATH}?`))) {
+    window.dispatchEvent(new CustomEvent(MAIL_OPEN_LINK_EVENT, { detail: { url } }));
+    return true;
+  }
+  push(url);
+  return false;
+}
+
 /** CMS Mail path that opens the given Gmail draft message in the compose window. */
 export function cmsMailDraftPath(messageId: string): string {
   return `/admin/mail?${MAIL_DRAFT_QUERY_PARAM}=${encodeURIComponent(messageId)}`;

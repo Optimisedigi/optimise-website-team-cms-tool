@@ -19,7 +19,12 @@ import { requireMailUser } from "@/lib/mail/route-helpers";
  */
 export const maxDuration = 60;
 
-const SYNC_MIN_INTERVAL_MS = 55_000;
+/**
+ * Gmail is synced from here at most every 5 minutes per mailbox (any tab). The
+ * panel still polls every minute, which is a cheap database read; the Mail page
+ * runs its own sync when open, so new mail shows there straight away.
+ */
+export const SYNC_MIN_INTERVAL_MS = 5 * 60_000;
 const MAX_ALERTS_RETURNED = 10;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {

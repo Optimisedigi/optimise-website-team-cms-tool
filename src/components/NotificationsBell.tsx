@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useAuth } from "@payloadcms/ui";
 import RocketSplash from "./RocketSplash";
 import ClientEmailAlert from "./ClientEmailAlert";
+import { openCmsMailLink } from "@/lib/mail/drafts";
 import { useRouter } from "next/navigation";
 
 interface NotificationRow {
@@ -165,10 +166,18 @@ const NotificationsBell = (): ReactElement | null => {
     };
 
     fetchCount();
-    const intervalId = window.setInterval(fetchCount, POLL_INTERVAL_MS);
+    // Only poll while the tab is visible; coming back to it checks straight away.
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchCount();
+    }, POLL_INTERVAL_MS);
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") void fetchCount();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [user, loadList, countNonce]);
 
@@ -232,9 +241,14 @@ const NotificationsBell = (): ReactElement | null => {
 
   const onItemClick = async (item: NotificationRow): Promise<void> => {
     setOpen(false);
-    if (item.url) setIsNavigating(true);
+    if (!item.url) {
+      await markItemRead(item);
+      return;
+    }
+    // A Mail link while Mail is open is handled in place (no navigation, so no splash).
+    const handled = openCmsMailLink(item.url, () => setIsNavigating(true));
     await markItemRead(item);
-    if (item.url) router.push(item.url);
+    if (!handled) router.push(item.url);
   };
 
   const onMarkAllRead = async (): Promise<void> => {

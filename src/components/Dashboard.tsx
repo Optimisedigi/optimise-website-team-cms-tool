@@ -27,6 +27,8 @@ import { useIsMobileViewport } from '../lib/swipe'
 
 /** Phone layout breakpoint (matches the admin's 768px phone styles). */
 const PHONE_MAX_WIDTH = 768
+/** Background refresh of the dashboard figures while the tab is visible. */
+const DASHBOARD_REFRESH_MS = 2 * 60_000
 /** KPI cards shown on phones before "More metrics". */
 export const PHONE_KPI_LIMIT = 6
 /** Activity entries shown on phones before "See all". */
@@ -746,20 +748,37 @@ const Dashboard = () => {
     })
   }
 
+  // The interval below outlives renders, so it reads the flag from a ref.
+  const gscRefreshingRef = useRef(gscRefreshing)
+  gscRefreshingRef.current = gscRefreshing
+
   useEffect(() => {
     fetchDashboard()
     fetchXeroData()
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(() => {
-      if (!gscRefreshing) {
+    let lastRefresh = Date.now()
+    const refresh = () => {
+      lastRefresh = Date.now()
+      if (!gscRefreshingRef.current) {
         fetch('/api/dashboard')
           .then((r) => r.ok ? r.json() : null)
           .then((d) => { if (d && !d.error) setData(d) })
           .catch((err) => console.error('[Dashboard] refresh error:', err))
       }
       fetchXeroData()
-    }, 30000)
-    return () => clearInterval(interval)
+    }
+    // Refresh every 2 minutes while the tab is visible; a tab coming back after
+    // longer than that refreshes straight away.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh()
+    }, DASHBOARD_REFRESH_MS)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastRefresh >= DASHBOARD_REFRESH_MS) refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   const handleActivityNavigation = (event: MouseEvent<HTMLAnchorElement>, href: string) => {

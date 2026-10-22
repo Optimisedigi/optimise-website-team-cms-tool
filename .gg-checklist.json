@@ -49,6 +49,24 @@
         "Not checked: the 1,041 comment-only catches and 289 .catch(() => ...) outside the 7 findings were not individually reviewed"
       ]
     },
+    "performance": {
+      "checkedAt": "2026-10-22T10:11:42.151Z",
+      "commit": "d7e9e83c",
+      "uncommittedChanges": true,
+      "result": "pass",
+      "summary": "Re-check of the 10 findings from the admin-UI/polling review: all fixed and verified; admin JS 1,359 → 1,134 KB gzip after rebuild. Scope unchanged (no field CWV, load tests or public pages).",
+      "findings": [],
+      "evidence": [
+        "RUNTIME: npm run build (local snapshot DB, DISABLE_DB_PUSH=1) exit 0; admin [[...segments]] manifest 4,875 → 4,095 KB raw, 1,359 → 1,134 KB gzip",
+        "CODE: OptiMateLauncher chats + GoogleAdsChat now React.lazy; HostingSubscriptionField no longer imports Node-crypto hosting-billing (408 KB polyfill gone)",
+        "CODE: SidebarNavExtras 500 ms timers → nav-scoped MutationObserver (rAF) + pathname effect; AdminNavSetup observer rAF-coalesced",
+        "CODE: client-alerts sync throttle 55 s → 5 min; Dashboard poll 30 s → 2 min, paused when hidden, ref guard; bell paused when hidden",
+        "CODE: client index 60 s cache + invalidation, overrides passed in; Gmail client timeout 30 s; dashboard count/select; match-type cron batched + early exit",
+        "npx tsc --noEmit exit 0; npx vitest run 603 files / 5,279 tests passed (adds client-index-cache and lazy-import guard tests)",
+        "Scope: re-check of the 10 recorded findings only, not a new review",
+        "Not checked: field CWV/Lighthouse, load tests/EXPLAIN, public pages, the remaining 1.66 MB Payload import-map chunk (lexical + field components)"
+      ]
+    },
     "security": {
       "checkedAt": "2026-10-09T18:56:39.395Z",
       "commit": "e2ab9b03",

@@ -1,6 +1,7 @@
 import { Forbidden, type CollectionConfig, type CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
+import { invalidateMatchableClients } from "../lib/mail/client-index-cache";
 import { scheduleClientOverviewDraft } from "../lib/client-overview/schedule";
 import {
   historicalRevenueTotal,
@@ -235,6 +236,7 @@ export const Clients: CollectionConfig = {
     delete: adminOnlyDelete,
   },
   hooks: {
+    afterDelete: [() => invalidateMatchableClients()],
     beforeChange: [
       restrictBlogTaxonomyUpdates,
       trackRetainerChange,
@@ -244,6 +246,8 @@ export const Clients: CollectionConfig = {
     ],
     afterChange: [
       async ({ doc, previousDoc, operation, req }) => {
+        // Mail's sender → client matching reads a cached copy of the clients.
+        invalidateMatchableClients();
         if (operation === "create") {
           logActivity(req.payload, {
             type: "client_added",
