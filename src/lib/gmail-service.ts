@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 import { createGoogleOAuth2Client } from "@/lib/google-oauth-client";
-import { createGmailOAuthClient, gmailAltDomains, gmailAppForEmail, type GmailOAuthApp } from "@/lib/gmail-oauth-apps";
+import { createGmailOAuthClient, gmailAppForEmail, gmailSignInHint, type GmailOAuthApp } from "@/lib/gmail-oauth-apps";
 import { declarationProperty, splitDeclarations } from "@/lib/mail/gmail-html";
 import { withEditedSignOff } from "@/lib/mail/signature";
 import { removeForbiddenDashes } from "@/lib/agents/_shared/forbidden-dash-sanitizer";
@@ -55,7 +55,6 @@ export function getGmailOAuthUrl(
 ): string {
   const app = options.app ?? "main";
   const oauth2Client = createGmailOAuthClient(app);
-  const altDomains = app === "alt" ? gmailAltDomains() : [];
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
@@ -63,8 +62,8 @@ export function getGmailOAuthUrl(
     // Adding another account must let the user pick a different Google login.
     prompt: options.selectAccount ? "select_account consent" : "consent",
     include_granted_scopes: true,
-    // Only a hint for Google's account picker; the callback enforces the domain.
-    ...(altDomains.length === 1 ? { hd: altDomains[0] } : {}),
+    // Only a hint for Google's account picker; the callback enforces the match.
+    ...gmailSignInHint(app),
   });
 }
 

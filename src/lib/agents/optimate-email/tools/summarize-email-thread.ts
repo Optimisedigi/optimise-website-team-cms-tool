@@ -20,6 +20,7 @@
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { fetchThreadContext } from "@/lib/gmail-search";
+import { takeGmailRead } from "../read-consent";
 
 interface SummarizeEmailThreadArgs {
   threadId: string;
@@ -29,7 +30,7 @@ interface SummarizeEmailThreadArgs {
 export const summarizeEmailThreadTool: CanonicalTool<SummarizeEmailThreadArgs> = {
   name: "summarize_email_thread",
   description:
-    "Fetch and summarize a full Gmail email thread by its threadId. Returns a structured summary with: key points from each message, open questions or unresolved items, any action items or deadlines mentioned, a brief sender timeline, and the overall tone of the thread. Use this when the user wants to understand a long thread before replying, or when they share a thread and ask 'what's going on here' or 'give me a summary'. After returning the summary, wait for the user to request a reply draft — do NOT automatically draft a reply. The summary will remain in the conversation history so it is available when the user later asks to write a reply.",
+    "Fetch and summarize a full Gmail email thread by its threadId. Only open a thread the user asked about; if several could match, list them and ask which one first. One thread per user message unless the user approves opening them all. Returns a structured summary with: key points from each message, open questions or unresolved items, any action items or deadlines mentioned, a brief sender timeline, and the overall tone of the thread. Use this when the user wants to understand a long thread before replying, or when they share a thread and ask 'what's going on here' or 'give me a summary'. After returning the summary, wait for the user to request a reply draft — do NOT automatically draft a reply. The summary will remain in the conversation history so it is available when the user later asks to write a reply.",
   inputSchema: {
     type: "object",
     properties: {
@@ -62,6 +63,8 @@ export const summarizeEmailThreadTool: CanonicalTool<SummarizeEmailThreadArgs> =
     if (userId === undefined || userId === null) {
       return { ok: false, error: "No CMS user in context; cannot read Gmail thread." };
     }
+    const allowed = takeGmailRead(ctx.context, `thread:${args.threadId}`);
+    if (!allowed.ok) return allowed;
     const tokenResult = await getValidGmailToken(userId);
     if (!tokenResult.ok) {
       return { ok: false, error: `Gmail not available: ${tokenResult.reason}` };

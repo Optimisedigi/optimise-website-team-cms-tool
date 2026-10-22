@@ -57,14 +57,16 @@ export async function runMailModel(args: {
 
   const defaults = await getOptiMateDefaultModels(payload);
   const model = defaults.emailAssistantModel ?? defaults.defaultAutonomousModel;
-  const soul = request.action === "summarise" ? "" : await loadEmailSoulBlock();
+  // Summaries, subject lines and triage are short factual outputs: no drafting soul rules.
+  const factual = request.action === "summarise" || request.action === "subject" || request.action === "triage";
+  const soul = factual ? "" : await loadEmailSoulBlock();
   try {
     const response = await callLLM({
       model,
       fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS,
       maxTokens: 2000,
       // Summaries and targeted revisions should stay close to the source; new drafts get some variety.
-      temperature: request.action === "summarise" || request.revise ? 0.2 : 0.5,
+      temperature: factual || request.revise ? 0.2 : 0.5,
       system: request.system + soul,
       messages: request.messages.map((message) => ({
         role: message.role,

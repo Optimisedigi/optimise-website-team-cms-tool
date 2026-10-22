@@ -5,7 +5,7 @@ import config from "@/payload.config";
 import { exchangeGmailCode } from "@/lib/gmail-service";
 import { OAUTH_NONCE_COOKIE, verifyOAuthState } from "@/lib/oauth-state";
 import { saveMailAccountTokens } from "@/lib/mail/accounts";
-import { gmailAppMatchesEmail, type GmailOAuthApp } from "@/lib/gmail-oauth-apps";
+import { GMAIL_EXTRA_APP_COOKIE, GMAIL_EXTRA_APPS, gmailAppMatchesEmail, type GmailOAuthApp } from "@/lib/gmail-oauth-apps";
 
 /**
  * Gmail OAuth callback.
@@ -52,14 +52,16 @@ export async function GET(req: NextRequest) {
 
   const cookieStore = await cookies();
   // Which connect flow minted this state: the main Gmail, an extra Mail account,
-  // or an extra account through the second Gmail app. Read from the nonce cookie
-  // the connect route set, never from a URL parameter.
-  const altNonce = cookieStore.get(OAUTH_NONCE_COOKIE.gmailAddAlt)?.value;
+  // or an extra account through one of the extra Gmail apps. Read from the nonce
+  // cookie the connect route set, never from a URL parameter.
+  const extraApp = GMAIL_EXTRA_APPS.find((candidate) => {
+    const value = cookieStore.get(GMAIL_EXTRA_APP_COOKIE[candidate])?.value;
+    return Boolean(value) && value === nonce;
+  });
   const addNonce = cookieStore.get(OAUTH_NONCE_COOKIE.gmailAdd)?.value;
-  const alt = Boolean(altNonce) && altNonce === nonce;
-  const adding = alt || (Boolean(addNonce) && addNonce === nonce);
-  const app: GmailOAuthApp = alt ? "alt" : "main";
-  const cookieName = alt ? OAUTH_NONCE_COOKIE.gmailAddAlt : adding ? OAUTH_NONCE_COOKIE.gmailAdd : OAUTH_NONCE_COOKIE.gmail;
+  const adding = Boolean(extraApp) || (Boolean(addNonce) && addNonce === nonce);
+  const app: GmailOAuthApp = extraApp ?? "main";
+  const cookieName = extraApp ? GMAIL_EXTRA_APP_COOKIE[extraApp] : adding ? OAUTH_NONCE_COOKIE.gmailAdd : OAUTH_NONCE_COOKIE.gmail;
   const cookieNonce = cookieStore.get(cookieName)?.value;
   if (!cookieNonce || cookieNonce !== nonce) {
     return redirectTo({ gmail_error: "nonce_mismatch" });
@@ -84,8 +86,8 @@ export async function GET(req: NextRequest) {
     // domain belongs to the app that issued them (see gmail-oauth-apps.ts).
     if (!gmailAppMatchesEmail(app, tokens.email)) {
       throw new Error(
-        app === "alt"
-          ? `${tokens.email} is not on the second app's domain. Use + Add another Gmail account for it.`
+        app !== "main"
+          ? `${tokens.email} is not an account this sign-in option is set up for. Pick the option for ${tokens.email} in the Mail account menu.`
           : `${tokens.email} must be added with its own sign-in option in the Mail account menu.`,
       );
     }

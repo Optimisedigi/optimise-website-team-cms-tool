@@ -212,7 +212,7 @@ describe('MailApp layout', () => {
 })
 
 describe('MailApp breadcrumb account switcher', () => {
-  it('offers adding an account of another Google Workspace when its sign-in app is set up', async () => {
+  it('offers adding accounts that have their own sign-in app (another Workspace, a personal Gmail)', async () => {
     const baseFetch = global.fetch
     global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.startsWith('/api/mail/accounts')) {
@@ -222,7 +222,10 @@ describe('MailApp breadcrumb account switcher', () => {
             primary: 'me@od.com',
             accounts: [],
             addUrl: '/api/gmail/connect?add=1',
-            altAdd: { url: '/api/gmail/connect?add=1&app=alt', domains: ['cipherhealth.com.au'] },
+            extraAdds: [
+              { url: '/api/gmail/connect?add=1&app=alt', label: '+ Add an @cipherhealth.com.au account' },
+              { url: '/api/gmail/connect?add=1&app=alt2', label: '+ Add petertuu2@gmail.com' },
+            ],
             canAdd: true,
           }),
         } as Response
@@ -238,6 +241,7 @@ describe('MailApp breadcrumb account switcher', () => {
     expect(within(menu).getByRole('menuitem', { name: '+ Add an @cipherhealth.com.au account' }).getAttribute('href')).toBe(
       '/api/gmail/connect?add=1&app=alt',
     )
+    expect(within(menu).getByRole('menuitem', { name: '+ Add petertuu2@gmail.com' }).getAttribute('href')).toBe('/api/gmail/connect?add=1&app=alt2')
   })
 
   it('shows Mail / <email> in the breadcrumb and switches every request to the chosen account', async () => {

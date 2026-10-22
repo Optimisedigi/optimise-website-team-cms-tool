@@ -8471,7 +8471,7 @@ export interface ClientEmailSummary {
 export interface MailAiRequest {
   id: number;
   user?: (number | null) | User;
-  action: 'reply' | 'draft' | 'summarise';
+  action: 'reply' | 'draft' | 'summarise' | 'subject' | 'triage';
   gmailMessageId?: string | null;
   client?: (number | null) | Client;
   emailCount: number;

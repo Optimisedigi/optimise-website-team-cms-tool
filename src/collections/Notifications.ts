@@ -127,7 +127,7 @@ export const Notifications: CollectionConfig = {
         },
         {
           // Raised by the Mail sync for a new inbound email from a known
-          // client; shown in the bottom-right ClientEmailAlert panel.
+          // client; listed in the bell, and dropped down under it once when new (ClientEmailAlert).
           label: "Client email received",
           value: "client-email-received",
         },

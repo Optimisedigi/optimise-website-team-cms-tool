@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { buildMailModelRequest, MailModelRequestError, MAX_THREAD_MESSAGES, MAX_THREAD_TOTAL_CHARS, selectThreadContext } from "@/lib/mail/model-request";
+import { buildMailModelRequest, buildMailSubjectRequest, MailModelRequestError, MAX_THREAD_MESSAGES, MAX_THREAD_TOTAL_CHARS, selectThreadContext } from "@/lib/mail/model-request";
 import { MAIL_PROMPTS } from "@/lib/mail/prompts";
 
 const mockPayload = { auth: vi.fn(), find: vi.fn(), findByID: vi.fn(), create: vi.fn(), update: vi.fn() };
@@ -44,10 +44,24 @@ const mockGetThreadMessages = vi.fn(async (_token: string, threadId: string) => 
   { messageId: "selected", threadId, rfcMessageId: "", from: "jo@inthepicture.com.au", to: "peter@optimisedigital.online", cc: "", subject: "Meeting", date: "", snippet: "", labelIds: [], bodyHtml: "", ...INBOX.selected },
   { messageId: "stray", threadId: "some-other-thread", rfcMessageId: "", from: "sam@other.com", to: "", cc: "", subject: "x", date: "", snippet: "", labelIds: [], bodyHtml: "", body: "OTHER-EMAIL-BODY" },
 ]);
+const mockListIds = vi.fn(async (_t: string, _q: string, _max: number) => ["m1", "m2", "m3"]);
+const mockSenderSubjects = vi.fn(async (_t: string, ids: string[]) =>
+  ids.map((id) => ({ messageId: id, threadId: `t-${id}`, from: id === "m3" ? "Jo <jo@inthepicture.com.au>" : "Pitch <sales@pitch.io>", subject: `Subject ${id}` })),
+);
+const mockBatchModify = vi.fn(async (_t: string, _ids: string[], _change: unknown) => undefined);
 vi.mock("@/lib/mail/gmail-mail", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/mail/gmail-mail")>()),
   getFullMessage: (t: string, id: string) => mockGetFullMessage(t, id),
   getThreadMessages: (t: string, id: string) => mockGetThreadMessages(t, id),
+  listMessageIdsMatching: (t: string, q: string, max: number) => mockListIds(t, q, max),
+  getMessageSenderSubjects: (t: string, ids: string[]) => mockSenderSubjects(t, ids),
+  batchModifyMessages: (t: string, ids: string[], change: unknown) => mockBatchModify(t, ids, change),
+}));
+vi.mock("@/lib/mail/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/mail/store")>()),
+  loadClientDomainIndex: async () => (await import("@/lib/mail/client-matching")).buildClientDomainIndex(
+    [{ id: 8, name: "In The Picture", websiteUrl: "https://inthepicture.com.au" }],
+  ),
 }));
 
 function post(url: string, body: unknown) {
@@ -158,6 +172,70 @@ describe("AI greeting and suggested subject", () => {
       buildMailModelRequest({ action: "reply", email: { gmailMessageId: "a", from: "x", subject: "s", body: "b" }, suggestSubject: true })
         .suggestSubject,
     ).toBe(false);
+  });
+});
+
+describe("POST /api/mail/subject", () => {
+  it("sends only the body, without soul rules, and returns a tidy sentence-case subject", async () => {
+    mockCallLLM.mockResolvedValueOnce({ message: { content: [{ type: "text", text: "Subject: \"weekly report for Google Ads.\"\n" }] }, model: "m" });
+    const { POST } = await import("@/app/(frontend)/api/mail/subject/route");
+    const res = await POST(post("/api/mail/subject", { body: "Hi Jo,\n\nHere is this week's Google Ads report. BODY-TEXT" }));
+    expect(await res.json()).toMatchObject({ subject: "Weekly report for Google Ads" });
+    expect(modelInput()).toContain("BODY-TEXT");
+    expect(modelInput()).toContain("sentence case");
+    expect(modelInput()).not.toContain("SOUL-RULE");
+    expect(mockGetFullMessage).not.toHaveBeenCalled();
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "subject", emailCount: 0 }) }));
+  });
+
+  it("refuses an empty body without calling the model", async () => {
+    const { POST } = await import("@/app/(frontend)/api/mail/subject/route");
+    const res = await POST(post("/api/mail/subject", { body: "   " }));
+    expect(res.status).toBe(400);
+    expect(mockCallLLM).not.toHaveBeenCalled();
+    expect(() => buildMailModelRequest({ action: "subject", instruction: "x" })).toThrow(MailModelRequestError);
+    expect(() => buildMailSubjectRequest(42)).toThrow(MailModelRequestError);
+  });
+});
+
+describe("POST /api/mail/triage", () => {
+  it("reads only unread senders and subjects, keeps clients from the model, and changes nothing in Gmail", async () => {
+    mockPayload.find.mockResolvedValue({ docs: [] });
+    mockCallLLM.mockResolvedValueOnce({ message: { content: [{ type: "text", text: "1 s" }] }, model: "m" });
+    const { POST } = await import("@/app/(frontend)/api/mail/triage/route");
+    const res = await POST(post("/api/mail/triage", {}));
+    const data = await res.json();
+    expect(res.status).toBe(200);
+    expect(mockListIds.mock.calls[0]?.[1]).toContain("is:unread");
+    expect(mockGetFullMessage).not.toHaveBeenCalled();
+    expect(modelInput()).toContain("sales@pitch.io");
+    expect(modelInput()).not.toContain("inthepicture");
+    expect(mockBatchModify).not.toHaveBeenCalled();
+    expect(data.categories.map((c: { key: string; count: number }) => [c.key, c.count])).toEqual([["sales_pitch", 2], ["clients", 1]]);
+    expect(data.categories[0].senders[0]).toMatchObject({ address: "sales@pitch.io", messageIds: ["m1", "m2"] });
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "triage", emailCount: 2 }) }));
+  });
+});
+
+describe("POST /api/mail/triage/apply", () => {
+  it("archives only the ticked message ids", async () => {
+    const { POST } = await import("@/app/(frontend)/api/mail/triage/apply/route");
+    const res = await POST(post("/api/mail/triage/apply", { messageIds: ["m1", "m2", "m1"], action: "archive" }));
+    expect(await res.json()).toMatchObject({ ok: true, count: 2 });
+    expect(mockBatchModify).toHaveBeenCalledWith("tok", ["m1", "m2"], { remove: ["INBOX"] });
+  });
+
+  it("rejects bad ids, unknown actions and oversized batches", async () => {
+    const { POST } = await import("@/app/(frontend)/api/mail/triage/apply/route");
+    for (const body of [
+      { messageIds: ["m1"], action: "delete" },
+      { messageIds: ["bad id!"], action: "read" },
+      { messageIds: [], action: "read" },
+      { messageIds: Array.from({ length: 1001 }, (_, i) => `m${i}`), action: "read" },
+    ]) {
+      expect((await POST(post("/api/mail/triage/apply", body))).status).toBe(400);
+    }
+    expect(mockBatchModify).not.toHaveBeenCalled();
   });
 });
 

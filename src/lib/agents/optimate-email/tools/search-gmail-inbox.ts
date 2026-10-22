@@ -3,7 +3,9 @@
  *
  * Read-only Gmail inbox search for the Email Reply voice agent. Wraps the same
  * `searchInbox` primitive the launcher's "attach email" UI uses. Requires the
- * connected user's `gmail.readonly` scope. Returns lightweight metadata only.
+ * connected user's `gmail.readonly` scope. Returns sender, subject and date
+ * only: Gmail's body snippet is dropped so a search never reads an email
+ * (see read-consent.ts).
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
@@ -18,7 +20,7 @@ interface SearchGmailInboxArgs {
 export const searchGmailInboxTool: CanonicalTool<SearchGmailInboxArgs> = {
   name: "search_gmail_inbox",
   description:
-    "Search the connected user's Gmail inbox using Gmail search syntax (e.g. 'from:jane subject:invoice newer_than:7d'). Read-only. Returns up to 20 matches with messageId, threadId, subject, from, date, and snippet. Use the returned messageId with read_gmail_message to read a full message before drafting a reply.",
+    "Search the connected user's Gmail inbox using Gmail search syntax (e.g. 'from:jane subject:invoice newer_than:7d'). Read-only. Returns up to 20 matches with messageId, threadId, subject, from and date (no email content). Use it only when the user asks you to find or check emails. Do not open a match unless the user asked for that specific email: if more than one could be the right one, list them (sender, subject, date) and ask which to open, or ask the user to approve opening them all.",
   inputSchema: {
     type: "object",
     properties: {
@@ -55,7 +57,9 @@ export const searchGmailInboxTool: CanonicalTool<SearchGmailInboxArgs> = {
     }
     try {
       const { results } = await searchInbox(tokenResult.accessToken, args.query, args.max ?? 20);
-      return { ok: true, data: { count: results.length, results } };
+      // Headers only: the snippet is part of the body, which needs the user's go-ahead to read.
+      const headersOnly = results.map(({ messageId, threadId, subject, from, date }) => ({ messageId, threadId, subject, from, date }));
+      return { ok: true, data: { count: headersOnly.length, results: headersOnly } };
     } catch (err) {
       const e = err as { code?: number; status?: number; message?: string };
       const status = e.code ?? e.status ?? 0;

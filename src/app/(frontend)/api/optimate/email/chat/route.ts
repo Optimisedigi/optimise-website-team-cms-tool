@@ -4,6 +4,7 @@ import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import { runEmailChatTurn } from "@/lib/agents/optimate-email";
 import { detectEmailToolBundles } from "@/lib/agents/optimate-email/tool-bundles";
+import { userApprovedReadingAll } from "@/lib/agents/optimate-email/read-consent";
 import type { Message } from "@/lib/agents/_shared/llm/types";
 import { isCanonicalModel, type CanonicalModelName } from "@/lib/agents/_shared/llm/registry";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
@@ -134,6 +135,8 @@ export async function POST(request: Request) {
       messages,
       modelOverride,
       toolBundles,
+      // Opening several emails needs the user's own typed approval this turn.
+      approvedReadingAll: userApprovedReadingAll(message),
       userId: typeof user.id === "number" ? user.id : Number(user.id),
       draftAttachments: attachmentResult.attachments,
       ...(mode === "reply"

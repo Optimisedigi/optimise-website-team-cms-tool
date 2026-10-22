@@ -7,20 +7,21 @@ let mockUser: Record<string, unknown> | null = { id: 10, role: "admin" };
 vi.mock("@payloadcms/ui", () => ({ useAuth: () => ({ user: mockUser }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
-import ClientEmailAlert, { EXPANDED_MS } from "@/components/ClientEmailAlert";
+import ClientEmailAlert, { FRESH_MS, POLL_MS, SHOWN_STORAGE_KEY, VISIBLE_MS } from "@/components/ClientEmailAlert";
 
-const alert = (id: number, client = "In The Picture") => ({
+const alert = (id: number, client = "In The Picture", createdAt = new Date().toISOString()) => ({
   id,
   title: `Client email – please read: ${client}`,
   body: "Jo Smith · Can you call me?",
   url: `/admin/mail?thread=t${id}`,
-  createdAt: new Date().toISOString(),
+  createdAt,
 });
 
 let alertsResponse: Array<ReturnType<typeof alert>> = [];
+let syncedResponse = true;
 const fetchMock = vi.fn(async (url: string) => {
   if (String(url).startsWith("/api/mail/client-alerts")) {
-    return new Response(JSON.stringify({ alerts: alertsResponse, total: alertsResponse.length }), { status: 200 });
+    return new Response(JSON.stringify({ alerts: alertsResponse, total: alertsResponse.length, synced: syncedResponse }), { status: 200 });
   }
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 });
@@ -31,10 +32,9 @@ beforeEach(() => {
   fetchMock.mockClear();
   mockUser = { id: 10, role: "admin" };
   alertsResponse = [];
+  syncedResponse = true;
+  localStorage.clear();
   vi.stubGlobal("fetch", fetchMock);
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-  }));
 });
 
 afterEach(() => {
@@ -46,76 +46,114 @@ async function flush() {
   await act(async () => {
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve();
   });
 }
 
-describe("ClientEmailAlert", () => {
-  it("renders nothing when there are no alerts", async () => {
-    render(<ClientEmailAlert panelOpen={false} />);
-    await flush();
-    expect(fetchMock).toHaveBeenCalledWith("/api/mail/client-alerts?sync=1", expect.anything());
-    expect(screen.queryByTestId("client-email-alert")).toBeNull();
+async function nextPoll() {
+  await act(async () => {
+    vi.advanceTimersByTime(POLL_MS);
   });
+  await flush();
+}
 
+function mount(props: Partial<{ suppressed: boolean; onArrive: () => void }> = {}) {
+  const onArrive = props.onArrive ?? vi.fn();
+  const view = render(<ClientEmailAlert suppressed={props.suppressed ?? false} onArrive={onArrive} />);
+  return { onArrive, ...view };
+}
+
+describe("ClientEmailAlert (drop-down under the bell)", () => {
   it("does not poll for users without Mail access", async () => {
     mockUser = { id: 11, role: "user", featureAccess: [] };
-    render(<ClientEmailAlert panelOpen={false} />);
+    mount();
     await flush();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("slides up fully open, then collapses to a chip after ~20s", async () => {
+  it("never drops down alerts that already exist when the CMS opens", async () => {
     alertsResponse = [alert(1)];
-    render(<ClientEmailAlert panelOpen={false} />);
+    const { onArrive } = mount();
     await flush();
-    const root = await screen.findByTestId("client-email-alert");
-    expect(root.dataset.state).toBe("expanded");
-    expect(screen.getByText("Client email – please read")).toBeInTheDocument();
-    expect(screen.getByText("In The Picture")).toBeInTheDocument();
-    // Stacked above the OptiMate orb while the panel is closed.
-    expect(root.style.right).toBe("24px");
-    expect(root.style.bottom).toBe("108px");
-
-    await act(async () => { vi.advanceTimersByTime(EXPANDED_MS + 10); });
-    expect(screen.getByTestId("client-email-alert").dataset.state).toBe("chip");
-    expect(screen.getByText(/Client email: In The Picture/)).toBeInTheDocument();
-  });
-
-  it("sits to the left of the OptiMate panel when it is open", async () => {
-    alertsResponse = [alert(1)];
-    render(<ClientEmailAlert panelOpen />);
-    await flush();
-    const root = await screen.findByTestId("client-email-alert");
-    expect(root.style.right).toBe(`${24 + 412 + 12}px`);
-    expect(root.style.bottom).toBe("24px");
-  });
-
-  it("dismiss marks the alert read and hides it", async () => {
-    alertsResponse = [alert(7)];
-    render(<ClientEmailAlert panelOpen={false} />);
-    await flush();
-    fireEvent.click(await screen.findByText("Dismiss"));
-    expect(fetchMock).toHaveBeenCalledWith("/api/notifications/7/mark-read", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/mail/client-alerts?sync=1", expect.anything());
+    await nextPoll();
     expect(screen.queryByTestId("client-email-alert")).toBeNull();
+    expect(onArrive).not.toHaveBeenCalled();
+  });
+
+  it("keeps the baseline until this page has run its own sync (older mail never drops down)", async () => {
+    syncedResponse = false; // first sync throttled by another tab
+    mount();
+    await flush();
+    syncedResponse = true;
+    alertsResponse = [alert(2)]; // created by this page's first real sync, for mail that came in earlier
+    await nextPoll();
+    expect(screen.queryByTestId("client-email-alert")).toBeNull();
+  });
+
+  it("drops down a new alert once, rings the bell, and hides itself", async () => {
+    const { onArrive } = mount();
+    await flush();
+    alertsResponse = [alert(3)];
+    await nextPoll();
+    expect(screen.getByTestId("client-email-alert")).toBeInTheDocument();
+    expect(screen.getByText("In The Picture")).toBeInTheDocument();
+    expect(onArrive).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem(SHOWN_STORAGE_KEY) ?? "[]")).toEqual(["3"]);
+
+    await act(async () => {
+      vi.advanceTimersByTime(VISIBLE_MS + 10);
+    });
+    expect(screen.queryByTestId("client-email-alert")).toBeNull();
+    await nextPoll();
+    expect(screen.queryByTestId("client-email-alert")).toBeNull();
+    expect(onArrive).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show again in another tab or after a reload", async () => {
+    localStorage.setItem(SHOWN_STORAGE_KEY, JSON.stringify(["4"]));
+    mount();
+    await flush();
+    alertsResponse = [alert(4)];
+    await nextPoll();
+    expect(screen.queryByTestId("client-email-alert")).toBeNull();
+  });
+
+  it("skips alerts older than the fresh window", async () => {
+    mount();
+    await flush();
+    alertsResponse = [alert(5, "Acme", new Date(Date.now() - FRESH_MS - 60_000).toISOString())];
+    await nextPoll();
+    expect(screen.queryByTestId("client-email-alert")).toBeNull();
+  });
+
+  it("Later hides it without marking it read (it stays in the bell)", async () => {
+    mount();
+    await flush();
+    alertsResponse = [alert(6)];
+    await nextPoll();
+    fireEvent.click(screen.getByText("Later"));
+    expect(screen.queryByTestId("client-email-alert")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/mark-read"), expect.anything());
   });
 
   it("Open email marks it read and opens the thread in Mail", async () => {
-    alertsResponse = [alert(3)];
-    render(<ClientEmailAlert panelOpen={false} />);
+    mount();
     await flush();
-    fireEvent.click(await screen.findByText("Open email"));
-    expect(fetchMock).toHaveBeenCalledWith("/api/notifications/3/mark-read", expect.objectContaining({ method: "POST" }));
-    expect(push).toHaveBeenCalledWith("/admin/mail?thread=t3");
+    alertsResponse = [alert(7)];
+    await nextPoll();
+    fireEvent.click(screen.getByText("Open email"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/notifications/7/mark-read", expect.objectContaining({ method: "POST" }));
+    expect(push).toHaveBeenCalledWith("/admin/mail?thread=t7");
   });
 
-  it("shows how many more are waiting and can dismiss them all", async () => {
-    alertsResponse = [alert(2, "Acme"), alert(1)];
-    render(<ClientEmailAlert panelOpen={false} />);
+  it("is held back while the bell list is open", async () => {
+    const { rerender, onArrive } = mount({ suppressed: true });
     await flush();
-    expect(await screen.findByText(/\+1 more/)).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Dismiss all"));
-    expect(fetchMock).toHaveBeenCalledWith("/api/notifications/2/mark-read", expect.anything());
-    expect(fetchMock).toHaveBeenCalledWith("/api/notifications/1/mark-read", expect.anything());
+    alertsResponse = [alert(8)];
+    await nextPoll();
     expect(screen.queryByTestId("client-email-alert")).toBeNull();
+    rerender(<ClientEmailAlert suppressed={false} onArrive={onArrive} />);
+    expect(screen.getByTestId("client-email-alert")).toBeInTheDocument();
   });
 });

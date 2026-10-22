@@ -201,6 +201,9 @@ export function buildMailModelRequest(args: {
 }): MailModelRequest {
   const prompt = MAIL_PROMPTS[args.action];
   if (!prompt) throw new MailModelRequestError(`Unknown mail action: ${String(args.action)}`);
+  if (args.action === "subject" || args.action === "triage") {
+    throw new MailModelRequestError(`Use the dedicated builder for ${args.action}.`);
+  }
   if (Array.isArray(args.email)) {
     throw new MailModelRequestError("Only one email can be sent to the model per request.");
   }
@@ -279,5 +282,25 @@ export function buildMailModelRequest(args: {
     emailCount: email ? 1 + threadContext.length : 0,
     clientId: clientContext?.clientId ?? null,
     revise: refining ? { blocks } : null,
+  };
+}
+
+/**
+ * Subject line for the email being written: the model gets only the body the
+ * user has written so far (their own text, no mailbox content), no history,
+ * no client facts.
+ */
+export function buildMailSubjectRequest(body: unknown): MailModelRequest {
+  const text = clean(body, MAX_DRAFT_CHARS);
+  if (!text) throw new MailModelRequestError("Write the email first, then ask for a subject.");
+  return {
+    action: "subject",
+    system: MAIL_PROMPTS.subject.system,
+    messages: [{ role: "user", text: `The email body:\n\n${text}\n\n${MAIL_PROMPTS.subject.defaultInstruction}` }],
+    gmailMessageId: null,
+    emailCount: 0,
+    suggestSubject: false,
+    clientId: null,
+    revise: null,
   };
 }

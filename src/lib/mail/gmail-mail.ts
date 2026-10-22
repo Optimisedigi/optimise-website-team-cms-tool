@@ -305,6 +305,63 @@ export async function getMessageHeaders(accessToken: string, ids: string[], conc
   return results.filter((header): header is MessageHeadersOnly => header !== null);
 }
 
+export interface MessageSenderSubject {
+  messageId: string;
+  threadId: string;
+  from: string;
+  subject: string;
+  /** Bulk-mail headers: a cheap newsletter/marketing hint, never the body. */
+  listId?: string;
+  listUnsubscribe?: string;
+  precedence?: string;
+}
+
+/**
+ * Sender and subject (plus bulk-mail headers) for each message id, for inbox
+ * triage. Metadata only: no bodies or snippets are fetched. Messages Gmail no
+ * longer has (404) are left out.
+ */
+export async function getMessageSenderSubjects(accessToken: string, ids: string[], concurrency = 10): Promise<MessageSenderSubject[]> {
+  const gmail = gmailApi(accessToken);
+  const results = await mapLimited(ids, concurrency, async (id): Promise<MessageSenderSubject | null> => {
+    const res = await gmail.users.messages
+      .get({ userId: "me", id, format: "metadata", metadataHeaders: ["From", "Subject", "List-Id", "List-Unsubscribe", "Precedence"] })
+      .catch((err: unknown) => {
+        const status = Number((err as { code?: number; status?: number }).code ?? (err as { status?: number }).status ?? 0);
+        if (status === 404) return null;
+        throw err;
+      });
+    if (!res) return null;
+    const headers = res.data.payload?.headers;
+    return {
+      messageId: res.data.id ?? id,
+      threadId: res.data.threadId ?? "",
+      from: readGmailHeader(headers, "From"),
+      subject: readGmailHeader(headers, "Subject"),
+      listId: readGmailHeader(headers, "List-Id"),
+      listUnsubscribe: readGmailHeader(headers, "List-Unsubscribe"),
+      precedence: readGmailHeader(headers, "Precedence"),
+    };
+  });
+  return results.filter((row): row is MessageSenderSubject => row !== null);
+}
+
+/** Label change on up to 1,000 messages in one Gmail call (archive = remove INBOX). Needs gmail.modify. */
+export async function batchModifyMessages(
+  accessToken: string,
+  messageIds: string[],
+  change: { add?: string[]; remove?: string[] },
+): Promise<void> {
+  if (messageIds.length === 0) return;
+  const gmail = gmailApi(accessToken);
+  for (let i = 0; i < messageIds.length; i += 1000) {
+    await gmail.users.messages.batchModify({
+      userId: "me",
+      requestBody: { ids: messageIds.slice(i, i + 1000), addLabelIds: change.add ?? [], removeLabelIds: change.remove ?? [] },
+    });
+  }
+}
+
 export interface ThreadReplyHeader {
   messageId: string;
   from: string;

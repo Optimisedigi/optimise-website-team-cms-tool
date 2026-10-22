@@ -5,8 +5,10 @@
  * ran in 90% of runs; summarize_email_thread, search_gmail_inbox,
  * read_gmail_message and create_gmail_draft ran in 1 to 3 runs each. So only
  * stage_email_reply is always sent. The others load when the user's own words
- * ask for them, or when the model calls request_email_tools. Voice mode keeps
- * every tool (getEmailRealtimeToolDefinitions).
+ * ask for them. The model may call request_email_tools for the save bundle
+ * only: the Gmail-read tools never load unless the user asked to find, open or
+ * summarise email (read-consent.ts). Voice mode keeps every tool
+ * (getEmailRealtimeToolDefinitions).
  */
 
 import type { CanonicalTool } from "../_shared/tool";
@@ -18,12 +20,19 @@ export const EMAIL_TOOL_BUNDLES = {
 
 export type EmailToolBundleName = keyof typeof EMAIL_TOOL_BUNDLES;
 
+/** Bundles the model may attach itself. Reading Gmail always needs the user's own words. */
+const MODEL_REQUESTABLE_BUNDLES: ReadonlySet<EmailToolBundleName> = new Set(["gmail_save"]);
+
 export const EMAIL_TOOL_BUNDLE_NAMES = Object.keys(EMAIL_TOOL_BUNDLES) as EmailToolBundleName[];
 
 const ALWAYS_SENT: ReadonlySet<string> = new Set(["stage_email_reply", "remember", "memory_search"]);
 
 function isBundleName(value: unknown): value is EmailToolBundleName {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(EMAIL_TOOL_BUNDLES, value);
+}
+
+function isModelRequestable(value: unknown): value is EmailToolBundleName {
+  return isBundleName(value) && MODEL_REQUESTABLE_BUNDLES.has(value);
 }
 
 /**
@@ -64,24 +73,28 @@ const BUNDLE_SUMMARY = EMAIL_TOOL_BUNDLE_NAMES.map(
   (bundle) => `${bundle} (${EMAIL_TOOL_BUNDLES[bundle].join(", ")})`,
 ).join("; ");
 
+const REQUESTABLE_NAMES = EMAIL_TOOL_BUNDLE_NAMES.filter((bundle) => MODEL_REQUESTABLE_BUNDLES.has(bundle));
+const REQUESTABLE_SUMMARY = REQUESTABLE_NAMES.map((bundle) => `${bundle} (${EMAIL_TOOL_BUNDLES[bundle].join(", ")})`).join("; ");
+
 /** Appended to the text-chat system prompt only; voice has every tool. */
 export const EMAIL_TOOL_LOADING_NOTE =
   `\n\nTool loading: stage_email_reply is always available. Other tools load in bundles: ${BUNDLE_SUMMARY}. ` +
-  "If a tool you need is not in your tool list, call request_email_tools with its bundle first, then use it.";
+  "If a save tool you need is not in your tool list, call request_email_tools with gmail_save first, then use it. " +
+  "The Gmail-read tools (gmail_read) load only when the user asks you to find, open or summarise email; you cannot request them. If they are not in your tool list, the user has not asked you to read their email: ask them instead.";
 
 export function createEmailToolRequestTool(
   allTools: readonly CanonicalTool<unknown>[],
 ): CanonicalTool<{ bundles: EmailToolBundleName[] }> {
   return {
     name: "request_email_tools",
-    description: `Attach GmailMate tools that are not in your tool list yet, before you use them. Bundles: ${BUNDLE_SUMMARY}.`,
+    description: `Attach GmailMate tools that are not in your tool list yet, before you use them. Bundles you can request: ${REQUESTABLE_SUMMARY}. Gmail-read tools cannot be requested; they load only when the user asks you to read email.`,
     inputSchema: {
       type: "object",
       properties: {
         bundles: {
           type: "array",
           minItems: 1,
-          items: { type: "string", enum: [...EMAIL_TOOL_BUNDLE_NAMES] },
+          items: { type: "string", enum: [...REQUESTABLE_NAMES] },
           description: "Bundles to attach before your next step.",
         },
       },
@@ -94,9 +107,12 @@ export function createEmailToolRequestTool(
       }
       const requested = (raw as Record<string, unknown>).bundles;
       if (!Array.isArray(requested)) throw new Error("bundles must be an array.");
-      const bundles = Array.from(new Set(requested.filter(isBundleName)));
+      if (requested.includes("gmail_read")) {
+        throw new Error("gmail_read cannot be requested: Gmail is only read when the user asks. Ask the user instead.");
+      }
+      const bundles = Array.from(new Set(requested.filter(isModelRequestable)));
       if (bundles.length === 0) {
-        throw new Error(`At least one valid bundle is required: ${EMAIL_TOOL_BUNDLE_NAMES.join(", ")}.`);
+        throw new Error(`At least one valid bundle is required: ${REQUESTABLE_NAMES.join(", ")}.`);
       }
       return { bundles };
     },
@@ -122,6 +138,6 @@ export function resolveEmailToolBundles(
   const raw = event.input && typeof event.input === "object" && !Array.isArray(event.input)
     ? (event.input as Record<string, unknown>).bundles
     : null;
-  const bundles = Array.isArray(raw) ? Array.from(new Set(raw.filter(isBundleName))) : [];
+  const bundles = Array.isArray(raw) ? Array.from(new Set(raw.filter(isModelRequestable))) : [];
   return bundleTools(allTools, bundles);
 }

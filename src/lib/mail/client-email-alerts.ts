@@ -6,8 +6,9 @@ import { cmsMailThreadPath } from './drafts'
  *
  * When a mailbox sync stores a NEW inbound email from a known client, one
  * `notifications` row is created for the mailbox owner (and nobody else).
- * The bottom-right ClientEmailAlert panel and the top-bar bell both read
- * these rows; dismissing sets `readAt`, so a dismissed alert never returns.
+ * They are listed in the top-bar bell like any notification; one that
+ * arrives while the CMS is open also drops down once under the bell
+ * (ClientEmailAlert). Opening it sets `readAt`.
  *
  * Noise limits (all plain code, no model):
  *  - Only inbound mail that the client matcher linked to a client, after the

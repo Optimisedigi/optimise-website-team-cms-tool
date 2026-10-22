@@ -249,7 +249,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
       Date.now(),
     ),
   )
-  const [busy, setBusy] = useState<'' | 'ai' | 'send' | 'draft' | 'schedule' | 'delete'>('')
+  const [busy, setBusy] = useState<'' | 'ai' | 'subject' | 'send' | 'draft' | 'schedule' | 'delete'>('')
   const [note, setNote] = useState('')
   const [minimised, setMinimised] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -640,6 +640,25 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     }
   }
   const runAiRef = useRef(runAi)
+
+  /** Fill the subject line with a short AI subject written from the body so far. */
+  async function suggestSubjectLine() {
+    const body = editorRef.current?.getMarkdown().trim() ?? ''
+    if (busy !== '' || !body) return
+    const before = stateRef.current.subject
+    setBusy('subject')
+    setNote('')
+    try {
+      const data = await postJson<{ subject: string }>('/api/mail/subject', { body }, initial.account)
+      const subject = data.subject.trim()
+      // Leave a subject typed while the AI was working alone.
+      if (subject) setState((current) => (current.subject === before ? { ...current, subject } : current))
+    } catch (err) {
+      setNote((err as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
   runAiRef.current = runAi
 
   /** Put the body back as it was before the last AI change (edits made since then go too). */
@@ -996,6 +1015,18 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               placeholder="Subject"
               aria-label="Subject"
             />
+            {state.mode === 'new' ? (
+              <button
+                type="button"
+                className={styles.aiSubject}
+                onClick={() => void suggestSubjectLine()}
+                disabled={busy !== '' || !hasDraft}
+                title={hasDraft ? 'Write a subject line from the email with AI' : 'Write the email first, then let AI suggest a subject'}
+                aria-label="Write subject with AI"
+              >
+                {busy === 'subject' ? 'Writing…' : '✨ AI subject'}
+              </button>
+            ) : null}
           </label>
         </div>
 

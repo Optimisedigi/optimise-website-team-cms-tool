@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { getGmailOAuthUrl } from "@/lib/gmail-service";
-import { gmailAltDomains } from "@/lib/gmail-oauth-apps";
+import { GMAIL_EXTRA_APP_COOKIE, parseGmailExtraApp } from "@/lib/gmail-oauth-apps";
 import { OAUTH_NONCE_COOKIE, signOAuthState } from "@/lib/oauth-state";
 
 /**
@@ -17,8 +17,9 @@ import { OAUTH_NONCE_COOKIE, signOAuthState } from "@/lib/oauth-state";
  *
  * `?add=1` connects another Gmail address as an extra Mail account (see
  * src/lib/mail/accounts.ts); the main Gmail on the user record is untouched.
- * `?add=1&app=alt` does the same through the second Gmail app, for accounts
- * of another Google Workspace (see src/lib/gmail-oauth-apps.ts).
+ * `?add=1&app=alt` (or alt2, alt3) does the same through one of the extra
+ * Gmail apps, for accounts the main app cannot sign in: another Google
+ * Workspace, or a personal Gmail (see src/lib/gmail-oauth-apps.ts).
  */
 export async function GET(req: NextRequest) {
   if (
@@ -51,13 +52,15 @@ export async function GET(req: NextRequest) {
   // instead of replacing the main one. The flow is marked by which nonce
   // cookie is set, so the callback knows without trusting a URL parameter.
   const adding = req.nextUrl.searchParams.get("add") === "1";
-  const alt = adding && req.nextUrl.searchParams.get("app") === "alt";
-  if (alt && gmailAltDomains().length === 0) {
-    return NextResponse.json({ error: "The second Gmail sign-in app is not set up." }, { status: 400 });
+  const requestedApp = adding ? req.nextUrl.searchParams.get("app") : null;
+  // Only an extra app that is fully set up; anything else is refused rather than falling back.
+  const extraApp = requestedApp ? parseGmailExtraApp(requestedApp) : null;
+  if (requestedApp && !extraApp) {
+    return NextResponse.json({ error: "That Gmail sign-in option is not set up." }, { status: 400 });
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(alt ? OAUTH_NONCE_COOKIE.gmailAddAlt : adding ? OAUTH_NONCE_COOKIE.gmailAdd : OAUTH_NONCE_COOKIE.gmail, nonce, {
+  cookieStore.set(extraApp ? GMAIL_EXTRA_APP_COOKIE[extraApp] : adding ? OAUTH_NONCE_COOKIE.gmailAdd : OAUTH_NONCE_COOKIE.gmail, nonce, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -65,5 +68,5 @@ export async function GET(req: NextRequest) {
     path: "/",
   });
 
-  return NextResponse.redirect(getGmailOAuthUrl(state, { selectAccount: adding, app: alt ? "alt" : "main" }));
+  return NextResponse.redirect(getGmailOAuthUrl(state, { selectAccount: adding, app: extraApp ?? "main" }));
 }

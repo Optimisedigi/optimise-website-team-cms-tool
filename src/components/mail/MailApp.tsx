@@ -20,6 +20,7 @@ import { MAIL_DRAFT_QUERY_PARAM, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../.
 import { MAIL_TABS, mailTabLabel, unreadFirst, type MailFolder, type MailTab, type MailTabCounts } from '../../lib/mail/folders'
 import ScheduledPanel, { type ScheduledDetail, type ScheduledItem } from './ScheduledPanel'
 import AwaitingPanel, { type FollowUpItem } from './AwaitingPanel'
+import TriagePanel from './TriagePanel'
 import { addBusinessDays } from '../../lib/mail/schedule-times'
 import { MAIL_AUTO_REFRESH_MS, isMailAutoRefreshWindow } from '../../lib/mail/auto-refresh'
 import {
@@ -289,7 +290,7 @@ interface AccountsInfo {
   primary: string | null
   accounts: Array<{ email: string }>
   addUrl: string
-  altAdd?: { url: string; domains: string[] } | null
+  extraAdds?: Array<{ url: string; label: string }>
   canAdd: boolean
 }
 
@@ -339,6 +340,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   // Senders hidden from the inbox list (stored in Payload user preferences; view-only).
   const [hiddenSenders, setHiddenSenders] = useState<string[]>([])
   const [showHiddenPanel, setShowHiddenPanel] = useState(false)
+  // On-request AI triage of unread mail (sender + subject only).
+  const [showTriagePanel, setShowTriagePanel] = useState(false)
   const [hiddenInput, setHiddenInput] = useState('')
   const [hideChoice, setHideChoice] = useState(false)
   const [lastHidden, setLastHidden] = useState<string | null>(null)
@@ -1576,7 +1579,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         onSelect={(email, main) => switchAccount(main ? '' : email)}
         onRemove={(email) => void removeAccount(email)}
         addUrl={accountsInfo?.canAdd ? accountsInfo.addUrl : null}
-        altAdd={accountsInfo?.canAdd ? (accountsInfo.altAdd ?? null) : null}
+        extraAdds={accountsInfo?.canAdd ? (accountsInfo.extraAdds ?? []) : []}
       />
       <div className={styles.toolbar}>
         <div className={styles.folders} role="tablist" aria-label="Mail folders">
@@ -1613,6 +1616,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         {isPhone ? (
           <MailOverflowMenu
             items={[
+              { label: 'Triage unread', onSelect: () => setShowTriagePanel((open) => !open) },
               {
                 label: `Hidden${hiddenSenders.length ? ` (${hiddenSenders.length})` : ''}`,
                 onSelect: () => setShowHiddenPanel((open) => !open),
@@ -1626,6 +1630,15 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           />
         ) : (
           <>
+            <button
+              type="button"
+              className={styles.btn}
+              onClick={() => setShowTriagePanel((open) => !open)}
+              aria-expanded={showTriagePanel}
+              title="Let AI sort your unread emails by sender and subject, then clear them in bulk"
+            >
+              ✨ Triage
+            </button>
             <button
               type="button"
               className={styles.btn}
@@ -1678,6 +1691,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           )
         })()
       ) : null}
+
+      {showTriagePanel ? <TriagePanel key={activeAccount} api={api} onApplied={() => void refresh()} onClose={() => setShowTriagePanel(false)} /> : null}
 
       {showClientPanel ? (
         <div className={styles.panel} style={{ marginTop: 0 }}>

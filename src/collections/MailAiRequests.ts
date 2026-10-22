@@ -37,6 +37,8 @@ export const MailAiRequests: CollectionConfig = {
         { label: "Reply", value: "reply" },
         { label: "Draft", value: "draft" },
         { label: "Summarise", value: "summarise" },
+        { label: "Subject", value: "subject" },
+        { label: "Triage", value: "triage" },
       ],
     },
     { name: "gmailMessageId", type: "text", index: true },

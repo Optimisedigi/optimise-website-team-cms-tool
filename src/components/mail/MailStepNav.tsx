@@ -21,11 +21,11 @@ export interface MailAccountMenuProps {
   onRemove: (email: string) => void
   /** Where "Add another Gmail account" goes, or null when the user cannot add one. */
   addUrl: string | null
-  /** Accounts of another Google Workspace, added through its own sign-in app; null when not set up. */
-  altAdd?: { url: string; domains: string[] } | null
+  /** Accounts added through their own sign-in app (another Workspace, a personal Gmail). */
+  extraAdds?: Array<{ url: string; label: string }>
 }
 
-export function MailAccountMenu({ current, accounts, onSelect, onRemove, addUrl, altAdd }: MailAccountMenuProps) {
+export function MailAccountMenu({ current, accounts, onSelect, onRemove, addUrl, extraAdds = [] }: MailAccountMenuProps) {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -140,10 +140,10 @@ export function MailAccountMenu({ current, accounts, onSelect, onRemove, addUrl,
                   + Add another Gmail account
                 </a>
               ) : null}
-              {addUrl && altAdd
-                ? altAdd.domains.map((domain) => (
-                    <a key={domain} role="menuitem" className={styles.accountMenuAdd} href={altAdd.url}>
-                      + Add an @{domain} account
+              {addUrl
+                ? extraAdds.map((option) => (
+                    <a key={option.label} role="menuitem" className={styles.accountMenuAdd} href={option.url}>
+                      {option.label}
                     </a>
                   ))
                 : null}
@@ -172,7 +172,7 @@ export default function MailStepNav(props: MailAccountMenuProps) {
           current={props.current}
           accounts={props.accounts}
           addUrl={props.addUrl}
-          altAdd={props.altAdd}
+          extraAdds={props.extraAdds}
           onSelect={(email, main) => latest.current.onSelect(email, main)}
           onRemove={(email) => latest.current.onRemove(email)}
         />
@@ -181,7 +181,7 @@ export default function MailStepNav(props: MailAccountMenuProps) {
     return items
     // props.accounts is keyed by accountsKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.current, accountsKey, props.addUrl, props.altAdd?.url, props.altAdd?.domains.join(',')])
+  }, [props.current, accountsKey, props.addUrl, (props.extraAdds ?? []).map((option) => `${option.url} ${option.label}`).join('|')])
 
   useEffect(() => {
     setStepNav(nav)

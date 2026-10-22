@@ -50,6 +50,9 @@ beforeEach(() => {
   delete process.env.GMAIL_ALT_CLIENT_ID
   delete process.env.GMAIL_ALT_CLIENT_SECRET
   delete process.env.GMAIL_ALT_DOMAINS
+  delete process.env.GMAIL_ALT2_CLIENT_ID
+  delete process.env.GMAIL_ALT2_CLIENT_SECRET
+  delete process.env.GMAIL_ALT2_ACCOUNTS
   mockPayload.auth.mockResolvedValue({ user: { id: 7, role: 'admin' } })
   mockPayload.find.mockResolvedValue({ docs: [] })
 })
@@ -151,7 +154,7 @@ describe('adding an account through the second Gmail app (another Google Workspa
     setAlt()
     // Second app, but an address outside its domains.
     const wrongAlt = await callbackWith('oauth_nonce_gmail_add_alt', 'someone@od.com')
-    expect(location(wrongAlt).searchParams.get('mail_account_error')).toMatch(/not on the second app/)
+    expect(location(wrongAlt).searchParams.get('mail_account_error')).toMatch(/not an account this sign-in option is set up for/)
     // Main app, but an address on the second app's domain.
     const wrongMain = await callbackWith('oauth_nonce_gmail_add', 'peter@cipherhealth.com.au')
     expect(exchangeGmailCode).toHaveBeenLastCalledWith('c', 'main')
@@ -169,6 +172,44 @@ describe('adding an account through the second Gmail app (another Google Workspa
     mockPayload.findByID.mockResolvedValue({ id: 7, gmailConnected: true, gmailEmail: 'me@od.com' })
     await callback.GET(new NextRequest(`http://localhost/api/gmail/callback?code=c&state=${encodeURIComponent(state)}`))
     expect(exchangeGmailCode).toHaveBeenCalledWith('c', 'main')
+  })
+})
+
+describe('adding a personal Gmail through its own app (matched by exact address)', () => {
+  const setPersonal = () => {
+    process.env.GMAIL_ALT2_CLIENT_ID = 'alt2-id'
+    process.env.GMAIL_ALT2_CLIENT_SECRET = 'alt2-secret'
+    process.env.GMAIL_ALT2_ACCOUNTS = 'petertuu2@gmail.com'
+  }
+  const callbackWith = async (cookie: string, email: string) => {
+    const { state, nonce } = signOAuthState(7, 7)
+    cookieJar.set(cookie, nonce)
+    mockPayload.findByID.mockResolvedValue({ id: 7, gmailConnected: true, gmailEmail: 'me@od.com' })
+    exchangeGmailCode.mockResolvedValue({ email, accessToken: 'a', refreshToken: 'r', expiry: null })
+    return callback.GET(new NextRequest(`http://localhost/api/gmail/callback?code=c&state=${encodeURIComponent(state)}`))
+  }
+
+  it('signs in through that app with its own nonce cookie, and refuses apps that are not set up', async () => {
+    setPersonal()
+    const res = await connect.GET(new NextRequest('http://localhost/api/gmail/connect?add=1&app=alt2'))
+    expect(cookieJar.has('oauth_nonce_gmail_add_alt2')).toBe(true)
+    expect(location(res).searchParams.get('app')).toBe('alt2')
+    cookieJar.clear()
+    for (const app of ['alt3', 'alt', 'main', 'nope']) {
+      expect((await connect.GET(new NextRequest(`http://localhost/api/gmail/connect?add=1&app=${app}`))).status).toBe(400)
+    }
+    expect(cookieJar.size).toBe(0)
+  })
+
+  it('saves only the listed address; any other Gmail signed in through it keeps no tokens', async () => {
+    setPersonal()
+    const ok = await callbackWith('oauth_nonce_gmail_add_alt2', 'PeterTuu2@gmail.com')
+    expect(exchangeGmailCode).toHaveBeenCalledWith('c', 'alt2')
+    expect(location(ok).searchParams.get('account')).toBe('petertuu2@gmail.com')
+    expect(mockPayload.create).toHaveBeenCalledTimes(1)
+    const other = await callbackWith('oauth_nonce_gmail_add_alt2', 'someone@gmail.com')
+    expect(location(other).searchParams.get('mail_account_error')).toMatch(/not an account this sign-in option is set up for/)
+    expect(mockPayload.create).toHaveBeenCalledTimes(1)
   })
 })
 

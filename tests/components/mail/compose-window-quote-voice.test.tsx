@@ -268,3 +268,30 @@ describe('ComposeWindow Revise with no instruction', () => {
     expect(html).not.toContain('width: 75px')
   })
 })
+
+describe('ComposeWindow AI subject', () => {
+  const NEW: ComposeState = { mode: 'new', replyTo: null, to: 'jo@x.com', cc: '', subject: 'Old', html: '<p>Hi Jo,</p><p>Here is the weekly Google Ads report.</p>', attachments: [] }
+
+  it('writes a subject from the body straight into the subject line', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ subject: 'Weekly report for Google Ads' }), { status: 200 }))
+    mount(NEW)
+    const button = screen.getByRole('button', { name: 'Write subject with AI' })
+    await waitFor(() => expect(button).toHaveProperty('disabled', false))
+    await act(async () => {
+      fireEvent.click(button)
+    })
+    await waitFor(() => expect((screen.getByLabelText('Subject') as HTMLInputElement).value).toBe('Weekly report for Google Ads'))
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/mail/subject')
+    expect(JSON.parse(String(call?.[1]?.body)).body).toContain('weekly Google Ads report')
+  })
+
+  it('is disabled with an empty body and not offered on replies', () => {
+    mount({ ...NEW, html: '' })
+    expect(screen.getByRole('button', { name: 'Write subject with AI' })).toHaveProperty('disabled', true)
+    cleanup()
+    mount()
+    expect(screen.queryByRole('button', { name: 'Write subject with AI' })).toBeNull()
+  })
+})

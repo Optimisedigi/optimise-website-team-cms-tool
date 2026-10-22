@@ -179,6 +179,29 @@
   cursor: pointer;
 }
 
+.aiSubject {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 6px;
+  background: none;
+  color: var(--theme-elevation-650);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.aiSubject:hover:not(:disabled) {
+  border-color: var(--theme-elevation-400);
+  color: var(--theme-text);
+}
+
+.aiSubject:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .replyAllToggle {
   display: inline-flex;
   align-items: center;

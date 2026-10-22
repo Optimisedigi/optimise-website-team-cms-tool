@@ -5,6 +5,7 @@ import type React from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@payloadcms/ui";
 import RocketSplash from "./RocketSplash";
+import ClientEmailAlert from "./ClientEmailAlert";
 import { useRouter } from "next/navigation";
 
 interface NotificationRow {
@@ -118,6 +119,16 @@ const NotificationsBell = (): ReactElement | null => {
     }
   }, []);
 
+  // Bumped when a client email drops down, so the count refreshes straight away.
+  const [countNonce, setCountNonce] = useState(0);
+  const onClientEmailArrive = useCallback(() => {
+    // The drop-down is the heads-up; don't also pop the list open over it.
+    autoOpenedRef.current = true;
+    setShaking(true);
+    window.setTimeout(() => setShaking(false), SHAKE_DURATION_MS);
+    setCountNonce((n) => n + 1);
+  }, []);
+
   // Poll unread count on a 60s interval while a user is signed in.
   useEffect(() => {
     if (!user) return;
@@ -159,7 +170,7 @@ const NotificationsBell = (): ReactElement | null => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [user, loadList]);
+  }, [user, loadList, countNonce]);
 
   // Close on outside click and on Escape.
   useEffect(() => {
@@ -326,6 +337,7 @@ const NotificationsBell = (): ReactElement | null => {
         )}
       </button>
 
+      <ClientEmailAlert suppressed={open} onArrive={onClientEmailArrive} />
       {open && isMobile && (
         <div
           aria-hidden="true"
