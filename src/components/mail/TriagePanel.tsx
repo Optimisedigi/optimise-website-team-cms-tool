@@ -193,9 +193,11 @@ export default function TriagePanel({
   useEffect(() => () => runRef.current?.abort(), [])
 
   // Keep the results (and what is ticked) until they are all actioned; a new run overwrites them.
+  // False when the browser would not store them (storage full or blocked), so the panel can say so.
+  const [kept, setKept] = useState(true)
   useEffect(() => {
     if (account === undefined || !result || ranAt === null) return
-    saveTriage(browserStorage(), account, { result, selected: [...selected].sort(), savedAt: ranAt })
+    setKept(saveTriage(browserStorage(), account, { result, selected: [...selected].sort(), savedAt: ranAt }))
   }, [account, result, selected, ranAt])
 
   const loadTags = useCallback(async () => {
@@ -539,6 +541,12 @@ export default function TriagePanel({
                 />
               ))}
             </div>
+          ) : null}
+          {!kept ? (
+            <p className={styles.muted} role="alert">
+              This browser would not keep these results (its storage is full or blocked), so they will be gone once you close this
+              panel or leave Mail.
+            </p>
           ) : null}
           {saved && ranAt === saved.savedAt ? (
             <p className={styles.muted}>
