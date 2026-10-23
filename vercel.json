@@ -112,6 +112,10 @@
     {
       "path": "/api/node-security-releases/cron",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/nextjs-security-advisories/cron",
+      "schedule": "5 0 * * *"
     }
   ],
   "functions": {

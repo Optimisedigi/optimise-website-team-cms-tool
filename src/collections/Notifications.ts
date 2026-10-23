@@ -143,6 +143,12 @@ export const Notifications: CollectionConfig = {
           label: "Node.js security release",
           value: "node-security-release",
         },
+        {
+          // Raised by /api/nextjs-security-advisories/cron when GitHub publishes
+          // a new high or critical advisory for Next.js: update every Next app.
+          label: "Next.js security advisory",
+          value: "nextjs-security-advisory",
+        },
       ],
     },
     {

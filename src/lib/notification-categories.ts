@@ -38,6 +38,7 @@ const CATEGORY_BY_KIND: Record<string, NotificationCategoryKey> = {
   "site-health-regression": "seo",
   "google-search-update": "seo",
   "node-security-release": "seo",
+  "nextjs-security-advisory": "seo",
   "contract-annual-review-11mo": "billing",
   "contract-annual-review-11.5mo": "billing",
   "invoice-statements-ready": "billing",

@@ -11754,7 +11754,8 @@ export interface Notification {
     | 'hosting-duplicate-subscription'
     | 'client-email-received'
     | 'mail-follow-up-due'
-    | 'node-security-release';
+    | 'node-security-release'
+    | 'nextjs-security-advisory';
   title: string;
   /**
    * Short summary line.
