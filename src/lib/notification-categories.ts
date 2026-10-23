@@ -37,6 +37,7 @@ const CATEGORY_BY_KIND: Record<string, NotificationCategoryKey> = {
   "goal-run-escalation": "agents",
   "site-health-regression": "seo",
   "google-search-update": "seo",
+  "node-security-release": "seo",
   "contract-annual-review-11mo": "billing",
   "contract-annual-review-11.5mo": "billing",
   "invoice-statements-ready": "billing",

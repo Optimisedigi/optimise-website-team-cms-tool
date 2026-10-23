@@ -137,6 +137,12 @@ export const Notifications: CollectionConfig = {
           label: "Mail follow-up due",
           value: "mail-follow-up-due",
         },
+        {
+          // Raised by /api/node-security-releases/cron when a supported
+          // Node.js line gets a new security release: run /node-security-update.
+          label: "Node.js security release",
+          value: "node-security-release",
+        },
       ],
     },
     {
