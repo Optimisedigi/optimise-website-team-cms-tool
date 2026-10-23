@@ -1039,7 +1039,7 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
               ref={editorRef}
               initialHtml={initial.html}
               ariaLabel="Email body"
-              placeholder="Write here, or ask the AI below. Cmd+B, I and U format text. Paste images and tables straight in. Nothing is sent until you click Send."
+              placeholder="Write here, or ask the AI below. Cmd+B, I and U format text; Cmd+K adds a link. Paste images and tables straight in. Nothing is sent until you click Send."
               onContentChange={(has) => {
                 setHasDraft(has)
                 // The first change report is the editor loading its initial body, not an edit.

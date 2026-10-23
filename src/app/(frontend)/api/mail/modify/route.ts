@@ -5,11 +5,11 @@ import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireM
 /**
  * POST /api/mail/modify
  * Body: { threadId, action: "archive" | "read" | "unread" | "trash" | "untrash" }
- *    or { threadIds: [...up to 50], action: "read" } (inbox multi-select "Mark as read")
+ *    or { threadIds: [...up to 50], action: "read" | "unread" } (inbox multi-select "Mark as read" / "Mark as unread")
  *
  * Archive only removes the INBOX label. Trash moves the thread to Gmail's Bin
  * (Gmail empties it after 30 days) and untrash brings it back (the Undo);
- * nothing is deleted outright. Bulk is limited to marking read. Requires the
+ * nothing is deleted outright. Bulk is limited to marking read or unread. Requires the
  * gmail.modify scope.
  */
 const CHANGES = {
@@ -24,6 +24,8 @@ type BinAction = (typeof BIN_ACTIONS)[number];
 const isBinAction = (value: unknown): value is BinAction => (BIN_ACTIONS as readonly unknown[]).includes(value);
 
 const MAX_BULK_THREADS = 50;
+/** The only actions allowed on many threads at once. */
+const BULK_ACTIONS: readonly string[] = ["read", "unread"];
 
 /** 1 to MAX_BULK_THREADS valid Gmail ids, without repeats; null otherwise. */
 function cleanThreadIds(value: unknown): string[] | null {
@@ -42,8 +44,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const bulk = body?.threadIds !== undefined;
   const threadIds = bulk ? cleanThreadIds(body?.threadIds) : null;
   const threadId = bulk ? null : parseGmailId(body?.threadId);
-  if (bulk && (!threadIds || action !== "read")) {
-    return NextResponse.json({ error: `Send 1 to ${MAX_BULK_THREADS} thread ids with action "read".` }, { status: 400 });
+  if (bulk && (!threadIds || !action || !BULK_ACTIONS.includes(action))) {
+    return NextResponse.json({ error: `Send 1 to ${MAX_BULK_THREADS} thread ids with action "read" or "unread".` }, { status: 400 });
   }
   if (!bulk && (!threadId || !action)) {
     return NextResponse.json({ error: "threadId and action (archive, read, unread, trash, untrash) are required." }, { status: 400 });
@@ -70,6 +72,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     await mapLimited(threadIds ?? [threadId as string], 5, (id) => modifyThreadLabels(token.accessToken, id, labels));
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return gmailErrorResponse(err, bulk ? "Gmail could not mark those emails read." : "Gmail could not update that thread.");
+    return gmailErrorResponse(err, bulk ? `Gmail could not mark those emails ${action}.` : "Gmail could not update that thread.");
   }
 }

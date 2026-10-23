@@ -20,6 +20,17 @@ describe('extractInlineImages', () => {
 })
 
 describe('parseMailComposeContent', () => {
+  it('keeps hyperlinks added in the editor', () => {
+    const result = parseMailComposeContent({
+      html: '<p>See <a href="https://example.com/results" rel="noreferrer" class="x"><span>our results</span></a></p>',
+      inlineImages: [],
+      attachments: [],
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.html).toContain('<a href="https://example.com/results" rel="noreferrer"><span>our results</span></a>')
+  })
+
   it('accepts formatted HTML with a table, an inline image and an attached file', () => {
     const result = parseMailComposeContent({
       html: '<p class="x"><b>Hi</b> <i>there</i> <u>Sam</u></p><table><tr><td>A</td></tr></table><img src="cid:image1@optimate.mail">',

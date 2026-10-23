@@ -289,6 +289,11 @@
   text-decoration: underline;
 }
 
+.editorLink {
+  color: #1a73e8;
+  text-decoration: underline;
+}
+
 /* Gmail's list look: visible markers (the admin's global reset hides them), a small
    indent with the bullet sitting just inside the text edge, and a slight gap above and
    below the list. Must match inlineEmailListStyles (src/lib/mail/gmail-html.ts). */
@@ -433,6 +438,62 @@
   border-radius: 6px;
   background: var(--theme-elevation-0);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+/* Cmd/Ctrl+K link box (EmailLinkPlugin), portalled to <body> under the selection. */
+.linkDialog {
+  position: fixed;
+  z-index: 100001;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  padding: 8px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 6px;
+  background: var(--theme-elevation-0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  box-sizing: border-box;
+}
+
+.linkDialog form {
+  display: flex;
+  gap: 6px;
+}
+
+.linkInput {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 4px;
+  background: var(--theme-elevation-0);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+
+.linkInput[aria-invalid='true'] {
+  border-color: #d93025;
+}
+
+.linkButton {
+  padding: 5px 10px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  background: var(--theme-elevation-100);
+}
+
+.linkError {
+  margin: 6px 0 0;
+  color: #d93025;
+  font-size: 12px;
 }
 
 .colorDefault {

@@ -16,7 +16,7 @@ import {
   normaliseClientSender,
 } from '../../lib/mail/client-senders'
 import { normaliseDomain, SHARED_MAILBOX_DOMAINS } from '../../lib/mail/client-matching'
-import { MAIL_DRAFT_QUERY_PARAM, MAIL_OPEN_LINK_EVENT, MAIL_THREAD_QUERY_PARAM, isGmailId } from '../../lib/mail/drafts'
+import { MAIL_DRAFT_QUERY_PARAM, MAIL_OPEN_LINK_EVENT, MAIL_THREAD_QUERY_PARAM, cmsMailWindowPath, isGmailId } from '../../lib/mail/drafts'
 import { MAIL_TABS, mailTabLabel, unreadFirst, type MailFolder, type MailTab, type MailTabCounts } from '../../lib/mail/folders'
 import ScheduledPanel, { type ScheduledDetail, type ScheduledItem } from './ScheduledPanel'
 import AwaitingPanel, { type FollowUpItem } from './AwaitingPanel'
@@ -72,7 +72,7 @@ const ComposeWindow = lazy(loadComposeWindow)
  */
 const SEARCH_PEOPLE_WAIT_MS = 300
 
-/** Threads per bulk Mark as read request (the /api/mail/modify cap). */
+/** Threads per bulk Mark as read / unread request (the /api/mail/modify cap). */
 const MODIFY_THREADS_PER_REQUEST = 50
 
 /** Server reason (also read by agents/tools) → the wording users see in Mail. */
@@ -176,6 +176,12 @@ function MailOverflowMenu({
  * Gmail account at a time, the user's main Gmail or one of their extra
  * accounts, and every request names that account (MAIL_ACCOUNT_HEADER). A
  * compose window keeps the account it was opened in.
+ *
+ * `windowMode` (`/admin/mail/window?thread=<id>&account=<email>`, opened by
+ * the reading pane's "Open in new window" button) shows only that email's
+ * reading pane, with every action (reply, forward, AI, archive, delete, ...)
+ * and no folder list. Its URL keeps the thread, so reloading the window
+ * reopens the same email.
  */
 
 export interface MailClientOption {
@@ -312,7 +318,7 @@ function forgetStoredAccount(): void {
   }
 }
 
-export default function MailApp({ clients }: { clients: MailClientOption[] }) {
+export default function MailApp({ clients, windowMode = false }: { clients: MailClientOption[]; windowMode?: boolean }) {
   // The Gmail account on screen: '' = the user's main Gmail, else an extra account's address.
   // The ref is what requests read, so callbacks never send a stale account.
   const accountRef = useRef('')
@@ -339,7 +345,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const [threads, setThreads] = useState<ThreadRow[]>([])
   // Inbox rows ticked for a bulk action (thread ids); only rows still listed count.
   const [checkedThreads, setCheckedThreads] = useState<Set<string>>(() => new Set())
-  const [bulkBusy, setBulkBusy] = useState(false)
+  // Which bulk action is running on the ticked rows, if any.
+  const [bulkBusyAction, setBulkBusyAction] = useState<'read' | 'unread' | null>(null)
+  const bulkBusy = bulkBusyAction !== null
   // Result of the last bulk action, shown above the list (the reading pane may be empty).
   const [bulkNote, setBulkNote] = useState('')
   const [account, setAccount] = useState('')
@@ -652,6 +660,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   const autoRefreshState = useRef({ refresh, composing: false, loading: false })
   autoRefreshState.current = { refresh, composing: composer !== null, loading: listLoading }
   useEffect(() => {
+    if (windowMode) return
     const timer = window.setInterval(() => {
       const { refresh: run, composing, loading } = autoRefreshState.current
       if (document.visibilityState !== 'visible' || composing || loading || listAppended.current) return
@@ -659,7 +668,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       void run()
     }, MAIL_AUTO_REFRESH_MS)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [windowMode])
 
   // Which account to open on, before the first load below: `?account=` (an
   // alert or the add-account return), else always the main Gmail.
@@ -675,14 +684,15 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     setActiveAccount(initial)
     if (added) setSyncNote(`Connected ${added}.`)
     if (addError) setError({ message: `Could not add the Gmail account: ${addError.slice(0, 300)}` })
-    if (fromUrl !== null || added !== null || addError !== null) {
+    // A single-email window keeps its URL, so a reload reopens the same email.
+    if (!windowMode && (fromUrl !== null || added !== null || addError !== null)) {
       params.delete(MAIL_ACCOUNT_QUERY_PARAM)
       params.delete('mail_account_added')
       params.delete('mail_account_error')
       const rest = params.toString()
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`)
     }
-  }, [])
+  }, [windowMode])
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -697,15 +707,21 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   // Sync on open, once the list has shown (Gmail rate-limits per user, so the
   // list goes first), then fetch the compose window in the background.
   useEffect(() => {
+    // A single-email window has no list or badges: it only needs the compose window.
+    if (windowMode) {
+      void loadComposeWindow().catch(() => undefined)
+      return
+    }
     void loadCounts()
     void loadInbox({ folder: 'inbox' }).then(() => {
       void runSync()
       void loadComposeWindow().catch(() => undefined)
     })
-  }, [runSync, loadInbox, loadCounts])
+  }, [runSync, loadInbox, loadCounts, windowMode])
 
   // Keep the badges current while the tab is open.
   useEffect(() => {
+    if (windowMode) return
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadCounts()
     }, COUNTS_REFRESH_MS)
@@ -717,7 +733,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [loadCounts])
+  }, [loadCounts, windowMode])
 
   // Switching folders clears the list, the selection and the search; the
   // compose window stays so an in-progress draft is not lost.
@@ -1049,12 +1065,14 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     const params = new URLSearchParams(window.location.search)
     if (!params.get(MAIL_THREAD_QUERY_PARAM) && !params.get(MAIL_DRAFT_QUERY_PARAM)) return
     const link = new URLSearchParams(params)
-    params.delete(MAIL_THREAD_QUERY_PARAM)
-    params.delete(MAIL_DRAFT_QUERY_PARAM)
-    const rest = params.toString()
-    window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`)
+    if (!windowMode) {
+      params.delete(MAIL_THREAD_QUERY_PARAM)
+      params.delete(MAIL_DRAFT_QUERY_PARAM)
+      const rest = params.toString()
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`)
+    }
     openLinkRef.current(link, true)
-  }, [])
+  }, [windowMode])
 
   // Links opened while Mail is already on screen (openCmsMailLink).
   useEffect(() => {
@@ -1069,6 +1087,45 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   }, [])
 
   const selectedThread = useMemo(() => threads.find((t) => t.threadId === selectedThreadId) ?? null, [threads, selectedThreadId])
+
+  // A single-email window loads no list, so its one row (which Delete and Mark
+  // read/unread act on) is built from the open thread. Opening it marked it read.
+  useEffect(() => {
+    if (!windowMode || !selectedThreadId) return
+    const first = messages[0]
+    const last = messages[messages.length - 1]
+    if (!first || !last || first.threadId !== selectedThreadId) return
+    setThreads((current) =>
+      current.some((row) => row.threadId === selectedThreadId)
+        ? current
+        : [
+            {
+              threadId: selectedThreadId,
+              messageId: last.messageId,
+              from: last.from,
+              to: last.to,
+              subject: first.subject,
+              snippet: '',
+              date: last.date,
+              unread: false,
+              messageCount: messages.length,
+              client: last.stored ? { id: last.stored.clientId, name: last.stored.clientName } : null,
+            },
+          ],
+    )
+  }, [windowMode, selectedThreadId, messages])
+
+  // The window's title is the email's subject, so it can be told apart from other windows.
+  const windowSubject = windowMode ? messages[0]?.subject : undefined
+  useEffect(() => {
+    if (windowSubject !== undefined) document.title = `${windowSubject || '(no subject)'} · Mail`
+  }, [windowSubject])
+
+  /** Open the email in the reading pane in its own browser window. */
+  function openInNewWindow(threadId: string) {
+    const opened = window.open(cmsMailWindowPath(threadId, accountRef.current), `mail-${threadId}`, 'popup,width=1000,height=900')
+    if (!opened) setActionNote('Your browser blocked the new window. Allow pop-ups for this site and try again.')
+  }
   const latest = messages[messages.length - 1] ?? null
   const hideTarget = useMemo(() => {
     const own = account.toLowerCase()
@@ -1279,29 +1336,29 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     setCheckedThreads(allLoadedChecked ? new Set() : new Set(threads.map((row) => row.threadId)))
   }
 
-  /** Mark every ticked inbox row read, in chunks the route accepts. */
-  async function markCheckedRead() {
+  /** Mark every ticked inbox row read or unread, in chunks the route accepts. */
+  async function markChecked(action: 'read' | 'unread') {
     const ids = checkedRows.map((row) => row.threadId)
     if (bulkBusy || ids.length === 0) return
-    setBulkBusy(true)
+    setBulkBusyAction(action)
     setBulkNote('')
     const done = new Set<string>()
     try {
       for (let i = 0; i < ids.length; i += MODIFY_THREADS_PER_REQUEST) {
         const chunk = ids.slice(i, i + MODIFY_THREADS_PER_REQUEST)
-        await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadIds: chunk, action: 'read' }) })
+        await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadIds: chunk, action }) })
         for (const id of chunk) done.add(id)
       }
-      setBulkNote(`Marked ${done.size} email${done.size === 1 ? '' : 's'} read`)
+      setBulkNote(`Marked ${done.size} email${done.size === 1 ? '' : 's'} ${action}`)
     } catch (err) {
-      setBulkNote(`${(err as Error).message}${done.size ? ` (${done.size} marked read before it stopped)` : ''}`)
+      setBulkNote(`${(err as Error).message}${done.size ? ` (${done.size} marked ${action} before it stopped)` : ''}`)
     } finally {
       if (done.size > 0) {
-        setThreads((current) => current.map((row) => (done.has(row.threadId) ? { ...row, unread: false } : row)))
+        setThreads((current) => current.map((row) => (done.has(row.threadId) ? { ...row, unread: action === 'unread' } : row)))
         setCheckedThreads((current) => new Set([...current].filter((id) => !done.has(id))))
         void loadCounts()
       }
-      setBulkBusy(false)
+      setBulkBusyAction(null)
     }
   }
 
@@ -1312,6 +1369,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
       await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: selectedThreadId, action }) })
       if (action === 'archive') {
         setThreads((current) => current.filter((row) => row.threadId !== selectedThreadId))
+        if (windowMode) setActionNote('Archived.')
         setSelectedThreadId(null)
         setMessages([])
         setComposer(null)
@@ -1651,6 +1709,19 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
     }
   }
 
+  /** Single-email window: bring the deleted email back and show it again. */
+  async function undoDeleteInWindow() {
+    const deleted = lastDeleted
+    if (!deleted) return
+    setLastDeleted(null)
+    try {
+      await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: deleted.thread.threadId, action: 'untrash' }) })
+      void openThread(deleted.thread)
+    } catch (err) {
+      showError(err)
+    }
+  }
+
   async function deleteDraftRow(thread: ThreadRow) {
     if (!window.confirm('Delete this draft?')) return
     try {
@@ -1751,7 +1822,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
 
   // Mobile: the reader slides over the list. Back = close the panel, which also
   // gives the phone's back button / back swipe a history entry to pop.
-  const readerOpen = isMobile && (showScheduled ? selectedScheduledId !== null : !!selectedThreadId)
+  const readerOpen = !windowMode && isMobile && (showScheduled ? selectedScheduledId !== null : !!selectedThreadId)
   const closeReader = useCallback(() => {
     setSelectedScheduledId(null)
     threadRequest.current++
@@ -1774,7 +1845,9 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
   }, [readerOpen, closeReader])
 
   return (
-    <div className={`${styles.app} ${readerOpen ? styles.appReaderOpen : ''}`}>
+    <div className={`${styles.app} ${readerOpen ? styles.appReaderOpen : ''} ${windowMode ? styles.appWindow : ''}`}>
+      {windowMode ? null : (
+      <>
       <MailStepNav
         current={account || activeAccount || accountsInfo?.primary || ''}
         accounts={[
@@ -1880,6 +1953,8 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           {isPhone ? <span aria-hidden="true">✎</span> : 'Write message'}
         </button>
       </div>
+      </>
+      )}
 
       {error ? (
         (() => {
@@ -2082,7 +2157,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         />
       ) : null}
 
-      <div className={styles.panes} style={panelOpen || (showTriagePanel && triageExpanded) ? { display: 'none' } : undefined}>
+      <div
+        className={`${styles.panes} ${windowMode ? styles.panesWindow : ''}`}
+        style={panelOpen || (showTriagePanel && triageExpanded) ? { display: 'none' } : undefined}
+      >
+        {windowMode ? null : (
         <div className={styles.listPane}>
         {/* Search sits right above the first email in the list. */}
         <InboxSearch
@@ -2114,8 +2193,11 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
         {folder === 'inbox' && checkedRows.length > 0 ? (
           <div className={styles.bulkBar} role="toolbar" aria-label="Selected emails">
             <span className={styles.bulkCount}>{checkedRows.length} selected</span>
-            <button type="button" className={`${styles.btn} ${styles.primary}`} onClick={() => void markCheckedRead()} disabled={bulkBusy}>
-              {bulkBusy ? 'Marking read…' : 'Mark as read'}
+            <button type="button" className={`${styles.btn} ${styles.primary}`} onClick={() => void markChecked('read')} disabled={bulkBusy}>
+              {bulkBusyAction === 'read' ? 'Marking read…' : 'Mark as read'}
+            </button>
+            <button type="button" className={styles.btn} onClick={() => void markChecked('unread')} disabled={bulkBusy}>
+              {bulkBusyAction === 'unread' ? 'Marking unread…' : 'Mark as unread'}
             </button>
             <button type="button" className={styles.linkBtn} onClick={() => setCheckedThreads(new Set())} disabled={bulkBusy}>
               Clear
@@ -2238,22 +2320,42 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
           ) : null}
         </ul>
         </div>
+        )}
 
         <section
           ref={readerRef}
-          className={`${styles.reader} ${readerOpen ? styles.readerOpen : ''}`}
+          className={`${styles.reader} ${readerOpen || windowMode ? styles.readerOpen : ''}`}
           aria-label="Reading pane"
-          aria-hidden={isMobile && !readerOpen ? true : undefined}
+          aria-hidden={isMobile && !readerOpen && !windowMode ? true : undefined}
           data-testid="mail-reader"
         >
-          {isMobile && selectedThreadId ? (
+          {isMobile && selectedThreadId && !windowMode ? (
             <div className={styles.mobileBar}>
               <button type="button" className={styles.backBtn} onClick={() => window.history.state?.mailReader ? window.history.back() : closeReader()} aria-label="Back to inbox">
                 ‹ Inbox
               </button>
             </div>
           ) : null}
-          {!selectedThreadId ? (
+          {!selectedThreadId && windowMode ? (
+            lastDeleted ? (
+              <div className={styles.empty}>
+                <p>Deleted “{lastDeleted.thread.subject || '(no subject)'}”. It stays in Gmail’s Bin for 30 days.</p>
+                <button type="button" className={styles.btn} onClick={() => void undoDeleteInWindow()}>
+                  Undo
+                </button>{' '}
+                <button type="button" className={styles.btn} onClick={() => window.close()}>
+                  Close window
+                </button>
+              </div>
+            ) : (
+              <div className={styles.empty}>
+                <p>{actionNote || 'This email is no longer open here.'}</p>
+                <button type="button" className={styles.btn} onClick={() => window.close()}>
+                  Close window
+                </button>
+              </div>
+            )
+          ) : !selectedThreadId ? (
             <p className={styles.empty}>Select an email to read it.</p>
           ) : threadLoading ? (
             <p className={styles.empty}>Loading…</p>
@@ -2276,6 +2378,19 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
                         Forward
                       </button>
                     </>
+                  ) : null}
+                  {!windowMode && selectedThreadId ? (
+                    <button
+                      type="button"
+                      className={`${styles.btn} ${styles.iconBtn}`}
+                      onClick={() => openInNewWindow(selectedThreadId)}
+                      aria-label="Open in new window"
+                      title="Open in new window"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5" />
+                      </svg>
+                    </button>
                   ) : null}
                   {selectedThread && folder !== 'drafts' ? (
                     <button
@@ -2531,7 +2646,7 @@ export default function MailApp({ clients }: { clients: MailClientOption[] }) {
             </div>
           ) : null}
 
-          {readerOpen && latest && !threadLoading && !composer ? (
+          {(readerOpen || (windowMode && isMobile)) && latest && !threadLoading && !composer ? (
             <div className={styles.replyBar} data-testid="mail-reply-bar">
               <button type="button" className={`${styles.btn} ${styles.primary} ${styles.replyBtn}`} onClick={() => startReply(latest)}>
                 Reply

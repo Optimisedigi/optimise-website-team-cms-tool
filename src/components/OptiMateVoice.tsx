@@ -274,6 +274,29 @@ function isSpeechLayerMode(mode: OptiMateVoiceProps['mode']): boolean {
   return mode === 'audit' || mode === 'portfolio' || mode === 'adminmate'
 }
 
+/**
+ * Realtime turn detection per mode. A slower server VAD so natural pauses do
+ * not end the user's turn too soon. Email/invoice/mail let Realtime create the
+ * reply itself; GoogleMate audit/portfolio and AdminMate use Realtime only for
+ * transcription and readback, so the typed backend owns the answer turn.
+ *
+ * Mail (the compose window's GPT Live mic) has barge-in: speaking while the
+ * assistant talks cancels its reply, as in ChatGPT voice. Without
+ * interrupt_response the server keeps playing the reply and the user's words
+ * only queue behind it. Other modes keep it off because a cancelled reply
+ * could drop a tool turn mid-way.
+ */
+export function voiceTurnDetection(mode: OptiMateVoiceProps['mode']) {
+  return {
+    type: 'server_vad',
+    threshold: 0.65,
+    prefix_padding_ms: 500,
+    silence_duration_ms: 1400,
+    create_response: mode === 'email' || mode === 'invoice' || mode === 'mail',
+    interrupt_response: mode === 'mail',
+  }
+}
+
 function createEmptyVoiceDevTrace(): VoiceDevTraceState {
   return {
     transcript: '',
@@ -1207,28 +1230,17 @@ export default function OptiMateVoice({
 
       setState('connecting')
 
-      // 2. Mint the ephemeral secret right before the offer. Use a slower
-      //    server-side VAD so natural pauses do not end the user's turn too soon.
-      //    Realtime owns response creation for spoken turns; we only create the
-      //    controlled opening greeting and post-tool follow-up responses.
+      // 2. Mint the ephemeral secret right before the offer (turn detection:
+      //    see voiceTurnDetection). Realtime owns response creation for spoken
+      //    turns; we only create the controlled opening greeting and post-tool
+      //    follow-up responses.
       const secret = await provider.getSecret({
         auditId: mode === 'invoice' || mode === 'adminmate' || mode === 'mail' ? mode : String(auditId),
         ...(mode === 'mail' ? { mode } : {}),
         session: {
           instructions: session.instructions,
           tools: session.tools,
-          // Let Realtime wait longer before ending a user turn. Email/invoice
-          // still let Realtime create the response itself; GoogleMate audit /
-          // portfolio uses Realtime only for transcription + readback, so the
-          // typed backend owns the actual answer turn.
-          turnDetection: {
-            type: 'server_vad',
-            threshold: 0.65,
-            prefix_padding_ms: 500,
-            silence_duration_ms: 1400,
-            create_response: mode === 'email' || mode === 'invoice' || mode === 'mail',
-            interrupt_response: false,
-          },
+          turnDetection: voiceTurnDetection(mode),
         },
       })
       setUsingApiCredits(secret.billing === 'api-key')

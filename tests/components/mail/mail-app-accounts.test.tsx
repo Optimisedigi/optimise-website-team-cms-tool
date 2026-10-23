@@ -116,6 +116,37 @@ describe('MailApp layout', () => {
     expect(rows.filter((row) => row?.className.includes('unread'))).toHaveLength(1)
   })
 
+  it('ticking read inbox emails offers Mark as unread, without opening them', async () => {
+    const baseFetch = global.fetch
+    const read = [
+      { ...thread, threadId: 't1', subject: 'First', unread: false },
+      { ...thread, threadId: 't2', messageId: 'm2', subject: 'Second', unread: false },
+      { ...thread, threadId: 't3', messageId: 'm3', subject: 'Third', unread: false },
+    ]
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/mail/inbox')) {
+        calls.push({ url, init })
+        return { ok: true, json: async () => ({ threads: read, nextPageToken: null, account: 'me@od.com', senderClients: [] }) } as Response
+      }
+      return baseFetch(url, init)
+    }) as unknown as typeof fetch
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('First')
+    fireEvent.click(screen.getByRole('checkbox', { name: /First/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Third/ }))
+    calls = []
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as unread' }))
+    await screen.findByText('Marked 2 emails unread')
+    const modify = calls.filter((call) => call.url === '/api/mail/modify')
+    expect(modify).toHaveLength(1)
+    expect(JSON.parse(String(modify[0]?.init?.body))).toEqual({ threadIds: ['t1', 't3'], action: 'unread' })
+    // Nothing was opened, the two rows now look unread and the selection clears.
+    expect(calls.some((call) => call.url.startsWith('/api/mail/thread'))).toBe(false)
+    expect(screen.queryByText('2 selected')).toBeNull()
+    const rows = screen.getAllByRole('listitem').map((li) => li.querySelector('button'))
+    expect(rows.filter((row) => row?.className.includes('unread'))).toHaveLength(2)
+  })
+
   it('a row delete icon moves the thread to the Bin, with Undo bringing it back', async () => {
     render(<MailApp clients={CLIENTS} />)
     await screen.findByText('Hello there')
@@ -450,5 +481,68 @@ describe('MailApp client pill for a sender', () => {
     await screen.findByText(/Emails from jo@acme\.com\.au now go to Beta\. Moved 3 saved emails to it\./)
     const post = calls.find((call) => call.url === '/api/mail/sender-client')
     expect(JSON.parse(String(post?.init?.body))).toEqual({ sender: 'jo@acme.com.au', clientId: 2 })
+  })
+})
+
+describe('MailApp "Open in new window"', () => {
+  it('opens the open email in its own window, on the account on screen', async () => {
+    window.history.replaceState(null, '', '/admin/mail?account=sales%40od.com')
+    const open = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    render(<MailApp clients={CLIENTS} />)
+    fireEvent.click(await screen.findByText('Hello there'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open in new window' }))
+    expect(open).toHaveBeenCalledWith('/admin/mail/window?thread=t1&account=sales%40od.com', 'mail-t1', 'popup,width=1000,height=900')
+  })
+
+  it('says so when the browser blocks the window', async () => {
+    window.history.replaceState(null, '', '/admin/mail')
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    render(<MailApp clients={CLIENTS} />)
+    fireEvent.click(await screen.findByText('Hello there'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open in new window' }))
+    expect(await screen.findByText(/blocked the new window/)).toBeTruthy()
+  })
+
+  it('the window shows only that email, with reply and the other actions, and keeps its URL', async () => {
+    window.history.replaceState(null, '', '/admin/mail/window?thread=t1&account=sales%40od.com')
+    render(<MailApp clients={CLIENTS} windowMode />)
+    const reader = await screen.findByTestId('mail-reader')
+    await within(reader).findByRole('heading', { name: 'Hello there' })
+    // No folder tabs, inbox list or account breadcrumb; no inbox loads or syncs.
+    expect(screen.queryByRole('tablist', { name: 'Mail folders' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Search inbox' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open in new window' })).toBeNull()
+    expect(calls.some((call) => call.url.startsWith('/api/mail/inbox') || call.url.startsWith('/api/mail/sync'))).toBe(false)
+    // The thread is read on the account from the URL, and the URL stays for a reload.
+    const threadCall = calls.find((call) => call.url === '/api/mail/thread/t1')
+    expect((threadCall?.init?.headers as Record<string, string>)['x-mail-account']).toBe('sales@od.com')
+    expect(window.location.search).toBe('?thread=t1&account=sales%40od.com')
+    expect(document.title).toBe('Hello there · Mail')
+    // Delete and Mark read/unread act on the window's one row, built once the thread loads.
+    expect(await within(reader).findByRole('button', { name: 'Delete' })).toBeTruthy()
+    for (const name of ['Reply', 'Reply all', 'Forward', 'Archive', 'Mark unread']) {
+      expect(within(reader).getByRole('button', { name })).toBeTruthy()
+    }
+    fireEvent.click(within(reader).getByRole('button', { name: 'Reply' }))
+    expect(await screen.findByTestId('compose')).toBeTruthy()
+  })
+
+  it('after Delete in the window, offers Undo, which brings the email back', async () => {
+    window.history.replaceState(null, '', '/admin/mail/window?thread=t1')
+    render(<MailApp clients={CLIENTS} windowMode />)
+    const reader = await screen.findByTestId('mail-reader')
+    await within(reader).findByRole('heading', { name: 'Hello there' })
+    const del = await within(reader).findByRole('button', { name: 'Delete' })
+    calls = []
+    fireEvent.click(del)
+    expect(await within(reader).findByText(/Deleted “Hello there”/)).toBeTruthy()
+    expect(within(reader).getByRole('button', { name: 'Close window' })).toBeTruthy()
+    fireEvent.click(within(reader).getByRole('button', { name: 'Undo' }))
+    await within(reader).findByRole('heading', { name: 'Hello there' })
+    const modify = calls.filter((call) => call.url === '/api/mail/modify').map((call) => JSON.parse(String(call.init?.body)))
+    expect(modify).toEqual([
+      { threadId: 't1', action: 'trash' },
+      { threadId: 't1', action: 'untrash' },
+    ])
   })
 })

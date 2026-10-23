@@ -14,18 +14,40 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  */
 export default function EmailBody({ html, title }: { html: string; title: string }) {
   const frameRef = useRef<HTMLIFrameElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
   const observerRef = useRef<ResizeObserver | null>(null)
   const [height, setHeight] = useState(200)
 
+  /**
+   * Size the frame to the email's own content. The frame is collapsed while
+   * measuring: the document's scrollHeight is never less than the frame, and
+   * emails sized to it (height:100%, 100vh) would otherwise grow the frame on
+   * every refit, leaving a long empty area to scroll through below the email.
+   * The wrapper keeps its height meanwhile, so the reading pane's scroll
+   * position never moves.
+   */
   const fit = useCallback(() => {
-    const doc = frameRef.current?.contentDocument
-    if (!doc?.documentElement) return
-    setHeight(Math.max(60, Math.ceil(doc.documentElement.scrollHeight) + 4))
+    const frame = frameRef.current
+    const doc = frame?.contentDocument
+    const wrap = wrapRef.current
+    if (!frame || !doc?.documentElement || !wrap) return
+    const shown = frame.style.height
+    wrap.style.minHeight = `${frame.offsetHeight}px`
+    frame.style.height = '0px'
+    const next = Math.max(60, Math.ceil(doc.documentElement.scrollHeight) + 4)
+    frame.style.height = shown
+    wrap.style.minHeight = ''
+    setHeight(next)
   }, [])
 
   const onLoad = useCallback(() => {
     const doc = frameRef.current?.contentDocument
     if (!doc) return
+    // Full-height templates (html,body{height:100%}) would size the email to the
+    // frame instead of to its content; in the reading pane it flows like a page.
+    const fitStyle = doc.createElement('style')
+    fitStyle.textContent = 'html,body{height:auto !important;min-height:0 !important;}'
+    doc.head?.append(fitStyle)
     doc.querySelectorAll('a[href]').forEach((anchor) => {
       anchor.setAttribute('target', '_blank')
       anchor.setAttribute('rel', 'noopener noreferrer')
@@ -42,6 +64,7 @@ export default function EmailBody({ html, title }: { html: string; title: string
   useEffect(() => () => observerRef.current?.disconnect(), [])
 
   return (
+    <div ref={wrapRef}>
     <iframe
       ref={frameRef}
       title={title}
@@ -51,5 +74,6 @@ export default function EmailBody({ html, title }: { html: string; title: string
       onLoad={onLoad}
       style={{ width: '100%', height, border: 0, display: 'block', background: '#fff', borderRadius: 4 }}
     />
+    </div>
   )
 }

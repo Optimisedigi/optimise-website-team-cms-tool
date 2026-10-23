@@ -8,6 +8,9 @@ import RichEmailEditor, {
   type RichEmailEditorHandle,
 } from '@/components/mail/RichEmailEditor'
 import { clampImageWidth, MIN_IMAGE_WIDTH, resizedImageWidth } from '@/components/mail/EmailImageNode'
+import { normalizeEmailLinkUrl } from '@/components/mail/EmailLinkPlugin'
+import * as lexical from 'lexical'
+import { fireEvent, screen } from '@testing-library/react'
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
@@ -378,5 +381,167 @@ describe('RichEmailEditor', () => {
       img.click()
     })
     await waitFor(() => expect(document.querySelectorAll('[data-corner]')).toHaveLength(4))
+  })
+})
+
+/** Select `text` inside the editor the way a user drags over it. */
+async function selectText(text: string) {
+  await act(async () => {
+    const editable = document.querySelector('[contenteditable="true"]')
+    const walker = document.createTreeWalker(editable ?? document.body, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const start = node.textContent?.indexOf(text) ?? -1
+      if (start < 0) continue
+      const range = document.createRange()
+      range.setStart(node, start)
+      range.setEnd(node, start + text.length)
+      window.getSelection()?.removeAllRanges()
+      window.getSelection()?.addRange(range)
+      document.dispatchEvent(new Event('selectionchange'))
+      break
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
+
+async function pressCmdK() {
+  const editable = document.querySelector('[contenteditable="true"]')
+  if (!editable) throw new Error('editor not mounted')
+  await act(async () => {
+    fireEvent.keyDown(editable, { key: 'k', metaKey: true })
+  })
+}
+
+describe('RichEmailEditor links (Cmd+K)', () => {
+  it('turns the selected text into a hyperlink', async () => {
+    const { ref } = await mount('<p>See our results page today.</p>')
+    await focusEnd(ref.current)
+    await selectText('results page')
+    await pressCmdK()
+
+    const input = screen.getByLabelText('Link address')
+    fireEvent.change(input, { target: { value: 'example.com/results' } })
+    await act(async () => {
+      fireEvent.submit(input.closest('form') as HTMLFormElement)
+    })
+
+    expect(screen.queryByRole('dialog', { name: 'Add link' })).toBeNull()
+    const html = ref.current?.getHtml() ?? ''
+    expect(html).toMatch(/<a href="https:\/\/example\.com\/results"[^>]*>[^]*results page[^]*<\/a>/)
+    expect(html).toContain('See our ')
+    expect(html).toContain(' today.')
+  })
+
+  it('rejects unsafe or unusable links and keeps the text unlinked', async () => {
+    const { ref } = await mount('<p>Click here</p>')
+    await focusEnd(ref.current)
+    await selectText('here')
+    await pressCmdK()
+
+    const input = screen.getByLabelText('Link address')
+    fireEvent.change(input, { target: { value: 'javascript:alert(1)' } })
+    await act(async () => {
+      fireEvent.submit(input.closest('form') as HTMLFormElement)
+    })
+
+    expect(screen.getByRole('alert').textContent).toMatch(/web address/)
+    expect(ref.current?.getHtml()).not.toContain('<a')
+  })
+
+  it('keeps links from loaded HTML and can remove one with Cmd+K', async () => {
+    const { ref } = await mount('<p>Read <a href="https://example.com/a">the report</a>.</p>')
+    expect(ref.current?.getHtml()).toMatch(/<a href="https:\/\/example\.com\/a"/)
+    await focusEnd(ref.current)
+    await selectText('the report')
+    await pressCmdK()
+
+    expect((screen.getByLabelText('Link address') as HTMLInputElement).value).toBe('https://example.com/a')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    })
+    const html = ref.current?.getHtml() ?? ''
+    expect(html).not.toContain('<a')
+    expect(html).toContain('the report')
+  })
+
+  it('normalises typed links to http(s), mailto or tel only', () => {
+    expect(normalizeEmailLinkUrl('example.com')).toBe('https://example.com')
+    expect(normalizeEmailLinkUrl('https://optimisedigital.online/x')).toBe('https://optimisedigital.online/x')
+    expect(normalizeEmailLinkUrl('sam@example.com')).toBe('mailto:sam@example.com')
+    expect(normalizeEmailLinkUrl('javascript:alert(1)')).toBeNull()
+    expect(normalizeEmailLinkUrl('data:text/html,hi')).toBeNull()
+    expect(normalizeEmailLinkUrl('not a link')).toBeNull()
+    expect(normalizeEmailLinkUrl('')).toBeNull()
+  })
+})
+
+/** The Lexical editor behind the mounted body (Lexical keeps it on the root element). */
+function lexicalEditor() {
+  const editable = document.querySelector('[contenteditable="true"]') as (HTMLElement & { __lexicalEditor?: import('lexical').LexicalEditor }) | null
+  const editor = editable?.__lexicalEditor
+  if (!editor) throw new Error('editor not mounted')
+  return editor
+}
+
+function bodyBlocks(): string[] {
+  return Array.from(document.querySelectorAll('[contenteditable="true"] > *')).map((node) => `${node.nodeName}:${node.textContent}`)
+}
+
+describe('RichEmailEditor lists', () => {
+  it('bullets only the cursor line when it shares a paragraph with the line above (Shift+Enter)', async () => {
+    const { ref } = await mount('<p>Thanks<br>Peter</p>')
+    await focusEnd(ref.current)
+    await act(async () => {
+      lexicalEditor().update(() => {
+        lexical.$getRoot().getLastDescendant()?.selectEnd()
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    act(() => ref.current?.toggleList('bullet'))
+    await waitFor(() => expect(bodyBlocks()).toEqual(['P:Thanks', 'UL:Peter']))
+  })
+
+  it('bullets only the new empty line after a Shift+Enter', async () => {
+    const { ref } = await mount('<p>Thanks</p>')
+    await act(async () => {
+      lexicalEditor().update(() => {
+        const paragraph = lexical.$getRoot().getFirstChild()
+        if (!lexical.$isElementNode(paragraph)) throw new Error('no paragraph')
+        paragraph.append(lexical.$createLineBreakNode())
+        paragraph.select(2, 2)
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    act(() => ref.current?.toggleList('bullet'))
+    await waitFor(() => expect(bodyBlocks()).toEqual(['P:Thanks', 'UL:']))
+  })
+
+  it('turns "- " and "1. " at the start of a line into bulleted and numbered lists', async () => {
+    const { ref } = await mount('<p>Hi</p>')
+    const typeChar = async (text: string) => {
+      await act(async () => {
+        lexicalEditor().update(() => {
+          const selection = lexical.$getSelection()
+          selection?.insertText(text)
+        })
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+    const newLine = async () => {
+      await act(async () => {
+        lexicalEditor().update(() => {
+          const paragraph = lexical.$createParagraphNode()
+          lexical.$getRoot().append(paragraph)
+          paragraph.select()
+        })
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+    await newLine()
+    for (const char of '- Call') await typeChar(char)
+    await newLine()
+    for (const char of '1. First') await typeChar(char)
+    expect(bodyBlocks()).toEqual(['P:Hi', 'UL:Call', 'OL:First'])
+    expect(ref.current?.getMarkdown()).toBe('Hi\n\n- Call\n\n1. First')
   })
 })

@@ -185,7 +185,8 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
   const toggleNav = () => setNavOpen(!navOpen)
 
   // Hide sidebar entirely when not logged in (login, create-first-user, etc.)
-  const isLoggedIn = !!user
+  // and in the single-email Mail window, which is a separate browser window.
+  const isLoggedIn = !!user && !pathname?.startsWith('/admin/mail/window')
   // No `feature` means the item is visible to any logged-in user.
   const visibleIcons = icons.filter((item) => !item.feature || userHasFeature(user, item.feature))
 

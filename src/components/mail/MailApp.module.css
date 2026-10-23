@@ -138,6 +138,16 @@
   font-size: 13px;
 }
 
+/* The Inbox search box is grey so it stands out from the white list. */
+.search input {
+  background: var(--theme-elevation-100);
+  border-color: var(--theme-elevation-150);
+}
+
+.search input:focus {
+  background: var(--theme-elevation-0);
+}
+
 .btn {
   padding: 7px 12px;
   border: 1px solid var(--mail-border);
@@ -208,6 +218,15 @@
 }
 
 /* Left pane: the search box above the scrolling email list. */
+/* Single-email window ("Open in new window"): the reading pane only. */
+.appWindow {
+  padding: 0 16px;
+}
+
+.panes.panesWindow {
+  grid-template-columns: 1fr;
+}
+
 .listPane {
   display: flex;
   flex-direction: column;
@@ -413,6 +432,11 @@ p.bulkBar {
   flex-shrink: 0;
   color: var(--mail-muted);
   font-size: 12px;
+}
+
+/* The time on each email in the Inbox list. */
+.row .date {
+  color: #1a73e8;
 }
 
 .snippet {

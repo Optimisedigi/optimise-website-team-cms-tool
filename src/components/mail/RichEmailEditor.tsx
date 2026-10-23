@@ -30,6 +30,7 @@ import {
   type EditorState,
   type LexicalEditor,
   type LexicalNode,
+  type ParagraphNode,
 } from 'lexical'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
@@ -40,13 +41,14 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { ListPlugin } from '@lexical/react/LexicalListPlugin'
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin'
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin'
+import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPlugin'
+import { ORDERED_LIST, UNORDERED_LIST } from '@lexical/markdown'
 import { DRAG_DROP_PASTE } from '@lexical/rich-text'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import {
+  $insertList,
   $isListItemNode,
   $isListNode,
-  INSERT_ORDERED_LIST_COMMAND,
-  INSERT_UNORDERED_LIST_COMMAND,
   ListItemNode,
   ListNode,
   REMOVE_LIST_COMMAND,
@@ -60,7 +62,10 @@ import {
   TableNode,
   TableRowNode,
 } from '@lexical/table'
+import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
+import { LinkNode } from '@lexical/link'
 import { $createEmailImageNode, EmailImageNode } from './EmailImageNode'
+import { EmailLinkPlugin } from './EmailLinkPlugin'
 import { markdownLiteToBlocksHtml } from '../../lib/email-draft-markdown'
 import { planBlockEdits, type BlockEdit } from '../../lib/mail/revise-edits'
 import {
@@ -86,8 +91,14 @@ import styles from './ComposeWindow.module.css'
  *   afterwards. Loaded HTML (drafts, AI drafts, quoted mail) keeps its colours.
  * - Bold / italic / underline: Cmd/Ctrl+B, I, U (Lexical's built-in shortcuts;
  *   there are deliberately no toolbar buttons for them).
+ * - Links: Cmd/Ctrl+K turns the selected text into a hyperlink, or edits or
+ *   removes the link at the cursor (see EmailLinkPlugin). Pasted links keep
+ *   their address.
  * - Text colour, bulleted and numbered lists: setTextColor() and toggleList(),
- *   driven by the compose window's formatting bar.
+ *   driven by the compose window's formatting bar. A list only takes the
+ *   cursor's line(s), even when lines share a paragraph (see $splitSelectedLines).
+ *   Typing "- " (or * or +) at the start of a line starts a bulleted list,
+ *   "1. " a numbered one (Markdown shortcuts; Cmd/Ctrl+Z undoes them).
  * - Tables: pasted tables (Sheets, Excel, Docs, web pages) are kept, and
  *   insertTable() adds an empty one. Copying out of the editor gives HTML
  *   tables other apps understand. Drag a column's right edge to resize it
@@ -302,6 +313,7 @@ function $setTextColor(color: string | null): void {
 const theme = {
   paragraph: styles.editorParagraph,
   text: { bold: styles.textBold, italic: styles.textItalic, underline: styles.textUnderline },
+  link: styles.editorLink,
   table: styles.editorTable,
   tableCell: styles.editorTableCell,
   tableCellHeader: styles.editorTableHeader,
@@ -311,6 +323,64 @@ const theme = {
     listitem: styles.editorListItem,
     nested: { listitem: styles.editorNestedListItem },
   },
+}
+
+/** Markdown shortcuts: only lists ("- " / "1. "); the body has no headings, quotes or code. */
+const LIST_SHORTCUTS = [UNORDERED_LIST, ORDERED_LIST]
+
+/** Move each line (split at line breaks) of a paragraph into its own paragraph; returns them with each line's first child index. */
+function $splitParagraphLines(paragraph: ParagraphNode): Array<{ node: ParagraphNode; start: number }> {
+  const lines = [{ node: paragraph, start: 0 }]
+  let current = paragraph
+  paragraph.getChildren().forEach((child, index) => {
+    if ($isLineBreakNode(child)) {
+      const next = $createParagraphNode()
+      next.setFormat(paragraph.getFormatType())
+      next.setIndent(paragraph.getIndent())
+      next.setTextFormat(paragraph.getTextFormat())
+      next.setTextStyle(paragraph.getTextStyle())
+      current.insertAfter(next)
+      current = next
+      lines.push({ node: next, start: index + 1 })
+      child.remove()
+    } else if (current !== paragraph) {
+      current.append(child)
+    }
+  })
+  return lines
+}
+
+/**
+ * Give every line the selection touches its own paragraph. Lines made with
+ * Shift+Enter, pasted, or loaded with <br> share one paragraph, so without
+ * this a list made on the second line would take the line above with it.
+ * Each paragraph is one line anyway (see linesToParagraphs), so the email
+ * looks the same.
+ */
+function $splitSelectedLines(): void {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection)) return
+  const paragraphs = new Map<string, ParagraphNode>()
+  for (const node of [selection.anchor.getNode(), selection.focus.getNode(), ...selection.getNodes()]) {
+    const paragraph = $isParagraphNode(node) ? node : node.getParents().find($isParagraphNode)
+    if (paragraph && paragraph.getChildren().some($isLineBreakNode)) paragraphs.set(paragraph.getKey(), paragraph)
+  }
+  if (paragraphs.size === 0) return
+  const points = [selection.anchor, selection.focus].map((point) => ({ key: point.key, offset: point.offset, type: point.type }))
+  const split = new Map<string, Array<{ node: ParagraphNode; start: number }>>()
+  for (const [key, paragraph] of paragraphs) split.set(key, $splitParagraphLines(paragraph))
+  const [anchor, focus] = points.map((point) => {
+    const lines = point.type === 'element' ? split.get(point.key) : undefined
+    if (!lines) return point
+    // An element point counts children of the old paragraph: find its line and offset within it.
+    const line = [...lines].reverse().find((candidate) => candidate.start <= point.offset) ?? lines[0]
+    if (!line) return point
+    return { key: line.node.getKey(), offset: point.offset - line.start, type: point.type }
+  })
+  if (!anchor || !focus) return
+  selection.anchor.set(anchor.key, anchor.offset, anchor.type)
+  selection.focus.set(focus.key, focus.offset, focus.type)
+  selection.dirty = true
 }
 
 const BLOCK_SELECTOR = 'div, p, ul, ol, table, blockquote, h1, h2, h3, h4, h5, h6, pre, hr'
@@ -897,8 +967,14 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
         const editor = editorRef.current
         if (!editor) return
         const current = editor.getEditorState().read(() => $selectionFormat().list, { editor })
-        if (current === type) editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined)
-        else editor.dispatchCommand(type === 'number' ? INSERT_ORDERED_LIST_COMMAND : INSERT_UNORDERED_LIST_COMMAND, undefined)
+        if (current === type) {
+          editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined)
+          return
+        }
+        editor.update(() => {
+          $splitSelectedLines()
+          $insertList(type)
+        })
       },
       focus: () => editorRef.current?.focus(),
     }),
@@ -917,7 +993,7 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
       initialConfig={{
         namespace: 'mail-compose',
         theme,
-        nodes: [ListNode, ListItemNode, TableNode, TableRowNode, TableCellNode, EmailImageNode],
+        nodes: [ListNode, ListItemNode, TableNode, TableRowNode, TableCellNode, LinkNode, EmailImageNode],
         html: { import: colorImport, export: tableCellExport },
         onError: (error) => {
           console.error('[mail-editor]', error.message)
@@ -933,8 +1009,11 @@ const RichEmailEditor = forwardRef<RichEmailEditorHandle, Props>(function RichEm
       </div>
       <HistoryPlugin />
       <ListPlugin />
+      <MarkdownShortcutPlugin transformers={LIST_SHORTCUTS} />
       <TablePlugin />
       <TableColumnResizePlugin />
+      <LinkPlugin />
+      <EmailLinkPlugin />
       <OnChangePlugin onChange={onChange} ignoreSelectionChange />
       <EditorBridge
         handleRef={editorRef}

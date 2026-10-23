@@ -22,6 +22,11 @@ export function cmsMailThreadPath(threadId: string, account?: string | null): st
   return account ? `${path}&${MAIL_ACCOUNT_QUERY_PARAM}=${encodeURIComponent(account)}` : path;
 }
 
+/** Path of the single-email Mail window ("Open in new window") for this thread. */
+export function cmsMailWindowPath(threadId: string, account?: string | null): string {
+  return cmsMailThreadPath(threadId, account).replace(/^\/admin\/mail\?/, "/admin/mail/window?");
+}
+
 export function isGmailId(value: string): boolean {
   return GMAIL_ID_RE.test(value);
 }

@@ -34,6 +34,15 @@ describe('POST /api/mail/modify', () => {
     ])
   })
 
+  it('marks several threads unread at once', async () => {
+    const res = await POST(post({ threadIds: ['t1', 't2'], action: 'unread' }))
+    expect(res.status).toBe(200)
+    expect(modifyThreadLabels.mock.calls.map((call) => [call[1], call[2]])).toEqual([
+      ['t1', { add: ['UNREAD'], remove: [] }],
+      ['t2', { add: ['UNREAD'], remove: [] }],
+    ])
+  })
+
   it('still changes one thread at a time for archive and unread', async () => {
     expect((await POST(post({ threadId: 't9', action: 'archive' }))).status).toBe(200)
     expect(modifyThreadLabels).toHaveBeenCalledWith('tok', 't9', { add: [], remove: ['INBOX'] })
