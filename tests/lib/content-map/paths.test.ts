@@ -37,3 +37,25 @@ describe("Content Map page paths", () => {
     expect(await resolveClientParam(seed() as unknown as Payload, "", user)).toBeNull();
   });
 });
+
+import { clientSiteUrl, normaliseSiteUrl } from "@/lib/content-map/paths";
+
+describe("normaliseSiteUrl", () => {
+  it("adds https:// to bare domains like the CMS Website URL field often holds", () => {
+    expect(normaliseSiteUrl("www.optimisedigital.online")).toBe("https://www.optimisedigital.online");
+    expect(normaliseSiteUrl("  optimisedigital.online/ ")).toBe("https://optimisedigital.online");
+    expect(clientSiteUrl({ websiteUrl: "www.optimisedigital.online" })).toBe("https://www.optimisedigital.online");
+  });
+
+  it("keeps full addresses and drops query/fragment", () => {
+    expect(normaliseSiteUrl("https://www.site.com/")).toBe("https://www.site.com");
+    expect(normaliseSiteUrl("http://site.com/blog/?utm=x#top")).toBe("http://site.com/blog");
+  });
+
+  it("rejects things that aren't public web addresses", () => {
+    expect(normaliseSiteUrl("")).toBe("");
+    expect(normaliseSiteUrl("localhost")).toBe("");
+    expect(normaliseSiteUrl("ftp://site.com")).toBe("");
+    expect(normaliseSiteUrl(undefined)).toBe("");
+  });
+});

@@ -17,6 +17,7 @@ import { suggestionPlanItem } from "./plan";
 import { relId, requestRefresh } from "./snapshots";
 import type { ContentMapSnapshot, PlanItem, SuggestionKind, SuggestionView, TopicAuthorityInput } from "./types";
 import { isRecord } from "./types";
+import { clientSiteUrl } from "./paths";
 
 type Doc = Record<string, unknown>;
 type Call = (p: Payload, i: { system: string; user: string; maxTokens?: number; timeoutMs?: number }) => Promise<ContentMapLlmResult>;
@@ -244,7 +245,7 @@ export async function decideSuggestion(
   };
   if (!value.topic || !authorities.some((a) => a.key === value.topic)) return { ok: false, error: "The suggestion's topic no longer exists", status: 409 };
   const snapshot = deps.snapshot ?? null;
-  const prompt = buildSuggestionBriefPrompt({ siteUrl: String(client.websiteUrl ?? ""), suggestion: value, authorities, snapshot });
+  const prompt = buildSuggestionBriefPrompt({ siteUrl: clientSiteUrl(client), suggestion: value, authorities, snapshot });
   let raw: unknown = null;
   try {
     const res = await (deps.call ?? callContentMapModel)(payload, { ...prompt, maxTokens: 3000, timeoutMs: 120_000 });

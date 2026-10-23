@@ -4,6 +4,17 @@ import { isRecord } from "./types";
 /** CMS → GT calls. Same env + header as src/lib/google-ads-campaign-names.ts. */
 export type GtResult<T> = { ok: true; value: T } | { ok: false; error: string; status?: number };
 
+/** GT replies `{ message, issues? }` (older paths `{ error }`); turn it into one plain line. */
+function gtMessage(json: unknown, status: number): string {
+  if (!isRecord(json)) return `HTTP ${status}`;
+  const base = typeof json.message === "string" ? json.message : typeof json.error === "string" ? json.error : `HTTP ${status}`;
+  const issues = Array.isArray(json.issues) ? json.issues : [];
+  const first = issues.find(isRecord);
+  if (!first) return base;
+  const path = Array.isArray(first.path) ? first.path.join(".") : "";
+  return `${base} (${path ? `${path}: ` : ""}${typeof first.message === "string" ? first.message : "invalid"})`;
+}
+
 function gtConfig(): { baseUrl: string; apiKey: string } | null {
   const baseUrl = process.env.GROWTH_TOOLS_URL?.replace(/\/$/, "");
   const apiKey = process.env.INTERNAL_API_KEY;
@@ -32,7 +43,7 @@ export async function startGtAnalysis(
   const runId = isRecord(json) && typeof json.runId === "string" ? json.runId : "";
   if ((res.status === 202 || res.ok) && runId) return { ok: true, value: { runId, adopted: false } };
   if (res.status === 409 && runId) return { ok: true, value: { runId, adopted: true } };
-  const message = isRecord(json) && typeof json.error === "string" ? json.error : `HTTP ${res.status}`;
+  const message = gtMessage(json, res.status);
   return { ok: false, error: `Growth Tools rejected the analysis: ${message}`, status: res.status };
 }
 
@@ -95,7 +106,7 @@ export async function startGtCitations(
   const runId = isRecord(json) && typeof json.runId === "string" ? json.runId : "";
   if ((res.status === 202 || res.ok) && runId) return { ok: true, value: { runId, adopted: false } };
   if (res.status === 409 && runId) return { ok: true, value: { runId, adopted: true } };
-  const message = isRecord(json) && typeof json.error === "string" ? json.error : `HTTP ${res.status}`;
+  const message = gtMessage(json, res.status);
   return { ok: false, error: `Growth Tools rejected the citation run: ${message}`, status: res.status };
 }
 
@@ -157,7 +168,7 @@ export async function startGtResearch(body: ResearchRequest, signal?: AbortSigna
   const runId = isRecord(json) && typeof json.runId === "string" ? json.runId : "";
   if ((res.status === 202 || res.ok) && runId) return { ok: true, value: { runId, adopted: false } };
   if (res.status === 409 && runId) return { ok: true, value: { runId, adopted: true } };
-  const message = isRecord(json) && typeof json.error === "string" ? json.error : `HTTP ${res.status}`;
+  const message = gtMessage(json, res.status);
   return { ok: false, error: `Growth Tools rejected the research run: ${message}`, status: res.status };
 }
 

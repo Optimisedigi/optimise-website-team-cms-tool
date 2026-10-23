@@ -4,6 +4,7 @@ import { headers as nextHeaders } from "next/headers";
 import config from "@/payload.config";
 import { applyDecision } from "@/lib/content-map/decisions";
 import { latestCompleted, loadClientForUser, validClientId } from "@/lib/content-map/state";
+import { clientSiteUrl } from "@/lib/content-map/paths";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const snapshot = decision === "undo" ? null : await latestCompleted(payload, clientId);
     const res = await applyDecision(payload, {
       clientId,
-      siteUrl: String(client.websiteUrl ?? ""),
+      siteUrl: clientSiteUrl(client),
       snapshot,
       key: body.key,
       decision,

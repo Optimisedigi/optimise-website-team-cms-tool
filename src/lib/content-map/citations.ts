@@ -32,6 +32,7 @@ import type {
   TrackedQuestionView,
 } from "./types";
 import { CITATION_ENGINES, isRecord, parseSnapshot } from "./types";
+import { clientSiteUrl } from "./paths";
 
 type Doc = Record<string, unknown>;
 type Call = (p: Payload, i: { system: string; user: string; maxTokens?: number; timeoutMs?: number }) => Promise<ContentMapLlmResult>;
@@ -55,7 +56,7 @@ export function brandTerms(client: Doc): string[] {
   };
   add(client.name);
   add(client.tradingName);
-  add(hostOf(String(client.websiteUrl ?? "")).split(".")[0]);
+  add(hostOf(clientSiteUrl(client)).replace(/^www\./, "").split(".")[0]);
   return out.slice(0, 6);
 }
 
@@ -119,7 +120,7 @@ export async function startCitationRun(
   } catch {
     return { ok: false, error: "Client not found", status: 404 };
   }
-  const siteUrl = String(client.websiteUrl ?? "").trim();
+  const siteUrl = clientSiteUrl(client);
   const authorities = authoritiesFromClient(client);
   if (client.contentMapEnabled !== true) return { ok: false, error: "Content analysis is switched off for this client", status: 400 };
   if (!siteUrl) return { ok: false, error: "Client has no Website URL", status: 400 };

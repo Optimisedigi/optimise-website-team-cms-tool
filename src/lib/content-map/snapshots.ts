@@ -11,6 +11,7 @@ import type {
   TopicAuthorityInput,
 } from "./types";
 import { parseSnapshot } from "./types";
+import { clientSiteUrl } from "./paths";
 
 export const ARTICLE_LIMIT = 500;
 export const RETAIN_COMPLETED = 12;
@@ -122,10 +123,10 @@ export async function triggerContentMapRun(
   } catch {
     return { ok: false, error: "Client not found", status: 404 };
   }
-  const siteUrl = str(client.websiteUrl).trim();
+  const siteUrl = clientSiteUrl(client);
   const authorities = authoritiesFromClient(client);
   if (client.contentMapEnabled !== true) return { ok: false, error: "Content analysis is switched off for this client", status: 400 };
-  if (!siteUrl) return { ok: false, error: "Client has no Website URL", status: 400 };
+  if (!siteUrl) return { ok: false, error: "The client's Website URL is missing or isn't a valid web address", status: 400 };
   if (!authorities.length) return { ok: false, error: "Client has no topic authorities", status: 400 };
 
   const active = await findActiveRun(payload, clientId, now());

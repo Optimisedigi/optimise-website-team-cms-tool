@@ -25,6 +25,7 @@ import type {
   TopicResearch,
 } from "./types";
 import { isRecord } from "./types";
+import { clientSiteUrl } from "./paths";
 
 type Doc = Record<string, unknown>;
 
@@ -111,7 +112,7 @@ export function buildResearchRequest(input: {
   const ordered = [...input.authorities.filter((a) => a.primary), ...input.authorities.filter((a) => !a.primary)].slice(0, MAX_TOPICS);
   return {
     clientId: input.clientId,
-    siteUrl: String(input.client.websiteUrl ?? "").trim(),
+    siteUrl: clientSiteUrl(input.client),
     location,
     topics: ordered.map((t) => ({
       key: t.key,
@@ -186,7 +187,7 @@ export async function startResearchRun(
   }
   const authorities = authoritiesFromClient(client);
   if (client.contentMapEnabled !== true) return { ok: false, error: "Content analysis is switched off for this client", status: 400 };
-  if (!String(client.websiteUrl ?? "").trim()) return { ok: false, error: "Client has no Website URL", status: 400 };
+  if (!clientSiteUrl(client)) return { ok: false, error: "The client's Website URL is missing or isn't a valid web address", status: 400 };
   if (!authorities.length) return { ok: false, error: "Client has no topic authorities", status: 400 };
 
   const active = await activeResearchRun(payload, clientId, now());

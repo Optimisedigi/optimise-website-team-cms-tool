@@ -12,6 +12,7 @@ import { loadDecisions, pollStaleRun, relId, RETAIN_COMPLETED } from "./snapshot
 import { loadSuggestions, toSuggestionView } from "./suggestions";
 import type { ContentMapApiResponse, ContentMapSnapshot, PlanItem, RunStatusValue, SnapshotStats } from "./types";
 import { parseSnapshot } from "./types";
+import { clientSiteUrl } from "./paths";
 
 type Doc = Record<string, unknown>;
 
@@ -135,7 +136,7 @@ export async function buildContentMapState(
       id: clientId,
       name: String(client.name ?? ""),
       slug: typeof client.slug === "string" ? client.slug : null,
-      siteUrl: String(client.websiteUrl ?? ""),
+      siteUrl: clientSiteUrl(client),
       enabled: client.contentMapEnabled === true,
       authorities,
     },

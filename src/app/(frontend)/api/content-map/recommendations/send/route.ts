@@ -4,6 +4,7 @@ import { headers as nextHeaders } from "next/headers";
 import config from "@/payload.config";
 import { sendRecommendation } from "@/lib/content-map/brief";
 import { loadClientForUser, loadPlan, validClientId } from "@/lib/content-map/state";
+import { clientSiteUrl } from "@/lib/content-map/paths";
 
 /** One click: a "write next" idea becomes a Blog Prompter brief. Never automatic. */
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       recommendationId: aliases[rid] ?? rid,
       snapshot,
       plan,
-      siteUrl: String(client.websiteUrl ?? ""),
+      siteUrl: clientSiteUrl(client),
       blogCategories: String(client.blogCategories ?? ""),
     });
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });

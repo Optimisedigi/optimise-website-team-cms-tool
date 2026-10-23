@@ -52,6 +52,8 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="14 3 14 8 19 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>',
   costs:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  topicLinking:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><line x1="8.2" y1="7" x2="15.6" y2="7.6"/><line x1="7" y1="8.2" x2="9.2" y2="15.6"/><line x1="16.4" y1="10" x2="11.8" y2="16.2"/></svg>',
   clientPulse:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 12h4l3 8 4-16 3 8h4"/><circle cx="12" cy="12" r="10" opacity="0.25"/></svg>',
 }
@@ -190,9 +192,20 @@ const SidebarNavExtras = () => {
       }
 
       // Growth Tools hub links sit at the top of the group, ordered:
-      //   Google Ads → SEO → (auto collection links below).
-      // Both prepend to index 0, so inject SEO FIRST, then Google Ads, so
-      // Google Ads lands on top and SEO directly beneath it.
+      //   Google Ads → SEO → Topic association linking → (auto collection links below).
+      // All prepend to index 0, so inject bottom-up: Topic association
+      // linking, then SEO, then Google Ads (which lands on top).
+      if (canSeo) {
+        injectLink(
+          '#nav-group-Growth\\ Tools .nav-group__content',
+          'topic-association-linking',
+          '/SEO/Topic-association-linking',
+          ICONS.topicLinking,
+          'Topic association linking',
+          'prepend',
+        )
+      }
+
       if (canSeo) {
         injectLink(
           '#nav-group-Growth\\ Tools .nav-group__content',

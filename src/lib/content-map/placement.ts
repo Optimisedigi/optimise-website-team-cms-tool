@@ -57,6 +57,7 @@ import type {
   TopicAuthorityInput,
 } from "./types";
 import { isRecord, parseSnapshot, RESEARCH_PLAN_PER_TOPIC } from "./types";
+import { clientSiteUrl } from "./paths";
 
 type Doc = Record<string, unknown>;
 export type Call = (p: Payload, i: { system: string; user: string; maxTokens?: number; timeoutMs?: number }) => Promise<ContentMapLlmResult>;
@@ -708,7 +709,7 @@ export async function decideResearchIdea(
     const snapDoc = await latestCompletedDoc(payload, input.clientId);
     const snapshot = snapDoc ? parseSnapshot(snapDoc.data) : null;
     const why = idea.evidence.map((e) => e.text).join("; ");
-    const prompt = buildSuggestionBriefPrompt({ siteUrl: String(client.websiteUrl ?? ""), suggestion: { kind: "article", title: idea.title, why, topic: idea.topic, topicB: null }, authorities, snapshot });
+    const prompt = buildSuggestionBriefPrompt({ siteUrl: clientSiteUrl(client), suggestion: { kind: "article", title: idea.title, why, topic: idea.topic, topicB: null }, authorities, snapshot });
     try {
       const res = await (deps.call ?? callContentMapModel)(payload, { ...prompt, maxTokens: 3000, timeoutMs: 120_000 });
       const json = extractJson(res.text);

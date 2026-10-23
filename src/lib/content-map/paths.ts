@@ -105,3 +105,29 @@ export async function findReportClient(payload: Payload, param: string): Promise
   }
   return null;
 }
+
+/**
+ * The client's Website URL as a full address. The CMS field is free text, so
+ * "www.example.com" or "example.com/" are common; Growth Tools needs
+ * "https://www.example.com". Returns "" when it can't be a public web address.
+ */
+export function normaliseSiteUrl(raw: unknown): string {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) return "";
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text.replace(/^\/+/, "")}`;
+  try {
+    const u = new URL(withScheme);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+    if (!u.hostname.includes(".")) return "";
+    u.hash = "";
+    u.search = "";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
+/** `normaliseSiteUrl` for a client record. */
+export function clientSiteUrl(client: { websiteUrl?: unknown } | Record<string, unknown> | null | undefined): string {
+  return normaliseSiteUrl((client as { websiteUrl?: unknown } | null | undefined)?.websiteUrl);
+}

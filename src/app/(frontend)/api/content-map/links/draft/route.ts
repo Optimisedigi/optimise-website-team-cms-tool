@@ -4,6 +4,7 @@ import { headers as nextHeaders } from "next/headers";
 import config from "@/payload.config";
 import { draftLinkAction } from "@/lib/content-map/link-action";
 import { latestCompleted, loadClientForUser, validClientId } from "@/lib/content-map/state";
+import { clientSiteUrl } from "@/lib/content-map/paths";
 
 export const maxDuration = 180;
 
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
     const res = await draftLinkAction(payload, {
       clientId,
-      siteUrl: String(client.websiteUrl ?? ""),
+      siteUrl: clientSiteUrl(client),
       snapshot: await latestCompleted(payload, clientId),
       key: body.key,
       user,

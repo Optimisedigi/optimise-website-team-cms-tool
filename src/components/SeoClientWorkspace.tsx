@@ -7,6 +7,7 @@ import SeoMigrationCheckView, { type MigrationResult } from './SeoMigrationCheck
 interface ClientSummary {
   id: number | string
   name: string
+  slug?: string | null
   websiteUrl?: string | null
   gscConnected?: boolean
 }
@@ -132,6 +133,16 @@ const SeoClientWorkspace = ({ client }: SeoClientWorkspaceProps) => {
         ← Back to SEO clients
       </a>
       <h2 className="od-settings__title" style={{ marginTop: 12 }}>{client.name} · SEO</h2>
+      {client.slug ? (
+        <a
+          href={`/SEO/Topic-association-linking/${encodeURIComponent(client.slug)}`}
+          target="_blank"
+          rel="noopener"
+          style={{ color: '#2563eb', fontSize: 13, textDecoration: 'none', fontWeight: 600 }}
+        >
+          Topic association linking ↗
+        </a>
+      ) : null}
       <p className="od-settings__subtitle">
         Client SEO workspace. Switch tabs here to review this client’s SEO tools and records inline.
       </p>
